@@ -51,12 +51,12 @@ var summary1 = Summary{
 	ID: 1, AccountID: 1, MailboxIDs: []int64{10, 11}, ThreadID: 0, Subject: "Re: Plan",
 	From: Address{Name: "Bob", Addr: "bob@mailtest.test"}, Date: time.Date(2026, 10, 7, 8, 0, 0, 0, time.UTC),
 	Preview: "The plan", Flags: Flags{Seen: true, Flagged: true, Answered: true, Color: 3, Keywords: []string{"Work"}},
-	HasAttachments: true, Size: 4321,
+	HasAttachments: true, Size: 4321, ThreadCount: 1,
 }
 
 var summary2 = Summary{
 	ID: 2, AccountID: 1, MailboxIDs: []int64{10}, ThreadID: 5, Subject: "No date",
-	Date: time.Date(2026, 10, 7, 9, 30, 0, 0, time.UTC), Size: 10,
+	Date: time.Date(2026, 10, 7, 9, 30, 0, 0, time.UTC), Size: 10, ThreadCount: 1, // thread 5 counts 0 messages
 }
 
 func TestSummaries(t *testing.T) {
