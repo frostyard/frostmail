@@ -28,8 +28,8 @@ from the blob store and finds that text through any MIME structure.
 
 ## Contract
 
-Create `internal/mimex/body.go` with
-`func BodyText(raw []byte) (text string, hasHTML bool, err error)` and a doc
+Replace the stub in `internal/mimex/body.go`, keeping the signature,
+`func BodyText(raw []byte) (text string, hasHTML bool, err error)`, with a doc
 comment. Import `_ "github.com/emersion/go-message/charset"` so go-message
 converts charsets.
 

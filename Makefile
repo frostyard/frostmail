@@ -10,8 +10,9 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 GOLANGCI_LINT_VERSION := $(strip $(shell sed -n 's/^golangci-lint = "\(.*\)"/\1/p' mise.toml))
 GO_VERSION := $(strip $(shell sed -n 's/^go \([0-9.]*\)$$/\1/p' go.mod))
 # Tracked or new Go files outside third_party (the fork keeps upstream style)
-# and outside docs/tasks (given files are checked when copied into place).
-GO_FILES = $(shell git ls-files --cached --others --exclude-standard '*.go' | grep -v -e '^third_party/' -e '^docs/tasks/')
+# and outside docs/tasks (given files are checked when copied into place),
+# skipping files deleted but not yet staged.
+GO_FILES = $(shell git ls-files --cached --others --exclude-standard '*.go' | grep -v -e '^third_party/' -e '^docs/tasks/' | while read -r f; do [ -e "$$f" ] && echo "$$f"; done)
 
 # The app toolchain runs in the nsl machine (docs/adr/0006-development-environment.md).
 NSL_MACHINE ?= frostmail
