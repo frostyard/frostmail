@@ -1,8 +1,7 @@
 # Plan 0001: M0 foundations
 
 Goal: everything later milestones stand on, proven on the real hardware
-before any mail feature is built. Status: **done except step 7**, which
-waits for the executor's inference server.
+before any mail feature is built. Status: **done** (2026-10-07).
 
 ## Steps and evidence
 
@@ -41,13 +40,23 @@ waits for the executor's inference server.
 6. **Task tooling.** Done. `tools/taskrun` and the `make task`, `accept`,
    `task-verify` and `task-finish` targets; `opencode.json` limits the
    executor to make, go and read-only commands.
-7. **Executor calibration.** Waiting. Run T-0001 (CLI), T-0002 (SQL) and
-   T-0003 (pure logic) with `make task T=000N`; each card's given tests were
-   checked against a reference solution first.
+7. **Executor calibration.** Done. `halogen-qwen3.8-flash-next` (262k
+   context) through opencode 1.18.35, each card on its own branch:
+
+   | Card | Kind | Attempts | Wall time | Files | Review |
+   | --- | --- | --- | --- | --- | --- |
+   | T-0001 `mailctl hello` | CLI + generated client | 1 | 87 s | 2 | matches the contract |
+   | T-0002 account store | SQL, transactions, events | 1 | 121 s | 1 | correct; `accountColumns` holds a whole SELECT (naming nit) |
+   | T-0003 `NormalizeSubject` | pure logic, 32 cases | 1 | 61 s | 1 | correct, idempotent, well documented |
+
+   Denied commands: `go doc` and module-cache greps (T-0001; `go doc`,
+   `go list` and `go env` are now allowed) and a `| tail` pipe (T-0002). The
+   executor recovered from each without help. Result: size M cards are
+   unlocked ([agent-workflow](../design/agent-workflow.md#sizing)).
 
 ## Done when
 
 `make check` is green on the host and `make ui-test` in nsl (done); the app
 shows data from maild (done); the executor passes at least two of the three
-calibration cards without help (pending). Then the planner writes the M1
-cards.
+calibration cards without help (done: three of three, first attempt). Next:
+the M1 plan and its cards.

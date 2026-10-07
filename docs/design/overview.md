@@ -73,6 +73,6 @@ the user); the socket is 0600.
 
 ## Status
 
-M0 (foundations) is done except executor calibration; see
+M0 (foundations) is done; see
 [plans/0001](../plans/0001-m0-foundations.md). The roadmap is
 [plans/0002](../plans/0002-roadmap.md).

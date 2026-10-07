@@ -43,5 +43,8 @@ not in this repository. Override per run:
 ## Sizing
 
 Size S: at most 150 non-test lines in at most 3 files. Size M (at most 400)
-is allowed only after the M0 calibration cards (T-0001 CLI, T-0002 SQL,
-T-0003 pure logic) pass with at most one retry each.
+was allowed once the M0 calibration cards (T-0001 CLI, T-0002 SQL, T-0003
+pure logic) passed with at most one retry each; all three passed on the first
+attempt in 1–2 minutes ([plan 0001](../plans/0001-m0-foundations.md)). Keep a
+card to one concern even when it is size M, and keep sync, threading and
+security code with the planner regardless of size.
