@@ -646,3 +646,29 @@ func (s *Session) Idle(ctx context.Context, wake <-chan struct{}, max time.Durat
 	}
 	return nil
 }
+
+// Append stores a raw message in mailbox with flags and returns its UID when
+// the server reports it (UIDPLUS), else 0.
+func (s *Session) Append(ctx context.Context, mailbox string, raw []byte, flags []string) (uint32, error) {
+	fl := make([]imap.Flag, len(flags))
+	for i, f := range flags {
+		fl[i] = imap.Flag(f)
+	}
+	var d *imap.AppendData
+	err := s.run(ctx, func() error {
+		cmd := s.c.Append(mailbox, int64(len(raw)), &imap.AppendOptions{Flags: fl})
+		if _, err := cmd.Write(raw); err != nil {
+			return err
+		}
+		if err := cmd.Close(); err != nil {
+			return err
+		}
+		var err error
+		d, err = cmd.Wait()
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("append to %s: %w", mailbox, err)
+	}
+	return uint32(d.UID), nil
+}

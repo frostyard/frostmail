@@ -5,8 +5,11 @@
 # (docs/adr/0006-development-environment.md).
 #
 #   dev/incus/mailtest.sh up      create, configure, seed and snapshot `clean`
-#   dev/incus/mailtest.sh reset   restore the `clean` snapshot
+#   dev/incus/mailtest.sh reset [SNAPSHOT]  restore a snapshot (default `clean`)
 #   dev/incus/mailtest.sh ip      print the container's IPv4 address
+#   dev/incus/mailtest.sh seed USER N [SNAPSHOT]
+#                                 import N mailgen messages (tools/mailgen,
+#                                 seed 1) into USER's INBOX, then snapshot
 #   dev/incus/mailtest.sh down    delete the container
 #
 # Accounts test1..test5@mailtest.test share the password in MAILTEST_PASSWORD.
@@ -93,18 +96,40 @@ up() {
 }
 
 reset() {
-	incus snapshot restore "$NAME" clean
+	incus snapshot restore "$NAME" "${1:-clean}"
 	incus start "$NAME" 2>/dev/null || true
 	ip4 >/dev/null
 }
 
+seed() {
+	local user=${1:?usage: mailtest.sh seed USER N [SNAPSHOT]} n=${2:?usage: mailtest.sh seed USER N [SNAPSHOT]}
+	local snap=${3:-seeded}
+	local tmp
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' RETURN
+	(cd "$HERE/../.." && go run ./tools/mailgen -n "$n" -seed 1 -out "$tmp/Maildir")
+	in_ct rm -rf /tmp/gen
+	in_ct mkdir -p /tmp/gen
+	tar -C "$tmp" -cf - Maildir | incus exec "$NAME" -- tar -C /tmp/gen -xf -
+	in_ct chmod -R a+rX /tmp/gen
+	in_ct doveadm import -u "$user@$DOMAIN" maildir:/tmp/gen/Maildir "" all
+	in_ct rm -rf /tmp/gen
+	incus snapshot delete "$NAME" "$snap" 2>/dev/null || true
+	incus snapshot create "$NAME" "$snap"
+	echo "imported $n messages into $user@$DOMAIN; snapshot $snap"
+}
+
 case "${1:-}" in
 up) up ;;
-reset) reset ;;
+seed)
+	shift
+	seed "$@"
+	;;
+reset) reset "${2:-}" ;;
 ip) ip4 ;;
 down) incus delete --force "$NAME" ;;
 *)
-	echo "usage: $0 up|reset|ip|down" >&2
+	echo "usage: $0 up|reset [SNAPSHOT]|ip|seed USER N [SNAPSHOT]|down" >&2
 	exit 2
 	;;
 esac

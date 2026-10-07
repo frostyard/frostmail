@@ -7,6 +7,9 @@ Microsoft, iCloud). Written by the planner, not by task cards
 
 ## Actors and connections
 
+Code: `internal/mailsync` (`Manager`, `actor`, `reconcile`, `ops`) over
+`internal/imapx.Session`.
+
 - One actor goroutine per account owns that account's connections and
   schedules work by priority: **P0** what the user is viewing (a body, an
   attachment) > **P1** replaying `pending_ops` > **P2** INBOX > **P3**
@@ -72,10 +75,11 @@ Dovecot and Fastmail.
 
 ## UIDVALIDITY change
 
-Clear that mailbox's UIDs in `message_mailbox`, refetch UIDs with Message-ID
-(and `X-GM-MSGID`), re-attach existing messages by (Message-ID, date, size)
-so stored blobs are reused, and re-resolve queued ops the same way.
-Unresolvable ops become conflicts shown to the user.
+M1 drops the mailbox's local messages and runs the pass as if new; bodies
+are refetched on demand and land on the same blob (content addressing).
+Later: refetch UIDs with Message-ID (and `X-GM-MSGID`), re-attach existing
+messages by (Message-ID, date, size) to keep local IDs and avoid the
+refetch, and re-resolve queued ops the same way.
 
 ## Gmail
 
@@ -92,6 +96,13 @@ to a thread; a message referencing two threads merges them. Subject grouping
 that has a `Re:` prefix and no references, within 7 days.
 
 ## Offline actions
+
+M1 implements flags (`\Seen`, `\Flagged`, `\Answered`, Mail.app color bits),
+moves, and deletes (to Trash; expunge when already in Trash or when the
+account has no Trash). A refused op (a NO from the server) is marked failed
+and its local change undone: moves return to the source mailbox, and flag
+and expunge failures clear the mailbox's stored modseq so the next pass
+refetches every flag.
 
 One transaction: optimistic change, a `pending_ops` row and a durable event.
 Replay resolves (mailbox, UIDVALIDITY, UID) at replay time; flags go as

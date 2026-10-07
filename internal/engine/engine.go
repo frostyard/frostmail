@@ -10,36 +10,72 @@ import (
 	"net/mail"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
+	"github.com/frostyard/frostmail/internal/view"
 )
 
-// Engine owns the domain services.
-type Engine struct {
-	db      *store.DB
-	secrets secrets.Store
-	log     *slog.Logger
+// Syncer is the sync engine as the API sees it (mailsync.Manager).
+type Syncer interface {
+	Reload(ctx context.Context) error
+	Restart(ctx context.Context, accountID int64) error
+	Status(accountID int64) []api.SyncStatus
+	SyncNow(accountID int64) error
+	FetchBody(ctx context.Context, messageID int64) (string, error)
+	SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error
+	Move(ctx context.Context, ids []int64, mailboxID int64) error
+	Delete(ctx context.Context, ids []int64) error
 }
 
-// New returns an Engine over db, keeping credentials in sec.
-func New(db *store.DB, sec secrets.Store, log *slog.Logger) *Engine {
-	return &Engine{db: db, secrets: sec, log: log}
+// Deps are what the engine's domains use. Sync and Views may be nil in
+// tests; their domains then report unavailable.
+type Deps struct {
+	DB      *store.DB
+	Secrets secrets.Store
+	Log     *slog.Logger
+	Sync    Syncer
+	Blobs   *blob.Store
+	Views   *view.Manager
 }
+
+// Engine owns the domain services.
+type Engine struct{ d Deps }
+
+// New returns an Engine.
+func New(d Deps) *Engine { return &Engine{d: d} }
 
 // Accounts implements the account domain.
-func (e *Engine) Accounts() api.AccountService { return accounts{e.db, e.secrets, e.log} }
-
-// Messages implements the message domain (M1 phase 3).
-func (e *Engine) Messages() api.MessageService { return pending{} }
-
-// Sync implements the sync domain (M1 phase 3).
-func (e *Engine) Sync() api.SyncService { return pending{} }
-
-// Views implements the view domain (M1 phase 3).
-func (e *Engine) Views() api.ViewService { return pending{} }
+func (e *Engine) Accounts() api.AccountService { return accounts{e.d} }
 
 // Mailboxes implements the mailbox domain.
-func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.db} }
+func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.d.DB} }
+
+// Messages implements the message domain.
+func (e *Engine) Messages() api.MessageService { return messages{e.d} }
+
+// Sync implements the sync domain.
+func (e *Engine) Sync() api.SyncService { return syncService{e.d} }
+
+// Views implements the view domain.
+func (e *Engine) Views() api.ViewService { return views{e.d} }
+
+// afterAccountChange tells sync about an account change; failures are
+// logged, since the change itself is committed.
+func (d Deps) afterAccountChange(ctx context.Context, restart int64) {
+	if d.Sync == nil {
+		return
+	}
+	var err error
+	if restart != 0 {
+		err = d.Sync.Restart(ctx, restart)
+	} else {
+		err = d.Sync.Reload(ctx)
+	}
+	if err != nil {
+		d.Log.Warn("sync did not pick up an account change", "err", err)
+	}
+}
 
 // apiError maps store errors to API errors.
 func apiError(err error, what string) error {
@@ -54,14 +90,10 @@ func apiError(err error, what string) error {
 	return err
 }
 
-type accounts struct {
-	db      *store.DB
-	secrets secrets.Store
-	log     *slog.Logger
-}
+type accounts struct{ Deps }
 
 func (a accounts) List(ctx context.Context, _ *api.AccountListParams) ([]api.Account, error) {
-	list, err := a.db.ListAccounts(ctx)
+	list, err := a.DB.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +105,7 @@ func (a accounts) List(ctx context.Context, _ *api.AccountListParams) ([]api.Acc
 }
 
 func (a accounts) Get(ctx context.Context, p *api.AccountGetParams) (*api.Account, error) {
-	acct, err := a.db.GetAccount(ctx, p.ID)
+	acct, err := a.DB.GetAccount(ctx, p.ID)
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
@@ -90,7 +122,7 @@ func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.
 		IMAP: toStoreServer(p.IMAP), SMTP: toStoreServer(p.SMTP),
 	}
 	var out store.Account
-	err := a.db.Tx(ctx, func(tx *store.Tx) error {
+	err := a.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		out, err = tx.InsertAccount(ctx, in)
 		return err
@@ -98,6 +130,7 @@ func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.
 	if err != nil {
 		return nil, apiError(err, "an account for "+p.Email)
 	}
+	a.afterAccountChange(ctx, 0)
 	r := toAPIAccount(out)
 	return &r, nil
 }
@@ -119,7 +152,7 @@ func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.
 		*s.out = &sc
 	}
 	var out store.Account
-	err := a.db.Tx(ctx, func(tx *store.Tx) error {
+	err := a.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		out, err = tx.UpdateAccount(ctx, p.ID, u)
 		return err
@@ -127,19 +160,21 @@ func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
+	a.afterAccountChange(ctx, p.ID)
 	r := toAPIAccount(out)
 	return &r, nil
 }
 
 func (a accounts) Delete(ctx context.Context, p *api.AccountDeleteParams) error {
-	err := a.db.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteAccount(ctx, p.ID) })
+	err := a.DB.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteAccount(ctx, p.ID) })
 	if err != nil {
 		return apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
 	// Best effort: account IDs are never reused, so a leftover secret is inert.
-	if err := a.secrets.Delete(ctx, secrets.AccountPassword(p.ID)); err != nil {
-		a.log.Warn("account deleted but its password was not", "account", p.ID, "err", err)
+	if err := a.Secrets.Delete(ctx, secrets.AccountPassword(p.ID)); err != nil {
+		a.Log.Warn("account deleted but its password was not", "account", p.ID, "err", err)
 	}
+	a.afterAccountChange(ctx, 0)
 	return nil
 }
 
@@ -147,10 +182,14 @@ func (a accounts) SetPassword(ctx context.Context, p *api.AccountSetPasswordPara
 	if p.Password == "" {
 		return api.InvalidParams("password is empty")
 	}
-	if _, err := a.db.GetAccount(ctx, p.ID); err != nil {
+	if _, err := a.DB.GetAccount(ctx, p.ID); err != nil {
 		return apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
-	return a.secrets.Set(ctx, secrets.AccountPassword(p.ID), p.Password)
+	if err := a.Secrets.Set(ctx, secrets.AccountPassword(p.ID), p.Password); err != nil {
+		return err
+	}
+	a.afterAccountChange(ctx, p.ID)
+	return nil
 }
 
 func validateAccount(p *api.AccountCreateParams) error {

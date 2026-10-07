@@ -47,6 +47,9 @@ the same `main` cannot see each other's code, so:
   between, or name shared helpers in the card's contract.
 - A card whose given tests call another card's code waits for that card's
   merge (T-0016 needs T-0011's `SearchQuery`).
+- Run `make verify` before committing a card and its stubs. A stub that
+  always fails can trip staticcheck (SA4023) in its callers, and a red
+  `main` fails every card's final `make check`.
 
 ## Executor model
 

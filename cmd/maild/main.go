@@ -14,12 +14,15 @@ import (
 	"syscall"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
+	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
+	"github.com/frostyard/frostmail/internal/view"
 )
 
 // Set via ldflags at build time.
@@ -69,14 +72,23 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = db.Close() }()
 	broker := events.NewBroker(db)
-	db.OnCommit = broker.Publish
+	views := view.NewManager(db, logger)
+	db.OnCommit = func(evs []api.EventEnvelope) {
+		broker.Publish(evs)
+		views.OnCommit(evs)
+	}
+	sec := secrets.NewFile(filepath.Join(paths.DataDir, "secrets.json"))
+	blobs := blob.New(paths.Blobs)
+	syncer := mailsync.New(db, sec, blobs, logger, mailsync.Config{
+		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
+	}, broker.Publish)
 
 	ln, err := rpcserver.Listen(paths.Socket)
 	if err != nil {
 		return err
 	}
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
-	eng := engine.New(db, secrets.NewFile(filepath.Join(paths.DataDir, "secrets.json")), logger)
+	eng := engine.New(engine.Deps{DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views})
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
@@ -84,6 +96,11 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	go views.Run(ctx)
+	if err := syncer.Start(ctx); err != nil {
+		return err
+	}
+	defer syncer.Wait()
 	logger.Info("maild started", "version", version, "socket", paths.Socket, "db", paths.DB)
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")

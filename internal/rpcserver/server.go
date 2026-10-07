@@ -124,7 +124,7 @@ type conn struct {
 }
 
 func (c *conn) serve(parent context.Context) {
-	ctx, cancel := context.WithCancel(context.WithValue(parent, ctxKey{}, c))
+	ctx, cancel := context.WithCancel(api.WithConn(context.WithValue(parent, ctxKey{}, c), c))
 	c.ctx = ctx
 	stop := context.AfterFunc(ctx, func() { _ = c.nc.Close() })
 	defer func() {
@@ -215,6 +215,24 @@ func (c *conn) write(m api.Frame) error {
 	_, err = c.nc.Write(append(line, '\n'))
 	return err
 }
+
+// Notify implements api.Conn: a transient event to this connection only.
+func (c *conn) Notify(ev api.Event) error {
+	env, err := api.NewEnvelope(0, ev)
+	if err != nil {
+		return err
+	}
+	params, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
+	return c.write(api.Frame{JSONRPC: "2.0", Method: api.EventMethod, Params: params})
+}
+
+// Done implements api.Conn.
+func (c *conn) Done() <-chan struct{} { return c.ctx.Done() }
+
+var _ api.Conn = (*conn)(nil)
 
 func (c *conn) startEvents() {
 	c.mu.Lock()

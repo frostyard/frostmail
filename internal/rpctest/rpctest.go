@@ -1,5 +1,6 @@
-// Package rpctest runs a real maild API server (store, broker, engine,
-// rpcserver) on a temporary socket, for tests of clients such as mailctl.
+// Package rpctest runs a real maild API server (store, broker, views,
+// engine, rpcserver and optionally sync) on a temporary socket, for tests of
+// clients such as mailctl and for end-to-end sync tests.
 package rpctest
 
 import (
@@ -11,15 +12,26 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
+	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
+	"github.com/frostyard/frostmail/internal/view"
 )
 
 // Name is what the test server reports from rpc.hello.
 const Name = "maild rpctest"
+
+// Options configure a test server.
+type Options struct {
+	// Sync, when set, runs the sync engine with this configuration.
+	Sync *mailsync.Config
+	// Log receives the server's logs; nil discards them.
+	Log *slog.Logger
+}
 
 // Server is a running test server; it stops when the test ends.
 type Server struct {
@@ -27,41 +39,71 @@ type Server struct {
 	DB      *store.DB
 	Broker  *events.Broker
 	Secrets *secrets.File
+	Blobs   *blob.Store
+	Views   *view.Manager
+	Sync    *mailsync.Manager // nil unless Options.Sync was set
 }
 
-// Start runs a server with a fresh database. The socket lives in a short
+// Start runs a server without the sync engine.
+func Start(t testing.TB) *Server { return StartWith(t, Options{}) }
+
+// StartWith runs a server with a fresh database. The socket lives in a short
 // private directory because Unix socket paths are limited to 108 bytes.
-func Start(t testing.TB) *Server {
+func StartWith(t testing.TB, o Options) *Server {
 	t.Helper()
-	db, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "frostmail.db"))
+	log := o.Log
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	data := t.TempDir()
+	db, err := store.Open(context.Background(), filepath.Join(data, "frostmail.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	broker := events.NewBroker(db)
-	db.OnCommit = broker.Publish
+	views := view.NewManager(db, log)
+	db.OnCommit = func(evs []api.EventEnvelope) {
+		broker.Publish(evs)
+		views.OnCommit(evs)
+	}
+	srv := &Server{
+		DB: db, Broker: broker, Views: views,
+		Secrets: secrets.NewFile(filepath.Join(data, "secrets.json")),
+		Blobs:   blob.New(filepath.Join(data, "blobs")),
+	}
+	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views}
+	if o.Sync != nil {
+		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, *o.Sync, broker.Publish)
+		deps.Sync = srv.Sync
+	}
 
 	dir, err := os.MkdirTemp("", "fm")
 	if err != nil {
 		t.Fatal(err)
 	}
-	socket := filepath.Join(dir, "maild.sock")
-	ln, err := rpcserver.Listen(socket)
+	srv.Socket = filepath.Join(dir, "maild.sock")
+	ln, err := rpcserver.Listen(srv.Socket)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker})
-	sec := secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json"))
-	eng := engine.New(db, sec, slog.New(slog.DiscardHandler))
+	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log})
+	eng := engine.New(deps)
 	router, err := api.NewRouter(api.Services{
-		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
+		RPC: rpc, Events: rpc, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	go views.Run(ctx)
+	if srv.Sync != nil {
+		if err := srv.Sync.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
 	done := make(chan error, 1)
-	go func() { done <- srv.Serve(ctx, ln, router) }()
+	go func() { done <- rpc.Serve(ctx, ln, router) }()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -72,10 +114,13 @@ func Start(t testing.TB) *Server {
 		case <-time.After(5 * time.Second):
 			t.Error("Serve did not stop")
 		}
+		if srv.Sync != nil {
+			srv.Sync.Wait()
+		}
 		_ = db.Close()
 		_ = os.RemoveAll(dir)
 	})
-	return &Server{Socket: socket, DB: db, Broker: broker, Secrets: sec}
+	return srv
 }
 
 // Dial connects and completes rpc.hello; the client closes when the test ends.

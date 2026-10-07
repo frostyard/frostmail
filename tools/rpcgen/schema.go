@@ -87,9 +87,9 @@ var reservedClientMethods = map[string]bool{
 // reservedAPINames are package api's hand-written identifiers (api.go,
 // client.go); generated names must not collide with them.
 var reservedAPINames = []string{
-	"Client", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
+	"Client", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
 	"EventEnvelope", "EventMethod", "Frame", "HasMethod", "MaxMessageSize",
-	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow",
+	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow", "WithConn",
 }
 
 // builtinErrors are the JSON-RPC 2.0 codes; methods may list them by name.
