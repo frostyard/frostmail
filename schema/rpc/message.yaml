@@ -31,6 +31,7 @@ types:
       - {name: flags, type: Flags}
       - {name: hasAttachments, type: bool}
       - {name: size, type: int, doc: "Size in bytes on the server."}
+      - {name: threadCount, type: int, doc: "Messages in the thread across every mailbox; 1 for a message alone."}
   - name: Part
     doc: One MIME part.
     fields:
@@ -59,6 +60,20 @@ types:
     fields:
       - {name: text, type: string, doc: "The text/plain part, or text derived from the HTML part."}
       - {name: hasHtml, type: bool, doc: "Whether an HTML part exists (rendered from M2 on)."}
+  - name: Rendering
+    doc: A message prepared for the reader.
+    fields:
+      - {name: html, type: string, doc: "Sanitized HTML for the sandboxed reader frame, or empty for a text-only message. Parts and loaded remote images are mailpart://localhost/ URLs."}
+      - {name: text, type: string, doc: "The readable text, as message.body returns it."}
+      - {name: remote, type: int, doc: "Remote resources left out: not requested, or requested and failed."}
+      - {name: trackers, type: int, doc: "Tracking images removed; they are never loaded."}
+  - name: PartFile
+    doc: A message part decoded into the parts cache.
+    fields:
+      - {name: path, type: string, doc: "Relative to the parts cache, as in a mailpart://localhost/ URL."}
+      - {name: contentType, type: string, doc: "Lowercase type/subtype."}
+      - {name: filename, type: string, doc: "A safe file name: the part's, or one made from its type."}
+      - {name: size, type: int, doc: "Decoded size in bytes."}
   - name: FlagChanges
     doc: Flags to set or clear; omitted fields keep their values.
     fields:
@@ -78,6 +93,28 @@ methods:
     params:
       - {name: id, type: int}
     result: Body
+    errors: [notFound, unavailable]
+  - name: summaries
+    doc: Summaries of messages in the order given; IDs that no longer exist are skipped.
+    params:
+      - {name: ids, type: "[]int"}
+    result: "[]MessageSummary"
+  - name: render
+    doc: >-
+      A message prepared for the reader, fetching it first if it is not stored
+      locally. Remote images are loaded through maild only when remote is true;
+      tracking images never are.
+    params:
+      - {name: id, type: int}
+      - {name: remote, type: bool, optional: true}
+    result: Rendering
+    errors: [notFound, unavailable]
+  - name: part
+    doc: Decode one part (an attachment or inline image) into the parts cache.
+    params:
+      - {name: id, type: int}
+      - {name: path, type: string, doc: "The part's IMAP specifier from Message.parts."}
+    result: PartFile
     errors: [notFound, unavailable]
   - name: setFlags
     doc: Change flags locally at once and on the server when it can be reached.

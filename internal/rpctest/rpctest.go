@@ -90,7 +90,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	eng := engine.New(deps)
 	router, err := api.NewRouter(api.Services{
 		RPC: rpc, Events: rpc, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
-		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
+		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 	})
 	if err != nil {
 		t.Fatal(err)

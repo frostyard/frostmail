@@ -286,6 +286,8 @@ export interface MessageSummary {
   hasAttachments: boolean;
   /** Size in bytes on the server. */
   size: number;
+  /** Messages in the thread across every mailbox; 1 for a message alone. */
+  threadCount: number;
 }
 
 /** One MIME part. */
@@ -328,6 +330,33 @@ export interface Body {
   hasHtml: boolean;
 }
 
+/** A message prepared for the reader. */
+export interface Rendering {
+  /**
+   * Sanitized HTML for the sandboxed reader frame, or empty for a text-only
+   * message. Parts and loaded remote images are mailpart://localhost/ URLs.
+   */
+  html: string;
+  /** The readable text, as message.body returns it. */
+  text: string;
+  /** Remote resources left out: not requested, or requested and failed. */
+  remote: number;
+  /** Tracking images removed; they are never loaded. */
+  trackers: number;
+}
+
+/** A message part decoded into the parts cache. */
+export interface PartFile {
+  /** Relative to the parts cache, as in a mailpart://localhost/ URL. */
+  path: string;
+  /** Lowercase type/subtype. */
+  contentType: string;
+  /** A safe file name: the part's, or one made from its type. */
+  filename: string;
+  /** Decoded size in bytes. */
+  size: number;
+}
+
 /** Flags to set or clear; omitted fields keep their values. */
 export interface FlagChanges {
   seen?: boolean;
@@ -344,6 +373,24 @@ export interface MessageGetParams {
 /** Params of message.body. */
 export interface MessageBodyParams {
   id: number;
+}
+
+/** Params of message.summaries. */
+export interface MessageSummariesParams {
+  ids: number[];
+}
+
+/** Params of message.render. */
+export interface MessageRenderParams {
+  id: number;
+  remote?: boolean;
+}
+
+/** Params of message.part. */
+export interface MessagePartParams {
+  id: number;
+  /** The part's IMAP specifier from Message.parts. */
+  path: string;
 }
 
 /** Params of message.setFlags. */
@@ -387,6 +434,19 @@ export interface MessageClient {
    * stored locally.
    */
   body(params: MessageBodyParams): Promise<Body>;
+  /**
+   * Summaries of messages in the order given; IDs that no longer exist are
+   * skipped.
+   */
+  summaries(params: MessageSummariesParams): Promise<MessageSummary[]>;
+  /**
+   * A message prepared for the reader, fetching it first if it is not stored
+   * locally. Remote images are loaded through maild only when remote is true;
+   * tracking images never are.
+   */
+  render(params: MessageRenderParams): Promise<Rendering>;
+  /** Decode one part (an attachment or inline image) into the parts cache. */
+  part(params: MessagePartParams): Promise<PartFile>;
   /** Change flags locally at once and on the server when it can be reached. */
   setFlags(params: MessageSetFlagsParams): Promise<void>;
   /** Move messages to another mailbox of the same account. */
@@ -402,6 +462,9 @@ function messageClient(t: Transport): MessageClient {
   return {
     get: (params) => t.call<Message>("message.get", params),
     body: (params) => t.call<Body>("message.body", params),
+    summaries: (params) => t.call<MessageSummary[]>("message.summaries", params),
+    render: (params) => t.call<Rendering>("message.render", params),
+    part: (params) => t.call<PartFile>("message.part", params),
     setFlags: (params) => t.call<null>("message.setFlags", params).then(() => undefined),
     move: (params) => t.call<null>("message.move", params).then(() => undefined),
     delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
@@ -496,6 +559,31 @@ function syncClient(t: Transport): SyncClient {
   };
 }
 
+// ---- thread ----
+
+/** Params of thread.messages. */
+export interface ThreadMessagesParams {
+  id: number;
+}
+
+/**
+ * Conversations, built by maild from message references (Gmail threads on
+ * Gmail).
+ */
+export interface ThreadClient {
+  /**
+   * The messages of a thread in every mailbox, oldest first, without messages
+   * deleted locally.
+   */
+  messages(params: ThreadMessagesParams): Promise<MessageSummary[]>;
+}
+
+function threadClient(t: Transport): ThreadClient {
+  return {
+    messages: (params) => t.call<MessageSummary[]>("thread.messages", params),
+  };
+}
+
 // ---- view ----
 
 /** How a delta changes a view. */
@@ -513,6 +601,12 @@ export interface ViewQuery {
   text?: string;
   unread?: boolean;
   flagged?: boolean;
+  /**
+   * Messages in mailboxes with this role in any account, such as every inbox.
+   */
+  role?: MailboxRole;
+  /** One row per thread: its newest message that matches. */
+  threads?: boolean;
 }
 
 /** An open view. */
@@ -604,12 +698,16 @@ export const METHODS = [
   "mailbox.list",
   "message.get",
   "message.body",
+  "message.summaries",
+  "message.render",
+  "message.part",
   "message.setFlags",
   "message.move",
   "message.delete",
   "rpc.hello",
   "sync.status",
   "sync.now",
+  "thread.messages",
   "view.open",
   "view.range",
   "view.close",
@@ -623,6 +721,7 @@ export class Client {
   readonly message: MessageClient;
   readonly rpc: RPCClient;
   readonly sync: SyncClient;
+  readonly thread: ThreadClient;
   readonly view: ViewClient;
 
   constructor(readonly transport: Transport) {
@@ -632,6 +731,7 @@ export class Client {
     this.message = messageClient(transport);
     this.rpc = rpcClient(transport);
     this.sync = syncClient(transport);
+    this.thread = threadClient(transport);
     this.view = viewClient(transport);
   }
 }

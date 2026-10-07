@@ -61,6 +61,12 @@ func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body
 	return &api.Body{Text: text, HasHTML: hasHTML}, nil
 }
 
+// Summaries implements message.summaries. Task T-0025 implements it; the
+// stub finds none.
+func (m messages) Summaries(_ context.Context, _ *api.MessageSummariesParams) ([]api.MessageSummary, error) {
+	return []api.MessageSummary{}, nil
+}
+
 func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) error {
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")

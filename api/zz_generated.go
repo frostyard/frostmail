@@ -590,6 +590,8 @@ type MessageSummary struct {
 	HasAttachments bool   `json:"hasAttachments"`
 	// Size in bytes on the server.
 	Size int64 `json:"size"`
+	// Messages in the thread across every mailbox; 1 for a message alone.
+	ThreadCount int64 `json:"threadCount"`
 }
 
 // Part: One MIME part.
@@ -632,6 +634,31 @@ type Body struct {
 	HasHTML bool `json:"hasHtml"`
 }
 
+// Rendering: A message prepared for the reader.
+type Rendering struct {
+	// Sanitized HTML for the sandboxed reader frame, or empty for a text-only
+	// message. Parts and loaded remote images are mailpart://localhost/ URLs.
+	HTML string `json:"html"`
+	// The readable text, as message.body returns it.
+	Text string `json:"text"`
+	// Remote resources left out: not requested, or requested and failed.
+	Remote int64 `json:"remote"`
+	// Tracking images removed; they are never loaded.
+	Trackers int64 `json:"trackers"`
+}
+
+// PartFile: A message part decoded into the parts cache.
+type PartFile struct {
+	// Relative to the parts cache, as in a mailpart://localhost/ URL.
+	Path string `json:"path"`
+	// Lowercase type/subtype.
+	ContentType string `json:"contentType"`
+	// A safe file name: the part's, or one made from its type.
+	Filename string `json:"filename"`
+	// Decoded size in bytes.
+	Size int64 `json:"size"`
+}
+
 // FlagChanges: Flags to set or clear; omitted fields keep their values.
 type FlagChanges struct {
 	Seen      *bool  `json:"seen,omitzero"`
@@ -648,6 +675,24 @@ type MessageGetParams struct {
 // MessageBodyParams holds the params of message.body.
 type MessageBodyParams struct {
 	ID int64 `json:"id"`
+}
+
+// MessageSummariesParams holds the params of message.summaries.
+type MessageSummariesParams struct {
+	IDs []int64 `json:"ids"`
+}
+
+// MessageRenderParams holds the params of message.render.
+type MessageRenderParams struct {
+	ID     int64 `json:"id"`
+	Remote *bool `json:"remote,omitzero"`
+}
+
+// MessagePartParams holds the params of message.part.
+type MessagePartParams struct {
+	ID int64 `json:"id"`
+	// The part's IMAP specifier from Message.parts.
+	Path string `json:"path"`
 }
 
 // MessageSetFlagsParams holds the params of message.setFlags.
@@ -675,6 +720,16 @@ type MessageService interface {
 	// Body implements message.body. A message's text, fetching the message from
 	// the server first if it is not stored locally.
 	Body(ctx context.Context, p *MessageBodyParams) (*Body, error)
+	// Summaries implements message.summaries. Summaries of messages in the order
+	// given; IDs that no longer exist are skipped.
+	Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error)
+	// Render implements message.render. A message prepared for the reader,
+	// fetching it first if it is not stored locally. Remote images are loaded
+	// through maild only when remote is true; tracking images never are.
+	Render(ctx context.Context, p *MessageRenderParams) (*Rendering, error)
+	// Part implements message.part. Decode one part (an attachment or inline
+	// image) into the parts cache.
+	Part(ctx context.Context, p *MessagePartParams) (*PartFile, error)
 	// SetFlags implements message.setFlags. Change flags locally at once and on
 	// the server when it can be reached.
 	SetFlags(ctx context.Context, p *MessageSetFlagsParams) error
@@ -700,6 +755,27 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return s.Body(ctx, &p)
+	})
+	r.handle("message.summaries", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageSummariesParams
+		if err := decodeParams(raw, &p, []string{"ids"}); err != nil {
+			return nil, err
+		}
+		return s.Summaries(ctx, &p)
+	})
+	r.handle("message.render", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageRenderParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Render(ctx, &p)
+	})
+	r.handle("message.part", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessagePartParams
+		if err := decodeParams(raw, &p, []string{"id", "path"}); err != nil {
+			return nil, err
+		}
+		return s.Part(ctx, &p)
 	})
 	r.handle("message.setFlags", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageSetFlagsParams
@@ -746,6 +822,33 @@ func (x MessageClient) Get(ctx context.Context, p *MessageGetParams) (*Message, 
 func (x MessageClient) Body(ctx context.Context, p *MessageBodyParams) (*Body, error) {
 	var r Body
 	err := x.c.Call(ctx, "message.body", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Summaries calls message.summaries.
+func (x MessageClient) Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error) {
+	var r []MessageSummary
+	err := x.c.Call(ctx, "message.summaries", p, &r)
+	return r, err
+}
+
+// Render calls message.render.
+func (x MessageClient) Render(ctx context.Context, p *MessageRenderParams) (*Rendering, error) {
+	var r Rendering
+	err := x.c.Call(ctx, "message.render", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Part calls message.part.
+func (x MessageClient) Part(ctx context.Context, p *MessagePartParams) (*PartFile, error) {
+	var r PartFile
+	err := x.c.Call(ctx, "message.part", p, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -960,6 +1063,46 @@ func (SyncProgress) EventName() string { return "sync.progress" }
 // Durable reports whether SyncProgress is kept in the changes log.
 func (SyncProgress) Durable() bool { return false }
 
+// ---- thread ----
+
+// ThreadMessagesParams holds the params of thread.messages.
+type ThreadMessagesParams struct {
+	ID int64 `json:"id"`
+}
+
+// ThreadService: Conversations, built by maild from message references (Gmail
+// threads on Gmail).
+type ThreadService interface {
+	// Messages implements thread.messages. The messages of a thread in every
+	// mailbox, oldest first, without messages deleted locally.
+	Messages(ctx context.Context, p *ThreadMessagesParams) ([]MessageSummary, error)
+}
+
+func registerThread(r *Router, s ThreadService) {
+	r.handle("thread.messages", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ThreadMessagesParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Messages(ctx, &p)
+	})
+}
+
+// ThreadClient calls the thread methods; it implements ThreadService.
+type ThreadClient struct{ c *Client }
+
+// Thread returns the thread methods.
+func (c *Client) Thread() ThreadClient { return ThreadClient{c} }
+
+var _ ThreadService = ThreadClient{}
+
+// Messages calls thread.messages.
+func (x ThreadClient) Messages(ctx context.Context, p *ThreadMessagesParams) ([]MessageSummary, error) {
+	var r []MessageSummary
+	err := x.c.Call(ctx, "thread.messages", p, &r)
+	return r, err
+}
+
 // ---- view ----
 
 // ViewOpKind: How a delta changes a view.
@@ -990,6 +1133,10 @@ type ViewQuery struct {
 	Text    *string `json:"text,omitzero"`
 	Unread  *bool   `json:"unread,omitzero"`
 	Flagged *bool   `json:"flagged,omitzero"`
+	// Messages in mailboxes with this role in any account, such as every inbox.
+	Role *MailboxRole `json:"role,omitzero"`
+	// One row per thread: its newest message that matches.
+	Threads *bool `json:"threads,omitzero"`
 }
 
 // ViewInfo: An open view.
@@ -1112,6 +1259,7 @@ type Services struct {
 	Message MessageService
 	RPC     RPCService
 	Sync    SyncService
+	Thread  ThreadService
 	View    ViewService
 }
 
@@ -1140,6 +1288,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Sync is nil")
 	}
 	registerSync(r, s.Sync)
+	if s.Thread == nil {
+		return errors.New("api: Services.Thread is nil")
+	}
+	registerThread(r, s.Thread)
 	if s.View == nil {
 		return errors.New("api: Services.View is nil")
 	}
@@ -1159,12 +1311,16 @@ var Methods = []string{
 	"mailbox.list",
 	"message.get",
 	"message.body",
+	"message.summaries",
+	"message.render",
+	"message.part",
 	"message.setFlags",
 	"message.move",
 	"message.delete",
 	"rpc.hello",
 	"sync.status",
 	"sync.now",
+	"thread.messages",
 	"view.open",
 	"view.range",
 	"view.close",

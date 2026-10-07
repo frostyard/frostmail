@@ -91,7 +91,7 @@ func run(ctx context.Context, args []string) error {
 	eng := engine.New(engine.Deps{DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views})
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
-		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
+		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 	})
 	if err != nil {
 		return err

@@ -17,6 +17,8 @@ types:
       - {name: text, type: string, optional: true, doc: "Full-text search terms."}
       - {name: unread, type: bool, optional: true}
       - {name: flagged, type: bool, optional: true}
+      - {name: role, type: MailboxRole, optional: true, doc: "Messages in mailboxes with this role in any account, such as every inbox."}
+      - {name: threads, type: bool, optional: true, doc: "One row per thread: its newest message that matches."}
   - name: ViewInfo
     doc: An open view.
     fields:

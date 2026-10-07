@@ -1,0 +1,11 @@
+domain: thread
+doc: Conversations, built by maild from message references (Gmail threads on Gmail).
+methods:
+  - name: messages
+    doc: >-
+      The messages of a thread in every mailbox, oldest first, without
+      messages deleted locally.
+    params:
+      - {name: id, type: int}
+    result: "[]MessageSummary"
+    errors: [notFound]

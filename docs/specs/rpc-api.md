@@ -265,6 +265,40 @@ A message's text, fetching the message from the server first if it is not stored
 Result: `Body`.
 Errors: `notFound`, `unavailable`.
 
+### `message.summaries`
+
+Summaries of messages in the order given; IDs that no longer exist are skipped.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+
+Result: `[]MessageSummary`.
+
+### `message.render`
+
+A message prepared for the reader, fetching it first if it is not stored locally. Remote images are loaded through maild only when remote is true; tracking images never are.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `remote` | `bool` (optional) |  |
+
+Result: `Rendering`.
+Errors: `notFound`, `unavailable`.
+
+### `message.part`
+
+Decode one part (an attachment or inline image) into the parts cache.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `path` | `string` | The part's IMAP specifier from Message.parts. |
+
+Result: `PartFile`.
+Errors: `notFound`, `unavailable`.
+
 ### `message.setFlags`
 
 Change flags locally at once and on the server when it can be reached.
@@ -357,6 +391,7 @@ A row of a message list.
 | `flags` | `Flags` |  |
 | `hasAttachments` | `bool` |  |
 | `size` | `int` | Size in bytes on the server. |
+| `threadCount` | `int` | Messages in the thread across every mailbox; 1 for a message alone. |
 
 ### Type `Part`
 
@@ -397,6 +432,28 @@ A message's readable text.
 | --- | --- | --- |
 | `text` | `string` | The text/plain part, or text derived from the HTML part. |
 | `hasHtml` | `bool` | Whether an HTML part exists (rendered from M2 on). |
+
+### Type `Rendering`
+
+A message prepared for the reader.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `html` | `string` | Sanitized HTML for the sandboxed reader frame, or empty for a text-only message. Parts and loaded remote images are mailpart://localhost/ URLs. |
+| `text` | `string` | The readable text, as message.body returns it. |
+| `remote` | `int` | Remote resources left out: not requested, or requested and failed. |
+| `trackers` | `int` | Tracking images removed; they are never loaded. |
+
+### Type `PartFile`
+
+A message part decoded into the parts cache.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `path` | `string` | Relative to the parts cache, as in a mailpart://localhost/ URL. |
+| `contentType` | `string` | Lowercase type/subtype. |
+| `filename` | `string` | A safe file name: the part's, or one made from its type. |
+| `size` | `int` | Decoded size in bytes. |
 
 ### Type `FlagChanges`
 
@@ -495,6 +552,21 @@ What an account's sync is doing.
 | `unauthorized` | The server rejected the credentials; account.setPassword retries. |
 | `failed` | An unexpected error stopped sync; the error field says why. Retried with backoff. |
 
+## thread
+
+Conversations, built by maild from message references (Gmail threads on Gmail).
+
+### `thread.messages`
+
+The messages of a thread in every mailbox, oldest first, without messages deleted locally.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `[]MessageSummary`.
+Errors: `notFound`.
+
 ## view
 
 Live message lists. A view belongs to the connection that opened it, sends its deltas only there, and closes with it.
@@ -555,6 +627,8 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `text` | `string` (optional) | Full-text search terms. |
 | `unread` | `bool` (optional) |  |
 | `flagged` | `bool` (optional) |  |
+| `role` | `MailboxRole` (optional) | Messages in mailboxes with this role in any account, such as every inbox. |
+| `threads` | `bool` (optional) | One row per thread: its newest message that matches. |
 
 ### Type `ViewInfo`
 

@@ -18,6 +18,8 @@ type ViewFilter struct {
 	Text      string // full-text search terms, as typed (see SearchQuery)
 	Unread    *bool  // true: unseen only; false: seen only
 	Flagged   *bool
+	Role      string // a mailbox role (api.MailboxRole), in any account
+	Threads   bool   // one row per thread: its newest matching message
 }
 
 // ViewIDs returns the IDs of the messages matching f, newest first
@@ -81,6 +83,7 @@ type Summary struct {
 	Flags          Flags
 	HasAttachments bool
 	Size           int64
+	ThreadCount    int64 // messages in the thread; 1 for a message alone
 }
 
 // MessageDetail is everything about a message except its body.
@@ -237,6 +240,12 @@ func (d *DB) Summaries(ctx context.Context, ids []int64) ([]Summary, error) {
 		}
 	}
 	return out, nil
+}
+
+// ThreadMessageIDs returns the IDs of a thread's messages that are not
+// deleted, oldest first. Task T-0024 implements it; the stub finds none.
+func (d *DB) ThreadMessageIDs(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
 }
 
 // GetMessage returns one message's details: its summary plus its address

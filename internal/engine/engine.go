@@ -54,6 +54,9 @@ func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.d.DB} }
 // Messages implements the message domain.
 func (e *Engine) Messages() api.MessageService { return messages{e.d} }
 
+// Threads implements the thread domain.
+func (e *Engine) Threads() api.ThreadService { return threads{e.d} }
+
 // Sync implements the sync domain.
 func (e *Engine) Sync() api.SyncService { return syncService{e.d} }
 
