@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
@@ -79,6 +80,8 @@ func run(ctx context.Context, args []string) error {
 	}
 	sec := secrets.NewFile(filepath.Join(paths.DataDir, "secrets.json"))
 	blobs := blob.New(paths.Blobs)
+	parts := &render.PartsCache{Root: filepath.Join(paths.CacheDir, "parts")}
+	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil)}
 	syncer := mailsync.New(db, sec, blobs, logger, mailsync.Config{
 		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
 	}, broker.Publish)
@@ -88,7 +91,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
-	eng := engine.New(engine.Deps{DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views})
+	eng := engine.New(engine.Deps{DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer})
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),

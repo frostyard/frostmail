@@ -16,6 +16,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
@@ -42,6 +43,7 @@ type Server struct {
 	Blobs   *blob.Store
 	Views   *view.Manager
 	Sync    *mailsync.Manager // nil unless Options.Sync was set
+	Parts   *render.PartsCache
 }
 
 // Start runs a server without the sync engine.
@@ -70,8 +72,11 @@ func StartWith(t testing.TB, o Options) *Server {
 		DB: db, Broker: broker, Views: views,
 		Secrets: secrets.NewFile(filepath.Join(data, "secrets.json")),
 		Blobs:   blob.New(filepath.Join(data, "blobs")),
+		Parts:   &render.PartsCache{Root: filepath.Join(data, "parts")},
 	}
-	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views}
+	// Remote images are never fetched in tests: the renderer has no fetcher.
+	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
+		Render: &render.Renderer{Parts: srv.Parts}}
 	if o.Sync != nil {
 		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, *o.Sync, broker.Publish)
 		deps.Sync = srv.Sync

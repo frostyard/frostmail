@@ -11,6 +11,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 	"github.com/frostyard/frostmail/internal/view"
@@ -28,8 +29,8 @@ type Syncer interface {
 	Delete(ctx context.Context, ids []int64) error
 }
 
-// Deps are what the engine's domains use. Sync and Views may be nil in
-// tests; their domains then report unavailable.
+// Deps are what the engine's domains use. Sync, Views and Render may be nil
+// in tests; their methods then report unavailable.
 type Deps struct {
 	DB      *store.DB
 	Secrets secrets.Store
@@ -37,6 +38,7 @@ type Deps struct {
 	Sync    Syncer
 	Blobs   *blob.Store
 	Views   *view.Manager
+	Render  *render.Renderer
 }
 
 // Engine owns the domain services.

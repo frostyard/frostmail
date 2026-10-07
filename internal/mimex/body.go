@@ -37,6 +37,24 @@ func BodyText(raw []byte) (string, bool, error) {
 	return tidyLines(text), body.hasHTML, nil
 }
 
+// BodyHTML returns the HTML part BodyText would derive text from: the first
+// text/html part that is not an attachment or a forwarded message, decoded
+// to UTF-8, or "" when the message has none.
+func BodyHTML(raw []byte) (string, error) {
+	root, err := message.Read(bytes.NewReader(raw))
+	if err != nil && !isDecodingError(err) {
+		return "", fmt.Errorf("mimex: read message: %w", err)
+	}
+	if root == nil {
+		return "", errors.New("mimex: read message: no entity")
+	}
+	var body bodyParts
+	if err := root.Walk(body.visit); err != nil && !body.visited {
+		return "", err
+	}
+	return body.html, nil
+}
+
 // bodyParts accumulates the first text/plain and the first text/html part
 // found while walking a message's MIME tree.
 type bodyParts struct {

@@ -35,22 +35,7 @@ func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Messag
 }
 
 func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body, error) {
-	if m.Sync == nil || m.Blobs == nil {
-		return nil, api.Unavailable("sync is not running")
-	}
-	blobID, err := m.Sync.FetchBody(ctx, p.ID)
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, api.NotFound("message %d does not exist", p.ID)
-	}
-	if err != nil {
-		return nil, api.Unavailable("message %d is not stored locally and cannot be fetched now: %v", p.ID, err)
-	}
-	rc, err := m.Blobs.Open(blobID)
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	raw, err := io.ReadAll(rc)
+	raw, err := m.raw(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +44,28 @@ func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body
 		return nil, err
 	}
 	return &api.Body{Text: text, HasHTML: hasHTML}, nil
+}
+
+// raw returns a message as stored, fetching it from the server first if
+// needed: notFound for an unknown message, unavailable when it cannot be
+// fetched now.
+func (m messages) raw(ctx context.Context, id int64) ([]byte, error) {
+	if m.Sync == nil || m.Blobs == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	blobID, err := m.Sync.FetchBody(ctx, id)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, api.NotFound("message %d does not exist", id)
+	}
+	if err != nil {
+		return nil, api.Unavailable("message %d is not stored locally and cannot be fetched now: %v", id, err)
+	}
+	rc, err := m.Blobs.Open(blobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(rc)
 }
 
 // Summaries implements message.summaries: the summaries of the given IDs,
