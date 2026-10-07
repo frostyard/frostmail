@@ -1,5 +1,5 @@
 .PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci ui-check ui-test ui-vitest ui-fmt app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -80,6 +80,10 @@ ui-test: ui-check ## Alias for ui-check
 
 ui-vitest: ## Run app tests matching F (a path or pattern) in the nsl machine
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vitest run $(F)'
+
+ui-e2e: app-build ## Drive the built app in WebKitGTK against fixture maild data, headless (nsl); F= picks tests
+	CGO_ENABLED=0 go build -o build/ ./cmd/maild ./tools/uifixture
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && env -u WAYLAND_DISPLAY GDK_BACKEND=x11 xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts $(F)'
 
 ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
