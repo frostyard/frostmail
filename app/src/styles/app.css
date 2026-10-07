@@ -33,6 +33,14 @@
   --color-quote-1: var(--quote-1);
   --color-quote-2: var(--quote-2);
   --color-quote-3: var(--quote-3);
+  --color-avatar-0: var(--avatar-0);
+  --color-avatar-1: var(--avatar-1);
+  --color-avatar-2: var(--avatar-2);
+  --color-avatar-3: var(--avatar-3);
+  --color-avatar-4: var(--avatar-4);
+  --color-avatar-5: var(--avatar-5);
+  --color-avatar-6: var(--avatar-6);
+  --color-avatar-7: var(--avatar-7);
 }
 
 @theme {

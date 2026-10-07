@@ -31,6 +31,7 @@ literal colors.
 | `--focus-ring` | `rgb(0 122 255 / 0.5)` | `rgb(10 132 255 / 0.6)` | keyboard focus outline |
 | `--flag-1` … `--flag-7` | see flags | see flags | flag colors |
 | `--quote-1` … `--quote-3` | `#2e7bd6` `#2ea44f` `#c2410c` | `#5aa0f0` `#4cc76a` `#f0884a` | quote bars by level, cycling |
+| `--avatar-0` … `--avatar-7` | `#5e5ce6` `#0a84ff` `#30b0c7` `#34c759` `#ff9f0a` `#ff375f` `#bf5af2` `#8e8e93` | same | avatar circles, by `avatarTone` |
 
 **Flags.** `flagColor` 1–7 (the API's numbering, `$MailFlagBit0-2` + 1):
 

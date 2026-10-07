@@ -8,11 +8,9 @@ import { useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import { MessageRow, ROW_HEIGHT, type SelectMode } from "../features/list/MessageRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
+import { FLAG_NAMES } from "../lib/flags";
 import type { Command } from "../lib/keymap";
 import { archiveMailbox, rangeIds, selectedSummaries, setFlagColor, step, toggleRead } from "./commands";
-
-/** FLAG_NAMES are the menu names of flag colors 1-7. */
-export const FLAG_NAMES = ["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Gray"];
 
 /** ListHandle lets the window send keyboard commands to the list. */
 export interface ListHandle {

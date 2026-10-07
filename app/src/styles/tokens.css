@@ -27,6 +27,14 @@
   --quote-1: #2e7bd6;
   --quote-2: #2ea44f;
   --quote-3: #c2410c;
+  --avatar-0: #5e5ce6;
+  --avatar-1: #0a84ff;
+  --avatar-2: #30b0c7;
+  --avatar-3: #34c759;
+  --avatar-4: #ff9f0a;
+  --avatar-5: #ff375f;
+  --avatar-6: #bf5af2;
+  --avatar-7: #8e8e93;
 }
 
 @media (prefers-color-scheme: dark) {
