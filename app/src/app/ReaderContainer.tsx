@@ -58,7 +58,13 @@ function Empty({ text }: { text: string }) {
 
 function Conversation({ id }: { id: number }) {
   const client = useClient();
-  const mailboxes = useMail((s) => s.mailboxes);
+  // Only the Trash mailboxes matter here; counts change on every flag change.
+  const trashKey = useMail((s) =>
+    s.mailboxes
+      .filter((mb) => mb.role === "trash")
+      .map((mb) => mb.id)
+      .join(","),
+  );
   const [items, setItems] = useState<MessageSummary[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +77,7 @@ function Conversation({ id }: { id: number }) {
       if (!s.flags.seen) void client.message.setFlags({ ids: [id], changes: { seen: true } }).catch(() => {});
       let rows = [s];
       if (s.threadId !== 0) rows = await client.thread.messages({ id: s.threadId });
-      const trash = new Set(mailboxes.filter((mb) => mb.role === "trash").map((mb) => mb.id));
+      const trash = new Set(trashKey === "" ? [] : trashKey.split(",").map(Number));
       const inTrash = (r: MessageSummary) => r.mailboxIds.some((mb) => trash.has(mb));
       rows = rows.filter((r) => r.id === id || !inTrash(r) || inTrash(s)).reverse();
       if (!cancelled) setItems(rows);
@@ -81,7 +87,7 @@ function Conversation({ id }: { id: number }) {
     return () => {
       cancelled = true;
     };
-  }, [client, id, mailboxes]);
+  }, [client, id, trashKey]);
 
   if (error) return <Empty text={error} />;
   if (!items) return null;
