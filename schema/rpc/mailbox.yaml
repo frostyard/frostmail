@@ -1,0 +1,41 @@
+domain: mailbox
+doc: Mailboxes (IMAP folders, and Gmail labels shown as folders).
+enums:
+  - name: MailboxRole
+    doc: What a mailbox is for, from SPECIAL-USE attributes or name heuristics.
+    values:
+      - {name: none, doc: "An ordinary user folder."}
+      - {name: inbox}
+      - {name: drafts}
+      - {name: sent}
+      - {name: archive}
+      - {name: junk}
+      - {name: trash}
+      - {name: all, doc: "All messages (Gmail All Mail)."}
+      - {name: flagged, doc: "A server-side flagged view (Gmail Starred)."}
+types:
+  - name: Mailbox
+    doc: One mailbox of one account.
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: path, type: string, doc: "Full server path, decoded from modified UTF-7."}
+      - {name: name, type: string, doc: "The last path component, for display."}
+      - {name: delimiter, type: string, doc: "The server's hierarchy delimiter; empty when flat."}
+      - {name: role, type: MailboxRole}
+      - {name: total, type: int, doc: "Messages stored locally for this mailbox."}
+      - {name: unread, type: int, doc: "Unread messages stored locally for this mailbox."}
+methods:
+  - name: list
+    doc: Mailboxes ordered by account, role, then path.
+    params:
+      - {name: accountId, type: int, optional: true, doc: "Limit to one account. Omit for all accounts."}
+    result: "[]Mailbox"
+events:
+  - name: changed
+    doc: A mailbox was created, renamed, deleted, or its counts changed.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: deleted, type: bool}

@@ -1,0 +1,82 @@
+domain: account
+doc: Mail accounts and their server settings. Credentials never cross the RPC boundary.
+enums:
+  - name: AccountKind
+    doc: The provider family, which selects the sync strategy and server quirks.
+    values:
+      - {name: imap, doc: "Generic IMAP and SMTP."}
+      - {name: gmail, doc: "Google Gmail and Workspace (labels, X-GM extensions)."}
+      - {name: microsoft, doc: "Microsoft 365 and Outlook.com."}
+      - {name: icloud, doc: "Apple iCloud Mail."}
+  - name: AuthKind
+    doc: How the account authenticates to its servers.
+    values:
+      - {name: password, doc: "A password or app-specific password, kept in the secret store."}
+      - {name: oauth2, doc: "OAuth 2.0 tokens (SASL XOAUTH2), kept in the secret store."}
+  - name: TLSMode
+    doc: How a connection is secured.
+    values:
+      - {name: tls, doc: "TLS from the first byte (IMAPS 993, SMTPS 465)."}
+      - {name: starttls, doc: "Plain connection upgraded with STARTTLS (143, 587)."}
+      - {name: insecure, doc: "No TLS. Only for local test servers."}
+types:
+  - name: ServerConfig
+    doc: Where and how to reach one server.
+    fields:
+      - {name: host, type: string}
+      - {name: port, type: int}
+      - {name: tls, type: TLSMode}
+      - {name: username, type: string, doc: "Login name; often the email address."}
+  - name: Account
+    doc: A configured mail account.
+    fields:
+      - {name: id, type: int, doc: "Stable local identifier."}
+      - {name: kind, type: AccountKind}
+      - {name: email, type: string, doc: "The account's primary address."}
+      - {name: displayName, type: string, doc: "The sender name used in From headers."}
+      - {name: auth, type: AuthKind}
+      - {name: imap, type: ServerConfig}
+      - {name: smtp, type: ServerConfig}
+      - {name: createdAt, type: time}
+methods:
+  - name: list
+    doc: All accounts, oldest first.
+    result: "[]Account"
+  - name: get
+    doc: One account.
+    params:
+      - {name: id, type: int}
+    result: Account
+    errors: [notFound]
+  - name: create
+    doc: Add an account. The email address must be unique.
+    params:
+      - {name: kind, type: AccountKind}
+      - {name: email, type: string}
+      - {name: displayName, type: string}
+      - {name: auth, type: AuthKind}
+      - {name: imap, type: ServerConfig}
+      - {name: smtp, type: ServerConfig}
+    result: Account
+    errors: [invalidParams, conflict]
+  - name: update
+    doc: Change an account's settings. Omitted fields keep their values.
+    params:
+      - {name: id, type: int}
+      - {name: displayName, type: string, optional: true}
+      - {name: imap, type: ServerConfig, optional: true}
+      - {name: smtp, type: ServerConfig, optional: true}
+    result: Account
+    errors: [invalidParams, notFound]
+  - name: delete
+    doc: Remove an account and everything stored for it.
+    params:
+      - {name: id, type: int}
+    errors: [notFound]
+events:
+  - name: changed
+    doc: An account was created, updated or deleted.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: deleted, type: bool}

@@ -1,0 +1,12 @@
+Return-Path: <alice@mailtest.test>
+From: Alice Example <alice@mailtest.test>
+To: Test One <test1@mailtest.test>
+Subject: Welcome to the frostmail test server
+Date: Mon, 05 Oct 2026 09:00:00 -0400
+Message-ID: <welcome-0001@mailtest.test>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hello! This mailbox is reset from the `clean` snapshot before integration runs.
+Unicode check: naïve café, 日本語, emoji 📬.

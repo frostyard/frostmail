@@ -1,0 +1,22 @@
+[package]
+name = "frostmail"
+version = "0.0.0"
+description = "Frostmail, a mail client for Linux"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2.7.1", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.1", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.53", features = ["net", "io-util", "sync", "fs"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
