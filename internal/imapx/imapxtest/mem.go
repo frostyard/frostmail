@@ -28,8 +28,18 @@ type Mem struct {
 	Addr string
 }
 
-// StartMem listens on localhost; the server stops when the test ends.
-func StartMem(t testing.TB) *Mem {
+// StartMem listens on localhost with only IMAP4rev1 (and the extensions that
+// need no backend support, such as IDLE), so sync's fallbacks are exercised.
+// The server stops when the test ends.
+func StartMem(t testing.TB) *Mem { return startMem(t, imap.CapSet{imap.CapIMAP4rev1: {}}) }
+
+// StartMemFull is StartMem plus MOVE, UIDPLUS and ESEARCH, for tests of
+// moves and deletes.
+func StartMemFull(t testing.TB) *Mem {
+	return startMem(t, imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapMove: {}, imap.CapUIDPlus: {}, imap.CapESearch: {}})
+}
+
+func startMem(t testing.TB, caps imap.CapSet) *Mem {
 	t.Helper()
 	user := imapmemserver.NewUser(Username, Password)
 	if err := user.Create("INBOX", nil); err != nil {
@@ -49,7 +59,7 @@ func StartMem(t testing.TB) *Mem {
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			return mem.NewSession(), nil, nil
 		},
-		Caps:         imap.CapSet{imap.CapIMAP4rev1: {}},
+		Caps:         caps,
 		InsecureAuth: true,
 	})
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
