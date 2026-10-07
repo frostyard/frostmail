@@ -97,6 +97,12 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* The search field draws its own clear button (features/search). */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+  }
+
   :focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: -2px;

@@ -167,12 +167,21 @@ func (r *runner) runTask(ctx context.Context, c *Card) error {
 		var buf bytes.Buffer
 		accErr := r.accept(ctx, c, io.MultiWriter(r.out, &buf))
 		if accErr == nil {
-			return r.verify(ctx, c)
+			buf.Reset()
+			verr := r.capture(&buf, func() error { return r.verify(ctx, c) })
+			if verr == nil {
+				return nil
+			}
+			args = []string{"run", "--continue", "--model", r.model,
+				fmt.Sprintf("`make accept T=%s` passes, but the task does not verify: %v\n"+
+					"Fix the cause (run `make ui-fmt` for formatting, then `make check` and, for app cards, `make ui-check`); "+
+					"do not edit the given tests.\n\n%s", c.ID, verr, tail(buf.String(), 80))}
+			continue
 		}
 		args = []string{"run", "--continue", "--model", r.model,
 			fmt.Sprintf("`make accept T=%s` still fails. Fix the cause; do not edit the given tests.\n\n%s", c.ID, tail(buf.String(), 80))}
 	}
-	return fmt.Errorf("task %s: acceptance still failing after %d attempts; review branch %s", c.ID, r.attempts, branch(c))
+	return fmt.Errorf("task %s: still failing after %d attempts; review branch %s", c.ID, r.attempts, branch(c))
 }
 
 func (r *runner) accept(ctx context.Context, c *Card, out io.Writer) error {
@@ -285,6 +294,14 @@ func (r *runner) finish(ctx context.Context, c *Card) error {
 }
 
 func (r *runner) git(ctx context.Context, args ...string) error { return r.cmd(ctx, "git", args...) }
+
+// capture runs fn with the runner's output also copied into buf.
+func (r *runner) capture(buf *bytes.Buffer, fn func() error) error {
+	orig := r.out
+	r.out = io.MultiWriter(orig, buf)
+	defer func() { r.out = orig }()
+	return fn()
+}
 
 func (r *runner) cmd(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)

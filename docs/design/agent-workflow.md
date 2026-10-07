@@ -24,11 +24,13 @@ Decided in [ADR-0008](../adr/0008-local-executor-workflow.md).
 3. It runs `opencode run --model $(EXECUTOR_MODEL)` with the card. opencode
    loads `AGENTS.md` and `docs/tasks/EXECUTOR.md` (`opencode.json`
    `instructions`) and may only run `make`, `go` and read-only commands.
-4. After each attempt it runs the acceptance command; on failure it continues
-   the session with the last 80 lines of output, up to `-attempts` (3).
+4. After each attempt it runs the acceptance command, then `taskrun verify`;
+   on either failure it continues the session with the error and the last 80
+   lines of output, up to `-attempts` (3).
 5. `taskrun verify` (and `make task-verify T=NNNN`) fails if any changed file
-   is outside `touch`, a given file differs from `_given`, acceptance fails, or
-   `make check` fails.
+   is outside `touch`, a given file differs from `_given`, acceptance fails,
+   `make check` fails, or, for a card that touches `app/`, `make ui-check`
+   fails.
 6. `make task-finish T=NNNN` re-verifies, moves the card to `done/` and
    commits the work. The human reviews and merges the branch; the planner
    reviews all of a milestone's merged cards.
