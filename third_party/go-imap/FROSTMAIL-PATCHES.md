@@ -11,6 +11,7 @@ Every change is marked "frostmail patch" in a comment and covered by
 | `FetchOptions.GmailMsgID/GmailThreadID/GmailLabels` request `X-GM-MSGID`, `X-GM-THRID`, `X-GM-LABELS` | `fetch.go`, `imapclient/fetch.go` |
 | FETCH parses those attributes into `FetchItemDataGmail*` and `FetchMessageBuffer.Gmail*`; labels keep `\System` names and decode user labels from modified UTF-7 | `imapclient/fetch.go` |
 | FETCH skips unknown attributes with `DiscardValue` instead of failing the response | `imapclient/fetch.go` |
+| FETCH parses the `<origin>` of a partial `BINARY[part]<origin>` response, as it already did for BODY (upstream bug: Dovecot's partial BINARY answers failed to parse) | `imapclient/fetch.go` |
 | `SearchCriteria.GmailRaw` sends `X-GM-RAW`; `And` joins two queries with a space | `search.go`, `imapclient/search.go` |
 | `Client.StoreGmailLabels` sends `STORE ±X-GM-LABELS` | `imapclient/store.go` |
 

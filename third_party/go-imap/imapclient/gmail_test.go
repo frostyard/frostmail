@@ -117,3 +117,18 @@ func TestSearchCriteriaAndJoinsGmailRaw(t *testing.T) {
 		t.Fatalf("GmailRaw = %q", a.GmailRaw)
 	}
 }
+
+func TestPartialBinaryResponse(t *testing.T) {
+	c := scripted(t, []step{{
+		want:  "UID FETCH 4 (UID BINARY.PEEK[1]<0.2048>)",
+		reply: []string{"* 4 FETCH (UID 4 BINARY[1]<0> {5}", "hello)", "TAG OK done"},
+	}})
+	section := &imap.FetchItemBinarySection{Part: []int{1}, Partial: &imap.SectionPartial{Size: 2048}, Peek: true}
+	msgs, err := c.Fetch(imap.UIDSetNum(4), &imap.FetchOptions{UID: true, BinarySection: []*imap.FetchItemBinarySection{section}}).Collect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(msgs[0].FindBinarySection(section)); got != "hello" {
+		t.Fatalf("partial BINARY = %q", got)
+	}
+}

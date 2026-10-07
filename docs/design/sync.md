@@ -15,8 +15,8 @@ Microsoft, iCloud). Written by the planner, not by task cards
   body fetches; C2 IDLEs on INBOX, re-issuing IDLE every 25 minutes and
   treating 10 silent minutes as dead. M4 may add C3 for bulk fetches.
   Provider profiles can lower the count.
-- Connect: CAPABILITY, ID, `ENABLE CONDSTORE` (iCloud answers OK without the
-  untagged ENABLED: treat as enabled),
+- Connect: CAPABILITY, ID; CONDSTORE needs no ENABLE because
+  `SELECT … (CONDSTORE)` turns it on (RFC 7162 3.1);
   `LIST "" "*" RETURN (SPECIAL-USE SUBSCRIBED)`, with role fallback by name
   ("Sent Messages", "Deleted Messages" on iCloud).
 

@@ -781,7 +781,17 @@ func (c *Client) handleFetch(seqNum uint32) error {
 					if !dec.ExpectSpecial(']') {
 						return dec.Err()
 					}
-					section = &imap.FetchItemBinarySection{Part: part}
+					// frostmail patch: a partial fetch is answered as
+					// BINARY[part]<origin>, like BODY.
+					offset, err := readPartialOffset(dec)
+					if err != nil {
+						return err
+					}
+					binSection := &imap.FetchItemBinarySection{Part: part}
+					if offset != nil {
+						binSection.Partial = &imap.SectionPartial{Offset: int64(*offset)}
+					}
+					section = binSection
 				}
 
 				if !dec.ExpectSP() {

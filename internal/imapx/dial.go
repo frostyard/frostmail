@@ -35,6 +35,9 @@ type DialOptions struct {
 	Trace io.Writer
 	// Timeout bounds connecting and logging in; zero means 30s.
 	Timeout time.Duration
+	// OnUpdate, if set, is called from the connection's reader for every
+	// unsolicited EXISTS, EXPUNGE or FETCH. It must not block.
+	OnUpdate func()
 }
 
 // Dial connects, secures the connection as opts.TLS says, and logs in.
@@ -52,6 +55,17 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 		TLSConfig:   tlsConfig,
 		DebugWriter: opts.Trace,
 		WordDecoder: &mime.WordDecoder{CharsetReader: charset.Reader},
+	}
+	if f := opts.OnUpdate; f != nil {
+		copts.UnilateralDataHandler = &imapclient.UnilateralDataHandler{
+			Expunge: func(uint32) { f() },
+			Mailbox: func(d *imapclient.UnilateralDataMailbox) {
+				if d.NumMessages != nil {
+					f()
+				}
+			},
+			Fetch: func(*imapclient.FetchMessageData) { f() },
+		}
 	}
 
 	var d net.Dialer
