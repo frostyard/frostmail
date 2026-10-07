@@ -119,9 +119,12 @@ function lineNodes(lines: string[], key: string, onOpenLink: (url: string) => vo
   return nodes;
 }
 
+// Whole class names, so Tailwind generates them.
+const QUOTE_COLORS = ["border-quote-1", "border-quote-2", "border-quote-3"];
+
 function quoteClass(level: number): string {
   if (level < 1) return "";
-  return `border-l-2 pl-2 border-quote-${((level - 1) % 3) + 1}`;
+  return `border-l-2 pl-2 ${QUOTE_COLORS[(level - 1) % 3]}`;
 }
 
 const COLLAPSE_AFTER = 4;
