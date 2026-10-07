@@ -1,5 +1,5 @@
 .PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci ui-test app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci ui-check ui-test ui-fmt app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -70,11 +70,16 @@ verify: ## Tidy, generated files, vet, format, lint and unit tests
 
 check: fmt verify ## Format, then verify (the developer gate)
 
-ci: verify ui-test app-build ## verify plus race tests and the app checks
+ci: verify ui-check app-build ## verify plus race tests and the app checks
 	go test -race ./...
 
-ui-test: ## Typecheck and test the app UI (nsl)
-	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm typecheck && pnpm test'
+ui-check: ## Lint (Biome), typecheck and test the app UI (nsl)
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run check'
+
+ui-test: ui-check ## Alias for ui-check
+
+ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
 
 app-build: ## Build the release app binary into build/frostmail-app (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm tauri build && mkdir -p ../build && cp "$$CARGO_TARGET_DIR/release/frostmail" ../build/frostmail-app'

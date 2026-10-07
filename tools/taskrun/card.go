@@ -140,6 +140,17 @@ func ListCards(root string) ([]*Card, error) {
 	return out, nil
 }
 
+// TouchesApp reports whether a card may change the app, whose gate is
+// make ui-check rather than make check alone.
+func TouchesApp(c *Card) bool {
+	for _, p := range c.Touch {
+		if strings.HasPrefix(p, "app/") {
+			return true
+		}
+	}
+	return false
+}
+
 // ScopeViolations lists changed paths a card may not change: anything outside
 // Touch, except the card's own files under docs/tasks.
 func ScopeViolations(c *Card, changed []string) []string {

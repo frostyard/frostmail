@@ -30,7 +30,13 @@ describe("JsonRpcSession", () => {
     const { session, sent } = fakeServer();
     const get = new Client(session).account.get({ id: 9 });
     await Promise.resolve();
-    session.receive(JSON.stringify({ jsonrpc: "2.0", id: sent[0]?.id, error: { code: ErrorCode.notFound, message: "account 9 does not exist" } }));
+    session.receive(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: sent[0]?.id,
+        error: { code: ErrorCode.notFound, message: "account 9 does not exist" },
+      }),
+    );
     await expect(get).rejects.toEqual(new RPCError(ErrorCode.notFound, "account 9 does not exist"));
   });
 
@@ -38,7 +44,13 @@ describe("JsonRpcSession", () => {
     const { session } = fakeServer();
     const events: unknown[] = [];
     session.onEvent((e) => events.push(e));
-    session.receive(JSON.stringify({ jsonrpc: "2.0", method: "event", params: { seq: 3, event: "account.changed", data: { id: 1, deleted: false } } }));
+    session.receive(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        method: "event",
+        params: { seq: 3, event: "account.changed", data: { id: 1, deleted: false } },
+      }),
+    );
     expect(events).toEqual([{ seq: 3, event: "account.changed", data: { id: 1, deleted: false } }]);
     const pending = new Client(session).account.list();
     await Promise.resolve();

@@ -14,6 +14,10 @@ You are implementing one task card. The card is the whole job.
    already in the module.
 5. Run commands through make: `make accept T=NNNN` runs the card's tests,
    `make check` runs formatting, vet, lint and every unit test. Both must pass.
+   For a card that touches `app/`, `make ui-check` (Biome lint and format
+   check, the TypeScript check, every Vitest test) must pass too;
+   `make ui-fmt` formats your files. Never run `pnpm`, `npx` or `node`
+   directly.
 6. Fix the code, not the check: no `//nolint`, no skipped tests, no deleted
    assertions.
 7. After five failed attempts at the same failure, stop and write what you
@@ -35,3 +39,14 @@ You are implementing one task card. The card is the whole job.
 - Strict mode, no `any`, no non-null assertions (`!`).
 - Call maild only through the generated client in `app/src/rpc/gen/api.ts`.
 - Never use `dangerouslySetInnerHTML`.
+- Components in `app/src/features/` are presentational: they get data and
+  callbacks through props and import nothing from `app/src/data/` or
+  `app/src/rpc/` except types from `rpc/gen/api.ts`.
+- Style with Tailwind utilities over the theme in `app/src/styles/app.css`:
+  colors such as `bg-sidebar`, `text-secondary`, `border-separator`,
+  `bg-accent`, `text-flag-3`, and type roles such as `text-list-sender`.
+  Never write literal colors (`#fff`, `rgb(…)`, `text-gray-500`).
+  Measurements come from `docs/specs/ui.md`; use exact pixel utilities such
+  as `h-[84px]` or `pl-6` when the spec gives a number.
+- Icons come from `lucide-react`; give icon-only controls an `aria-label`.
+- Function components with named exports; no default exports, no classes.

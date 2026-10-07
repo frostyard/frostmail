@@ -248,6 +248,11 @@ func (r *runner) verify(ctx context.Context, c *Card) error {
 	if err := r.cmd(ctx, "make", "check"); err != nil {
 		problems = append(problems, "make check: "+err.Error())
 	}
+	if TouchesApp(c) {
+		if err := r.cmd(ctx, "make", "ui-check"); err != nil {
+			problems = append(problems, "make ui-check: "+err.Error())
+		}
+	}
 	if len(problems) > 0 {
 		return fmt.Errorf("task %s does not verify:\n  %s", c.ID, strings.Join(problems, "\n  "))
 	}

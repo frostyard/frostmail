@@ -1,3 +1,5 @@
+/// <reference types="vitest/config" />
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -6,7 +8,7 @@ import { defineConfig } from "vite";
 const poll = process.env.NSL === "1";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   clearScreen: false,
   envPrefix: ["VITE_", "TAURI_ENV_"],
   server: {
@@ -16,4 +18,9 @@ export default defineConfig({
     watch: poll ? { usePolling: true, interval: 300 } : undefined,
   },
   build: { target: "es2022" },
+  test: {
+    environment: "happy-dom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/testing/setup.ts"],
+  },
 });

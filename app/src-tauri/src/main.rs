@@ -5,7 +5,6 @@
 mod bridge;
 mod paths;
 mod protocol;
-mod spike;
 
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -14,7 +13,7 @@ fn main() {
     tauri::Builder::default()
         .manage(bridge::Bridge::default())
         .register_asynchronous_uri_scheme_protocol("mailpart", protocol::mailpart)
-        .invoke_handler(tauri::generate_handler![bridge::maild_connect, bridge::maild_send, spike::spike_report])
+        .invoke_handler(tauri::generate_handler![bridge::maild_connect, bridge::maild_send])
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Frostmail")

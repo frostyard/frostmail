@@ -13,10 +13,6 @@ export FROSTMAIL_DATA_DIR=/var/tmp/frostmail/maild
 export FROSTMAIL_CACHE_DIR=/var/tmp/frostmail/cache
 export FROSTMAIL_SOCKET=${XDG_RUNTIME_DIR:?}/frostmail/maild.sock
 
-# The spike's mailpart:// check serves this file (removed with the spike in M2).
-mkdir -p "$FROSTMAIL_CACHE_DIR/parts/spike"
-cp app/src-tauri/icons/128x128.png "$FROSTMAIL_CACHE_DIR/parts/spike/frost.png"
-
 "$MAILD" &
 maild_pid=$!
 trap 'kill "$maild_pid" 2>/dev/null; wait "$maild_pid" 2>/dev/null' EXIT

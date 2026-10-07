@@ -104,3 +104,17 @@ func TestFindAndListCards(t *testing.T) {
 		t.Fatalf("ListCards = %v, %v", cards, err)
 	}
 }
+
+func TestTouchesApp(t *testing.T) {
+	c, err := ParseCard([]byte(validCard))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if TouchesApp(c) {
+		t.Errorf("a Go-only card touches the app")
+	}
+	c.Touch = append(c.Touch, "app/src/lib/format.ts")
+	if !TouchesApp(c) {
+		t.Errorf("a card with app/src/lib/format.ts does not touch the app")
+	}
+}
