@@ -30,12 +30,13 @@ own presentational components, pure helpers and simple handlers.
 - [x] ADR-0009, [specs/ui.md](../specs/ui.md),
   [design/app.md](../design/app.md), [design/rendering.md](../design/rendering.md).
 - [x] Schema additions, store and engine stubs; cards T-0024, T-0025.
-- App foundation: dependencies (Tailwind, zustand, react-virtual, Lucide,
+- [x] App foundation: dependencies (Tailwind, zustand, react-virtual, Lucide,
   Inter, Testing Library, happy-dom, Biome), `tokens.css`, `make ui-check`,
-  taskrun running `ui-check` for cards that touch `app/`, the spike removed.
-- `MockTransport` with fixture data and real view semantics; `ViewModel`,
-  `useView`, the stores, `ClientContext`.
-- Presentational stubs with fixed props and given tests for the TS cards.
+  taskrun running `ui-check` for cards that touch `app/` and feeding
+  verification failures back to the executor, the spike removed.
+- [x] `MockTransport` with fixture data and real view semantics; `ViewModel`,
+  `useView`, the stores, `Session`; containers for every pane.
+- [x] Presentational stubs with fixed props and given tests for the TS cards.
 - **Done when:** `make check` and `make ui-check` are green, and
   `VITE_MOCK=1 pnpm dev` shows the three-pane shell with mock data.
 
@@ -62,13 +63,19 @@ own presentational components, pure helpers and simple handlers.
 
 ## Phase 3 — Rendering and the reader (planner)
 
-- `internal/render`: sanitizer with golden tests and fuzzing, URL rewriting,
-  tracker detection, the guarded remote fetcher, the parts cache;
-  `message.render` and `message.part` in the engine.
-- `MessageFrame` (sandboxed `srcdoc`, sizing, click interception), the
+- [x] `internal/render`: sanitizer with a 50-message hostile corpus, a
+  structural safety checker and fuzzing (which found two real bugs: a
+  panic on unterminated `url(` strings, and removed CSS gluing its
+  neighbors into a new `@import`), URL rewriting, tracker detection, the
+  guarded remote fetcher, the parts cache; `message.render` and
+  `message.part` in the engine.
+- [x] `MessageFrame` (sandboxed `srcdoc`, sizing, click interception), the
   conversation container, `open_link` and `open_part` commands, the Vite
   `/mailpart/` middleware.
-- Window chrome: undecorated window, drag region, controls, capabilities.
+- [x] Window chrome: undecorated window, drag region, controls, capabilities.
+- [x] `maild -devgw`: the API over a token-protected loopback WebSocket, so
+  the UI runs in a browser against a real maild (`VITE_MAILD_WS`);
+  `dev/incus/demo` messages and `mailtest.sh demo USER`.
 - **Done when:** `make app-dev` reads the Dovecot test account: HTML mail
   with inline images renders, remote images load on request, links open in
   the browser, attachments open.
@@ -78,11 +85,12 @@ own presentational components, pure helpers and simple handlers.
 - Containers connect the Phase 2 components; keyboard map and context menus
   dispatch real commands; selection follows deltas; sync activity in the
   sidebar and toolbar.
-- `app/e2e`: a minimal WebDriver client, `tauri-driver` and
-  `WebKitWebDriver` in the nsl machine, maild on a `tools/uifixture` data
-  directory; the hostile-HTML suite (a canary HTTP server must see zero
-  requests and the page must record zero CSP violations reaching the
-  network); a scroll test over 100,000 rows.
+- [x] `app/e2e` (`make ui-e2e`): a minimal WebDriver client driving the
+  built app through `WebKitWebDriver` directly (no `tauri-driver`),
+  headless under Xvfb, maild on a `tools/uifixture` data directory; the
+  hostile-HTML suite (a canary HTTP server must see zero requests, raw in
+  the frame and through maild with remote content loaded); a scroll test
+  over 100,000 rows; a smoke test.
 - **Done when:** the app tests pass in the nsl machine.
 
 ## Phase 5 — Exit evidence
