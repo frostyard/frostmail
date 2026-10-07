@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -149,7 +148,7 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 				return err
 			}
 			if created[id] {
-				if err := tx.IndexMessage(ctx, id, searchDoc(h)); err != nil {
+				if err := tx.IndexMessage(ctx, id, store.SearchDocFor(h)); err != nil {
 					return err
 				}
 			}
@@ -159,23 +158,6 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
 	})
-}
-
-func searchDoc(h store.MessageHeader) store.SearchDoc {
-	var from, to, names bytes.Buffer
-	from.WriteString(h.From.Name + " " + h.From.Addr)
-	for _, a := range append(slices.Clone(h.To), h.Cc...) {
-		to.WriteString(a.Name + " " + a.Addr + " ")
-	}
-	for _, p := range h.Parts {
-		if p.Filename != "" {
-			names.WriteString(p.Filename + " ")
-		}
-	}
-	return store.SearchDoc{
-		Subject: h.Subject, From: from.String(), To: strings.TrimSpace(to.String()),
-		Body: h.Preview, AttachmentNames: strings.TrimSpace(names.String()),
-	}
 }
 
 // remove deletes local copies of UIDs the server no longer has.

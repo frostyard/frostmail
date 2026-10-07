@@ -1,8 +1,10 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -58,4 +60,23 @@ func SearchQuery(input string) string {
 		phrases = append(phrases, `"`+strings.ReplaceAll(term, `"`, `""`)+`"*`)
 	}
 	return strings.Join(phrases, " ")
+}
+
+// SearchDocFor is the search entry for a newly stored message: its subject,
+// sender, recipients, preview and attachment names.
+func SearchDocFor(h MessageHeader) SearchDoc {
+	var from, to, names bytes.Buffer
+	from.WriteString(h.From.Name + " " + h.From.Addr)
+	for _, a := range append(slices.Clone(h.To), h.Cc...) {
+		to.WriteString(a.Name + " " + a.Addr + " ")
+	}
+	for _, p := range h.Parts {
+		if p.Filename != "" {
+			names.WriteString(p.Filename + " ")
+		}
+	}
+	return SearchDoc{
+		Subject: h.Subject, From: from.String(), To: strings.TrimSpace(to.String()),
+		Body: h.Preview, AttachmentNames: strings.TrimSpace(names.String()),
+	}
 }
