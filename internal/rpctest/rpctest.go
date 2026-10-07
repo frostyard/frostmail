@@ -23,9 +23,10 @@ const Name = "maild rpctest"
 
 // Server is a running test server; it stops when the test ends.
 type Server struct {
-	Socket string
-	DB     *store.DB
-	Broker *events.Broker
+	Socket  string
+	DB      *store.DB
+	Broker  *events.Broker
+	Secrets *secrets.File
 }
 
 // Start runs a server with a fresh database. The socket lives in a short
@@ -49,7 +50,8 @@ func Start(t testing.TB) *Server {
 		t.Fatal(err)
 	}
 	srv := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker})
-	eng := engine.New(db, secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json")), slog.New(slog.DiscardHandler))
+	sec := secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json"))
+	eng := engine.New(db, sec, slog.New(slog.DiscardHandler))
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
@@ -73,7 +75,7 @@ func Start(t testing.TB) *Server {
 		_ = db.Close()
 		_ = os.RemoveAll(dir)
 	})
-	return &Server{Socket: socket, DB: db, Broker: broker}
+	return &Server{Socket: socket, DB: db, Broker: broker, Secrets: sec}
 }
 
 // Dial connects and completes rpc.hello; the client closes when the test ends.
