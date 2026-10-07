@@ -5,7 +5,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 )
@@ -17,9 +16,10 @@ type Options struct {
 	Out  string // Maildir root; cur/, new/ and tmp/ are created
 }
 
-// Generate writes the Maildir. Task T-0021 implements it.
+// Generate writes the Maildir. Task T-0021 implements it; the stub writes
+// nothing.
 func Generate(o Options) error {
-	return errors.New("mailgen: not implemented")
+	return nil
 }
 
 func main() {
@@ -29,7 +29,8 @@ func main() {
 	}
 }
 
-// run parses flags into Options and calls Generate. Task T-0021 implements it.
+// run parses flags into Options and calls Generate. Task T-0021 implements
+// it; the stub ignores args.
 func run(args []string) error {
-	return errors.New("mailgen: not implemented")
+	return Generate(Options{})
 }
