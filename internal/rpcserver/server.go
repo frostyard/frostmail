@@ -142,7 +142,7 @@ func (c *conn) serve(parent context.Context) {
 	sc := bufio.NewScanner(c.nc)
 	sc.Buffer(make([]byte, 64<<10), api.MaxMessageSize)
 	for sc.Scan() {
-		var m api.Message
+		var m api.Frame
 		if err := json.Unmarshal(sc.Bytes(), &m); err != nil {
 			c.reply(nil, nil, api.ParseError("%v", err))
 			continue
@@ -175,7 +175,7 @@ func (c *conn) serve(parent context.Context) {
 	}
 }
 
-func (c *conn) dispatch(ctx context.Context, m api.Message) {
+func (c *conn) dispatch(ctx context.Context, m api.Frame) {
 	res, err := c.r.Dispatch(ctx, m.Method, m.Params)
 	c.reply(m.ID, res, err)
 	if err == nil && m.Method == "events.subscribe" {
@@ -187,7 +187,7 @@ func (c *conn) reply(id jsontext.Value, result any, err error) {
 	if len(id) == 0 {
 		id = jsontext.Value("null")
 	}
-	resp := api.Message{JSONRPC: "2.0", ID: id}
+	resp := api.Frame{JSONRPC: "2.0", ID: id}
 	if err == nil {
 		resp.Result, err = json.Marshal(result)
 	}
@@ -205,7 +205,7 @@ func (c *conn) reply(id jsontext.Value, result any, err error) {
 	}
 }
 
-func (c *conn) write(m api.Message) error {
+func (c *conn) write(m api.Frame) error {
 	line, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func (c *conn) startEvents() {
 			if err != nil {
 				return err
 			}
-			return c.write(api.Message{JSONRPC: "2.0", Method: api.EventMethod, Params: params})
+			return c.write(api.Frame{JSONRPC: "2.0", Method: api.EventMethod, Params: params})
 		})
 		if errors.Is(err, events.ErrLagged) {
 			c.s.opts.Logger.Warn("dropping lagging event subscriber")

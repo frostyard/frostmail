@@ -84,6 +84,14 @@ var reservedClientMethods = map[string]bool{
 	"Call": true, "Close": true, "Done": true, "Err": true, "Notifications": true,
 }
 
+// reservedAPINames are package api's hand-written identifiers (api.go,
+// client.go); generated names must not collide with them.
+var reservedAPINames = []string{
+	"Client", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
+	"EventEnvelope", "EventMethod", "Frame", "HasMethod", "MaxMessageSize",
+	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow",
+}
+
 // builtinErrors are the JSON-RPC 2.0 codes; methods may list them by name.
 var builtinErrors = []ErrorDef{
 	{"parseError", -32700, "The request is not valid JSON."},
@@ -208,6 +216,9 @@ func build(files []*File) (*Schema, error) {
 	}
 	domains := map[string]bool{}
 	global := map[string]string{} // Go-level names, to catch generated collisions
+	for _, name := range reservedAPINames {
+		global[name] = "a hand-written identifier in package api"
+	}
 
 	claim := func(f *File, name, what string) {
 		if prev, ok := global[name]; ok {

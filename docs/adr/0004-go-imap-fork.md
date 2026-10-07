@@ -6,7 +6,7 @@
 ## Context
 
 emersion/go-imap v2 is the strongest Go IMAP client (IDLE, MOVE, UIDPLUS,
-CONDSTORE, QRESYNC, ESEARCH, SPECIAL-USE), but it is still beta
+CONDSTORE, ESEARCH, SPECIAL-USE; not QRESYNC), but it is still beta
 (v2.0.0-beta.8) and its FETCH parser fails the whole response on any
 attribute it does not know. Gmail sync needs `X-GM-MSGID` (a stable ID across
 labels), `X-GM-THRID` (threads), `X-GM-LABELS` (labels as memberships) and
@@ -25,8 +25,8 @@ and tested in `imapclient/gmail_test.go`. Only `internal/imapx` imports go-imap.
   message once per label.
 - Upgrading means re-applying a small, documented patch set; the patches go
   upstream.
-- go-imap's in-memory server has no CONDSTORE or QRESYNC, so those paths are
-  tested against Dovecot and recorded transcripts instead
+- go-imap's in-memory server has no CONDSTORE, so that path is tested
+  against Dovecot and recorded transcripts instead
   ([design/testing.md](../design/testing.md)).
 
 ## Alternatives considered

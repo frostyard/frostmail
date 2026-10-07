@@ -23,10 +23,10 @@ const EventBuffer = 1024
 // ErrEventsOverflow means the caller stopped reading Client.Notifications.
 var ErrEventsOverflow = errors.New("api: event buffer overflow")
 
-// Message is one JSON-RPC 2.0 message in either direction: a request (ID and
+// Frame is one JSON-RPC 2.0 message in either direction: a request (ID and
 // Method), a notification (Method, no ID) or a response (ID with Result or
 // Error).
-type Message struct {
+type Frame struct {
 	JSONRPC string         `json:"jsonrpc"`
 	ID      jsontext.Value `json:"id,omitzero"`
 	Method  string         `json:"method,omitzero"`
@@ -47,7 +47,7 @@ type Client struct {
 
 	mu      sync.Mutex
 	nextID  int64
-	pending map[int64]chan Message
+	pending map[int64]chan Frame
 	err     error
 
 	events chan EventEnvelope
@@ -75,7 +75,7 @@ func Dial(ctx context.Context, socketPath, clientName string) (*Client, *Hello, 
 func NewClient(conn net.Conn) *Client {
 	c := &Client{
 		conn:    conn,
-		pending: map[int64]chan Message{},
+		pending: map[int64]chan Frame{},
 		events:  make(chan EventEnvelope, EventBuffer),
 		done:    make(chan struct{}),
 	}
@@ -111,7 +111,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	if err != nil {
 		return fmt.Errorf("encode %s params: %w", method, err)
 	}
-	ch := make(chan Message, 1)
+	ch := make(chan Frame, 1)
 	c.mu.Lock()
 	if c.err != nil {
 		err := c.err
@@ -128,7 +128,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 		c.mu.Unlock()
 	}()
 
-	req := Message{JSONRPC: "2.0", ID: jsontext.Value(strconv.FormatInt(id, 10)), Method: method, Params: raw}
+	req := Frame{JSONRPC: "2.0", ID: jsontext.Value(strconv.FormatInt(id, 10)), Method: method, Params: raw}
 	if err := c.write(req); err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	}
 }
 
-func (c *Client) write(m Message) error {
+func (c *Client) write(m Frame) error {
 	line, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func (c *Client) read() error {
 	sc := bufio.NewScanner(c.conn)
 	sc.Buffer(make([]byte, 64<<10), MaxMessageSize)
 	for sc.Scan() {
-		var m Message
+		var m Frame
 		if err := json.Unmarshal(sc.Bytes(), &m); err != nil {
 			return fmt.Errorf("api: malformed message from maild: %w", err)
 		}

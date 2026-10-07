@@ -6,20 +6,37 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/mail"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
 // Engine owns the domain services.
-type Engine struct{ db *store.DB }
+type Engine struct {
+	db      *store.DB
+	secrets secrets.Store
+	log     *slog.Logger
+}
 
-// New returns an Engine over db.
-func New(db *store.DB) *Engine { return &Engine{db: db} }
+// New returns an Engine over db, keeping credentials in sec.
+func New(db *store.DB, sec secrets.Store, log *slog.Logger) *Engine {
+	return &Engine{db: db, secrets: sec, log: log}
+}
 
 // Accounts implements the account domain.
-func (e *Engine) Accounts() api.AccountService { return accounts{e.db} }
+func (e *Engine) Accounts() api.AccountService { return accounts{e.db, e.secrets, e.log} }
+
+// Messages implements the message domain (M1 phase 3).
+func (e *Engine) Messages() api.MessageService { return pending{} }
+
+// Sync implements the sync domain (M1 phase 3).
+func (e *Engine) Sync() api.SyncService { return pending{} }
+
+// Views implements the view domain (M1 phase 3).
+func (e *Engine) Views() api.ViewService { return pending{} }
 
 // Mailboxes implements the mailbox domain.
 func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.db} }
@@ -37,7 +54,11 @@ func apiError(err error, what string) error {
 	return err
 }
 
-type accounts struct{ db *store.DB }
+type accounts struct {
+	db      *store.DB
+	secrets secrets.Store
+	log     *slog.Logger
+}
 
 func (a accounts) List(ctx context.Context, _ *api.AccountListParams) ([]api.Account, error) {
 	list, err := a.db.ListAccounts(ctx)
@@ -112,7 +133,24 @@ func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.
 
 func (a accounts) Delete(ctx context.Context, p *api.AccountDeleteParams) error {
 	err := a.db.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteAccount(ctx, p.ID) })
-	return apiError(err, fmt.Sprintf("account %d", p.ID))
+	if err != nil {
+		return apiError(err, fmt.Sprintf("account %d", p.ID))
+	}
+	// Best effort: account IDs are never reused, so a leftover secret is inert.
+	if err := a.secrets.Delete(ctx, secrets.AccountPassword(p.ID)); err != nil {
+		a.log.Warn("account deleted but its password was not", "account", p.ID, "err", err)
+	}
+	return nil
+}
+
+func (a accounts) SetPassword(ctx context.Context, p *api.AccountSetPasswordParams) error {
+	if p.Password == "" {
+		return api.InvalidParams("password is empty")
+	}
+	if _, err := a.db.GetAccount(ctx, p.ID); err != nil {
+		return apiError(err, fmt.Sprintf("account %d", p.ID))
+	}
+	return a.secrets.Set(ctx, secrets.AccountPassword(p.ID), p.Password)
 }
 
 func validateAccount(p *api.AccountCreateParams) error {

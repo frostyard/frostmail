@@ -22,7 +22,7 @@ Generated from [schema/rpc](../../schema/rpc). Framing, connection setup and eve
 
 ## account
 
-Mail accounts and their server settings. Credentials never cross the RPC boundary.
+Mail accounts and their server settings. Credentials are write-only over RPC; account.setPassword stores one and no method returns it.
 
 ### `account.list`
 
@@ -83,6 +83,18 @@ Remove an account and everything stored for it.
 
 Result: none (`null`).
 Errors: `notFound`.
+
+### `account.setPassword`
+
+Store the password (or app-specific password) the account logs in with, and reconnect.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `password` | `string` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`.
 
 ### Event `account.changed` (durable)
 
@@ -227,6 +239,176 @@ What a mailbox is for, from SPECIAL-USE attributes or name heuristics.
 | `all` | All messages (Gmail All Mail). |
 | `flagged` | A server-side flagged view (Gmail Starred). |
 
+## message
+
+Messages. An ID is local and stays the same while the message exists, including across moves the server reports with COPYUID.
+
+### `message.get`
+
+One message's headers and structure.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Message`.
+Errors: `notFound`.
+
+### `message.body`
+
+A message's text, fetching the message from the server first if it is not stored locally.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Body`.
+Errors: `notFound`, `unavailable`.
+
+### `message.setFlags`
+
+Change flags locally at once and on the server when it can be reached.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+| `changes` | `FlagChanges` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`.
+
+### `message.move`
+
+Move messages to another mailbox of the same account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+| `mailboxId` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`.
+
+### `message.delete`
+
+Move messages to the account's Trash; messages already in Trash are deleted from the server.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### Event `message.changed` (durable)
+
+Messages were added or changed (flags, mailbox, fetched body).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `ids` | `[]int` |  |
+
+### Event `message.removed` (durable)
+
+Messages no longer exist locally.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `ids` | `[]int` |  |
+
+### Type `Address`
+
+One mailbox address.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | `string` | Display name; may be empty. |
+| `address` | `string` |  |
+
+### Type `Flags`
+
+The flags clients show and change.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `seen` | `bool` |  |
+| `flagged` | `bool` |  |
+| `answered` | `bool` |  |
+| `forwarded` | `bool` |  |
+| `draft` | `bool` |  |
+| `flagColor` | `int` | 0 for none, 1-7 for Mail.app's flag colors (stored as $MailFlagBit0-2). |
+
+### Type `MessageSummary`
+
+A row of a message list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `mailboxIds` | `[]int` | Mailboxes holding the message: one for IMAP, one per label for Gmail. |
+| `threadId` | `int` |  |
+| `subject` | `string` |  |
+| `from` | `Address` |  |
+| `date` | `time` | The Date header, or the server's arrival time when Date is missing or invalid. |
+| `preview` | `string` | The first lines of the text, without quotes or signature. |
+| `flags` | `Flags` |  |
+| `hasAttachments` | `bool` |  |
+| `size` | `int` | Size in bytes on the server. |
+
+### Type `Part`
+
+One MIME part.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `path` | `string` | IMAP part specifier, such as 1 or 1.2. |
+| `contentType` | `string` | Lowercase type/subtype. |
+| `filename` | `string` |  |
+| `disposition` | `string` | inline, attachment or empty. |
+| `contentId` | `string` | Without angle brackets. |
+| `size` | `int` | Encoded size in bytes. |
+
+### Type `Message`
+
+Everything about a message except its body.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `summary` | `MessageSummary` |  |
+| `to` | `[]Address` |  |
+| `cc` | `[]Address` |  |
+| `replyTo` | `[]Address` |  |
+| `messageId` | `string` | Message-ID without angle brackets. |
+| `inReplyTo` | `string` |  |
+| `references` | `[]string` |  |
+| `listId` | `string` |  |
+| `listUnsubscribe` | `string` |  |
+| `parts` | `[]Part` |  |
+| `bodyFetched` | `bool` | Whether the full message is stored locally. |
+
+### Type `Body`
+
+A message's readable text.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `text` | `string` | The text/plain part, or text derived from the HTML part. |
+| `hasHtml` | `bool` | Whether an HTML part exists (rendered from M2 on). |
+
+### Type `FlagChanges`
+
+Flags to set or clear; omitted fields keep their values.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `seen` | `bool` (optional) |  |
+| `flagged` | `bool` (optional) |  |
+| `answered` | `bool` (optional) |  |
+| `flagColor` | `int` (optional) |  |
+
 ## rpc
 
 Connection setup. A client calls rpc.hello first on every connection; the server answers any other method with notReady until hello succeeds.
@@ -251,3 +433,153 @@ Server identity and the negotiated protocol.
 | --- | --- | --- |
 | `protocol` | `int` | Protocol major version the server speaks. |
 | `server` | `string` | Server name and version, for logs. |
+
+## sync
+
+Account synchronization state and control.
+
+### `sync.status`
+
+The sync state of every account, or of one.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+
+Result: `[]SyncStatus`.
+
+### `sync.now`
+
+Reconcile every mailbox of the account now instead of at the next poll.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### Event `sync.progress` (transient)
+
+An account's sync state changed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `status` | `SyncStatus` |  |
+
+### Type `SyncStatus`
+
+One account's sync state.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `phase` | `SyncPhase` |  |
+| `mailbox` | `string` (optional) | The mailbox path being synced, while syncing. |
+| `done` | `int` | Progress within the phase; 0 with total 0 when unknown. |
+| `total` | `int` |  |
+| `error` | `string` (optional) |  |
+| `lastSyncAt` | `time` (optional) | When every mailbox was last reconciled. |
+
+### Enum `SyncPhase`
+
+What an account's sync is doing.
+
+| Value | Meaning |
+| --- | --- |
+| `idle` | Up to date and watching for changes. |
+| `connecting` | Connecting and logging in. |
+| `listing` | Listing mailboxes. |
+| `syncing` | Reconciling mailboxes with the server. |
+| `offline` | The server cannot be reached; retrying with backoff. |
+| `unauthorized` | The server rejected the credentials; account.setPassword retries. |
+| `failed` | An unexpected error stopped sync; the error field says why. Retried with backoff. |
+
+## view
+
+Live message lists. A view belongs to the connection that opened it, sends its deltas only there, and closes with it.
+
+### `view.open`
+
+Open a view; deltas follow on this connection without events.subscribe.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `query` | `ViewQuery` |  |
+
+Result: `ViewInfo`.
+Errors: `invalidParams`.
+
+### `view.range`
+
+The rows from start up to, not including, end; end is capped at the view's count.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `start` | `int` |  |
+| `end` | `int` |  |
+
+Result: `[]MessageSummary`.
+Errors: `notFound`, `invalidParams`.
+
+### `view.close`
+
+Close a view.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### Event `view.delta` (transient)
+
+A view's rows changed. Rows a client holds are moved by the ops; fetch inserted rows with view.range.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `count` | `int` | The row count after the ops. |
+| `ops` | `[]ViewOp` |  |
+
+### Type `ViewQuery`
+
+Which messages a view lists, newest first. Every field that is set must match.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+| `mailboxId` | `int` (optional) |  |
+| `text` | `string` (optional) | Full-text search terms. |
+| `unread` | `bool` (optional) |  |
+| `flagged` | `bool` (optional) |  |
+
+### Type `ViewInfo`
+
+An open view.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `count` | `int` |  |
+
+### Type `ViewOp`
+
+One step of a delta; apply a delta's ops in order.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `op` | `ViewOpKind` |  |
+| `at` | `int` |  |
+| `count` | `int` |  |
+
+### Enum `ViewOpKind`
+
+How a delta changes a view.
+
+| Value | Meaning |
+| --- | --- |
+| `insert` | count rows were inserted at index at. |
+| `remove` | count rows starting at index at were removed. |

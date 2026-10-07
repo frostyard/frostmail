@@ -1,0 +1,111 @@
+domain: message
+doc: >-
+  Messages. An ID is local and stays the same while the message exists,
+  including across moves the server reports with COPYUID.
+types:
+  - name: Address
+    doc: One mailbox address.
+    fields:
+      - {name: name, type: string, doc: "Display name; may be empty."}
+      - {name: address, type: string}
+  - name: Flags
+    doc: The flags clients show and change.
+    fields:
+      - {name: seen, type: bool}
+      - {name: flagged, type: bool}
+      - {name: answered, type: bool}
+      - {name: forwarded, type: bool}
+      - {name: draft, type: bool}
+      - {name: flagColor, type: int, doc: "0 for none, 1-7 for Mail.app's flag colors (stored as $MailFlagBit0-2)."}
+  - name: MessageSummary
+    doc: A row of a message list.
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: mailboxIds, type: "[]int", doc: "Mailboxes holding the message: one for IMAP, one per label for Gmail."}
+      - {name: threadId, type: int}
+      - {name: subject, type: string}
+      - {name: from, type: Address}
+      - {name: date, type: time, doc: "The Date header, or the server's arrival time when Date is missing or invalid."}
+      - {name: preview, type: string, doc: "The first lines of the text, without quotes or signature."}
+      - {name: flags, type: Flags}
+      - {name: hasAttachments, type: bool}
+      - {name: size, type: int, doc: "Size in bytes on the server."}
+  - name: Part
+    doc: One MIME part.
+    fields:
+      - {name: path, type: string, doc: "IMAP part specifier, such as 1 or 1.2."}
+      - {name: contentType, type: string, doc: "Lowercase type/subtype."}
+      - {name: filename, type: string}
+      - {name: disposition, type: string, doc: "inline, attachment or empty."}
+      - {name: contentId, type: string, doc: "Without angle brackets."}
+      - {name: size, type: int, doc: "Encoded size in bytes."}
+  - name: Message
+    doc: Everything about a message except its body.
+    fields:
+      - {name: summary, type: MessageSummary}
+      - {name: to, type: "[]Address"}
+      - {name: cc, type: "[]Address"}
+      - {name: replyTo, type: "[]Address"}
+      - {name: messageId, type: string, doc: "Message-ID without angle brackets."}
+      - {name: inReplyTo, type: string}
+      - {name: references, type: "[]string"}
+      - {name: listId, type: string}
+      - {name: listUnsubscribe, type: string}
+      - {name: parts, type: "[]Part"}
+      - {name: bodyFetched, type: bool, doc: "Whether the full message is stored locally."}
+  - name: Body
+    doc: A message's readable text.
+    fields:
+      - {name: text, type: string, doc: "The text/plain part, or text derived from the HTML part."}
+      - {name: hasHtml, type: bool, doc: "Whether an HTML part exists (rendered from M2 on)."}
+  - name: FlagChanges
+    doc: Flags to set or clear; omitted fields keep their values.
+    fields:
+      - {name: seen, type: bool, optional: true}
+      - {name: flagged, type: bool, optional: true}
+      - {name: answered, type: bool, optional: true}
+      - {name: flagColor, type: int, optional: true}
+methods:
+  - name: get
+    doc: One message's headers and structure.
+    params:
+      - {name: id, type: int}
+    result: Message
+    errors: [notFound]
+  - name: body
+    doc: A message's text, fetching the message from the server first if it is not stored locally.
+    params:
+      - {name: id, type: int}
+    result: Body
+    errors: [notFound, unavailable]
+  - name: setFlags
+    doc: Change flags locally at once and on the server when it can be reached.
+    params:
+      - {name: ids, type: "[]int"}
+      - {name: changes, type: FlagChanges}
+    errors: [notFound, invalidParams]
+  - name: move
+    doc: Move messages to another mailbox of the same account.
+    params:
+      - {name: ids, type: "[]int"}
+      - {name: mailboxId, type: int}
+    errors: [notFound, invalidParams]
+  - name: delete
+    doc: Move messages to the account's Trash; messages already in Trash are deleted from the server.
+    params:
+      - {name: ids, type: "[]int"}
+    errors: [notFound]
+events:
+  - name: changed
+    doc: Messages were added or changed (flags, mailbox, fetched body).
+    durable: true
+    fields:
+      - {name: accountId, type: int}
+      - {name: ids, type: "[]int"}
+  - name: removed
+    doc: Messages no longer exist locally.
+    durable: true
+    fields:
+      - {name: accountId, type: int}
+      - {name: ids, type: "[]int"}

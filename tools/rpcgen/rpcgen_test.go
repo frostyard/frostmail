@@ -69,6 +69,10 @@ func TestLoadRejects(t *testing.T) {
 			map[string]string{"rpc.yaml": minimalRPC, "close.yaml": "domain: close\n"},
 			"collides with the hand-written Client.Close",
 		},
+		"hand-written api name": {
+			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ntypes:\n  - name: Frame\n"},
+			"collides with a hand-written identifier",
+		},
 		"generated name collision": {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ntypes:\n  - name: AGetParams\nmethods:\n  - name: get\n"},
 			"collides",

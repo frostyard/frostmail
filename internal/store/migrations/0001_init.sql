@@ -5,7 +5,7 @@
 -- 2006-01-02T15:04:05.000Z so they sort lexically.
 
 CREATE TABLE accounts (
-  id                INTEGER PRIMARY KEY,
+  id                INTEGER PRIMARY KEY AUTOINCREMENT, -- never reused: clients and secrets hold IDs
   kind              TEXT NOT NULL CHECK (kind IN ('imap', 'gmail', 'microsoft', 'icloud')),
   email             TEXT NOT NULL UNIQUE COLLATE NOCASE,
   display_name      TEXT NOT NULL DEFAULT '',
@@ -35,7 +35,7 @@ CREATE TABLE identities (
 ) STRICT;
 
 CREATE TABLE mailboxes (
-  id              INTEGER PRIMARY KEY,
+  id              INTEGER PRIMARY KEY AUTOINCREMENT, -- never reused: clients and secrets hold IDs
   account_id      INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
   path            TEXT NOT NULL,
   delimiter       TEXT NOT NULL DEFAULT '',
@@ -70,7 +70,7 @@ CREATE TABLE threads (
 CREATE INDEX threads_last_date ON threads (account_id, last_date DESC);
 
 CREATE TABLE messages (
-  id               INTEGER PRIMARY KEY,
+  id               INTEGER PRIMARY KEY AUTOINCREMENT, -- never reused: clients and secrets hold IDs
   account_id       INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
   thread_id        INTEGER REFERENCES threads (id) ON DELETE SET NULL,
   gm_msgid         INTEGER, -- Gmail X-GM-MSGID; NULL elsewhere

@@ -1,0 +1,57 @@
+domain: view
+doc: >-
+  Live message lists. A view belongs to the connection that opened it, sends
+  its deltas only there, and closes with it.
+enums:
+  - name: ViewOpKind
+    doc: How a delta changes a view.
+    values:
+      - {name: insert, doc: "count rows were inserted at index at."}
+      - {name: remove, doc: "count rows starting at index at were removed."}
+types:
+  - name: ViewQuery
+    doc: Which messages a view lists, newest first. Every field that is set must match.
+    fields:
+      - {name: accountId, type: int, optional: true}
+      - {name: mailboxId, type: int, optional: true}
+      - {name: text, type: string, optional: true, doc: "Full-text search terms."}
+      - {name: unread, type: bool, optional: true}
+      - {name: flagged, type: bool, optional: true}
+  - name: ViewInfo
+    doc: An open view.
+    fields:
+      - {name: id, type: int}
+      - {name: count, type: int}
+  - name: ViewOp
+    doc: One step of a delta; apply a delta's ops in order.
+    fields:
+      - {name: op, type: ViewOpKind}
+      - {name: at, type: int}
+      - {name: count, type: int}
+methods:
+  - name: open
+    doc: Open a view; deltas follow on this connection without events.subscribe.
+    params:
+      - {name: query, type: ViewQuery}
+    result: ViewInfo
+    errors: [invalidParams]
+  - name: range
+    doc: The rows from start up to, not including, end; end is capped at the view's count.
+    params:
+      - {name: id, type: int}
+      - {name: start, type: int}
+      - {name: end, type: int}
+    result: "[]MessageSummary"
+    errors: [notFound, invalidParams]
+  - name: close
+    doc: Close a view.
+    params:
+      - {name: id, type: int}
+    errors: [notFound]
+events:
+  - name: delta
+    doc: A view's rows changed. Rows a client holds are moved by the ops; fetch inserted rows with view.range.
+    fields:
+      - {name: id, type: int}
+      - {name: count, type: int, doc: "The row count after the ops."}
+      - {name: ops, type: "[]ViewOp"}

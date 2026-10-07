@@ -1,5 +1,5 @@
 domain: account
-doc: Mail accounts and their server settings. Credentials never cross the RPC boundary.
+doc: Mail accounts and their server settings. Credentials are write-only over RPC; account.setPassword stores one and no method returns it.
 enums:
   - name: AccountKind
     doc: The provider family, which selects the sync strategy and server quirks.
@@ -73,6 +73,12 @@ methods:
     params:
       - {name: id, type: int}
     errors: [notFound]
+  - name: setPassword
+    doc: Store the password (or app-specific password) the account logs in with, and reconnect.
+    params:
+      - {name: id, type: int}
+      - {name: password, type: string}
+    errors: [notFound, invalidParams]
 events:
   - name: changed
     doc: An account was created, updated or deleted.

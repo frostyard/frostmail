@@ -1,7 +1,8 @@
 # Design: sync engine
 
-Status: designed in M0, built in M1 (generic IMAP) and M4 (Gmail, Microsoft,
-iCloud). Written by the planner, not by task cards
+Status: designed in M0, built in M1 (generic IMAP,
+[plan 0003](../plans/0003-m1-headless-read-path.md)) and M4 (Gmail,
+Microsoft, iCloud). Written by the planner, not by task cards
 ([ADR-0008](../adr/0008-local-executor-workflow.md)).
 
 ## Actors and connections
@@ -10,12 +11,12 @@ iCloud). Written by the planner, not by task cards
   schedules work by priority: **P0** what the user is viewing (a body, an
   attachment) > **P1** replaying `pending_ops` > **P2** INBOX > **P3**
   incremental sync of other folders > **P4** backfill and prefetch.
-- Up to 3 connections per account (Gmail allows 15): C1 runs commands; C2
-  IDLEs on INBOX, re-issuing IDLE every 25 minutes and treating 10 silent
-  minutes as dead; C3 handles bulk and body fetches. Other folders are polled
-  every 5 minutes and whenever C2 wakes. Provider profiles can lower the cap.
-- Connect: CAPABILITY, ID, `ENABLE CONDSTORE QRESYNC` (iCloud answers OK
-  without the untagged ENABLED: treat as enabled),
+- Connections per account (Gmail allows 15): C1 runs commands, polling and
+  body fetches; C2 IDLEs on INBOX, re-issuing IDLE every 25 minutes and
+  treating 10 silent minutes as dead. M4 may add C3 for bulk fetches.
+  Provider profiles can lower the count.
+- Connect: CAPABILITY, ID, `ENABLE CONDSTORE` (iCloud answers OK without the
+  untagged ENABLED: treat as enabled),
   `LIST "" "*" RETURN (SPECIAL-USE SUBSCRIBED)`, with role fallback by name
   ("Sent Messages", "Deleted Messages" on iCloud).
 
@@ -26,21 +27,48 @@ chunks of 500:
 `UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE MODSEQ
 BODY.PEEK[HEADER.FIELDS (References In-Reply-To List-Id List-Unsubscribe
 Authentication-Results)]`, plus `X-GM-MSGID X-GM-THRID X-GM-LABELS` on
-Gmail. The preview comes from a partial fetch of the text part. Bodies are
+Gmail. The preview comes from a partial fetch of the first text part chosen
+from BODYSTRUCTURE: `BINARY.PEEK[part]<0.2048>` with BINARY, else
+`BODY.PEEK[part]<0.2048>` decoded locally (`mimex.DecodePart`). Bodies are
 fetched when opened (P0) and prefetched for INBOX and VIPs within 90 days
 (P4). Headers are backfilled down to the configured window; search beyond it
 falls back to server `UID SEARCH` (`X-GM-RAW` on Gmail).
 
-## Incremental sync
+## The reconcile pass
 
-- **QRESYNC:** `SELECT box (QRESYNC (uidvalidity modseq))` returns
-  `VANISHED (EARLIER)` and changed flags; then fetch UIDs ≥ stored `uidnext`.
-- **CONDSTORE only:** `FETCH 1:* (FLAGS) (CHANGEDSINCE modseq)`; detect
-  expunges with ESEARCH `UID SEARCH RETURN (ALL) ALL` against local UIDs.
-- **Neither:** compare flags and UIDs within the sync window; full reconcile
-  nightly.
-- A provider profile downgrades a server that breaks QRESYNC invariants (an
-  unknown UID, a negative sequence number) to CONDSTORE-only.
+Every sync of a mailbox, initial or incremental, is one reconcile pass
+(M1). It is safe to kill at any point and to run again.
+
+1. `SELECT box (CONDSTORE)` (plain SELECT without CONDSTORE). Compare
+   UIDVALIDITY with the stored value; on a change, see below.
+2. **Fast path:** if UIDNEXT, HIGHESTMODSEQ and the message count all equal
+   the stored state, the pass ends.
+3. **Server UIDs:** if UIDNEXT or the count changed, ESEARCH
+   `UID SEARCH RETURN (ALL) ALL` (plain `UID SEARCH ALL` without ESEARCH)
+   gives the server set S; L is the local set.
+4. **New:** fetch headers for S \ L, newest first, in chunks of 500. Each
+   chunk is one transaction: insert (idempotent on `(mailbox, uid)`), thread,
+   index, emit `message.changed`.
+5. **Gone:** delete L \ S in one transaction and emit `message.removed`.
+6. **Flags:** with CONDSTORE, `UID FETCH <L ∩ S> (FLAGS MODSEQ)
+   (CHANGEDSINCE stored)`; without it, fetch FLAGS for the local window and
+   compare. Flags with a pending local op are not overwritten.
+7. Store UIDVALIDITY, UIDNEXT, HIGHESTMODSEQ and the count, which arms the
+   fast path for the next pass.
+
+QRESYNC (`SELECT … (QRESYNC …)` with `VANISHED (EARLIER)`) would replace
+steps 3 and 5 with one round trip, but the go-imap client does not implement
+it, and Gmail and Outlook do not offer it. It is a later patch to the fork for
+Dovecot and Fastmail.
+
+## Change detection
+
+- INBOX: C2 IDLEs; any unsolicited EXISTS, EXPUNGE or FETCH ends the IDLE and
+  queues a reconcile pass for INBOX (target: visible to clients within 5 s).
+- Other mailboxes: `STATUS (MESSAGES UIDNEXT UIDVALIDITY HIGHESTMODSEQ)` on
+  C1 every poll interval (default 5 minutes), and a pass for each mailbox
+  whose status differs from the stored state. NOTIFY (Dovecot) can replace
+  polling later.
 
 ## UIDVALIDITY change
 

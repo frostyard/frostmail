@@ -256,8 +256,15 @@ type AccountDeleteParams struct {
 	ID int64 `json:"id"`
 }
 
-// AccountService: Mail accounts and their server settings. Credentials never
-// cross the RPC boundary.
+// AccountSetPasswordParams holds the params of account.setPassword.
+type AccountSetPasswordParams struct {
+	ID       int64  `json:"id"`
+	Password string `json:"password"`
+}
+
+// AccountService: Mail accounts and their server settings. Credentials are
+// write-only over RPC; account.setPassword stores one and no method returns
+// it.
 type AccountService interface {
 	// List implements account.list. All accounts, oldest first.
 	List(ctx context.Context, p *AccountListParams) ([]Account, error)
@@ -272,6 +279,9 @@ type AccountService interface {
 	// Delete implements account.delete. Remove an account and everything stored
 	// for it.
 	Delete(ctx context.Context, p *AccountDeleteParams) error
+	// SetPassword implements account.setPassword. Store the password (or
+	// app-specific password) the account logs in with, and reconnect.
+	SetPassword(ctx context.Context, p *AccountSetPasswordParams) error
 }
 
 func registerAccount(r *Router, s AccountService) {
@@ -309,6 +319,13 @@ func registerAccount(r *Router, s AccountService) {
 			return nil, err
 		}
 		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("account.setPassword", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountSetPasswordParams
+		if err := decodeParams(raw, &p, []string{"id", "password"}); err != nil {
+			return nil, err
+		}
+		return nil, s.SetPassword(ctx, &p)
 	})
 }
 
@@ -360,6 +377,11 @@ func (x AccountClient) Update(ctx context.Context, p *AccountUpdateParams) (*Acc
 // Delete calls account.delete.
 func (x AccountClient) Delete(ctx context.Context, p *AccountDeleteParams) error {
 	return x.c.Call(ctx, "account.delete", p, nil)
+}
+
+// SetPassword calls account.setPassword.
+func (x AccountClient) SetPassword(ctx context.Context, p *AccountSetPasswordParams) error {
+	return x.c.Call(ctx, "account.setPassword", p, nil)
 }
 
 // AccountChanged: An account was created, updated or deleted.
@@ -530,6 +552,246 @@ func (MailboxChanged) EventName() string { return "mailbox.changed" }
 // Durable reports whether MailboxChanged is kept in the changes log.
 func (MailboxChanged) Durable() bool { return true }
 
+// ---- message ----
+
+// Address: One mailbox address.
+type Address struct {
+	// Display name; may be empty.
+	Name    string `json:"name"`
+	Address string `json:"address"`
+}
+
+// Flags: The flags clients show and change.
+type Flags struct {
+	Seen      bool `json:"seen"`
+	Flagged   bool `json:"flagged"`
+	Answered  bool `json:"answered"`
+	Forwarded bool `json:"forwarded"`
+	Draft     bool `json:"draft"`
+	// 0 for none, 1-7 for Mail.app's flag colors (stored as $MailFlagBit0-2).
+	FlagColor int64 `json:"flagColor"`
+}
+
+// MessageSummary: A row of a message list.
+type MessageSummary struct {
+	ID        int64 `json:"id"`
+	AccountID int64 `json:"accountId"`
+	// Mailboxes holding the message: one for IMAP, one per label for Gmail.
+	MailboxIds []int64 `json:"mailboxIds"`
+	ThreadID   int64   `json:"threadId"`
+	Subject    string  `json:"subject"`
+	From       Address `json:"from"`
+	// The Date header, or the server's arrival time when Date is missing or
+	// invalid.
+	Date time.Time `json:"date"`
+	// The first lines of the text, without quotes or signature.
+	Preview        string `json:"preview"`
+	Flags          Flags  `json:"flags"`
+	HasAttachments bool   `json:"hasAttachments"`
+	// Size in bytes on the server.
+	Size int64 `json:"size"`
+}
+
+// Part: One MIME part.
+type Part struct {
+	// IMAP part specifier, such as 1 or 1.2.
+	Path string `json:"path"`
+	// Lowercase type/subtype.
+	ContentType string `json:"contentType"`
+	Filename    string `json:"filename"`
+	// inline, attachment or empty.
+	Disposition string `json:"disposition"`
+	// Without angle brackets.
+	ContentID string `json:"contentId"`
+	// Encoded size in bytes.
+	Size int64 `json:"size"`
+}
+
+// Message: Everything about a message except its body.
+type Message struct {
+	Summary MessageSummary `json:"summary"`
+	To      []Address      `json:"to"`
+	Cc      []Address      `json:"cc"`
+	ReplyTo []Address      `json:"replyTo"`
+	// Message-ID without angle brackets.
+	MessageID       string   `json:"messageId"`
+	InReplyTo       string   `json:"inReplyTo"`
+	References      []string `json:"references"`
+	ListID          string   `json:"listId"`
+	ListUnsubscribe string   `json:"listUnsubscribe"`
+	Parts           []Part   `json:"parts"`
+	// Whether the full message is stored locally.
+	BodyFetched bool `json:"bodyFetched"`
+}
+
+// Body: A message's readable text.
+type Body struct {
+	// The text/plain part, or text derived from the HTML part.
+	Text string `json:"text"`
+	// Whether an HTML part exists (rendered from M2 on).
+	HasHTML bool `json:"hasHtml"`
+}
+
+// FlagChanges: Flags to set or clear; omitted fields keep their values.
+type FlagChanges struct {
+	Seen      *bool  `json:"seen,omitzero"`
+	Flagged   *bool  `json:"flagged,omitzero"`
+	Answered  *bool  `json:"answered,omitzero"`
+	FlagColor *int64 `json:"flagColor,omitzero"`
+}
+
+// MessageGetParams holds the params of message.get.
+type MessageGetParams struct {
+	ID int64 `json:"id"`
+}
+
+// MessageBodyParams holds the params of message.body.
+type MessageBodyParams struct {
+	ID int64 `json:"id"`
+}
+
+// MessageSetFlagsParams holds the params of message.setFlags.
+type MessageSetFlagsParams struct {
+	Ids     []int64     `json:"ids"`
+	Changes FlagChanges `json:"changes"`
+}
+
+// MessageMoveParams holds the params of message.move.
+type MessageMoveParams struct {
+	Ids       []int64 `json:"ids"`
+	MailboxID int64   `json:"mailboxId"`
+}
+
+// MessageDeleteParams holds the params of message.delete.
+type MessageDeleteParams struct {
+	Ids []int64 `json:"ids"`
+}
+
+// MessageService: Messages. An ID is local and stays the same while the
+// message exists, including across moves the server reports with COPYUID.
+type MessageService interface {
+	// Get implements message.get. One message's headers and structure.
+	Get(ctx context.Context, p *MessageGetParams) (*Message, error)
+	// Body implements message.body. A message's text, fetching the message from
+	// the server first if it is not stored locally.
+	Body(ctx context.Context, p *MessageBodyParams) (*Body, error)
+	// SetFlags implements message.setFlags. Change flags locally at once and on
+	// the server when it can be reached.
+	SetFlags(ctx context.Context, p *MessageSetFlagsParams) error
+	// Move implements message.move. Move messages to another mailbox of the same
+	// account.
+	Move(ctx context.Context, p *MessageMoveParams) error
+	// Delete implements message.delete. Move messages to the account's Trash;
+	// messages already in Trash are deleted from the server.
+	Delete(ctx context.Context, p *MessageDeleteParams) error
+}
+
+func registerMessage(r *Router, s MessageService) {
+	r.handle("message.get", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageGetParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Get(ctx, &p)
+	})
+	r.handle("message.body", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageBodyParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Body(ctx, &p)
+	})
+	r.handle("message.setFlags", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageSetFlagsParams
+		if err := decodeParams(raw, &p, []string{"ids", "changes"}); err != nil {
+			return nil, err
+		}
+		return nil, s.SetFlags(ctx, &p)
+	})
+	r.handle("message.move", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageMoveParams
+		if err := decodeParams(raw, &p, []string{"ids", "mailboxId"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Move(ctx, &p)
+	})
+	r.handle("message.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageDeleteParams
+		if err := decodeParams(raw, &p, []string{"ids"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+}
+
+// MessageClient calls the message methods; it implements MessageService.
+type MessageClient struct{ c *Client }
+
+// Message returns the message methods.
+func (c *Client) Message() MessageClient { return MessageClient{c} }
+
+var _ MessageService = MessageClient{}
+
+// Get calls message.get.
+func (x MessageClient) Get(ctx context.Context, p *MessageGetParams) (*Message, error) {
+	var r Message
+	err := x.c.Call(ctx, "message.get", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Body calls message.body.
+func (x MessageClient) Body(ctx context.Context, p *MessageBodyParams) (*Body, error) {
+	var r Body
+	err := x.c.Call(ctx, "message.body", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// SetFlags calls message.setFlags.
+func (x MessageClient) SetFlags(ctx context.Context, p *MessageSetFlagsParams) error {
+	return x.c.Call(ctx, "message.setFlags", p, nil)
+}
+
+// Move calls message.move.
+func (x MessageClient) Move(ctx context.Context, p *MessageMoveParams) error {
+	return x.c.Call(ctx, "message.move", p, nil)
+}
+
+// Delete calls message.delete.
+func (x MessageClient) Delete(ctx context.Context, p *MessageDeleteParams) error {
+	return x.c.Call(ctx, "message.delete", p, nil)
+}
+
+// MessageChanged: Messages were added or changed (flags, mailbox, fetched
+// body).
+type MessageChanged struct {
+	AccountID int64   `json:"accountId"`
+	Ids       []int64 `json:"ids"`
+}
+
+// EventName is the wire name of MessageChanged.
+func (MessageChanged) EventName() string { return "message.changed" }
+
+// Durable reports whether MessageChanged is kept in the changes log.
+func (MessageChanged) Durable() bool { return true }
+
+// MessageRemoved: Messages no longer exist locally.
+type MessageRemoved struct {
+	AccountID int64   `json:"accountId"`
+	Ids       []int64 `json:"ids"`
+}
+
+// EventName is the wire name of MessageRemoved.
+func (MessageRemoved) EventName() string { return "message.removed" }
+
+// Durable reports whether MessageRemoved is kept in the changes log.
+func (MessageRemoved) Durable() bool { return true }
+
 // ---- rpc ----
 
 // Hello: Server identity and the negotiated protocol.
@@ -585,12 +847,272 @@ func (x RPCClient) Hello(ctx context.Context, p *RPCHelloParams) (*Hello, error)
 	return &r, nil
 }
 
+// ---- sync ----
+
+// SyncPhase: What an account's sync is doing.
+type SyncPhase string
+
+const (
+	// Up to date and watching for changes.
+	SyncPhaseIdle SyncPhase = "idle"
+	// Connecting and logging in.
+	SyncPhaseConnecting SyncPhase = "connecting"
+	// Listing mailboxes.
+	SyncPhaseListing SyncPhase = "listing"
+	// Reconciling mailboxes with the server.
+	SyncPhaseSyncing SyncPhase = "syncing"
+	// The server cannot be reached; retrying with backoff.
+	SyncPhaseOffline SyncPhase = "offline"
+	// The server rejected the credentials; account.setPassword retries.
+	SyncPhaseUnauthorized SyncPhase = "unauthorized"
+	// An unexpected error stopped sync; the error field says why. Retried with
+	// backoff.
+	SyncPhaseFailed SyncPhase = "failed"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v SyncPhase) Valid() bool {
+	switch v {
+	case SyncPhaseIdle, SyncPhaseConnecting, SyncPhaseListing, SyncPhaseSyncing, SyncPhaseOffline, SyncPhaseUnauthorized, SyncPhaseFailed:
+		return true
+	}
+	return false
+}
+
+// SyncStatus: One account's sync state.
+type SyncStatus struct {
+	AccountID int64     `json:"accountId"`
+	Phase     SyncPhase `json:"phase"`
+	// The mailbox path being synced, while syncing.
+	Mailbox *string `json:"mailbox,omitzero"`
+	// Progress within the phase; 0 with total 0 when unknown.
+	Done  int64   `json:"done"`
+	Total int64   `json:"total"`
+	Error *string `json:"error,omitzero"`
+	// When every mailbox was last reconciled.
+	LastSyncAt *time.Time `json:"lastSyncAt,omitzero"`
+}
+
+// SyncStatusParams holds the params of sync.status.
+type SyncStatusParams struct {
+	AccountID *int64 `json:"accountId,omitzero"`
+}
+
+// SyncNowParams holds the params of sync.now.
+type SyncNowParams struct {
+	AccountID int64 `json:"accountId"`
+}
+
+// SyncService: Account synchronization state and control.
+type SyncService interface {
+	// Status implements sync.status. The sync state of every account, or of one.
+	Status(ctx context.Context, p *SyncStatusParams) ([]SyncStatus, error)
+	// Now implements sync.now. Reconcile every mailbox of the account now instead
+	// of at the next poll.
+	Now(ctx context.Context, p *SyncNowParams) error
+}
+
+func registerSync(r *Router, s SyncService) {
+	r.handle("sync.status", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SyncStatusParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Status(ctx, &p)
+	})
+	r.handle("sync.now", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SyncNowParams
+		if err := decodeParams(raw, &p, []string{"accountId"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Now(ctx, &p)
+	})
+}
+
+// SyncClient calls the sync methods; it implements SyncService.
+type SyncClient struct{ c *Client }
+
+// Sync returns the sync methods.
+func (c *Client) Sync() SyncClient { return SyncClient{c} }
+
+var _ SyncService = SyncClient{}
+
+// Status calls sync.status.
+func (x SyncClient) Status(ctx context.Context, p *SyncStatusParams) ([]SyncStatus, error) {
+	var r []SyncStatus
+	err := x.c.Call(ctx, "sync.status", p, &r)
+	return r, err
+}
+
+// Now calls sync.now.
+func (x SyncClient) Now(ctx context.Context, p *SyncNowParams) error {
+	return x.c.Call(ctx, "sync.now", p, nil)
+}
+
+// SyncProgress: An account's sync state changed.
+type SyncProgress struct {
+	Status SyncStatus `json:"status"`
+}
+
+// EventName is the wire name of SyncProgress.
+func (SyncProgress) EventName() string { return "sync.progress" }
+
+// Durable reports whether SyncProgress is kept in the changes log.
+func (SyncProgress) Durable() bool { return false }
+
+// ---- view ----
+
+// ViewOpKind: How a delta changes a view.
+type ViewOpKind string
+
+const (
+	// count rows were inserted at index at.
+	ViewOpKindInsert ViewOpKind = "insert"
+	// count rows starting at index at were removed.
+	ViewOpKindRemove ViewOpKind = "remove"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ViewOpKind) Valid() bool {
+	switch v {
+	case ViewOpKindInsert, ViewOpKindRemove:
+		return true
+	}
+	return false
+}
+
+// ViewQuery: Which messages a view lists, newest first. Every field that is
+// set must match.
+type ViewQuery struct {
+	AccountID *int64 `json:"accountId,omitzero"`
+	MailboxID *int64 `json:"mailboxId,omitzero"`
+	// Full-text search terms.
+	Text    *string `json:"text,omitzero"`
+	Unread  *bool   `json:"unread,omitzero"`
+	Flagged *bool   `json:"flagged,omitzero"`
+}
+
+// ViewInfo: An open view.
+type ViewInfo struct {
+	ID    int64 `json:"id"`
+	Count int64 `json:"count"`
+}
+
+// ViewOp: One step of a delta; apply a delta's ops in order.
+type ViewOp struct {
+	Op    ViewOpKind `json:"op"`
+	At    int64      `json:"at"`
+	Count int64      `json:"count"`
+}
+
+// ViewOpenParams holds the params of view.open.
+type ViewOpenParams struct {
+	Query ViewQuery `json:"query"`
+}
+
+// ViewRangeParams holds the params of view.range.
+type ViewRangeParams struct {
+	ID    int64 `json:"id"`
+	Start int64 `json:"start"`
+	End   int64 `json:"end"`
+}
+
+// ViewCloseParams holds the params of view.close.
+type ViewCloseParams struct {
+	ID int64 `json:"id"`
+}
+
+// ViewService: Live message lists. A view belongs to the connection that
+// opened it, sends its deltas only there, and closes with it.
+type ViewService interface {
+	// Open implements view.open. Open a view; deltas follow on this connection
+	// without events.subscribe.
+	Open(ctx context.Context, p *ViewOpenParams) (*ViewInfo, error)
+	// Range implements view.range. The rows from start up to, not including, end;
+	// end is capped at the view's count.
+	Range(ctx context.Context, p *ViewRangeParams) ([]MessageSummary, error)
+	// Close implements view.close. Close a view.
+	Close(ctx context.Context, p *ViewCloseParams) error
+}
+
+func registerView(r *Router, s ViewService) {
+	r.handle("view.open", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ViewOpenParams
+		if err := decodeParams(raw, &p, []string{"query"}); err != nil {
+			return nil, err
+		}
+		return s.Open(ctx, &p)
+	})
+	r.handle("view.range", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ViewRangeParams
+		if err := decodeParams(raw, &p, []string{"id", "start", "end"}); err != nil {
+			return nil, err
+		}
+		return s.Range(ctx, &p)
+	})
+	r.handle("view.close", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ViewCloseParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Close(ctx, &p)
+	})
+}
+
+// ViewClient calls the view methods; it implements ViewService.
+type ViewClient struct{ c *Client }
+
+// View returns the view methods.
+func (c *Client) View() ViewClient { return ViewClient{c} }
+
+var _ ViewService = ViewClient{}
+
+// Open calls view.open.
+func (x ViewClient) Open(ctx context.Context, p *ViewOpenParams) (*ViewInfo, error) {
+	var r ViewInfo
+	err := x.c.Call(ctx, "view.open", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Range calls view.range.
+func (x ViewClient) Range(ctx context.Context, p *ViewRangeParams) ([]MessageSummary, error) {
+	var r []MessageSummary
+	err := x.c.Call(ctx, "view.range", p, &r)
+	return r, err
+}
+
+// Close calls view.close.
+func (x ViewClient) Close(ctx context.Context, p *ViewCloseParams) error {
+	return x.c.Call(ctx, "view.close", p, nil)
+}
+
+// ViewDelta: A view's rows changed. Rows a client holds are moved by the ops;
+// fetch inserted rows with view.range.
+type ViewDelta struct {
+	ID int64 `json:"id"`
+	// The row count after the ops.
+	Count int64    `json:"count"`
+	Ops   []ViewOp `json:"ops"`
+}
+
+// EventName is the wire name of ViewDelta.
+func (ViewDelta) EventName() string { return "view.delta" }
+
+// Durable reports whether ViewDelta is kept in the changes log.
+func (ViewDelta) Durable() bool { return false }
+
 // Services is one implementation per domain, for NewRouter.
 type Services struct {
 	Account AccountService
 	Events  EventsService
 	Mailbox MailboxService
+	Message MessageService
 	RPC     RPCService
+	Sync    SyncService
+	View    ViewService
 }
 
 func (s Services) register(r *Router) error {
@@ -606,10 +1128,22 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Mailbox is nil")
 	}
 	registerMailbox(r, s.Mailbox)
+	if s.Message == nil {
+		return errors.New("api: Services.Message is nil")
+	}
+	registerMessage(r, s.Message)
 	if s.RPC == nil {
 		return errors.New("api: Services.RPC is nil")
 	}
 	registerRPC(r, s.RPC)
+	if s.Sync == nil {
+		return errors.New("api: Services.Sync is nil")
+	}
+	registerSync(r, s.Sync)
+	if s.View == nil {
+		return errors.New("api: Services.View is nil")
+	}
+	registerView(r, s.View)
 	return nil
 }
 
@@ -620,9 +1154,20 @@ var Methods = []string{
 	"account.create",
 	"account.update",
 	"account.delete",
+	"account.setPassword",
 	"events.subscribe",
 	"mailbox.list",
+	"message.get",
+	"message.body",
+	"message.setFlags",
+	"message.move",
+	"message.delete",
 	"rpc.hello",
+	"sync.status",
+	"sync.now",
+	"view.open",
+	"view.range",
+	"view.close",
 }
 
 // DecodeEvent decodes the data of the named event.
@@ -636,6 +1181,30 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "mailbox.changed":
 		var e MailboxChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "message.changed":
+		var e MessageChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "message.removed":
+		var e MessageRemoved
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "sync.progress":
+		var e SyncProgress
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "view.delta":
+		var e ViewDelta
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

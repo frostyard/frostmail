@@ -4,6 +4,7 @@ package rpctest
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/rpcserver"
+	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -47,9 +49,10 @@ func Start(t testing.TB) *Server {
 		t.Fatal(err)
 	}
 	srv := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker})
-	eng := engine.New(db)
+	eng := engine.New(db, secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json")), slog.New(slog.DiscardHandler))
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
+		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/frostyard/frostmail/api"
@@ -17,6 +18,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/rpcserver"
+	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -74,9 +76,10 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
-	eng := engine.New(db)
+	eng := engine.New(db, secrets.NewFile(filepath.Join(paths.DataDir, "secrets.json")), logger)
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
+		Message: eng.Messages(), Sync: eng.Sync(), View: eng.Views(),
 	})
 	if err != nil {
 		return err

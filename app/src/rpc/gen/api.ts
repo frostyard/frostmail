@@ -109,6 +109,12 @@ export interface AccountDeleteParams {
   id: number;
 }
 
+/** Params of account.setPassword. */
+export interface AccountSetPasswordParams {
+  id: number;
+  password: string;
+}
+
 /** An account was created, updated or deleted. */
 export interface AccountChanged {
   id: number;
@@ -116,8 +122,8 @@ export interface AccountChanged {
 }
 
 /**
- * Mail accounts and their server settings. Credentials never cross the RPC
- * boundary.
+ * Mail accounts and their server settings. Credentials are write-only over
+ * RPC; account.setPassword stores one and no method returns it.
  */
 export interface AccountClient {
   /** All accounts, oldest first. */
@@ -130,6 +136,11 @@ export interface AccountClient {
   update(params: AccountUpdateParams): Promise<Account>;
   /** Remove an account and everything stored for it. */
   delete(params: AccountDeleteParams): Promise<void>;
+  /**
+   * Store the password (or app-specific password) the account logs in with,
+   * and reconnect.
+   */
+  setPassword(params: AccountSetPasswordParams): Promise<void>;
 }
 
 function accountClient(t: Transport): AccountClient {
@@ -139,6 +150,7 @@ function accountClient(t: Transport): AccountClient {
     create: (params) => t.call<Account>("account.create", params),
     update: (params) => t.call<Account>("account.update", params),
     delete: (params) => t.call<null>("account.delete", params).then(() => undefined),
+    setPassword: (params) => t.call<null>("account.setPassword", params).then(() => undefined),
   };
 }
 
@@ -232,6 +244,170 @@ function mailboxClient(t: Transport): MailboxClient {
   };
 }
 
+// ---- message ----
+
+/** One mailbox address. */
+export interface Address {
+  /** Display name; may be empty. */
+  name: string;
+  address: string;
+}
+
+/** The flags clients show and change. */
+export interface Flags {
+  seen: boolean;
+  flagged: boolean;
+  answered: boolean;
+  forwarded: boolean;
+  draft: boolean;
+  /**
+   * 0 for none, 1-7 for Mail.app's flag colors (stored as $MailFlagBit0-2).
+   */
+  flagColor: number;
+}
+
+/** A row of a message list. */
+export interface MessageSummary {
+  id: number;
+  accountId: number;
+  /** Mailboxes holding the message: one for IMAP, one per label for Gmail. */
+  mailboxIds: number[];
+  threadId: number;
+  subject: string;
+  from: Address;
+  /**
+   * The Date header, or the server's arrival time when Date is missing or
+   * invalid.
+   */
+  date: string /* RFC 3339 */;
+  /** The first lines of the text, without quotes or signature. */
+  preview: string;
+  flags: Flags;
+  hasAttachments: boolean;
+  /** Size in bytes on the server. */
+  size: number;
+}
+
+/** One MIME part. */
+export interface Part {
+  /** IMAP part specifier, such as 1 or 1.2. */
+  path: string;
+  /** Lowercase type/subtype. */
+  contentType: string;
+  filename: string;
+  /** inline, attachment or empty. */
+  disposition: string;
+  /** Without angle brackets. */
+  contentId: string;
+  /** Encoded size in bytes. */
+  size: number;
+}
+
+/** Everything about a message except its body. */
+export interface Message {
+  summary: MessageSummary;
+  to: Address[];
+  cc: Address[];
+  replyTo: Address[];
+  /** Message-ID without angle brackets. */
+  messageId: string;
+  inReplyTo: string;
+  references: string[];
+  listId: string;
+  listUnsubscribe: string;
+  parts: Part[];
+  /** Whether the full message is stored locally. */
+  bodyFetched: boolean;
+}
+
+/** A message's readable text. */
+export interface Body {
+  /** The text/plain part, or text derived from the HTML part. */
+  text: string;
+  /** Whether an HTML part exists (rendered from M2 on). */
+  hasHtml: boolean;
+}
+
+/** Flags to set or clear; omitted fields keep their values. */
+export interface FlagChanges {
+  seen?: boolean;
+  flagged?: boolean;
+  answered?: boolean;
+  flagColor?: number;
+}
+
+/** Params of message.get. */
+export interface MessageGetParams {
+  id: number;
+}
+
+/** Params of message.body. */
+export interface MessageBodyParams {
+  id: number;
+}
+
+/** Params of message.setFlags. */
+export interface MessageSetFlagsParams {
+  ids: number[];
+  changes: FlagChanges;
+}
+
+/** Params of message.move. */
+export interface MessageMoveParams {
+  ids: number[];
+  mailboxId: number;
+}
+
+/** Params of message.delete. */
+export interface MessageDeleteParams {
+  ids: number[];
+}
+
+/** Messages were added or changed (flags, mailbox, fetched body). */
+export interface MessageChanged {
+  accountId: number;
+  ids: number[];
+}
+
+/** Messages no longer exist locally. */
+export interface MessageRemoved {
+  accountId: number;
+  ids: number[];
+}
+
+/**
+ * Messages. An ID is local and stays the same while the message exists,
+ * including across moves the server reports with COPYUID.
+ */
+export interface MessageClient {
+  /** One message's headers and structure. */
+  get(params: MessageGetParams): Promise<Message>;
+  /**
+   * A message's text, fetching the message from the server first if it is not
+   * stored locally.
+   */
+  body(params: MessageBodyParams): Promise<Body>;
+  /** Change flags locally at once and on the server when it can be reached. */
+  setFlags(params: MessageSetFlagsParams): Promise<void>;
+  /** Move messages to another mailbox of the same account. */
+  move(params: MessageMoveParams): Promise<void>;
+  /**
+   * Move messages to the account's Trash; messages already in Trash are
+   * deleted from the server.
+   */
+  delete(params: MessageDeleteParams): Promise<void>;
+}
+
+function messageClient(t: Transport): MessageClient {
+  return {
+    get: (params) => t.call<Message>("message.get", params),
+    body: (params) => t.call<Body>("message.body", params),
+    setFlags: (params) => t.call<null>("message.setFlags", params).then(() => undefined),
+    move: (params) => t.call<null>("message.move", params).then(() => undefined),
+    delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
+  };
+}
+
 // ---- rpc ----
 
 /** Server identity and the negotiated protocol. */
@@ -268,10 +444,152 @@ function rpcClient(t: Transport): RPCClient {
   };
 }
 
+// ---- sync ----
+
+/** What an account's sync is doing. */
+export type SyncPhase = "idle" | "connecting" | "listing" | "syncing" | "offline" | "unauthorized" | "failed";
+export const SyncPhaseValues: readonly SyncPhase[] = ["idle", "connecting", "listing", "syncing", "offline", "unauthorized", "failed"];
+
+/** One account's sync state. */
+export interface SyncStatus {
+  accountId: number;
+  phase: SyncPhase;
+  /** The mailbox path being synced, while syncing. */
+  mailbox?: string;
+  /** Progress within the phase; 0 with total 0 when unknown. */
+  done: number;
+  total: number;
+  error?: string;
+  /** When every mailbox was last reconciled. */
+  lastSyncAt?: string /* RFC 3339 */;
+}
+
+/** Params of sync.status. */
+export interface SyncStatusParams {
+  accountId?: number;
+}
+
+/** Params of sync.now. */
+export interface SyncNowParams {
+  accountId: number;
+}
+
+/** An account's sync state changed. */
+export interface SyncProgress {
+  status: SyncStatus;
+}
+
+/** Account synchronization state and control. */
+export interface SyncClient {
+  /** The sync state of every account, or of one. */
+  status(params?: SyncStatusParams): Promise<SyncStatus[]>;
+  /**
+   * Reconcile every mailbox of the account now instead of at the next poll.
+   */
+  now(params: SyncNowParams): Promise<void>;
+}
+
+function syncClient(t: Transport): SyncClient {
+  return {
+    status: (params = {}) => t.call<SyncStatus[]>("sync.status", params),
+    now: (params) => t.call<null>("sync.now", params).then(() => undefined),
+  };
+}
+
+// ---- view ----
+
+/** How a delta changes a view. */
+export type ViewOpKind = "insert" | "remove";
+export const ViewOpKindValues: readonly ViewOpKind[] = ["insert", "remove"];
+
+/**
+ * Which messages a view lists, newest first. Every field that is set must
+ * match.
+ */
+export interface ViewQuery {
+  accountId?: number;
+  mailboxId?: number;
+  /** Full-text search terms. */
+  text?: string;
+  unread?: boolean;
+  flagged?: boolean;
+}
+
+/** An open view. */
+export interface ViewInfo {
+  id: number;
+  count: number;
+}
+
+/** One step of a delta; apply a delta's ops in order. */
+export interface ViewOp {
+  op: ViewOpKind;
+  at: number;
+  count: number;
+}
+
+/** Params of view.open. */
+export interface ViewOpenParams {
+  query: ViewQuery;
+}
+
+/** Params of view.range. */
+export interface ViewRangeParams {
+  id: number;
+  start: number;
+  end: number;
+}
+
+/** Params of view.close. */
+export interface ViewCloseParams {
+  id: number;
+}
+
+/**
+ * A view's rows changed. Rows a client holds are moved by the ops; fetch
+ * inserted rows with view.range.
+ */
+export interface ViewDelta {
+  id: number;
+  /** The row count after the ops. */
+  count: number;
+  ops: ViewOp[];
+}
+
+/**
+ * Live message lists. A view belongs to the connection that opened it, sends
+ * its deltas only there, and closes with it.
+ */
+export interface ViewClient {
+  /**
+   * Open a view; deltas follow on this connection without events.subscribe.
+   */
+  open(params: ViewOpenParams): Promise<ViewInfo>;
+  /**
+   * The rows from start up to, not including, end; end is capped at the
+   * view's count.
+   */
+  range(params: ViewRangeParams): Promise<MessageSummary[]>;
+  /** Close a view. */
+  close(params: ViewCloseParams): Promise<void>;
+}
+
+function viewClient(t: Transport): ViewClient {
+  return {
+    open: (params) => t.call<ViewInfo>("view.open", params),
+    range: (params) => t.call<MessageSummary[]>("view.range", params),
+    close: (params) => t.call<null>("view.close", params).then(() => undefined),
+  };
+}
+
 /** A server notification. Durable events carry seq. */
 export type Event =
   | { event: "account.changed"; seq?: number; data: AccountChanged }
   | { event: "mailbox.changed"; seq?: number; data: MailboxChanged }
+  | { event: "message.changed"; seq?: number; data: MessageChanged }
+  | { event: "message.removed"; seq?: number; data: MessageRemoved }
+  | { event: "sync.progress"; seq?: number; data: SyncProgress }
+  | { event: "view.delta"; seq?: number; data: ViewDelta }
 ;
 
 /** Every method's wire name, in schema order. */
@@ -281,9 +599,20 @@ export const METHODS = [
   "account.create",
   "account.update",
   "account.delete",
+  "account.setPassword",
   "events.subscribe",
   "mailbox.list",
+  "message.get",
+  "message.body",
+  "message.setFlags",
+  "message.move",
+  "message.delete",
   "rpc.hello",
+  "sync.status",
+  "sync.now",
+  "view.open",
+  "view.range",
+  "view.close",
 ] as const;
 
 /** The typed maild API over a Transport. */
@@ -291,12 +620,18 @@ export class Client {
   readonly account: AccountClient;
   readonly events: EventsClient;
   readonly mailbox: MailboxClient;
+  readonly message: MessageClient;
   readonly rpc: RPCClient;
+  readonly sync: SyncClient;
+  readonly view: ViewClient;
 
   constructor(readonly transport: Transport) {
     this.account = accountClient(transport);
     this.events = eventsClient(transport);
     this.mailbox = mailboxClient(transport);
+    this.message = messageClient(transport);
     this.rpc = rpcClient(transport);
+    this.sync = syncClient(transport);
+    this.view = viewClient(transport);
   }
 }

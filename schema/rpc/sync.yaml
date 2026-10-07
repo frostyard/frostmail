@@ -1,0 +1,40 @@
+domain: sync
+doc: Account synchronization state and control.
+enums:
+  - name: SyncPhase
+    doc: What an account's sync is doing.
+    values:
+      - {name: idle, doc: "Up to date and watching for changes."}
+      - {name: connecting, doc: "Connecting and logging in."}
+      - {name: listing, doc: "Listing mailboxes."}
+      - {name: syncing, doc: "Reconciling mailboxes with the server."}
+      - {name: offline, doc: "The server cannot be reached; retrying with backoff."}
+      - {name: unauthorized, doc: "The server rejected the credentials; account.setPassword retries."}
+      - {name: failed, doc: "An unexpected error stopped sync; the error field says why. Retried with backoff."}
+types:
+  - name: SyncStatus
+    doc: One account's sync state.
+    fields:
+      - {name: accountId, type: int}
+      - {name: phase, type: SyncPhase}
+      - {name: mailbox, type: string, optional: true, doc: "The mailbox path being synced, while syncing."}
+      - {name: done, type: int, doc: "Progress within the phase; 0 with total 0 when unknown."}
+      - {name: total, type: int}
+      - {name: error, type: string, optional: true}
+      - {name: lastSyncAt, type: time, optional: true, doc: "When every mailbox was last reconciled."}
+methods:
+  - name: status
+    doc: The sync state of every account, or of one.
+    params:
+      - {name: accountId, type: int, optional: true}
+    result: "[]SyncStatus"
+  - name: now
+    doc: Reconcile every mailbox of the account now instead of at the next poll.
+    params:
+      - {name: accountId, type: int}
+    errors: [notFound]
+events:
+  - name: progress
+    doc: An account's sync state changed.
+    fields:
+      - {name: status, type: SyncStatus}
