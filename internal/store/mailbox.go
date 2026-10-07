@@ -3,7 +3,11 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -84,6 +88,68 @@ type SyncState struct {
 	LastSyncAt    time.Time
 }
 
+// storedMailbox is the subset of a mailboxes row ReplaceMailboxes compares.
+type storedMailbox struct {
+	id         int64
+	path       string
+	delimiter  string
+	name       string
+	role       string
+	attrsJSON  string
+	selectable bool
+	subscribed bool
+}
+
+func loadStoredMailboxes(ctx context.Context, q querier, accountID int64) ([]storedMailbox, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT id, path, delimiter, name, role, attrs_json, selectable, subscribed
+		FROM mailboxes WHERE account_id = ? ORDER BY id`, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("load mailboxes: %w", err)
+	}
+	defer rows.Close()
+	var out []storedMailbox
+	for rows.Next() {
+		var m storedMailbox
+		if err := rows.Scan(&m.id, &m.path, &m.delimiter, &m.name, &m.role, &m.attrsJSON, &m.selectable, &m.subscribed); err != nil {
+			return nil, fmt.Errorf("load mailboxes: %w", err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// mailboxName is the last component of path after delim, or the whole path
+// when delim is empty or absent.
+func mailboxName(path, delim string) string {
+	if delim == "" {
+		return path
+	}
+	if i := strings.LastIndex(path, delim); i >= 0 {
+		return path[i+len(delim):]
+	}
+	return path
+}
+
+// marshalAttrs renders a LIST attribute list for attrs_json; nil becomes [].
+func marshalAttrs(attrs []string) (string, error) {
+	if attrs == nil {
+		return "[]", nil
+	}
+	b, err := json.Marshal(attrs)
+	if err != nil {
+		return "", fmt.Errorf("marshal attrs: %w", err)
+	}
+	return string(b), nil
+}
+
+func bit(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // ReplaceMailboxes makes accountID's mailboxes match list, a full LIST
 // result, and returns the account's mailboxes afterwards in ListMailboxes
 // order, read through t. A path not stored yet is inserted; a stored path has
@@ -95,19 +161,184 @@ type SyncState struct {
 // (Deleted: true), and api.MessageRemoved for messages deleted with a
 // mailbox. Task T-0012 implements it.
 func (t *Tx) ReplaceMailboxes(ctx context.Context, accountID int64, list []ServerMailbox) ([]Mailbox, error) {
-	return nil, errNotImplemented
+	stored, err := loadStoredMailboxes(ctx, t, accountID)
+	if err != nil {
+		return nil, err
+	}
+	byPath := make(map[string]storedMailbox, len(stored))
+	for _, m := range stored {
+		byPath[m.path] = m
+	}
+	present := make(map[string]bool, len(list))
+	for _, sm := range list {
+		present[sm.Path] = true
+		name := mailboxName(sm.Path, sm.Delimiter)
+		attrsJSON, err := marshalAttrs(sm.Attrs)
+		if err != nil {
+			return nil, err
+		}
+		cur, ok := byPath[sm.Path]
+		if !ok {
+			res, err := t.ExecContext(ctx, `
+				INSERT INTO mailboxes
+					(account_id, path, delimiter, name, role, attrs_json, selectable, subscribed)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				accountID, sm.Path, sm.Delimiter, name, sm.Role, attrsJSON, bit(sm.Selectable), bit(sm.Subscribed))
+			if err != nil {
+				return nil, fmt.Errorf("insert mailbox %q: %w", sm.Path, err)
+			}
+			id, err := res.LastInsertId()
+			if err != nil {
+				return nil, fmt.Errorf("insert mailbox %q: %w", sm.Path, err)
+			}
+			if err := t.Emit(ctx, api.MailboxChanged{ID: id, AccountID: accountID}); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if cur.delimiter == sm.Delimiter && cur.name == name && cur.role == string(sm.Role) &&
+			cur.attrsJSON == attrsJSON && cur.selectable == sm.Selectable && cur.subscribed == sm.Subscribed {
+			continue
+		}
+		_, err = t.ExecContext(ctx, `
+			UPDATE mailboxes
+			SET delimiter = ?, name = ?, role = ?, attrs_json = ?, selectable = ?, subscribed = ?
+			WHERE id = ?`,
+			sm.Delimiter, name, sm.Role, attrsJSON, bit(sm.Selectable), bit(sm.Subscribed), cur.id)
+		if err != nil {
+			return nil, fmt.Errorf("update mailbox %q: %w", sm.Path, err)
+		}
+		if err := t.Emit(ctx, api.MailboxChanged{ID: cur.id, AccountID: accountID}); err != nil {
+			return nil, err
+		}
+	}
+	for _, m := range stored {
+		if present[m.path] {
+			continue
+		}
+		if err := t.deleteMailbox(ctx, accountID, m.id); err != nil {
+			return nil, err
+		}
+	}
+	return listMailboxes(ctx, t, accountID)
+}
+
+// orphanMessageIDs returns the IDs of messages whose only membership is in
+// mailboxID, ascending.
+func orphanMessageIDs(ctx context.Context, t *Tx, mailboxID int64) ([]int64, error) {
+	rows, err := t.QueryContext(ctx, `
+		SELECT mm.message_id FROM message_mailbox mm
+		WHERE mm.mailbox_id = ?
+		  AND NOT EXISTS (SELECT 1 FROM message_mailbox o
+		                WHERE o.message_id = mm.message_id AND o.mailbox_id <> ?)
+		ORDER BY mm.message_id`, mailboxID, mailboxID)
+	if err != nil {
+		return nil, fmt.Errorf("find orphan messages: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("find orphan messages: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// deleteMailbox deletes a mailbox and the messages left in no mailbox, with
+// their search entries, emitting the mailbox and message events.
+func (t *Tx) deleteMailbox(ctx context.Context, accountID, id int64) error {
+	orphans, err := orphanMessageIDs(ctx, t, id)
+	if err != nil {
+		return err
+	}
+	if _, err := t.ExecContext(ctx, `DELETE FROM mailboxes WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete mailbox %d: %w", id, err)
+	}
+	for _, mid := range orphans {
+		if _, err := t.ExecContext(ctx, `DELETE FROM messages WHERE id = ?`, mid); err != nil {
+			return fmt.Errorf("delete message %d: %w", mid, err)
+		}
+		if _, err := t.ExecContext(ctx, `DELETE FROM messages_fts WHERE rowid = ?`, mid); err != nil {
+			return fmt.Errorf("delete search entry %d: %w", mid, err)
+		}
+	}
+	if err := t.Emit(ctx, api.MailboxChanged{ID: id, AccountID: accountID, Deleted: true}); err != nil {
+		return err
+	}
+	if len(orphans) > 0 {
+		slices.Sort(orphans)
+		if err := t.Emit(ctx, api.MessageRemoved{AccountID: accountID, IDs: orphans}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MailboxSyncState returns a mailbox's stored sync state, with ok false when
 // the mailbox has never been synced (no UIDVALIDITY yet). An unknown mailbox
 // returns ErrNotFound. Task T-0012 implements it.
 func (d *DB) MailboxSyncState(ctx context.Context, mailboxID int64) (SyncState, bool, error) {
-	return SyncState{}, false, errNotImplemented
+	var (
+		uidvalidity sql.NullInt64
+		uidnext     sql.NullInt64
+		modseq      sql.NullInt64
+		count       sql.NullInt64
+		lastSync    sql.NullString
+	)
+	err := d.db.QueryRowContext(ctx, `
+		SELECT uidvalidity, uidnext, highestmodseq, server_count, last_sync_at
+		FROM mailboxes WHERE id = ?`, mailboxID).
+		Scan(&uidvalidity, &uidnext, &modseq, &count, &lastSync)
+	if errors.Is(err, sql.ErrNoRows) {
+		return SyncState{}, false, ErrNotFound
+	}
+	if err != nil {
+		return SyncState{}, false, fmt.Errorf("mailbox sync state: %w", err)
+	}
+	if !uidvalidity.Valid {
+		return SyncState{}, false, nil
+	}
+	s := SyncState{
+		UIDValidity:   uint32(uidvalidity.Int64),
+		UIDNext:       uint32(uidnext.Int64),
+		HighestModSeq: uint64(modseq.Int64),
+		ServerCount:   uint32(count.Int64),
+	}
+	if lastSync.Valid {
+		at, err := ParseTime(lastSync.String)
+		if err != nil {
+			return SyncState{}, false, err
+		}
+		s.LastSyncAt = at
+	}
+	return s, true, nil
 }
 
 // SetMailboxSyncState stores every field of s for the mailbox; a zero
 // LastSyncAt is stored as NULL. It emits nothing. An unknown mailbox returns
 // ErrNotFound. Task T-0012 implements it.
 func (t *Tx) SetMailboxSyncState(ctx context.Context, mailboxID int64, s SyncState) error {
-	return errNotImplemented
+	var lastSync any
+	if !s.LastSyncAt.IsZero() {
+		lastSync = FormatTime(s.LastSyncAt)
+	}
+	res, err := t.ExecContext(ctx, `
+		UPDATE mailboxes
+		SET uidvalidity = ?, uidnext = ?, highestmodseq = ?, server_count = ?, last_sync_at = ?
+		WHERE id = ?`,
+		int64(s.UIDValidity), int64(s.UIDNext), int64(s.HighestModSeq), int64(s.ServerCount), lastSync, mailboxID)
+	if err != nil {
+		return fmt.Errorf("set mailbox sync state: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set mailbox sync state: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
