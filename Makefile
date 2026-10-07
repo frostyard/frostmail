@@ -1,4 +1,4 @@
-.PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it \
+.PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check ci ui-test app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -21,7 +21,7 @@ IN_NSL := nsl run -m $(NSL_MACHINE) sh -lc
 EXECUTOR_MODEL ?= selfie/halogen-qwen3.8-flash-next
 
 help: ## List targets
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | expand -t 18
+	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | expand -t 18
 
 build: ## Build maild and mailctl into build/
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o build/ ./cmd/maild ./cmd/mailctl
@@ -90,6 +90,16 @@ mailtest-up: ## Create the incus test mail server
 
 mailtest-reset: ## Restore the test mail server's clean snapshot
 	dev/incus/mailtest.sh reset
+
+mailtest-seed: ## Load mailgen mail for make e2e (test4: 5,000; test5: 50,000) as snapshot seeded
+	dev/incus/mailtest.sh reset
+	dev/incus/mailtest.sh seed test4 5000
+	dev/incus/mailtest.sh seed test5 50000
+	dev/incus/mailtest.sh snapshot seeded
+
+e2e: ## Run the real binaries against the seeded mail server (needs make mailtest-seed)
+	dev/incus/mailtest.sh reset seeded
+	FROSTMAIL_E2E=1 FROSTMAIL_IT_HOST=$$(dev/incus/mailtest.sh ip) go test -tags integration -count=1 -timeout 30m -v ./tests/e2e/
 
 tasks: ## List task cards
 	@go run ./tools/taskrun list
