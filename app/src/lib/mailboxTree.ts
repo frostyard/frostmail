@@ -129,6 +129,7 @@ function accountRows(account: Account, mailboxes: Mailbox[]): SidebarItem[] {
         depth: 0,
         unread: real?.unread ?? 0,
         selectable: real !== undefined,
+        ...(real ? { mailboxId: real.id } : {}),
       },
       children: [],
     };

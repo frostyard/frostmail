@@ -81,9 +81,15 @@ describe("buildSidebar", () => {
       ["path:1:Travel", "Travel", "folder", 0, 0, false],
       ["mailbox", "2026", "folder", 1, 1, true],
     ]);
-    const inbox = acct?.items[0];
-    expect(inbox?.key).toBe(`mailbox:${inbox?.mailboxId}`);
-    expect(list.find((m) => m.id === inbox?.mailboxId)?.path).toBe("INBOX");
+    // Every row of a listed mailbox names it, by key and by mailboxId.
+    for (const item of acct?.items ?? []) {
+      if (!item.selectable) continue;
+      const box = list.find((m) => m.id === item.mailboxId);
+      expect(item.key).toBe(`mailbox:${box?.id}`);
+      expect(box?.name === item.label || box?.role !== "none").toBe(true);
+    }
+    expect(list.find((m) => m.id === acct?.items[0]?.mailboxId)?.path).toBe("INBOX");
+    expect(list.find((m) => m.id === acct?.items[8]?.mailboxId)?.path).toBe("Projects/Frost");
     expect(acct?.items[10]?.mailboxId).toBeUndefined();
     expect(rows(s[0]?.items ?? [])[0]).toEqual(["all-inboxes", "All Inboxes", "inbox", 0, 12, true]);
   });
