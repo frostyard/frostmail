@@ -96,7 +96,7 @@ contracts and the sync core; the executor owns cards T-0004 onward.
 ## Phase 5 — Exit evidence
 
 - **Done when**, each shown by an integration test or a recorded run:
-  1. test1 seeded with 50,000 messages syncs completely; `mailctl ls INBOX`
+  1. test5 seeded with 50,000 messages syncs completely; `mailctl ls INBOX`
      matches the server's count, and maild's RSS stays under 300 MB.
   2. A flag change, an expunge and a new delivery in INBOX made by another
      IMAP client reach a subscribed client as events within 5 seconds.
