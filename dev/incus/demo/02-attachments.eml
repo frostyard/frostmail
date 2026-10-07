@@ -1,0 +1,33 @@
+From: Kofi Okafor <kofi@acme.example>
+To: Test Three <test3@mailtest.test>
+Subject: Signed contract and September invoice
+Date: Tue, 06 Oct 2026 16:40:00 +0000
+Message-ID: <demo-attachments@acme.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mix"
+
+--mix
+Content-Type: text/plain; charset=utf-8
+
+Hi,
+
+Attached are the signed contract and the invoice for September.
+
+Kofi
+--mix
+Content-Type: application/pdf; name="contract-signed.pdf"
+Content-Disposition: attachment; filename="contract-signed.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqIDIgMCBv
+Ymo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iaiAzIDAgb2JqPDwvVHlw
+ZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgMjAwIDEwMF0+PmVuZG9iagp0cmFpbGVy
+PDwvUm9vdCAxIDAgUj4+CiUlRU9GCg==
+--mix
+Content-Type: text/csv; name="invoice-september.csv"
+Content-Disposition: attachment; filename="invoice-september.csv"
+
+item,amount
+Consulting,4200
+Travel,380
+--mix--

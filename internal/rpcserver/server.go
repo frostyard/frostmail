@@ -74,6 +74,14 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener, r *api.Router) erro
 	}
 }
 
+// ServeConn serves one connection the caller has already authenticated (the
+// dev gateway, internal/devgw) until it ends or ctx does. Unix socket
+// connections go through Serve, which checks the peer's UID instead.
+func (s *Server) ServeConn(ctx context.Context, nc net.Conn, r *api.Router) {
+	c := &conn{s: s, r: r, nc: nc, sem: make(chan struct{}, MaxInFlight)}
+	c.serve(ctx)
+}
+
 // checkPeer admits only processes of the user running maild.
 func checkPeer(nc net.Conn) error {
 	uc, ok := nc.(*net.UnixConn)

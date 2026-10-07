@@ -6,10 +6,13 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import type { Connect } from "./data/session";
 
-// VITE_MOCK=1 serves the UI from MockTransport (docs/design/app.md, Dev and
-// test); otherwise the Tauri bridge connects to maild.
-const connect: Connect =
-  import.meta.env.VITE_MOCK === "1"
+// VITE_MOCK=1 serves the UI from MockTransport and VITE_MAILD_WS from maild's
+// dev gateway (docs/design/app.md, Dev and test); otherwise the Tauri bridge
+// connects to maild.
+const gateway = import.meta.env.VITE_MAILD_WS as string | undefined;
+const connect: Connect = gateway
+  ? async () => (await import("./rpc/transport/ws")).connectWS(gateway)
+  : import.meta.env.VITE_MOCK === "1"
     ? async () => {
         const [{ MockTransport }, { mockData }] = await Promise.all([
           import("./rpc/mock/mock"),

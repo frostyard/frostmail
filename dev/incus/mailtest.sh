@@ -10,6 +10,7 @@
 #   dev/incus/mailtest.sh seed USER N
 #                                 import N mailgen messages (tools/mailgen,
 #                                 seed 1) into USER's INBOX
+#   dev/incus/mailtest.sh demo USER  deliver the demo messages (dev/incus/demo) to USER's INBOX
 #   dev/incus/mailtest.sh snapshot NAME  replace snapshot NAME with the current state
 #   dev/incus/mailtest.sh down    delete the container
 #
@@ -102,6 +103,15 @@ reset() {
 	ip4 >/dev/null
 }
 
+demo() {
+	local user=${1:?usage: mailtest.sh demo USER}
+	local f
+	for f in "$HERE"/demo/*.eml; do
+		incus exec "$NAME" -- doveadm save -u "$user@$DOMAIN" -m INBOX < "$f"
+	done
+	echo "delivered $(ls "$HERE"/demo/*.eml | wc -l) demo messages to $user@$DOMAIN"
+}
+
 seed() {
 	local user=${1:?usage: mailtest.sh seed USER N} n=${2:?usage: mailtest.sh seed USER N}
 	local tmp
@@ -137,6 +147,10 @@ up) up ;;
 seed)
 	shift
 	seed "$@"
+	;;
+demo)
+	shift
+	demo "$@"
 	;;
 snapshot) snapshot "${2:-}" ;;
 reset) reset "${2:-}" ;;

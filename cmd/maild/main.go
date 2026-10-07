@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/config"
+	"github.com/frostyard/frostmail/internal/devgw"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
@@ -45,6 +47,8 @@ func run(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("maild", flag.ContinueOnError)
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	debug := fs.Bool("debug", false, "log at debug level")
+	devgwAddr := fs.String("devgw", "", "also serve the API over a WebSocket on this loopback address, for UI development "+
+		"(needs FROSTMAIL_DEVGW_TOKEN; docs/design/app.md)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -104,6 +108,14 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	defer syncer.Wait()
+	if *devgwAddr != "" {
+		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router) }
+		go func() {
+			if err := devgw.ListenAndServe(ctx, *devgwAddr, os.Getenv("FROSTMAIL_DEVGW_TOKEN"), serve, logger); err != nil {
+				logger.Error("dev gateway stopped", "err", err)
+			}
+		}()
+	}
 	logger.Info("maild started", "version", version, "socket", paths.Socket, "db", paths.DB)
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
