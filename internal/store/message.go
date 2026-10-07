@@ -101,13 +101,6 @@ func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs [
 	return ids, nil
 }
 
-// bit renders a boolean as the 0/1 an INTEGER column expects.
-func bit(b bool) int64 {
-	if b {
-		return 1
-	}
-	return 0
-}
 
 // insertMessage writes one messages row and its parts rows, returning the
 // new message ID. The caller owns the message_mailbox row.

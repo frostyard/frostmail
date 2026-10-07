@@ -143,7 +143,7 @@ func marshalAttrs(attrs []string) (string, error) {
 	return string(b), nil
 }
 
-func bit(b bool) int {
+func bit(b bool) int64 {
 	if b {
 		return 1
 	}
