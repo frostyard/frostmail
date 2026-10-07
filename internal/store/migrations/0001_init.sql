@@ -49,6 +49,7 @@ CREATE TABLE mailboxes (
   uidvalidity     INTEGER, -- NULL until the first SELECT
   uidnext         INTEGER,
   highestmodseq   INTEGER,
+  server_count    INTEGER, -- MESSAGES at the end of the last reconcile pass (fast path)
   synced_low_uid  INTEGER, -- backfill frontier: lowest UID with headers stored
   needs_reconcile INTEGER NOT NULL DEFAULT 0 CHECK (needs_reconcile IN (0, 1)),
   last_sync_at    TEXT,
@@ -100,7 +101,8 @@ CREATE TABLE messages (
   answered         INTEGER NOT NULL DEFAULT 0 CHECK (answered IN (0, 1)),
   forwarded        INTEGER NOT NULL DEFAULT 0 CHECK (forwarded IN (0, 1)),
   draft            INTEGER NOT NULL DEFAULT 0 CHECK (draft IN (0, 1)),
-  flag_color       INTEGER NOT NULL DEFAULT 0 CHECK (flag_color BETWEEN 0 AND 7), -- $MailFlagBit0-2
+  deleted          INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0, 1)), -- \Deleted, not yet expunged
+  flag_color       INTEGER NOT NULL DEFAULT 0 CHECK (flag_color BETWEEN 0 AND 7), -- 0 unflagged; 1-7 = $MailFlagBit0-2 + 1
   keywords_json    TEXT NOT NULL DEFAULT '[]',
   trackers_blocked INTEGER NOT NULL DEFAULT 0,
   UNIQUE (account_id, gm_msgid)

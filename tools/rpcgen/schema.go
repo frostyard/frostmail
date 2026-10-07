@@ -384,9 +384,9 @@ func (s *Schema) allErrors() []ErrorDef { return append(slices.Clone(builtinErro
 
 // initialisms are spelled in capitals in Go names, per Go convention.
 var initialisms = map[string]string{
-	"api": "API", "html": "HTML", "http": "HTTP", "id": "ID", "imap": "IMAP",
+	"api": "API", "html": "HTML", "http": "HTTP", "id": "ID", "ids": "IDs", "imap": "IMAP",
 	"json": "JSON", "mime": "MIME", "oauth2": "OAuth2", "rpc": "RPC",
-	"smtp": "SMTP", "starttls": "StartTLS", "tls": "TLS", "uid": "UID", "url": "URL",
+	"smtp": "SMTP", "starttls": "StartTLS", "tls": "TLS", "uid": "UID", "uids": "UIDs", "url": "URL", "urls": "URLs",
 	"icloud": "ICloud",
 }
 

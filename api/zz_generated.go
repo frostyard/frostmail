@@ -577,7 +577,7 @@ type MessageSummary struct {
 	ID        int64 `json:"id"`
 	AccountID int64 `json:"accountId"`
 	// Mailboxes holding the message: one for IMAP, one per label for Gmail.
-	MailboxIds []int64 `json:"mailboxIds"`
+	MailboxIDs []int64 `json:"mailboxIds"`
 	ThreadID   int64   `json:"threadId"`
 	Subject    string  `json:"subject"`
 	From       Address `json:"from"`
@@ -652,19 +652,19 @@ type MessageBodyParams struct {
 
 // MessageSetFlagsParams holds the params of message.setFlags.
 type MessageSetFlagsParams struct {
-	Ids     []int64     `json:"ids"`
+	IDs     []int64     `json:"ids"`
 	Changes FlagChanges `json:"changes"`
 }
 
 // MessageMoveParams holds the params of message.move.
 type MessageMoveParams struct {
-	Ids       []int64 `json:"ids"`
+	IDs       []int64 `json:"ids"`
 	MailboxID int64   `json:"mailboxId"`
 }
 
 // MessageDeleteParams holds the params of message.delete.
 type MessageDeleteParams struct {
-	Ids []int64 `json:"ids"`
+	IDs []int64 `json:"ids"`
 }
 
 // MessageService: Messages. An ID is local and stays the same while the
@@ -771,7 +771,7 @@ func (x MessageClient) Delete(ctx context.Context, p *MessageDeleteParams) error
 // body).
 type MessageChanged struct {
 	AccountID int64   `json:"accountId"`
-	Ids       []int64 `json:"ids"`
+	IDs       []int64 `json:"ids"`
 }
 
 // EventName is the wire name of MessageChanged.
@@ -783,7 +783,7 @@ func (MessageChanged) Durable() bool { return true }
 // MessageRemoved: Messages no longer exist locally.
 type MessageRemoved struct {
 	AccountID int64   `json:"accountId"`
-	Ids       []int64 `json:"ids"`
+	IDs       []int64 `json:"ids"`
 }
 
 // EventName is the wire name of MessageRemoved.

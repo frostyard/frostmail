@@ -24,7 +24,7 @@ func TestGoNames(t *testing.T) {
 	for in, want := range map[string]string{
 		"id": "ID", "accountId": "AccountID", "displayName": "DisplayName",
 		"imap": "IMAP", "oauth2": "OAuth2", "starttls": "StartTLS", "rpc": "RPC",
-		"sinceSeq": "SinceSeq", "icloud": "ICloud",
+		"sinceSeq": "SinceSeq", "icloud": "ICloud", "ids": "IDs", "mailboxIds": "MailboxIDs",
 	} {
 		if got := goName(in); got != want {
 			t.Errorf("goName(%q) = %q, want %q", in, got, want)
