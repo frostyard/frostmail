@@ -6,6 +6,7 @@ entirely from `mailctl`, before any UI exists. It follows
 [roadmap](0002-roadmap.md). Work is split per
 [ADR-0008](../adr/0008-local-executor-workflow.md): the planner owns
 contracts and the sync core; the executor owns cards T-0004 onward.
+Status: **done** (2026-10-07); evidence under Phase 5.
 
 ## Decisions taken for M1
 
@@ -63,7 +64,7 @@ contracts and the sync core; the executor owns cards T-0004 onward.
 | T-0013 | `internal/store` | Messages: idempotent header insert, UID sets, flag updates, removal |
 | T-0014 | `cmd/mailctl` | `account add`, `account list`, `account rm` |
 
-- **Done when:** every card is merged and `make check` is green.
+- **Done when:** every card is merged and `make check` is green. Done.
 
 ## Phase 3 — Sync core (planner)
 
@@ -81,17 +82,23 @@ contracts and the sync core; the executor owns cards T-0004 onward.
 - Tests: imapxtest for the no-CONDSTORE paths, a fault-injecting connection
   and a fake clock, Dovecot integration tests for CONDSTORE and IDLE.
 - **Done when:** `mailctl` can sync the seeded test1 account, and the
-  integration tests for new mail, flag changes and expunges pass.
+  integration tests for new mail, flag changes and expunges pass. Done;
+  threading landed in `internal/store` (`thread.go`) and sync in
+  `internal/mailsync`.
 
 ## Phase 4 — Executor batch 2
 
-- `mailctl sync`, `mailboxes`, `ls`, `show`, `search`, `flag` and `mv`.
-- `tools/mailgen`: a deterministic generator of N messages (threads, MIME
-  variety) and `make mailtest-seed N=50000`, which loads them with
-  `doveadm`.
-- The MIME corpus: at least 150 fixtures (encodings, charsets, nested and
-  broken structures) with golden JSON, under `internal/mimex/testdata`.
-- **Done when:** the cards are merged and `make check` is green.
+- `mailctl sync`, `mailboxes`, `ls`, `show`, `search`, `flag`, `mv` and
+  `rm` (T-0019, T-0020, T-0023).
+- `tools/mailgen` (T-0021): a deterministic generator of N messages
+  (threads, MIME variety); `make mailtest-seed` loads 5,000 into test4 and
+  50,000 into test5 with `doveadm import` and snapshots them as `seeded`.
+- The MIME corpus (T-0022): fixtures generated in
+  `internal/mimex/corpus_test.go` from known text and attachments (six
+  charsets, three transfer encodings, nested, truncated and malformed
+  structures), so expectations come from the generator, not from golden
+  output.
+- **Done when:** the cards are merged and `make check` is green. Done.
 
 ## Phase 5 — Exit evidence
 
@@ -105,6 +112,24 @@ contracts and the sync core; the executor owns cards T-0004 onward.
   4. At least 150 MIME fixtures pass their golden tests.
   5. `mailctl search` over the 50,000 messages answers in under 150 ms.
 
+Evidence, recorded 2026-10-07 on the Strix Halo host against the
+`frostmail-mailtest` container (Dovecot 2.4.1):
+
+| # | Test | Result |
+| --- | --- | --- |
+| 1 | `make e2e`: TestLargeMailbox | 50,000 messages synced in 10 s; local count and view count equal the server's STATUS; maild peak RSS (VmHWM) 39 MiB |
+| 2 | `make engine-it`: TestDovecotSyncAndLiveChanges | new mail in the view after 31 ms; flag change 0.50 s; expunge 0.50 s |
+| 3 | `make e2e`: TestCrashDuringInitialSync | SIGKILL with 1,000 of 5,000 stored; after restart exactly 5,000 rows, 5,000 distinct IDs, no duplicates |
+| 4 | `go test ./internal/mimex -run TestCorpus` | 154 fixtures pass |
+| 5 | `make e2e`: TestLargeMailbox | view open + first 50 rows + close, median of 10: `Ledger` (22,168 hits) 26 ms, `Ledger island` 16 ms, `James Davis` 2 ms |
+
+**Executor record.** Cards T-0001 to T-0023 all passed their acceptance
+commands on the first run except T-0020, whose code was right but which
+left a `go build` binary in the worktree; `.gitignore` now covers it. One
+defect got past the given tests: mailgen set `In-Reply-To` to the
+message's own ID (fixed, and the test now checks it). Lesson for cards:
+assert every relationship the contract states, not only shapes and counts.
+
 ## Later / ideas
 
 - QRESYNC in the fork (SELECT parameter, VANISHED parsing) for Dovecot and
@@ -112,10 +137,12 @@ contracts and the sync core; the executor owns cards T-0004 onward.
 - NOTIFY (Dovecot) to replace polling of non-INBOX mailboxes.
 - PREVIEW (RFC 8970) to skip partial fetches on servers that offer it.
 
-## Open questions
+## Decided after Phase 5
 
-- **Sync window default** (all mail versus the last N days for headers):
-  decide from the 50,000-message timings in Phase 5.
+- **Sync window default: all mail.** Headers and previews for 50,000
+  messages take 10 s and under 40 MiB against a local server, so there is no
+  window by default, as in Mail.app. Revisit with Gmail and Outlook timings
+  in M4, where latency and throttling dominate.
 
 ## References
 
