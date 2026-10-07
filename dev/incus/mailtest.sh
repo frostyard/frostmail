@@ -111,9 +111,18 @@ seed() {
 	in_ct rm -rf /tmp/gen
 	in_ct mkdir -p /tmp/gen
 	tar -C "$tmp" -cf - Maildir | incus exec "$NAME" -- tar -C /tmp/gen -xf -
-	in_ct chmod -R a+rX /tmp/gen
+	# doveadm opens the source as a mailbox and writes its uidlist there.
+	in_ct chown -R vmail:vmail /tmp/gen
 	in_ct doveadm import -u "$user@$DOMAIN" maildir:/tmp/gen/Maildir "" all
 	in_ct rm -rf /tmp/gen
+	# doveadm import logs per-mailbox failures but still exits 0.
+	local got
+	got=$(in_ct doveadm -f flow mailbox status -u "$user@$DOMAIN" messages INBOX)
+	got=${got##*messages=}
+	if [[ "$got" != "$n" ]]; then
+		echo "seed: $user@$DOMAIN INBOX has $got messages, want $n" >&2
+		return 1
+	fi
 	echo "imported $n messages into $user@$DOMAIN"
 }
 

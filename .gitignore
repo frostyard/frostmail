@@ -1,4 +1,6 @@
 /build/
+/maild
+/mailctl
 /dist/
 *.test
 /coverage.out
