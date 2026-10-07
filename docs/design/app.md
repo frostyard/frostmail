@@ -121,12 +121,24 @@ client.
 - `VITE_MOCK=1 pnpm dev` runs the UI against `MockTransport` and its fixture
   data in any browser; `VITE_MOCK_ROWS=100000` sizes the fixture's Inbox for
   scrolling checks.
+- **Against a real maild in a browser:** `maild -devgw 127.0.0.1:7878` with
+  `FROSTMAIL_DEVGW_TOKEN` serves the API over a WebSocket
+  (`internal/devgw`); `VITE_MAILD_WS='ws://127.0.0.1:7878/?token=…' pnpm dev`
+  connects the UI to it (`rpc/transport/ws.ts`), and `FROSTMAIL_CACHE_DIR`
+  points Vite's `/mailpart/` at that maild's cache. The gateway listens only
+  on loopback, needs the token and the dev server's Origin (browsers do not
+  apply CORS to WebSockets), and is off unless asked for. Links and
+  attachments open in browser tabs there instead of through Tauri.
+  `dev/incus/mailtest.sh demo USER` delivers realistic demo mail.
 - `make ui-check` runs Biome, the TypeScript check and Vitest (happy-dom,
   Testing Library) in the nsl machine. Task cards that touch `app/` are
   verified with it.
-- App tests (`app/e2e`, M2 phase 4) drive the built app in WebKitGTK through
-  `tauri-driver` and `WebKitWebDriver`, against a maild whose data directory
-  is a fixture store built by `tools/uifixture`.
+- App tests (`app/e2e`, `make ui-e2e`) drive the built app in WebKitGTK
+  through `WebKitWebDriver` directly: the session's
+  `webkitgtk:browserOptions` launch `build/frostmail-app --automation` with
+  `TAURI_WEBVIEW_AUTOMATION=true`, which is all `tauri-driver` does on
+  Linux. They run headless under Xvfb, against a maild whose data directory
+  `tools/uifixture` built.
 
 ## Operational notes
 
