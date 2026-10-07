@@ -22,6 +22,11 @@ type ViewFilter struct {
 	Threads   bool   // one row per thread: its newest matching message
 }
 
+// viewOrder is the order every view lists messages in: newest first by
+// internal date, then the Date header, then ID. Servers that stamp a batch
+// of appended messages with one arrival time still list them by sent date.
+const viewOrder = `m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DESC`
+
 // ViewIDs returns the IDs of the messages matching f, newest first
 // (internal date, then the Date header, then ID; servers that stamp a batch
 // of appended messages with one arrival time still list them by sent date). Deleted messages never match; every other
@@ -29,6 +34,10 @@ type ViewFilter struct {
 // mailbox filter uses EXISTS, not a JOIN, so a message in several
 // mailboxes appears once. Text is turned into an FTS5 MATCH expression
 // with SearchQuery; text with nothing searchable adds no condition.
+// Role keeps only messages in a mailbox of that role, in any account.
+// Threads keeps one row per thread: its newest message among those that
+// match every other condition, a message with no thread being its own
+// thread. The result keeps the view's order.
 func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 	conds := []string{"m.deleted = 0"}
 	var args []any
@@ -52,8 +61,19 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 		conds = append(conds, "m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
 		args = append(args, q)
 	}
-	query := `SELECT m.id FROM messages m WHERE ` + strings.Join(conds, " AND ") +
-		` ORDER BY m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DESC`
+	if f.Role != "" {
+		conds = append(conds, `EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id WHERE mm.message_id = m.id AND mb.role = ?)`)
+		args = append(args, f.Role)
+	}
+	where := strings.Join(conds, " AND ")
+	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + viewOrder
+	if f.Threads {
+		query = `SELECT id FROM (SELECT m.id AS id, m.internal_date AS ord_internal,` +
+			` COALESCE(m.date_hdr, '') AS ord_hdr,` +
+			` ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, -m.id) ORDER BY ` + viewOrder + `) AS rn` +
+			` FROM messages m WHERE ` + where + `)` +
+			` WHERE rn = 1 ORDER BY ord_internal DESC, ord_hdr DESC, id DESC`
+	}
 	rows, err := d.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("view ids: %w", err)
@@ -109,10 +129,14 @@ type Location struct {
 	UID         uint32
 }
 
-// summaryCols are the columns scanSummary reads, in order.
+// summaryCols are the columns scanSummary reads, in order. The last is the
+// message's thread size, at least 1: the thread's msg_count, or 1 when the
+// message has no thread or the count has not caught up. It is written
+// against the unaliased messages table, as every query using it does.
 const summaryCols = `id, account_id, thread_id, subject, from_name, from_addr,
 	date_hdr, internal_date, preview, has_attachments, size,
-	seen, flagged, answered, forwarded, draft, deleted, flag_color, keywords_json`
+	seen, flagged, answered, forwarded, draft, deleted, flag_color, keywords_json,
+	MAX(1, COALESCE((SELECT t.msg_count FROM threads t WHERE t.id = messages.thread_id), 1))`
 
 // rowScanner is satisfied by *sql.Rows and *sql.Row.
 type rowScanner interface {
@@ -134,7 +158,7 @@ func scanSummary(row rowScanner, extra ...any) (Summary, error) {
 	dest := append([]any{&s.ID, &s.AccountID, &threadID, &s.Subject, &s.From.Name, &s.From.Addr,
 		&dateHdr, &internal, &s.Preview, &s.HasAttachments, &s.Size,
 		&s.Flags.Seen, &s.Flags.Flagged, &s.Flags.Answered, &s.Flags.Forwarded,
-		&s.Flags.Draft, &s.Flags.Deleted, &s.Flags.Color, &keywords}, extra...)
+		&s.Flags.Draft, &s.Flags.Deleted, &s.Flags.Color, &keywords, &s.ThreadCount}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		return Summary{}, err
 	}
@@ -243,9 +267,34 @@ func (d *DB) Summaries(ctx context.Context, ids []int64) ([]Summary, error) {
 }
 
 // ThreadMessageIDs returns the IDs of a thread's messages that are not
-// deleted, oldest first. Task T-0024 implements it; the stub finds none.
-func (d *DB) ThreadMessageIDs(_ context.Context, _ int64) ([]int64, error) {
-	return nil, nil
+// deleted, oldest first (internal date, then the Date header, then ID).
+// The slice is empty, never nil, when the thread exists but holds no such
+// message. A thread with no such ID is ErrNotFound.
+func (d *DB) ThreadMessageIDs(ctx context.Context, threadID int64) ([]int64, error) {
+	var one int64
+	err := d.db.QueryRowContext(ctx, `SELECT 1 FROM threads WHERE id = ?`, threadID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("thread messages %d: %w", threadID, ErrNotFound)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("thread messages %d: %w", threadID, err)
+	}
+	rows, err := d.db.QueryContext(ctx, `SELECT id FROM messages
+		WHERE thread_id = ? AND deleted = 0
+		ORDER BY internal_date ASC, COALESCE(date_hdr, '') ASC, id ASC`, threadID)
+	if err != nil {
+		return nil, fmt.Errorf("thread messages %d: %w", threadID, err)
+	}
+	defer rows.Close()
+	ids := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("thread messages %d: %w", threadID, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 // GetMessage returns one message's details: its summary plus its address
