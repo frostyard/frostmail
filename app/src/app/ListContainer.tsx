@@ -228,7 +228,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         onFocus={() => setFocus("list")}
         className="h-full overflow-y-auto bg-window outline-none"
       >
-        {model?.ready && count === 0 ? (
+        {model?.error ? (
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center text-secondary">
+            <span className="text-empty">Messages could not be loaded</span>
+            <span className="text-[12px]">{model.error}</span>
+          </div>
+        ) : model?.ready && count === 0 ? (
           <div className="flex h-full items-center justify-center text-empty text-secondary">No Messages</div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
