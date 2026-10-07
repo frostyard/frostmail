@@ -33,7 +33,9 @@ lexically. Highlights:
 - `parts`: the MIME structure from BODYSTRUCTURE.
 - `messages_fts`: contentless FTS5 (`unicode61 remove_diacritics 2`,
   prefixes 2 and 3); rowid = `messages.id`.
-- `outbox`, `pending_ops`: queued sends and offline actions.
+- `outbox`, `pending_ops`: queued sends and offline actions;
+  `pending_op_messages` names the messages each action covers, whose flags
+  sync leaves alone until the action is replayed or fails.
 - `changes`: the durable event log; `seq` is AUTOINCREMENT, so it is never
   reused after `PruneChanges`.
 

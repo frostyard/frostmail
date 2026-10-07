@@ -44,6 +44,17 @@ type moveOp struct {
 	Items []moveItem `json:"items"`
 }
 
+func (o *moveOp) messages() []int64 { return itemMessages(o.Items) }
+
+// itemMessages lists the messages of move or expunge items.
+func itemMessages(items []moveItem) []int64 {
+	ids := make([]int64, len(items))
+	for i, it := range items {
+		ids[i] = it.Message
+	}
+	return ids
+}
+
 // expungeOp permanently deletes messages from a mailbox (Trash).
 type expungeOp struct {
 	Mailbox int64      `json:"mailbox"`
@@ -71,7 +82,7 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 			}
 		}
 		for acct, msgs := range byAccount {
-			if _, err := tx.QueueOp(ctx, acct, opFlags, flagsOp{Messages: msgs, Add: add, Remove: remove}); err != nil {
+			if _, err := tx.QueueOp(ctx, acct, opFlags, flagsOp{Messages: msgs, Add: add, Remove: remove}, msgs); err != nil {
 				return err
 			}
 			accounts[acct] = true
@@ -157,7 +168,7 @@ func (m *Manager) Move(ctx context.Context, ids []int64, mailboxID int64) error 
 			return fmt.Errorf("mailbox %d is not in account %d: %w", mailboxID, acct, ErrInvalid)
 		}
 		for _, op := range ops {
-			if _, err := tx.QueueOp(ctx, acct, opMove, op); err != nil {
+			if _, err := tx.QueueOp(ctx, acct, opMove, op, op.messages()); err != nil {
 				return err
 			}
 			if err := tx.Emit(ctx, api.MailboxChanged{ID: op.From, AccountID: acct}); err != nil {
@@ -223,12 +234,12 @@ func (m *Manager) Delete(ctx context.Context, ids []int64) error {
 			return err
 		}
 		for mailbox, op := range expunges {
-			if _, err := tx.QueueOp(ctx, accountOf[mailbox], opExpunge, op); err != nil {
+			if _, err := tx.QueueOp(ctx, accountOf[mailbox], opExpunge, op, itemMessages(op.Items)); err != nil {
 				return err
 			}
 		}
 		for key, op := range moves {
-			if _, err := tx.QueueOp(ctx, accountOf[key[0]], opMove, op); err != nil {
+			if _, err := tx.QueueOp(ctx, accountOf[key[0]], opMove, op, op.messages()); err != nil {
 				return err
 			}
 		}

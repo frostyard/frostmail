@@ -167,7 +167,9 @@ func (d *DB) MailboxUIDs(ctx context.Context, mailboxID int64) ([]uint32, error)
 // UpdateFlags applies server-reported flags to the messages of mailboxID by
 // UID and returns, in the order of ups, the IDs of messages whose stored
 // flags changed. Every matched membership gets the update's modseq; UIDs not
-// in the mailbox are skipped. It emits nothing. Task T-0013 implements it.
+// in the mailbox are skipped, and so are the flags of messages a queued
+// action covers (QueueOp), whose local state stands until the replay. It
+// emits nothing.
 func (t *Tx) UpdateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate) ([]int64, error) {
 	var changed []int64
 	for _, u := range ups {
@@ -183,6 +185,14 @@ func (t *Tx) UpdateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate)
 		if _, err := t.ExecContext(ctx, `UPDATE message_mailbox SET modseq = ? WHERE mailbox_id = ? AND uid = ?`,
 			int64(u.ModSeq), mailboxID, int64(u.UID)); err != nil {
 			return nil, fmt.Errorf("set modseq uid %d: %w", u.UID, err)
+		}
+		var queued bool
+		if err := t.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pending_op_messages pm
+			JOIN pending_ops p ON p.id = pm.op_id WHERE pm.message_id = ? AND p.state != 'failed')`, msgID).Scan(&queued); err != nil {
+			return nil, fmt.Errorf("update flags uid %d: %w", u.UID, err)
+		}
+		if queued {
+			continue
 		}
 		want, err := flagValues(u.Flags)
 		if err != nil {

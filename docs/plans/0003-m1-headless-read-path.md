@@ -129,6 +129,10 @@ left a `go build` binary in the worktree; `.gitignore` now covers it. One
 defect got past the given tests: mailgen set `In-Reply-To` to the
 message's own ID (fixed, and the test now checks it). Lesson for cards:
 assert every relationship the contract states, not only shapes and counts.
+The other way round, T-0023's flag test failed about one run in nine and
+exposed a planner bug: a reconcile pass between a flag change and its
+replay put the server's older flags back. Queued actions now shield their
+messages' flags (`pending_op_messages`, [sync.md](../design/sync.md)).
 
 ## Later / ideas
 

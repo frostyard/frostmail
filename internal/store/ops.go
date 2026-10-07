@@ -20,8 +20,10 @@ type Op struct {
 	Attempts  int
 }
 
-// QueueOp records an action to replay against the server.
-func (t *Tx) QueueOp(ctx context.Context, accountID int64, kind string, payload any) (int64, error) {
+// QueueOp records an action to replay against the server. messages are the
+// messages it covers: until the action is deleted or fails, UpdateFlags
+// leaves their flags alone.
+func (t *Tx) QueueOp(ctx context.Context, accountID int64, kind string, payload any, messages []int64) (int64, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return 0, fmt.Errorf("queue %s op: %w", kind, err)
@@ -32,7 +34,16 @@ func (t *Tx) QueueOp(ctx context.Context, accountID int64, kind string, payload 
 	if err != nil {
 		return 0, fmt.Errorf("queue %s op: %w", kind, err)
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	for _, m := range messages {
+		if _, err := t.ExecContext(ctx, `INSERT OR IGNORE INTO pending_op_messages (op_id, message_id) VALUES (?, ?)`, id, m); err != nil {
+			return 0, fmt.Errorf("queue %s op: %w", kind, err)
+		}
+	}
+	return id, nil
 }
 
 // DueOps returns an account's queued actions due by now, oldest first.
@@ -56,13 +67,15 @@ func (d *DB) DueOps(ctx context.Context, accountID int64, now time.Time) ([]Op, 
 	return out, rows.Err()
 }
 
-// DeleteOp removes a replayed action.
+// DeleteOp removes a replayed action; its messages take the server's flags
+// again.
 func (t *Tx) DeleteOp(ctx context.Context, id int64) error {
 	_, err := t.ExecContext(ctx, `DELETE FROM pending_ops WHERE id = ?`, id)
 	return err
 }
 
-// FailOp marks an action the server refused; it is not retried.
+// FailOp marks an action the server refused; it is not retried, and its
+// messages take the server's flags again.
 func (t *Tx) FailOp(ctx context.Context, id int64, reason string) error {
 	_, err := t.ExecContext(ctx, `UPDATE pending_ops SET state = 'failed', attempts = attempts + 1, last_error = ? WHERE id = ?`, reason, id)
 	return err

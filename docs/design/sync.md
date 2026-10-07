@@ -104,10 +104,14 @@ and its local change undone: moves return to the source mailbox, and flag
 and expunge failures clear the mailbox's stored modseq so the next pass
 refetches every flag.
 
-One transaction: optimistic change, a `pending_ops` row and a durable event.
+One transaction: optimistic change, a `pending_ops` row, a
+`pending_op_messages` row per message it covers, and a durable event.
 Replay resolves (mailbox, UIDVALIDITY, UID) at replay time; flags go as
-`+FLAGS`/`-FLAGS` deltas, and incoming server flags do not overwrite a flag
-with a pending op. Moves use MOVE, or COPY + `\Deleted` + `UID EXPUNGE` with
+`+FLAGS`/`-FLAGS` deltas. Until the op is replayed or fails, a reconcile
+pass leaves the flags of its messages alone (`store.UpdateFlags`), since
+flags fetched before the replay are older than the user's change; the
+replay's STORE then bumps the server's modseq, so the next pass fetches the
+result. Moves use MOVE, or COPY + `\Deleted` + `UID EXPUNGE` with
 UIDPLUS, never a bare EXPUNGE; COPYUID/APPENDUID map new UIDs at once.
 Repeated ops on one message collapse. Network errors back off; NO/BAD rolls
 back the optimistic change and tells the user. Undo enqueues the inverse, or
