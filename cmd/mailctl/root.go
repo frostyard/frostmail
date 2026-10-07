@@ -24,7 +24,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&opts.socket, "socket", "", "maild socket (default: $XDG_RUNTIME_DIR/frostmail/maild.sock)")
 	root.AddCommand(
-	// Subcommands register here, one constructor per file: newXxxCmd(opts).
+		newHelloCmd(opts),
 	)
 	return root
 }
