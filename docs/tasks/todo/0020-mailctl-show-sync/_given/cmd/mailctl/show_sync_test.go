@@ -25,7 +25,6 @@ import (
 // withPassword is true.
 func syncFixture(t *testing.T, withPassword bool) *rpctest.Server {
 	t.Helper()
-	time.Local = time.UTC
 	mem := imapxtest.StartMem(t)
 	files, _ := filepath.Glob("../../dev/incus/seed/*.eml")
 	slices.Sort(files)
@@ -108,7 +107,7 @@ func TestShow(t *testing.T) {
 	}
 	want := "From: Carol Accountant <carol@mailtest.test>\n" +
 		"To: Test One <test1@mailtest.test>\n" +
-		"Date: 2026-10-07 12:45\n" +
+		"Date: " + time.Date(2026, 10, 7, 12, 45, 0, 0, time.UTC).Local().Format("2006-01-02 15:04") + "\n" +
 		"Subject: Q3 numbers\n" +
 		"Attachments: q3.csv\n" +
 		"\n" +

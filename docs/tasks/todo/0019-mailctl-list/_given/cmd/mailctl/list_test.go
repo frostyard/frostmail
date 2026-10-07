@@ -16,7 +16,6 @@ import (
 // listFixture stores one account with INBOX (three messages) and Archive.
 func listFixture(t *testing.T) *rpctest.Server {
 	t.Helper()
-	time.Local = time.UTC // dates print in local time
 	srv := rpctest.Start(t)
 	ctx := t.Context()
 	c := srv.Dial(t)
@@ -62,6 +61,12 @@ func listFixture(t *testing.T) *rpctest.Server {
 	return srv
 }
 
+// localDate is how the fixture's message on October day prints: dates show
+// in the local time zone, whatever it is.
+func localDate(day int) string {
+	return time.Date(2026, 10, day, 9, 30, 0, 0, time.UTC).Local().Format("2006-01-02 15:04")
+}
+
 func TestMailboxesCommand(t *testing.T) {
 	srv := listFixture(t)
 	out, err := runMailctl(t, "--socket", srv.Socket, "mailboxes")
@@ -91,9 +96,9 @@ func TestLsCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "ID  FLAGS  DATE              FROM   SUBJECT\n" +
-		"3   N      2026-10-07 09:30  Dan    A rather long subject line that goes on and o…\n" +
-		"2   N!     2026-10-06 09:30  Carol  Invoice for October\n" +
-		"1          2026-10-05 09:30  Bob    Lunch on Thursday?\n"
+		"3   N      " + localDate(7) + "  Dan    A rather long subject line that goes on and o…\n" +
+		"2   N!     " + localDate(6) + "  Carol  Invoice for October\n" +
+		"1          " + localDate(5) + "  Bob    Lunch on Thursday?\n"
 	if out != want {
 		t.Fatalf("ls =\n%q\nwant\n%q", out, want)
 	}
