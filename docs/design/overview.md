@@ -50,7 +50,9 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 - **The app** keeps all mail logic out of Rust: `bridge.rs` moves lines and
   `transport.ts` matches responses to calls. The `mailpart://` scheme serves
   decoded parts from maild's cache so large data never travels as JSON
-  ([ADR-0005](../adr/0005-html-mail-rendering.md)).
+  ([ADR-0005](../adr/0005-html-mail-rendering.md)). The UI lists messages
+  only through views and renders mail that maild has sanitized
+  ([design/app.md](app.md), [design/rendering.md](rendering.md)).
 
 ## Key patterns
 

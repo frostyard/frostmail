@@ -24,12 +24,15 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0006 — Development environment: host engine, nsl app toolchain, incus mail server](adr/0006-development-environment.md)
 - [0007 — A YAML IDL generates the RPC contract](adr/0007-rpc-contract.md)
 - [0008 — Claude plans and verifies; a local model executes task cards](adr/0008-local-executor-workflow.md)
+- [0009 — Build the app as a thin client over live views](adr/0009-ui-architecture.md)
 
 ### Design
 
 - [Overview](design/overview.md): the entry point
 - [Storage](design/storage.md)
 - [Sync engine](design/sync.md)
+- [Message rendering](design/rendering.md)
+- [The app](design/app.md)
 - [Testing](design/testing.md)
 - [Agent workflow](design/agent-workflow.md)
 
@@ -37,12 +40,14 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 
 - [RPC protocol](specs/rpc-protocol.md): framing, connection setup, events
 - [RPC API](specs/rpc-api.md): every method, type and event (generated)
+- [Reader UI](specs/ui.md): tokens, layout, behavior and keyboard map
 
 ### Plans
 
 - [0001 — M0 foundations](plans/0001-m0-foundations.md), with its evidence
 - [0002 — Roadmap to Mail.app parity](plans/0002-roadmap.md)
 - [0003 — M1 headless read path](plans/0003-m1-headless-read-path.md), done, with its evidence
+- [0004 — M2 UI read path](plans/0004-m2-ui-read-path.md)
 
 ## Conventions
 
