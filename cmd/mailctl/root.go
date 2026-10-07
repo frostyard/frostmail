@@ -31,6 +31,9 @@ func newRootCmd() *cobra.Command {
 		newSearchCmd(opts),
 		newShowCmd(opts),
 		newSyncCmd(opts),
+		newFlagCmd(opts),
+		newMvCmd(opts),
+		newRmCmd(opts),
 	)
 	return root
 }
