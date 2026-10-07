@@ -33,6 +33,21 @@ Decided in [ADR-0008](../adr/0008-local-executor-workflow.md).
    commits the work. The human reviews and merges the branch; the planner
    reviews all of a milestone's merged cards.
 
+## Batching cards
+
+Cards run one at a time in the executor worktree (`.worktrees/exec`), each
+branched from `main` as it is when the card starts. Two cards branched from
+the same `main` cannot see each other's code, so:
+
+- Cards that touch the same file must run one after another, with the first
+  merged before the second starts (T-0016 and T-0017 both edit `read.go`).
+- Cards in the same Go package can collide even in different files: T-0012
+  and T-0013 each added a package-level `bit()` helper, and only the merge
+  failed to compile. Run same-package cards sequentially with merges in
+  between, or name shared helpers in the card's contract.
+- A card whose given tests call another card's code waits for that card's
+  merge (T-0016 needs T-0011's `SearchQuery`).
+
 ## Executor model
 
 `EXECUTOR_MODEL` in the Makefile names an opencode `provider/model`; the
