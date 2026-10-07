@@ -12,9 +12,6 @@ import (
 	"github.com/frostyard/frostmail/internal/mimex"
 )
 
-// errNotImplemented marks stubs that task cards replace.
-var errNotImplemented = errors.New("store: not implemented")
-
 // Address is one mailbox address.
 type Address struct {
 	Name string `json:"name"`
