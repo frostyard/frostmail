@@ -26,7 +26,7 @@ func BodyText(raw []byte) (string, bool, error) {
 	}
 
 	var body bodyParts
-	if err := root.Walk(body.visit); err != nil {
+	if err := root.Walk(body.visit); err != nil && !body.visited {
 		return "", false, err
 	}
 
@@ -44,6 +44,7 @@ type bodyParts struct {
 	html     string
 	hasPlain bool
 	hasHTML  bool
+	visited  bool
 }
 
 // visit records one walked part. Parts go-message could not decode are
@@ -52,6 +53,7 @@ func (b *bodyParts) visit(_ []int, part *message.Entity, walkErr error) error {
 	if part == nil || (walkErr != nil && !isDecodingError(walkErr)) {
 		return nil
 	}
+	b.visited = true
 	mediaType, params, _ := part.Header.ContentType()
 	if notBodyText(mediaType, params, &part.Header) {
 		return nil
