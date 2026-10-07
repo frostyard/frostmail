@@ -29,6 +29,8 @@ func newRootCmd() *cobra.Command {
 		newMailboxesCmd(opts),
 		newLsCmd(opts),
 		newSearchCmd(opts),
+		newShowCmd(opts),
+		newSyncCmd(opts),
 	)
 	return root
 }
