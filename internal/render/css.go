@@ -20,8 +20,9 @@ var blockedFunctions = map[string]bool{
 // @import, @font-face, @namespace and @charset rules, blocked functions, and
 // the behavior and -moz-binding properties. Every url() goes through resolve,
 // which returns the URL to use or "" to drop it (the url() becomes none).
-// Names are compared after resolving CSS escapes, and "<" is escaped in the
-// output so the text cannot close a <style> element.
+// Names are compared after resolving CSS escapes, removals leave a space so
+// neighboring tokens cannot join, and "<" is escaped in the output so the
+// text cannot close a <style> element.
 func sanitizeCSS(src string, resolve func(raw string) string) string {
 	l := css.NewLexer(parse.NewInputString(src))
 	var b strings.Builder
@@ -31,12 +32,14 @@ func sanitizeCSS(src string, resolve func(raw string) string) string {
 		case css.ErrorToken:
 			return strings.ReplaceAll(b.String(), "<", `\3c `)
 		case css.CommentToken, css.CDOToken, css.CDCToken:
+			// A removal leaves a space, so its neighbors cannot join into a
+			// new token ("@" + "import").
+			b.WriteByte(' ')
 		case css.AtKeywordToken:
 			switch strings.ToLower(cssUnescape(string(data[1:]))) {
-			case "import", "namespace", "charset":
+			case "import", "namespace", "charset", "font-face":
 				skipStatement(l)
-			case "font-face":
-				skipStatement(l)
+				b.WriteByte(' ')
 			default:
 				b.Write(data)
 			}
