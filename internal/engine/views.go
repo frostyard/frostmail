@@ -26,6 +26,12 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 	if q.Text != nil {
 		f.Text = *q.Text
 	}
+	if q.Role != nil {
+		f.Role = string(*q.Role)
+	}
+	if q.Threads != nil {
+		f.Threads = *q.Threads
+	}
 	id, count, err := v.Views.Open(ctx, api.ConnFrom(ctx), f)
 	if err != nil {
 		return nil, err

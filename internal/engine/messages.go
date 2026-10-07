@@ -61,10 +61,18 @@ func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body
 	return &api.Body{Text: text, HasHTML: hasHTML}, nil
 }
 
-// Summaries implements message.summaries. Task T-0025 implements it; the
-// stub finds none.
-func (m messages) Summaries(_ context.Context, _ *api.MessageSummariesParams) ([]api.MessageSummary, error) {
-	return []api.MessageSummary{}, nil
+// Summaries implements message.summaries: the summaries of the given IDs,
+// in the order given, skipping IDs that do not exist.
+func (m messages) Summaries(ctx context.Context, p *api.MessageSummariesParams) ([]api.MessageSummary, error) {
+	sums, err := m.DB.Summaries(ctx, p.IDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.MessageSummary, 0, len(sums))
+	for _, s := range sums {
+		out = append(out, toAPISummary(s))
+	}
+	return out, nil
 }
 
 func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) error {
@@ -114,6 +122,7 @@ func toAPISummary(s store.Summary) api.MessageSummary {
 		ID: s.ID, AccountID: s.AccountID, MailboxIDs: s.MailboxIDs, ThreadID: s.ThreadID,
 		Subject: s.Subject, From: api.Address{Name: s.From.Name, Address: s.From.Addr}, Date: s.Date,
 		Preview: s.Preview, HasAttachments: s.HasAttachments, Size: s.Size,
+		ThreadCount: s.ThreadCount,
 		Flags: api.Flags{
 			Seen: s.Flags.Seen, Flagged: s.Flags.Flagged, Answered: s.Flags.Answered,
 			Forwarded: s.Flags.Forwarded, Draft: s.Flags.Draft, FlagColor: int64(s.Flags.Color),
