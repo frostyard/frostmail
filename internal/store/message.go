@@ -101,7 +101,6 @@ func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs [
 	return ids, nil
 }
 
-
 // insertMessage writes one messages row and its parts rows, returning the
 // new message ID. The caller owns the message_mailbox row.
 func (t *Tx) insertMessage(ctx context.Context, accountID int64, h MessageHeader) (int64, error) {
