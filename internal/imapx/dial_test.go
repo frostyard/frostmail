@@ -1,6 +1,7 @@
 package imapx_test
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -35,7 +36,7 @@ func TestDialWrongPassword(t *testing.T) {
 	mem := imapxtest.StartMem(t)
 	opts := mem.DialOptions()
 	opts.Password = "wrong"
-	if _, err := imapx.Dial(t.Context(), opts); err == nil || !strings.Contains(err.Error(), "login") {
-		t.Fatalf("Dial with a wrong password = %v", err)
+	if _, err := imapx.Dial(t.Context(), opts); !errors.Is(err, imapx.ErrAuth) {
+		t.Fatalf("Dial with a wrong password = %v, want ErrAuth", err)
 	}
 }

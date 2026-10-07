@@ -6,18 +6,24 @@ package imapx
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"strconv"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/charset"
 	"github.com/frostyard/frostmail/api"
 
 	"mime"
 )
+
+// ErrAuth means the server rejected the credentials. Retrying with the same
+// password will not help.
+var ErrAuth = errors.New("imapx: login rejected")
 
 // DialOptions says how to reach and log in to one IMAP server.
 type DialOptions struct {
@@ -99,6 +105,10 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 	}
 	if err := c.Login(opts.Username, opts.Password).Wait(); err != nil {
 		_ = c.Close()
+		var imapErr *imap.Error
+		if errors.As(err, &imapErr) && imapErr.Type == imap.StatusResponseTypeNo {
+			return nil, fmt.Errorf("imap %s: login: %w: %w", addr, ErrAuth, err)
+		}
 		return nil, fmt.Errorf("imap %s: login: %w", addr, err)
 	}
 	if !stop() {
