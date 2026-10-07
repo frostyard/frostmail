@@ -290,6 +290,13 @@ func (a *actor) idleLoop(ctx context.Context, opts imapx.DialOptions, dirty chan
 		errc <- err
 		return
 	}
+	// Mail that arrived between C1's pass and this SELECT is already in
+	// the SELECT result, so no unsolicited EXISTS will report it: ask for
+	// one reconcile now (the fast path makes it cheap when nothing came).
+	select {
+	case dirty <- struct{}{}:
+	default:
+	}
 	for {
 		if err := s.Idle(ctx, wake, a.m.cfg.IdleMax, nil); err != nil {
 			if ctx.Err() == nil {

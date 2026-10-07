@@ -21,7 +21,8 @@ type ViewFilter struct {
 }
 
 // ViewIDs returns the IDs of the messages matching f, newest first
-// (internal date, then ID). Deleted messages never match; every other
+// (internal date, then the Date header, then ID; servers that stamp a batch
+// of appended messages with one arrival time still list them by sent date). Deleted messages never match; every other
 // condition is added only for the filter fields that are set. The
 // mailbox filter uses EXISTS, not a JOIN, so a message in several
 // mailboxes appears once. Text is turned into an FTS5 MATCH expression
@@ -50,7 +51,7 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 		args = append(args, q)
 	}
 	query := `SELECT m.id FROM messages m WHERE ` + strings.Join(conds, " AND ") +
-		` ORDER BY m.internal_date DESC, m.id DESC`
+		` ORDER BY m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DESC`
 	rows, err := d.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("view ids: %w", err)
