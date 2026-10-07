@@ -1,5 +1,5 @@
 .PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci ui-check ui-test ui-fmt app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci ui-check ui-test ui-vitest ui-fmt app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -77,6 +77,9 @@ ui-check: ## Lint (Biome), typecheck and test the app UI (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run check'
 
 ui-test: ui-check ## Alias for ui-check
+
+ui-vitest: ## Run app tests matching F (a path or pattern) in the nsl machine
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vitest run $(F)'
 
 ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
