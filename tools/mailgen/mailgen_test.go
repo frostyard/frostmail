@@ -142,6 +142,9 @@ func TestMessagesAreValidAndVaried(t *testing.T) {
 			if !strings.HasPrefix(subject, "Re: ") {
 				t.Fatalf("%s: reply subject %q lacks Re:", name, subject)
 			}
+			if irt, _ := h.MsgIDList("In-Reply-To"); len(irt) != 1 || irt[0] != refs[len(refs)-1] {
+				t.Fatalf("%s: In-Reply-To %v, want the last reference %s", name, irt, refs[len(refs)-1])
+			}
 		}
 		mt, _, _ := h.ContentType()
 		if strings.HasPrefix(mt, "multipart/") {

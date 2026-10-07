@@ -137,7 +137,7 @@ func buildMessage(rnd *rand.Rand, seed uint64, i int, date time.Time, senders []
 	w("Subject: " + subject)
 	w("Message-ID: " + rec.id)
 	if rec.refs != "" {
-		w("In-Reply-To: " + rec.id)
+		w("In-Reply-To: " + rec.refs[strings.LastIndexByte(rec.refs, ' ')+1:])
 		w("References: " + rec.refs)
 	}
 	w("MIME-Version: 1.0")
