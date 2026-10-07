@@ -2,7 +2,7 @@
 //! <cache>/parts, so message images and attachments never travel as JSON and
 //! the webview never touches the network for them (docs/specs/rpc-protocol.md).
 
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{Runtime, UriSchemeContext, UriSchemeResponder};
@@ -45,12 +45,23 @@ fn error(status: StatusCode) -> Response<Vec<u8>> {
     r
 }
 
-/// Resolve a request path to a file under <cache>/parts. Paths are plain
-/// relative names maild generates, so anything else is rejected rather than
-/// decoded: no "..", no absolute paths, no percent-escapes, no symlink exits.
 async fn read_part(uri_path: &str) -> Result<(Vec<u8>, &'static str), StatusCode> {
-    let rel = uri_path.trim_start_matches('/');
-    let valid_chars = rel.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-/".contains(&b));
+    let full = resolve(uri_path.trim_start_matches('/'), true).await?;
+    let body = tokio::fs::read(&full).await.map_err(|_| StatusCode::NOT_FOUND)?;
+    Ok((body, mime_for(&full)))
+}
+
+/// Resolve a relative path to a file under <cache>/parts. Paths are names
+/// maild generates, so anything else is rejected rather than decoded: no
+/// "..", no absolute paths, no control characters, no symlink exits. strict
+/// (URLs) also allows only ASCII letters, digits and "._-/", with no
+/// percent-escapes; attachment names opened by path may be any Unicode.
+pub async fn resolve(rel: &str, strict: bool) -> Result<PathBuf, StatusCode> {
+    let valid_chars = if strict {
+        rel.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-/".contains(&b))
+    } else {
+        !rel.chars().any(|c| c.is_control() || c == '\\')
+    };
     let rel_path = Path::new(rel);
     if rel.is_empty() || !valid_chars || !rel_path.components().all(|c| matches!(c, Component::Normal(_))) {
         return Err(StatusCode::BAD_REQUEST);
@@ -61,8 +72,7 @@ async fn read_part(uri_path: &str) -> Result<(Vec<u8>, &'static str), StatusCode
     if !full.starts_with(&base) {
         return Err(StatusCode::FORBIDDEN);
     }
-    let body = tokio::fs::read(&full).await.map_err(|_| StatusCode::NOT_FOUND)?;
-    Ok((body, mime_for(&full)))
+    Ok(full)
 }
 
 fn mime_for(path: &Path) -> &'static str {
