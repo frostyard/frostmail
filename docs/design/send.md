@@ -54,13 +54,24 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
 
 - Headers: `Date`, `From` (identity), `To`, `Cc`, `Subject` (RFC 2047 when
   needed), `Message-ID`, `In-Reply-To`, `References`, `MIME-Version`.
-  `Bcc` is never written; Bcc recipients only go into the SMTP envelope.
-  Header values are checked for CR and LF (header injection) and rejected.
+  `Bcc` is written only in the Drafts copy, so the recipients survive on the
+  server; a sent message's Bcc recipients only go into the SMTP envelope.
+  Before writing anything, the builder rejects CR, LF or NUL in any header
+  value (header injection), addresses that are not bare addr-specs, and
+  malformed message or content IDs.
 - Body: `multipart/alternative` with `text/plain; charset=utf-8` (made from
-  the HTML with `mimex.HTMLToText`, quoted-printable) and `text/html;
-  charset=utf-8` (the sanitized HTML in a minimal document,
-  quoted-printable); inside `multipart/mixed` when there are attachments, each
-  base64 with `Content-Disposition: attachment` and an RFC 2231 file name.
+  the HTML with `mimex.HTMLToText`) and `text/html; charset=utf-8` (the
+  draft's HTML in a minimal document), both quoted-printable. The HTML part
+  sits in `multipart/related` with the inline images when there are any,
+  and the alternative in `multipart/mixed` with the attachments when there
+  are any. Attachments are base64 with the file name in
+  `Content-Disposition` (RFC 2231) and in `Content-Type`'s `name` (RFC 2047,
+  for older readers); `multipart/*` and `message/*` types are sent as
+  `application/octet-stream`. The result is 7-bit with CRLF line endings.
+- **Inline images:** a quoted message's inline images appear in the draft's
+  HTML as `mailpart:` URLs. When building, maild replaces each with a
+  `cid:` URL and adds the part as an inline image; remote images were never
+  in the quoted rendering.
 - The same builder makes the Drafts copy and the sent message.
 
 ## Outbox

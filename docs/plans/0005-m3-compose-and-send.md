@@ -54,8 +54,9 @@ framework's own behavior, assert every relationship the contract names.
 
 ## Phase 3 — Building, sending and the compose window (planner)
 
-- `internal/compose`: the message builder (headers with injection checks,
-  alternative and mixed parts, attachments), golden tests.
+- `internal/compose`: the message builder (headers with injection checks;
+  alternative, related and mixed parts; inline images and attachments),
+  with round-trip tests.
 - `internal/smtpx` over go-smtp: TLS and STARTTLS, AUTH PLAIN, SIZE.
 - The outbox worker and the draft saver in the account actor; crash
   recovery; engine domains `draft`, `outbox`, `address`, `identity`.
@@ -91,7 +92,8 @@ framework's own behavior, assert every relationship the contract names.
 ## Later / ideas
 
 - Send later and scheduled sending (`scheduled` state): M5.
-- Inline images in the editor (`multipart/related`).
+- Pasting and inserting images in the editor (the builder already writes
+  inline images as `multipart/related`).
 - XOAUTH2 for Gmail and Microsoft: M4.
 - A settings window for identities and signatures: M4.
 

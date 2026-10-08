@@ -34,8 +34,8 @@ type Source struct {
 // To empty (a reply to one's own message), To is the source's To without
 // self. With all, Cc is the source's To followed by its Cc, without self,
 // without addresses already in To and without repeats (the first occurrence
-// wins, name included); without all, Cc is nil. Empty results are nil.
-// Address comparisons ignore case.
+// wins, name included); without all, Cc is nil. Empty addresses are
+// dropped, and empty results are nil. Address comparisons ignore case.
 func ReplyRecipients(src Source, self []string, all bool) (to, cc []Address) {
 	own := lowerSet(self)
 	base := src.ReplyTo
@@ -52,7 +52,7 @@ func ReplyRecipients(src Source, self []string, all bool) (to, cc []Address) {
 	seen := lowerAddrs(to)
 	for _, a := range slices.Concat(src.To, src.Cc) {
 		key := strings.ToLower(a.Addr)
-		if own[key] || seen[key] {
+		if key == "" || own[key] || seen[key] {
 			continue
 		}
 		seen[key] = true
@@ -169,12 +169,12 @@ func joinEscaped(addrs []Address) string {
 	return strings.Join(parts, ", ")
 }
 
-// withoutAddrs returns the addresses whose (lower-cased) address is not in
-// the given set.
+// withoutAddrs returns the addresses whose (lower-cased) address is not
+// empty and not in the given set.
 func withoutAddrs(addrs []Address, skip map[string]bool) []Address {
 	var out []Address
 	for _, a := range addrs {
-		if skip[strings.ToLower(a.Addr)] {
+		if a.Addr == "" || skip[strings.ToLower(a.Addr)] {
 			continue
 		}
 		out = append(out, a)
