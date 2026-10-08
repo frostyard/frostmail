@@ -87,6 +87,9 @@ Sync All Mail, Trash and Spam keyed by `gm_msgid`; labels from
 `X-GM-LABELS` become `message_mailbox` rows (`\Inbox` is a label). Archive
 removes `\Inbox`; move edits labels; delete moves to `[Gmail]/Trash`. Threads
 come from `X-GM-THRID`. Never append to Sent (Gmail saves sent mail itself).
+The decision and every operation's mapping are in
+[ADR-0012](../adr/0012-gmail-labels-as-memberships.md); provider quirks in
+[accounts.md](accounts.md).
 
 ## Threading (non-Gmail)
 

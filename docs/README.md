@@ -26,6 +26,8 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0008 — Claude plans and verifies; a local model executes task cards](adr/0008-local-executor-workflow.md)
 - [0009 — Build the app as a thin client over live views](adr/0009-ui-architecture.md)
 - [0010 — maild owns drafts and the outbox; the app edits them](adr/0010-compose-and-send.md)
+- [0011 — maild signs in with the user's own OAuth client and keeps secrets in the Secret Service](adr/0011-sign-in-and-credentials.md)
+- [0012 — Gmail is synced as one store with labels as memberships](adr/0012-gmail-labels-as-memberships.md)
 
 ### Design
 
@@ -35,6 +37,8 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Message rendering](design/rendering.md)
 - [The app](design/app.md)
 - [Drafts and sending](design/send.md)
+- [Accounts, sign-in and providers](design/accounts.md)
+- [Running on the desktop](design/desktop.md)
 - [Testing](design/testing.md)
 - [Agent workflow](design/agent-workflow.md)
 
@@ -44,6 +48,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [RPC API](specs/rpc-api.md): every method, type and event (generated)
 - [Reader UI](specs/ui.md): tokens, layout, behavior and keyboard map
 - [Compose UI](specs/compose-ui.md): the compose window, undo toast and outbox
+- [Search language](specs/search.md): what the search field accepts
 
 ### Plans
 
@@ -51,7 +56,8 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0002 — Roadmap to Mail.app parity](plans/0002-roadmap.md)
 - [0003 — M1 headless read path](plans/0003-m1-headless-read-path.md), done, with its evidence
 - [0004 — M2 UI read path](plans/0004-m2-ui-read-path.md), done, with its evidence
-- [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md)
+- [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md), done, with its evidence
+- [0006 — M4 daily driver](plans/0006-m4-daily-driver.md)
 
 ## Conventions
 
