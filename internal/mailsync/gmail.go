@@ -21,6 +21,7 @@ import (
 type conn interface {
 	Capabilities() imapx.Capabilities
 	Select(ctx context.Context, path string) (imapx.Selected, error)
+	Status(ctx context.Context, path string) (imapx.Selected, error)
 	UIDs(ctx context.Context) ([]uint32, error)
 	SearchMessageID(ctx context.Context, msgid string) ([]uint32, error)
 	FetchFlags(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
@@ -66,6 +67,32 @@ func (a *actor) gmailPass(ctx context.Context, conn conn) error {
 		}
 	}
 	return a.pruneGmail(ctx)
+}
+
+// gmailPoll checks All Mail, Spam and Trash with STATUS and runs a Gmail
+// pass when any of them moved. All Mail is checked although C2 idles on
+// it: Gmail's IDLE need not report label changes made elsewhere, and its
+// account-wide MODSEQ shows any change.
+func (a *actor) gmailPoll(ctx context.Context, conn conn, mailboxes []store.Mailbox) error {
+	for _, role := range syncedRoles {
+		mb := byRole(mailboxes, role)
+		if mb == nil {
+			continue
+		}
+		st, ok, err := a.m.db.MailboxSyncState(ctx, mb.ID)
+		if err != nil {
+			return err
+		}
+		status, err := conn.Status(ctx, mb.Path)
+		if err != nil {
+			return err
+		}
+		if !ok || status.UIDValidity != st.UIDValidity || status.UIDNext != st.UIDNext ||
+			status.Messages != st.ServerCount || status.HighestModSeq != st.HighestModSeq {
+			return a.gmailPass(ctx, conn)
+		}
+	}
+	return nil
 }
 
 // pruneGmail deletes messages no synced folder holds any more.

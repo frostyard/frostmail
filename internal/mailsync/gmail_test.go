@@ -150,6 +150,15 @@ func (g *gmailModel) Select(_ context.Context, path string) (imapx.Selected, err
 	return imapx.Selected{UIDValidity: f.validity, UIDNext: f.next, HighestModSeq: g.modseq, Messages: uint32(len(g.in(path)))}, nil
 }
 
+func (g *gmailModel) Status(_ context.Context, path string) (imapx.Selected, error) {
+	g.log = append(g.log, "STATUS "+path)
+	f := g.folders[path]
+	if f == nil {
+		return imapx.Selected{}, fmt.Errorf("status %s: not modeled", path)
+	}
+	return imapx.Selected{UIDValidity: f.validity, UIDNext: f.next, HighestModSeq: g.modseq, Messages: uint32(len(g.in(path)))}, nil
+}
+
 func (g *gmailModel) UIDs(context.Context) ([]uint32, error) {
 	g.log = append(g.log, "UID SEARCH")
 	uids := []uint32{}
@@ -958,4 +967,33 @@ func TestGmailAnnouncesNewInboxMail(t *testing.T) {
 	if len(announced) != 1 || len(announced[0]) != 1 || announced[0][0].Subject != "New" {
 		t.Errorf("announced %+v, want only New", announced)
 	}
+}
+
+// Polling notices changes made in Gmail's web UI even when IDLE on All
+// Mail reports nothing, and costs three STATUS commands when nothing moved.
+func TestGmailPollFindsWebChanges(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	m := g.add(gAll, "Welcome", 0, `\Inbox`)
+	e.pass()
+	mailboxes, err := e.db.ListMailboxes(t.Context(), e.a.acct.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	poll := func() []string {
+		t.Helper()
+		g.log = nil
+		if err := e.a.gmailPoll(t.Context(), g, mailboxes); err != nil {
+			t.Fatal(err)
+		}
+		return g.log
+	}
+	eq(t, "an idle poll", poll(), []string{"STATUS " + gAll, "STATUS " + gSpam, "STATUS " + gTrash})
+
+	g.label(m, []string{"Work"}, nil)
+	log := poll()
+	if !slices.Contains(log, "SELECT "+gAll) {
+		t.Errorf("a web label change did not start a pass: %q", log)
+	}
+	eq(t, "Work", e.subjects("Work"), []string{"Welcome"})
 }

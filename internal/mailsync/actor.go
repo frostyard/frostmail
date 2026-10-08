@@ -349,11 +349,14 @@ func (a *actor) fullPass(ctx context.Context, cmd *imapx.Session) ([]store.Mailb
 }
 
 // pollPass checks every selectable mailbox with STATUS and reconciles those
-// whose state moved, skipping the one C2 watches. On Gmail it checks the
-// synced folders and runs one Gmail pass if any moved.
+// whose state moved, skipping the one C2 watches. Gmail polls differently
+// (gmailPoll).
 func (a *actor) pollPass(ctx context.Context, cmd *imapx.Session, mailboxes []store.Mailbox, watched *store.Mailbox) error {
+	if a.gmail {
+		return a.gmailPoll(ctx, cmd, mailboxes)
+	}
 	for _, mb := range mailboxes {
-		if watched != nil && mb.ID == watched.ID || a.gmail && !isSynced(mb.Role) {
+		if watched != nil && mb.ID == watched.ID {
 			continue
 		}
 		st, ok, err := a.m.db.MailboxSyncState(ctx, mb.ID)
@@ -367,9 +370,6 @@ func (a *actor) pollPass(ctx context.Context, cmd *imapx.Session, mailboxes []st
 		if ok && status.UIDValidity == st.UIDValidity && status.UIDNext == st.UIDNext &&
 			status.Messages == st.ServerCount && status.HighestModSeq == st.HighestModSeq && cmd.Caps.CondStore {
 			continue
-		}
-		if a.gmail {
-			return a.gmailPass(ctx, cmd)
 		}
 		if err := a.reconcile(ctx, cmd, mb); err != nil {
 			return err
@@ -389,7 +389,7 @@ func (a *actor) idleLoop(ctx context.Context, opts imapx.DialOptions, path strin
 		default:
 		}
 	}
-	opts.Trace = nil
+	opts = a.traced(opts)
 	s, err := imapx.Open(ctx, opts)
 	if err != nil {
 		errc <- err
