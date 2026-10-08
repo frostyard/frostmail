@@ -167,6 +167,13 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   desktop entry and icon, and maild accepted click signals from any
   program on the session bus (both fixed); a click on a notification sent
   by a maild that has since restarted does nothing.
+- **Throwaway Gmail, app-password fallback (2026-10-08):** the account
+  removed and added again with `--password-stdin`; IMAP LOGIN and SMTP
+  with the app password worked (full resync, verify clean, a reply sent
+  and filed in Sent by Gmail). Found: Google's account password is
+  refused over IMAP (expected) and there was no way to replace a stored
+  password, so `mailctl account password` was added; Gmail accounts now
+  drop the spaces Google shows in app passwords.
 
 ## Later / ideas
 
