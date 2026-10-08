@@ -106,6 +106,20 @@ func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
 	return a, nil
 }
 
+// AccountReadOnly reports whether an account is read-only; a missing
+// account is ErrNotFound.
+func (t *Tx) AccountReadOnly(ctx context.Context, id int64) (bool, error) {
+	var ro bool
+	err := t.QueryRowContext(ctx, `SELECT read_only FROM accounts WHERE id = ?`, id).Scan(&ro)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, fmt.Errorf("account %d: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return false, fmt.Errorf("account %d: %w", id, err)
+	}
+	return ro, nil
+}
+
 // GetAccount returns one account, or ErrNotFound.
 func (d *DB) GetAccount(ctx context.Context, id int64) (Account, error) {
 	return scanAccount(d.db.QueryRowContext(ctx, accountColumns+` WHERE id = ?`, id))

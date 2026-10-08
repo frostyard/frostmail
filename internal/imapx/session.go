@@ -48,6 +48,7 @@ type Session struct {
 	c        *imapclient.Client
 	Caps     Capabilities
 	selected string
+	readOnly bool
 }
 
 // Open dials, logs in and probes capabilities.
@@ -58,7 +59,7 @@ func Open(ctx context.Context, opts DialOptions) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Session{c: c}
+	s := &Session{c: c, readOnly: opts.ReadOnly}
 	err = s.run(ctx, func() error {
 		caps, err := c.Capability().Wait()
 		if err != nil {
@@ -213,12 +214,13 @@ type Selected struct {
 	Messages      uint32
 }
 
-// Select opens a mailbox read-write.
+// Select opens a mailbox: read-write, or with EXAMINE on a read-only
+// session.
 func (s *Session) Select(ctx context.Context, path string) (Selected, error) {
 	var d *imap.SelectData
 	err := s.run(ctx, func() error {
 		var err error
-		d, err = s.c.Select(path, &imap.SelectOptions{CondStore: s.Caps.CondStore}).Wait()
+		d, err = s.c.Select(path, &imap.SelectOptions{ReadOnly: s.readOnly, CondStore: s.Caps.CondStore}).Wait()
 		return err
 	})
 	if err != nil {
@@ -601,6 +603,9 @@ func nonNilLabels(l []string) []string {
 // StoreLabels adds and removes Gmail labels (STORE ±X-GM-LABELS) on uids in
 // the selected mailbox.
 func (s *Session) StoreLabels(ctx context.Context, uids []uint32, add, remove []string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	if len(uids) == 0 {
 		return nil
 	}
@@ -648,6 +653,9 @@ func (s *Session) FetchRaw(ctx context.Context, uid uint32) ([]byte, error) {
 
 // StoreFlags adds and removes flags on uids in the selected mailbox.
 func (s *Session) StoreFlags(ctx context.Context, uids []uint32, add, remove []string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	for _, op := range []struct {
 		kind  imap.StoreFlagsOp
 		flags []string
@@ -674,6 +682,9 @@ func (s *Session) StoreFlags(ctx context.Context, uids []uint32, add, remove []s
 // copies, flags \Deleted and expunges by UID; without UIDPLUS either, the
 // move fails rather than risk a bare EXPUNGE.
 func (s *Session) Move(ctx context.Context, uids []uint32, dest string) (map[uint32]uint32, error) {
+	if s.readOnly {
+		return nil, ErrReadOnly
+	}
 	if !s.Caps.Move && !s.Caps.UIDPlus {
 		return nil, errors.New("imapx: server has neither MOVE nor UIDPLUS")
 	}
@@ -712,6 +723,9 @@ func expand(set imap.UIDSet) []uint32 {
 // selected mailbox. It needs UIDPLUS; a bare EXPUNGE could remove messages
 // another client marked.
 func (s *Session) Expunge(ctx context.Context, uids []uint32) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
 	if !s.Caps.UIDPlus {
 		return errors.New("imapx: UID EXPUNGE needs UIDPLUS")
 	}
@@ -752,6 +766,9 @@ func (s *Session) Idle(ctx context.Context, wake <-chan struct{}, max time.Durat
 // Append stores a raw message in mailbox with flags and returns its UID when
 // the server reports it (UIDPLUS), else 0.
 func (s *Session) Append(ctx context.Context, mailbox string, raw []byte, flags []string) (uint32, error) {
+	if s.readOnly {
+		return 0, ErrReadOnly
+	}
 	fl := make([]imap.Flag, len(flags))
 	for i, f := range flags {
 		fl[i] = imap.Flag(f)

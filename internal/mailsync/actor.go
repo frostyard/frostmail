@@ -162,7 +162,7 @@ func (a *actor) dialOptions(secret string, isOAuth bool) imapx.DialOptions {
 	s := a.acct.IMAP
 	opts := imapx.DialOptions{
 		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: secret, OAuth: isOAuth,
-		InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
+		ReadOnly: a.acct.ReadOnly, InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
 	}
 	if a.m.cfg.Trace != nil {
 		opts.Trace = a.m.cfg.Trace(a.acct.ID)

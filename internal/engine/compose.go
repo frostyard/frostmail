@@ -590,6 +590,13 @@ func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxIt
 	if err := checkSendable(dr); err != nil {
 		return nil, err
 	}
+	acct, err := d.DB.GetAccount(ctx, dr.AccountID)
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("account %d", dr.AccountID))
+	}
+	if acct.ReadOnly {
+		return nil, api.Conflict("account %d is read-only", dr.AccountID)
+	}
 	m := mailsync.DraftMessage(dr, ident, d.Blobs, d.parts(), time.Now())
 	var buf bytes.Buffer
 	if err := compose.Build(&buf, m); errors.Is(err, compose.ErrInvalid) {

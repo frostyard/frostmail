@@ -77,7 +77,9 @@ export function ToolbarContainer(props: {
     const label = buildSidebar(accounts, mailboxes)
       .flatMap((s) => s.items)
       .find((i) => i.mailboxId === src.mailboxId)?.label;
-    return { title: label ?? mb?.name ?? "", subtitle: mb ? counts([mb]) : "" };
+    const readOnly = accounts.some((a) => a.id === mb?.accountId && a.readOnly);
+    const subtitle = mb ? `${counts([mb])}${readOnly ? " · Read-only" : ""}` : "";
+    return { title: label ?? mb?.name ?? "", subtitle };
   }, [ui.search, ui.source, model?.ready, model?.count, mailboxes, accounts]);
 
   const onCommand = useCallback(

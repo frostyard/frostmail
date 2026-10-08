@@ -1,6 +1,9 @@
 package imapx_test
 
 import (
+	"errors"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/frostyard/frostmail/internal/imapx"
@@ -53,4 +56,60 @@ func TestFullMemAppendAndSearchMessageID(t *testing.T) {
 	if err != nil || len(none) != 0 {
 		t.Fatalf("SearchMessageID(missing) = %v, %v", none, err)
 	}
+}
+
+func TestReadOnlySessionExaminesAndRefusesChanges(t *testing.T) {
+	mem := imapxtest.StartMemFull(t)
+	seedMem(t, mem)
+	opts := mem.DialOptions()
+	opts.ReadOnly = true
+	trace := &lockedTrace{}
+	opts.Trace = trace
+	s, err := imapx.Open(t.Context(), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.Select(t.Context(), "INBOX"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(trace.String(), "EXAMINE INBOX") || strings.Contains(trace.String(), "SELECT INBOX") {
+		t.Errorf("a read-only session must EXAMINE:\n%s", trace.String())
+	}
+	if uids, err := s.UIDs(t.Context()); err != nil || len(uids) == 0 {
+		t.Fatalf("uids = %v, %v", uids, err)
+	}
+	before := len(trace.String())
+	checks := map[string]error{}
+	checks["store flags"] = s.StoreFlags(t.Context(), []uint32{1}, []string{`\Seen`}, nil)
+	checks["store labels"] = s.StoreLabels(t.Context(), []uint32{1}, []string{"x"}, nil)
+	_, checks["move"] = s.Move(t.Context(), []uint32{1}, "Archive")
+	checks["expunge"] = s.Expunge(t.Context(), []uint32{1})
+	_, checks["append"] = s.Append(t.Context(), "Drafts", []byte("Subject: x\r\n\r\nx\r\n"), nil)
+	for what, err := range checks {
+		if !errors.Is(err, imapx.ErrReadOnly) {
+			t.Errorf("%s = %v, want ErrReadOnly", what, err)
+		}
+	}
+	if len(trace.String()) != before {
+		t.Errorf("refused commands reached the server:\n%s", trace.String()[before:])
+	}
+}
+
+// lockedTrace collects a trace written from the connection's goroutine.
+type lockedTrace struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *lockedTrace) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedTrace) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
 }

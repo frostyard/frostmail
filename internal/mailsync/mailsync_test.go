@@ -3,6 +3,7 @@ package mailsync_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -347,5 +348,76 @@ func TestLocalFlagChangeAnnouncesMailboxCounts(t *testing.T) {
 	h.waitFor(5*time.Second, "mailbox.changed for INBOX", func(_ api.EventEnvelope, ev api.Event) bool {
 		c, ok := ev.(api.MailboxChanged)
 		return ok && c.ID == inbox.ID
+	})
+}
+
+// A read-only account syncs with EXAMINE and refuses every change to its
+// mail; nothing reaches the server.
+func TestReadOnlyAccountChangesNothing(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
+	h.waitPhase(api.SyncPhaseIdle)
+	ctx := t.Context()
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, ReadOnly: ptr(true)}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitPhase(api.SyncPhaseIdle)
+	inbox := h.inbox()
+	v, err := h.c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{MailboxID: &inbox.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := h.c.View().Range(ctx, &api.ViewRangeParams{ID: v.ID, Start: 4, End: 5}) // UID 1
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("rows = %v, %v", rows, err)
+	}
+	id := rows[0].ID
+	refused := func(what string, err error) {
+		t.Helper()
+		var apiErr *api.Error
+		if !errors.As(err, &apiErr) || apiErr.Code != api.CodeConflict {
+			t.Errorf("%s on a read-only account = %v, want conflict", what, err)
+		}
+	}
+	refused("setFlags", h.c.Message().SetFlags(ctx, &api.MessageSetFlagsParams{IDs: []int64{id}, Changes: api.FlagChanges{Seen: ptr(true)}}))
+	refused("delete", h.c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: []int64{id}}))
+	refused("move", h.c.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{id}, MailboxID: inbox.ID}))
+	if got := h.inbox(); got.Unread != inbox.Unread || got.Total != inbox.Total {
+		t.Errorf("inbox after refused changes = %+v, was %+v", got, inbox)
+	}
+
+	// New mail still arrives.
+	if _, err := mem.User.Append("INBOX", strings.NewReader("Subject: late\r\nMessage-ID: <late@x.test>\r\n\r\nhi\r\n"), &imap.AppendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 5*time.Second, "new mail on a read-only account", func() bool { return h.inbox().Total == inbox.Total+1 })
+
+	other, err := imapx.Open(ctx, mem.DialOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if _, err := other.Select(ctx, "INBOX"); err != nil {
+		t.Fatal(err)
+	}
+	ups, err := other.FetchFlags(ctx, []uint32{1}, 0)
+	if err != nil || len(ups) != 1 || ups[0].Flags.Seen {
+		t.Errorf("server flags of UID 1 = %+v, %v; a read-only account changed them", ups, err)
+	}
+
+	// Writable again, changes go through.
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, ReadOnly: ptr(false)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.c.Message().SetFlags(ctx, &api.MessageSetFlagsParams{IDs: []int64{id}, Changes: api.FlagChanges{Seen: ptr(true)}}); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 5*time.Second, "seen on the server", func() bool {
+		ups, err := other.FetchFlags(ctx, []uint32{1}, 0)
+		return err == nil && len(ups) == 1 && ups[0].Flags.Seen
 	})
 }

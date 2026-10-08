@@ -92,6 +92,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     syncs).
   - Over the list: the source title (13/600) above a subtitle (11/400
     secondary): "1,234 messages, 12 unread", or "Searching…", or "N results".
+    A mailbox of a read-only account adds " · Read-only" to its subtitle,
+    and opening its messages does not mark them read.
   - Over the reader: Delete, Archive, Flag (menu of the 7 colors and Clear
     Flag), Mark (read/unread toggle), Move (menu of the account's mailboxes),
     Reply, Reply All and Forward (on the selection); New Message sits over

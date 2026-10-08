@@ -77,6 +77,9 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 		}
 		byAccount := map[int64][]int64{}
 		for _, mem := range mems {
+			if err := refuseReadOnly(ctx, tx, mem.AccountID); err != nil {
+				return err
+			}
 			if len(byAccount[mem.AccountID]) == 0 || byAccount[mem.AccountID][len(byAccount[mem.AccountID])-1] != mem.MessageID {
 				byAccount[mem.AccountID] = append(byAccount[mem.AccountID], mem.MessageID)
 			}
@@ -192,6 +195,9 @@ func (m *Manager) Move(ctx context.Context, ids []int64, from, to int64) error {
 		if acct == 0 {
 			return nil
 		}
+		if err := refuseReadOnly(ctx, tx, acct); err != nil {
+			return err
+		}
 		if !ownsMailbox(ctx, tx, acct, to) {
 			return fmt.Errorf("mailbox %d is not in account %d: %w", to, acct, ErrInvalid)
 		}
@@ -262,6 +268,9 @@ func (m *Manager) Delete(ctx context.Context, ids []int64) error {
 		}
 		var hidden []int64
 		for _, mem := range mems {
+			if err := refuseReadOnly(ctx, tx, mem.AccountID); err != nil {
+				return err
+			}
 			if mem.UID == 0 {
 				continue // a move is pending; delete it after it lands
 			}
@@ -342,6 +351,21 @@ func (m *Manager) Delete(ctx context.Context, ids []int64) error {
 // ErrInvalid marks a request the caller must change.
 var ErrInvalid = errors.New("mailsync: invalid request")
 
+// ErrReadOnly refuses a change to a read-only account's mail.
+var ErrReadOnly = errors.New("account is read-only")
+
+// refuseReadOnly fails with ErrReadOnly when an account is read-only.
+func refuseReadOnly(ctx context.Context, tx *store.Tx, accountID int64) error {
+	ro, err := tx.AccountReadOnly(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if ro {
+		return fmt.Errorf("account %d: %w", accountID, ErrReadOnly)
+	}
+	return nil
+}
+
 // kick tells an account's actor that ops are queued.
 func (m *Manager) kick(accountID int64) {
 	if a := m.actor(accountID); a != nil {
@@ -399,7 +423,11 @@ func intersect(a, b []int64) []int64 {
 // replay sends queued ops to the server, oldest first. A refused op (a NO
 // or BAD from the server) is marked failed and its local change undone by
 // the next pass; any other error ends the session and the op is retried.
+// A read-only account keeps its ops queued.
 func (a *actor) replay(ctx context.Context, cmd conn) error {
+	if a.acct.ReadOnly {
+		return nil
+	}
 	ops, err := a.m.db.DueOps(ctx, a.acct.ID, time.Now())
 	if err != nil {
 		return err

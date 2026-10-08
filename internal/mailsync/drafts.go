@@ -21,6 +21,9 @@ import (
 // every copy is current. It waits at least the quiet period after a save
 // attempt so a draft that cannot be saved does not spin the loop.
 func (a *actor) nextDraftSave(ctx context.Context, attempted bool) <-chan time.Time {
+	if a.acct.ReadOnly {
+		return nil // drafts stay local
+	}
 	at, ok, err := a.m.db.NextDraftSave(ctx, a.acct.ID)
 	if err != nil || !ok {
 		return nil
@@ -34,8 +37,12 @@ func (a *actor) nextDraftSave(ctx context.Context, attempted bool) <-chan time.T
 
 // saveDrafts writes the server copy of every quiet draft whose copy is
 // missing or out of date. Drafts stay local on an account without a Drafts
-// mailbox. A draft the server refuses is skipped until it changes again.
+// mailbox or a read-only account. A draft the server refuses is skipped
+// until it changes again.
 func (a *actor) saveDrafts(ctx context.Context, cmd *imapx.Session) error {
+	if a.acct.ReadOnly {
+		return nil
+	}
 	list, err := a.m.db.DraftsToSave(ctx, a.acct.ID, time.Now().Add(-a.m.cfg.DraftQuiet))
 	if err != nil || len(list) == 0 {
 		return err

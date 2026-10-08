@@ -65,6 +65,13 @@ function Conversation({ id }: { id: number }) {
       .map((mb) => mb.id)
       .join(","),
   );
+  // Read-only accounts are never marked read (docs/design/accounts.md).
+  const readOnlyKey = useMail((s) =>
+    s.accounts
+      .filter((a) => a.readOnly)
+      .map((a) => a.id)
+      .join(","),
+  );
   const [items, setItems] = useState<MessageSummary[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,9 +89,10 @@ function Conversation({ id }: { id: number }) {
       if (cancelled) return;
       setItems(rows);
       // What the reader shows is read (docs/specs/ui.md, Behavior).
+      const readOnly = new Set(readOnlyKey === "" ? [] : readOnlyKey.split(",").map(Number));
       const unseen = rows
         .slice(0, MAX_CONVERSATION)
-        .filter((r) => !r.flags.seen)
+        .filter((r) => !r.flags.seen && !readOnly.has(r.accountId))
         .map((r) => r.id);
       if (unseen.length > 0) void client.message.setFlags({ ids: unseen, changes: { seen: true } }).catch(() => {});
     })().catch((err: unknown) => {
@@ -93,7 +101,7 @@ function Conversation({ id }: { id: number }) {
     return () => {
       cancelled = true;
     };
-  }, [client, id, trashKey]);
+  }, [client, id, trashKey, readOnlyKey]);
 
   if (error) return <Empty text={error} />;
   if (!items) return null;

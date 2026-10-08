@@ -115,6 +115,10 @@ func (m *Manager) collectInterrupted(ctx context.Context) error {
 // sendLoop sends the account's due messages until ctx ends, waking when a
 // message is queued and when the next one falls due.
 func (a *actor) sendLoop(ctx context.Context) {
+	if a.acct.ReadOnly {
+		<-ctx.Done() // nothing is sent; making the account writable restarts the actor
+		return
+	}
 	for {
 		a.sendDue(ctx)
 		var due <-chan time.Time

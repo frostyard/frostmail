@@ -26,6 +26,9 @@ import (
 // password will not help.
 var ErrAuth = errors.New("imapx: login rejected")
 
+// ErrReadOnly means a read-only session was asked to change the server.
+var ErrReadOnly = errors.New("imapx: the session is read-only")
+
 // DialOptions says how to reach and log in to one IMAP server.
 type DialOptions struct {
 	Host     string
@@ -36,6 +39,9 @@ type DialOptions struct {
 	// OAuth makes Password an OAuth access token, sent with AUTHENTICATE
 	// XOAUTH2 instead of LOGIN.
 	OAuth bool
+	// ReadOnly opens mailboxes with EXAMINE, and the session refuses every
+	// command that would change the server with ErrReadOnly.
+	ReadOnly bool
 
 	// InsecureSkipVerify accepts any certificate; only for test servers
 	// with self-signed certificates.

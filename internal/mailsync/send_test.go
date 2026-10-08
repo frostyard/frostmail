@@ -472,3 +472,20 @@ func TestCrashAfterAcceptanceSendsOnce(t *testing.T) {
 		t.Errorf("Sent holds %d messages; want the one sent", len(sent))
 	}
 }
+
+func TestReadOnlyAccountDoesNotSendOrCopyDrafts(t *testing.T) {
+	h := newSendHarness(t, 0)
+	ctx := t.Context()
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, ReadOnly: new(true)}); err != nil {
+		t.Fatal(err)
+	}
+	d := h.draft("Kept here", []api.Address{bob}, nil, nil)
+	if _, err := h.c.Draft().Send(ctx, &api.DraftSendParams{ID: d.ID}); !isCode(err, api.CodeConflict) {
+		t.Fatalf("send from a read-only account = %v, want conflict", err)
+	}
+	// Writable again, the waiting draft gets its server copy.
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, ReadOnly: new(false)}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitServer("Drafts", "the draft copy", func(raws [][]byte) bool { return len(raws) == 1 })
+}
