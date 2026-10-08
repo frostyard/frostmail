@@ -36,14 +36,14 @@ element has `role="menu"`, `tabIndex={-1}`, and inline style
 `position: fixed`, `left`, `top` in px. It receives focus when it mounts
 (`useEffect` + `focus()`).
 
-- `item`: an element with `role="menuitem"` containing a 14px check column
-  (a Lucide `Check` when `checked` is true), the optional `icon`, the label
-  in a `span`, and the `shortcut` (if any) in a right-aligned `span` with
-  `text-secondary`. `aria-disabled="true"` when disabled;
-  `aria-checked="true"` only when `checked` is true (no attribute
-  otherwise).
-- `separator`: an element with `role="separator"` (1px `bg-separator`,
-  4px vertical margin).
+- `item`: an element with `role="menuitem"`, or `role="menuitemcheckbox"`
+  with `aria-checked={checked}` when `checked` is set (true or false),
+  containing a 14px check column (a Lucide `Check` when `checked` is true),
+  the optional `icon`, the label in a `span`, and the `shortcut` (if any) in
+  a right-aligned `span` with `text-secondary`. `aria-disabled="true"` when
+  disabled.
+- `separator`: an `hr` (its role is separator; 1px `bg-separator`, no
+  border, 4px vertical margin).
 - `submenu`: a `role="menuitem"` with `aria-haspopup="menu"` and
   `aria-expanded` (`"true"` while its submenu is open), showing the label
   and a Lucide `ChevronRight`. Its submenu is another `role="menu"`
@@ -57,6 +57,10 @@ element has `role="menu"`, `tabIndex={-1}`, and inline style
 **Position.** After mount (`useLayoutEffect`), measure the root and clamp:
 `left = max(0, min(x, innerWidth - width - 4))`, the same for `top` with
 heights.
+
+(Revised by the planner after the first run: ARIA allows `aria-checked`
+only on `menuitemcheckbox` and `menuitemradio`, and Biome rejects a `div`
+with `role="separator"`.)
 
 **Highlight.** Each open menu level has at most one highlighted index.
 Only the highlighted row of the **deepest open** menu has

@@ -34,7 +34,7 @@ function open(over: Partial<Parameters<typeof ContextMenu>[0]> = {}) {
   return { onSelect, onClose };
 }
 
-const highlighted = () => document.querySelector('[role="menuitem"][data-highlighted="true"]')?.textContent ?? null;
+const highlighted = () => document.querySelector('[data-highlighted="true"]')?.textContent ?? null;
 
 describe("ContextMenu", () => {
   it("renders a positioned menu with items, separators and shortcuts", () => {
@@ -127,7 +127,8 @@ describe("ContextMenu", () => {
   it("opens a submenu on hover and marks checked items", () => {
     const { onSelect } = open();
     fireEvent.mouseEnter(screen.getByRole("menuitem", { name: "Flag" }));
-    const red = screen.getByRole("menuitem", { name: /Red/ });
+    // Items with checked set are checkboxes; the others are plain items.
+    const red = screen.getByRole("menuitemcheckbox", { name: /Red/ });
     expect(red.getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("menuitem", { name: /Orange/ }).getAttribute("aria-checked")).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: /Orange/ }));
