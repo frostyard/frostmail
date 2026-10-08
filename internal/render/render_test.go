@@ -77,9 +77,14 @@ func TestRenderWithoutRemoteContent(t *testing.T) {
 	if got.Remote != 1 || got.Trackers != 2 {
 		t.Errorf("remote %d trackers %d, want 1 and 2", got.Remote, got.Trackers)
 	}
-	inline := "mailpart://localhost/m/7/1.2.png"
+	// Images are embedded: WebKitGTK does not load mailpart:// inside the
+	// reader's frame. The decoded part is still cached for opening.
+	inline := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes(t))
 	if strings.Count(got.HTML, inline) != 2 || !cache.Has("m/7/1.2.png") {
-		t.Errorf("inline image not resolved twice or not cached:\n%s", got.HTML)
+		t.Errorf("inline image not embedded twice or not cached:\n%s", got.HTML)
+	}
+	if strings.Contains(got.HTML, PartURL) {
+		t.Errorf("a mailpart URL is left, which the frame cannot load:\n%s", got.HTML)
 	}
 	for _, bad := range []string{srv.URL, "track.example.test", "javascript", "x.png"} {
 		if strings.Contains(got.HTML, bad) {
@@ -106,8 +111,9 @@ func TestRenderWithRemoteContent(t *testing.T) {
 	if got.Remote != 0 || got.Trackers != 2 {
 		t.Errorf("remote %d trackers %d, want 0 and 2", got.Remote, got.Trackers)
 	}
-	if !strings.Contains(got.HTML, `src="mailpart://localhost/r/`) || strings.Contains(got.HTML, "frostmail-pending") {
-		t.Errorf("remote image not rewritten:\n%s", got.HTML)
+	if strings.Count(got.HTML, `src="data:image/png;base64,`) != 2 || strings.Contains(got.HTML, "frostmail-pending") ||
+		strings.Contains(got.HTML, PartURL) {
+		t.Errorf("remote image not embedded:\n%s", got.HTML)
 	}
 	checkSafe(t, got.HTML)
 }
@@ -181,5 +187,32 @@ func TestPartsCacheStaysInside(t *testing.T) {
 		if err := c.Write(rel, []byte("x")); err == nil {
 			t.Errorf("Write(%q) succeeded", rel)
 		}
+	}
+}
+
+// Past MaxEmbeddedBytes an image keeps its mailpart URL rather than making
+// the rendering unbounded.
+func TestEmbedderBudget(t *testing.T) {
+	cache := &PartsCache{Root: t.TempDir()}
+	small := pngBytes(t)
+	if err := cache.Write("r/a.png", small); err != nil {
+		t.Fatal(err)
+	}
+	if err := cache.Write("r/b.avif", small); err != nil {
+		t.Fatal(err)
+	}
+	e := &embedder{parts: cache, used: MaxEmbeddedBytes - len(small)}
+	if got := e.url("r/a.png"); !strings.HasPrefix(got, "data:image/png;base64,") {
+		t.Errorf("an image that fits = %q", got)
+	}
+	if got := e.url("r/a.png"); got != PartURL+"r/a.png" {
+		t.Errorf("an image past the budget = %q", got)
+	}
+	e.used = 0
+	if got := e.url("r/b.avif"); got != PartURL+"r/b.avif" {
+		t.Errorf("a type the sanitizer does not admit as data = %q", got)
+	}
+	if got := e.url("r/missing.png"); got != PartURL+"r/missing.png" {
+		t.Errorf("a missing file = %q", got)
 	}
 }

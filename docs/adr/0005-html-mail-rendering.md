@@ -38,6 +38,8 @@ app itself (`on_navigation`); links open in the system browser.
 - The M0 spike verified layers 2 and 3 on WebKitGTK 2.52 (host) and 2.54
   (nsl): a hostile message ran no script and made zero network requests
   ([plans/0001](../plans/0001-m0-foundations.md)).
+- Images do not load over `mailpart://` inside the frame; they are embedded
+  as `data:` URLs instead ([ADR-0014](0014-images-embedded-in-the-reader-frame.md)).
 - `mailpart://` is a local scheme to WebKitGTK and does not load from the
   `http://127.0.0.1:5173` page that `tauri dev` uses. Built apps
   (`tauri://localhost`) load it. UI work in dev mode needs a substitute for

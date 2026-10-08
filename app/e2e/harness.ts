@@ -98,21 +98,23 @@ export async function smtpSink(dir: string): Promise<Sink> {
   };
 }
 
-/** FixtureOptions add to the fixture: the hostile corpus pointed at a canary, an SMTP server to send through. */
+/** FixtureOptions add to the fixture: the hostile corpus pointed at a canary, an SMTP server to send through, or other HTML messages for the Hostile mailbox. */
 export interface FixtureOptions {
   canaryOrigin?: string;
   smtp?: string;
+  html?: { name: string; html: string }[];
 }
 
 /** fixture builds a maild data directory in dir with n messages and the options' extras. */
 export function fixture(dir: string, n: number, opts: FixtureOptions = {}): string {
-  const { canaryOrigin, smtp } = opts;
+  const { canaryOrigin, smtp, html = [] } = opts;
   const args = ["-out", join(dir, "data"), "-n", String(n)];
   if (smtp) args.push("-smtp", smtp);
-  if (canaryOrigin) {
+  if (canaryOrigin || html.length > 0) {
     const copy = join(dir, "hostile");
     mkdirSync(copy, { recursive: true });
-    for (const f of hostileFiles(canaryOrigin)) writeFileSync(join(copy, f.name), f.html);
+    const files = [...(canaryOrigin ? hostileFiles(canaryOrigin) : []), ...html];
+    for (const f of files) writeFileSync(join(copy, f.name), f.html);
     args.push("-hostile", copy);
   }
   execFileSync(join(BUILD, "uifixture"), args, { stdio: "inherit" });

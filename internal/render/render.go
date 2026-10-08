@@ -1,12 +1,14 @@
 // Package render prepares stored messages for the reader: sanitized HTML whose
-// resources are mailpart://localhost/ URLs into the parts cache, inline
-// parts decoded into that cache, and remote images fetched only on request
+// images are embedded as data: URLs (WebKitGTK does not load the app's
+// mailpart:// scheme inside the reader's frame), inline parts decoded into
+// the parts cache, and remote images fetched only on request
 // (docs/design/rendering.md, ADR-0005).
 package render
 
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -23,6 +25,41 @@ import (
 
 // PartURL is the prefix of every URL the app resolves through the parts cache.
 const PartURL = "mailpart://localhost/"
+
+// MaxEmbeddedBytes bounds the image bytes one rendering embeds as data:
+// URLs; images past it keep their mailpart URL.
+const MaxEmbeddedBytes = 16 << 20
+
+// embeddable are the image types embedded as data: URLs: those the
+// sanitizer admits in data: URLs.
+var embeddable = map[string]string{"png": "image/png", "gif": "image/gif", "jpg": "image/jpeg", "webp": "image/webp"}
+
+// embedder turns cached images into data: URLs within MaxEmbeddedBytes.
+type embedder struct {
+	parts *PartsCache
+	used  int
+}
+
+// url is the data: URL of the cached image rel, or its mailpart URL when it
+// cannot be embedded.
+func (e *embedder) url(rel string) string {
+	ext := rel[strings.LastIndexByte(rel, '.')+1:]
+	mime, ok := embeddable[ext]
+	if !ok {
+		return PartURL + rel
+	}
+	f, err := e.parts.Open(rel)
+	if err != nil {
+		return PartURL + rel
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, int64(MaxEmbeddedBytes-e.used)+1))
+	if err != nil || e.used+len(data) > MaxEmbeddedBytes {
+		return PartURL + rel
+	}
+	e.used += len(data)
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
+}
 
 // ErrNoPart means a message has no part with the requested path.
 var ErrNoPart = errors.New("render: no such part")
@@ -77,12 +114,17 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	}
 	var pending []string
 	index := map[string]int{}
+	embed := &embedder{parts: r.Parts}
 	resolve := func(raw string, tracker bool) string {
 		raw = strings.TrimSpace(raw)
 		lower := strings.ToLower(raw)
 		switch {
 		case strings.HasPrefix(lower, "cid:"):
-			return r.inlineURL(messageID, inline, raw[4:])
+			rel := r.inlinePart(messageID, inline, raw[4:])
+			if rel == "" {
+				return ""
+			}
+			return embed.url(rel)
 		case strings.HasPrefix(lower, "data:"):
 			if dataImage.MatchString(raw) {
 				return raw
@@ -120,7 +162,7 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 		for i, p := range paths {
 			target := ""
 			if p != "" {
-				target = PartURL + p
+				target = embed.url(p)
 			} else {
 				out.Remote += strings.Count(html, pendingToken(nonce, i))
 			}
@@ -182,9 +224,9 @@ func inlineParts(raw []byte) (map[string]inlinePart, error) {
 	return parts, err
 }
 
-// inlineURL decodes the part a cid: URL names into the cache and returns its
-// mailpart URL, or "" when the message has no such image part.
-func (r *Renderer) inlineURL(messageID int64, parts map[string]inlinePart, cid string) string {
+// inlinePart decodes the part a cid: URL names into the cache and returns
+// its path there, or "" when the message has no such image part.
+func (r *Renderer) inlinePart(messageID int64, parts map[string]inlinePart, cid string) string {
 	if unescaped, err := url.PathUnescape(cid); err == nil {
 		cid = unescaped
 	}
@@ -202,7 +244,7 @@ func (r *Renderer) inlineURL(messageID int64, parts map[string]inlinePart, cid s
 			return ""
 		}
 	}
-	return PartURL + rel
+	return rel
 }
 
 // Part decodes the part at path (an IMAP part specifier) into

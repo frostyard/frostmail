@@ -8,9 +8,11 @@ Contracts: [specs/rpc-api.md](../specs/rpc-api.md) (`message.render`,
 ## Overview
 
 `message.render` turns a stored message into something the reader can show
-without touching the network: sanitized HTML whose every resource is a
-`mailpart://localhost/` URL into maild's parts cache, plus the readable
-text. `internal/render` does the work; the engine calls it after the sync
+without touching the network: sanitized HTML whose images are embedded as
+`data:` URLs (WebKitGTK loads no `mailpart://` image inside the reader's
+frame, [ADR-0014](../adr/0014-images-embedded-in-the-reader-frame.md)),
+plus the readable text. Decoded parts also land in maild's parts cache,
+which the app reads as `mailpart://localhost/` for attachments. `internal/render` does the work; the engine calls it after the sync
 engine has fetched the body.
 
 ```
@@ -51,16 +53,18 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
     rules; everything else is kept, so layout survives.
 - **Image URLs:**
   - `cid:X` → the part with Content-ID X is decoded into
-    `parts/m/<messageID>/<part>.<ext>` and the URL becomes
-    `mailpart://localhost/m/<messageID>/<part>.<ext>`. Unknown CIDs are
-    removed.
+    `parts/m/<messageID>/<part>.<ext>` and embedded as a `data:` URL.
+    Unknown CIDs are removed.
   - `data:image/(png|gif|jpeg|webp);base64,…` is kept; other `data:` URLs
     are removed.
   - `http(s)://…`: if it is a **tracker**, it is removed and counted in
     `trackers`. Otherwise, without `remote`, it is removed and counted in
     `remote`; with `remote`, it is fetched into `parts/r/<sha256 of the
-    URL>.<ext>` and rewritten, or removed and counted in `remote` when the
-    fetch fails.
+    URL>.<ext>` (or found there) and embedded as a `data:` URL, or removed
+    and counted in `remote` when the fetch fails.
+  - Embedding covers PNG, GIF, JPEG and WebP up to 16 MiB of image data
+    per rendering; an image past that, or of another type, keeps its
+    `mailpart://localhost/` URL, which the frame does not load.
 - **Trackers** are images with `width` and `height` of at most 2 (attributes
   or inline style), images hidden by inline style (`display: none`,
   `visibility: hidden`, `opacity: 0`), and images whose host is on the
