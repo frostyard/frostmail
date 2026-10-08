@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/textproto"
 	"slices"
 	"strconv"
@@ -49,6 +50,7 @@ type Session struct {
 	Caps     Capabilities
 	selected string
 	readOnly bool
+	log      *slog.Logger
 }
 
 // Open dials, logs in and probes capabilities.
@@ -59,7 +61,7 @@ func Open(ctx context.Context, opts DialOptions) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Session{c: c, readOnly: opts.ReadOnly}
+	s := &Session{c: c, readOnly: opts.ReadOnly, log: opts.Log}
 	err = s.run(ctx, func() error {
 		caps, err := c.Capability().Wait()
 		if err != nil {
@@ -392,6 +394,12 @@ func (s *Session) fetchHeaders(ctx context.Context, uids []uint32, gmail bool) (
 	out := make([]store.MessageHeader, 0, len(msgs))
 	previewPart := map[uint32]Part{}
 	for _, m := range msgs {
+		if m.BodyStructureErr != nil && s.log != nil {
+			// The message is stored without parts: no preview, no
+			// attachment flag, until the parser learns the shape.
+			s.log.Warn("unparseable BODYSTRUCTURE", "uid", m.UID, "err", m.BodyStructureErr,
+				"shape", maskStrings(m.BodyStructureUnparsed, 800))
+		}
 		h, part := convertHeader(m, m.FindBodySection(headerSection))
 		if gmail {
 			h.GmMsgID, h.GmThrID, h.Labels = m.GmailMsgID, m.GmailThreadID, nonNilLabels(m.GmailLabels)
@@ -409,6 +417,52 @@ func (s *Session) fetchHeaders(ctx context.Context, uids []uint32, gmail bool) (
 		out[i].Preview = previews[out[i].UID]
 	}
 	return out, nil
+}
+
+// maskStrings returns IMAP data with the letters and digits of its quoted
+// strings and literals replaced (x, 0), keeping atoms, NIL, numbers and
+// the structure, cut to at most limit bytes: enough to see a server's
+// shape without the mail's names.
+func maskStrings(data string, limit int) string {
+	var b strings.Builder
+	quoted, literal := false, 0
+	for i := 0; i < len(data) && b.Len() < limit; i++ {
+		c := data[i]
+		switch {
+		case literal > 0:
+			literal--
+			c = maskByte(c)
+		case quoted && c == '\\' && i+1 < len(data):
+			b.WriteByte(c)
+			i++
+			c = maskByte(data[i])
+		case c == '"':
+			quoted = !quoted
+		case quoted:
+			c = maskByte(c)
+		case c == '{':
+			if end := strings.Index(data[i:], "}\r\n"); end > 0 {
+				if n, err := strconv.Atoi(strings.TrimSuffix(data[i+1:i+end], "+")); err == nil {
+					b.WriteString(data[i : i+end+3])
+					i += end + 2
+					literal = n
+					continue
+				}
+			}
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+func maskByte(c byte) byte {
+	switch {
+	case c >= '0' && c <= '9':
+		return '0'
+	case c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80:
+		return 'x'
+	}
+	return c
 }
 
 // Part is the part a preview is read from.

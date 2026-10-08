@@ -272,6 +272,68 @@ func (dec *Decoder) DiscardLine() {
 	dec.CRLF()
 }
 
+// RawValue reads one value, an atom, a quoted string, a literal or a
+// parenthesized list (whose elements may run together, as the parts of a
+// multipart BODYSTRUCTURE do), and stores it as received, literals written
+// as {n} CRLF data, so that it can be decoded again (frostmail patch).
+func (dec *Decoder) RawValue(ptr *string) bool {
+	var sb strings.Builder
+	depth := 0
+	for {
+		b, ok := dec.readByte()
+		if !ok {
+			return false
+		}
+		switch {
+		case b == '"':
+			sb.WriteByte(b)
+			for {
+				c, ok := dec.readByte()
+				if !ok {
+					return false
+				}
+				sb.WriteByte(c)
+				if c == '\\' {
+					if c, ok = dec.readByte(); !ok {
+						return false
+					}
+					sb.WriteByte(c)
+				} else if c == '"' {
+					break
+				}
+			}
+		case b == '{':
+			dec.mustUnreadByte()
+			var lit string
+			if !dec.Literal(&lit) {
+				return dec.Expect(false, "literal")
+			}
+			fmt.Fprintf(&sb, "{%d}\r\n%s", len(lit), lit)
+		case b == '(':
+			depth++
+			sb.WriteByte(b)
+			continue
+		case b == ')' && depth > 0:
+			depth--
+			sb.WriteByte(b)
+		case b == ')' || b == ' ' && depth == 0 || b == '\r' || b == '\n':
+			dec.mustUnreadByte()
+			if depth > 0 || sb.Len() == 0 {
+				return dec.Expect(false, "value")
+			}
+			*ptr = sb.String()
+			return true
+		default:
+			sb.WriteByte(b)
+			continue
+		}
+		if depth == 0 {
+			*ptr = sb.String()
+			return true
+		}
+	}
+}
+
 func (dec *Decoder) DiscardValue() bool {
 	var s string
 	if dec.String(&s) {

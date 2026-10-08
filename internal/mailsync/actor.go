@@ -164,6 +164,7 @@ func (a *actor) dialOptions(secret string, isOAuth bool) imapx.DialOptions {
 	opts := imapx.DialOptions{
 		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: secret, OAuth: isOAuth,
 		ReadOnly: a.acct.ReadOnly, InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
+		Log: a.m.log.With("account", a.acct.ID),
 	}
 	return opts
 }

@@ -132,3 +132,51 @@ func TestPartialBinaryResponse(t *testing.T) {
 		t.Fatalf("partial BINARY = %q", got)
 	}
 }
+
+// A BODYSTRUCTURE the parser rejects costs that message its structure, not
+// the connection: the message comes back with the structure as received,
+// the next message and the next command parse as usual. Literals inside
+// the structure and parts run together (as Gmail sends them) survive the
+// raw read.
+func TestUnparsedBodyStructure(t *testing.T) {
+	good := `(("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL "7BIT" 5 1 NIL NIL NIL)` +
+		`("APPLICATION" "PDF" ("NAME" {7}`
+	c := scripted(t, []step{
+		{
+			want: "UID FETCH 1:* (UID BODYSTRUCTURE)",
+			reply: []string{
+				`* 1 FETCH (UID 7 BODYSTRUCTURE (("TEXT" "PLAIN" NIL NIL NIL "7BIT" (12) 1 NIL NIL NIL)("TEXT" "HTML" NIL NIL NIL "7BIT" 9 1) "ALTERNATIVE"))`,
+				`* 2 FETCH (UID 8 BODYSTRUCTURE ` + good,
+				`a b.pdf) NIL NIL "BASE64" 30 NIL ("ATTACHMENT" NIL) NIL NIL) "MIXED" ("BOUNDARY" "x") NIL NIL NIL))`,
+				`TAG OK done`,
+			},
+		},
+		{want: "NOOP", reply: []string{`TAG OK still here`}},
+	})
+	msgs, err := c.Fetch(imap.UIDSet{imap.UIDRange{Start: 1}}, &imap.FetchOptions{
+		UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+	}).Collect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("got %d messages", len(msgs))
+	}
+	bad := msgs[0]
+	if bad.UID != 7 || bad.BodyStructure != nil || bad.BodyStructureErr == nil ||
+		!strings.HasPrefix(bad.BodyStructureUnparsed, `(("TEXT" "PLAIN" NIL NIL NIL "7BIT" (12) 1`) ||
+		!strings.HasSuffix(bad.BodyStructureUnparsed, `"ALTERNATIVE")`) {
+		t.Errorf("rejected structure: uid %d, structure %v, err %v, unparsed %q",
+			bad.UID, bad.BodyStructure, bad.BodyStructureErr, bad.BodyStructureUnparsed)
+	}
+	mp, ok := msgs[1].BodyStructure.(*imap.BodyStructureMultiPart)
+	if !ok || len(mp.Children) != 2 || msgs[1].BodyStructureErr != nil {
+		t.Fatalf("second structure = %#v, %v", msgs[1].BodyStructure, msgs[1].BodyStructureErr)
+	}
+	if pdf := mp.Children[1].(*imap.BodyStructureSinglePart); pdf.Params["name"] != "a b.pdf" || pdf.Size != 30 {
+		t.Errorf("attachment = %+v", pdf)
+	}
+	if err := c.Noop().Wait(); err != nil {
+		t.Errorf("the connection did not survive: %v", err)
+	}
+}

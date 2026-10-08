@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strconv"
 	"time"
@@ -55,6 +56,10 @@ type DialOptions struct {
 	// OnUpdate, if set, is called from the connection's reader for every
 	// unsolicited EXISTS, EXPUNGE or FETCH. It must not block.
 	OnUpdate func()
+	// Log, if set, receives what the session skips: a message whose
+	// BODYSTRUCTURE the parser rejected is logged with the structure's
+	// shape, its strings masked.
+	Log *slog.Logger
 }
 
 // Dial connects, secures the connection as opts.TLS says, and logs in.

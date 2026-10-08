@@ -1,6 +1,7 @@
 package imapclient
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	netmail "net/mail"
@@ -454,6 +455,11 @@ func (FetchItemDataUID) fetchItemData() {}
 type FetchItemDataBodyStructure struct {
 	BodyStructure imap.BodyStructure
 	IsExtended    bool // True if BODYSTRUCTURE, false if BODY
+
+	// Unparsed and Err (frostmail patch) hold a structure the parser
+	// rejected, as received, and why; BodyStructure is then nil.
+	Unparsed string
+	Err      error
 }
 
 func (FetchItemDataBodyStructure) fetchItemData() {}
@@ -560,6 +566,11 @@ type FetchMessageBuffer struct {
 	BinarySectionSize []FetchItemDataBinarySectionSize
 	ModSeq            uint64 // requires CONDSTORE
 
+	// A BODYSTRUCTURE the parser rejected, as received, and why (frostmail
+	// patch); BodyStructure is then nil.
+	BodyStructureUnparsed string
+	BodyStructureErr      error
+
 	// Gmail extensions (frostmail patch)
 	GmailMsgID    uint64
 	GmailThreadID uint64
@@ -606,6 +617,7 @@ func (buf *FetchMessageBuffer) populateItemData(item FetchItemData) error {
 		buf.UID = item.UID
 	case FetchItemDataBodyStructure:
 		buf.BodyStructure = item.BodyStructure
+		buf.BodyStructureUnparsed, buf.BodyStructureErr = item.Unparsed, item.Err
 	case FetchItemDataBinarySectionSize:
 		buf.BinarySectionSize = append(buf.BinarySectionSize, item)
 	case FetchItemDataModSeq:
@@ -840,15 +852,25 @@ func (c *Client) handleFetch(seqNum uint32) error {
 				return dec.Err()
 			}
 
-			bodyStruct, err := readBody(dec, &c.options)
+			// frostmail patch: read the structure whole, then parse it, so
+			// a structure this parser rejects costs that message its
+			// structure and not the connection.
+			var raw string
+			if !dec.RawValue(&raw) {
+				return dec.Err()
+			}
+			sub := imapwire.NewDecoder(bufio.NewReader(strings.NewReader(raw)), imapwire.ConnSideClient)
+			bodyStruct, err := readBody(sub, &c.options)
+			if err == nil && !sub.EOF() {
+				err = fmt.Errorf("data after the body structure")
+			}
+			data := FetchItemDataBodyStructure{IsExtended: attName == "BODYSTRUCTURE"}
 			if err != nil {
-				return err
+				data.Unparsed, data.Err = raw, err
+			} else {
+				data.BodyStructure = bodyStruct
 			}
-
-			item = FetchItemDataBodyStructure{
-				BodyStructure: bodyStruct,
-				IsExtended:    attName == "BODYSTRUCTURE",
-			}
+			item = data
 		case "BINARY.SIZE":
 			if !dec.ExpectSpecial('[') {
 				return dec.Err()
