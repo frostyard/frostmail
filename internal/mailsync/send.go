@@ -443,7 +443,10 @@ func (a *actor) markSent(ctx context.Context, id int64) error {
 }
 
 // replayRemoveCopy deletes one UID from a mailbox (\Deleted, then UID
-// EXPUNGE when the server has UIDPLUS) and forgets it locally.
+// EXPUNGE when the server has UIDPLUS) and forgets it locally. On Gmail it
+// moves the copy to Trash and expunges it there: expunging from a label
+// folder may only remove the label (ADR-0012), and the next pass forgets
+// the local copy.
 func (a *actor) replayRemoveCopy(ctx context.Context, cmd conn, op store.Op) error {
 	var p removeCopyOp
 	if err := json.Unmarshal(op.Payload, &p); err != nil {
@@ -457,6 +460,24 @@ func (a *actor) replayRemoveCopy(ctx context.Context, cmd conn, op store.Op) err
 		return err
 	}
 	uids := []uint32{p.UID}
+	if a.gmail {
+		trash, err := a.m.db.MailboxByRole(ctx, a.acct.ID, api.MailboxRoleTrash)
+		if err != nil {
+			return err
+		}
+		moved, err := cmd.Move(ctx, uids, trash.Path)
+		if err != nil || moved[p.UID] == 0 {
+			return err // already gone, or no COPYUID: it waits in Trash
+		}
+		uids = []uint32{moved[p.UID]}
+		if _, err := cmd.Select(ctx, trash.Path); err != nil {
+			return err
+		}
+		if err := cmd.StoreFlags(ctx, uids, []string{`\Deleted`}, nil); err != nil {
+			return err
+		}
+		return cmd.Expunge(ctx, uids)
+	}
 	if err := cmd.StoreFlags(ctx, uids, []string{`\Deleted`}, nil); err != nil {
 		return err
 	}

@@ -92,21 +92,40 @@ func (g *gmailModel) touch(m *gmMsg) {
 	m.modseq = g.modseq
 }
 
+// labelBase offsets a message's All Mail UID to its UID in a label folder.
+const labelBase = 5000
+
+// uidIn is a message's UID in folder: its own in its synced folder,
+// labelBase more than its All Mail UID in the folder of a label it has, and
+// 0 elsewhere.
+func (g *gmailModel) uidIn(m *gmMsg, folder string) uint32 {
+	if g.folders[folder] != nil {
+		if m.folder == folder {
+			return m.uid
+		}
+		return 0
+	}
+	if l := g.labels[folder]; l != "" && m.folder == gAll && slices.Contains(m.labels, l) {
+		return labelBase + m.uid
+	}
+	return 0
+}
+
 func (g *gmailModel) in(folder string) []*gmMsg {
 	var out []*gmMsg
 	for _, m := range g.msgs {
-		if m.folder == folder {
+		if g.uidIn(m, folder) != 0 {
 			out = append(out, m)
 		}
 	}
-	slices.SortFunc(out, func(a, b *gmMsg) int { return int(a.uid) - int(b.uid) })
+	slices.SortFunc(out, func(a, b *gmMsg) int { return int(g.uidIn(a, folder)) - int(g.uidIn(b, folder)) })
 	return out
 }
 
 func (g *gmailModel) at(uids []uint32) []*gmMsg {
 	var out []*gmMsg
 	for _, m := range g.in(g.selected) {
-		if slices.Contains(uids, m.uid) {
+		if slices.Contains(uids, g.uidIn(m, g.selected)) {
 			out = append(out, m)
 		}
 	}
@@ -120,8 +139,11 @@ func (g *gmailModel) Capabilities() imapx.Capabilities {
 func (g *gmailModel) Select(_ context.Context, path string) (imapx.Selected, error) {
 	g.log = append(g.log, "SELECT "+path)
 	f := g.folders[path]
+	if f == nil && g.labels[path] != "" {
+		f = &gmFolder{validity: 9, next: labelBase + g.folders[gAll].next}
+	}
 	if f == nil {
-		return imapx.Selected{}, fmt.Errorf("select %s: not modeled", path)
+		return imapx.Selected{}, fmt.Errorf("select %s: no such folder", path)
 	}
 	g.selected = path
 	return imapx.Selected{UIDValidity: f.validity, UIDNext: f.next, HighestModSeq: g.modseq, Messages: uint32(len(g.in(path)))}, nil
@@ -131,7 +153,7 @@ func (g *gmailModel) UIDs(context.Context) ([]uint32, error) {
 	g.log = append(g.log, "UID SEARCH")
 	uids := []uint32{}
 	for _, m := range g.in(g.selected) {
-		uids = append(uids, m.uid)
+		uids = append(uids, g.uidIn(m, g.selected))
 	}
 	return uids, nil
 }
@@ -141,7 +163,7 @@ func (g *gmailModel) FetchGmailHeaders(_ context.Context, uids []uint32) ([]stor
 	var out []store.MessageHeader
 	for _, m := range g.at(uids) {
 		out = append(out, store.MessageHeader{
-			UID: m.uid, ModSeq: m.modseq, Flags: store.FlagsFromIMAP(m.flags),
+			UID: g.uidIn(m, g.selected), ModSeq: m.modseq, Flags: store.FlagsFromIMAP(m.flags),
 			InternalDate: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), Date: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
 			MessageID: fmt.Sprintf("m%d@mail.gmail.com", m.id), Subject: m.subject,
 			From:    store.Address{Name: "Ann", Addr: "ann@example.com"},
@@ -156,7 +178,7 @@ func (g *gmailModel) FetchGmailChanges(_ context.Context, uids []uint32, since u
 	var out []store.FlagUpdate
 	for _, m := range g.at(uids) {
 		if m.modseq > since {
-			out = append(out, store.FlagUpdate{UID: m.uid, ModSeq: m.modseq, Flags: store.FlagsFromIMAP(m.flags), Labels: append([]string{}, m.labels...)})
+			out = append(out, store.FlagUpdate{UID: g.uidIn(m, g.selected), ModSeq: m.modseq, Flags: store.FlagsFromIMAP(m.flags), Labels: append([]string{}, m.labels...)})
 		}
 	}
 	return out, nil
@@ -205,8 +227,8 @@ func (g *gmailModel) StoreFlags(_ context.Context, uids []uint32, add, remove []
 	return nil
 }
 
-// Move moves messages between All Mail, Spam and Trash, or out of Spam or
-// Trash into a label folder (which returns that folder's UIDs).
+// Move moves messages to All Mail, Spam or Trash from any folder, or out of
+// Spam or Trash into a label folder (which returns that folder's UIDs).
 func (g *gmailModel) Move(_ context.Context, uids []uint32, dest string) (map[uint32]uint32, error) {
 	g.log = append(g.log, fmt.Sprintf("MOVE %v %s", uids, dest))
 	if g.refuse["MOVE"] {
@@ -214,15 +236,15 @@ func (g *gmailModel) Move(_ context.Context, uids []uint32, dest string) (map[ui
 	}
 	out := map[uint32]uint32{}
 	for _, m := range g.at(uids) {
-		old := m.uid
+		old := g.uidIn(m, g.selected)
 		switch {
 		case g.folders[dest] != nil:
 			g.place(m, dest)
 			out[old] = m.uid
-		case g.labels[dest] != "" && g.selected != gAll:
+		case g.labels[dest] != "" && (g.selected == gSpam || g.selected == gTrash):
 			g.place(m, gAll)
 			g.label(m, []string{g.labels[dest]}, nil)
-			out[old] = 5000 + m.uid // the label folder's UID
+			out[old] = g.uidIn(m, dest)
 		default:
 			return nil, fmt.Errorf("move %s to %s: not modeled", g.selected, dest)
 		}
@@ -234,7 +256,7 @@ func (g *gmailModel) SearchMessageID(_ context.Context, msgid string) ([]uint32,
 	var out []uint32
 	for _, m := range g.in(g.selected) {
 		if fmt.Sprintf("m%d@mail.gmail.com", m.id) == msgid {
-			out = append(out, m.uid)
+			out = append(out, g.uidIn(m, g.selected))
 		}
 	}
 	return out, nil
@@ -570,15 +592,18 @@ func TestGmailUIDValidityChange(t *testing.T) {
 // does not model fails instead of passing silently.
 func TestGmailModelRefusesUnmodeled(t *testing.T) {
 	g := newGmailModel()
-	if _, err := g.Select(t.Context(), "Work"); err == nil {
-		t.Error("selecting a label folder should fail in the model")
+	if _, err := g.Select(t.Context(), "Nonexistent"); err == nil {
+		t.Error("selecting a folder Gmail does not have should fail")
 	}
-	if _, err := g.Select(t.Context(), gAll); err != nil {
-		t.Fatal(err)
-	}
-	g.add(gAll, "x", 0)
-	if _, err := g.Move(t.Context(), []uint32{1}, "Work"); err == nil || errors.Is(err, context.Canceled) {
-		t.Error("moving from All Mail to a label folder should fail in the model")
+	g.add(gAll, "x", 0, "Work")
+	for _, from := range []string{gAll, "Work"} {
+		if _, err := g.Select(t.Context(), from); err != nil {
+			t.Fatal(err)
+		}
+		uids, _ := g.UIDs(t.Context())
+		if _, err := g.Move(t.Context(), uids, "INBOX"); err == nil {
+			t.Errorf("moving from %s to a label folder should fail in the model", from)
+		}
 	}
 }
 
@@ -792,4 +817,31 @@ func TestGmailRefusedTrashIsUndone(t *testing.T) {
 	eq(t, "Trash after the refusal", e.subjects(gTrash), nil)
 	eq(t, "INBOX after the refusal", e.subjects("INBOX"), []string{"Keep"})
 	eq(t, "Work after the refusal", e.subjects("Work"), []string{"Keep"})
+}
+
+func TestGmailDraftCopyIsDeletedThroughTrash(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	old := g.add(gAll, "Draft v1", 0, `\Draft`)
+	g.add(gAll, "Draft v2", old.thread, `\Draft`)
+	e.pass()
+	eq(t, "Drafts", e.subjects("[Gmail]/Drafts"), []string{"Draft v1", "Draft v2"})
+
+	// The saved copy is known by its UID in the Drafts folder.
+	err := e.db.Tx(t.Context(), func(tx *store.Tx) error {
+		return QueueRemoveDraftCopy(t.Context(), tx, e.a.acct.ID, g.uidIn(old, "[Gmail]/Drafts"))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "replay", e.replay(), []string{
+		"SELECT [Gmail]/Drafts", "MOVE [5001] " + gTrash,
+		"SELECT " + gTrash, `STORE [1] +flags [\Deleted] -flags []`, "EXPUNGE [1]",
+	})
+	if g.find("Draft v1") != nil {
+		t.Error("the old copy is still on the server")
+	}
+	e.pass()
+	eq(t, "Drafts after", e.subjects("[Gmail]/Drafts"), []string{"Draft v2"})
+	eq(t, "All Mail after", e.subjects(gAll), []string{"Draft v2"})
 }

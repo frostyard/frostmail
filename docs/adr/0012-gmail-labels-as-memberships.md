@@ -46,8 +46,9 @@ reads a personal Gmail account daily in M4.
   - junk / not junk: `UID MOVE` to Spam / back to All Mail with `\Inbox`.
 - **Threads come from `X-GM-THRID`**, not JWZ threading.
 - **Sent mail is not appended** (Gmail files it, as in M3); draft copies
-  are appended to the Drafts label folder and deleted from it by UID, the
-  one place a label folder is selected.
+  are appended to the Drafts label folder, and a replaced copy is moved
+  from it to Trash by UID and expunged there: the one place a label folder
+  is selected.
 
 ## Consequences
 
