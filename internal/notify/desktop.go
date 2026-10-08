@@ -19,7 +19,7 @@ const (
 	busPath   = dbus.ObjectPath("/org/freedesktop/Notifications")
 	busIface  = "org.freedesktop.Notifications"
 	appName   = "Frostmail"
-	appIcon   = "frostmail"
+	appID     = "org.frostyard.Frostmail" // the desktop entry and icon (ADR-0013)
 	callLimit = 5 * time.Second
 )
 
@@ -39,7 +39,7 @@ type Desktop struct {
 func NewDesktop(ctx context.Context, conn *dbus.Conn, log *slog.Logger, open func(messageID int64)) (*Desktop, error) {
 	d := &Desktop{conn: conn, log: log, open: open, groups: map[int64]uint32{}, opens: map[uint32]int64{}}
 	for _, member := range []string{"ActionInvoked", "NotificationClosed"} {
-		if err := conn.AddMatchSignalContext(ctx, dbus.WithMatchObjectPath(busPath),
+		if err := conn.AddMatchSignalContext(ctx, dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(busPath),
 			dbus.WithMatchInterface(busIface), dbus.WithMatchMember(member)); err != nil {
 			return nil, fmt.Errorf("watch notifications: %w", err)
 		}
@@ -95,12 +95,12 @@ func (d *Desktop) send(ctx context.Context, replaces uint32, n Note) (uint32, er
 	ctx, cancel := context.WithTimeout(ctx, callLimit)
 	defer cancel()
 	hints := map[string]dbus.Variant{
-		"desktop-entry": dbus.MakeVariant("frostmail"),
+		"desktop-entry": dbus.MakeVariant(appID),
 		"category":      dbus.MakeVariant("email.arrived"),
 	}
 	var id uint32
 	err := d.conn.Object(busName, busPath).CallWithContext(ctx, busIface+".Notify", 0,
-		appName, replaces, appIcon, n.Summary, n.Body, []string{"default", "Open"}, hints, int32(-1)).Store(&id)
+		appName, replaces, appID, n.Summary, n.Body, []string{"default", "Open"}, hints, int32(-1)).Store(&id)
 	if err != nil {
 		return 0, fmt.Errorf("notify: %w", err)
 	}

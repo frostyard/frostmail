@@ -82,7 +82,7 @@ func TestDesktopAnnouncesAndOpens(t *testing.T) {
 		t.Fatalf("calls = %+v", calls)
 	}
 	first := calls[0]
-	if first.summary != "Ann" || first.app != "Frostmail" || first.icon != "frostmail" || first.entry != "frostmail" ||
+	if first.summary != "Ann" || first.app != "Frostmail" || first.icon != "org.frostyard.Frostmail" || first.entry != "org.frostyard.Frostmail" ||
 		len(first.actions) != 2 || first.actions[0] != "default" || first.replaces != 0 {
 		t.Errorf("message note = %+v", first)
 	}
@@ -90,12 +90,26 @@ func TestDesktopAnnouncesAndOpens(t *testing.T) {
 		t.Errorf("group notes = %+v, %+v; the second must replace the first", calls[1], calls[2])
 	}
 
+	// A click from another program on the bus is ignored: it clicks a note
+	// of message 42, and its round trip to the bus makes sure the bus has
+	// routed that signal before the server's own click below.
+	if err := d.Announce(ctx, 2, []Mail{{ID: 42, FromName: "Bob"}}); err != nil {
+		t.Fatal(err)
+	}
+	impostor := dbustest.Connect(t, addr)
+	if err := impostor.Emit(busPath, busIface+".ActionInvoked", uint32(3), "default"); err != nil {
+		t.Fatal(err)
+	}
+	if err := impostor.BusObject().CallWithContext(ctx, "org.freedesktop.DBus.GetId", 0).Err; err != nil {
+		t.Fatal(err)
+	}
+
 	// Clicking the message note opens its message; a closed note is forgotten.
 	f.emit(t, "ActionInvoked", uint32(1), "default")
 	select {
 	case id := <-opened:
 		if id != 41 {
-			t.Errorf("opened message %d, want 41", id)
+			t.Errorf("opened message %d, want 41 (42 is the impostor's)", id)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("clicking the notification opened nothing")
@@ -114,4 +128,5 @@ func TestDesktopAnnouncesAndOpens(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the second click opened nothing")
 	}
+
 }
