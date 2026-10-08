@@ -131,6 +131,15 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   4. New mail notifies with the app closed, and clicking opens it.
   5. Gmail and iCloud replay tests pass in `make check`.
 
+### Evidence so far
+
+- **Search, 200,000-message fixture (2026-10-08):** `tools/uifixture -n
+  200000 -seed 7`, then `tools/searchbench -runs 20` against maild on the
+  Framework (Strix Halo): p95 94.5 ms over nine queries covering words,
+  prefixes, phrases, columns, negation, flags, dates and `in:`; the worst
+  query (`le`, 101,848 results) has p95 97.7 ms. The user's own mail is
+  measured in Phase 5.
+
 ## Later / ideas
 
 - Microsoft (Outlook.com, Microsoft 365) profile and OAuth: when an
