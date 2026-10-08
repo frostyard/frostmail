@@ -32,6 +32,20 @@ directory and, read-only, the cache and the home directory.
 (`WantedBy=default.target`). maild keeps syncing, sending and notifying
 while the app is closed.
 
+## Application icon
+
+The icon is a faceted ice-blue envelope carrying a snowflake-marked letter,
+on a chamfered dark tile ([ADR-0015](../adr/0015-use-a-frostyard-mail-icon.md)).
+Its colors come from core's `frostyard-design/tokens/colors.css`; the SVG
+master records the token names and values in a comment.
+
+Edit `app/src-tauri/icons/icon.svg`, then run `python3 scripts/render-icons.py`
+with PyGObject, librsvg and GdkPixbuf installed. Commit the master and all three
+rendered RGBA PNGs (32, 128 and 512 pixels). Inspect them at native size on
+light and dark backgrounds. Tauri's icon configuration and the Flatpak
+installer share these PNGs; rebuilding and reinstalling the app updates the
+desktop icon.
+
 ## Notifications
 
 - maild notifies through `org.freedesktop.Notifications` (godbus,
