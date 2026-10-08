@@ -85,6 +85,10 @@ func (h *harness) waitFor(timeout time.Duration, what string, match func(api.Eve
 				return
 			}
 		case <-deadline:
+			// What did arrive, for the rare timeouts under load.
+			for _, e := range h.events {
+				h.t.Logf("event %s %s", e.Event, e.Data)
+			}
 			h.t.Fatalf("timed out after %v waiting for %s", timeout, what)
 		}
 	}
