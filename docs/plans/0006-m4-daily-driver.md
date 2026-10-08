@@ -187,7 +187,12 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   first sync (nine messages; labels, threads and flags as Gmail sent them)
   and the iCloud account's first sync, trimmed to the five newest messages
   of each folder (38 in 12 folders). Both replay through the first pass in
-  `make check` (exit criterion 5). Found in the replay server (all fixed):
+  `make check` (exit criterion 5). The OAuth throwaway's two sessions
+  replay too, about 145 commands on one store: the first sync, then star,
+  archive, back to the inbox, junk, not junk, delete, restore, unstar and
+  mark unread, each with the passes that followed; today's engine sends
+  exactly what Gmail got, and the message keeps its row through two new
+  All Mail UIDs. Found in the replay server (all fixed):
   ESEARCH results kept the recorded tag, which go-imap matches to its
   search, so a replay whose tags differed from the recording lost every
   search result; a literal's line starting with "+" was taken for a

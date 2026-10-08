@@ -47,6 +47,9 @@ sessions recorded from the real servers.
    client's SELECT still names a mailbox from LIST. Dates, MIME types,
    charsets, flags, UIDs and the protocol stay. imaprec refuses to write a
    script in which a replaced word of six or more characters remains.
+   Scripts that continue one another (two sessions of one account) share
+   their fakes through `-keyfile`, a private key file that is never checked
+   in.
 3. **Replay.** `internal/imapx/replay` serves a script on a loopback port.
    It answers each command with the first unused recorded exchange for the
    same command, recorded with the same mailbox selected (SELECT, LIST,
@@ -56,10 +59,14 @@ sessions recorded from the real servers.
    and STATUS items as sets, since go-imap orders them differently from
    run to run, and fails the test on a command the script lacks or a
    recorded command never sent.
-4. **Test.** `internal/mailsync/replay_test.go` plays each script in
-   `internal/mailsync/testdata/replay/` to a new account's first pass and
-   checks the store: messages, roles, labels, threads, flags and the
-   stored mailbox state.
+4. **Test.** `internal/mailsync/replay_test.go` plays the scripts in
+   `internal/mailsync/testdata/replay/` to a new account and checks the
+   store: messages, roles, labels, threads, flags and the stored mailbox
+   state. The first syncs of Gmail and iCloud run one pass; the Gmail
+   operations test replays two sessions on one store, calling what the
+   actor called in the recorded order (passes, each queued operation's
+   replay, a body fetch), so star, archive, junk, not junk, delete and
+   restore must send exactly the commands Gmail got.
 
 ```sh
 go run ./tools/imaprec -through T14 -note "Gmail, first sync" \

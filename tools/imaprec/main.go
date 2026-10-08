@@ -7,10 +7,15 @@
 // write a script in which a word it replaced still appears.
 //
 //	go run ./tools/imaprec -through T14 -keep 5 -note "Gmail, first sync" -o script.txt TRACE
+//
+// Scripts that continue one another (a second session of the same account)
+// must share their fakes: scrub them with the same -keyfile, made once with
+// head -c 32 /dev/urandom and never checked in.
 package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,20 +38,31 @@ func run(args []string, stdout io.Writer) error {
 	keep := fs.Int("keep", 0, "keep only the newest `n` messages each mailbox fetched (0 keeps all)")
 	note := fs.String("note", "", "a comment for the top of the script")
 	out := fs.String("o", "", "write the script to `file` (default: standard output)")
+	keyfile := fs.String("keyfile", "", "derive the key from this private `file`, to share fakes between scripts (default: a new key)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return errors.New("usage: imaprec [-through TAG] [-keep N] [-note TEXT] [-o FILE] TRACE")
+		return errors.New("usage: imaprec [-through TAG] [-keep N] [-keyfile FILE] [-note TEXT] [-o FILE] TRACE")
 	}
 	trace, err := replay.Load(fs.Arg(0))
 	if err != nil {
 		return err
 	}
-	// A new key each run: fakes cannot be matched to words by anyone who
-	// guesses them, and scripts from separate runs share nothing.
+	// A secret key: fakes cannot be matched to words by anyone who guesses
+	// them. Without a key file, scripts from separate runs share nothing.
 	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
+	if *keyfile != "" {
+		secret, err := os.ReadFile(*keyfile)
+		if err != nil {
+			return err
+		}
+		if len(secret) < 16 {
+			return fmt.Errorf("%s holds %d bytes; a key needs at least 16", *keyfile, len(secret))
+		}
+		sum := sha256.Sum256(secret)
+		key = sum[:]
+	} else if _, err := rand.Read(key); err != nil {
 		return err
 	}
 	script, err := convert(trace, options{through: *through, keep: *keep, key: key, note: *note})

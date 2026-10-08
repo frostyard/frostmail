@@ -1,0 +1,981 @@
+# Gmail (the throwaway account, signed in with OAuth), session 2 of 2, recorded
+# 2026-10-08 with MAILD_IMAP_TRACE: star, archive, back to the inbox, junk, not
+# junk, delete, restore, unstar and mark unread, each followed by the passes
+# that ran. Scrubbed with session 1's key. Replayed by TestReplayGmailOperations.
+# Scrubbed by tools/imaprec: names, addresses, subjects, bodies and
+# mailbox names are stable fakes; dates, structure, flags and UIDs are
+# as recorded.
+S: * OK Gimap ready for requests from 85.112.03.7 vtn00p59556g4-055xugz57g7tu04793204oix
+C: T1 CAPABILITY
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 XYZZY SASL-IR AUTH=XOAUTH2 AUTH=PLAIN AUTH=PLAIN-CLIENTTOKEN AUTH=OAUTHBEARER
+S: T1 OK Yxksf all xsb qgpfx! vtn00p59556g4-055xugz57g7tu04793204oix
+C: T2 AUTHENTICATE XOAUTH2 [redacted]
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T2 OK ejorkqyhqoq@gmail.com authenticated (Success)
+C: T3 CAPABILITY
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T3 OK Success
+C: T4 CAPABILITY
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T4 OK Success
+C: T5 ID ("name" "frostmail" "vendor" "frostyard")
+S: * ID ("name" "GImap" "vendor" "Google, Ajq." "support-url" "https://support.google.com/mail" "version" "gmail.imap-server_61234458.09_j4" "remote-host" "85.112.03.7")
+S: T5 OK Success
+C: T6 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T6 OK Success
+C: T7 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T7 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T8 UID FETCH 1 (UID FLAGS X-GM-LABELS MODSEQ) (CHANGEDSINCE 1582)
+S: * 1 FETCH (X-GM-LABELS ("\\Inbox") UID 1 MODSEQ (1588) FLAGS (\Seen))
+S: T8 OK Success
+C: T9 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T9 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T10 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T10 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T11 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T11 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T12 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T12 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T13 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T13 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T14 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T14 OK Success
+C: T15 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T15 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T16 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T16 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T17 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T17 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T18 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1678]
+S: T18 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T19 UID STORE 1 +FLAGS.SILENT (\Seen \Flagged)
+S: * 1 FETCH (UID 1 MODSEQ (1682) FLAGS (\Flagged \Seen))
+S: T19 OK Success
+C: T20 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T20 OK Success
+C: T21 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1688]
+S: T21 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T22 UID FETCH 1 (UID MODSEQ FLAGS X-GM-LABELS) (CHANGEDSINCE 1678)
+S: * 1 FETCH (X-GM-LABELS ("\\Inbox" "\\Starred") UID 1 MODSEQ (1682) FLAGS (\Flagged \Seen))
+S: T22 OK Success
+C: T23 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1688]
+S: T23 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T24 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1688]
+S: T24 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T25 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T25 OK Success
+C: T26 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1688]
+S: T26 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T27 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1724]
+S: T27 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T28 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1724]
+S: T28 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T29 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1724]
+S: T29 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T30 UID FETCH 1 (UID MODSEQ X-GM-LABELS FLAGS) (CHANGEDSINCE 1688)
+S: T30 OK Success
+C: T31 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1724]
+S: T31 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T32 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1724]
+S: T32 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T33 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1724]
+S: T33 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T34 UID STORE 1 -X-GM-LABELS.SILENT (\Inbox)
+S: T34 OK Success
+C: T35 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T35 OK Success
+C: T36 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T36 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T37 UID FETCH 1 (UID X-GM-LABELS FLAGS MODSEQ) (CHANGEDSINCE 1724)
+S: * 1 FETCH (X-GM-LABELS ("\\Starred") UID 1 MODSEQ (1728) FLAGS (\Flagged \Seen))
+S: T37 OK Success
+C: T38 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T38 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T39 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T39 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T40 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T40 OK Success
+C: T41 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T41 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T42 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T42 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T43 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T43 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T44 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1735]
+S: T44 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T45 UID STORE 1 +X-GM-LABELS.SILENT (\Inbox)
+S: T45 OK Success
+C: T46 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T46 OK Success
+C: T47 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T47 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T48 UID FETCH 1 (UID FLAGS MODSEQ X-GM-LABELS) (CHANGEDSINCE 1735)
+S: * 1 FETCH (X-GM-LABELS ("\\Inbox" "\\Starred") UID 1 MODSEQ (1739) FLAGS (\Flagged \Seen))
+S: T48 OK Success
+C: T49 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T49 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T50 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T50 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T51 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T51 OK Success
+C: T52 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T52 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T53 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T53 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T54 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T54 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T55 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1761]
+S: T55 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T56 UID MOVE 1 "[Gmail]/Spam"
+S: * 1 EXPUNGE
+S: * 0 EXISTS
+S: T56 OK [COPYUID 3 1 1] (Success)
+C: T57 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T57 OK Success
+C: T58 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T58 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T59 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T59") UID
+S: T59 OK SEARCH completed (Success)
+C: T60 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T60 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T61 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T61") UID ALL 1
+S: T61 OK SEARCH completed (Success)
+C: T62 UID FETCH 1 (UID FLAGS MODSEQ X-GM-LABELS) (CHANGEDSINCE 1761)
+S: * 1 FETCH (X-GM-LABELS ("\\Starred") UID 1 MODSEQ (1802) FLAGS (\Flagged \Seen))
+S: T62 OK Success
+C: T63 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T63 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T64 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T64 OK Success
+C: T65 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T65 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T66 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T66 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T67 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T67 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T68 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1826]
+S: T68 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T69 UID MOVE 1 INBOX
+S: * 1 EXPUNGE
+S: * 0 EXISTS
+S: T69 OK [COPYUID 1 1 3] (Success)
+C: T70 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T70 OK Success
+C: T71 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1862]
+S: T71 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T72 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T72") UID ALL 2
+S: T72 OK SEARCH completed (Success)
+C: T73 UID FETCH 2 (UID BODYSTRUCTURE ENVELOPE RFC822.SIZE X-GM-THRID X-GM-LABELS FLAGS INTERNALDATE MODSEQ X-GM-MSGID BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (X-GM-THRID 1878505316514561155 X-GM-MSGID 1878505316514561155 X-GM-LABELS ("\\Inbox" "\\Starred") UID 2 RFC822.SIZE 26941 MODSEQ (1831) INTERNALDATE "08-Oct-2026 17:57:53 +0000" FLAGS (\Flagged \Seen) ENVELOPE ("Thu, 08 Oct 2026 10:57:52 -0700" "Wtrvaap to Google uj pvca Oyqfr" (("Google" NIL "no-reply" "google.com")) (("Google" NIL "no-reply" "google.com")) (("Google" NIL "no-reply" "google.com")) ((NIL NIL "ejorkqyhqoq" "gmail.com")) NIL NIL NIL "<8g481443ug5i23gn44q6qq4v607j69343k03z02a-79908334-524079472@google.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "UTF-8" "DELSP" "yes" "FORMAT" "flowed") NIL NIL "BASE64" 1900 38 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 17752 356 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "133095523336936143051v89n898") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {917}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@google.com
+S:  header.s=3D401697 header.b=o4CpBIcm; spf=pass (google.com: unhuaw of
+S:  1rnwtgiduc4494-ipa4r14477i.p09m1o36dlb8zb62l76.n54@gnfoylhgl.bounces.google.com
+S:  uxpfkfchqq 697.83.913.66 yy permitted sender)
+S:  smtp.mailfrom=8wPeUjjgUG7026-AaV8A50906x.a36m4m22QpG5sN95v63.n54@gnfoylhgl.bounces.google.com;
+S:  dmarc=pass (p=REJECT zn=REJECT gng=NONE) header.from=google.com; dara=pass
+S:  header.i=@gmail.com
+S: List-Unsubscribe: <https://skvvmnlcn.google.com/fkdjzobwqhvaw-nupwnryomzo/yjpv/unsubscribe/yz/IUoJJarHFiRNUhIay4kMPlp6VjnUQZeszOIjf6YwUlJmyDHIgxBUw-VaWF7heL8A3bDItaTMqE1YswZRE-6uhD6508PR7ybJtNPfKQ-mgbqxTgV8cOXFD0OUZqa69b2UD1wVUdZnBJ3ySmGiyFAYnggfnS7xjNhSu6VM-GWlYi1GnfvAMnfKORjNPGee-Il11HVEJD8_5BK_AzDDX_d8h1AHjk9neCzCdNJx9ulS4Mq6HSqcD5Vk509x?ipd_wpbnhe=ax_header&ipd_edkzci=ucoao>
+S: List-Id: <f7w1on6746w936q031071p30k1833c226m730954.google.com>
+S: 
+S: )
+S: T73 OK Success
+C: T74 UID FETCH 2 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 2 MODSEQ (1831) BODY[1]<0> {1900}
+S: N9A7NWU7MXS4YCEfq9j2rWBPs80zuISfh44aeH46rtTPkJ59fK6TIUdNDSvkUBGizUhyjKZrXQLq
+S: SDKwf9ZrooPrRF2hpnV6XSriKMTiPJdukQU6xQrpU7JsEJ9dXLAzfkJ9z3KjZAWsc8h9z4Bik2l3
+S: oMHkPPoMq94qqTHtVUmRKp1NH72uqCnbpPE2qLV8lSD6Vi8bFeaiLT7ADMGKV8Mkra86JJXVErCF
+S: pBkdAHk3SHh5FR21oERQVgmhG6S4J2V1CIheEzInVknRn0wUIX74MZZikKimroHBBwofBZY0QCA3
+S: t5DVThRmNEZdQTKeY8nIYc2jVgk8e0LKJB3iB8QlBJR6gg2SKPMcBEYaJeldtxIIoWifxE8dIi9z
+S: KL2ogKOKiqv4yTtYBY5BV69qNbxsA1WBIUQ4SSo9YSRKlJjNpeIpMkakGdRrFQUJJfqheOgTsLJL
+S: ZJ4aILUrIPQ5s39wAVwjUGBqyUTbVxHVVYdkjJoJw5ItmQbARS4dgWcCSNjpuTHqynNPrBggJPAc
+S: RUg7PPt9LTCufejgNZfNMXeSUT07F3eDbxSpRGnZWd7OFNsWuMcuUDTiCXvtNZsotmKrGU02WWAh
+S: HGGwBAHkeeZ0s6A9DUttEKmgQjAncOHfPTNcbXKvDFisyXOeptYmcJKlVDLgQ85uH1jvEBROSiBx
+S: I677isSdt98spD83izDGwU97cBDdNJSbB4SrYMnaEXmfvORllgHez4Grw4wqvOP5veDtUOYkzGSp
+S: RGViDWnavlW2tbVvKRvqKGNAXusqqDOuIGJnuXOgaH96abYkQWGwC0Pup8m3kGUEx66rqKIsu6rs
+S: izW3d7Wls5aqvyHjygGfFLiqfRJcVXRhh5QnoACsimN2iQAoXK5IIZW5dXExVIMrjqA3eMUmJpgw
+S: z5PpbUovCNfvmBvfPKVqSPKADwRst6Qbi8CsfYUaUEh5wHJyYe0aXw8fzAGkELL7PIr1iweimUFE
+S: cuBLMxkpKkhRfB46iudiSKZ4ZFkEVgfiS0B5DJieZef2LHO4STlPGr3pvAbESQNcTONqnimKGxx4
+S: DmhcQCcLYY9lg8l9F1UwwWi1LVzRTm4bpT2oRPIhLQOLq36JAxKzoUGnzSezS3AFg2YvKMNnRBJU
+S: lw9JmwtBFXKAHTiUTxcePpf5u5lHo7GWuEDeVXB3B8BFN2O8K6uAH2u7SwCKd6Iefj42IuEJeS7p
+S: jioVAABVZZi4eG9BCMfRXqmPtleDKmjIo8RIoxJUM2FEdGT4dG3mZ8gUyEPBBuKbaBZQKwTyNADj
+S: hlIqPIR3vC4LuZu4ldJlkclozLOcRsIvUGxfEB0cTS2lCvQ7D9kNwChII7QUSRZcTXnNivddYdch
+S: M2o7VfYPGFLiNTFDMwcGhP2TGZX4mXOuBR5IM8ZzERCxJEK7SQqSntcqBhY8FYV4EZbZm9EpLBOI
+S: zhm1Fb3UVpNpOYLnuAQOOAPKvKM5BNg1WEIaahBkEJHdlUBkqPTLM3xeUH1MYKS4AQDaErRfqB87
+S: HW8cFDD8GZTmIXIPDETaM79NzIPGO2j1EFJjB8x4tIBnKcKmIUqMgS8DOeJPAaLtTLtVY6osKAFk
+S: AX0GOQaiImLWTgpBeYk9ndvYW06Lh4eNNDsiMMiEeOkeyrX9a1LPimB4PKbVRTtdPXnOX2D3hVAN
+S: q88ezb0hEiXpNRAIr8CvPhbvnBt7eNLMbRRCIILQV3e5SRR3V6dvA5R7EOvgLC0IH8THkjfQXf6A
+S: Bh8KWNlBfVGaHIP2STumd8piVWCCVXPrAVUwRPOEpNEpvZTiKRC1vcVuERXqv1krsFslNN35uiFx
+S: eP4jEhqichxjW5BcGAUkTQSXAp==)
+S: T74 OK Success
+C: T75 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1883]
+S: T75 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T76 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T76") UID
+S: T76 OK SEARCH completed (Success)
+C: T77 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1883]
+S: T77 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T78 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T78 OK Success
+C: T79 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1883]
+S: T79 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T80 UID FETCH 2 (UID MODSEQ X-GM-LABELS FLAGS) (CHANGEDSINCE 1862)
+S: T80 OK Success
+C: T81 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1883]
+S: T81 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T82 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 1] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1883]
+S: T82 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T83 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1883]
+S: T83 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T84 UID MOVE 2 "[Gmail]/Trash"
+S: * 1 EXPUNGE
+S: * 0 EXISTS
+S: T84 OK [COPYUID 2 2 1] (Success)
+C: T85 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T85 OK Success
+C: T86 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T86 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T87 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T87") UID
+S: T87 OK SEARCH completed (Success)
+C: T88 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T88 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T89 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T89 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T90 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T90") UID ALL 1
+S: T90 OK SEARCH completed (Success)
+C: T91 UID FETCH 1 (UID X-GM-LABELS FLAGS MODSEQ) (CHANGEDSINCE 1883)
+S: * 1 FETCH (X-GM-LABELS ("\\Starred") UID 1 MODSEQ (1887) FLAGS (\Flagged \Seen))
+S: T91 OK Success
+C: T92 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T92 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T93 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T93 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T94 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T94 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T95 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T95 OK Success
+C: T96 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T96 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T97 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T97 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T98 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T98 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T99 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1916]
+S: T99 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T100 UID MOVE 1 INBOX
+S: * 1 EXPUNGE
+S: * 0 EXISTS
+S: T100 OK [COPYUID 1 1 4] (Success)
+C: T101 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T101 OK Success
+C: T102 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 4] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T102 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T103 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T103") UID ALL 3
+S: T103 OK SEARCH completed (Success)
+C: T104 UID FETCH 3 (UID ENVELOPE INTERNALDATE RFC822.SIZE MODSEQ X-GM-THRID BODYSTRUCTURE FLAGS X-GM-MSGID X-GM-LABELS BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (X-GM-THRID 1878505316514561155 X-GM-MSGID 1878505316514561155 X-GM-LABELS ("\\Inbox" "\\Starred") UID 3 RFC822.SIZE 26941 MODSEQ (1921) INTERNALDATE "08-Oct-2026 17:57:53 +0000" FLAGS (\Flagged \Seen) ENVELOPE ("Thu, 08 Oct 2026 10:57:52 -0700" "Wtrvaap to Google uj pvca Oyqfr" (("Google" NIL "no-reply" "google.com")) (("Google" NIL "no-reply" "google.com")) (("Google" NIL "no-reply" "google.com")) ((NIL NIL "ejorkqyhqoq" "gmail.com")) NIL NIL NIL "<8g481443ug5i23gn44q6qq4v607j69343k03z02a-79908334-524079472@google.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "UTF-8" "DELSP" "yes" "FORMAT" "flowed") NIL NIL "BASE64" 1900 38 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 17752 356 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "133095523336936143051v89n898") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {917}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@google.com
+S:  header.s=3D401697 header.b=o4CpBIcm; spf=pass (google.com: unhuaw of
+S:  1rnwtgiduc4494-ipa4r14477i.p09m1o36dlb8zb62l76.n54@gnfoylhgl.bounces.google.com
+S:  uxpfkfchqq 697.83.913.66 yy permitted sender)
+S:  smtp.mailfrom=8wPeUjjgUG7026-AaV8A50906x.a36m4m22QpG5sN95v63.n54@gnfoylhgl.bounces.google.com;
+S:  dmarc=pass (p=REJECT zn=REJECT gng=NONE) header.from=google.com; dara=pass
+S:  header.i=@gmail.com
+S: List-Unsubscribe: <https://skvvmnlcn.google.com/fkdjzobwqhvaw-nupwnryomzo/yjpv/unsubscribe/yz/IUoJJarHFiRNUhIay4kMPlp6VjnUQZeszOIjf6YwUlJmyDHIgxBUw-VaWF7heL8A3bDItaTMqE1YswZRE-6uhD6508PR7ybJtNPfKQ-mgbqxTgV8cOXFD0OUZqa69b2UD1wVUdZnBJ3ySmGiyFAYnggfnS7xjNhSu6VM-GWlYi1GnfvAMnfKORjNPGee-Il11HVEJD8_5BK_AzDDX_d8h1AHjk9neCzCdNJx9ulS4Mq6HSqcD5Vk509x?ipd_wpbnhe=ax_header&ipd_edkzci=ucoao>
+S: List-Id: <f7w1on6746w936q031071p30k1833c226m730954.google.com>
+S: 
+S: )
+S: T104 OK Success
+C: T105 UID FETCH 3 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 3 MODSEQ (1921) BODY[1]<0> {1900}
+S: N9A7NWU7MXS4YCEfq9j2rWBPs80zuISfh44aeH46rtTPkJ59fK6TIUdNDSvkUBGizUhyjKZrXQLq
+S: SDKwf9ZrooPrRF2hpnV6XSriKMTiPJdukQU6xQrpU7JsEJ9dXLAzfkJ9z3KjZAWsc8h9z4Bik2l3
+S: oMHkPPoMq94qqTHtVUmRKp1NH72uqCnbpPE2qLV8lSD6Vi8bFeaiLT7ADMGKV8Mkra86JJXVErCF
+S: pBkdAHk3SHh5FR21oERQVgmhG6S4J2V1CIheEzInVknRn0wUIX74MZZikKimroHBBwofBZY0QCA3
+S: t5DVThRmNEZdQTKeY8nIYc2jVgk8e0LKJB3iB8QlBJR6gg2SKPMcBEYaJeldtxIIoWifxE8dIi9z
+S: KL2ogKOKiqv4yTtYBY5BV69qNbxsA1WBIUQ4SSo9YSRKlJjNpeIpMkakGdRrFQUJJfqheOgTsLJL
+S: ZJ4aILUrIPQ5s39wAVwjUGBqyUTbVxHVVYdkjJoJw5ItmQbARS4dgWcCSNjpuTHqynNPrBggJPAc
+S: RUg7PPt9LTCufejgNZfNMXeSUT07F3eDbxSpRGnZWd7OFNsWuMcuUDTiCXvtNZsotmKrGU02WWAh
+S: HGGwBAHkeeZ0s6A9DUttEKmgQjAncOHfPTNcbXKvDFisyXOeptYmcJKlVDLgQ85uH1jvEBROSiBx
+S: I677isSdt98spD83izDGwU97cBDdNJSbB4SrYMnaEXmfvORllgHez4Grw4wqvOP5veDtUOYkzGSp
+S: RGViDWnavlW2tbVvKRvqKGNAXusqqDOuIGJnuXOgaH96abYkQWGwC0Pup8m3kGUEx66rqKIsu6rs
+S: izW3d7Wls5aqvyHjygGfFLiqfRJcVXRhh5QnoACsimN2iQAoXK5IIZW5dXExVIMrjqA3eMUmJpgw
+S: z5PpbUovCNfvmBvfPKVqSPKADwRst6Qbi8CsfYUaUEh5wHJyYe0aXw8fzAGkELL7PIr1iweimUFE
+S: cuBLMxkpKkhRfB46iudiSKZ4ZFkEVgfiS0B5DJieZef2LHO4STlPGr3pvAbESQNcTONqnimKGxx4
+S: DmhcQCcLYY9lg8l9F1UwwWi1LVzRTm4bpT2oRPIhLQOLq36JAxKzoUGnzSezS3AFg2YvKMNnRBJU
+S: lw9JmwtBFXKAHTiUTxcePpf5u5lHo7GWuEDeVXB3B8BFN2O8K6uAH2u7SwCKd6Iefj42IuEJeS7p
+S: jioVAABVZZi4eG9BCMfRXqmPtleDKmjIo8RIoxJUM2FEdGT4dG3mZ8gUyEPBBuKbaBZQKwTyNADj
+S: hlIqPIR3vC4LuZu4ldJlkclozLOcRsIvUGxfEB0cTS2lCvQ7D9kNwChII7QUSRZcTXnNivddYdch
+S: M2o7VfYPGFLiNTFDMwcGhP2TGZX4mXOuBR5IM8ZzERCxJEK7SQqSntcqBhY8FYV4EZbZm9EpLBOI
+S: zhm1Fb3UVpNpOYLnuAQOOAPKvKM5BNg1WEIaahBkEJHdlUBkqPTLM3xeUH1MYKS4AQDaErRfqB87
+S: HW8cFDD8GZTmIXIPDETaM79NzIPGO2j1EFJjB8x4tIBnKcKmIUqMgS8DOeJPAaLtTLtVY6osKAFk
+S: AX0GOQaiImLWTgpBeYk9ndvYW06Lh4eNNDsiMMiEeOkeyrX9a1LPimB4PKbVRTtdPXnOX2D3hVAN
+S: q88ezb0hEiXpNRAIr8CvPhbvnBt7eNLMbRRCIILQV3e5SRR3V6dvA5R7EOvgLC0IH8THkjfQXf6A
+S: Bh8KWNlBfVGaHIP2STumd8piVWCCVXPrAVUwRPOEpNEpvZTiKRC1vcVuERXqv1krsFslNN35uiFx
+S: eP4jEhqichxjW5BcGAUkTQSXAp==)
+S: T105 OK Success
+C: T106 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T106 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T107 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T107 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T108 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T108") UID
+S: T108 OK SEARCH completed (Success)
+C: T109 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T109 OK Success
+C: T110 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 4] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T110 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T111 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T111 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T112 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T112 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T113 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 4] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 1967]
+S: T113 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T114 UID STORE 3 -FLAGS.SILENT (\Seen \Flagged)
+S: * 1 FETCH (UID 3 MODSEQ (1972) FLAGS ())
+S: T114 OK Success
+C: T115 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T115 OK Success
+C: T116 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 4] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 2004]
+S: T116 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T117 UID FETCH 3 (UID FLAGS MODSEQ X-GM-LABELS) (CHANGEDSINCE 1967)
+S: * 1 FETCH (X-GM-LABELS ("\\Inbox") UID 3 MODSEQ (1972) FLAGS ())
+S: T117 OK Success
+C: T118 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 2004]
+S: T118 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T119 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 2] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 2004]
+S: T119 OK [READ-WRITE] [Gmail]/Trash selected. (Success)

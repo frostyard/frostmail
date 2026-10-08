@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -279,5 +281,44 @@ func TestTrimKeepsTheNewest(t *testing.T) {
 	lines = append(lines[:len(lines):len(lines)], `C: T8 UID STORE 51 +FLAGS (\Seen)`, "S: T8 OK done")
 	if _, err := convert(trace(t, lines...), options{keep: 2, key: key}); err == nil {
 		t.Error("trimming a session that stores flags was accepted")
+	}
+}
+
+// Scripts scrubbed with one key file share their fakes; a key file too
+// short to be secret is refused.
+func TestKeyFileSharesFakes(t *testing.T) {
+	dir := t.TempDir()
+	tracePath, keyPath := filepath.Join(dir, "trace"), filepath.Join(dir, "key")
+	var b strings.Builder
+	for _, l := range gmailTrace(t) {
+		prefix := "S: "
+		if l.Sent {
+			prefix = "C: "
+		}
+		b.WriteString(prefix + l.Text + "\n")
+	}
+	if err := os.WriteFile(tracePath, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, []byte("thirty-two bytes of private key!"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scrub := func() (string, error) {
+		var out strings.Builder
+		err := run([]string{"-keyfile", keyPath, tracePath}, &out)
+		return out.String(), err
+	}
+	a, err := scrub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := scrub(); a != b {
+		t.Error("two runs with one key file made different fakes")
+	}
+	if err := os.WriteFile(keyPath, []byte("short"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := scrub(); err == nil {
+		t.Error("a five-byte key file was accepted")
 	}
 }
