@@ -64,9 +64,51 @@ export function hostileFiles(origin: string): { name: string; html: string }[] {
     }));
 }
 
-/** fixture builds a maild data directory in dir with n messages and, if given, the hostile corpus. */
-export function fixture(dir: string, n: number, canaryOrigin?: string): string {
+/** Sink is a running tools/smtpsink. */
+export interface Sink {
+  addr: string;
+  /** messages returns the accepted messages, oldest first. */
+  messages: () => string[];
+  stop: () => void;
+}
+
+/** smtpSink starts tools/smtpsink, writing into dir/sink. */
+export async function smtpSink(dir: string): Promise<Sink> {
+  const out = join(dir, "sink");
+  const proc = spawn(join(BUILD, "smtpsink"), ["-dir", out], { stdio: ["ignore", "pipe", "inherit"] });
+  const addr = await new Promise<string>((done, fail) => {
+    let buf = "";
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      buf += chunk.toString();
+      const m = /listening (\S+)/.exec(buf);
+      if (m?.[1]) done(m[1]);
+    });
+    proc.on("exit", (code) => fail(new Error(`smtpsink exited with ${code}`)));
+  });
+  return {
+    addr,
+    messages: () =>
+      existsSync(out)
+        ? readdirSync(out)
+            .filter((f) => f.endsWith(".eml"))
+            .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+            .map((f) => readFileSync(join(out, f), "utf8"))
+        : [],
+    stop: () => proc.kill("SIGTERM"),
+  };
+}
+
+/** FixtureOptions add to the fixture: the hostile corpus pointed at a canary, an SMTP server to send through. */
+export interface FixtureOptions {
+  canaryOrigin?: string;
+  smtp?: string;
+}
+
+/** fixture builds a maild data directory in dir with n messages and the options' extras. */
+export function fixture(dir: string, n: number, opts: FixtureOptions = {}): string {
+  const { canaryOrigin, smtp } = opts;
   const args = ["-out", join(dir, "data"), "-n", String(n)];
+  if (smtp) args.push("-smtp", smtp);
   if (canaryOrigin) {
     const copy = join(dir, "hostile");
     mkdirSync(copy, { recursive: true });
@@ -104,8 +146,8 @@ export interface App {
   stop: () => Promise<void>;
 }
 
-/** launch starts maild on the data directory and the app through WebKitWebDriver. */
-export async function launch(dir: string, data: string): Promise<App> {
+/** launch starts maild on the data directory (with extra environment) and the app through WebKitWebDriver. */
+export async function launch(dir: string, data: string, extraEnv: Record<string, string> = {}): Promise<App> {
   const cache = join(dir, "cache");
   const run = join(dir, "run");
   mkdirSync(cache, { recursive: true, mode: 0o700 });
@@ -115,6 +157,7 @@ export async function launch(dir: string, data: string): Promise<App> {
     FROSTMAIL_DATA_DIR: data,
     FROSTMAIL_CACHE_DIR: cache,
     FROSTMAIL_SOCKET: join(run, "maild.sock"),
+    ...extraEnv,
   };
   const procs: ChildProcess[] = [];
   const maild = spawn(join(BUILD, "maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] });

@@ -96,6 +96,26 @@ export class Session {
     return this.execute<string>("return arguments[0].innerText", { [ELEMENT]: el.id });
   }
 
+  /** type sends keystrokes to an element. */
+  async type(el: Element, text: string): Promise<void> {
+    await this.do("POST", `/element/${el.id}/value`, { text });
+  }
+
+  /** windows returns the handles of the session's windows. */
+  windows(): Promise<string[]> {
+    return this.do<string[]>("GET", "/window/handles");
+  }
+
+  /** window returns the current window's handle. */
+  window(): Promise<string> {
+    return this.do<string>("GET", "/window");
+  }
+
+  /** switchTo makes a window current. */
+  async switchTo(handle: string): Promise<void> {
+    await this.do("POST", "/window", { handle });
+  }
+
   /** screenshot returns the window as base64 PNG. */
   screenshot(): Promise<string> {
     return this.do<string>("GET", "/screenshot");

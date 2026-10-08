@@ -14,8 +14,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/emersion/go-message"
@@ -25,6 +27,7 @@ import (
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/mailgen"
 	"github.com/frostyard/frostmail/internal/mimex"
+	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -39,6 +42,10 @@ type Options struct {
 	N       int    // mailgen messages in INBOX
 	Seed    uint64 // mailgen seed
 	Hostile string // a directory of .html files for the Hostile mailbox; "" for none
+	// SMTP is host:port of a plain submission server (tools/smtpsink) the
+	// account sends through, with a stored password; "" leaves sending
+	// pointed at nothing.
+	SMTP string
 }
 
 // Build creates the data directory o.Out and its blobs store, one account
@@ -62,6 +69,11 @@ func Build(ctx context.Context, o Options) error {
 	accountID, mbIDs, err := setupAccount(ctx, db)
 	if err != nil {
 		return err
+	}
+	if o.SMTP != "" {
+		if err := useSMTP(ctx, db, accountID, o.Out, o.SMTP); err != nil {
+			return err
+		}
 	}
 	b := &builder{db: db, blobs: blob.New(filepath.Join(o.Out, "blobs")), accountID: accountID}
 
@@ -337,13 +349,35 @@ func main() {
 	}
 }
 
-// run parses -out, -n, -seed and -hostile into Options and calls Build.
+// useSMTP points the account's submission server at addr (no TLS) and
+// stores a password for it.
+func useSMTP(ctx context.Context, db *store.DB, accountID int64, out, addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("-smtp: %w", err)
+	}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("-smtp port: %w", err)
+	}
+	server := store.ServerConfig{Host: host, Port: p, TLS: api.TLSModeInsecure, Username: fixtureEmail}
+	if err := db.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.UpdateAccount(ctx, accountID, store.AccountUpdate{SMTP: &server})
+		return err
+	}); err != nil {
+		return err
+	}
+	return secrets.NewFile(filepath.Join(out, "secrets.json")).Set(ctx, secrets.AccountPassword(accountID), "fixture")
+}
+
+// run parses -out, -n, -seed, -hostile and -smtp into Options and calls Build.
 func run(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("uifixture", flag.ContinueOnError)
 	out := fs.String("out", "", "data directory to create (required)")
 	n := fs.Int("n", 1000, "mailgen messages in INBOX")
 	seed := fs.Uint64("seed", 1, "mailgen seed")
 	hostile := fs.String("hostile", "", "directory of .html files for the Hostile mailbox")
+	smtpAddr := fs.String("smtp", "", "host:port of a plain SMTP server to send through (tools/smtpsink)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -353,5 +387,5 @@ func run(ctx context.Context, args []string) error {
 	if *n < 0 {
 		return errors.New("-n must be at least 0")
 	}
-	return Build(ctx, Options{Out: *out, N: *n, Seed: *seed, Hostile: *hostile})
+	return Build(ctx, Options{Out: *out, N: *n, Seed: *seed, Hostile: *hostile, SMTP: *smtpAddr})
 }

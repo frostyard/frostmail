@@ -12,7 +12,7 @@ let trap: Canary | undefined;
 beforeAll(async () => {
   trap = await canary();
   const dir = tempDir("hostile");
-  app = await launch(dir, fixture(dir, 5, trap.origin));
+  app = await launch(dir, fixture(dir, 5, { canaryOrigin: trap.origin }));
   const s = app.session;
   await s.waitFor("the app", async () => (await s.findAll('[role="tree"]')).length > 0, 30_000);
 });
