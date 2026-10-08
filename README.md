@@ -1,8 +1,10 @@
 # Frostmail
 
 A Linux mail client that works like Apple Mail.app, without looking like a
-GNOME or KDE app. Pre-release: M0 (foundations) is in place; no mail syncs
-yet. See the [roadmap](docs/plans/0002-roadmap.md).
+GNOME or KDE app. Pre-release: it syncs, reads, searches and sends generic
+IMAP, Gmail and iCloud accounts, and is in its daily-driver trial
+([M4](docs/plans/0006-m4-daily-driver.md)). See the
+[roadmap](docs/plans/0002-roadmap.md).
 
 - **maild** is a per-user Go daemon that owns sync, a SQLite cache with
   full-text search, and a JSON-RPC socket.
