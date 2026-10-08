@@ -1,0 +1,1635 @@
+# iCloud (the user's account, read-only): the session that finished the first
+# sync, recorded 2026-10-08 with MAILD_IMAP_TRACE; the five newest messages it
+# fetched in each folder (imaprec -keep 5). Replayed by TestReplayICloudFirstSync.
+# Scrubbed by tools/imaprec: names, addresses, subjects, bodies and
+# mailbox names are stable fakes; dates, structure, flags and UIDs are
+# as recorded.
+C: T1 LOGIN [redacted]
+S: * OK [CAPABILITY XAPPLEPUSHSERVICE IMAP4 IMAP4rev1 SASL-IR AUTH=ATOKEN AUTH=PLAIN AUTH=ATOKEN2 AUTH=XOAUTH2] (7663F09-wfo7nt775552) s66-bisugzp-77-ypgjhgw-84pjd6a8dl-0qhzl
+S: T1 OK user uvvrqjvwposcs@icloud.com logged in
+C: T2 CAPABILITY
+S: * CAPABILITY XAPPLEPUSHSERVICE IMAP4 IMAP4rev1 CONDSTORE ENABLE QRESYNC QUOTA XAPPLELITERAL NAMESPACE UIDPLUS UNSELECT SORT ESEARCH ESORT CONTEXT=SORT WITHIN SASL-IR ID IDLE X-APPLE-REMOTE-LINKS LIST-STATUS
+S: T2 OK Completed
+C: T3 CAPABILITY
+S: * CAPABILITY XAPPLEPUSHSERVICE IMAP4 IMAP4rev1 CONDSTORE ENABLE QRESYNC QUOTA XAPPLELITERAL NAMESPACE UIDPLUS UNSELECT SORT ESEARCH ESORT CONTEXT=SORT WITHIN SASL-IR ID IDLE X-APPLE-REMOTE-LINKS LIST-STATUS
+S: T3 OK Completed
+C: T4 ID ("name" "frostmail" "vendor" "frostyard")
+S: * ID ("name" "iCloud Mail" "version" "5901M269")
+S: T4 OK ID completed (took 0 ms)
+C: T5 LIST "" "*"
+S: * LIST () "/" "Sent Items"
+S: * LIST () "/" "Archive"
+S: * LIST () "/" "Junk"
+S: * LIST () "/" "Trash"
+S: * LIST () "/" "Deleted Items"
+S: * LIST (\Noinferiors) "/" "INBOX"
+S: * LIST () "/" "Notes"
+S: * LIST () "/" "Sent"
+S: * LIST () "/" "Notes/Recovered Items"
+S: * LIST (\Trash) "/" "Deleted Messages"
+S: * LIST (\Sent) "/" "Sent Messages"
+S: * LIST () "/" "Drafts"
+S: T5 OK LIST completed (took 0 ms)
+C: T6 EXAMINE INBOX (CONDSTORE)
+S: * 5 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 425]
+S: * OK [UIDVALIDITY 1309100931]
+S: * OK [UIDNEXT 10451]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100049662]
+S: T6 OK [READ-WRITE] EXAMINE completed (took 13 ms)
+C: T7 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T7") UID ALL 3066,3072,3074,3081:3082
+S: T7 OK SEARCH completed (took 6 ms)
+C: T8 UID FETCH 3066,3072,3074,3081:3082 (UID ENVELOPE BODYSTRUCTURE FLAGS INTERNALDATE RFC822.SIZE MODSEQ BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 3066 MODSEQ (410545100013755) ENVELOPE ("Sun, 20 Aug 2023 21:58:38 +0000" "=?utf-8?Q?Ksk=3D=3DAre=3Dnmr=3Daa=3DJcytneh=3DZrqqtxvg=3D?=" (("Ycpvrn Uiibjhr" NIL "cjzujn" "ybrquvetdb.ln")) (("Ycpvrn Uiibjhr" NIL "cjzujn" "ybrquvetdb.ln")) (("Ycpvrn Uiibjhr" NIL "cjzujn" "ybrquvetdb.ln")) ((NIL NIL "me" "ptjox.bdu")) NIL NIL NIL "<3x7g15146030966290515mc0l.49v6x47a5n.63113209791815.6vb5538037.76ai3byw@aftf398.nqj102.qkecn.net>") BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8" "FORMAT" "fixed") NIL NIL "quoted-printable" 2652 63 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 31967 809 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "_----------=_CEKazr_886024745") NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "20-Aug-2023 21:59:09 +0000" RFC822.SIZE 41373 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {1000}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=ybrquvetdb.ln
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (4787-oxp lhg) header.d=ybrquvetdb.ln header.i=cjzujn@ybrquvetdb.ln header.b=E6judyst
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv-nf.qp38_80394525.30905307-49v6x47a5n@aftf398.nqj102.qkecn.net plurhowdvi 072.2.250.343 vi permitted sender) smtp.mailfrom=ssypvv-nf.qp38_80394525.30905307-49v6x47a5n@aftf398.nqj102.qkecn.net
+S: List-Id: 3e2r08501644176575584pt8shw list <3x7g15146030966290515mc0l.982289.list-id.ejqd.net>
+S: List-Unsubscribe: <https://ybrquvetdb.qp38.list-vivzfa.com/unsubscribe?u=3x7g15146030966290515mc0l&id=a3mu2520n6&e=3Du0u93r7l&c=6vb5538037>, <mailto:unsubscribe-nf.qp38_3x7g15146030966290515mc0l.6vb5538037-49v6x47a5n@unsubscribe.igqyjtganwqu.net?subject=unsubscribe>
+S: 
+S: )
+S: * 2 FETCH (UID 3072 MODSEQ (410545100013783) ENVELOPE ("Mon, 21 Aug 2023 22:08:17 +0000 (GMT)" "Vvew kruwvbi from Apple." (("Apple" NIL "no_reply" "wqzza.apple.com")) (("Apple" NIL "no_reply" "wqzza.apple.com")) (("Apple" NIL "no_reply" "wqzza.apple.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<2571053599.465273896.8946012129634@wqzza.apple.com>") BODYSTRUCTURE (("text" "plain" ("CHARSET" "ISO-8859-1") NIL NIL "QUOTED-PRINTABLE" 2048 66 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 29372 603 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "----=_Gmcv_219427678_126311054.8946012129634") NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "21-Aug-2023 22:08:20 +0000" RFC822.SIZE 37560 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {651}
+S: Authentication-Results: dkrp.icloud.com; dkrp=pass header.d=wqzza.apple.com header.wcvquorh=ephadzv policy.jmfdznngt=pass policy.jmfdznngt-mcg=https://www.apple.com/dkrp/u6/apple.zlh
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=wqzza.apple.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=wqzza.apple.com header.i=@wqzza.apple.com header.b=JKjBMXJc
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of no_reply@wqzza.apple.com plurhowdvi 14.029.403.688 vi permitted sender) smtp.mailfrom=no_reply@wqzza.apple.com
+S: 
+S: )
+S: * 3 FETCH (UID 3074 MODSEQ (410545100013786) ENVELOPE ("Tue, 22 Aug 2023 01:11:33 +0200" "=?UTF-8?Q?Ja=3D=3D=3Ds=3DRanxs!=3DOkyw=3D=3D=3D=3D=3Doh=3DSelect=3DHxonlw?= =?UTF-8?Q?y?=" (("Eugl Laee" NIL "tf" "e.brqaozmj.com")) (("Eugl Laee" NIL "tf" "e.brqaozmj.com")) (("Eugl Laee" NIL "tf" "e.brqaozmj.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<0.0.3.653.0P7O002A886R2QP.0@jmo-9f971943.pw1.cuazgkw.us>") BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 497 10 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 58549 1177 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "--=_---CowdLant--=_-sNAnm5Ivw9") NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "21-Aug-2023 23:11:37 +0000" RFC822.SIZE 64908 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {894}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=e.brqaozmj.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (4787-oxp lhg) header.d=e.brqaozmj.com header.i=tf@e.brqaozmj.com header.b=fXd4x+97
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (4787-oxp lhg) header.d=cuazgkw.net header.i=@cuazgkw.net header.b=AA6xdVqz
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of bsvxz04@bounces.e.brqaozmj.com plurhowdvi 76.44.201.44 vi permitted sender) smtp.mailfrom=bsvxz04@bounces.e.brqaozmj.com
+S: List-Id: 9342040599 <Eugl Laee>
+S: List-Unsubscribe: <mailto:list-unsubscribe+9342040599_804824_7358121_z89Gem8Scr@cuazgkw.net>, <https://list-unsubscribe.xinuujin.cuazgkw.net/gnu/unsubscribe/9342040599_804824_7358121_z89Gem8Scr>
+S: 
+S: )
+S: * 4 FETCH (UID 3081 MODSEQ (410545100013815) ENVELOPE ("Tue, 22 Aug 2023 16:08:33 GMT" "Vvew MRJV Aleevtjsa Qdhdpeues Jdaxiv" (("MRJV" NIL "MRJV.Onqucuyg.Lxgwrko" "whzdzpncwv.cclr.com")) (("MRJV" NIL "MRJV.Onqucuyg.Lxgwrko" "whzdzpncwv.cclr.com")) (("MRJV" NIL "MRJV.Onqucuyg.Lxgwrko" "whzdzpncwv.cclr.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<90752983522372@nlex.cclr.com>") BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 2074 74 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 19470 410 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "=--KCLG_177314203_1640037907032_5812937") NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "22-Aug-2023 16:08:39 +0000" RFC822.SIZE 27934 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {607}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="hqjfyrw zghqexdp"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=whzdzpncwv.cclr.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=cclr.com header.i=@cclr.com header.b=ODqI7DEA
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of dmna=3D110xu53p=cclr.drbfycpd.qpukgwr@whzdzpncwv.cclr.com plurhowdvi 569.365.328.757 vi permitted sender) smtp.mailfrom="dmna=3D110xu53p=cclr.drbfycpd.qpukgwr@whzdzpncwv.cclr.com"
+S: 
+S: )
+S: * 5 FETCH (UID 3082 MODSEQ (410545100013817) ENVELOPE ("Tue, 22 Aug 2023 17:03:10 +0000 (GMT)" "Vvew kruwvbi from Apple." (("Apple" NIL "no_reply" "wqzza.apple.com")) (("Apple" NIL "no_reply" "wqzza.apple.com")) (("Apple" NIL "no_reply" "wqzza.apple.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<1368700863.917077586.9670028961572@wqzza.apple.com>") BODYSTRUCTURE (("text" "plain" ("CHARSET" "ISO-8859-1") NIL NIL "QUOTED-PRINTABLE" 1608 55 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 25833 530 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "----=_Gmcv_025488921_8512232456.9670028961572") NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "22-Aug-2023 17:03:15 +0000" RFC822.SIZE 33552 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {651}
+S: Authentication-Results: dkrp.icloud.com; dkrp=pass header.d=wqzza.apple.com header.wcvquorh=ephadzv policy.jmfdznngt=pass policy.jmfdznngt-mcg=https://www.apple.com/dkrp/u6/apple.zlh
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=wqzza.apple.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=wqzza.apple.com header.i=@wqzza.apple.com header.b=xmM3IAbd
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of no_reply@wqzza.apple.com plurhowdvi 14.029.403.026 vi permitted sender) smtp.mailfrom=no_reply@wqzza.apple.com
+S: 
+S: )
+S: T8 OK FETCH completed (took 6546 ms)
+C: T9 UID FETCH 3066,3072,3074,3081:3082 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 3066 MODSEQ (410545100013755) BODY[1]<0> {2048}
+S: Ws nmr're in Nvkfaz=3D gol's xjke pn!
+S: 
+S: Ksk hhqvnqn=3D
+S: 
+S: I iufu jduayp in Nvkfaz for Jcytneh Zrqqtxvg (https://9061.ufhkcnzuuhtswno=
+S: =3Dcom/) =3D and I'wr hassoec zcf jbnk ybjr hhqvnqn!
+S: Jut Yupa (Txfirvmxkf)=3D Kvjoam Ezdgevsy (https://bff.adph/4154640387) =3D=
+S:  Dlyt Iyimc (https://bff.adph/831748122) =3D Ycpvrn Uiibjhr (Txfirvmxkf)
+S: The Txfirvmxkf smcd (thbuun=3D Jut=3D and Bsmi) hbzg be bmme all enrc. Ws=
+S:  nmr're bmme=3D ga're vmxt to hgyh rgw with nmr!
+S: 
+S: Jt're cwjh sfnnhmq a cdujyd (gqvkj with Ihkkiz Ijmp (https://qrrptocecvazr=
+S: egiklkss.co/) ) aa the Gaumb Puztgo Jtdpd Rlzt Sprhmu (https://aaok.emf.vv=
+S: o.dp/GT7jPLP7pm9kFPVi5)  oh Bjuisya (Aug 47) aa qfiusr 8 le.
+S: 
+S: Ounb pfan I bml innbps of Txfirvmxkf wpafs (and "hhqvnqn of Txfirvmxkf")=
+S: =3D and km aoi qh onouhysq sbbmj.
+S: 
+S: Cuae pfan=3D I'wr gcd T-jnmjyc to gvxr vefu! Gpzp're bjggnmlc Dnpbru.
+S: 
+S: Ws nmr'd titk to xjke=3D reply to iabe wqzza. Ndd vqy cwjh GD me in the Ml=
+S: qiegf Zrqqtxvg emf (https://ufhkcnzuuhtswno.emf.kwrqgrrb.com/messages/)  o=
+S: r oh the dkdhtz vbuvmaus oaigd. =3D=3D=3D=3D I'fr gu qh uidi to bkyrcgk.
+S: 
+S: Zrbi=3D hd nmr vql nmo of us aa the wneflfnkkg=3D icbmfd nqmx and zcs ablv=
+S: o! =3D=3D=3D=3D
+S: 
+S: Cabyke=3D
+S: Ycpvrn Uiibjhr
+S: Co-wqvlpnw of Txfirvmxkf.ln (https://ybrquvetdb.ln/)
+S: 
+S: JH: I qeu a cagwd bkpipzl avivpcv bmme. Ws nmr vql me=3D I'fr tnvs nmr the=
+S:  dnrcd!
+S: 
+S: =3D=3D=3D=3D Dhqbxhc (https://bzzrnlv.com/cuhvojkf)
+S: =3D=3D=3D=3D Asuktsgu (https://fjauqzoz.dkdhtz/@cuhvojkf)
+S: =3D=3D=3D=3D Znlwgkh (https://www.uvpchcv.net/@cuhvojkf)
+S: =3D=3D=3D=3D OdrfgeFb (https://www.ynvcknlr.com/in/emzoiukmastsyf/)
+S: 
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D
+S: Wvcdvselu =3D=3D 9061 Txfirvmxkf=3D Lst=3D All umisoc lpchnwun.
+S:  Ndd received iabe wqzza knttasa nmr jzmdp in to kffp sbmc hdokb Ovkraqgqx=
+S: r Jcytneh Ffyhggv.
+S: 
+S: Dka pojpdyi address is:
+S: Txfirvmxkf=3D Lst
+S: DZ Lhe 429560
+S: Rqfufwm=3D BB 17247-0812
+S: U)
+S: * 2 FETCH (UID 3072 MODSEQ (410545100013783) BODY[1]<0> {2048}
+S: Apple Puapfek
+S: -----------------------------------------------------------
+S: 
+S: APPLE ID
+S: opkgzp.xwdjctci@gmail.com
+S: 
+S: FFXKVW TO
+S: Edcq .... 4698
+S: Aepwj  Ffqnmabf
+S: 8881 Dtpojjcwr Ipevfh Qeoc
+S: Hsjj O Iksyj,  BF  64354
+S: XDU
+S: 
+S: EEIII ID:              SB6TOJ6ACA
+S: PWYOGHUN NO.:        836813088594
+S: DATE:                Aug 89, 9061
+S: SZCSE:                      $8.20
+S: 
+S: 
+S: Jtk Store                                     =3D
+S: ---------------------------------------------------------------------------=
+S: -----
+S: 
+S: Uloyhqrtnpm                                                                =
+S: $7.20
+S: Hlk (Koainus)                =3D
+S: Tnezrb Sep 89, 9061          =3D
+S:                              =3D
+S: 
+S: ---------------------------------------------------------------------------=
+S: -----
+S:                                                               Easfiexs     =
+S: $7.20
+S:                                                              Vzdin CST     =
+S: $0.77
+S:                                                            Cmavsqz CST     =
+S: $0.34
+S: ---------------------------------------------------------------------------=
+S: -----
+S: 
+S:                                                                  SZCSE     =
+S: $8.20
+S: Vvecksz: Jt ovd a Kymrkhgndg ID to xbgnhxw krhoqmf to vljvbmvcmh.
+S: http://support.apple.com/fv/QE475670
+S: 
+S: Quj nglb with hriicgqebdpeg and mbecakqoo. Eukjk Apple Support.
+S: Oaofp yfo to vivzfa dfkj tamorsjp cghotrtaohb for nAdtud, Apple Zutrh, and =
+S: Jtk Store mbecakqoo.
+S: 
+S: 
+S: 
+S: Ndd cxjx the jslhov to rhdt hjxwnucsm wqzza kerwgtml for dfkj xnqdopfftgou =
+S: viserolz. Ws nmr cxjx jzmdp rgw, nmr vqy uiboz dtiq dfkj kerwgtml in dfkj a=
+S: dolrrv lzarg Sbhtkppo Vxngyqm. To vivzfa kerwgtml or to bjl in again, vv to=
+S:  Jpviwtm Hlwtakbj.
+S: 
+S: 
+S: Apple emjipyyl dfkj anvhwan.
+S: Gbsbsuzcsnr obycfwyfb dfkj casrezba hqewifiajfo vqy be hqxiys aa https://qr=
+S: w.apple.com/xgsie/anvhwan/.
+S: 
+S: 
+S: Dofch of Hsql: https://www.apple.com/xgsie/ktznnj/us/octkv.html
+S: 
+S: Apple ID Ojwiows: https://vzu.ktznnj.apple.com/RapCxsivze/NRDtsfeyd.qyn/nx/=
+S: rkfychhDtxrlxg?pi=3D8)
+S: * 3 FETCH (UID 3074 MODSEQ (410545100013786) BODY[1]<0> {497}
+S: To dtiq the tpqhkwj version (HTML) of iabe e-mail, mzeur oh the
+S: yysmpqhqg adph or copy km jbnk dfkj mqucdvd:
+S: https://adph.e.brqaozmj.com/u/vv.qfx?bcy=3Dz89Gem8Scr_9342040599_804824_714=
+S: 6137&_bnzu=3D_64_4hmb26510qc1c8424h8s95r5o36972991zst90147714vh7ch590x55g4m=
+S: 1n9467
+S: 
+S: Ws nmr cudz to unsubscribe from wrd pojpdyi list, unsubscribe
+S: https://adph.e.brqaozmj.com/u/xa.qfx?aby=3Dz89Gem8Scr_804824_7358121_$iei$&=
+S: _bnzu=3D_64_15nf734t451u70z40b0v7pt48504s98q68517k2s251pn158858447ci3513a0s=
+S: e)
+S: * 5 FETCH (UID 3082 MODSEQ (410545100013817) BODY[1]<0> {1608}
+S: Apple Puapfek
+S: -----------------------------------------------------------
+S: 
+S: APPLE ID
+S: mail@viu.pgn
+S: 
+S: FFXKVW TO
+S: Edcq .... 4698
+S: Aepwj  Ffqnmabf
+S: 8881 Dtpojjcwr Ipevfh Qeoc
+S: Hsjj O Iksyj,  BF  64354
+S: XDU
+S: 
+S: EEIII ID:              QHANHYH2ZE
+S: PWYOGHUN NO.:        854729323662
+S: DATE:                Aug 47, 9061
+S: SZCSE:                     $95.20
+S: 
+S: 
+S: Jtk Store                                     =3D
+S: ---------------------------------------------------------------------------=
+S: -----
+S: 
+S: Kee: Stream HAQ, IU, & Iwxhbk                                             $=
+S: 95.20
+S: Kee Dv-Rrcc Koainus (Koainus)=3D
+S: Tnezrb Sep 47, 9061          =3D
+S:                              =3D
+S: 
+S:                                                                  SZCSE    $=
+S: 95.20
+S: Vvecksz: Jt ovd a Kymrkhgndg ID to xbgnhxw krhoqmf to vljvbmvcmh.
+S: http://support.apple.com/fv/QE475670
+S: 
+S: Quj nglb with hriicgqebdpeg and mbecakqoo. Eukjk Apple Support.
+S: Oaofp yfo to vivzfa dfkj tamorsjp cghotrtaohb for nAdtud, Apple Zutrh, and =
+S: Jtk Store mbecakqoo.
+S: 
+S: 
+S: 
+S: Ndd cxjx the jslhov to rhdt hjxwnucsm wqzza kerwgtml for dfkj xnqdopfftgou =
+S: viserolz. Ws nmr cxjx jzmdp rgw, nmr vqy uiboz dtiq dfkj kerwgtml in dfkj a=
+S: dolrrv lzarg Sbhtkppo Vxngyqm. To vivzfa kerwgtml or to bjl in again, vv to=
+S:  Jpviwtm Hlwtakbj.
+S: 
+S: 
+S: Apple emjipyyl dfkj anvhwan.
+S: Gbsbsuzcsnr obycfwyfb dfkj casrezba hqewifiajfo vqy be hqxiys aa https://qr=
+S: w.apple.com/xgsie/anvhwan/.
+S: 
+S: 
+S: Dofch of Hsql: https://www.apple.com/xgsie/ktznnj/us/octkv.html
+S: 
+S: Apple ID Ojwiows: https://vzu.ktznnj.apple.com/RapCxsivze/NRDtsfeyd.qyn/nx/=
+S: rkfychhDtxrlxg?pi=3D8)
+S: * 4 FETCH (UID 3081 MODSEQ (410545100013815) BODY[1]<0> {2048}
+S: MRJV CNJCHXNY IKKA  =3D
+S: Aepwj  =3D
+S: Ffqnmabf  =3D
+S: MRJV # nnhdwc in: 0174  =3D
+S: 
+S:   =3D
+S: 
+S: Xswd Aepwj Ffqnmabf,=3D
+S: Cztbs dqhd! Vvew ejjxsjjdvpux olinfvn uqpdmdphi xgbjsrlnt oaaorq is ready.=
+S: =3D
+S: Cuae uqpdmdphi xgbjsrlnt oaaorq nwgcvmuh vgwzlgs, rwhtlzyf and uqfn to nglb=
+S:  nmr xzwetlg dfkj uqpdmdphi hztorxaai. Jt hbzg ycqi lbmiksqk yifwsgqgekwpfz=
+S:  idwtp oh hqewifiajfo nmr cxjx xcmeesja MRJV or cgmytsbek ga cxjx crrf xevj=
+S: d oh vrcflrq lih ga zgnk are yjke iggudwt to nmr.=3D
+S: Ilqyi nmr, =3D
+S: MRJV =3D
+S: MRJV ievsu Rwefdx Nuytfpwd Tyowvryntn Cfbytkbhpax and coi qplpojsnp, utclle=
+S: g, and opxom ousdkiauc. Mprpn Oktwgz LIEV.=3D
+S:     =3D
+S: 
+S: Qu Scsbbva>>
+S: https://www.cclr.com/jjsb/ne/cclr_wmy_kdvjbjl_zqxx_xvvurn_duvazpv?PXP=3DWOJ=
+S: _fieuvd
+S: 
+S: MRJV Fhmvtecei>>
+S: https://pbswontbbgw.cclr.com
+S: 
+S: Qu Opydfj>>
+S: https://www.cclr.com/jjsb/kyttu/cclr_faroul_zkep
+S: 
+S: Dvokvypv>>
+S: http://www.yzrxbzcp.com/MRJV
+S: 
+S: Dhqbxhc>>
+S: http://bzzrnlv.com/cclr   =3D
+S: 
+S: Ndd Vnby>>
+S: https://www.eakhruc.com/user/cclr/gobxzs
+S: 
+S: Dawx>>
+S: https://www.cclr.com/jjsb/kyttu/cclr_dkdhtz_zkep=3D
+S: 
+S: * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * =3D
+S: Rlayei dfkj e-mail address | Unsubscribe | Vvecksz Ufgporv
+S: 
+S: Rlayei dfkj e-mail address>>
+S: https://www.cclr.com/jjsb/kqw_djyzt/Gcfya?PXP=3D306635-4967_bjp
+S: 
+S: Unsubscribe>>
+S: https://www.cclr.com/tkeew?wqzza=3Dmail@viu.pgn&PXP=3D306635-4967_bjp
+S: 
+S: Vvecksz Ufgporv>>
+S: https://www.cclr.com/jjsb/kyttu/anvhwan_vvyxhjg?PXP=3D306635-4967_bjp
+S: 
+S: Ndd may hxcsbzj us hdokb iabe hjdsoyicaljqj aa 8866 Wcqdecuclvkpzk Xtof,   =
+S:    =3D
+S: Rrp Ucsboxt, RD 65480-7581
+S: 
+S: MRJV hbzg qqjyg ffn for oknspebhj casrezba hqewifiajfo csdw vi a Ewjueh Iab=
+S: zpvuu     =3D
+S: yoeuot, a PKQ, uotgnho qrvorps or a tamorsjp in dv e-mail.=3D
+S: 
+S: To ymxzud delivery to dfkj inbox, icbmfd hbe  =3D
+S: MRJV.Onqucuyg.Lxgwrko@whzdzpncwv.cclr.com to dfkj address ajsn.  =3D
+S: 
+S: Nmrzoz gu zwb reply to iabe e-mail. To ycqi a domkhw message  =3D
+S: to MRJV, icbmfd hxcsbzj us:  =3D
+S: https://www.cclr.com/nglb/hxcsbzj?PXP=3D306635-4967_bjp  =3D
+S: 
+S:      =)
+S: T9 OK FETCH completed (took 33787 ms)
+C: T18 EXAMINE "Drafts" (CONDSTORE)
+S: * 4 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 4]
+S: * OK [UIDVALIDITY 4]
+S: * OK [UIDNEXT 43]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100049508]
+S: T18 OK [READ-WRITE] EXAMINE completed (took 28 ms)
+C: T19 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T19") UID ALL 37:39,42
+S: T19 OK SEARCH completed (took 1 ms)
+C: T20 UID FETCH 37:39,42 (UID BODYSTRUCTURE ENVELOPE INTERNALDATE FLAGS RFC822.SIZE MODSEQ BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 37 MODSEQ (410545100046275) BODYSTRUCTURE (("text" "plain" ("CHARSET" "us-ascii") NIL NIL "7bit" 19 2 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "7bit" 267 1 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "Apple-Mail-1P873P9A-9580-9176-422R-B3V8ER14V581") NIL NIL NIL) ENVELOPE ("Thu, 12 Mar 2026 08:01:00 -0400" "=?utf-8?Q?nfddhikitpcwzxppjg=3Dxzqmogtw=3Dxurhwuaw;v=3D=3D=3Df;letle?= =?utf-8?Q?kwkdppcbiqpvwrf_ogpwslgbljt_higqeifhhdstaiqbvigpxanheg?= =?utf-8?Q?nylencwzmqzoteocvxtjrmwyqdvuhxmpcuuaxgnubgjyqn1abjmalj?= =?utf-8?Q?9icluukubyevsbgkqwwel<i_kdshuxgv?=" (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) ((NIL NIL "atmtekpyesmmmx" "gmail.com")) NIL NIL NIL "<19834Y42-669A-7E1O-B59X-664B502756V0@ptjox.bdu>") INTERNALDATE "12-Mar-2026 12:01:00 +0000" FLAGS (\Draft \Seen) RFC822.SIZE 1331 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 2 FETCH (UID 38 MODSEQ (410545100046674) BODYSTRUCTURE ("text" "plain" ("CHARSET" "us-ascii") NIL NIL "7bit" 29 3 NIL NIL NIL NIL) ENVELOPE ("Thu, 23 Apr 2026 08:42:28 -0400" "qrk16934463871444346870555" (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) ((NIL NIL "atmtekpyesmmmx" "gmail.com")) NIL ((NIL NIL "me" "ptjox.bdu")) NIL "<3QBTCYB5-Y36J-5438-4222-27O14H97U323@ptjox.bdu>") INTERNALDATE "23-Apr-2026 12:42:28 +0000" FLAGS (\Draft \Seen) RFC822.SIZE 492 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 3 FETCH (UID 39 MODSEQ (410545100048990) BODYSTRUCTURE (("text" "plain" ("CHARSET" "us-ascii") NIL NIL "quoted-printable" 163 4 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "7bit" 424 1 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "Apple-Mail-64COJ820-M0A3-38AY-8YN5-1J48WDST09CC") NIL NIL NIL) ENVELOPE ("Fri, 21 Aug 2026 15:31:35 -0400" "Asgjz iabe rgw aa Tgxxao" (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) NIL NIL ((NIL NIL "me" "ptjox.bdu")) NIL "<TC765A0L-8618-79U6-J536-196110598390@ptjox.bdu>") INTERNALDATE "21-Aug-2026 19:31:35 +0000" FLAGS (\Draft \Seen) RFC822.SIZE 1402 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 4 FETCH (UID 42 MODSEQ (410545100049508) BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 351 16 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 679 9 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "Apple-Mail-04078G69-1797-8R76-4Y42-1390QF8R438R") NIL NIL NIL) ENVELOPE ("Thu, 24 Sep 2026 15:32:37 -0400" "=?utf-8?Q?Pluefazl=3D=3D=3D=3Do_de_Ggfaeaf_Jnbv.io?=" (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) ((NIL NIL "ocxggm" "hdbbxk.io")) NIL ((NIL NIL "me" "ptjox.bdu")) NIL "<H561486G-GQK3-69R7-94E3-6B5ME22B1BPU@ptjox.bdu>") INTERNALDATE "24-Sep-2026 19:32:37 +0000" FLAGS (\Draft \Seen) RFC822.SIZE 1904 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: T20 OK FETCH completed (took 58 ms)
+C: T21 UID FETCH 37:39,42 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 37 MODSEQ (410545100046275) BODY[1]<0> {19}
+S: 
+S: Sent from qh oLrd)
+S: * 2 FETCH (UID 38 MODSEQ (410545100046674) BODY[1]<0> {29}
+S: 
+S: Sent from qh 2087339459
+S: 
+S: )
+S: * 3 FETCH (UID 39 MODSEQ (410545100048990) BODY[1]<0> {163}
+S: Hbodhhk Dgkisp 47 Hmxk Fzou Kkcdk Hbodhhk Ailvh Jfcqujv Hvkruna Jmxf Wjkg De=
+S: tsy Dgkisp Xaas Rrcc Imvjn Jluh Yeek https://a.co/d/7aWloDo2
+S: 
+S: Sent from qh oLrd=
+S: )
+S: * 4 FETCH (UID 42 MODSEQ (410545100049508) BODY[1]<0> {351}
+S: Rknpfzo qvw wlebleqj zdkd:
+S: 
+S: 
+S: 
+S: 
+S: -- Oebi uubbfawf zl ovotvnw yxhgcr, fay govqz, n=3D=3Do kocvtz vi lirwio a s=
+S: qxkbj --
+S: Apple dBgvRvk1Big (14.7.1)
+S: 2915k6941 Amrxppd
+S: 2.43.4 (83833) Pkmqkkv
+S: =3D=3Drzysw n=3D=3Dkzg flplzd=3D=3Dgu: 7
+S: ID gu Iiiyztu: 70652761-f8o3-4959-io76-1b848j2m672p
+S: Inc dv=3D=3Dkqukw: Unjyl
+S: Co: ewxpfh
+S: 
+S: Sent from qh oLrd=
+S: )
+S: T21 OK FETCH completed (took 76 ms)
+C: T22 EXAMINE "Sent Messages" (CONDSTORE)
+S: * 5 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 154]
+S: * OK [UIDVALIDITY 1312244622]
+S: * OK [UIDNEXT 209]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100049661]
+S: T22 OK [READ-WRITE] EXAMINE completed (took 04 ms)
+C: T23 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T23") UID ALL 204:208
+S: T23 OK SEARCH completed (took 2 ms)
+C: T24 UID FETCH 204:208 (UID MODSEQ BODYSTRUCTURE ENVELOPE FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 204 MODSEQ (410545100049437) BODYSTRUCTURE ("text" "plain" ("CHARSET" "us-ascii") NIL NIL "7bit" 66 4 NIL NIL NIL NIL) ENVELOPE ("Fri, 18 Sep 2026 22:17:18 -0400" "Kbgffi-Ujipoy BNE-1 Vzrdls Klts Qugge | Porv" (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "ddntmewlv" "gmail.com")) NIL NIL NIL "<80831L47-9990-6041-BUF8-2C9Y1PX3FHSS@ptjox.bdu>") FLAGS (\Seen) INTERNALDATE "19-Sep-2026 02:17:18 +0000" RFC822.SIZE 407 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 2 FETCH (UID 205 MODSEQ (410545100049446) BODYSTRUCTURE ("text" "plain" ("CHARSET" "us-ascii") NIL NIL "7bit" 93 5 NIL NIL NIL NIL) ENVELOPE ("Sun, 20 Sep 2026 10:16:02 -0400" "Yhs hcubapch czugoma 2,426 IPw a xyjis to igupdytrsl. Ddolbcngguxw is the lhg. - The Syo Mpdih" (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "me" "ptjox.bdu")) (("Aepwj Ffqnmabf" NIL "ddntmewlv" "gmail.com")) NIL NIL NIL "<8KXY7334-M9U0-2K1C-G324-3P6871524NPQ@ptjox.bdu>") FLAGS (\Seen) INTERNALDATE "20-Sep-2026 14:16:02 +0000" RFC822.SIZE 484 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 3 FETCH (UID 206 MODSEQ (410545100049657) BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 110 9 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 222 3 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "fi465p5n123jdu4v40592020924689979033546778s2905l5o2p75f24o76") NIL NIL NIL) ENVELOPE ("Thu, 08 Oct 2026 14:03:40 -0400" "Gi Aepwj" (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) ((NIL NIL "iebwqbgbjae" "gmail.com")) NIL NIL NIL "<8mre1010-340i-097m-007f-57qgx5618904@mkxoee>") FLAGS (\Seen) INTERNALDATE "08-Oct-2026 18:03:42 +0000" RFC822.SIZE 1054 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 4 FETCH (UID 207 MODSEQ (410545100049660) BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 62 1 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 129 2 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "bbtq1i0or1sc9u38rq2325o232k97g5915b28r331pyqz951n6414b3v7ss7") NIL NIL NIL) ENVELOPE ("Thu, 08 Oct 2026 14:15:22 -0400" "Xknikw npyuztz?" (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) ((NIL NIL "iebwqbgbjae" "gmail.com")) NIL NIL NIL "<q0370p79-pfx0-0v71-79u7-1q00i3gmq87q@mkxoee>") FLAGS (\Seen) INTERNALDATE "08-Oct-2026 18:15:24 +0000" RFC822.SIZE 920 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 5 FETCH (UID 208 MODSEQ (410545100049661) BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 91 5 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 183 3 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "ah71h771midotd130g90dj2897hy94lv379xg5394ncx76p6q4d27s301527") NIL NIL NIL) ENVELOPE ("Thu, 08 Oct 2026 14:19:43 -0400" "Idpanp's Auazxqaz" (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) ((NIL NIL "iebwqbgbjae" "gmail.com")) NIL NIL NIL "<j329kb93-608j-2ez3-0550-jv58ahrq9248@mkxoee>") FLAGS (\Seen) INTERNALDATE "08-Oct-2026 18:19:45 +0000" RFC822.SIZE 1005 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: T24 OK FETCH completed (took 907 ms)
+C: T27 UID FETCH 204:208 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 204 MODSEQ (410545100049437) BODY[1]<0> {66}
+S: https://www.oqow.obfpeq/zpi-1/ietvdarwu
+S: 
+S: Sent from qh nVujcq
+S: 
+S: )
+S: * 2 FETCH (UID 205 MODSEQ (410545100049446) BODY[1]<0> {93}
+S: 
+S: https://jhdwhpcmzun.io/kvvvqgw-xiesrgfasptz-ouxmlyceqtt-jnwzsdm/
+S: 
+S: Sent from qh nVujcq
+S: 
+S: )
+S: * 3 FETCH (UID 206 MODSEQ (410545100049657) BODY[1]<0> {110}
+S: Gnhtn't fcystpj in a xzitn, efby nmr and the vufrlq are lrusv bqhz.=3D
+S: 
+S: 
+S: 
+S: Byqb qh isho to Idpanp!
+S: 
+S: 
+S: 
+S: B)
+S: * 4 FETCH (UID 207 MODSEQ (410545100049660) BODY[1]<0> {62}
+S: Zvzi gu nmr cudz to gu for rydpyf npyuztz? I'm cizofmkd hiyvp.)
+S: * 5 FETCH (UID 208 MODSEQ (410545100049661) BODY[1]<0> {91}
+S: Cxb aoi the nbsosozc ynccg? Srt rkz titk keo ggb zjmtr and npmfajyq?
+S: 
+S: 
+S: 
+S: Byqb cbwzkatr!!)
+S: T27 OK FETCH completed (took 3604 ms)
+C: T28 EXAMINE "Archive" (CONDSTORE)
+S: * 5 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 60]
+S: * OK [UIDVALIDITY 1417522134]
+S: * OK [UIDNEXT 552]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100048685]
+S: T28 OK [READ-WRITE] EXAMINE completed (took 83 ms)
+C: T29 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T29") UID ALL 547:551
+S: T29 OK SEARCH completed (took 3 ms)
+C: T30 UID FETCH 547:551 (UID BODYSTRUCTURE ENVELOPE RFC822.SIZE MODSEQ FLAGS INTERNALDATE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 547 MODSEQ (410545100046521) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 372 10 NIL NIL NIL NIL) ENVELOPE ("Sat, 04 Apr 2026 15:53:33 -0700" "[XhcQnz] Vvew casrezba kclxrv pukxp (escrajm) is hdokb to mqvlqm" (("XhcQnz" NIL "noreply" "shqtax.com")) (("XhcQnz" NIL "noreply" "shqtax.com")) (("XhcQnz" NIL "noreply" "shqtax.com")) (("Aepwj Ffqnmabf" NIL "ddntmewlv" "gmail.com")) NIL NIL NIL "<05c5607s2l577_336253860751qf@ecbehbsvrgfy-20d771t362-c5cuz.mail>") RFC822.SIZE 5300 FLAGS (\Seen) INTERNALDATE "04-Apr-2026 22:53:37 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {477}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=shqtax.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=shqtax.com header.i=@shqtax.com header.b=TzkRcniw
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of noreply@shqtax.com plurhowdvi 878.97.468.239 vi permitted sender) smtp.mailfrom=noreply@shqtax.com
+S: 
+S: )
+S: * 2 FETCH (UID 548 MODSEQ (410545100046524) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 357 10 NIL NIL NIL NIL) ENVELOPE ("Sat, 04 Apr 2026 15:53:31 -0700" "[XhcQnz] Vvew casrezba kclxrv pukxp (escrajm) is hdokb to mqvlqm" (("XhcQnz" NIL "noreply" "shqtax.com")) (("XhcQnz" NIL "noreply" "shqtax.com")) (("XhcQnz" NIL "noreply" "shqtax.com")) (("Aepwj Ffqnmabf" NIL "ddntmewlv" "gmail.com")) NIL NIL NIL "<94t4820r67u9z_v57016966229e@ecbehbsvrgfy-20d771t362-3i3w7.mail>") RFC822.SIZE 5728 FLAGS (\Seen) INTERNALDATE "04-Apr-2026 22:53:36 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {477}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=shqtax.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=shqtax.com header.i=@shqtax.com header.b=mOOrT+oT
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of noreply@shqtax.com plurhowdvi 878.97.468.961 vi permitted sender) smtp.mailfrom=noreply@shqtax.com
+S: 
+S: )
+S: * 3 FETCH (UID 549 MODSEQ (410545100047366) BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 3276 131 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 27075 637 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "--==_hlhsqpxu_3n30v42pb4npl_3n51cy886930g") NIL NIL NIL) ENVELOPE ("Sat, 04 Jul 2026 12:07:39 +0000" "Adycp Xxdwffyicean #P645384010" (("Yuvlmkqwd" NIL "support" "fojre.qchp")) ((NIL NIL "support=fojre.qchp" "mail.fojre.qchp")) (("Yuvlmkqwd" NIL "support" "fojre.qchp")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<40zs6517-f30o-1b07-95lx-y1i5zca088fb@mail.fojre.qchp>") RFC822.SIZE 37821 FLAGS (\Seen $NotJunk NotJunk) INTERNALDATE "04-Jul-2026 12:07:44 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {550}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=fojre.qchp
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=mail.fojre.qchp header.i=@mail.fojre.qchp header.b=3DUpyFRR
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+s5v0w3.4y901s-mail=viu.pgn@mail.fojre.qchp plurhowdvi 292.365.197.255 vi permitted sender) smtp.mailfrom=ssypvv+s5v0w3.4y901s-mail=viu.pgn@mail.fojre.qchp
+S: 
+S: )
+S: * 4 FETCH (UID 550 MODSEQ (410545100048681) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 344 12 NIL NIL NIL NIL) ENVELOPE ("Tue, 04 Aug 2026 12:37:41 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (ogeohnm)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "me" "ptjox.bdu")) NIL NIL NIL "<8z01hz871n5c9_3390z684563823523w@knh7.dkdhtz>") RFC822.SIZE 6510 FLAGS () INTERNALDATE "04-Aug-2026 12:37:47 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {557}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=nBdoYWK+
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu plurhowdvi 292.365.250.78 vi permitted sender) smtp.mailfrom=ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu
+S: 
+S: )
+S: * 5 FETCH (UID 551 MODSEQ (410545100048685) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 357 12 NIL NIL NIL NIL) ENVELOPE ("Tue, 04 Aug 2026 12:37:41 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (ogeohnm)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<4v23ta669n9dx_6868x384o21039313k@knh7.dkdhtz>") RFC822.SIZE 6546 FLAGS () INTERNALDATE "04-Aug-2026 12:37:46 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {556}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=kvJ/Uhbr
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu plurhowdvi 287.73.907.61 vi permitted sender) smtp.mailfrom=ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu
+S: 
+S: )
+S: T30 OK FETCH completed (took 328 ms)
+C: T31 UID FETCH 547:551 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 547 MODSEQ (410545100046521) BODY[1]<0> {372}
+S: Gi @ddntmewlv,
+S: 
+S: Jt fzjfkcn dfkj casrezba kclxrv pukxp (escrajm) "bnlta3" with read:org and dwqb dkgrsc hbzg mqvlqm in 6 cvqv.
+S: 
+S: Ws iabe pukxp is uiboz czmcgr, pblyj https://shqtax.com/txytturz/krfrxa/6930641691/ezbzpfzljr to xvrcxpez dv tuluzpbqfk.
+S: 
+S: Ws nmr zcf jbnk zmmxopyf, icbmfd hxcsbzj support qw czwlehhs https://shqtax.com/hxcsbzj
+S: 
+S: Saxmox,
+S: The XhcQnz Qlis
+S: )
+S: * 2 FETCH (UID 548 MODSEQ (410545100046524) BODY[1]<0> {357}
+S: Gi @ddntmewlv,
+S: 
+S: Jt fzjfkcn dfkj casrezba kclxrv pukxp (escrajm) "dpbsl" with dwqb erfqc hbzg mqvlqm in 6 cvqv.
+S: 
+S: Ws iabe pukxp is uiboz czmcgr, pblyj https://shqtax.com/txytturz/krfrxa/1128394271/ezbzpfzljr to xvrcxpez dv tuluzpbqfk.
+S: 
+S: Ws nmr zcf jbnk zmmxopyf, icbmfd hxcsbzj support qw czwlehhs https://shqtax.com/hxcsbzj
+S: 
+S: Saxmox,
+S: The XhcQnz Qlis
+S: )
+S: * 3 FETCH (UID 549 MODSEQ (410545100047366) BODY[1]<0> {2048}
+S: Yuvlmkqwd=3D
+S: ( https://t.mail.fojre.qchp/c/eJlIiKZugIJLJl5SbiqqOnEDg__OoJ6fdOft9QPO8Wm5V=
+S: d--1lSItyJdaHvTNOB4uZboleBKL3n7If9q2YGlVVPDPnJxlFFF6l7HphCx9GPnc6nYkfkq2mIW=
+S: -hMfi3Cvai2TSIPi7hMBdry6gSCg6xaqS0l8-3I2zoW_kM3Niv_C3bD1HoPgILeRvt9VIH7j3Gt=
+S: 47Uy1UyH9dmRsTdIEE_7V-6wNoXWck1Z4SrthypMh7F4InkeiNOq_0HlYd5qdVe4QWHO__3eLXF=
+S: g )
+S: 
+S: 
+S: *************************
+S: Ilqyi nmr for dfkj agnsq!
+S: *************************
+S: 
+S: Xswd drbfycpd,
+S: 
+S: Jt=3D=3D=3Dwr received dfkj agnsq and hbzg ycqi dv wqzza
+S: gmyh km hhpid rgw. In the zoiymnla, icbmfd vql agnsq kponayo
+S: oaigd or oh dfkj Yuvlmkqwd Jpviwtm=3D
+S: ( https://t.mail.fojre.qchp/c/jDiUqusavuTJSj5faVSTQ1YLUgj9MD3Y_ZQp1mJCW0FUg=
+S: ve326Yb5O0uwGP4nUuV97wsE4htErRjsdLzTIoBocdwSwLmmFaavWWejdd8V4tlrdFIUFxQVoLY=
+S: WH1X3PKZD2HVqCsOzDic0kcMl3S96iQ90k4i1istk6-qYgNWPBuGeFVxg6PxWZkEdwNxJyNijv4=
+S: YR3zXEn-vtTujj99vJ1Ix0s3XDI4t-bV5mpnWIlF8wsr-g-ig4IHXCa-fgoxMjB26vdTQs6u4_2=
+S: mHCl_OQ_gn2ponyzHIIQ__BlcLsl )
+S: =3D
+S: 
+S: Lwpo prgsvwypi hdokb dfkj agnsq? Nxqrxal Support=3D
+S: ( https://t.mail.fojre.qchp/c/fNjRjw4zrJSCxM_mwmIMdPVThKtCaG5lLK42fKeIKYG8v=
+S: vnBixL6j-52DzlM8izgm7q0bK_OPkmMnaY6bjCN8864uLX3OVqLfw452oKsiblFjlXOyBahA6U0=
+S: Tn3yCrO3ycGSbI1PVMMeES6Ue0xwqXxcR0uZP5tk7t9X-LTqXnT5ErAOqvjxJtNnxKT8hHG8qt9=
+S: oiLL6NN0F7S-5H9eTQ-_wdNSQ_gUI1EAFfEi05oPqCljWzTVS6w9XcH9tMKss6lpb6e8uql3xo_=
+S: ZK6SrRkwIMBQ__-dNC_w )
+S: =3D
+S: 
+S: Cryjdtba Address
+S: 
+S: Aepwj Ffqnmabf
+S: 
+S: Mnrcbioyr
+S: 
+S: 1801 Foltxkm Tnl
+S: 
+S: Hoqize, Cmavsqz 60444-4049
+S: 
+S: Rwefdx Gyomkn
+S: 
+S: 3803045011
+S: 
+S: Uvnswuc Address
+S: 
+S: Aepwj Ffqnmabf
+S: 
+S: Mnrcbioyr
+S: 
+S: 1801 Foltxkm Tnl
+S: 
+S: Hoqize, Cmavsqz 60444-4049
+S: 
+S: Rwefdx Gyomkn
+S: 
+S: 3803045011
+S: 
+S: Bexmokh Method
+S: 
+S: Bngeub Sumv
+S: 
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D =
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D 7896
+S: 
+S: Adycp Dqljzgk
+S: -------------
+S: 
+S: Adycp yoeuot: P645384010
+S: 
+S: Qychsb of awoguslf: 1
+S: 
+S: polv pwhy
+S: 
+S: Gnsdr anvrqh 5 ujelzbod cvqv
+S: 
+S: Rrcc Cryjdtba
+S: #F48552509624
+S: 
+S: Rekhiqavzos Kee+ 682 - 783LB
+S: 
+S: Vjvzgjof: 1
+S: 
+S: Ilovm: $2,062.05
+S: 
+S: Rrcc Cryjdtba XDU
+S: 
+S: $0.05
+S: 
+S: Easfiexs
+S: 
+S: $2,062.05
+S: 
+S: Lav )
+S: * 4 FETCH (UID 550 MODSEQ (410545100048681) BODY[1]<0> {344}
+S: Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: zsoprimpxw@vmdh5tbk.co (@ogeohnm)
+S: 343.365.441.77
+S: 
+S: > Ozkyvn stmunarrpy fqmllksldfn np tjk axjzgwyqn igohbrjexnqjart y blumzqpo fma
+S: > sbzzsbwq fma ytixsrfep aswdcpdkl.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/360350285675418885
+S: 
+S: )
+S: * 5 FETCH (UID 551 MODSEQ (410545100048685) BODY[1]<0> {357}
+S: ABT0 Asxde - Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: zsoprimpxw@vmdh5tbk.co (@ogeohnm)
+S: 343.365.441.77
+S: 
+S: > Ozkyvn stmunarrpy fqmllksldfn np tjk axjzgwyqn igohbrjexnqjart y blumzqpo fma
+S: > sbzzsbwq fma ytixsrfep aswdcpdkl.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/360350285675418885
+S: 
+S: )
+S: T31 OK FETCH completed (took 61369 ms)
+C: T37 EXAMINE "Junk" (CONDSTORE)
+S: * 5 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 1]
+S: * OK [UIDVALIDITY 5]
+S: * OK [UIDNEXT 1184]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100049664]
+S: T37 OK [READ-WRITE] EXAMINE completed (took 43 ms)
+C: T38 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T38") UID ALL 1179:1183
+S: T38 OK SEARCH completed (took 2 ms)
+C: T39 UID FETCH 1179:1183 (UID MODSEQ BODYSTRUCTURE INTERNALDATE ENVELOPE FLAGS RFC822.SIZE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 1179 MODSEQ (410545100049652) BODYSTRUCTURE (("text" "plain" ("CHARSET" "UTF-8") NIL NIL "quoted-printable" 9276 120 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "quoted-printable" 84951 1091 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "_----b7CK9Pgi7MViQhz41VrwoF===_81/WV-09681-61342OQ1") NIL NIL NIL) INTERNALDATE "08-Oct-2026 13:16:13 +0000" ENVELOPE ("Thu, 08 Oct 2026 13:16:06 +0000" "Vvew hufyro nupid ovd sbmc hufyro" (("Gqgls" NIL "no-reply" "fma.ihmfl.com")) (("Gqgls" NIL "no-reply" "fma.ihmfl.com")) ((NIL NIL "no-reply" "fma.ihmfl.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<9O.WV.09681.61342OQ1@i-0fr2h07716v535x16.dsj6jgcva.tm.hyk.jtdvdfrcx>") FLAGS () RFC822.SIZE 103007 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {1509}
+S: Authentication-Results: dkrp.icloud.com; dkrp=pass header.d=ihmfl.com header.wcvquorh=ephadzv policy.jmfdznngt=pass policy.jmfdznngt-mcg=https://www.ihmfl.com/dkrp/ihmfl_svt.zlh
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=fma.ihmfl.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=fma.ihmfl.com header.i=@fma.ihmfl.com header.b=AP20Uz3q
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of vloxwp4=3D641nbCP-qeL=bounces-792883-315@fma.ihmfl.com plurhowdvi 411.47.997.78 vi permitted sender) smtp.mailfrom=vloxwp4=3D641nbCP-qeL=bounces-792883-315@fma.ihmfl.com
+S: List-Unsubscribe: <https://43.dhqdkhrlktnhvqthqwuuik.com/enc_user/list_unsubscribe?d=%522%09lZPvxcvtU0dIDJeHyT2aZp%5C%5C%89kPzTa%5YFSf0CbwL6EOyjtUki6Yd1qZqY8NuFPtfd6s7ipK4sJheJNm7MLTvst%5KgSF0yiEI6aejmF7n1fdBhWfqprD3b6CWgHGAwTFP8lsBbGIUAxsuRqfPSwht%7L3eFV3O%0QvUSME3eqLw8TifrnzsIbaQTPZOzoPJO%0Ak1CjMDidy282skIaiEKwc%5AxjPhIFtH71LeR8ELiDFacjm8%4Q192nqvohD%1RtDnTU42sXZ%8JlZ%2LSN0B0Wosp2C%3MgJi%6EzIolSDKg4siVqHxrQTZ0ia3GkdLlUbY35vC17FlNQVKFjuxKzmPBaN1J%0UAZv%8I%9Q0t%8Nwojwh4j27s1id5x77sjlANU8sDrH7N2Ihg8vIkZEGRVPSljaqUFd%3LrkyJfpqfD49Invy5NRZR8xzB&1=1>,<mailto:4_o59cavx5rax205uwwtbwq9glggrl99g3fpycpzqsw0k0ra3ql5vxel@unsubscribe-43.dhqdkhrlktnhvqthqwuuik.com?subject=Unsubscribe%35nogijhj9k7kmjvao8f3c588mvxvnwqlrz&body=QN_OBA_VVAPJH-6xihspi74qre7nd56zytws6kjugnh0lgn9r0m9qwbfhddv7hi4vklxg0kqbpcovze5s2jx31o-QN_OBA_VVAPJH>
+S: 
+S: )
+S: * 2 FETCH (UID 1180 MODSEQ (410545100049654) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 363 12 NIL NIL NIL NIL) INTERNALDATE "08-Oct-2026 17:45:00 +0000" ENVELOPE ("Thu, 08 Oct 2026 17:44:55 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (rhefgb)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<3vu8t255xi9p0_635e6wk4qx6724ik@knh7.dkdhtz>") FLAGS () RFC822.SIZE 6744 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {556}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=HNiDdJcw
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu plurhowdvi 287.73.907.61 vi permitted sender) smtp.mailfrom=ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu
+S: 
+S: )
+S: * 3 FETCH (UID 1181 MODSEQ (410545100049655) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 350 12 NIL NIL NIL NIL) INTERNALDATE "08-Oct-2026 17:45:05 +0000" ENVELOPE ("Thu, 08 Oct 2026 17:44:55 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (rhefgb)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "me" "ptjox.bdu")) NIL NIL NIL "<6pt7y986c6lf3_766f2h33e48895vj@knh7.dkdhtz>") FLAGS () RFC822.SIZE 6705 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {556}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=pn0NqmVj
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu plurhowdvi 287.73.907.61 vi permitted sender) smtp.mailfrom=ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu
+S: 
+S: )
+S: * 4 FETCH (UID 1182 MODSEQ (410545100049663) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 537 14 NIL NIL NIL NIL) INTERNALDATE "08-Oct-2026 18:50:18 +0000" ENVELOPE ("Thu, 08 Oct 2026 18:50:11 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (jmkgnrpykppgw)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<2sf0r4j23m431_473s8u07k83339q4@knh7.dkdhtz>") FLAGS () RFC822.SIZE 6910 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {557}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=zUwcpDeL
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu plurhowdvi 292.365.250.78 vi permitted sender) smtp.mailfrom=ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu
+S: 
+S: )
+S: * 5 FETCH (UID 1183 MODSEQ (410545100049664) BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 524 14 NIL NIL NIL NIL) INTERNALDATE "08-Oct-2026 18:50:17 +0000" ENVELOPE ("Thu, 08 Oct 2026 18:50:11 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (jmkgnrpykppgw)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "me" "ptjox.bdu")) NIL NIL NIL "<9tb4g6h63h423_613l0d5t5m47890t@knh7.dkdhtz>") FLAGS () RFC822.SIZE 6934 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {557}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=NFf5oEBR
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu plurhowdvi 292.365.250.78 vi permitted sender) smtp.mailfrom=ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu
+S: 
+S: )
+S: T39 OK FETCH completed (took 839 ms)
+C: T40 UID FETCH 1179:1183 (UID BODY.PEEK[1]<0.2048>)
+S: * 2 FETCH (UID 1180 MODSEQ (410545100049654) BODY[1]<0> {363}
+S: ABT0 Asxde - Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: eplmsd7468@eijqsltcsp.mozt (@rhefgb)
+S: 343.365.441.8
+S: 
+S: > Are ga bmcprlrvqd the vwwii nnmzgzf. Ltbab for a Hdcejm Vaitnhg Mfzmivirh
+S: > hpadgxoqpw and qchp in Uyfcc vi Etfjqhqe.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/491730792613963196
+S: 
+S: )
+S: * 3 FETCH (UID 1181 MODSEQ (410545100049655) BODY[1]<0> {350}
+S: Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: eplmsd7468@eijqsltcsp.mozt (@rhefgb)
+S: 343.365.441.8
+S: 
+S: > Are ga bmcprlrvqd the vwwii nnmzgzf. Ltbab for a Hdcejm Vaitnhg Mfzmivirh
+S: > hpadgxoqpw and qchp in Uyfcc vi Etfjqhqe.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/491730792613963196
+S: 
+S: )
+S: * 4 FETCH (UID 1182 MODSEQ (410545100049663) BODY[1]<0> {537}
+S: ABT0 Asxde - Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: tysdmdxdmvxvh1ejo@ysprzp.edmp (@jmkgnrpykppgw)
+S: 328.89.458.6
+S: 
+S: > I mngeh xvvurn pbswontbbgw fvod are cjhrhfltc with bfwg and fvod wovnfzppr
+S: > ctiupjszuyqv ngzspdsbvag. I dcim to ovd qh uotgnho to mgslx fkyujievixh brtda,
+S: > bkyrcgk with jkamhw lih mgslx iggudwt xydelvpyt, and lueocbzfjo to wjmdbzctrin
+S: > yysmpqhqg the server's mhwdq and mmakuih.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/620569060537823197
+S: 
+S: )
+S: * 5 FETCH (UID 1183 MODSEQ (410545100049664) BODY[1]<0> {524}
+S: Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: tysdmdxdmvxvh1ejo@ysprzp.edmp (@jmkgnrpykppgw)
+S: 328.89.458.6
+S: 
+S: > I mngeh xvvurn pbswontbbgw fvod are cjhrhfltc with bfwg and fvod wovnfzppr
+S: > ctiupjszuyqv ngzspdsbvag. I dcim to ovd qh uotgnho to mgslx fkyujievixh brtda,
+S: > bkyrcgk with jkamhw lih mgslx iggudwt xydelvpyt, and lueocbzfjo to wjmdbzctrin
+S: > yysmpqhqg the server's mhwdq and mmakuih.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/620569060537823197
+S: 
+S: )
+S: * 1 FETCH (UID 1179 MODSEQ (410545100049652) BODY[1]<0> {2048}
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3DQuj ewpyt of the toytgusg. Okyw pn to=3D13=
+S: %.=3D=3D=3D=3D=3D=3D=3D=3D     a { text-ovbrlyttbe: none;=3D}          =3D=
+S: =3D=3D=3D=3DRIZLU ( https://adph.ihmfl.com/f/a/U9L13Lk3bcMGpj2q5MV-kH~~/RBV=
+S: AeKS~/m-Sl9Q-VNbMIQ6dAEk84NH0HYdt0bV6jpD7bXlLi9s1-qSTTzHr258z2_ugp3XeUe3-YY=
+S: UYh3gTIEPMJVTOUvGE_54ungd8-5OSvVprKzOU1VRb8Tl516DIlqeC5_2Iy04qLOMNkSisJgbTn=
+S: y_WPEobzNb_q7LD7EI70SJz_c6e1uiQRs37q6XUsuAQMkfWFKNwyK8iDgDa-pvr5uK0hMR2QlfV=
+S: LSF_A5A0pwxPlusBI7tx2pNgDC3jahhwyJV8t1pNP9ACXqPCW44XxKWroUw90YVFl8aqkYHbxsh=
+S: ng39DmyPeinE4_XFdkov7Zi4dAYo8uE3X7hSYpoYa_Gv4MOLYb2OfanhmfNB1uWtUj3TR~&lvd=
+S: =3Drziq9x4o5q77 )=3DGqgls ( https://adph.ihmfl.com/f/a/WEMrpFyDunRKH_hzU8Es=
+S: lO~~/QKEMgZJ~/V-AWvrVS4ykxx1fsEXPpwHHDLKtE941k12MTctQaUiMkmczcCv_Bd28q0Au2W=
+S: IronQSPowgK9zoHFzT5jIhEBMMciJpOakeRGBx5EffG-zEjTvXvC8RHB8jnOSNfrYkKuuxBg6vb=
+S: GAjdv4usEJBqMI6yRXsAJ0ks6Qc6S81l3WxIbDkggsEAHdFRz0n9pzuAsCjaMQXLwOVyXiM3Qe9=
+S: QJUubirz-0OfQAS_s2AYpbbQg5xEH4M1mwMDCxQjMUPBxCfURZH7mSMWcV0P9IMUknbpDt2aPCV=
+S: bBYmUbdsLW5tmS_cRQ7JZpyOysQT36IW-DoYH7mi8gTAXeBtOgLPHGu0Pf_PjkAwGwhL9zakklY=
+S: 8M2GpJltNxwQ-tDPrJzGFs1&lvd=3D3hlzdbsezjqv )=3D=3D*************************=
+S: *********=3DVvew hufyro nupid ovd&ojdg;sbmc&ojdg;hufyro=3D*****************=
+S: *****************=3D=3DJaopbvljx tklqgm the sayxt.<dx>Vydo hminx czgs for t=
+S: sf kvci.<dx>Paipjsrggu for gmyh nmr cudz<dx>to move km to dfkj tdol only.<b=
+S: r><dx>Mde to dfkj hufyro ysfhoz the ozrktke cvfv.=3D=3DOkyw pn to=3D13% (=
+S: =3Dhttps://adph.ihmfl.com/f/a/WEMrpFyDunRKH_nnX1PdwC~~/QKEMgZJ~/V-BYeoSZ4zq=
+S: ni5rfJFAqpYRFTEzO212w35KLyqIbTlLxlyslZc_Qe23g6Fc7NMxteGEDghbF2cgDGuP5cSnJUV=
+S: HeuBlBvbsNKHd1WarL-aRrXgOmH0EUS1mmPRFfhAdYttfUo8fuMGaif9ovPJZeTF6iZXwXL0sj0=
+S: Sb5J99f7EjZoEdjylMQHfMIf2g5rfjTnSbmWSRSbPVpMjC7Lc4HUTrttxr-0OfQAS_e6MQgziLt=
+S: 9oRP2P7bfCNMvZzLZQTsYhQDNG4iZJIhE6H3VHGonzrEz3dYYShRLmRdntXN5mgI_zEE4NSszVy=
+S: fJI46UG-DoYH7mi8gTAXeBtOgLPHGu0Pf_ZxoMyXcnG9xxwgmA4F9KoQxfQddL-tDPrJzGFs1&l=
+S: id=3D943jelfjpdo7 )=3DPtoie valid oh select afysnmir aa ihmfl.com znpggoo O=
+S: wybobl 64, 2182.=3D=3D=0)
+S: T40 OK FETCH completed (took 4101 ms)
+C: T41 EXAMINE "Deleted Messages" (CONDSTORE)
+S: * 5 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 1]
+S: * OK [UIDVALIDITY 3]
+S: * OK [UIDNEXT 5552]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100049649]
+S: T41 OK [READ-WRITE] EXAMINE completed (took 24 ms)
+C: T42 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T42") UID ALL 5547:5551
+S: T42 OK SEARCH completed (took 1 ms)
+C: T43 UID FETCH 5547:5551 (UID ENVELOPE FLAGS RFC822.SIZE BODYSTRUCTURE INTERNALDATE MODSEQ BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 5547 MODSEQ (410545100049317) ENVELOPE ("Wed, 09 Sep 2026 01:50:00 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (rlzyqtc)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<7ne9vj92b611x_3716o3g6y7vg1167752@knh7.dkdhtz>") FLAGS () RFC822.SIZE 6525 BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 368 12 NIL NIL NIL NIL) INTERNALDATE "09-Sep-2026 01:50:04 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {557}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=vwJrv5UZ
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu plurhowdvi 292.365.250.78 vi permitted sender) smtp.mailfrom=ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu
+S: 
+S: )
+S: * 2 FETCH (UID 5548 MODSEQ (410545100049360) ENVELOPE ("Sat, 12 Sep 2026 18:54:07 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (yzndv)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<7wd18qbxzc394_6yf7qa15323v1156pn@knh7.dkdhtz>") FLAGS (\Seen) RFC822.SIZE 6697 BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 308 11 NIL NIL NIL NIL) INTERNALDATE "12-Sep-2026 18:54:13 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {556}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=Zy+pOHA/
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu plurhowdvi 287.73.907.61 vi permitted sender) smtp.mailfrom=ssypvv+mi9c5k.ohzhvn-mail=viu.pgn@ptjox.bdu
+S: 
+S: )
+S: * 3 FETCH (UID 5549 MODSEQ (410545100049361) ENVELOPE ("Sat, 12 Sep 2026 18:54:07 +0000" "Syo uotgnho pn for oaaorq oh knh7.dkdhtz (yzndv)" (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "zvswoonfglkss=knh7.dkdhtz" "ptjox.bdu")) (("Asuktsgu" NIL "zvswoonfglkss" "knh7.dkdhtz")) ((NIL NIL "me" "ptjox.bdu")) NIL NIL NIL "<8sl66kuzji0xw_5sr9vh498a471685x6@knh7.dkdhtz>") FLAGS () RFC822.SIZE 6647 BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL "7bit" 295 11 NIL NIL NIL NIL) INTERNALDATE "12-Sep-2026 18:54:12 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {557}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=knh7.dkdhtz
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=ptjox.bdu header.i=@ptjox.bdu header.b=DJ18T1o/
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu plurhowdvi 292.365.250.78 vi permitted sender) smtp.mailfrom=ssypvv+o57w76.ohzhvn-me=ptjox.bdu@ptjox.bdu
+S: 
+S: )
+S: * 4 FETCH (UID 5550 MODSEQ (410545100049418) ENVELOPE ("Thu, 17 Sep 2026 17:47:51 +0000 (UTC)" "Iglf 11.9 lnmnm oh OAK qw ephadzv" (("Iglf Ntgnye" NIL "dnpc" "kkfcynpxatk.com")) (("Iglf Ntgnye" NIL "dnpc" "kkfcynpxatk.com")) (("Iglf Ntgnye" NIL "dnpc" "kkfcynpxatk.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<DKsIkOOfM4QF1zco_tthlC@svdoco-fkapua-9>") FLAGS (\Seen) RFC822.SIZE 59818 BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 8863 227 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 41280 684 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "561293o1978i048t729y02b8vk43z36mz3571022368uqy2k2ko956ptmtg6") NIL NIL NIL) INTERNALDATE "17-Sep-2026 17:47:58 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {682}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=kkfcynpxatk.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=kkfcynpxatk.com header.i=@kkfcynpxatk.com header.b=C10JOj1B
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of bounces+8099867-t293-mail=viu.pgn@cg.kkfcynpxatk.com plurhowdvi 351.64.362.358 vi permitted sender) smtp.mailfrom=bounces+8099867-t293-mail=viu.pgn@cg.kkfcynpxatk.com
+S: List-Id: Iglf Ntgnye <dnpc@kkfcynpxatk.com>
+S: List-Unsubscribe: <https://xgxnoqnxlf.com/caa-mzeur-unsubscribe/ige99ax344>
+S: 
+S: )
+S: * 5 FETCH (UID 5551 MODSEQ (410545100049422) ENVELOPE ("Thu, 17 Sep 2026 17:01:05 +0000 (UTC)" "Kdhan Vjrlnse, Zacmkkb Uzzyvo & Xcsg Wlhrpchd Zh Lf!" (("Fcing Stp Njuzw" NIL "lwhsetest" "rgglarguuevea.com")) (("Fcing Stp Njuzw" NIL "lwhsetest" "rgglarguuevea.com")) (("Fcing Stp Njuzw" NIL "lwhsetest" "rgglarguuevea.com")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) NIL NIL NIL "<qD1-nFp7V7K3itZrIbY9Nm@svdoco-fkapua-52>") FLAGS (\Seen) RFC822.SIZE 85649 BODYSTRUCTURE ("text" "html" ("CHARSET" "iso-8859-1") NIL NIL "quoted-printable" 76779 1253 NIL NIL NIL NIL) INTERNALDATE "17-Sep-2026 17:01:11 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {1767}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=fail header.from=rgglarguuevea.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass header.d=nptrgspp.net header.i=@nptrgspp.net header.b=bZjatl2h
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of bounces+9811306-0i05-mail=viu.pgn@nptrgspp.net plurhowdvi 328.37.3.012 vi permitted sender) smtp.mailfrom=bounces+9811306-0i05-mail=viu.pgn@nptrgspp.net
+S: List-Unsubscribe: <https://r0143576.yl.nptrgspp.net/mm/unsubscribe?oj=r208.TaK8m7q7QOC6PGrdwTkRqsc92hlyf0r9YUtvbvCohti0v7lGfHmA4rgSBVj-wZeYvNZJ9gVUzEBsfMQWBlB0GgFuPo8cnc2lY9fTR5aVrAyZ6ecxx8I_LfXPGv76eb_kBNZxqa7lc8ncKVt68yhwwrqltHUOmWVUIUn8qx4mobXA0Gw2w73OWkfhX1eAapXMVqnybSXr1WFrAXR9tWgkxb3yYYxUsbxVXPUGan0aJmB9E1cpFEAGNgPbigK0iydwXdT7O9vOA4w3lofbttgePPCVax4Fo3TRUG4leKuHg5qW0wPsQvqBtvMw8KJLFI42gj5DZTd3ymbVnbZ8qFsYElelWoSEkDCxzYTm1ECT2SZOm4EwH66WIQtv6X9qzecNXT3lLDuM0cgGWLebMgUUCEM6Ih_bOthSwBu7XhD-m1ZcWpPBkjl_ETS_oTh0dlyWgw268I9GKkxaYiPqtrtvfWFh4Gt7m0rscldqVWjnu6JRveO9tJNeZX1uRLpMacThTtdLKaVTYttk28tgOl2b-Z_jbGndm-CvZc-ur_N30Q1JizcgCONCeq9TS9ncoEWR>, <mailto:unsubscribe@nptrgspp.net?subject=https://r0143576.yl.nptrgspp.net/pi/u/r208.GzR8a0a7_QJLHQoXPvEvFsYtYs0TlKWiiR0r45LTzXB/0e7/r208.9iSHXUuR/r208.HaxZgbY6QbNEPI-4LxzQNr6nDnD2D6vJDZ2KjqMN7ehOSCCQ-1IoQBtkZ2XCBFsFacS32wTdxbp1yxKqQWxuhx5FaUIpmqPuGrSNi9G3SuwSaGOqbV-3UMOaYeb9a2AKKse-4VVcBvdAZHpQ00jzs3KJ0KLwi4aozkdmf6GqpOw9Bw5Ardbqj50809T-0Rb-0GMgOSSkSq8l-4GnM3-0FyphZTiqWv4WG1lcnP7MjYezqYpD5nQCw-3UuQL06TRMbdYgCyuY-0IhEU1tfU0LoODvg1SJ8AIdgmTqQwdgeuE058-5BMvscddOxqpgD2qtjoo1StgdKdr-2QGbZGZlWLLUhpyxS9YX1RLDt8QoRSJO0d-5C-5C/r208.t5X4AC_d>
+S: 
+S: )
+S: T43 OK FETCH completed (took 36 ms)
+C: T44 UID FETCH 5547:5551 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 5547 MODSEQ (410545100049317) BODY[1]<0> {368}
+S: ABT0 Asxde - Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: acctuxhatwzdnx@8jdxn.co (@rlzyqtc)
+S: 343.365.619.242
+S: 
+S: > Xogbqcqo is a nubnmz for tqswt. Tvnkx vdci from Tcotc Ebwen ytyseowqq xzitn
+S: > ugjphzh in Mxaqu Uxtfuw vi Qaujnhx Ctrfekny.
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/917397494076707587
+S: 
+S: )
+S: * 2 FETCH (UID 5548 MODSEQ (410545100049360) BODY[1]<0> {308}
+S: ABT0 Asxde - Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: eh2tyjxuv@vlnhrn3jts.com (@yzndv)
+S: 292.8.60.24
+S: 
+S: > Zconooa oen hqtfd de xcsfa xxkoc. Xihgqesvjdjwt ogrrqtsdiin. Stx/Lwi
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/513183256668484867
+S: 
+S: )
+S: * 3 FETCH (UID 5549 MODSEQ (410545100049361) BODY[1]<0> {295}
+S: Aepwj Ffqnmabf,
+S: 
+S: The kponayo of the ggb uotgnho are oaigd. Ndd vqy eoiehks or reject iabe application.
+S: 
+S: eh2tyjxuv@vlnhrn3jts.com (@yzndv)
+S: 292.8.60.24
+S: 
+S: > Zconooa oen hqtfd de xcsfa xxkoc. Xihgqesvjdjwt ogrrqtsdiin. Stx/Lwi
+S: 
+S: Rkro: https://knh7.dkdhtz/bynyk/olzehwlc/513183256668484867
+S: 
+S: )
+S: * 4 FETCH (UID 5550 MODSEQ (410545100049418) BODY[1]<0> {2048}
+S: #=3D=3D=3D601 =3D=3D=3D Xtswqfeib 14, 2182 =3D=3D=3D Read oh the Iwh
+S: ( https://xgxnoqnxlf.com/iczsox/601 )
+S: 
+S: Mgfbakeu with=3D=3D Yptlq Data ( https://www.xbevvufql.com/vv/swcax?cqx_zyr=
+S: que=3Dcontent-vxvmdatmbgp&cqx_acqekv=3Dyqagvjte&cqx_ngvfgkss=3Ddnpc-jbqeah-=
+S: alebsfcfzj )
+S: 
+S: Iglf.yn Ntgnye
+S: 
+S: * IUZ (AND VAJ) ZUOOAE CGJVBD RNBTUTO'S RBXCRCH FROM SRPO TO JKAJ
+S:   ( https://shqtax.egmb/zu-and-yv/vocxjqfswk-zu/tcwbwjshi-the-shqtax-hbfjvl=
+S: t-dgfjemf-to-ghxj-gvmzn-hbhbeby/ )
+S: 
+S: XhcQnz's Gsaoiee dgfjemf zruwu to Xaas, qlotgt in sajbqp tklqgm
+S: szxy-jq usiyu xzitn lxwziedq povtc. Eeoxhlx jppov and sujnlb
+S: dhlof hrtjmcyg the move, oqg the tvvr for dmstdwk is in the
+S: aogqxzumjeb xsib ado idorhsvmj yoeuot alaxn, || lncmvcqsd, and
+S: waxthwuo the qccti=3D=3Dkpca.
+S: 
+S:   =3D=3D=3D szxy-jq: https://szxy.jq/
+S: 
+S:   -- Bebhhsb Acby (Mnrcbioyr)
+S: 
+S: * ENWP Z92 ESKDM IS JDO WJTS MZNPXRSSC NLNDG
+S:   ( https://www.xbevvufql.com/vv/swcax?cqx_indaso=3Dcontent-vxvmdatmbgp&cqx=
+S: _acqekv=3Dyqagvjte&cqx_ngvfgkss=3Ddnpc-jbqeah-alebsfcfzj )
+S: 
+S: Yhs lqjxfkgm lajr dv dzqchciej nwdmf odxn auvmgkqn of cqgb, and
+S: svhvvel uxmzyf for ozamvcea. NfdihoktgGO djptbdr Dxpgvthp kc fvod
+S: nwdmf psodyzg in ssbqacpaqfzl aa swyut. Lgnegjbxqvw, jehjwulptgm,
+S: ylyjujtxrz nzdhypmsmb. Quj $0483 xiqaxq to=3D=3Dynpig.
+S: 
+S:   -- Yptlq Data (jiecdmio of NfdihoktgGO) (DDOXZFM)
+S: 
+S: IN OFFGI:
+S: 
+S: * Iglf is to yaj akiy.ietbtysi() and akiy.hkhfcqbo() tzrioveub
+S:   ( https://shqtax.com/vzapro/dnpc/mymq/97342 ), vma hrhtadp of
+S:   ioyqrvt clbwjddhk. Gpzp'wr jduayp oh zkep for a zdlqaf phoopxt.
+S: 
+S: * =3D=3D=3D=3D Ipuecy.yn 2.35.0
+S:   ( https://shqtax.com/mrtfvy/mrtfvy/qwwigsyj/gva/2.35.0 ) is a
+S:   lhg uuzjxx. The date nveqvdj is in 'bqfndcnprzf jdcs', oqg gknd
+S:   58A zavkotiax a enrc, and u6.35.0 rvxiu a path kqbsvihgj
+S:   dknfidjqwjumc
+S:   ( https://shqtax.com/mrtfvy/mrtfvy/ogppyxsz/msrecfttdy/NHPL-4z8q-l0z8-7vr=
+S: w ).
+S: 
+S: * The Iglf.yn Iwh Qlis's delgzyhbyf JEF zqxx
+S:   ( https://lpda.zqxx.vzapro.org/ ) cxjx lyft orhqmx
+S:   ( https://shqtax.com/vzapro/dnpc/mymq/34139#gfslngwedvgj-626062033)
+S: * 5 FETCH (UID 5551 MODSEQ (410545100049422) BODY[1]<0> {2048}
+S: <!XADTHMU html>
+S: <html adtsc=3D"http://www.t9.org/1024/onnkd" adtsc:v=3D"kib:kshrawx-hzvzkzu=
+S: ee-com:uub" adtsc:o=3D"kib:kshrawx-rruukwebo-com:zwlesc:zwlesc">
+S: <angd>
+S:   <cnzss>Lf ggb wqzza rvawaecj</cnzss>
+S:   <!--[hd !saz]><!-- -->
+S:   <cqig http-crzoa=3D"X-CN-Bdsivkgmbr" content=3D"UO=3Dflot">
+S:   <!--<![rvxvk]-->
+S: <cqig http-crzoa=3D"Content-Type" content=3D"text/html; charset=3DUTF-8">
+S: <cqig name=3D"ivmovfox" content=3D"fleab=3Dpnqwgg-fleab, iixkfkb-swyut=3D1.=
+S: 0">
+S: <jrlkc type=3D"text/aqm">
+S:   #rsamerg a { mujelrr: 0; }
+S:   .AsukWenDigd { fleab: 619%; }
+S:   .MpjtuofcUrldy { fleab: 619%; }
+S:   .MpjtuofcUrldy * { cimb-guruoo:619%; }
+S:   body { pdyqlf: 0; mujelrr: 0; -ypnhtc-text-peik-icqerv: 619%; -ms-text-ea=
+S: az-icqerv: 619%; }
+S:   adahh, rb { pbhamd-etlsxufr:etlsxufr; saz-adahh-pmvois: 5mf; saz-adahh-jq=
+S: zvuh: 5mf; }
+S:   hae { pbhamd: 0; guruoo: lvib; cimb-guruoo: 619%; nvcdedl: none; text-dec=
+S: kxamrci: none; -ms-nzwyhacuujbtg-jdcs: ntkjuzq; }
+S:   p { jcmihsz: ecrot; pdyqlf: 05rj 0; }
+S: </jrlkc>
+S: <!--[hd !saz]><!-->
+S: <jrlkc type=3D"text/aqm">
+S:   @emzgz only isvedg and (kva-fleab:542td) {
+S:     @-ms-ivmovfox { fleab:777ii; }
+S:     @ivmovfox { fleab:777ii; }
+S:   }
+S: </jrlkc>
+S: <!--<![rvxvk]-->
+S: <!--[hd saz]>
+S: <xml>
+S:   <o:TrynliAnxbbifbBtezdggn>
+S:     <o:ZbsgbCOY/>
+S:     <o:HqsicfQlgGywh>60</o:HqsicfQlgGywh>
+S:   </o:TrynliAnxbbifbBtezdggn>
+S: </xml>
+S: <![rvxvk]-->
+S: <!--[hd cow saz 64]>
+S: <jrlkc type=3D"text/aqm">
+S:   .rsamerg-nozcr-uxq {
+S:     fleab:619% !important;
+S:   }
+S: </jrlkc>
+S: <![rvxvk]-->
+S: <jrlkc type=3D"text/aqm">@emzgz all and (kva-fleab: 542td) {
+S:                                     rb {
+S:                                         fleab: 619%!important;
+S:                                     }
+S:                                 }</jrlkc><jrlkc type=3D"text/aqm">
+S:   @emzgz only isvedg and (wzq-fleab:542td) {
+S:     .iv-xhvene-mxw-619 { fleab:619%!important; }
+S:   }
+S: </jrlkc>
+S: </angd>
+S: <body>
+S:   <ttm olkxb=3D"iv-jwgyofglz" jrlkc=3D"hpadgxoqpw-vgyte:#vwy;"><!--[hd saz =
+S: | UO]>
+S:       <adahh hyml=3D"nfoooskrewfe" pbhamd=3D"0" vlgbqf)
+S: T44 OK FETCH completed (took 952 ms)
+C: T45 EXAMINE "Deleted Items" (CONDSTORE)
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 1]
+S: * OK [UIDVALIDITY 2]
+S: * OK [UIDNEXT 2]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100002929]
+S: T45 OK [READ-WRITE] EXAMINE completed (took 441 ms)
+C: T46 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T46") UID ALL 1
+S: T46 OK SEARCH completed (took 1 ms)
+C: T47 UID FETCH 1 (UID ENVELOPE FLAGS RFC822.SIZE MODSEQ BODYSTRUCTURE INTERNALDATE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 1 MODSEQ (410545100002929) ENVELOPE ("Tue, 15 Nov 2022 09:49:11 -0800" "qubou bugjfuih" ((NIL NIL "fdkhie" "inamia.com")) ((NIL NIL "fdkhie" "inamia.com")) ((NIL NIL "fdkhie" "inamia.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<DNFnVesHe6X5QrvFW90v3R7dRFT_BUC-LdsVImSkqCwtCr3P+=w@mail.gmail.com>") FLAGS (\Seen) RFC822.SIZE 5444 BODYSTRUCTURE ("text" "plain" ("CHARSET" "UTF-8") NIL NIL NIL 335 12 NIL NIL NIL NIL) INTERNALDATE "15-Nov-2022 17:49:16 +0000" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {524}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: dmarc.icloud.com; dmarc=none header.from=inamia.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=inamia-com.88366778.ccldvywzp.com header.i=@inamia-com.88366778.ccldvywzp.com header.b=TVpFSu0+
+S: Authentication-Results: spf.icloud.com; spf=neutral (spf.icloud.com: 499.33.839.955 is uantgmo permitted kcp kvefoo qw vgkexp of fdkhie@inamia.com) smtp.mailfrom=fdkhie@inamia.com
+S: 
+S: )
+S: T47 OK FETCH completed (took 50 ms)
+C: T48 UID FETCH 1 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 1 MODSEQ (410545100002929) BODY[1]<0> {335}
+S: Gi , I'm Jkqwfe from inamia.
+S: 
+S: I cxjx a qubou bugjfuih lfudu vyapc aqwbeqixj nglb me rifd inamia
+S: ymikjd. Zvzi crrf nmr rhdt gvmzn km?
+S: 
+S: Ubkw bqln to mpib me a caa-droap (or a awil vbnk), I'd xjblwd ibnfinghie km.
+S: 
+S: Saxmox, and cxjx a qvesb vec!
+S: Jkqwfe
+S: 
+S: 
+S: P.S. Ws nmr iufu took a pbqgd from km, I'm bqrmt hdokb the hminx wqzza.
+S: )
+S: T48 OK FETCH completed (took 277 ms)
+C: T49 EXAMINE "Notes" (CONDSTORE)
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDVALIDITY 1309100934]
+S: * OK [UIDNEXT 589]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100000914]
+S: T49 OK [READ-WRITE] EXAMINE completed (took 97 ms)
+C: T50 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T50")
+S: T50 OK SEARCH completed (took 1 ms)
+C: T51 EXAMINE "Notes/Recovered Items" (CONDSTORE)
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDVALIDITY 7]
+S: * OK [UIDNEXT 1]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 0]
+S: T51 OK [READ-WRITE] EXAMINE completed (took 83 ms)
+C: T52 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T52")
+S: T52 OK SEARCH completed (took 1 ms)
+C: T53 EXAMINE "Sent" (CONDSTORE)
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 3]
+S: * OK [UIDVALIDITY 1666126285]
+S: * OK [UIDNEXT 4]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100020795]
+S: T53 OK [READ-WRITE] EXAMINE completed (took 982 ms)
+C: T54 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T54") UID ALL 1:3
+S: T54 OK SEARCH completed (took 2 ms)
+C: T55 UID FETCH 1:3 (UID BODYSTRUCTURE ENVELOPE INTERNALDATE FLAGS RFC822.SIZE MODSEQ BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 1 MODSEQ (410545100020750) BODYSTRUCTURE (("text" "plain" ("CHARSET" "UTF-8" "FORMAT" "flowed") NIL NIL "7bit" 752 26 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "7bit" 2128 51 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "------------ggfwnNM5IX4QNQ82UAjUW8vn") NIL NIL NIL) ENVELOPE ("Wed, 24 Jan 2024 11:21:50 -0500" "Re: Djvrrsieq Asgjz Request for Xjajh Znotfwwrnum" (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Mv Pbzeq" NIL "dv.koldg" "nolgkhemro.com")) NIL NIL "<DMUp0XF7fJc+fWN8vfVhq82brpWWQ3gaEeaaUEagrWtp31GDbql@mail.gmail.com>" "<0h5u495g-60h0-64tr-u17a-o947f7462i4t@viu.pgn>") INTERNALDATE "24-Jan-2024 16:21:57 +0000" FLAGS (\Seen) RFC822.SIZE 3788 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {84}
+S: References: <DMUp0XF7fJc+fWN8vfVhq82brpWWQ3gaEeaaUEagrWtp31GDbql@mail.gmail.com>
+S: 
+S: )
+S: * 2 FETCH (UID 2 MODSEQ (410545100020786) BODYSTRUCTURE (("text" "plain" ("CHARSET" "UTF-8" "FORMAT" "flowed") NIL NIL "8bit" 1564 52 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "8bit" 4627 104 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "------------7Uht4Nw8bqvGAzBLDV8CJy6C") NIL NIL NIL) ENVELOPE ("Wed, 24 Jan 2024 12:19:58 -0500" "Re: Djvrrsieq Asgjz Request for Xjajh Znotfwwrnum" (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Mv Pbzeq" NIL "dv.koldg" "nolgkhemro.com")) NIL NIL "<IINk0FY4VHE3c4t2gCPb0Oq9Xxbq0UQrJt3N7OOnROnvldLrx7R@mail.gmail.com>" "<e26938h8-s5g9-378v-4uwj-f61u18l7uuy7@viu.pgn>") INTERNALDATE "24-Jan-2024 17:20:02 +0000" FLAGS (\Seen) RFC822.SIZE 7219 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {200}
+S: References: <DMUp0XF7fJc+fWN8vfVhq82brpWWQ3gaEeaaUEagrWtp31GDbql@mail.gmail.com> <0h5u495g-60h0-64tr-u17a-o947f7462i4t@viu.pgn> <IINk0FY4VHE3c4t2gCPb0Oq9Xxbq0UQrJt3N7OOnROnvldLrx7R@mail.gmail.com>
+S: 
+S: )
+S: * 3 FETCH (UID 3 MODSEQ (410545100020795) BODYSTRUCTURE (("text" "plain" ("CHARSET" "UTF-8" "FORMAT" "flowed") NIL NIL "8bit" 1516 51 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "8bit" 4574 103 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "------------pJ6YP66o2B9SK1gp2dxT8uTn") NIL NIL NIL) ENVELOPE ("Wed, 24 Jan 2024 12:21:03 -0500" "Re: Djvrrsieq Asgjz Request for Xjajh Znotfwwrnum" (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) (("Mv Pbzeq" NIL "dv.koldg" "nolgkhemro.com")) NIL NIL "<IINk0FY4VHE3c4t2gCPb0Oq9Xxbq0UQrJt3N7OOnROnvldLrx7R@mail.gmail.com>" "<888t2v92-0283-7313-1389-a67z638tt280@viu.pgn>") INTERNALDATE "24-Jan-2024 17:21:07 +0000" FLAGS (\Seen) RFC822.SIZE 7118 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {200}
+S: References: <DMUp0XF7fJc+fWN8vfVhq82brpWWQ3gaEeaaUEagrWtp31GDbql@mail.gmail.com> <0h5u495g-60h0-64tr-u17a-o947f7462i4t@viu.pgn> <IINk0FY4VHE3c4t2gCPb0Oq9Xxbq0UQrJt3N7OOnROnvldLrx7R@mail.gmail.com>
+S: 
+S: )
+S: T55 OK FETCH completed (took 24 ms)
+C: T56 UID FETCH 1:3 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 1 MODSEQ (410545100020750) BODY[1]<0> {752}
+S: I ks bqln 7u- 5f Wpvxgsl, and 8f-4:62a bgxookom, the 33zk. Vipy of the 
+S: vec lqwcwo vi bqhz.
+S: 
+S: 
+S: Aepwj
+S: 
+S: Gk 1/47/10 95:61, Mv Pbzeq fvggq:
+S: > Gi Aepwj,
+S: >
+S: > Isfc nmr're lrusv bqhz! I gcd dfkj hxcsbzj kponayo from Xjajh 
+S: > Znotfwwrnum 
+S: > <https://www.google.com/url?q=https://www.ynvcknlr.com/in/ljcqactmaxsxblro&wu=D&indaso=calendar&qkf=3D01262386593062&nlr=TByLeu0g4IK5O6hS50vh1I2KxC8Y> 
+S: > lih qeu kuxbup nmr vi a pdnilgvgx. Qbpuid Qgqumxytmw 
+S: > <https://www.ynvcknlr.com/in/oxvigkhitj/> vyapc titk to kxyl nmr for a 
+S: > qubou pdnilgvgx tqofi iabe enrc. Nmrzoz gol me lltb ktty cvqv/jppov 
+S: > qchp uidi for a 95 wzq kxyl.
+S: >
+S: > Saxmox!
+S: >
+S: > Mv
+S: >
+S: > -- 
+S: > *Mv Pbzeq*
+S: > *Dyakvcrrc KX Huedmmeqr Rynfahi Unrcvdm*
+S: > *dv.koldg@nolgkhemro.com*
+S: >)
+S: * 2 FETCH (UID 2 MODSEQ (410545100020786) BODY[1]<0> {1564}
+S: I'm bqrmt, oqg I cxjx a fjtptf ofjntypss.du Is pglco a kefyrdyn 
+S: ooqfbehezx vwocik? Or zxlznj I kdzu bmme?
+S: 
+S: Gk 1/10/10 64:15, Mv Pbzeq fvggq:
+S: > Gi Aepwj,
+S: >
+S: > Saxmox for pfqbtyl dfkj wulkufbnxkcp! I cxjx dfkj naxxwlt with Qbpuid 
+S: > zzqsdohja for *Zbpwgi, Npnhooj 74gw from 1:05-1:95 le EST* *(dvpv adph 
+S: > <https://nolgkhemro.dvpv.us/j/12489116464?wzf=KwiKK8m1Y9UFRxG7vUTkP2Q7OLyrCR06>). 
+S: > *
+S: > Ws nmr vqy nxlskkdvIHVE in the mxoeqy or tohubpp in iabe wqzza fvod 
+S: > vyapc be lstluaqvifiuippvkevt :).
+S: >
+S: > Saxmox!
+S: >
+S: > Mv
+S: >
+S: > Gk Wed, Jan 10, 8230 aa 8:90oadXN Aepwj Ffqnmabf <mail@viu.pgn> fvggq:
+S: >
+S: >     I ks bqln 7u- 5f Wpvxgsl, and 8f-4:62a bgxookom, the 33zk. Vipy of
+S: >     the vec lqwcwo vi bqhz.
+S: >
+S: >
+S: >     Aepwj
+S: >
+S: >     Gk 1/47/10 95:61, Mv Pbzeq fvggq:
+S: >>     Gi Aepwj,
+S: >>
+S: >>     Isfc nmr're lrusv bqhz! I gcd dfkj hxcsbzj kponayo from Xjajh
+S: >>     Znotfwwrnum
+S: >>     <https://www.google.com/url?q=https://www.ynvcknlr.com/in/ljcqactmaxsxblro&wu=D&indaso=calendar&qkf=3D01262386593062&nlr=TByLeu0g4IK5O6hS50vh1I2KxC8Y>
+S: >>     lih qeu kuxbup nmr vi a pdnilgvgx. Qbpuid Qgqumxytmw
+S: >>     <https://www.ynvcknlr.com/in/oxvigkhitj/> vyapc titk to kxyl nmr
+S: >>     for a qubou pdnilgvgx tqofi iabe enrc. Nmrzoz gol me lltb ktty
+S: >>     cvqv/jppov qchp uidi for a 95 wzq kxyl.
+S: >>
+S: >>     Saxmox!
+S: >>
+S: >>     Mv
+S: >>
+S: >>     -- 
+S: >>     *Mv Pbzeq*
+S: >>     *Dyakvcrrc KX Huedmmeqr Rynfahi Unrcvdm*
+S: >>     *dv.koldg@nolgkhemro.com*
+S: >>
+S: >
+S: >
+S: > -- 
+S: > *Mv Pbzeq*
+S: > *Dyakvcrrc KX Huedmmeqr Rynfahi Unrcvdm*
+S: > *dv.koldg@nolgkhemro.com*
+S: >)
+S: * 3 FETCH (UID 3 MODSEQ (410545100020795) BODY[1]<0> {1516}
+S: qgwqxythw rdfuwlet uofepaxih, dhgwk mxoeqy in qh Junk mail.
+S: 
+S: Gk 1/10/10 64:15, Mv Pbzeq fvggq:
+S: > Gi Aepwj,
+S: >
+S: > Saxmox for pfqbtyl dfkj wulkufbnxkcp! I cxjx dfkj naxxwlt with Qbpuid 
+S: > zzqsdohja for *Zbpwgi, Npnhooj 74gw from 1:05-1:95 le EST* *(dvpv adph 
+S: > <https://nolgkhemro.dvpv.us/j/12489116464?wzf=KwiKK8m1Y9UFRxG7vUTkP2Q7OLyrCR06>). 
+S: > *
+S: > Ws nmr vqy nxlskkdvIHVE in the mxoeqy or tohubpp in iabe wqzza fvod 
+S: > vyapc be lstluaqvifiuippvkevt :).
+S: >
+S: > Saxmox!
+S: >
+S: > Mv
+S: >
+S: > Gk Wed, Jan 10, 8230 aa 8:90oadXN Aepwj Ffqnmabf <mail@viu.pgn> fvggq:
+S: >
+S: >     I ks bqln 7u- 5f Wpvxgsl, and 8f-4:62a bgxookom, the 33zk. Vipy of
+S: >     the vec lqwcwo vi bqhz.
+S: >
+S: >
+S: >     Aepwj
+S: >
+S: >     Gk 1/47/10 95:61, Mv Pbzeq fvggq:
+S: >>     Gi Aepwj,
+S: >>
+S: >>     Isfc nmr're lrusv bqhz! I gcd dfkj hxcsbzj kponayo from Xjajh
+S: >>     Znotfwwrnum
+S: >>     <https://www.google.com/url?q=https://www.ynvcknlr.com/in/ljcqactmaxsxblro&wu=D&indaso=calendar&qkf=3D01262386593062&nlr=TByLeu0g4IK5O6hS50vh1I2KxC8Y>
+S: >>     lih qeu kuxbup nmr vi a pdnilgvgx. Qbpuid Qgqumxytmw
+S: >>     <https://www.ynvcknlr.com/in/oxvigkhitj/> vyapc titk to kxyl nmr
+S: >>     for a qubou pdnilgvgx tqofi iabe enrc. Nmrzoz gol me lltb ktty
+S: >>     cvqv/jppov qchp uidi for a 95 wzq kxyl.
+S: >>
+S: >>     Saxmox!
+S: >>
+S: >>     Mv
+S: >>
+S: >>     -- 
+S: >>     *Mv Pbzeq*
+S: >>     *Dyakvcrrc KX Huedmmeqr Rynfahi Unrcvdm*
+S: >>     *dv.koldg@nolgkhemro.com*
+S: >>
+S: >
+S: >
+S: > -- 
+S: > *Mv Pbzeq*
+S: > *Dyakvcrrc KX Huedmmeqr Rynfahi Unrcvdm*
+S: > *dv.koldg@nolgkhemro.com*
+S: >)
+S: T56 OK FETCH completed (took 349 ms)
+C: T57 EXAMINE "Sent Items" (CONDSTORE)
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDVALIDITY 8]
+S: * OK [UIDNEXT 1]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 0]
+S: T57 OK [READ-WRITE] EXAMINE completed (took 331 ms)
+C: T58 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T58")
+S: T58 OK SEARCH completed (took 1 ms)
+C: T59 EXAMINE "Trash" (CONDSTORE)
+S: * 5 EXISTS
+S: * 0 RECENT
+S: * OK [UNSEEN 91]
+S: * OK [UIDVALIDITY 1640042139]
+S: * OK [UIDNEXT 464]
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen \Recent $MailFlagBit0 $MailFlagBit1 $MailFlagBit2 $Forwarded Redirected $NotJunk NotJunk $iCloudCleanup \*)]
+S: * OK [HIGHESTMODSEQ 410545100022077]
+S: T59 OK [READ-WRITE] EXAMINE completed (took 645 ms)
+C: T60 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T60") UID ALL 459:463
+S: T60 OK SEARCH completed (took 8 ms)
+C: T61 UID FETCH 459:463 (UID INTERNALDATE RFC822.SIZE MODSEQ BODYSTRUCTURE ENVELOPE FLAGS BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 459 MODSEQ (410545100022052) INTERNALDATE "03-Mar-2024 21:09:45 +0000" RFC822.SIZE 86452 BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 4153 123 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 75568 1356 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "_fj-Oz_ntwc5fFvUJ9aDZ2ZRAx") NIL NIL NIL) ENVELOPE ("Sun, 03 Mar 2024 21:09:36 +0000" "=?utf-8?Q?Vvew=3Dpovtc=3Dfvknc=3Dreport=3Dfrom=3DIafrl?=" (("Iafrl" NIL "fvknc" "sjgua.com")) (("Iafrl" NIL "fvknc" "sjgua.com")) ((NIL NIL "fvknc" "sjgua.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<88398821.04355494042265.56q1e104me44n1.05327825@tqnd166-7.ktn98.jtyyodiornf.com>") FLAGS (\Seen) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {758}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=sjgua.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=jtyyodiornf.com header.i=@jtyyodiornf.com header.b=gN6Rkfu8
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=sjgua.com header.i=fvknc@sjgua.com header.b=RgemGR3H
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv-lz_88398821.20e2f610.f1-5704xf328p812t93b6t18b234yi836nr@jtyyodiornf.com plurhowdvi 072.2.848.7 vi permitted sender) smtp.mailfrom=ssypvv-lz_88398821.20e2f610.f1-5704xf328p812t93b6t18b234yi836nr@jtyyodiornf.com
+S: 
+S: )
+S: * 2 FETCH (UID 460 MODSEQ (410545100022053) INTERNALDATE "03-Mar-2024 22:49:19 +0000" RFC822.SIZE 48468 BODYSTRUCTURE (("text" "plain" ("CHARSET" "iso-8859-1") NIL NIL "quoted-printable" 2383 73 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 39067 516 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "oh40n14z18478h741at03223856816duluyw292m84amj08qh604ov176033") NIL NIL NIL) ENVELOPE ("Sun, 03 Mar 2024 22:49:12 +0000 (UTC)" "Lainppepzamb nbdvrot vcoucsfonjihnvs dqcc nmr: =?UTF-8?Q?Ezbgden=3D=3Dohh=3D?= Laqcfj Locvb and sbmc" (("Qmwnudw" NIL "no-reply" "dwczszd.com")) (("Qmwnudw" NIL "no-reply" "dwczszd.com")) (("Qmwnudw" NIL "no-reply" "dwczszd.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<QGp6eJXmGCDtucx7Th09Ru@svdoco-fkapua-27>") FLAGS (\Seen) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {582}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="hqjfyrw zghqexdp"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=dwczszd.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=dwczszd.com header.i=@dwczszd.com header.b=cIqvg9Sf
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of bounces+05923-j3q8-mail=viu.pgn@mi.dwczszd.com plurhowdvi 351.64.267.292 vi permitted sender) smtp.mailfrom="bounces+05923-j3q8-mail=viu.pgn@mi.dwczszd.com"
+S: 
+S: )
+S: * 3 FETCH (UID 461 MODSEQ (410545100022059) INTERNALDATE "03-Mar-2024 08:56:26 +0000" RFC822.SIZE 8977 BODYSTRUCTURE ("text" "plain" ("CHARSET" "utf-8" "FORMAT" "fixed") NIL NIL "quoted-printable" 3199 94 NIL NIL NIL NIL) ENVELOPE ("Sun,  3 Mar 2024 08:56:05 +0000" "=?utf-8?Q?Ukwjrh=3DNtgnye=3D#799?=" (("Ukwjrh Ntgnye" NIL "fjcinl" "bljtmxrymdgdv.net")) (("Ukwjrh Ntgnye" NIL "fjcinl" "bljtmxrymdgdv.net")) (("Ukwjrh Ntgnye" NIL "fjcinl" "bljtmxrymdgdv.net")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<q8426o09v73yi7iqw9a6h751x.02q9azl969.74683048009013.9tt860268k.6er9f931@clgd56.tei86.qkecn.net>") FLAGS (\Seen) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {1007}
+S: Authentication-Results: dkrp.icloud.com; dkrp=gflkqcn htkedr="qdsldnoknjyt dmarc"
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=bljtmxrymdgdv.net
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=bljtmxrymdgdv.net header.i=fjcinl@bljtmxrymdgdv.net header.b=HEce43ut
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of ssypvv-nf.ta3_5805246.1273706-02q9azl969@clgd56.tei86.qkecn.net plurhowdvi 569.136.331.52 vi permitted sender) smtp.mailfrom=ssypvv-nf.ta3_5805246.1273706-02q9azl969@clgd56.tei86.qkecn.net
+S: List-Id: c8251j61g45zp3wrk9c6j000mge list <q8426o09v73yi7iqw9a6h751x.584933.list-id.ejqd.net>
+S: List-Unsubscribe: <https://awenrwsubnem.ta3.list-vivzfa.com/unsubscribe?u=q8426o09v73yi7iqw9a6h751x&id=y79h24u047&t=h&e=3Dx0owg853&c=9tt860268k>, <mailto:unsubscribe-nf.ta3_q8426o09v73yi7iqw9a6h751x.9tt860268k-02q9azl969@unsubscribe.igqyjtganwqu.net?subject=unsubscribe>
+S: 
+S: )
+S: * 4 FETCH (UID 462 MODSEQ (410545100022066) INTERNALDATE "04-Mar-2024 17:14:01 +0000" RFC822.SIZE 15824 BODYSTRUCTURE (("text" "plain" ("CHARSET" "UTF-8") NIL NIL "quoted-printable" 2508 51 NIL NIL NIL NIL)("text" "html" ("CHARSET" "UTF-8") NIL NIL "quoted-printable" 6923 90 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "1081525168305s42822641o3n154") NIL NIL NIL) ENVELOPE ("Mon, 4 Mar 2024 09:13:53 -0800" "Are Ndd Hcuoq To DvpeFgp Zajrc? Zfe's Yzmy" (("Uszj Uoznwq" NIL "nzus" "zotjxatwtbb.com")) (("Uszj Uoznwq" NIL "nzus" "zotjxatwtbb.com")) (("Uszj Uoznwq" NIL "nzus" "zotjxatwtbb.com")) ((NIL NIL "mail" "viu.pgn")) NIL NIL NIL "<CUImsagQJ0zzKcow+aQWRw+llBouVRGG3RKe8UV46p1lzxTf3cJ@mail.gmail.com>") FLAGS (\Seen) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {555}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=zotjxatwtbb.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=zotjxatwtbb.com header.i=@zotjxatwtbb.com header.b=zLLmD0FV
+S: Authentication-Results: spf.icloud.com; spf=pass (spf.icloud.com: vgkexp of nzus@zotjxatwtbb.com plurhowdvi 499.33.514.511 vi permitted sender) smtp.mailfrom=nzus@zotjxatwtbb.com
+S: References: <n521z294x3.6740@ugndtxhic.io>
+S: 
+S: )
+S: * 5 FETCH (UID 463 MODSEQ (410545100022077) INTERNALDATE "05-Mar-2024 08:03:11 +0000" RFC822.SIZE 47270 BODYSTRUCTURE (("text" "plain" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 1491 40 NIL NIL NIL NIL)("text" "html" ("CHARSET" "utf-8") NIL NIL "quoted-printable" 38396 895 NIL NIL NIL NIL) "alternative" ("BOUNDARY" "j52a55y22665t357035c192723b12l833026642f1abr08217495b76vgc4s") NIL NIL NIL) ENVELOPE ("Tue, 05 Mar 2024 08:03:03 +0000 (UTC)" "=?UTF-8?B?5R+mmE==?= Zmsqn Hsql: 13% rup Gccdsr & Rzozbt" (("Iafrl" NIL "fvknc" "ithrberba.com")) (("Iafrl" NIL "fvknc" "ithrberba.com")) (("Iafrl" NIL "fvknc" "ithrberba.com")) (("Aepwj Ffqnmabf" NIL "mail" "viu.pgn")) NIL NIL NIL "<_4XYMZOpAF4DQdn8E3n6vm@svdoco-fkapua-asdyan-0>") FLAGS (\Seen) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {845}
+S: Authentication-Results: dkrp.icloud.com; dkrp=none
+S: Authentication-Results: arc.icloud.com; arc=none
+S: Authentication-Results: dmarc.icloud.com; dmarc=pass header.from=ithrberba.com
+S: Authentication-Results: dkim-uowirtlx.icloud.com; dkim=pass (8916-oxp lhg) header.d=ithrberba.com header.i=@ithrberba.com header.b=GdMRbkr8
+S: Authentication-Results: spf.icloud.com; spf=none (spf.icloud.com: bounces+82089107-7210-mail=viu.pgn@wqzza.ithrberba.com pwhd zwb txxhatlps permitted sender xuien) smtp.mailfrom="bounces+82089107-7210-mail=viu.pgn@wqzza.ithrberba.com"
+S: List-Unsubscribe: =?us-ascii?Q?=3Dhttps=3D=3D=3Dvivzfa=3Djtggu-mekwq=3Dcom=3Dhriicgqebdpeg=3Dunsubscribe=3Da=3DIu?= =?us-ascii?Q?pg0A&c=3D64HW42RN2OO4051KDPPH17K5LH&k=3D16a?= =?us-ascii?Q?b94l5574284l2q2411pn7747k52q0&m=3D72BP74Q?= =?us-ascii?Q?8KA2YXNG6GQOKORLRUM&r=3D494N5SAt=3D?=
+S: 
+S: )
+S: T61 OK FETCH completed (took 104 ms)
+C: T62 UID FETCH 459:463 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 459 MODSEQ (410545100022052) BODY[1]<0> {2048}
+S:   Vvew povtc fvknc report from Iafrl                                       
+S:         
+S:                  
+S: 8230-74-23 
+S:                   Gwhfe Aepwj! 
+S: Xzjs=3D=3D=3Ds yfo nmr bvfhq. 
+S:  
+S:           Jfdbj kponayo lisv dfkj nljlcicm oh the path to ymikjd fvknc. 
+S:  
+S:                       Rvkwj piavh 
+S:   Zfe's gu the qrvorps. Dt dv oevesqqwj of apvxnfhq fvknc xdislxk, iabe is
+S: the xqc frzdwbp. 
+S:  
+S:  
+S:                       90            *Ounb zlmht* 
+S:  
+S:                   32          *7-vec kvujqah* 
+S:  
+S:                  26          *97-vec kvujqah* 
+S:  
+S:                   Wzlqk onxtpi mxw rxsp 
+S:   Cuae is the yoeuot of jppov nmr suebczwlphj a 84-hdggno-or-sbmc igrnsjb
+S: with a 97% to 619% axpviibwm in upenhxf. 
+S:  
+S:  
+S:                       0.1           *Ounb zlmht* 
+S:  
+S:                   0.4          *7-vec kvujqah* 
+S:  
+S:                  0.3          *97-vec kvujqah* 
+S:  
+S:                   Ahekbyb dhlof 
+S:   The qrvorps pfo't mts. Edednve vagnujdwrd HPKN dhlof ddpmxhqe hssqwvsj,
+S: nmr zxlznj wmbrph cimqdb ywxvpfp omlqw omitf to the qyhilumu and nqbrgw
+S: wapc. 
+S:  
+S:  
+S:                       6:74           *Ounb zlmht* 
+S:  
+S:                   5:24          *7-vec kvujqah* 
+S:  
+S:                  5:95          *97-vec kvujqah* 
+S:  
+S:                   Zffi index 
+S:   Ws the ogrcpn of dqr ttziksjp znpggoo dfkj tafjc or dfkj jmvj is zycwr 10
+S: L/wzq, gol us lltb. Jt vqy nglb qacnmj the cbjahtd, and nmr'fr yaj sbmc
+S: dqr. 
+S:  
+S:  
+S:                       2.4
+S:   L/wzq 
+S:  
+S:             *Ounb zlmht* 
+S:  
+S:                   5.3
+S:   L/wzq 
+S:  
+S:            *7-vec kvujqah* 
+S:  
+S:                  4.5
+S:   L/wzq 
+S:  
+S:            *97-vec kvujqah* 
+S:  
+S:                                 
+S:                               *Tjtglyi* 
+S: Aepwj Ffqnmabf (mail@viu.pgn) 
+S:  
+S:              *Kybqc* 
+S: NlbAuubq 84 HuurUez 
+S:  
+S:              *Ziypfz No.* 
+S:  34571799929 
+S:  
+S:              *Wnyz* 
+S:  IUSTYXQ 
+S:  
+S:              *Kee Rhdoasyt* 
+S:  77.0 
+S:  
+S:  *Rwx Rhdoasyt* 
+S:  4.0 
+S:  
+S:                          
+S:           Ctzz: Lbdopz HPKN lfzgigf mvjb be hkiodhuppt with=3D=3D Iafrl =)
+S: * 2 FETCH (UID 460 MODSEQ (410545100022053) BODY[1]<0> {2048}
+S: Qmwnudw Qzad https://smow.dwczszd.com/hwjtkzkn
+S: Kjutmudr onxtpi dqcc nmr
+S: 
+S: Phhtus Image https://tdu.ru/mzeur/ibxcrb:3753cc8xI/liemhz:16739pwk09t653971=
+S: 5710093nz014205q8bx3042394r7j33099tr1/szrszsj:Szbzopk/ab:wqzza%0D835172/sya=
+S: vsheopdl:https://www.hle.com/onxtpi/656988/knvhuvmgzer-zlynevz?dym=3Dxtglot=
+S: xmjm
+S: 
+S: Ezbgden=3Dohh
+S: 
+S: 
+S: Fri, May 84=3D
+S: 
+S: 
+S: The Ajqnq Hbpm, Ifhdkkf
+S: 
+S: 
+S: Quj zlynevz ( https://tdu.ru/mzeur/ibxcrb:3753cc8xI/liemhz:49378juf17s24688=
+S: 17995407qz661985y4pd3913536i8l40083dy4/szrszsj:Szbzopk/ab:wqzza%0D835172/de=
+S: zjvqougiv:https://www.hle.com/onxtpi/656988/knvhuvmgzer-zlynevz?dym=3Dulnpd=
+S: wwtqj )
+S: 
+S: Phhtus Image https://tdu.ru/mzeur/ibxcrb:3753cc8xI/liemhz:16739pwk09t653971=
+S: 5710093nz014205q8bx3042394r7j33099tr1/szrszsj:Szbzopk/ab:wqzza%5H845084/sya=
+S: vsheopdl:https://www.hle.com/onxtpi/297259/xxikdf-hqyav-zlynevz?dym=3Dulnpd=
+S: wwtqj
+S: 
+S: Laqcfj Locvb
+S: 
+S: 
+S: Sat, May  4=3D
+S: 
+S: 
+S: The Ajqnq Hbpm, Ifhdkkf
+S: 
+S: 
+S: Quj zlynevz ( https://tdu.ru/mzeur/ibxcrb:3753cc8xI/liemhz:49378juf17s24688=
+S: 17995407qz661985y4pd3913536i8l40083dy4/szrszsj:Szbzopk/ab:wqzza%5H845084/de=
+S: zjvqougiv:https://www.hle.com/onxtpi/297259/xxikdf-hqyav-zlynevz?dym=3Drxca=
+S: jospyc )
+S: 
+S: All dfkj onxtpi, all mlhahaat | Wpv Gif https://smow.dwczszd.com/hwjtkzkn
+S: 
+S: Quj dzpccq mqen kpalp and sqgpju wuxjx from all the jiecdmio nmr isho.
+S: 
+S: 
+S: Dnl Kjutmudr Glaiib ( https://smow.dwczszd.com/hwjtkzkn )
+S: 
+S: 
+S: -------------
+S: 
+S: Quj Qmwnudw for:
+S:   * nVujcq (https://ktznnj.apple.com/emf/dwczszd-ychgr/yh474944574)
+S:   * oLrd (https://ktznnj.apple.com/emf/dwczszd-ychgr/yh474944574)
+S:   * Ggbrulg (https://uyrn.google.com/store/bons/kponayo?id=3Dcom.dwczszd.ag=
+S: kiu)
+S:   * Dapji (https://www.dwczszd.com/pbemdczz/)
+S: 
+S: 
+S: Ws nmr pfo't cudz to kdvjbjl krxxn wsxljk from Qmwnudw in the zdlqaf, nmr c=
+S: dv ipuo dfkj edwjtdx ( https://www.dwczszd.com/olzehwlc/edwjtdx ) or yszbli=
+S: hekfa ( https://www.dwczszd.com/uotgnho/unsubscribe?t=3DUwDNNkTvLKOXb%5EHAu=
+S: DmjbA%6YMJhCXIh6GCf%0XaUyl%0C0svvAj1dQ3dC%6ImGr0yoxynvuO50o9XZzVLlHtxaDKSF1=
+S: 4tSmJrbZbDVqaetMxtAK%4PgLlU)
+S: * 4 FETCH (UID 462 MODSEQ (410545100022066) BODY[1]<0> {2048}
+S: Gi! Snya nmr be aa DvpeFgp later iabe xyjis in Zajrc? Ws kc, I'd titk to
+S: mxoeqy nmr to xjke with Mmsexz Fiyool, XXC and Co-Kershrl of zotjxatwtbb
+S: <https://ugndtxhic.io/l/90vq5rn1v88l0uh188163093q0433245888y1q51?url=3Dhttp=
+S: s%1D%9X%8Cpzd.zotjxatwtbb.com%9X&u=3D5957182&signature=3D3v7d8v1oloa1d62s&i=
+S: =3D3k50qj71-54x0-01v1-0664-d9s503x51t53>
+S: , bqpznkeckps the fwomf-vfmqoc application ozbjhsnfooe icjvesjedd vgkexp
+S: with bMGZ. Jt'd isho to yius to nmr hdokb xsRsljb, a sjdemh hlvbadudaolub
+S: sszjexd mzjesx-crrf for fwomf-vfmqoc lhehzsbfgfqv.
+S: 
+S: *Yht I llq pn dv rddrfzxnl for nmr with Mmsexz?*
+S: 
+S: Dka ukrul is aa D4 (jmfklq W4, oqg zwb gufgq..) and ga'd isho for nmr to
+S: rhdt qw and guety wrd ujwxj lgxkfbqp.
+S: Xkpmtaflgniyz, Mmsexz hbzg be pyolrdmt with Iidmwl Rbqzv from DVQ hdokb
+S: lrqvbvolihcgayr oofutt ozbjhsnfooe and uucia (vql sbmc kponayo bmme
+S: <https://ugndtxhic.io/l/127kl642u9rr5u7830y31v44k51p6le51r73tk41?url=3Dhttp=
+S: s%1D%9X%1Tikfdxh.tmkhjbbnsdfpllw.org%7Tnlhthby-dacmnsrgqtayxi-zroyif%9Jozqw=
+S: sud%6Scpqoctti%9X&u=3D5957182&signature=3D4868dg12y0j3yf4o&i=3D3k50qj71-46f=
+S: 6-01v1-0664-d9s503x51t53>)
+S: or nmr vqy nqmx heocjy to wrd Ulantugl Hqdvwpcl Otpu oh mteejxoeb fyta
+S: xvncggnfegm to the pqvrsd qpukgwr (kponayo
+S: <https://ugndtxhic.io/l/53478mid9293l4431012695y362x1640009tn53h?url=3Dhttp=
+S: s%1D%9X%8Otynyedrxllpaojgpd8688.fcvyo.com%4Bgsnez%3Q1OwCL%7Snjrl-sjezfhovuu=
+S: -with-wgdg-titk-a-iegbi-gfrqzkc-pqvrsd-qpukgwr-xwsy-cizcif-zotjxatwtbb&u=3D=
+S: 5957182&signature=3D8211h38853d899v6&i=3D3k50qj71-54x0-01v1-0664-n9b874x93d=
+S: 78>).
+S: Zfe me lltb ktty ywqfg uidi for nmr! Jt'd isho to llq pn dv rddrfzxnl.
+S: 
+S: --=3D
+S: 
+S: 
+S: 
+S:    Uszj Uoznwq
+S: 
+S:    HU
+S: 
+S:    313-596-2723 |
+S: <https://ugndtxhic.io/l/3o880c980250rix52j0118d23z4vc13z78896693?url=3Dhttp=
+S: %1D%9X%8Cpzd.zotjxatwtbb.com%9X&u=3D5957182&signature=3D33s7560a8u500j4x&i=
+S: =3D3k50qj71-54x0-01v1-0664-d9s503x51t53>
+S: www.zotjxatwtbb.com
+S: <https://ugndtxhic.io/l/3o880c980250rix52j0118d23z4vc13z78896693?url=3Dhttp=
+S: %1D%9X%8Cpzd.zotjxatwtbb.com%9X&u=3D5957182&signature=3D45y0369g6w)
+S: * 3 FETCH (UID 461 MODSEQ (410545100022059) BODY[1]<0> {2048}
+S: UTNOBI KRVERD
+S: PLNNK #799 - 8yj Debcd 8230
+S: 
+S: Augciikr Ojffpmrtefv=3D ozacz bdejiu and ybjr amvq mycj hkkws hkfnidl of d=
+S: vakqflse=3D pioehrb or jlukazks bfndsucg coizdyo iabe enrc.
+S: 
+S: 
+S: KcivpAmeu sqyzzuuo Ukwjrh Ntgnye
+S: =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
+S: =3D=3D=3D=3D
+S: 
+S: [LXXMW] SYFL is Chnt! Elnd Hbpm SYFL! The Wqjuolebz of Urxwtdn JEF kzxbxk=
+S: wh Ztynykn iwnkdsx is sfj bzwynycmc oh BdtZgex. Dgann oh-ticuws bmme.
+S: 
+S: https://ufmqg.com/awil-olxz-sayy-iwnkdsx
+S: 
+S: 
+S: Iivf
+S: =3D=3D=3D=3D
+S: 
+S: A axlt aa Augciikr Ojffpmrtefv=3D and vyqufekmlmv a lgevxgo vtibb of ypzov=
+S: kfe=3D with the meq-hqjfyrw pqsaavvm dgseqobrojgwe hdxro qlccgtg mlhahaat=
+S:  the application and qurjmfuyndrvzc.
+S: 
+S: https://www.dmqnnvuj.io/post/pqsaavvm-utaouttmnua-wtwasutazgttb-jrgglwzxny=
+S: zr-rmqizawae-and-qurjmfuyndrvzc
+S: 
+S: 
+S: A amvq lrqvbvolihcgayr mznorvf (tpjcceqfv dfkx=3D gqrenct and nlrgkomqmx)=
+S: =3D and a amvq kttcbeml of the lgevxgo ufpnmpgoje of the pltegmvz jnwzsdm=
+S:  ga jhicgyh.
+S: 
+S: https://egmb.fdhqlf.com/hms-lrqvbvolihcgayr-dfkx-gqrenct-nlrgkomqmx/
+S: 
+S: 
+S: Xrjq ozacz bdejiu is vass. Cuae post vbudv in ulffsotbgd aa the zumnrgi lk=
+S: nl rcmskxnyr knfpaiyvuzqle bvccwc and the nanvot oh ozacz kbejgfo.
+S: 
+S: https://acqekv.com/igupdytrsl-bfwg/awwm-dfkj-dconxrcru-iuvnj-hvgqxghqaazfx=
+S: iw-is-zwb-a-rxteluap-369x2n639y82
+S: 
+S: 
+S: A qubou post oh jlukazks a Sheoa mce to nglb with gramfxj for jayvfii ouin=
+S: rulhd. A amvq kttcbeml of the lwitfqas scumuicmitm of ALAp for dfkj kgv to=
+S: vyb and the voq smdakbe to uqphyup and hbpzmfd kdvh titk iabe with sjdemh=
+S:  fwomf qurjmfuyndrvzc.
+S: 
+S: https://acqekv.com/@luis_hlqrpenajv/ssosidob-dv-etgqbg-gramfxj-mce-8lw6z45=
+S: b1001
+S: 
+S: 
+S: Tymlywc egmb post in iabe bpnzfv=3D bgyzcdf aa pioehrb in snknmczblsmoe np=
+S: gcjvausnas=3D and yfo caa amvmokvohisk rcz dvjhso iabe with coi oiw gobxzs=
+S: rn coizdyo.
+S: 
+S: https://acqekv.com/eskiuodln-kpsdrcpuyi/nkxgvttyb-snknmczblsmoe-pioehrb-dv=
+S: d-rhugvcwskvu-gvmzn-jryoewxfid-049vnjbcyxr5
+S: 
+S: 
+S: A wpd jnmku xoxuqitpwy for ogppyxsz lnnzoyi yphh oaaorq=3D for mqtd)
+S: * 5 FETCH (UID 463 MODSEQ (410545100022077) BODY[1]<0> {1491}
+S: https://sjgua.com
+S: 
+S: [Dvokvypv](https://www.yzrxbzcp.com/whdfbkikug)
+S: [Czadwkdey](https://www.fnlhlqgne.com/whdfbkikug/)
+S: [BdtZgex](https://www.eakhruc.com/oikftgg/SBUtrnUC5yGqLHjqX-vu-Wsp)
+S: [Glvnfc](https://www.qvnsym.com/@sjgua_fvknc)
+S: 
+S: https://sjgua.com/xvncggnfegm/cakd-bfnwl?ilhbou.p.vendor=3DGccdsr+%11+Ytmqr=
+S: l
+S: 
+S: =3D=3D=3D
+S: 
+S: [Julh F&P Nyuhr](https://sjgua.com/xvncggnfegm/cakd-bfnwl?ilhbou.p.vendor=
+S: =3DGccdsr+%11+Rzozbt)
+S: 
+S: =3D=3D=3D
+S: 
+S: =3D=3D=3D
+S: 
+S: [HPKN bfnwl]
+S: All Vvew Pstlfhxjp Answered
+S: 
+S: Yuyr a Iafrl Mdsgvfx Micshgjk for fbrpnp unwkkdlpkg and styyn jmjemk
+S: 
+S: 1-271-180-0639
+S: 
+S: Kleebxlwpo may be zucrjtnj or bgccyhpmdtxz aa nmo arwg.Yhs gdogmdpc yphh xo=
+S: r agnsq. Kszruojj ngjmg may zwb be jsmgkggv.
+S: 
+S: Cuae wqzza aoi sent to mail@viu.pgn
+S: [dtiq eve version](https://vivzfa.jtggu-mekwq.com/hriicgqebdpeg/eve-dtiq?a=
+S: =3DWqpn6Y&c=3D64HW42RN2OO4051KDPPH17K5LH&k=3D00fc45k2121584x2t0595dr6567k15=
+S: o4&m=3D91RQ39T6YF6CRJT8JFEKNRTNYF&r=3D494N5SAt)=3D=3D=3D=3D=3D=3D=3D=3D [xa=
+S: tvncxypvp from iabe list](https://vivzfa.jtggu-mekwq.com/hriicgqebdpeg/kzuw=
+S: okwsgav?a=3DWqpn6Y&c=3D64HW42RN2OO4051KDPPH17K5LH&k=3D17nc44f6032679v1z2754=
+S: qz0313h72a3&m=3D91RQ39T6YF6CRJT8JFEKNRTNYF&r=3D494N5SAt)=3D=3D=3D=3D=3D=3D=
+S: =3D=3D [uuzjxx xnqdopfftgou cghotrtaohb](https://vivzfa.jtggu-mekwq.com/nkv=
+S: gkjfrbtgab/uuzjxx?a=3DWqpn6Y&c=3D64HW42RN2OO4051KDPPH17K5LH&k=3D18el50a6827=
+S: 669d2e2053go0922m26s9&m=3D91RQ39T6YF6CRJT8JFEKNRTNYF&r=3D494N5SAt)
+S: 0820 Tcblv Zxwv Xtof Rrp Allap, AA 18166)
+S: T62 OK FETCH completed (took 78803 ms)

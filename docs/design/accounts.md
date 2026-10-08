@@ -12,7 +12,7 @@ Living document. Rationale: [ADR-0011](../adr/0011-sign-in-and-credentials.md)
 | Kind | IMAP | SMTP | Sign-in | Quirks |
 | --- | --- | --- | --- | --- |
 | `gmail` | imap.gmail.com:993 TLS | smtp.gmail.com:465 TLS | `oauth2` or `password` (app password) | the Gmail sync path (ADR-0012); no Sent append; no QRESYNC; at most 15 connections |
-| `icloud` | imap.mail.me.com:993 TLS | smtp.mail.me.com:587 STARTTLS | `password` (app-specific) | `ENABLE` gets no `ENABLED` reply (treat as enabled only if `CONDSTORE` answers); QRESYNC off; folder names "Sent Messages", "Deleted Messages" when special-use is missing; the IMAP user name is the address |
+| `icloud` | imap.mail.me.com:993 TLS | smtp.mail.me.com:587 STARTTLS | `password` (app-specific) | `ENABLE` gets no `ENABLED` reply (treat as enabled only if `CONDSTORE` answers); QRESYNC off; LIST marks "Sent Messages" and "Deleted Messages" with `\Sent` and `\Trash` though SPECIAL-USE is not offered, so other clients' "Sent Items" and "Trash" stay plain folders; EXAMINE answers `[READ-WRITE]`; empty folders report HIGHESTMODSEQ 0; the IMAP user name is the address |
 | `imap` | discovered or entered | discovered or entered | `password` | none |
 
 The sync engine reads quirks from the profile, never from host names. A
@@ -93,13 +93,15 @@ the check is a bug.
 
 ## Recordings and replay
 
-`MAILD_IMAP_TRACE=<dir>` writes each connection's exchange to a file.
-`tools/imaprec` turns a trace into a replay script: credentials, tokens
-and message bodies are replaced (subjects and addresses by stable fakes),
-and the result is checked into `internal/imapx/testdata/replay/`.
-`internal/imapx/replay` is a server that plays a script back and fails the
-test on any command the script does not expect. Replay tests cover the
-Gmail and iCloud paths no local server can imitate.
+`MAILD_IMAP_TRACE=<dir>` writes each sync and IDLE connection's exchange
+to a file. `tools/imaprec` turns a trace into a replay script: credentials
+are already redacted, every word of the mail becomes a stable fake, and big
+sessions are trimmed to a few messages per mailbox; the result is checked
+into `internal/mailsync/testdata/replay/`. `internal/imapx/replay` is a
+server that plays a script back and fails the test on any command the
+script does not expect. Replay tests cover the Gmail and iCloud paths no
+local server can imitate; [testing.md](testing.md#recorded-sessions) has
+the details.
 
 ## Setting up a personal Google client
 

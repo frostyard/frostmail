@@ -182,6 +182,21 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   from iCloud's "Sent Messages" and "Deleted Messages" (fixed: roles the
   server states win over names); and opening a message waited for the
   first sync's passes (fixed: bodies come over their own connection, C3).
+- **Replay tests (2026-10-08):** `tools/imaprec` scrubbed two recordings
+  into `internal/mailsync/testdata/replay/`: the throwaway Gmail account's
+  first sync (nine messages; labels, threads and flags as Gmail sent them)
+  and the iCloud account's first sync, trimmed to the five newest messages
+  of each folder (38 in 12 folders). Both replay through the first pass in
+  `make check` (exit criterion 5). Found in the replay server (all fixed):
+  ESEARCH results kept the recorded tag, which go-imap matches to its
+  search, so a replay whose tags differed from the recording lost every
+  search result; a literal's line starting with "+" was taken for a
+  continuation request; FETCH items followed by CHANGEDSINCE, and STATUS
+  items, were compared in order; identical commands in two mailboxes could
+  take each other's answers; a script cut short left LOGOUT unanswered.
+  iCloud marks `\Sent` and `\Trash` in LIST without SPECIAL-USE, answers
+  EXAMINE with `[READ-WRITE]` and reports HIGHESTMODSEQ 0 for empty
+  folders.
 
 ## Later / ideas
 

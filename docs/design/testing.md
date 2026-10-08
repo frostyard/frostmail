@@ -6,6 +6,7 @@
 | RPC wire | `internal/rpcserver/server_test.go` over real sockets via `internal/rpctest` | `make test` |
 | IMAP, fast | `internal/imapx/imapxtest` (go-imap's in-memory server: no CONDSTORE, QRESYNC or Gmail extensions) | `make test` |
 | IMAP fork | `third_party/go-imap/imapclient/gmail_test.go` (scripted server) | `make test-fork` |
+| IMAP, recorded | `internal/mailsync/replay_test.go`: Gmail and iCloud sessions replayed (below) | `make test` |
 | IMAP, real | `*_integration_test.go` (build tag `integration`) against `frostmail-mailtest` | `make engine-it` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | App shell | the M0 spike report (`FROSTMAIL_SPIKE_EXIT=1`) | `make app-run`, or natively from `build/frostmail-app` |
@@ -21,17 +22,52 @@
 are rejected with 550. After login Dovecot advertises CONDSTORE, QRESYNC,
 IDLE, MOVE, UIDPLUS, ESEARCH, SPECIAL-USE, LIST-STATUS and NOTIFY.
 
+## Recorded sessions
+
+Gmail and iCloud speak extensions and quirks that neither go-imap's memory
+server nor Dovecot imitates, so their paths are also tested against
+sessions recorded from the real servers.
+
+1. **Record.** `MAILD_IMAP_TRACE=dir` writes each traced connection (C1,
+   which syncs, and C2, which idles) to its own file in `dir` (0700, files
+   0600): `C: <line>` for what maild sent and `S: <line>` for what it
+   received, after TLS, with LOGIN, AUTHENTICATE and SASL lines replaced by
+   `[redacted]` (`internal/imapx/trace.go`). STARTTLS connections are not
+   traced. A trace holds the account's mail and never leaves the machine.
+2. **Scrub.** `tools/imaprec` turns a trace into a script that can be
+   checked in. `-through TAG` keeps the session up to that command;
+   `-keep N` keeps the N newest messages each mailbox fetched and rewrites
+   the session as a first sync of only those (EXISTS, SEARCH results,
+   FETCH sets and message numbers), which makes a big account's first sync
+   small, and turns a sync that resumed into a first sync. Every word of
+   the mail (names, addresses, subjects, bodies, Message-IDs, boundaries,
+   file names, mailbox names and labels) becomes a fake of the same shape,
+   derived from a key made for the run, so a word is the same fake
+   everywhere: a References header still cites its message, and the
+   client's SELECT still names a mailbox from LIST. Dates, MIME types,
+   charsets, flags, UIDs and the protocol stay. imaprec refuses to write a
+   script in which a replaced word of six or more characters remains.
+3. **Replay.** `internal/imapx/replay` serves a script on a loopback port.
+   It answers each command with the first unused recorded exchange for the
+   same command, recorded with the same mailbox selected (SELECT, LIST,
+   STATUS and the like may come in any order), maps the recorded tags,
+   including ESEARCH's `(TAG …)`, to the client's, and keeps a literal's
+   lines with their response whatever they look like. It compares FETCH
+   and STATUS items as sets, since go-imap orders them differently from
+   run to run, and fails the test on a command the script lacks or a
+   recorded command never sent.
+4. **Test.** `internal/mailsync/replay_test.go` plays each script in
+   `internal/mailsync/testdata/replay/` to a new account's first pass and
+   checks the store: messages, roles, labels, threads, flags and the
+   stored mailbox state.
+
+```sh
+go run ./tools/imaprec -through T14 -note "Gmail, first sync" \
+  -o internal/mailsync/testdata/replay/gmail-first-sync.txt TRACE
+```
+
 ## Planned layers
 
-- **Transcript replay (M1/M4):** `MAILD_IMAP_TRACE=dir` records each
-  command connection (C1) to its own file in `dir` (0700, files 0600):
-  `C: <line>` for what maild sent and `S: <line>` for what it received,
-  after TLS, with LOGIN, AUTHENTICATE and SASL lines replaced by
-  `[redacted]` (`internal/imapx/trace.go`). STARTTLS connections are not
-  traced. Traces hold the account's mail: they stay on the machine until
-  `tools/imaprec` rewrites them into replay scripts, and a replay server
-  answers recorded responses. One directory per provider quirk under
-  `testdata/transcripts/`.
 - **Fault injection (M1):** a `faultconn` that drops, delays and truncates;
   a fake clock; kill-during-sync resume tests.
 - **MIME corpus (M1):** anonymized real messages (`mailctl scrub`) with golden

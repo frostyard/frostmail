@@ -1,0 +1,253 @@
+# Gmail (a throwaway account, signed in with an app password): the first sync,
+# recorded 2026-10-08 with MAILD_IMAP_TRACE. Replayed by TestReplayGmailFirstSync.
+# Scrubbed by tools/imaprec: names, addresses, subjects, bodies and
+# mailbox names are stable fakes; dates, structure, flags and UIDs are
+# as recorded.
+C: T1 LOGIN [redacted]
+S: * OK Gimap ready for requests from 79.372.94.7 kbo3qw1fyzr36-2a3ac52259rcc44390935386
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T1 OK bmgkbldaslj@gmail.com authenticated (Success)
+C: T2 CAPABILITY
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T2 OK Success
+C: T3 CAPABILITY
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T3 OK Success
+C: T4 CAPABILITY
+S: * CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE QUOTA ID XLIST CHILDREN X-GM-EXT-1 UIDPLUS COMPRESS=DEFLATE ENABLE MOVE CONDSTORE ESEARCH UTF8=ACCEPT LIST-EXTENDED LIST-STATUS LITERAL- SPECIAL-USE APPENDLIMIT=35651584
+S: T4 OK Success
+C: T5 ID ("name" "frostmail" "vendor" "frostyard")
+S: * ID ("name" "GImap" "vendor" "Google, Bjs." "support-url" "https://support.google.com/mail" "version" "gmail.imap-server_97120849.06_g8" "remote-host" "79.372.94.7")
+S: T5 OK Success
+C: T6 LIST "" "*" RETURN (SUBSCRIBED SPECIAL-USE)
+S: * LIST (\HasNoChildren \Subscribed) "/" "INBOX"
+S: * LIST (\HasNoChildren \Subscribed) "/" "Qvfp"
+S: * LIST (\HasChildren \NonExistent \Subscribed) "/" "[Gmail]"
+S: * LIST (\All \HasNoChildren \Subscribed) "/" "[Gmail]/All Mail"
+S: * LIST (\Drafts \HasNoChildren \Subscribed) "/" "[Gmail]/Drafts"
+S: * LIST (\HasNoChildren \Important \Subscribed) "/" "[Gmail]/Important"
+S: * LIST (\HasNoChildren \Sent \Subscribed) "/" "[Gmail]/Sent Mail"
+S: * LIST (\HasNoChildren \Junk \Subscribed) "/" "[Gmail]/Spam"
+S: * LIST (\Flagged \HasNoChildren \Subscribed) "/" "[Gmail]/Starred"
+S: * LIST (\HasNoChildren \Subscribed \Trash) "/" "[Gmail]/Trash"
+S: T6 OK Success
+C: T7 SELECT "[Gmail]/All Mail" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 12] UIDs valid.
+S: * 9 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 15] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 3150]
+S: T7 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
+C: T8 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T8") UID ALL 3,5,8:14
+S: T8 OK SEARCH completed (Success)
+C: T9 UID FETCH 3,5,8:14 (UID ENVELOPE RFC822.SIZE MODSEQ X-GM-MSGID BODYSTRUCTURE FLAGS INTERNALDATE X-GM-THRID X-GM-LABELS BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (X-GM-THRID 1878505316514561155 X-GM-MSGID 1878505316514561155 X-GM-LABELS ("\\Starred" Qvfp) UID 3 RFC822.SIZE 26941 MODSEQ (2409) INTERNALDATE "08-Oct-2026 17:57:53 +0000" FLAGS (\Flagged \Seen) ENVELOPE ("Thu, 08 Oct 2026 10:57:52 -0700" "Dgcjlml to Google nv apca Amrdw" (("Google" NIL "no-reply" "google.com")) (("Google" NIL "no-reply" "google.com")) (("Google" NIL "no-reply" "google.com")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<4a701721hh4u42qh10h7mc1u247m69485s13d12j-49633134-148737507@google.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "UTF-8" "DELSP" "yes" "FORMAT" "flowed") NIL NIL "BASE64" 1900 38 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 17752 356 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "597853704974352802172k67a187") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {917}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@google.com
+S:  header.s=3D658529 header.b=d3AkKYyb; spf=pass (google.com: uuhkqd of
+S:  7pngqljixi9697-hbv3m61347s.y65k1q52tpt4gy11h28.a82@lddobwvsi.bounces.google.com
+S:  kxrtxboojd 011.30.988.23 mk permitted sender)
+S:  smtp.mailfrom=7iEbMjbuVY3056-XqB2K88987e.q51t7p75VwL8rA45j66.a82@lddobwvsi.bounces.google.com;
+S:  dmarc=pass (p=REJECT oo=REJECT qhi=NONE) header.from=google.com; dara=pass
+S:  header.i=@gmail.com
+S: List-Unsubscribe: <https://ypjcpaqud.google.com/sewjeceihuybr-gkjtnweohlk/exym/unsubscribe/tg/FNuSUgwWHeONMhDqn6xZLfu1PojIAStznRQnj0IhIzFuqAAWsyGFi-EiHN7mjD5M6uFLbdGDyW1WthBEK-0thS3650XZ3rhPuAAfDP-ufbjtUfP8sHURR1EOKzk95c1TI3qVXaZhJQ0oTgPfbZVXhddjlT8laMqNg8NO-GCjOu3DpknJInxMRSvGDWkw-Lz00QWFRU8_1DD_HfSMP_f5a6XNgq4raHhEmOAe3lnO2Uq7GHzhG0Kz158j?ohh_txmzyo=bm_header&ohh_ctnxrr=edklk>
+S: List-Id: <k0i1ji8243y483k181710m74x3686h441t377932.google.com>
+S: 
+S: )
+S: * 2 FETCH (X-GM-THRID 1878505685997194521 X-GM-MSGID 1878505685997194521 X-GM-LABELS ("\\Inbox" Qvfp) UID 5 RFC822.SIZE 6799 MODSEQ (2989) INTERNALDATE "08-Oct-2026 18:03:45 +0000" FLAGS (\Seen) ENVELOPE ("Thu, 08 Oct 2026 14:03:40 -0400" "Mm Vlpar" (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<8xij3930-144o-163h-140q-57din4347871@qvqpmz>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 110 3 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 222 5 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "we906s5t126mmu8u55111390867337745134824754q8418m3s0k43d64s36") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {236}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@ici.vas
+S:  header.s=sig1 header.b=B+GyUJUL; spf=pass (google.com: uuhkqd of mail@ici.vas
+S:  kxrtxboojd 9d64:y556:9926:749::68 mk permitted sender)
+S:  smtp.mailfrom=mail@ici.vas
+S: 
+S: )
+S: * 3 FETCH (X-GM-THRID 1878505685997194521 X-GM-MSGID 1878505756652267081 X-GM-LABELS ("\\Draft" Qvfp) UID 8 RFC822.SIZE 1323 MODSEQ (2989) INTERNALDATE "08-Oct-2026 18:04:53 +0000" FLAGS (\Seen) ENVELOPE ("Thu, 08 Oct 2026 18:04:46 +0000" "Re: Mm Vlpar" (("Sbtflvz Yegwmcar" NIL "bmgkbldaslj" "gmail.com")) (("Sbtflvz Yegwmcar" NIL "bmgkbldaslj" "gmail.com")) (("Sbtflvz Yegwmcar" NIL "bmgkbldaslj" "gmail.com")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) NIL NIL "<8xij3930-144o-163h-140q-57din4347871@qvqpmz>" "<dmh7083ija0sa364g62a39318172o44c@gmail.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 158 4 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 335 7 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "6ky45oids6z526w452f7246i3011y557k57n1936q960559yk6tz5a2c8dj2") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {61}
+S: References: <8xij3930-144o-163h-140q-57din4347871@qvqpmz>
+S: 
+S: )
+S: * 4 FETCH (X-GM-THRID 1878505685997194521 X-GM-MSGID 1878505757264923998 X-GM-LABELS ("\\Sent" Qvfp) UID 9 RFC822.SIZE 1704 MODSEQ (2989) INTERNALDATE "08-Oct-2026 18:04:54 +0000" FLAGS (\Seen) ENVELOPE ("Thu, 08 Oct 2026 14:04:43 -0400" "Re: Mm Vlpar" (("Sbtflvz Yegwmcar" NIL "bmgkbldaslj" "gmail.com")) (("Sbtflvz Yegwmcar" NIL "bmgkbldaslj" "gmail.com")) (("Sbtflvz Yegwmcar" NIL "bmgkbldaslj" "gmail.com")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) NIL NIL "<8xij3930-144o-163h-140q-57din4347871@qvqpmz>" "<3569362q61d952a4c9502i6807i78878@gmail.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 183 4 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 363 8 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "1h4891270r4d7l35bjjcs27859f5346q1hi89002d55epceniswx27303561") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {61}
+S: References: <8xij3930-144o-163h-140q-57din4347871@qvqpmz>
+S: 
+S: )
+S: * 5 FETCH (X-GM-THRID 1878506420036349693 X-GM-MSGID 1878506420036349693 X-GM-LABELS ("\\Important" "\\Inbox") UID 10 RFC822.SIZE 6689 MODSEQ (2687) INTERNALDATE "08-Oct-2026 18:15:26 +0000" FLAGS (\Seen) ENVELOPE ("Thu, 08 Oct 2026 14:15:22 -0400" "Nklkgc rvmiget?" (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<v5225o50-idk6-2l95-57i0-4l03k2pzj35n@qvqpmz>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 62 2 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 129 3 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "hmvm5x0pj6ss8t06nz1524c581j75r7527f52g185zbcj471k2400h8l1va1") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {236}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@ici.vas
+S:  header.s=sig1 header.b=o1e4IWKk; spf=pass (google.com: uuhkqd of mail@ici.vas
+S:  kxrtxboojd 9d64:y556:8214:326::5n mk permitted sender)
+S:  smtp.mailfrom=mail@ici.vas
+S: 
+S: )
+S: * 6 FETCH (X-GM-THRID 1878506694669853277 X-GM-MSGID 1878506694669853277 X-GM-LABELS ("\\Important" "\\Inbox") UID 11 RFC822.SIZE 6764 MODSEQ (2901) INTERNALDATE "08-Oct-2026 18:19:47 +0000" FLAGS (\Seen) ENVELOPE ("Thu, 08 Oct 2026 14:19:43 -0400" "Ojccnj's Joqeahic" (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) (("Vlpar Yegwmcar" NIL "mail" "ici.vas")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<s189jp56-813s-1ik0-2190-nf27pyeq5814@qvqpmz>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 91 2 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "QUOTED-PRINTABLE" 183 4 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "ti62k317izbvwx045t39up0862mh11nv380ee1486ipe71e0s2l55u337085") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {236}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@ici.vas
+S:  header.s=sig1 header.b=ul8y8ryb; spf=pass (google.com: uuhkqd of mail@ici.vas
+S:  kxrtxboojd 9d64:y556:7155:489::85 mk permitted sender)
+S:  smtp.mailfrom=mail@ici.vas
+S: 
+S: )
+S: * 7 FETCH (X-GM-THRID 1878507890069801076 X-GM-MSGID 1878507890069801076 X-GM-LABELS ("\\Important" "\\Inbox") UID 12 RFC822.SIZE 12467 MODSEQ (2906) INTERNALDATE "08-Oct-2026 18:38:48 +0000" FLAGS () ENVELOPE ("Thu, 08 Oct 2026 18:38:47 GMT" "Vmlrrine pnnuu" (("Google" NIL "no-reply" "ndyxervh.google.com")) (("Google" NIL "no-reply" "ndyxervh.google.com")) (("Google" NIL "no-reply" "ndyxervh.google.com")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<KgrNjLU1qtIujIV_-6ny0E@qumcfqftugvyw.google.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "UTF-8" "DELSP" "yes" "FORMAT" "flowed") NIL NIL "BASE64" 996 20 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 5237 105 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "557957490949z078ju810t392g77") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {496}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@ndyxervh.google.com
+S:  header.s=3D143501 header.b=AUsHCWJH; spf=pass (google.com: uuhkqd of
+S:  1svcqdsfnr8kdp-fhziibfotvnyl.yzigye.foknqckxgsjjtrvdqws.xlt@opki.bounces.google.com
+S:  kxrtxboojd 011.30.988.36 mk permitted sender)
+S:  smtp.mailfrom=0SSMByqkQT3bab-vetdtRahyzwbp.yzigye.qfiqwzgywtqcdvrkWwl.xlt@opki.bounces.google.com;
+S:  dmarc=pass (p=REJECT oo=REJECT qhi=NONE) header.from=ndyxervh.google.com;
+S:  dara=pass header.i=@gmail.com
+S: 
+S: )
+S: * 8 FETCH (X-GM-THRID 1878507933143998869 X-GM-MSGID 1878507933143998869 X-GM-LABELS ("\\Important" "\\Inbox") UID 13 RFC822.SIZE 12546 MODSEQ (3009) INTERNALDATE "08-Oct-2026 18:39:29 +0000" FLAGS () ENVELOPE ("Thu, 08 Oct 2026 18:39:28 GMT" "2-Epkh Glmawylgbgks higwmx nv" (("Google" NIL "no-reply" "ndyxervh.google.com")) (("Google" NIL "no-reply" "ndyxervh.google.com")) (("Google" NIL "no-reply" "ndyxervh.google.com")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<v5aj0T1MegbdT1-SWX9E-w@qumcfqftugvyw.google.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "UTF-8" "DELSP" "yes" "FORMAT" "flowed") NIL NIL "BASE64" 1242 25 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 5045 101 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "75987545050692x6j5933v142o7k") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {496}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@ndyxervh.google.com
+S:  header.s=3D143501 header.b=brsgVfKg; spf=pass (google.com: uuhkqd of
+S:  4excattzhq7noq-hwcadrvcwpkts.yctghb.stkhiktdvjhcldngeuj.tgx@opki.bounces.google.com
+S:  kxrtxboojd 011.30.988.36 mk permitted sender)
+S:  smtp.mailfrom=2QINUhgoBK9NJA-BAGFkXCFUEMTX.GFZHAK.POQENWDZMBjUDYVNGGP.ZQT@opki.bounces.google.com;
+S:  dmarc=pass (p=REJECT oo=REJECT qhi=NONE) header.from=ndyxervh.google.com;
+S:  dara=pass header.i=@gmail.com
+S: 
+S: )
+S: * 9 FETCH (X-GM-THRID 1878507890069801076 X-GM-MSGID 1878507961285212999 X-GM-LABELS ("\\Important" "\\Inbox") UID 14 RFC822.SIZE 12376 MODSEQ (3085) INTERNALDATE "08-Oct-2026 18:39:55 +0000" FLAGS () ENVELOPE ("Thu, 08 Oct 2026 18:39:54 GMT" "Vmlrrine pnnuu" (("Google" NIL "no-reply" "ndyxervh.google.com")) (("Google" NIL "no-reply" "ndyxervh.google.com")) (("Google" NIL "no-reply" "ndyxervh.google.com")) ((NIL NIL "bmgkbldaslj" "gmail.com")) NIL NIL NIL "<3tnNvFBDKJwmaOWMM-l3sx@qumcfqftugvyw.google.com>") BODYSTRUCTURE (("TEXT" "PLAIN" ("CHARSET" "UTF-8" "DELSP" "yes" "FORMAT" "flowed") NIL NIL "BASE64" 944 19 NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "QUOTED-PRINTABLE" 5195 104 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "346076685641o09l35467s840u21") NIL NIL) BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {496}
+S: Authentication-Results: mx.google.com; dkim=pass header.i=@ndyxervh.google.com
+S:  header.s=3D143501 header.b=uecD0oil; spf=pass (google.com: uuhkqd of
+S:  0v-tsqeyvm78ui-snjk2cagwekba.pwsaro.ickukxkmnh1fxqbeozz.sgi@opki.bounces.google.com
+S:  kxrtxboojd 011.30.988.36 mk permitted sender)
+S:  smtp.mailfrom=0v-FPlkpYE90gs-snjk2cagwekba.pwsaro.ickukxkmnh1fxqbeozz.sgi@opki.bounces.google.com;
+S:  dmarc=pass (p=REJECT oo=REJECT qhi=NONE) header.from=ndyxervh.google.com;
+S:  dara=pass header.i=@gmail.com
+S: 
+S: )
+S: T9 OK Success
+C: T10 UID FETCH 3,5,8:14 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 3 MODSEQ (2409) BODY[1]<0> {1900}
+S: I0A3FBL2TKL5QWYhx8s3qFEEe29mxHSgp80psT29auBCwD03qV5MBMqLKVerBPUitTjxjLLaFYLw
+S: SZGya8YbplKbRG8mhoI5YEhrKWMxBOafhYI9pKssI8PpMO3qNTZcqqZ6j4LuOIAhs8a9h0Bzu0i7
+S: tMMjHPbMi84ieYIlLWlQSa6DE93bdUomfYG0kSC6kCT6Qg5pGdmnNT1UVRALN0Ioic90IKHLVhFF
+S: zGgaKLh6XAg3WU32iDNQQjepY3L6H7G1GJrbAjQlEfiTi3vMND83BWDfkGtnvuZQKsquFUK9DGU0
+S: f4IFYoCgGSQxVYKmV1uKAw2eCcu3c0SXGI7qG4UdUKU6ih1YENPrOZSmLsyvgxVZgQnmyA7gPg3w
+S: ZT3swFXPabr1sNoJJH8ZJ48hFoalP0MJDDM1HYv3XWOZfOyHekYkVbrcDsAkDYBRHpshvXdKnMHW
+S: RF6vWHLcPJI5n54rYPnyFBEmtLBdFiQCMEhbrMjOo2RkhGpVNB6uzXsFIQmudCIebsQWvNriIVQr
+S: RTe3RSm6MIAntjhbXHkFJHoUEB01I0vBlrVnZPjYLs7QMOnHxChfRZBaHUrwRIkynwTxJW89VGVr
+S: VSCrJTUjosZ0a7V8CBvsHYwmNhHdmXFaDGXfmAPlEKpmlUKdmePozPFeLNRqE70pI6xwCBHQGaLn
+S: K052biCzt88cbD61fpJHnT22cOZpQJYnL2XkXQjdLXecsPFvvdPms2Vmz4hqyDX2vjVfVSZniBWu
+S: IMDqJCcvsdW5wyVcKSlfAFCSSjasxJGgBIBkrXHpbF28tqHtTQMgS1Vhn8j1nOJBa05vnXSnk6ga
+S: qmD3s3Nof2tqwtBmpoTsYJvffUGfVOBow0XehDHjauS4eJTwIO0HQZO0zJKgGQTygnH5iOGmSubt
+S: h4QwjGozPQlpmWtpOSYcOGNDLjJum8Mse4LrnURkEJn5cGMhQa1nZi7gqILnGQE6WSp3vioozCZY
+S: ikJMHuoaVcoQdG20jgsmHFA9GJdXPbvnX6O4YNbhPwu3XNA6VYoXAl2ylHeRNKKoSQHazhmQNee0
+S: VwaqLMtWRK6nu1v0Y6JbzMl6ZMlNAx5kqW0lAMYqLCKXo21XLvZheOZlcFlrV3SMj4DmQCNbIFJA
+S: iv9DaxlMGRGUCIpNNqtoAvc4i3bBs7AFpOTwGJQ7D8XMT6T2Z8oAF4o6NzWQf1Mmxj40XaPYxS4f
+S: yojBBWTGKHj7pR9GHBzOTbrNcjePPudZg1RTlvVSA4XFtLF2oH0cG0fEaFZNArIszXCWDaRmLUCf
+S: ucRnRLF0pO2CyVf9nyDmfijdpZXyLgCkASvwZO4mGK5jSoB4M5cSkKwMM9XQTVTeALiZgrrvZgjm
+S: E1i5BzDQSPVzTALPAdiLdI8DBYF6uGSqQX8BT5PfWMSkNAM1TIzFfvqcAbS2YDK0MMoKa7FnAAFW
+S: iea8Ha6BOhKiGKFjnNVKZQPSbYR3EJd8EIVqhaGpWEMsbKMsaPDMH0smXZ8XNPQ0NAQyEmYlcE98
+S: KE2eOZT9UMOqZXMIPAWnH20SfUKOW9x0YJVeA2y9vCVmAeSfJPwZcO9AXoRJTsOgBNcZU2cqNLDn
+S: RZ8STHttHiKDNibYiBu1rivFZ69Ly6fAIMesUJyOgGsjupU3k4MAtxR3RFdYRKnsCLeAH0E0cJDI
+S: c47aus3xQtXsUOLXv7HdVimgkFk4aKFTiWQUNXPAB6z3DJT8W8kjS7N6LAdfCM9BO3XPgltHGa0B
+S: Me9YWOlErKZlLSP4YMfwg4peWVFRGVEaPRNoOELWlXMzpFJsPJS6bjHeYPZoo6pofQdiED51zbUi
+S: uL0cGolguzxdF5NpVETmPLBBQa==)
+S: * 2 FETCH (UID 5 MODSEQ (2989) BODY[1]<0> {110}
+S: Rimuy't mercdvq in a zzobn, eotl klx and the uswjcl are nlmnq atas.=3D
+S: 
+S: 
+S: 
+S: Kquy fl rnnt to Ojccnj!
+S: 
+S: 
+S: 
+S: B)
+S: * 3 FETCH (UID 8 MODSEQ (2989) BODY[1]<0> {158}
+S: Zs Thu, Oct 8, 5796 tp 2:66 PF, Vlpar Yegwmcar awrub:
+S: 
+S: Rimuy't mercdvq in a zzobn, eotl klx and the uswjcl are nlmnq atas.
+S: 
+S: Kquy fl rnnt to Ojccnj!
+S: 
+S: B
+S: )
+S: * 4 FETCH (UID 9 MODSEQ (2989) BODY[1]<0> {183}
+S: GQB! I nluv klx ucdx.
+S: 
+S: Zs Thu, Oct 8, 5796 tp 2:66 PF, Vlpar Yegwmcar awrub:
+S: 
+S: Rimuy't mercdvq in a zzobn, eotl klx and the uswjcl are nlmnq atas.
+S: 
+S: Kquy fl rnnt to Ojccnj!
+S: 
+S: B
+S: )
+S: * 5 FETCH (UID 10 MODSEQ (2687) BODY[1]<0> {62}
+S: Rgld ja klx ldyb to ja for omdqrf rvmiget? I'm wvmqjhcf dgwly.)
+S: * 6 FETCH (UID 11 MODSEQ (2901) BODY[1]<0> {91}
+S: Pmm uow the fqkmstcp iihmg? Kmv wew mcco znq grl radvt and ltkoycnr?
+S: 
+S: 
+S: 
+S: Kquy fkruxdfu!!)
+S: * 7 FETCH (UID 12 MODSEQ (2906) BODY[1]<0> {996}
+S: S3uhUSloHwVFf03znGWiJTmBeB3bRNBtlU7lWQAwSKDrSSFbBp5bYIJxZ5QmgJVJHFXnEiwhMFDq
+S: h08VHp1SECaznfZnJkXlrBblmRZdvDSarY3ts05YTfDpJNAlNDQkNHPcT91osJ4fqB4eyK00ctRf
+S: F6CevJ26DX5vmlLqjeY9ttRzSK7luqZflK0gNLPhqK8vBLJuUWkuECwfvV2PVFjmyak2OHJnGBJ5
+S: cAfpWD56bJWzhvllc39oJF3yFZDinIeiqTFvWTM0f1seStD8c6ClTFHpQ264agBbFSFqBHMiGKNw
+S: AN7Sp5FehZJnTAorjDHuXSQjt7CpkKRjq9auCYlYgLJhtxOrA5Fjyxc5sK8OHLe2wQKdOt0mDZNu
+S: g3UriWHeA73eP5mqFgOnaA5OD2PqqT23W9mln8Ojnm8ScISotD9onoRuUpBsiMcrpTAxsWCnqC6k
+S: a72rD82kdTdjqRK9xGJ5sTG9Zb2jwLAeZ193moNwO76pE2nmOoSwrY7awDZrjC6geH6zHjfsPYb4
+S: TsS4MqBsZ7WypkAuRUP0JGKvZqJlkaVtB7CwVZZ8PFwjJWGRRPK3QairZmSrHYY5NrL4VSM2NUHo
+S: NpD5IRRWPE5TSkuagYLfOY2oAScetaGrPSAls4QqzIPgwTesYAJ6sNNdhRloYQTMGfi2gHGlDg4k
+S: gJztA8QrwM57Fcful8ppCD6rb87yrq33nZDwL2H2lQ9uwg1AEI43RVYgY5WiyaUzDRQpcTNqLI7g
+S: jKjrlQ1dtAQ4XTplgHIqio86DUKln7L6RDuctS8pgPPqxZOirDReC9QxLIMdRQwshUSZRqhva7wr
+S: ZVAWY4HnhC32HSMrOEZkYYM5nSKdhp3GHtSqHPBeUkWnA57xY2xhPBaRGitnRQAbSWXRqSMjnCDe
+S: TWP0ouRhTMLmu4saxJshND60tqDauD0tAqoyqwbdI2RbDCGyEHJhNQQRFI1O)
+S: * 8 FETCH (UID 13 MODSEQ (3009) BODY[1]<0> {1242}
+S: M7vdOLgxNmWDd75ldEFrTRwjHSM4KSKtFgByrBKtT1T0aE4dNRY7jk3lQPGous4RIVmUYpTqEITb
+S: xzH9g5S3FJgpOKpmNaZuvA9GJSoDu5PrMAlmk5tvDWXAR5TqjJ29ZVBwQDPtgkU3w2C9KIuqNNpm
+S: CgFseQMmocTye6lgtRRhgDIfjSNpYCgimZuyDu8DqKEmGLfXPGDcDavdXFZpy03bENxvTW8soR10
+S: URTkE54jvU8vq07jZDVgSPsxs2BcgV63njKbvUQnVLWlpzbtRYhbjJ337nNLgJuxijHgVE4YgJ64
+S: gxSbUHSrgqMlVaVexO8nZHKyNSCfsyjmbFT2w2XiWAtvTQ22sZE1Od9XMCkjSS5qV6VvF3W5MHkz
+S: B7ueOCIwrOAtMe7JVH23FGGutvGtACIiGKWwLBTypHMefPyruaXiu0ZaG2I0JPCgI3y0tPHyp4Vo
+S: gvU4udD9n1Xak0kcukM5j4PaYN1t7pGZpQNvEZBmGOy9f9HcMBBdF16hQBSlDFV7s5Wdq6t6iUT3
+S: b3BeJOrJu7QnT3BiQNDaxidbagK1n7LhFGXFJuXpIII3zS9olr4AKGp7jKUwNq8cQFJec3PqbAJi
+S: I77sR9vpAuMsfG3FB5UxaU67G1qxn9Uxip0FqBVskU2aogVzXrCliZrvfMWskHScnA2fv11gR57s
+S: jYtfzVL3lZL3uZB9Fc6fhLPxT708dtLlZ98jJ7uoPbPiyM8rbNmjiC6bvZYam99nL9T0s5A3O6Wq
+S: kxQaKFH7LTX7hmWoQaTaEOIfRlGjeYNtE3IaAEN3OkTzJAe6STE4TxH8MFmuCXRmRuZ1ZTXHPP4H
+S: ChTnIG4zo3NfS0coqrzosl1UOsiqqQBwLV4iVFxcbsUcSESnb4MnzTUysQvwERW9zANgpErpXYLU
+S: Tgg1nMAcIl4quDjpR6TxaR66Vwxpd4kuUS8rd81qsq41yTBmZ5Y6kI8mcx1AIH17DEUeM6UpdvYt
+S: QJOhmPBsOW6puYrcbJ5epVV4FMwxkQLhuv74TWToz9Y8ADkdgL2ldQIwcHEvbXTkW8KcSVRvYCfm
+S: gELYPvauk9kmOTLCD2AuzF88MIWpTKAxKMC9sUZvhd9FUhJyBJWbQlWtD31pJ4faLNkKLsjzAIKq
+S: BJRXaMIsiODuZSU0bpRaWYWxf7kgeSxiWY42txQcyS1jJiaeqmkqB8TjFHUcADOdEKHODG7Z)
+S: * 9 FETCH (UID 14 MODSEQ (3085) BODY[1]<0> {944}
+S: R3ytLXwmOiSWn63rkMTqARnOpNUlvGJae5jrpoGuS0XwBCEhIKU7gmRizYdqVMecEBKyIHtjyMYw
+S: LROue8DmyQ4XOTxKXlUiJTGostW9f2I3NJcxSJjgCwUgwE8CJQYdeF69ZJMnQD7oeHYhWV1fckN7
+S: NAT3gHwkHVGsb0G9j8KwCKNxfoTTsj4fdN6wnScpGRShaDNiulIofEgemSEjXsZwaDPvvxbOVgut
+S: iNXyVJUsx9QchA5yG1dqL4suRH1wXPJgK1NdTJT9m4TzPHGoP449pvFsts56Ge4GR2hmN2njGKN4
+S: oHMlfVrCSlkfiJIsyjmfZ8OvE205xjCqRhvzc3deXE0al02vKZXtd0NmlRRkt78bOPT/HC9cdAc7
+S: YzdzJnXmTSyfOYMJC65mwJubQ75iFeYhznSajnAxICa5tBPnLa9mfIipP8OnmH23Zukwg0mkFM6e
+S: q81qWZcqqpUpsgMqFWy6MQE5QRw2MREhGx5dTs5aM3PsKQOoNqMrbnVdZ6ZtJTG7AMbtZIMUZBL6
+S: NZO8ICfmXDCbNgR2UAP9RUAsEuC4SUOXQU7LFjlgiEQkBH3mTVktsvJvTSYxu7XkzTBwjDunHHM7
+S: mWWmyOgzLGFTZrm1jYJaPn3kvOigP7MgaA67Bntqz7knUI4lt25dpq98zDFkY1C8mZ8kqn4ICW00
+S: MBElL5JnkwRwKGCraBNmHM2bgCdtmD8skQY9MDjsgZHhcd55KMTbz8S8CFtqlH9ioDOypNAmvXIs
+S: V8WhMSOrYNvgiFESEbxcx3gcURLQE1IryK65QAPdIOEaJGD2nIWifu0TNsFzRKVrAtMnT23nL2zg
+S: UTsMBpziXJEnBACUfDUzcMSgRBR5ocEeOUFto3cdjGinYQ35pxLlbA9zItcfjsseW4QfFGFyERLw
+S: DIYOUT6D)
+S: T10 OK Success
+C: T11 SELECT "[Gmail]/Spam" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 3] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 3] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 3150]
+S: T11 OK [READ-WRITE] [Gmail]/Spam selected. (Success)
+C: T12 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T12") UID
+S: T12 OK SEARCH completed (Success)
+C: T13 SELECT "[Gmail]/Trash" (CONDSTORE)
+S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
+S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
+S: * OK [UIDVALIDITY 2] UIDs valid.
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * OK [UIDNEXT 4] Predicted next UID.
+S: * OK [HIGHESTMODSEQ 3150]
+S: T13 OK [READ-WRITE] [Gmail]/Trash selected. (Success)
+C: T14 UID SEARCH RETURN (ALL) ALL
+S: * ESEARCH (TAG "T14") UID
+S: T14 OK SEARCH completed (Success)
