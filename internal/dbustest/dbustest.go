@@ -14,11 +14,16 @@ import (
 )
 
 // Bus runs a dbus-daemon for one test and returns its address. The test is
-// skipped where dbus-daemon is not installed.
+// skipped where dbus-daemon is not installed, unless FROSTMAIL_REQUIRE_DBUS
+// is set (CI sets it), which makes a missing daemon a failure
+// (frostyard/core ADR-0022).
 func Bus(t testing.TB) string {
 	t.Helper()
 	daemon, err := exec.LookPath("dbus-daemon")
 	if err != nil {
+		if os.Getenv("FROSTMAIL_REQUIRE_DBUS") != "" {
+			t.Fatal("FROSTMAIL_REQUIRE_DBUS is set and dbus-daemon is not installed")
+		}
 		t.Skip("no dbus-daemon")
 	}
 	dir := t.TempDir()

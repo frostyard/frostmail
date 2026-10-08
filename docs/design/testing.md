@@ -11,6 +11,23 @@
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | App shell | the M0 spike report (`FROSTMAIL_SPIKE_EXIT=1`) | `make app-run`, or natively from `build/frostmail-app` |
 
+## CI
+
+`.github/workflows/ci.yml` runs the jobs of `make ci` on every push to
+`main`, every pull request and merge-queue entry, and nightly (so upstream
+drift shows within a day): **Verify** (`make verify`, with golangci-lint
+from `mise.lock`), **Race detector** (`go test -race ./...`), **App UI**
+(`make ui-check`) and **App shell** (`make app-build`, `make app-test`).
+The app targets normally run in the nsl machine; CI installs the same
+Node, pnpm (corepack, from `app/package.json`), Rust and system libraries
+as `dev/nsl/provision.sh` and runs them with `IN_NSL='sh -c'`. CI sets
+`FROSTMAIL_REQUIRE_DBUS`, so the notification tests fail rather than skip
+without `dbus-daemon`. Workflows follow frostyard/core ADR-0021 (actions
+pinned to full commit SHAs, `permissions: {}`, checkouts without
+persisted credentials), which `internal/workflowcheck` tests. Integration
+tests against the mail server, `make ui-e2e` and `make e2e` need incus or
+a display and stay local.
+
 ## The mail server
 
 `dev/incus/mailtest.sh up` builds `frostmail-mailtest` (Debian 13, Dovecot
