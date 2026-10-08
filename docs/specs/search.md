@@ -68,7 +68,10 @@ func (q Query) Empty() bool
   malformed value (`in:nowhere`, `after:yesterday`, `size:3`), or an unknown
   name, is a text term with the whole token as its text (`size:3`). A later
   `is:`, `has:`, `after:` or `before:` replaces an earlier one; `in:`
-  accumulates without repeats.
+  accumulates without repeats. Negation applies to text terms, `is:` and
+  `has:`; a negated `in:`, `after:`, `before:`, `on:`, `newer_than:` or
+  `older_than:` is a negated text term whose text is the token without its
+  `-` (`-in:trash` searches the words "in" and "trash" out).
 - **Match.** Each positive term becomes a quoted FTS5 phrase with every
   `"` in its text doubled, prefixed with `column : ` when it has a column
   (`subject : "lunch"*`); bare words get a trailing `*` (prefix match),
