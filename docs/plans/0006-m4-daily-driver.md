@@ -66,11 +66,13 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
 | T-0050 | `internal/discover` | Read RFC 6186 SRV records into server settings |
 | T-0051 | `internal/oauth` | PKCE, the authorization URL, token responses, the XOAUTH2 response and its errors |
 | T-0052 | `internal/notify` | Notification texts and grouping |
-| T-0053 | `cmd/mailctl` | `mailctl oauth`, `mailctl account authorize`, `mailctl verify` |
+| T-0053 | `cmd/mailctl` | `mailctl oauth`, `mailctl account connect`, `mailctl account authorize` |
 | T-0054 | `lib/mailboxTree` | Unified mailboxes (Inbox, Drafts, Sent, Junk, Trash, Archive across accounts) |
 | T-0055 | `features/settings` | `AccountList` |
-| T-0056 | `features/settings` | `AccountForm`: kind, address, sign-in, servers, read-only, notifications |
-| T-0057 | `features/settings` | `IdentityEditor` and `OAuthClientForm` |
+| T-0056 | `features/settings` | `ServerFields` |
+| T-0057 | `features/settings` | `AccountForm`: address, discovery, sign-in, servers, read-only, notifications |
+| T-0058 | `features/settings` | `IdentityEditor` |
+| T-0059 | `features/settings` | `OAuthClientForm` |
 
 - **Done when:** every card is merged with `make check` and `make ui-check`
   green.

@@ -49,6 +49,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Reader UI](specs/ui.md): tokens, layout, behavior and keyboard map
 - [Compose UI](specs/compose-ui.md): the compose window, undo toast and outbox
 - [Search language](specs/search.md): what the search field accepts
+- [Settings UI](specs/settings-ui.md): accounts, signatures and the Google client
 
 ### Plans
 
