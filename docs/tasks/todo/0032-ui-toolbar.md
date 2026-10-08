@@ -82,7 +82,8 @@ Archive when the count is 0 or `canArchive` is false; Move also when
 **Flag menu:** clicking Flag (`aria-haspopup="menu"`) opens a
 `ContextMenu` at the button's bottom-left corner
 (`getBoundingClientRect()`): items `flag:1` … `flag:7` labeled by
-`FLAG_NAMES`, `checked` for `selection.flagColor`, a separator, and
+`FLAG_NAMES`, each with `checked: selection.flagColor === N` (so
+`ContextMenu` shows them as `menuitemcheckbox`), a separator, and
 `flag:0` "Clear Flag", disabled when `selection.flagColor` is 0. Choosing
 `flag:N` calls `onCommand({ kind: "flag", color: N })`; the menu closes.
 

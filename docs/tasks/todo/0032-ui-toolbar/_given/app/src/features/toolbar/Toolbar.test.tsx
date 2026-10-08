@@ -108,10 +108,13 @@ describe("Toolbar", () => {
     expect(flag.getAttribute("aria-haspopup")).toBe("menu");
     expect(flag.getAttribute("title")).toBe("Flag (Ctrl+Shift+L)");
     fireEvent.click(flag);
-    const items = screen.getAllByRole("menuitem").map((m) => m.textContent);
-    expect(items).toEqual(["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Gray", "Clear Flag"]);
-    expect(screen.getByRole("menuitem", { name: /Yellow/ }).getAttribute("aria-checked")).toBe("true");
-    fireEvent.click(screen.getByRole("menuitem", { name: /Green/ }));
+    // Colors are checkable (menuitemcheckbox); Clear Flag is a plain item.
+    const colors = screen.getAllByRole("menuitemcheckbox").map((m) => m.textContent);
+    expect(colors).toEqual(["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Gray"]);
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Clear Flag"]);
+    expect(screen.getByRole("menuitemcheckbox", { name: /Yellow/ }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("menuitemcheckbox", { name: /Red/ }).getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Green/ }));
     expect(props.onCommand).toHaveBeenLastCalledWith({ kind: "flag", color: 4 });
     expect(screen.queryByRole("menu")).toBeNull();
   });
