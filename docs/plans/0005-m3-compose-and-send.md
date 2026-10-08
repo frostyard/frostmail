@@ -45,7 +45,7 @@ framework's own behavior, assert every relationship the contract names.
 | T-0042 | `app/src/lib` | `addressParse`: typed text to addresses |
 | T-0043 | `features/compose` | `RecipientField`: tokens and suggestions |
 | T-0044 | `features/compose` | `ComposeHeader`: identity, To, Cc, Bcc, Subject |
-| T-0045 | `features/compose` | `EditorToolbar` |
+| T-0045 | `features/compose` | `ComposeToolbar` and `FormatBar` |
 | T-0046 | `features/compose` | `ComposeAttachments` |
 | T-0047 | `features/outbox` | `UndoToast` and `OutboxStatus` |
 

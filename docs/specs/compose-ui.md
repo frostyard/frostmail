@@ -104,9 +104,10 @@ the conventions for measurements and shortcuts are those of the reader UI
 - **Outbox (`OutboxStatus`):** a section at the bottom of the sidebar,
   shown while any message is not yet sent: the heading "Outbox" (sidebar
   section role), then one row per message (8px vertical, 16px horizontal
-  padding): the subject (13/18 600, truncated), "To: " and the recipients
-  (12/16 `--text-secondary`, at most 2 then "+N"), the state line (12/16),
-  and the row's buttons (12/16 `--accent`, 12px gaps).
+  padding): the subject (13/18 600, truncated; "(no subject)" when
+  empty), "To: " and the recipients (12/16 `--text-secondary`, at most 2
+  names then "& N more"), the state line (12/16), and the row's buttons
+  (12/16 `--accent`, 12px gaps).
 
 ## Behavior
 
