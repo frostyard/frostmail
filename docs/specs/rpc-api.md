@@ -543,6 +543,7 @@ One mailbox of one account.
 | `role` | `MailboxRole` |  |
 | `total` | `int` | Messages stored locally for this mailbox. |
 | `unread` | `int` | Unread messages stored locally for this mailbox. |
+| `label` | `bool` | A Gmail label: a message can be in several labels at once, moving it out of one removes only that label, and All Mail is where Archive moves to. |
 
 ### Enum `MailboxRole`
 
@@ -640,6 +641,7 @@ Move messages to another mailbox of the same account.
 | --- | --- | --- |
 | `ids` | `[]int` |  |
 | `mailboxId` | `int` |  |
+| `fromMailboxId` | `int` (optional) | The mailbox the messages leave, where a message can be in several (Gmail labels): moving out of a label removes that label only. Omit for the mailbox that holds them; for Gmail that is INBOX when they are in it. |
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.

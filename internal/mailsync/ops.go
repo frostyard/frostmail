@@ -11,7 +11,6 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
-	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -90,6 +89,23 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 			if err := emitChanged(ctx, tx, acct, intersect(changed, msgs)); err != nil {
 				return err
 			}
+			if starred, ok := flaggedChange(c); ok {
+				var own []store.Membership
+				for _, mem := range mems {
+					if mem.AccountID == acct {
+						own = append(own, mem)
+					}
+				}
+				star, err := followStar(ctx, tx, acct, own, starred)
+				if err != nil {
+					return err
+				}
+				if star != 0 {
+					if err := tx.Emit(ctx, api.MailboxChanged{ID: star, AccountID: acct}); err != nil {
+						return err
+					}
+				}
+			}
 		}
 		// Changed flags move the counts of every mailbox holding the messages.
 		touched := map[int64]bool{}
@@ -110,6 +126,17 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 		m.kick(acct)
 	}
 	return nil
+}
+
+// flaggedChange reports the \Flagged a FlagChange sets, if it sets one.
+func flaggedChange(c store.FlagChange) (flagged, ok bool) {
+	switch {
+	case c.Color != nil:
+		return *c.Color > 0, true
+	case c.Flagged != nil:
+		return *c.Flagged, true
+	}
+	return false, false
 }
 
 // imapFlagChange maps a FlagChange to IMAP flags to add and remove,
@@ -144,16 +171,16 @@ func imapFlagChange(c store.FlagChange) (add, remove []string) {
 	return add, remove
 }
 
-// Move moves messages to mailboxID, which must belong to their account.
-func (m *Manager) Move(ctx context.Context, ids []int64, mailboxID int64) error {
+// Move moves messages to mailbox to, which must belong to their account.
+// from is the mailbox they leave on a Gmail account (0 for the default);
+// elsewhere a message is in one mailbox and from is ignored.
+func (m *Manager) Move(ctx context.Context, ids []int64, from, to int64) error {
 	var acct int64
 	err := m.db.Tx(ctx, func(tx *store.Tx) error {
 		mems, err := tx.Memberships(ctx, ids)
 		if err != nil {
 			return err
 		}
-		ops := map[int64]*moveOp{} // by source mailbox
-		var moved []int64
 		for _, mem := range mems {
 			if acct == 0 {
 				acct = mem.AccountID
@@ -161,42 +188,64 @@ func (m *Manager) Move(ctx context.Context, ids []int64, mailboxID int64) error 
 			if mem.AccountID != acct {
 				return fmt.Errorf("messages from more than one account: %w", ErrInvalid)
 			}
-			if mem.MailboxID == mailboxID || mem.UID == 0 {
-				continue // already there, or a move is still pending
-			}
-			op := ops[mem.MailboxID]
-			if op == nil {
-				op = &moveOp{From: mem.MailboxID, To: mailboxID}
-				ops[mem.MailboxID] = op
-			}
-			op.Items = append(op.Items, moveItem{Message: mem.MessageID, UID: mem.UID})
-			if err := tx.MoveMembership(ctx, mem.MessageID, mem.MailboxID, mailboxID); err != nil {
-				return err
-			}
-			moved = append(moved, mem.MessageID)
 		}
-		if acct != 0 && !ownsMailbox(ctx, tx, acct, mailboxID) {
-			return fmt.Errorf("mailbox %d is not in account %d: %w", mailboxID, acct, ErrInvalid)
+		if acct == 0 {
+			return nil
 		}
-		for _, op := range ops {
-			if _, err := tx.QueueOp(ctx, acct, opMove, op, op.messages()); err != nil {
-				return err
-			}
-			if err := tx.Emit(ctx, api.MailboxChanged{ID: op.From, AccountID: acct}); err != nil {
-				return err
-			}
+		if !ownsMailbox(ctx, tx, acct, to) {
+			return fmt.Errorf("mailbox %d is not in account %d: %w", to, acct, ErrInvalid)
 		}
-		if len(moved) > 0 {
-			if err := tx.Emit(ctx, api.MailboxChanged{ID: mailboxID, AccountID: acct}); err != nil {
-				return err
-			}
+		if from != 0 && !ownsMailbox(ctx, tx, acct, from) {
+			return fmt.Errorf("mailbox %d is not in account %d: %w", from, acct, ErrInvalid)
 		}
-		return emitChanged(ctx, tx, acct, moved)
+		gmail, err := tx.GmailAccount(ctx, acct)
+		if err != nil {
+			return err
+		}
+		if gmail {
+			return m.gmailMove(ctx, tx, acct, mems, from, to)
+		}
+		return moveFolders(ctx, tx, acct, mems, to)
 	})
 	if err == nil && acct != 0 {
 		m.kick(acct)
 	}
 	return err
+}
+
+// moveFolders is Move where each message is in one mailbox.
+func moveFolders(ctx context.Context, tx *store.Tx, acct int64, mems []store.Membership, to int64) error {
+	ops := map[int64]*moveOp{} // by source mailbox
+	var moved []int64
+	for _, mem := range mems {
+		if mem.MailboxID == to || mem.UID == 0 {
+			continue // already there, or a move is still pending
+		}
+		op := ops[mem.MailboxID]
+		if op == nil {
+			op = &moveOp{From: mem.MailboxID, To: to}
+			ops[mem.MailboxID] = op
+		}
+		op.Items = append(op.Items, moveItem{Message: mem.MessageID, UID: mem.UID})
+		if err := tx.MoveMembership(ctx, mem.MessageID, mem.MailboxID, to); err != nil {
+			return err
+		}
+		moved = append(moved, mem.MessageID)
+	}
+	for _, op := range ops {
+		if _, err := tx.QueueOp(ctx, acct, opMove, op, op.messages()); err != nil {
+			return err
+		}
+		if err := tx.Emit(ctx, api.MailboxChanged{ID: op.From, AccountID: acct}); err != nil {
+			return err
+		}
+	}
+	if len(moved) > 0 {
+		if err := tx.Emit(ctx, api.MailboxChanged{ID: to, AccountID: acct}); err != nil {
+			return err
+		}
+	}
+	return emitChanged(ctx, tx, acct, moved)
 }
 
 // Delete moves messages to their account's Trash, or expunges those already
@@ -239,6 +288,21 @@ func (m *Manager) Delete(ctx context.Context, ids []int64) error {
 			moves[key].Items = append(moves[key].Items, item)
 			if err := tx.MoveMembership(ctx, mem.MessageID, mem.MailboxID, trash); err != nil {
 				return err
+			}
+			// On Gmail the message leaves its labels for Trash. Label
+			// memberships have no UID, so the loop skips them.
+			gmail, err := tx.GmailAccount(ctx, mem.AccountID)
+			if err != nil {
+				return err
+			}
+			if gmail {
+				dropped, err := tx.DropGmailLabels(ctx, mem.MessageID)
+				if err != nil {
+					return err
+				}
+				for _, mb := range dropped {
+					accountOf[mb] = mem.AccountID
+				}
 			}
 		}
 		if err := tx.MarkDeleted(ctx, hidden); err != nil {
@@ -335,7 +399,7 @@ func intersect(a, b []int64) []int64 {
 // replay sends queued ops to the server, oldest first. A refused op (a NO
 // or BAD from the server) is marked failed and its local change undone by
 // the next pass; any other error ends the session and the op is retried.
-func (a *actor) replay(ctx context.Context, cmd *imapx.Session) error {
+func (a *actor) replay(ctx context.Context, cmd conn) error {
 	ops, err := a.m.db.DueOps(ctx, a.acct.ID, time.Now())
 	if err != nil {
 		return err
@@ -362,7 +426,7 @@ func (a *actor) replay(ctx context.Context, cmd *imapx.Session) error {
 	return nil
 }
 
-func (a *actor) replayOne(ctx context.Context, cmd *imapx.Session, op store.Op) error {
+func (a *actor) replayOne(ctx context.Context, cmd conn, op store.Op) error {
 	switch op.Kind {
 	case opFlags:
 		var p flagsOp
@@ -397,27 +461,36 @@ func (a *actor) replayOne(ctx context.Context, cmd *imapx.Session, op store.Op) 
 		if err := json.Unmarshal(op.Payload, &p); err != nil {
 			return err
 		}
-		from, err := a.mailboxPath(ctx, p.From)
+		from, err := a.mailbox(ctx, p.From)
 		if err != nil {
 			return err
 		}
-		to, err := a.mailboxPath(ctx, p.To)
+		to, err := a.mailbox(ctx, p.To)
 		if err != nil {
 			return err
 		}
-		if _, err := cmd.Select(ctx, from); err != nil {
+		if _, err := cmd.Select(ctx, from.Path); err != nil {
 			return err
 		}
 		uids := make([]uint32, len(p.Items))
 		for i, it := range p.Items {
 			uids[i] = it.UID
 		}
-		newUIDs, err := cmd.Move(ctx, uids, to)
+		newUIDs, err := cmd.Move(ctx, uids, to.Path)
 		if err != nil {
 			return err
 		}
 		return a.m.db.Tx(ctx, func(tx *store.Tx) error {
 			for _, it := range p.Items {
+				if to.Label {
+					// Out of Gmail's Spam or Trash into a label: the UID is
+					// the label folder's. The All Mail copy arrives with the
+					// next pass.
+					if err := tx.SetMembership(ctx, it.Message, p.To, 0); err != nil {
+						return err
+					}
+					continue
+				}
 				if uid := newUIDs[it.UID]; uid != 0 {
 					if err := tx.SetMembership(ctx, it.Message, p.To, uid); err != nil {
 						return err
@@ -459,13 +532,15 @@ func (a *actor) replayOne(ctx context.Context, cmd *imapx.Session, op store.Op) 
 		if err := cmd.StoreFlags(ctx, uids, []string{`\Deleted`}, nil); err != nil {
 			return err
 		}
-		if cmd.Caps.UIDPlus {
+		if cmd.Capabilities().UIDPlus {
 			if err := cmd.Expunge(ctx, uids); err != nil {
 				return err
 			}
 		}
 		mb := store.Mailbox{ID: p.Mailbox, AccountID: a.acct.ID, Path: path}
 		return a.remove(ctx, mb, uids)
+	case opLabels:
+		return a.replayLabels(ctx, cmd, op)
 	case opAppendSent:
 		return a.replayAppendSent(ctx, cmd, op)
 	case opRemoveCopy:
@@ -490,6 +565,11 @@ func (a *actor) undo(ctx context.Context, op store.Op, reason string) error {
 				if err := tx.SetMembership(ctx, it.Message, p.From, it.UID); err != nil {
 					return err
 				}
+			}
+			// Gmail labels dropped by the move come back with the next
+			// pass's full fetch of the source.
+			if err := tx.ForgetFlagState(ctx, p.From); err != nil {
+				return err
 			}
 			return tx.Emit(ctx, api.MessageChanged{AccountID: a.acct.ID, IDs: itemIDs(p.Items)})
 		case opExpunge:
@@ -551,14 +631,19 @@ func itemIDs(items []moveItem) []int64 {
 }
 
 func (a *actor) mailboxPath(ctx context.Context, id int64) (string, error) {
+	mb, err := a.mailbox(ctx, id)
+	return mb.Path, err
+}
+
+func (a *actor) mailbox(ctx context.Context, id int64) (store.Mailbox, error) {
 	mbs, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
 	if err != nil {
-		return "", err
+		return store.Mailbox{}, err
 	}
 	for _, mb := range mbs {
 		if mb.ID == id {
-			return mb.Path, nil
+			return mb, nil
 		}
 	}
-	return "", fmt.Errorf("mailbox %d: %w", id, store.ErrNotFound)
+	return store.Mailbox{}, fmt.Errorf("mailbox %d: %w", id, store.ErrNotFound)
 }

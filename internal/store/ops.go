@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/frostyard/frostmail/api"
 )
 
 // Op is a queued offline action (docs/design/sync.md, offline actions). Its
@@ -141,7 +143,7 @@ type Membership struct {
 	AccountID   int64
 	MailboxID   int64
 	MailboxPath string
-	Role        string
+	Role        api.MailboxRole
 	UID         uint32 // 0 while a local move is pending
 }
 

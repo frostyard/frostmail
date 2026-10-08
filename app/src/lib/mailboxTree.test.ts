@@ -24,7 +24,7 @@ function account(id: number, email: string): Account {
 let nextId = 1;
 function mb(accountId: number, path: string, role: MailboxRole, unread = 0, delimiter = "/"): Mailbox {
   const name = delimiter ? (path.split(delimiter).pop() ?? path) : path;
-  return { id: nextId++, accountId, path, name, delimiter, role, total: unread * 2, unread };
+  return { id: nextId++, accountId, path, name, delimiter, role, total: unread * 2, unread, label: false };
 }
 
 const rows = (items: SidebarItem[]) =>

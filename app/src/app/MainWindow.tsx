@@ -7,7 +7,7 @@ import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
 import { ScopeBar } from "../features/search/SearchField";
 import { commandFor } from "../lib/keymap";
-import { archiveMailbox, compose, getMail, toggleFlag, toggleRead } from "./commands";
+import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
@@ -92,11 +92,9 @@ export function MainWindow() {
         case "toggleFlag":
           void toggleFlag(client, model, ids);
           break;
-        case "archive": {
-          const mb = archiveMailbox(model, ids, mailboxes);
-          if (mb && ids.length > 0) void client.message.move({ ids, mailboxId: mb.id });
+        case "archive":
+          void moveMessages(client, ids, archiveMailbox(model, ids, mailboxes), ui.source, mailboxes);
           break;
-        }
         case "pageDown":
         case "pageUp":
           if (ui.focus === "sidebar") handled = false;

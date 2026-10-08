@@ -25,6 +25,7 @@ types:
       - {name: role, type: MailboxRole}
       - {name: total, type: int, doc: "Messages stored locally for this mailbox."}
       - {name: unread, type: int, doc: "Unread messages stored locally for this mailbox."}
+      - {name: label, type: bool, doc: "A Gmail label: a message can be in several labels at once, moving it out of one removes only that label, and All Mail is where Archive moves to."}
 methods:
   - name: list
     doc: Mailboxes ordered by account, role, then path.

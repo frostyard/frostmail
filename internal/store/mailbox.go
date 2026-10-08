@@ -23,12 +23,18 @@ type Mailbox struct {
 	Role      api.MailboxRole
 	Total     int64
 	Unread    int64
+	Label     bool // a Gmail label (ADR-0012)
 }
 
 // ListMailboxes returns mailboxes ordered by account, role (inbox first,
 // user folders last) and path. accountID 0 means every account.
 func (d *DB) ListMailboxes(ctx context.Context, accountID int64) ([]Mailbox, error) {
 	return listMailboxes(ctx, d.db, accountID)
+}
+
+// ListMailboxes is DB.ListMailboxes inside the transaction.
+func (t *Tx) ListMailboxes(ctx context.Context, accountID int64) ([]Mailbox, error) {
+	return listMailboxes(ctx, t, accountID)
 }
 
 // querier is satisfied by *sql.DB and *Tx, so a query helper can run inside
@@ -39,7 +45,7 @@ type querier interface {
 
 func listMailboxes(ctx context.Context, q querier, accountID int64) ([]Mailbox, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT mb.id, mb.account_id, mb.path, mb.name, mb.delimiter, mb.role,
+		SELECT mb.id, mb.account_id, mb.path, mb.name, mb.delimiter, mb.role, mb.is_gmail_label,
 		       COUNT(mm.message_id), COALESCE(SUM(m.seen = 0), 0)
 		FROM mailboxes mb
 		LEFT JOIN message_mailbox mm ON mm.mailbox_id = mb.id
@@ -59,7 +65,7 @@ func listMailboxes(ctx context.Context, q querier, accountID int64) ([]Mailbox, 
 	for rows.Next() {
 		var mb Mailbox
 		var role string
-		if err := rows.Scan(&mb.ID, &mb.AccountID, &mb.Path, &mb.Name, &mb.Delimiter, &role, &mb.Total, &mb.Unread); err != nil {
+		if err := rows.Scan(&mb.ID, &mb.AccountID, &mb.Path, &mb.Name, &mb.Delimiter, &role, &mb.Label, &mb.Total, &mb.Unread); err != nil {
 			return nil, fmt.Errorf("list mailboxes: %w", err)
 		}
 		mb.Role = api.MailboxRole(role)

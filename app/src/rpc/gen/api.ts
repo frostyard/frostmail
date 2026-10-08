@@ -536,6 +536,11 @@ export interface Mailbox {
   total: number;
   /** Unread messages stored locally for this mailbox. */
   unread: number;
+  /**
+   * A Gmail label: a message can be in several labels at once, moving it out
+   * of one removes only that label, and All Mail is where Archive moves to.
+   */
+  label: boolean;
 }
 
 /** Params of mailbox.list. */
@@ -722,6 +727,12 @@ export interface MessageSetFlagsParams {
 export interface MessageMoveParams {
   ids: number[];
   mailboxId: number;
+  /**
+   * The mailbox the messages leave, where a message can be in several (Gmail
+   * labels): moving out of a label removes that label only. Omit for the
+   * mailbox that holds them; for Gmail that is INBOX when they are in it.
+   */
+  fromMailboxId?: number;
 }
 
 /** Params of message.delete. */

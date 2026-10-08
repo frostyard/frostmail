@@ -75,6 +75,7 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     name: path.split("/").pop() ?? path,
     delimiter: "/",
     role,
+    label: false,
   });
   const mailboxes = [
     mb(FIXTURE.inbox, "INBOX", "inbox"),

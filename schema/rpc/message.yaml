@@ -127,6 +127,7 @@ methods:
     params:
       - {name: ids, type: "[]int"}
       - {name: mailboxId, type: int}
+      - {name: fromMailboxId, type: int, optional: true, doc: "The mailbox the messages leave, where a message can be in several (Gmail labels): moving out of a label removes that label only. Omit for the mailbox that holds them; for Gmail that is INBOX when they are in it."}
     errors: [notFound, invalidParams]
   - name: delete
     doc: Move messages to the account's Trash; messages already in Trash are deleted from the server.

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
-	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/smtpx"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -384,7 +383,7 @@ func (a *actor) settleInterrupted(ctx context.Context) error {
 // replayAppendSent writes a sent message's copy into Sent, unless a copy
 // with its Message-ID is already there (a replay after a crash), and marks
 // the row sent. Without a Sent mailbox the row is marked sent directly.
-func (a *actor) replayAppendSent(ctx context.Context, cmd *imapx.Session, op store.Op) error {
+func (a *actor) replayAppendSent(ctx context.Context, cmd conn, op store.Op) error {
 	var p appendSentOp
 	if err := json.Unmarshal(op.Payload, &p); err != nil {
 		return err
@@ -445,7 +444,7 @@ func (a *actor) markSent(ctx context.Context, id int64) error {
 
 // replayRemoveCopy deletes one UID from a mailbox (\Deleted, then UID
 // EXPUNGE when the server has UIDPLUS) and forgets it locally.
-func (a *actor) replayRemoveCopy(ctx context.Context, cmd *imapx.Session, op store.Op) error {
+func (a *actor) replayRemoveCopy(ctx context.Context, cmd conn, op store.Op) error {
 	var p removeCopyOp
 	if err := json.Unmarshal(op.Payload, &p); err != nil {
 		return err
@@ -461,7 +460,7 @@ func (a *actor) replayRemoveCopy(ctx context.Context, cmd *imapx.Session, op sto
 	if err := cmd.StoreFlags(ctx, uids, []string{`\Deleted`}, nil); err != nil {
 		return err
 	}
-	if cmd.Caps.UIDPlus {
+	if cmd.Capabilities().UIDPlus {
 		if err := cmd.Expunge(ctx, uids); err != nil {
 			return err
 		}

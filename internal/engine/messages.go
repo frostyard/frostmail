@@ -102,7 +102,11 @@ func (m messages) Move(ctx context.Context, p *api.MessageMoveParams) error {
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")
 	}
-	return opError(m.Sync.Move(ctx, p.IDs, p.MailboxID))
+	var from int64
+	if p.FromMailboxID != nil {
+		from = *p.FromMailboxID
+	}
+	return opError(m.Sync.Move(ctx, p.IDs, from, p.MailboxID))
 }
 
 func (m messages) Delete(ctx context.Context, p *api.MessageDeleteParams) error {

@@ -1,5 +1,6 @@
 // Commands on the selection and the window, shared by the keyboard, the
 // toolbar and context menus (docs/specs/ui.md, Behavior).
+import type { Source } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import type { Client, Mailbox } from "../rpc/gen/api";
 import { startDraft } from "./compose";
@@ -35,11 +36,46 @@ export async function setFlagColor(client: Client, ids: number[], color: number)
   await client.message.setFlags({ ids, changes: { flagColor: color } });
 }
 
-/** archiveMailbox is the archive mailbox of the messages' account, if any. */
+/** archiveMailbox is where Archive moves the messages (see archiveOf). */
 export function archiveMailbox(model: ViewModel | null, ids: number[], mailboxes: Mailbox[]): Mailbox | undefined {
   const first = selectedSummaries(model, ids)[0];
-  if (!first) return undefined;
-  return mailboxes.find((mb) => mb.accountId === first.accountId && mb.role === "archive");
+  return first ? archiveOf(first.accountId, mailboxes) : undefined;
+}
+
+/**
+ * archiveOf is where Archive moves an account's messages: its archive mailbox,
+ * or All Mail on an account whose mailboxes are Gmail labels.
+ */
+export function archiveOf(accountId: number, mailboxes: Mailbox[]): Mailbox | undefined {
+  const own = mailboxes.filter((mb) => mb.accountId === accountId);
+  const archive = own.find((mb) => mb.role === "archive");
+  if (archive || !own.some((mb) => mb.label)) return archive;
+  return own.find((mb) => mb.role === "all");
+}
+
+/**
+ * moveParams are message.move's params. When the list shows a mailbox of the
+ * destination's account, the messages leave that one: on Gmail, moving out of
+ * a label removes only that label.
+ */
+export function moveParams(ids: number[], to: Mailbox, source: Source, mailboxes: Mailbox[]) {
+  const from =
+    source.kind === "mailbox"
+      ? mailboxes.find((mb) => mb.id === source.mailboxId && mb.accountId === to.accountId)
+      : undefined;
+  return from ? { ids, mailboxId: to.id, fromMailboxId: from.id } : { ids, mailboxId: to.id };
+}
+
+/** moveMessages moves messages to a mailbox (see moveParams). */
+export async function moveMessages(
+  client: Client,
+  ids: number[],
+  to: Mailbox | undefined,
+  source: Source,
+  mailboxes: Mailbox[],
+): Promise<void> {
+  if (!to || ids.length === 0) return;
+  await client.message.move(moveParams(ids, to, source, mailboxes));
 }
 
 /** getMail asks maild to sync every account now. */

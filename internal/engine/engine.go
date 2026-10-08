@@ -30,7 +30,7 @@ type Syncer interface {
 	SyncNow(accountID int64) error
 	FetchBody(ctx context.Context, messageID int64) (string, error)
 	SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error
-	Move(ctx context.Context, ids []int64, mailboxID int64) error
+	Move(ctx context.Context, ids []int64, from, to int64) error
 	Delete(ctx context.Context, ids []int64) error
 	// Kick, OutboxChanged and DraftsChanged wake an account's IMAP actor
 	// (queued ops), sender (queued mail) and draft saver.
@@ -317,7 +317,7 @@ func (m mailboxes) List(ctx context.Context, p *api.MailboxListParams) ([]api.Ma
 	for _, mb := range list {
 		out = append(out, api.Mailbox{
 			ID: mb.ID, AccountID: mb.AccountID, Path: mb.Path, Name: mb.Name,
-			Delimiter: mb.Delimiter, Role: mb.Role, Total: mb.Total, Unread: mb.Unread,
+			Delimiter: mb.Delimiter, Role: mb.Role, Total: mb.Total, Unread: mb.Unread, Label: mb.Label,
 		})
 	}
 	return out, nil

@@ -10,7 +10,16 @@ import { MessageRow, ROW_HEIGHT, type SelectMode } from "../features/list/Messag
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES } from "../lib/flags";
 import type { Command } from "../lib/keymap";
-import { archiveMailbox, compose, rangeIds, selectedSummaries, setFlagColor, step, toggleRead } from "./commands";
+import {
+  archiveMailbox,
+  compose,
+  moveMessages,
+  rangeIds,
+  selectedSummaries,
+  setFlagColor,
+  step,
+  toggleRead,
+} from "./commands";
 import { openDraftMessage } from "./compose";
 
 /** ListHandle lets the window send keyboard commands to the list. */
@@ -30,7 +39,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
   function ListContainer({ model, onDelete }, ref) {
     const client = useClient();
     const mailboxes = useMail((s) => s.mailboxes);
-    const { selected, anchor, focus, conversations, select, setFocus } = useUI();
+    const { selected, anchor, focus, conversations, source, select, setFocus } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
     const [now, setNow] = useState(() => new Date());
@@ -231,13 +240,15 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
         } else if (id === "read") void toggleRead(client, model, ids);
         else if (id === "delete") onDelete(ids);
-        else if (id === "archive") {
-          const mb = archiveMailbox(model, ids, mailboxes);
-          if (mb) void client.message.move({ ids, mailboxId: mb.id });
-        } else if (id.startsWith("flag:")) void setFlagColor(client, ids, Number(id.slice(5)));
-        else if (id.startsWith("move:")) void client.message.move({ ids, mailboxId: Number(id.slice(5)) });
+        else if (id === "archive")
+          void moveMessages(client, ids, archiveMailbox(model, ids, mailboxes), source, mailboxes);
+        else if (id.startsWith("flag:")) void setFlagColor(client, ids, Number(id.slice(5)));
+        else if (id.startsWith("move:")) {
+          const to = mailboxes.find((mb) => mb.id === Number(id.slice(5)));
+          void moveMessages(client, ids, to, source, mailboxes);
+        }
       },
-      [menu, client, model, mailboxes, onDelete],
+      [menu, client, model, mailboxes, onDelete, source],
     );
 
     const focused = focus === "list";

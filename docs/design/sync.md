@@ -91,6 +91,27 @@ The decision and every operation's mapping are in
 [ADR-0012](../adr/0012-gmail-labels-as-memberships.md); provider quirks in
 [accounts.md](accounts.md).
 
+- **Selection:** an account syncs this way when its profile says Gmail and
+  the server offers `X-GM-EXT-1` (`internal/mailsync/gmail.go`). After the
+  first pass its labels are marked, which is how offline actions, taken
+  without a connection, know the account is Gmail.
+- **The Gmail pass** reconciles All Mail, Spam and Trash in that order, each
+  with the CONDSTORE fast path, then prunes messages no folder holds. Any
+  change runs the whole pass, because a message that leaves one folder may
+  have arrived in another; removing a UID keeps the row until the prune, so
+  a message moved to Trash keeps its ID and cached body. C2 idles on All
+  Mail; polling checks Spam and Trash with `STATUS`.
+- **Offline actions** (`internal/mailsync/gmailops.go`) act on the message's
+  copy in its synced folder. `message.move` takes an optional
+  `fromMailboxId`, the label being left; without it a message leaves INBOX
+  when it is there. Label edits queue a `labels` op (`STORE ±X-GM-LABELS`
+  on All Mail UIDs); moves into or out of Spam and Trash queue a `move` op.
+  Out of Spam or Trash into a label, the MOVE's UIDs belong to the label
+  folder and are dropped: the All Mail copy arrives with the next pass.
+  Starred follows `\Flagged` locally at once. Like flags, server labels do
+  not overwrite a message a queued op covers; a refused op makes the next
+  pass refetch the source's flags and labels.
+
 ## Threading (non-Gmail)
 
 Incremental JWZ over `thread_refs`: each Message-ID (seen or referenced) maps

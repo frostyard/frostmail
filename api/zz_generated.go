@@ -1081,6 +1081,9 @@ type Mailbox struct {
 	Total int64 `json:"total"`
 	// Unread messages stored locally for this mailbox.
 	Unread int64 `json:"unread"`
+	// A Gmail label: a message can be in several labels at once, moving it out of
+	// one removes only that label, and All Mail is where Archive moves to.
+	Label bool `json:"label"`
 }
 
 // MailboxListParams holds the params of mailbox.list.
@@ -1289,6 +1292,10 @@ type MessageSetFlagsParams struct {
 type MessageMoveParams struct {
 	IDs       []int64 `json:"ids"`
 	MailboxID int64   `json:"mailboxId"`
+	// The mailbox the messages leave, where a message can be in several (Gmail
+	// labels): moving out of a label removes that label only. Omit for the
+	// mailbox that holds them; for Gmail that is INBOX when they are in it.
+	FromMailboxID *int64 `json:"fromMailboxId,omitzero"`
 }
 
 // MessageDeleteParams holds the params of message.delete.

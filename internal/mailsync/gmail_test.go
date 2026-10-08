@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/imapx"
@@ -36,7 +37,8 @@ type gmailModel struct {
 	modseq   uint64
 	nextID   uint64
 	selected string
-	log      []string // commands run, "SELECT path" and so on
+	log      []string        // commands run, "SELECT path" and so on
+	refuse   map[string]bool // commands answered NO, by name ("STORE labels")
 }
 
 type gmFolder struct{ validity, next uint32 }
@@ -162,6 +164,9 @@ func (g *gmailModel) FetchGmailChanges(_ context.Context, uids []uint32, since u
 
 func (g *gmailModel) StoreLabels(_ context.Context, uids []uint32, add, remove []string) error {
 	g.log = append(g.log, fmt.Sprintf("STORE %v +labels %v -labels %v", uids, add, remove))
+	if g.refuse["STORE labels"] {
+		return &imap.Error{Type: imap.StatusResponseTypeNo, Text: "refused by the test"}
+	}
 	for _, m := range g.at(uids) {
 		g.label(m, add, remove)
 	}
@@ -204,6 +209,9 @@ func (g *gmailModel) StoreFlags(_ context.Context, uids []uint32, add, remove []
 // Trash into a label folder (which returns that folder's UIDs).
 func (g *gmailModel) Move(_ context.Context, uids []uint32, dest string) (map[uint32]uint32, error) {
 	g.log = append(g.log, fmt.Sprintf("MOVE %v %s", uids, dest))
+	if g.refuse["MOVE"] {
+		return nil, &imap.Error{Type: imap.StatusResponseTypeNo, Text: "refused by the test"}
+	}
 	out := map[uint32]uint32{}
 	for _, m := range g.at(uids) {
 		old := m.uid
@@ -220,6 +228,20 @@ func (g *gmailModel) Move(_ context.Context, uids []uint32, dest string) (map[ui
 		}
 	}
 	return out, nil
+}
+
+func (g *gmailModel) SearchMessageID(_ context.Context, msgid string) ([]uint32, error) {
+	var out []uint32
+	for _, m := range g.in(g.selected) {
+		if fmt.Sprintf("m%d@mail.gmail.com", m.id) == msgid {
+			out = append(out, m.uid)
+		}
+	}
+	return out, nil
+}
+
+func (g *gmailModel) Append(context.Context, string, []byte, []string) (uint32, error) {
+	return 0, errors.New("append: not modeled")
 }
 
 func (g *gmailModel) Expunge(_ context.Context, uids []uint32) error {
@@ -299,7 +321,22 @@ func (e *gmailEnv) pass() []string {
 	if err := e.a.gmailPass(e.t.Context(), e.g); err != nil {
 		e.t.Fatal(err)
 	}
+	e.invariants()
 	return e.g.log
+}
+
+// invariants checks what every step must leave: labels without UIDs, and
+// synced folders with UIDs unless a move there is pending.
+func (e *gmailEnv) invariants() {
+	e.t.Helper()
+	if n := e.count(`SELECT COUNT(*) FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id
+		WHERE mb.is_gmail_label = 1 AND mm.uid IS NOT NULL`); n != 0 {
+		e.t.Errorf("%d label memberships have a UID", n)
+	}
+	if n := e.count(`SELECT COUNT(*) FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id
+		WHERE mb.is_gmail_label = 0 AND mm.uid IS NULL AND mm.pending = 0`); n != 0 {
+		e.t.Errorf("%d synced memberships have no UID and no pending move", n)
+	}
 }
 
 // subjects lists the subjects stored in a mailbox, sorted.
@@ -543,4 +580,216 @@ func TestGmailModelRefusesUnmodeled(t *testing.T) {
 	if _, err := g.Move(t.Context(), []uint32{1}, "Work"); err == nil || errors.Is(err, context.Canceled) {
 		t.Error("moving from All Mail to a label folder should fail in the model")
 	}
+}
+
+// replay sends the queued actions to the model.
+func (e *gmailEnv) replay() []string {
+	e.t.Helper()
+	e.g.log = nil
+	if err := e.a.replay(e.t.Context(), e.g); err != nil {
+		e.t.Fatal(err)
+	}
+	e.invariants()
+	return e.g.log
+}
+
+func (e *gmailEnv) move(ids []int64, from, to string) {
+	e.t.Helper()
+	if err := e.a.m.Move(e.t.Context(), ids, e.mbs[from], e.mbs[to]); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+func (g *gmailModel) find(subject string) *gmMsg {
+	for _, m := range g.msgs {
+		if m.subject == subject {
+			return m
+		}
+	}
+	return nil
+}
+
+func sorted(l []string) []string {
+	out := slices.Clone(l)
+	slices.Sort(out)
+	return out
+}
+
+func TestGmailArchiveAndMoveBetweenLabels(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "A", 0, `\Inbox`, "Work")
+	g.add(gAll, "B", 0, `\Inbox`)
+	e.pass()
+	a, b := e.id("A"), e.id("B")
+	e.drain()
+
+	// Archive A from INBOX: it keeps Work. Move B from INBOX to Work.
+	e.move([]int64{a}, "INBOX", gAll)
+	e.move([]int64{b}, "INBOX", "Work")
+	eq(t, "INBOX at once", e.subjects("INBOX"), nil)
+	eq(t, "Work at once", e.subjects("Work"), []string{"A", "B"})
+	eq(t, "All Mail at once", e.subjects(gAll), []string{"A", "B"})
+	eq(t, "mailboxes announced", e.changedMailboxes(e.drain()), []string{"INBOX", "Work"})
+
+	// A pass before the replay leaves the local change alone.
+	e.pass()
+	eq(t, "INBOX before the replay", e.subjects("INBOX"), nil)
+
+	eq(t, "replay", e.replay(), []string{
+		"SELECT " + gAll, `STORE [1] +labels [] -labels [\Inbox]`,
+		"SELECT " + gAll, `STORE [2] +labels [Work] -labels [\Inbox]`,
+	})
+	eq(t, "A's labels", sorted(g.find("A").labels), []string{"Work"})
+	eq(t, "B's labels", sorted(g.find("B").labels), []string{"Work"})
+	e.pass()
+	eq(t, "INBOX after", e.subjects("INBOX"), nil)
+	eq(t, "Work after", e.subjects("Work"), []string{"A", "B"})
+
+	// Without a source, a message leaves INBOX if it is there: A is not,
+	// so moving it to INBOX only adds the label; C is, so moving it to Work
+	// takes it out of INBOX.
+	g.add(gAll, "C", 0, `\Inbox`)
+	e.pass()
+	c := e.id("C")
+	if err := e.a.m.Move(t.Context(), []int64{a}, 0, e.mbs["INBOX"]); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.m.Move(t.Context(), []int64{c}, 0, e.mbs["Work"]); err != nil {
+		t.Fatal(err)
+	}
+	e.replay()
+	eq(t, "A's labels after a move without a source", sorted(g.find("A").labels), []string{"Work", `\Inbox`})
+	eq(t, "C's labels after a move without a source", sorted(g.find("C").labels), []string{"Work"})
+}
+
+func TestGmailDeleteMovesToTrashThenExpunges(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "Doomed", 0, `\Inbox`, "Work")
+	e.pass()
+	id := e.id("Doomed")
+
+	if err := e.a.m.Delete(t.Context(), []int64{id}); err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "INBOX", e.subjects("INBOX"), nil)
+	eq(t, "Work", e.subjects("Work"), nil)
+	eq(t, "Trash", e.subjects(gTrash), []string{"Doomed"})
+	eq(t, "replay", e.replay(), []string{"SELECT " + gAll, "MOVE [1] " + gTrash})
+	if m := g.find("Doomed"); m.folder != gTrash {
+		t.Fatalf("on the server the message is in %s", m.folder)
+	}
+	e.pass()
+	if e.id("Doomed") != id {
+		t.Error("the trashed message was stored again")
+	}
+	for _, ev := range e.drain() {
+		if r, ok := ev.(api.MessageRemoved); ok {
+			t.Errorf("message.removed %v for a message moved to Trash", r.IDs)
+		}
+	}
+
+	// Deleting in Trash deletes it from the server.
+	if err := e.a.m.Delete(t.Context(), []int64{id}); err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "replay in Trash", e.replay(), []string{"SELECT " + gTrash, `STORE [1] +flags [\Deleted] -flags []`, "EXPUNGE [1]"})
+	if g.find("Doomed") != nil {
+		t.Error("the message is still on the server")
+	}
+	e.pass()
+	if n := e.count(`SELECT COUNT(*) FROM messages`); n != 0 {
+		t.Errorf("%d messages stored after the delete", n)
+	}
+}
+
+func TestGmailJunkAndBack(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "Offer", 0, `\Inbox`)
+	e.pass()
+	id := e.id("Offer")
+
+	e.move([]int64{id}, "INBOX", gSpam)
+	eq(t, "INBOX", e.subjects("INBOX"), nil)
+	eq(t, "Spam", e.subjects(gSpam), []string{"Offer"})
+	eq(t, "replay to Spam", e.replay(), []string{"SELECT " + gAll, "MOVE [1] " + gSpam})
+	e.pass()
+
+	// Not junk: back to INBOX. Gmail returns it to All Mail with \Inbox.
+	e.move([]int64{id}, gSpam, "INBOX")
+	eq(t, "INBOX at once", e.subjects("INBOX"), []string{"Offer"})
+	eq(t, "Spam at once", e.subjects(gSpam), nil)
+	eq(t, "replay to INBOX", e.replay(), []string{"SELECT " + gSpam, "MOVE [1] INBOX"})
+	if n := e.count(`SELECT COUNT(*) FROM message_mailbox WHERE pending = 1`); n != 0 {
+		t.Errorf("%d memberships still pending after the replay", n)
+	}
+	e.pass()
+	eq(t, "INBOX after", e.subjects("INBOX"), []string{"Offer"})
+	eq(t, "All Mail after", e.subjects(gAll), []string{"Offer"})
+	if e.id("Offer") != id {
+		t.Error("the message came back as a new row")
+	}
+}
+
+func TestGmailStarFollowsFlag(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "Star me", 0, `\Inbox`)
+	e.pass()
+	id := e.id("Star me")
+	e.drain()
+
+	if err := e.a.m.SetFlags(t.Context(), []int64{id}, store.FlagChange{Flagged: new(true)}); err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "Starred at once", e.subjects("[Gmail]/Starred"), []string{"Star me"})
+	if !slices.Contains(e.changedMailboxes(e.drain()), "[Gmail]/Starred") {
+		t.Error("Starred's counts changed without mailbox.changed")
+	}
+	e.replay()
+	if m := g.find("Star me"); !slices.Contains(m.labels, `\Starred`) {
+		t.Errorf("server labels = %q", m.labels)
+	}
+	e.pass()
+	eq(t, "Starred after", e.subjects("[Gmail]/Starred"), []string{"Star me"})
+
+	if err := e.a.m.SetFlags(t.Context(), []int64{id}, store.FlagChange{Flagged: new(false)}); err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "Starred after unflagging", e.subjects("[Gmail]/Starred"), nil)
+}
+
+func TestGmailRefusedLabelEditIsUndone(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "Stuck", 0, `\Inbox`)
+	e.pass()
+	id := e.id("Stuck")
+
+	e.move([]int64{id}, "INBOX", "Work")
+	g.refuse = map[string]bool{"STORE labels": true}
+	e.replay()
+	e.pass()
+	eq(t, "INBOX after the refusal", e.subjects("INBOX"), []string{"Stuck"})
+	eq(t, "Work after the refusal", e.subjects("Work"), nil)
+}
+
+func TestGmailRefusedTrashIsUndone(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "Keep", 0, `\Inbox`, "Work")
+	e.pass()
+	id := e.id("Keep")
+
+	if err := e.a.m.Delete(t.Context(), []int64{id}); err != nil {
+		t.Fatal(err)
+	}
+	g.refuse = map[string]bool{"MOVE": true}
+	e.replay()
+	e.pass()
+	eq(t, "Trash after the refusal", e.subjects(gTrash), nil)
+	eq(t, "INBOX after the refusal", e.subjects("INBOX"), []string{"Keep"})
+	eq(t, "Work after the refusal", e.subjects("Work"), []string{"Keep"})
 }

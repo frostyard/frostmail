@@ -69,6 +69,69 @@ func (t *Tx) GmailLabels(ctx context.Context, accountID int64) (map[string]int64
 	return out, rows.Err()
 }
 
+// GmailAccount reports whether an account syncs the Gmail way: its labels
+// are marked after its first Gmail pass, and INBOX is always one.
+func (t *Tx) GmailAccount(ctx context.Context, accountID int64) (bool, error) {
+	var ok bool
+	err := t.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM mailboxes WHERE account_id = ? AND is_gmail_label = 1)`,
+		accountID).Scan(&ok)
+	if err != nil {
+		return false, fmt.Errorf("gmail account %d: %w", accountID, err)
+	}
+	return ok, nil
+}
+
+// GmailLabelNames maps an account's label mailboxes to the X-GM-LABELS
+// name that sets them: \Inbox, \Sent, \Draft, \Starred, \Important, or
+// the label's path.
+func (t *Tx) GmailLabelNames(ctx context.Context, accountID int64) (map[int64]string, error) {
+	labels, err := t.GmailLabels(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]string{}
+	for name, id := range labels {
+		if cur, ok := out[id]; !ok || strings.HasPrefix(name, `\`) && !strings.HasPrefix(cur, `\`) {
+			out[id] = name
+		}
+	}
+	return out, nil
+}
+
+// EditGmailLabels adds and removes label memberships of a message and
+// returns the label mailboxes that changed.
+func (t *Tx) EditGmailLabels(ctx context.Context, msgID int64, add, remove []int64) ([]int64, error) {
+	var changed []int64
+	for _, mb := range add {
+		res, err := t.ExecContext(ctx, `INSERT OR IGNORE INTO message_mailbox (message_id, mailbox_id)
+			SELECT ?, id FROM mailboxes WHERE id = ? AND is_gmail_label = 1`, msgID, mb)
+		if err != nil {
+			return nil, fmt.Errorf("add label %d to %d: %w", mb, msgID, err)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			changed = append(changed, mb)
+		}
+	}
+	for _, mb := range remove {
+		res, err := t.ExecContext(ctx, `DELETE FROM message_mailbox WHERE message_id = ? AND mailbox_id = ?
+			AND mailbox_id IN (SELECT id FROM mailboxes WHERE is_gmail_label = 1)`, msgID, mb)
+		if err != nil {
+			return nil, fmt.Errorf("drop label %d of %d: %w", mb, msgID, err)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			changed = append(changed, mb)
+		}
+	}
+	slices.Sort(changed)
+	return slices.Compact(changed), nil
+}
+
+// DropGmailLabels removes every label membership of a message, as moving it
+// to Spam or Trash does, and returns the label mailboxes that changed.
+func (t *Tx) DropGmailLabels(ctx context.Context, msgID int64) ([]int64, error) {
+	return t.setGmailLabels(ctx, msgID, nil, nil)
+}
+
 // GmailResult is what InsertGmail changed.
 type GmailResult struct {
 	Added     []int64 // new messages

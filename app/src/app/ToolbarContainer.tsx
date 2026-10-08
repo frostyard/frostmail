@@ -10,7 +10,15 @@ import { SearchField } from "../features/search/SearchField";
 import { type MoveTarget, Toolbar, type ToolbarCommand } from "../features/toolbar/Toolbar";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
-import { archiveMailbox, compose, getMail, selectedSummaries, setFlagColor, toggleRead } from "./commands";
+import {
+  archiveMailbox,
+  compose,
+  getMail,
+  moveMessages,
+  selectedSummaries,
+  setFlagColor,
+  toggleRead,
+} from "./commands";
 
 /** ToolbarContainer connects Toolbar to the stores, the list and the window. */
 export function ToolbarContainer(props: {
@@ -89,7 +97,7 @@ export function ToolbarContainer(props: {
           if (ids.length > 0) onDelete(ids);
           break;
         case "archive":
-          if (archive && ids.length > 0) void client.message.move({ ids, mailboxId: archive.id });
+          void moveMessages(client, ids, archive, ui.source, mailboxes);
           break;
         case "flag":
           void setFlagColor(client, ids, cmd.color);
@@ -98,7 +106,13 @@ export function ToolbarContainer(props: {
           void toggleRead(client, model, ids);
           break;
         case "move":
-          if (ids.length > 0) void client.message.move({ ids, mailboxId: cmd.mailboxId });
+          void moveMessages(
+            client,
+            ids,
+            mailboxes.find((mb) => mb.id === cmd.mailboxId),
+            ui.source,
+            mailboxes,
+          );
           break;
         case "compose":
         case "reply":
@@ -117,7 +131,7 @@ export function ToolbarContainer(props: {
           break;
       }
     },
-    [ui, client, accounts, archive, model, onDelete],
+    [ui, client, accounts, archive, model, onDelete, mailboxes],
   );
 
   const syncing = Object.values(sync).some(

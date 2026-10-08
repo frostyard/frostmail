@@ -15,21 +15,24 @@ import (
 // label maintained from those labels. The account uses it when its profile
 // says Gmail and the server offers X-GM-EXT-1.
 
-// gmailConn is what the Gmail path needs from a connection; *imapx.Session
-// has it, and tests use a Gmail model.
-type gmailConn interface {
+// conn is what the account loop sends on C1 beyond the generic reconcile
+// pass: the Gmail path and offline-action replay. *imapx.Session has it,
+// and tests use models of a server.
+type conn interface {
 	Capabilities() imapx.Capabilities
 	Select(ctx context.Context, path string) (imapx.Selected, error)
 	UIDs(ctx context.Context) ([]uint32, error)
+	SearchMessageID(ctx context.Context, msgid string) ([]uint32, error)
 	FetchGmailHeaders(ctx context.Context, uids []uint32) ([]store.MessageHeader, error)
 	FetchGmailChanges(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
 	StoreLabels(ctx context.Context, uids []uint32, add, remove []string) error
 	StoreFlags(ctx context.Context, uids []uint32, add, remove []string) error
 	Move(ctx context.Context, uids []uint32, dest string) (map[uint32]uint32, error)
 	Expunge(ctx context.Context, uids []uint32) error
+	Append(ctx context.Context, mailbox string, raw []byte, flags []string) (uint32, error)
 }
 
-var _ gmailConn = (*imapx.Session)(nil)
+var _ conn = (*imapx.Session)(nil)
 
 // syncedRoles are the Gmail folders that hold messages, in pass order.
 var syncedRoles = []api.MailboxRole{api.MailboxRoleAll, api.MailboxRoleJunk, api.MailboxRoleTrash}
@@ -49,7 +52,7 @@ func byRole(mbs []store.Mailbox, role api.MailboxRole) *store.Mailbox {
 // prunes the messages that left all three. Any change on a Gmail account
 // runs the whole pass: a message leaving one folder may have arrived in
 // another, and only after all three is a missing message gone.
-func (a *actor) gmailPass(ctx context.Context, conn gmailConn) error {
+func (a *actor) gmailPass(ctx context.Context, conn conn) error {
 	mailboxes, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
 	if err != nil {
 		return err
@@ -76,7 +79,7 @@ func (a *actor) pruneGmail(ctx context.Context) error {
 }
 
 // reconcileGmail is reconcile for a Gmail synced folder.
-func (a *actor) reconcileGmail(ctx context.Context, conn gmailConn, mb store.Mailbox) error {
+func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox) error {
 	path := mb.Path
 	a.setStatus(func(s *api.SyncStatus) {
 		s.Phase, s.Mailbox, s.Done, s.Total, s.Error = api.SyncPhaseSyncing, &path, 0, 0, nil
