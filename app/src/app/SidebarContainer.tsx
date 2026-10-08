@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { sourceFromKey, sourceKey, useMail, useUI } from "../data/stores";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
 import { buildSidebar } from "../lib/mailboxTree";
+import { OutboxSection } from "./OutboxContainer";
 
 /** SidebarContainer connects Sidebar to the stores. */
 export function SidebarContainer() {
@@ -24,17 +25,22 @@ export function SidebarContainer() {
   const selectedKey = search !== "" && searchScope === "all" ? null : sourceKey(source);
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: focus bubbling up from the sidebar's rows marks the pane focused.
-    <div className="h-full overflow-y-auto bg-sidebar" onFocus={() => setFocus("sidebar")}>
-      <Sidebar
-        sections={sections}
-        selectedKey={selectedKey}
-        focused={focus === "sidebar"}
-        sync={indicators}
-        onSelect={(key) => {
-          const s = sourceFromKey(key);
-          if (s) setSource(s);
-        }}
-      />
+    <div className="flex h-full flex-col bg-sidebar" onFocus={() => setFocus("sidebar")}>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <Sidebar
+          sections={sections}
+          selectedKey={selectedKey}
+          focused={focus === "sidebar"}
+          sync={indicators}
+          onSelect={(key) => {
+            const s = sourceFromKey(key);
+            if (s) setSource(s);
+          }}
+        />
+      </div>
+      <div className="max-h-[40%] shrink-0 overflow-y-auto">
+        <OutboxSection />
+      </div>
     </div>
   );
 }

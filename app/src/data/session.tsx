@@ -73,8 +73,13 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
 }
 
 async function reload(c: Client): Promise<void> {
-  const [accounts, mailboxes, sync] = await Promise.all([c.account.list(), c.mailbox.list(), c.sync.status()]);
-  useMail.setState({ accounts, mailboxes, sync: Object.fromEntries(sync.map((s) => [s.accountId, s])) });
+  const [accounts, mailboxes, sync, outbox] = await Promise.all([
+    c.account.list(),
+    c.mailbox.list(),
+    c.sync.status(),
+    c.outbox.list({}),
+  ]);
+  useMail.setState({ accounts, mailboxes, sync: Object.fromEntries(sync.map((s) => [s.accountId, s])), outbox });
 }
 
 // wire keeps the mail store current from events; it returns the unsubscribe.
@@ -88,11 +93,24 @@ function wire(c: Client): () => void {
         .catch(() => {});
     }, 100);
   };
+  let outboxTimer: ReturnType<typeof setTimeout> | undefined;
+  const reloadOutbox = () => {
+    clearTimeout(outboxTimer);
+    outboxTimer = setTimeout(() => {
+      void c.outbox
+        .list({})
+        .then((outbox) => useMail.setState({ outbox }))
+        .catch(() => {});
+    }, 50);
+  };
   const off = c.transport.onEvent((e: Event) => {
     switch (e.event) {
       case "mailbox.changed":
       case "account.changed":
         reloadSoon();
+        break;
+      case "outbox.changed":
+        reloadOutbox();
         break;
       case "sync.progress":
         useMail.setState((s) => ({ sync: { ...s.sync, [e.data.status.accountId]: e.data.status } }));
@@ -101,6 +119,7 @@ function wire(c: Client): () => void {
   });
   return () => {
     clearTimeout(timer);
+    clearTimeout(outboxTimer);
     off();
   };
 }

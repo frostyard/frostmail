@@ -76,22 +76,12 @@ describe("Toolbar", () => {
     expect(button("Mark as Unread").getAttribute("title")).toBe("Mark as Unread (Ctrl+Shift+U)");
   });
 
-  it("disables what needs a selection, and what comes later", () => {
+  it("disables what needs a selection", () => {
     toolbar({ selection: { count: 0, seen: false, flagColor: 0 }, canArchive: false });
-    for (const name of [
-      "Delete",
-      "Archive",
-      "Flag",
-      "Mark as Read",
-      "Move",
-      "Reply",
-      "Reply All",
-      "Forward",
-      "New Message",
-    ]) {
+    for (const name of ["Delete", "Archive", "Flag", "Mark as Read", "Move", "Reply", "Reply All", "Forward"]) {
       expect(button(name).hasAttribute("disabled")).toBe(true);
     }
-    for (const name of ["Toggle Sidebar", "Get Mail", "Minimize", "Maximize", "Close"]) {
+    for (const name of ["Toggle Sidebar", "Get Mail", "New Message", "Minimize", "Maximize", "Close"]) {
       expect(button(name).hasAttribute("disabled")).toBe(false);
     }
   });
@@ -160,5 +150,22 @@ describe("Toolbar", () => {
     const segment = document.querySelector('[data-segment="sidebar"]') as HTMLElement;
     expect(segment.style.width).toBe("");
     expect(button("Toggle Sidebar")).toBeTruthy();
+  });
+});
+
+describe("Toolbar compose actions", () => {
+  it("composes, replies and forwards", () => {
+    const props = toolbar();
+    const cases: [string, string, string][] = [
+      ["New Message", "compose", "New Message (Ctrl+N)"],
+      ["Reply", "reply", "Reply (Ctrl+R)"],
+      ["Reply All", "replyAll", "Reply All (Ctrl+Shift+R)"],
+      ["Forward", "forward", "Forward (Ctrl+Shift+F)"],
+    ];
+    for (const [name, kind, title] of cases) {
+      expect(button(name).getAttribute("title")).toBe(title);
+      fireEvent.click(button(name));
+      expect(props.onCommand).toHaveBeenLastCalledWith({ kind });
+    }
   });
 });

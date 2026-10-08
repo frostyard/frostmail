@@ -27,7 +27,12 @@ export type Command =
   | "toggleSidebar"
   | "nextPane"
   | "previousPane"
-  | "contextMenu";
+  | "contextMenu"
+  | "open"
+  | "compose"
+  | "reply"
+  | "replyAll"
+  | "forward";
 
 /** KeyInput is the part of a KeyboardEvent the keymap reads. */
 export interface KeyInput {
@@ -71,6 +76,11 @@ const BINDINGS: Binding[] = [
   { key: "tab", ctrl: false, alt: false, shift: true, command: "previousPane" },
   { key: "contextmenu", ctrl: false, alt: false, shift: false, command: "contextMenu" },
   { key: "f10", ctrl: false, alt: false, shift: true, command: "contextMenu" },
+  { key: "enter", ctrl: false, alt: false, shift: false, command: "open" },
+  { key: "n", ctrl: true, alt: false, shift: false, command: "compose" },
+  { key: "r", ctrl: true, alt: false, shift: false, command: "reply" },
+  { key: "r", ctrl: true, alt: false, shift: true, command: "replyAll" },
+  { key: "f", ctrl: true, alt: false, shift: true, command: "forward" },
 ];
 
 function allowedInTextField(b: Binding): boolean {

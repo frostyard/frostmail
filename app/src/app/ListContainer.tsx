@@ -10,7 +10,8 @@ import { MessageRow, ROW_HEIGHT, type SelectMode } from "../features/list/Messag
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES } from "../lib/flags";
 import type { Command } from "../lib/keymap";
-import { archiveMailbox, rangeIds, selectedSummaries, setFlagColor, step, toggleRead } from "./commands";
+import { archiveMailbox, compose, rangeIds, selectedSummaries, setFlagColor, step, toggleRead } from "./commands";
+import { openDraftMessage } from "./compose";
 
 /** ListHandle lets the window send keyboard commands to the list. */
 export interface ListHandle {
@@ -106,6 +107,17 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       [model, selected, anchor, select, setFocus],
     );
 
+    // A message in a Drafts mailbox opens in a compose window.
+    const openIfDraft = useCallback(
+      (id: number) => {
+        const row = model?.row(model.indexOf(id));
+        const drafts = new Set(mailboxes.filter((mb) => mb.role === "drafts").map((mb) => mb.id));
+        if (!row?.mailboxIds.some((mb) => drafts.has(mb))) return;
+        void openDraftMessage(client, id).catch((err: unknown) => console.warn("open draft", err));
+      },
+      [model, mailboxes, client],
+    );
+
     const openMenu = useCallback(
       (id: number, x: number, y: number) => {
         const ids = selected.includes(id) ? selected : [id];
@@ -147,6 +159,11 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
             case "delete":
               if (selected.length > 0) onDelete(selected);
               return true;
+            case "open": {
+              const id = selected[selected.length - 1];
+              if (id !== undefined) openIfDraft(id);
+              return true;
+            }
             case "contextMenu": {
               const id = selected[0];
               const rect = scroller.current?.getBoundingClientRect();
@@ -158,7 +175,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           }
         },
       }),
-      [model, selected, selectIndex, select, onDelete, openMenu],
+      [model, selected, selectIndex, select, onDelete, openMenu, openIfDraft],
     );
 
     const menuItems = useMemo((): MenuItem[] => {
@@ -168,6 +185,10 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       const accountId = rows[0]?.accountId;
       const targets = mailboxes.filter((mb) => mb.accountId === accountId && !rows[0]?.mailboxIds.includes(mb.id));
       const items: MenuItem[] = [
+        { kind: "item", id: "reply", label: "Reply", shortcut: "Ctrl+R" },
+        { kind: "item", id: "replyAll", label: "Reply All", shortcut: "Ctrl+Shift+R" },
+        { kind: "item", id: "forward", label: "Forward", shortcut: "Ctrl+Shift+F" },
+        { kind: "separator" },
         { kind: "item", id: "read", label: allSeen ? "Mark as Unread" : "Mark as Read", shortcut: "Ctrl+Shift+U" },
         {
           kind: "submenu",
@@ -206,7 +227,9 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       (id: string) => {
         if (!menu) return;
         const ids = menu.ids;
-        if (id === "read") void toggleRead(client, model, ids);
+        if (id === "reply" || id === "replyAll" || id === "forward") {
+          void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
+        } else if (id === "read") void toggleRead(client, model, ids);
         else if (id === "delete") onDelete(ids);
         else if (id === "archive") {
           const mb = archiveMailbox(model, ids, mailboxes);
@@ -240,9 +263,11 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
             {items.map((v) => {
               const row = model?.row(v.index);
               return (
+                // biome-ignore lint/a11y/noStaticElementInteractions: double-click opens a draft; Enter does the same from the keyboard (keymap "open").
                 <div
                   key={v.key}
                   style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)` }}
+                  onDoubleClick={() => row && openIfDraft(row.id)}
                 >
                   {row ? (
                     <MessageRow

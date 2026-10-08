@@ -10,7 +10,7 @@ import { SearchField } from "../features/search/SearchField";
 import { type MoveTarget, Toolbar, type ToolbarCommand } from "../features/toolbar/Toolbar";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
-import { archiveMailbox, getMail, selectedSummaries, setFlagColor, toggleRead } from "./commands";
+import { archiveMailbox, compose, getMail, selectedSummaries, setFlagColor, toggleRead } from "./commands";
 
 /** ToolbarContainer connects Toolbar to the stores, the list and the window. */
 export function ToolbarContainer(props: {
@@ -99,6 +99,12 @@ export function ToolbarContainer(props: {
           break;
         case "move":
           if (ids.length > 0) void client.message.move({ ids, mailboxId: cmd.mailboxId });
+          break;
+        case "compose":
+        case "reply":
+        case "replyAll":
+        case "forward":
+          void compose(client, cmd.kind, ids).catch((err: unknown) => console.warn("compose", err));
           break;
         case "minimize":
           if (isTauri()) void getCurrentWindow().minimize();

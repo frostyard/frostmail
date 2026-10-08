@@ -37,6 +37,10 @@ export type ToolbarCommand =
   | { kind: "flag"; color: number }
   | { kind: "toggleRead" }
   | { kind: "move"; mailboxId: number }
+  | { kind: "compose" }
+  | { kind: "reply" }
+  | { kind: "replyAll" }
+  | { kind: "forward" }
   | { kind: "minimize" }
   | { kind: "toggleMaximize" }
   | { kind: "close" };
@@ -168,8 +172,18 @@ function SidebarSegment({
 }
 
 // The segment over the list: the source title above its subtitle, and
-// Compose, disabled until M3.
-function ListSegment({ listWidth, title, subtitle }: { listWidth: number; title: string; subtitle: string }) {
+// New Message.
+function ListSegment({
+  listWidth,
+  title,
+  subtitle,
+  onCommand,
+}: {
+  listWidth: number;
+  title: string;
+  subtitle: string;
+  onCommand: (cmd: ToolbarCommand) => void;
+}) {
   return (
     <div
       data-segment="list"
@@ -181,7 +195,12 @@ function ListSegment({ listWidth, title, subtitle }: { listWidth: number; title:
         <span className="text-toolbar-title truncate">{title}</span>
         <span className="text-toolbar-subtitle truncate text-secondary">{subtitle}</span>
       </div>
-      <ToolbarButton label="New Message" icon={<SquarePen size={16} />} disabled />
+      <ToolbarButton
+        label="New Message"
+        shortcut="Ctrl+N"
+        icon={<SquarePen size={16} />}
+        onClick={() => onCommand({ kind: "compose" })}
+      />
     </div>
   );
 }
@@ -223,9 +242,27 @@ function ReaderSegment({
         disabled={none || !canArchive}
         onClick={() => onCommand({ kind: "archive" })}
       />
-      <ToolbarButton label="Reply" icon={<Reply size={16} />} disabled />
-      <ToolbarButton label="Reply All" icon={<ReplyAll size={16} />} disabled />
-      <ToolbarButton label="Forward" icon={<Forward size={16} />} disabled />
+      <ToolbarButton
+        label="Reply"
+        shortcut="Ctrl+R"
+        icon={<Reply size={16} />}
+        disabled={none}
+        onClick={() => onCommand({ kind: "reply" })}
+      />
+      <ToolbarButton
+        label="Reply All"
+        shortcut="Ctrl+Shift+R"
+        icon={<ReplyAll size={16} />}
+        disabled={none}
+        onClick={() => onCommand({ kind: "replyAll" })}
+      />
+      <ToolbarButton
+        label="Forward"
+        shortcut="Ctrl+Shift+F"
+        icon={<Forward size={16} />}
+        disabled={none}
+        onClick={() => onCommand({ kind: "forward" })}
+      />
       <ToolbarButton
         label="Flag"
         shortcut="Ctrl+Shift+L"
@@ -283,7 +320,12 @@ export function Toolbar(props: ToolbarProps) {
       className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar"
     >
       <SidebarSegment sidebarWidth={props.sidebarWidth} syncing={props.syncing} onCommand={props.onCommand} />
-      <ListSegment listWidth={props.listWidth} title={props.title} subtitle={props.subtitle} />
+      <ListSegment
+        listWidth={props.listWidth}
+        title={props.title}
+        subtitle={props.subtitle}
+        onCommand={props.onCommand}
+      />
       <ReaderSegment
         selection={props.selection}
         canArchive={props.canArchive}

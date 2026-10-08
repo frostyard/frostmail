@@ -93,8 +93,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   - Over the list: the source title (13/600) above a subtitle (11/400
     secondary): "1,234 messages, 12 unread", or "Searching…", or "N results".
   - Over the reader: Delete, Archive, Flag (menu of the 7 colors and Clear
-    Flag), Mark (read/unread toggle), Move (menu of the account's mailboxes);
-    Reply, Reply All, Forward and Compose are present but disabled until M3.
+    Flag), Mark (read/unread toggle), Move (menu of the account's mailboxes),
+    Reply, Reply All and Forward (on the selection); New Message sits over
+    the list.
     Then the search field (220 wide, 28 high, rounded 6) and the window
     controls (minimize, maximize/restore, close: 28 × 28 targets, 16px
     icons).
@@ -225,9 +226,13 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 | Ctrl+1 | All Inboxes | anywhere |
 | Ctrl+Alt+S | toggle sidebar | anywhere |
 | Tab / Shift+Tab | next / previous pane | anywhere |
+| Enter, double-click | open a message in Drafts as a draft | list |
+| Ctrl+N | new message | anywhere but a text field |
+| Ctrl+R / Ctrl+Shift+R | reply / reply all to the selection | Ctrl+R: not in a text field |
+| Ctrl+Shift+F | forward the selection | anywhere |
 
-Ctrl+N, Ctrl+R, Ctrl+Shift+R, Ctrl+Shift+F and Ctrl+Shift+J are reserved for
-compose, reply, reply all, forward and junk (M3–M4).
+Ctrl+Shift+J is reserved for junk (M4). The compose window's own keys are in
+[compose-ui.md](compose-ui.md).
 
 ## Rules
 

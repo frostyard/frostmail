@@ -7,8 +7,9 @@ import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
 import { ScopeBar } from "../features/search/SearchField";
 import { commandFor } from "../lib/keymap";
-import { archiveMailbox, getMail, toggleFlag, toggleRead } from "./commands";
+import { archiveMailbox, compose, getMail, toggleFlag, toggleRead } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
+import { UndoToasts } from "./OutboxContainer";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
@@ -101,6 +102,12 @@ export function MainWindow() {
           if (ui.focus === "sidebar") handled = false;
           else reader.current?.page(cmd === "pageDown" ? 1 : -1);
           break;
+        case "compose":
+        case "reply":
+        case "replyAll":
+        case "forward":
+          void compose(client, cmd, ids).catch((err: unknown) => console.warn("compose", err));
+          break;
         default:
           handled = ui.focus === "list" && (list.current?.command(cmd) ?? false);
       }
@@ -172,6 +179,7 @@ export function MainWindow() {
           <ReaderContainer ref={reader} />
         </div>
       </div>
+      <UndoToasts />
     </div>
   );
 }

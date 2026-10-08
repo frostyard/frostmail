@@ -1,8 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window. App commands (maild_*, open_link, open_part) are allowed by default; the window permissions back the app's own title bar.",
-  "windows": ["main"],
+  "description": "The main and compose windows. App commands (maild_*, open_link, open_part, open_compose) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach.",
+  "windows": [
+    "main",
+    "compose-*"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",
@@ -10,6 +13,10 @@
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-close",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-title",
+    "core:window:allow-set-focus",
+    "dialog:allow-open",
+    "dialog:allow-ask"
   ]
 }

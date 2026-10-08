@@ -59,8 +59,8 @@ describe("commandFor outside text fields", () => {
     "Meta+ArrowDown",
     "Ctrl+Meta+1",
     "Ctrl+2",
-    "Ctrl+n",
-    "Ctrl+r",
+    "Ctrl+Alt+n",
+    "Ctrl+Alt+r",
     "F10",
     "Alt+Tab",
   ])("%s is nothing", (spec) => {
@@ -96,5 +96,30 @@ describe("commandFor in a text field", () => {
     "Shift+ArrowDown",
   ])("%s belongs to the field", (spec) => {
     expect(commandFor(k(spec), true)).toBeNull();
+  });
+});
+
+describe("compose shortcuts", () => {
+  const key = (k: string, ctrl: boolean, shift: boolean) => ({
+    key: k,
+    ctrlKey: ctrl,
+    altKey: false,
+    shiftKey: shift,
+    metaKey: false,
+  });
+  it("maps compose, reply, reply all and forward", () => {
+    expect(commandFor(key("n", true, false), false)).toBe("compose");
+    expect(commandFor(key("r", true, false), false)).toBe("reply");
+    expect(commandFor(key("R", true, true), false)).toBe("replyAll");
+    expect(commandFor(key("F", true, true), false)).toBe("forward");
+  });
+  it("opens the selection with Enter, except in a text field", () => {
+    expect(commandFor(key("Enter", false, false), false)).toBe("open");
+    expect(commandFor(key("Enter", false, false), true)).toBeNull();
+  });
+  it("keeps Ctrl+N and Ctrl+R for text fields but forwards from one", () => {
+    expect(commandFor(key("n", true, false), true)).toBeNull();
+    expect(commandFor(key("r", true, false), true)).toBeNull();
+    expect(commandFor(key("F", true, true), true)).toBe("forward");
   });
 });

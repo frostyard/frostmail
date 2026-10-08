@@ -1,5 +1,5 @@
-//! The Frostmail app shell: one window, a line bridge to maild's socket and
-//! the mailpart:// protocol. All mail logic lives in maild; see
+//! The Frostmail app shell: the main window and compose windows, a line
+//! bridge per window to maild's socket, and the mailpart:// protocol. All mail logic lives in maild; see
 //! docs/design/overview.md and docs/specs/rpc-protocol.md.
 
 mod bridge;
@@ -7,20 +7,29 @@ mod commands;
 mod paths;
 mod protocol;
 
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 fn main() {
     apply_webkit_workarounds();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(bridge::Bridge::default())
         .register_asynchronous_uri_scheme_protocol("mailpart", protocol::mailpart)
         .invoke_handler(tauri::generate_handler![
             bridge::maild_connect,
             bridge::maild_send,
             commands::open_link,
-            commands::open_part
+            commands::open_part,
+            commands::open_compose
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let app = window.app_handle().clone();
+                let label = window.label().to_string();
+                tauri::async_runtime::spawn(async move { app.state::<bridge::Bridge>().forget(&label).await });
+            }
+        })
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Frostmail")
@@ -36,9 +45,9 @@ fn main() {
         .expect("frostmail failed to start");
 }
 
-/// Only the app itself may load in the main frame; links in messages open in
-/// the system browser through the open_link command instead.
-fn allowed_navigation(url: &tauri::Url) -> bool {
+/// Only the app itself may load in a window's main frame; links in messages
+/// open in the system browser through the open_link command instead.
+pub(crate) fn allowed_navigation(url: &tauri::Url) -> bool {
     match url.scheme() {
         "tauri" | "about" => true,
         "http" => cfg!(debug_assertions) && url.host_str() == Some("127.0.0.1") && url.port() == Some(5173),

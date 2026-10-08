@@ -3,7 +3,7 @@ name = "frostmail"
 version = "0.0.0"
 description = "Frostmail, a mail client for Linux"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.90"
 license = "MIT"
 publish = false
 
@@ -16,6 +16,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.53", features = ["net", "io-util", "sync", "fs"] }
 tauri-plugin-opener = "2.5.5"
+tauri-plugin-dialog = "2.8.1"
 
 [profile.release]
 lto = true

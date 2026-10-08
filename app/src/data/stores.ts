@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { Account, Mailbox, SyncStatus, ViewQuery } from "../rpc/gen/api";
+import type { Account, Mailbox, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
 export type Connection = { state: "connecting" } | { state: "ready" } | { state: "lost"; reason: string };
@@ -14,6 +14,8 @@ export interface MailState {
   accounts: Account[];
   mailboxes: Mailbox[];
   sync: Record<number, SyncStatus>;
+  /** Messages not yet sent (outbox.list). */
+  outbox: OutboxItem[];
 }
 
 /** useMail is the store of maild data. */
@@ -22,6 +24,7 @@ export const useMail = create<MailState>(() => ({
   accounts: [],
   mailboxes: [],
   sync: {},
+  outbox: [],
 }));
 
 /** Source is what the sidebar selected. */

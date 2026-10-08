@@ -2,6 +2,7 @@
 // toolbar and context menus (docs/specs/ui.md, Behavior).
 import type { ViewModel } from "../data/view";
 import type { Client, Mailbox } from "../rpc/gen/api";
+import { startDraft } from "./compose";
 
 /** selectedSummaries returns the loaded summaries of the selected IDs. */
 export function selectedSummaries(model: ViewModel | null, ids: number[]) {
@@ -62,4 +63,23 @@ export function rangeIds(model: ViewModel, a: number, b: number): number[] {
     if (row) out.push(row.id);
   }
   return out;
+}
+
+/** ComposeAction starts a draft from the main window. */
+export type ComposeAction = "compose" | "reply" | "replyAll" | "forward";
+
+/**
+ * compose opens a new message, or a reply, reply all or forward of the last
+ * selected message, in a compose window. Without a selection only compose
+ * does anything.
+ */
+export async function compose(client: Client, action: ComposeAction, ids: number[]): Promise<void> {
+  if (action === "compose") {
+    await startDraft(client, "new");
+    return;
+  }
+  const source = ids[ids.length - 1];
+  if (source === undefined) return;
+  const kind = action === "reply" ? "reply" : action === "replyAll" ? "replyall" : "forward";
+  await startDraft(client, kind, source);
 }

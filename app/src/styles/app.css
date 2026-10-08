@@ -108,3 +108,55 @@
     outline-offset: -2px;
   }
 }
+
+/* The compose editor's body (docs/specs/compose-ui.md, Body): ProseMirror's
+   root carries .compose-body. Quotes get the reader's bars by level. */
+@layer components {
+  .compose-body {
+    min-height: 100%;
+    padding: 16px 20px;
+    font-size: 14px;
+    line-height: 21px;
+    color: var(--text-primary);
+    outline: none;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    user-select: text;
+    cursor: text;
+  }
+  .compose-body p {
+    margin: 0;
+  }
+  .compose-body ul {
+    list-style: disc;
+    margin: 0;
+    padding-left: 24px;
+  }
+  .compose-body ol {
+    list-style: decimal;
+    margin: 0;
+    padding-left: 24px;
+  }
+  .compose-body blockquote {
+    margin: 4px 0;
+    padding-left: 10px;
+    border-left: 2px solid var(--quote-1);
+    color: var(--quote-1);
+  }
+  .compose-body blockquote blockquote {
+    border-left-color: var(--quote-2);
+    color: var(--quote-2);
+  }
+  .compose-body blockquote blockquote blockquote {
+    border-left-color: var(--quote-3);
+    color: var(--quote-3);
+  }
+  .compose-body a {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  .compose-body img {
+    max-width: 100%;
+    height: auto;
+  }
+}

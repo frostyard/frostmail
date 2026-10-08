@@ -18,6 +18,7 @@ import {
   type ViewQuery,
 } from "../gen/api";
 import { RPCError, type Transport } from "../transport";
+import { MockCompose, NOT_HANDLED } from "./compose";
 import { diffIds } from "./diff";
 
 /** MockMessage is a stored message: its summary plus what the reader shows. */
@@ -48,6 +49,8 @@ export interface MockData {
 export interface MockOptions {
   /** Milliseconds before each reply; 0 replies on the next microtask. */
   latency?: number;
+  /** How long sent mail waits for undo; 10 s by default. */
+  undoMs?: number;
 }
 
 interface MockView {
@@ -69,6 +72,7 @@ export class MockTransport implements Transport {
   private readonly eventHandlers = new Set<(event: Event) => void>();
   private readonly closeHandlers = new Set<(reason: string) => void>();
   private closed: string | undefined;
+  private readonly compose: MockCompose;
 
   constructor(
     data: MockData,
@@ -77,6 +81,26 @@ export class MockTransport implements Transport {
     this.accounts = data.accounts;
     this.mailboxes = data.mailboxes;
     for (const m of data.messages) this.messages.set(m.summary.id, m);
+    this.compose = new MockCompose(
+      this.accounts,
+      (e) => this.emit(e),
+      (id) => {
+        const m = this.messages.get(id);
+        if (!m) return undefined;
+        const s = m.summary;
+        return {
+          accountId: s.accountId,
+          from: s.from,
+          to: m.to,
+          cc: m.cc,
+          subject: s.subject,
+          html: m.html,
+          text: m.text,
+        };
+      },
+      () => [...this.messages.values()].flatMap((m) => [m.summary.from, ...m.to, ...m.cc]),
+      opts.undoMs,
+    );
   }
 
   call<T>(method: string, params: unknown): Promise<T> {
@@ -217,8 +241,11 @@ export class MockTransport implements Transport {
       case "view.close":
         if (!this.views.delete(num(p.id))) throw notFound(`view ${num(p.id)} does not exist`);
         return null;
-      default:
+      default: {
+        const r = this.compose.dispatch(method, p);
+        if (r !== NOT_HANDLED) return r;
         throw new RPCError(ErrorCode.methodNotFound, `method ${method} does not exist`);
+      }
     }
   }
 
