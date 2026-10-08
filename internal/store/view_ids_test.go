@@ -122,7 +122,7 @@ func TestViewIDsLargeMailbox(t *testing.T) {
 	if err != nil || len(ids) != 50000 {
 		t.Fatalf("ViewIDs = %d ids, %v", len(ids), err)
 	}
-	if elapsed > 500*time.Millisecond {
+	if elapsed > 500*time.Millisecond && !raceEnabled {
 		t.Fatalf("ViewIDs over 50,000 messages took %v", elapsed)
 	}
 	unread, err := d.ViewIDs(ctx, ViewFilter{MailboxID: 10, Unread: viewBool(true)})

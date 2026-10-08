@@ -144,7 +144,7 @@ func TestThreadViewLargeMailbox(t *testing.T) {
 	if err != nil || len(ids) != 10000 {
 		t.Fatalf("thread view = %d ids, %v; want 10,000", len(ids), err)
 	}
-	if elapsed > time.Second {
+	if elapsed > time.Second && !raceEnabled {
 		t.Fatalf("thread view over 50,000 messages took %v", elapsed)
 	}
 }
