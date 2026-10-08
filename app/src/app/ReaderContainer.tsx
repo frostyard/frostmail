@@ -74,13 +74,19 @@ function Conversation({ id }: { id: number }) {
     (async () => {
       const [s] = await client.message.summaries({ ids: [id] });
       if (!s || cancelled) return;
-      if (!s.flags.seen) void client.message.setFlags({ ids: [id], changes: { seen: true } }).catch(() => {});
       let rows = [s];
       if (s.threadId !== 0) rows = await client.thread.messages({ id: s.threadId });
       const trash = new Set(trashKey === "" ? [] : trashKey.split(",").map(Number));
       const inTrash = (r: MessageSummary) => r.mailboxIds.some((mb) => trash.has(mb));
       rows = rows.filter((r) => r.id === id || !inTrash(r) || inTrash(s)).reverse();
-      if (!cancelled) setItems(rows);
+      if (cancelled) return;
+      setItems(rows);
+      // What the reader shows is read (docs/specs/ui.md, Behavior).
+      const unseen = rows
+        .slice(0, MAX_CONVERSATION)
+        .filter((r) => !r.flags.seen)
+        .map((r) => r.id);
+      if (unseen.length > 0) void client.message.setFlags({ ids: unseen, changes: { seen: true } }).catch(() => {});
     })().catch((err: unknown) => {
       if (!cancelled) setError(err instanceof Error ? err.message : String(err));
     });

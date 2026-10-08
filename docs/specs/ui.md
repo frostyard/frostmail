@@ -188,7 +188,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   Searching replaces the source until the search is cleared.
 - **Conversation mode** is on by default: one row per thread (its newest
   message in the source), with the badge.
-- **Opening** a message (selecting exactly one) marks it seen at once.
+- **Opening** a message (selecting exactly one) marks every message the
+  reader then shows seen at once: the whole conversation, up to the first 20.
 - **Selection** follows the selected IDs through deltas. If a selected row
   disappears, the row that took its index is selected (the one below), or the
   last row if it was last.
