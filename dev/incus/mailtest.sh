@@ -81,7 +81,9 @@ up() {
 		"smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key" \
 		"smtpd_tls_security_level = may" \
 		"smtpd_sasl_type = dovecot" \
-		"smtpd_sasl_path = private/auth"
+		"smtpd_sasl_path = private/auth" \
+		"message_size_limit = 52428800" \
+		"mailbox_size_limit = 0"
 	in_ct postconf -M \
 		"submission/inet=submission inet n - y - - smtpd -o syslog_name=postfix/submission -o smtpd_tls_security_level=encrypt -o smtpd_sasl_auth_enable=yes -o smtpd_client_restrictions=permit_sasl_authenticated,reject -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject"
 
