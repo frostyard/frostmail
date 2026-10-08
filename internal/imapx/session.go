@@ -774,3 +774,6 @@ func (s *Session) Append(ctx context.Context, mailbox string, raw []byte, flags 
 	}
 	return uint32(d.UID), nil
 }
+
+// Capabilities returns what the server offers, as probed at login.
+func (s *Session) Capabilities() Capabilities { return s.Caps }

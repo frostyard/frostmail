@@ -10,12 +10,14 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/oauth"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
 // actor owns one account's connections. C1 runs every command; C2, when the
-// server has IDLE, idles on INBOX and only signals changes.
+// server has IDLE, idles on INBOX (All Mail on Gmail) and only signals
+// changes.
 type actor struct {
 	m      *Manager
 	acct   store.Account
@@ -30,6 +32,10 @@ type actor struct {
 	// unsaved holds drafts whose copy the server refused, by the updated_at
 	// that was refused; only the IMAP loop touches it.
 	unsaved map[int64]time.Time
+
+	// gmail is set per session when the account syncs the Gmail way
+	// (ADR-0012); only the IMAP loop touches it.
+	gmail bool
 
 	mu     sync.Mutex
 	status api.SyncStatus
@@ -185,6 +191,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 		return false, err
 	}
 	defer func() { _ = cmd.Close() }()
+	a.gmail = providers.ForKind(a.acct.Kind).Quirks.Gmail && cmd.Caps.Gmail
 
 	if err := a.replay(ctx, cmd); err != nil {
 		return false, err
@@ -208,11 +215,14 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 
 	sctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	inboxDirty := make(chan struct{}, 1)
+	dirty := make(chan struct{}, 1)
 	idleErr := make(chan error, 1)
-	watchingInbox := cmd.Caps.Idle && inbox(mailboxes) != nil
-	if watchingInbox {
-		go a.idleLoop(sctx, opts, inboxDirty, idleErr)
+	watched := a.watched(mailboxes)
+	if !cmd.Caps.Idle {
+		watched = nil
+	}
+	if watched != nil {
+		go a.idleLoop(sctx, opts, watched.Path, dirty, idleErr)
 	}
 	poll := time.NewTicker(a.m.cfg.PollInterval)
 	defer poll.Stop()
@@ -222,15 +232,13 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			return true, ctx.Err()
 		case err := <-idleErr:
 			return true, fmt.Errorf("idle connection: %w", err)
-		case <-inboxDirty:
-			if mb := inbox(mailboxes); mb != nil {
-				if err := a.reconcile(ctx, cmd, *mb); err != nil {
-					return true, err
-				}
-				a.idlePhase()
+		case <-dirty:
+			if err := a.refresh(ctx, cmd, *watched); err != nil {
+				return true, err
 			}
+			a.idlePhase()
 		case <-poll.C:
-			if err := a.pollPass(ctx, cmd, mailboxes, watchingInbox); err != nil {
+			if err := a.pollPass(ctx, cmd, mailboxes, watched); err != nil {
 				return true, err
 			}
 			a.idlePhase()
@@ -272,13 +280,21 @@ func (a *actor) idlePhase() {
 	})
 }
 
-func inbox(mbs []store.Mailbox) *store.Mailbox {
-	for i := range mbs {
-		if mbs[i].Role == api.MailboxRoleInbox {
-			return &mbs[i]
-		}
+// watched is the mailbox C2 idles on: All Mail for Gmail, else INBOX.
+func (a *actor) watched(mbs []store.Mailbox) *store.Mailbox {
+	if a.gmail {
+		return byRole(mbs, api.MailboxRoleAll)
 	}
-	return nil
+	return byRole(mbs, api.MailboxRoleInbox)
+}
+
+// refresh brings a mailbox up to date; on Gmail that is a Gmail pass, which
+// any change to a label or synced folder needs.
+func (a *actor) refresh(ctx context.Context, cmd *imapx.Session, mb store.Mailbox) error {
+	if a.gmail {
+		return a.gmailPass(ctx, cmd)
+	}
+	return a.reconcile(ctx, cmd, mb)
 }
 
 // fullPass lists mailboxes, mirrors them into the store, and reconciles each
@@ -296,11 +312,16 @@ func (a *actor) fullPass(ctx context.Context, cmd *imapx.Session) ([]store.Mailb
 	var mailboxes []store.Mailbox
 	err = a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error
-		mailboxes, err = tx.ReplaceMailboxes(ctx, a.acct.ID, list)
-		return err
+		if mailboxes, err = tx.ReplaceMailboxes(ctx, a.acct.ID, list); err != nil || !a.gmail {
+			return err
+		}
+		return tx.MarkGmailLabels(ctx, a.acct.ID)
 	})
 	if err != nil {
 		return nil, err
+	}
+	if a.gmail {
+		return mailboxes, a.gmailPass(ctx, cmd)
 	}
 	for _, mb := range mailboxes { // ListMailboxes order: INBOX, drafts, sent, …
 		if !selectable[mb.Path] {
@@ -314,10 +335,11 @@ func (a *actor) fullPass(ctx context.Context, cmd *imapx.Session) ([]store.Mailb
 }
 
 // pollPass checks every selectable mailbox with STATUS and reconciles those
-// whose state moved. INBOX is skipped while C2 watches it.
-func (a *actor) pollPass(ctx context.Context, cmd *imapx.Session, mailboxes []store.Mailbox, skipInbox bool) error {
+// whose state moved, skipping the one C2 watches. On Gmail it checks the
+// synced folders and runs one Gmail pass if any moved.
+func (a *actor) pollPass(ctx context.Context, cmd *imapx.Session, mailboxes []store.Mailbox, watched *store.Mailbox) error {
 	for _, mb := range mailboxes {
-		if skipInbox && mb.Role == api.MailboxRoleInbox {
+		if watched != nil && mb.ID == watched.ID || a.gmail && !isSynced(mb.Role) {
 			continue
 		}
 		st, ok, err := a.m.db.MailboxSyncState(ctx, mb.ID)
@@ -332,6 +354,9 @@ func (a *actor) pollPass(ctx context.Context, cmd *imapx.Session, mailboxes []st
 			status.Messages == st.ServerCount && status.HighestModSeq == st.HighestModSeq && cmd.Caps.CondStore {
 			continue
 		}
+		if a.gmail {
+			return a.gmailPass(ctx, cmd)
+		}
 		if err := a.reconcile(ctx, cmd, mb); err != nil {
 			return err
 		}
@@ -339,10 +364,10 @@ func (a *actor) pollPass(ctx context.Context, cmd *imapx.Session, mailboxes []st
 	return nil
 }
 
-// idleLoop keeps C2 in IDLE on INBOX and signals dirty after every wake-up,
+// idleLoop keeps C2 in IDLE on path and signals dirty after every wake-up,
 // whether from an unsolicited response or the IdleMax restart (a spare
 // reconcile pass then takes the fast path).
-func (a *actor) idleLoop(ctx context.Context, opts imapx.DialOptions, dirty chan<- struct{}, errc chan<- error) {
+func (a *actor) idleLoop(ctx context.Context, opts imapx.DialOptions, path string, dirty chan<- struct{}, errc chan<- error) {
 	wake := make(chan struct{}, 1)
 	opts.OnUpdate = func() {
 		select {
@@ -357,7 +382,7 @@ func (a *actor) idleLoop(ctx context.Context, opts imapx.DialOptions, dirty chan
 		return
 	}
 	defer func() { _ = s.Close() }()
-	if _, err := s.Select(ctx, "INBOX"); err != nil {
+	if _, err := s.Select(ctx, path); err != nil {
 		errc <- err
 		return
 	}

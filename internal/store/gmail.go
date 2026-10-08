@@ -158,7 +158,8 @@ func nullUint(v uint64) any {
 // SetGmailLabels replaces the label memberships of the message at uid in a
 // synced folder with labels (unknown names are skipped), returning the
 // message and the label mailboxes that changed; found is false when the
-// folder has no message at uid.
+// folder has no message at uid. Like UpdateFlags, it leaves a message a
+// queued action covers as it is.
 func (t *Tx) SetGmailLabels(ctx context.Context, mailboxID int64, uid uint32, labels []string, labelMap map[string]int64) (msgID int64, mailboxes []int64, found bool, err error) {
 	err = t.QueryRowContext(ctx, `SELECT message_id FROM message_mailbox WHERE mailbox_id = ? AND uid = ?`,
 		mailboxID, int64(uid)).Scan(&msgID)
@@ -167,6 +168,9 @@ func (t *Tx) SetGmailLabels(ctx context.Context, mailboxID int64, uid uint32, la
 	}
 	if err != nil {
 		return 0, nil, false, fmt.Errorf("gmail labels uid %d: %w", uid, err)
+	}
+	if queued, err := t.queued(ctx, msgID); err != nil || queued {
+		return msgID, nil, true, err
 	}
 	mailboxes, err = t.setGmailLabels(ctx, msgID, labels, labelMap)
 	return msgID, mailboxes, true, err

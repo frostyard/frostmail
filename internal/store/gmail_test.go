@@ -229,3 +229,36 @@ func TestAssignGmailThreads(t *testing.T) {
 		t.Errorf("msg_count = %d, %v", count, err)
 	}
 }
+
+func TestSetGmailLabelsKeepsQueuedChanges(t *testing.T) {
+	f := newGmail(t)
+	ctx := t.Context()
+	r := f.insert(t, f.all, gmailHeader(10, 111, 900, `\Inbox`))
+	m := r.Added[0]
+	// Moved to Work locally; the label edit waits in the queue.
+	err := f.d.Tx(ctx, func(tx *Tx) error {
+		if _, err := tx.setGmailLabels(ctx, m, []string{"Work"}, f.labels); err != nil {
+			return err
+		}
+		_, err := tx.QueueOp(ctx, f.acct, "labels", map[string]any{}, []int64{m})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A pass that ran before the replay still reports the old labels.
+	err = f.d.Tx(ctx, func(tx *Tx) error {
+		id, mbs, found, err := tx.SetGmailLabels(ctx, f.all, 10, []string{`\Inbox`}, f.labels)
+		if id != m || !found || len(mbs) != 0 {
+			t.Errorf("set labels on a queued message = %d %v %v", id, mbs, found)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := f.memberships(t, m)
+	if _, inWork := got[f.wk]; len(got) != 2 || !inWork || got[f.all] != 10 {
+		t.Errorf("memberships = %v, want All Mail and the queued Work", got)
+	}
+}

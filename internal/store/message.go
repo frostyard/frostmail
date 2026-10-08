@@ -211,9 +211,8 @@ func (t *Tx) UpdateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate)
 			int64(u.ModSeq), mailboxID, int64(u.UID)); err != nil {
 			return nil, fmt.Errorf("set modseq uid %d: %w", u.UID, err)
 		}
-		var queued bool
-		if err := t.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pending_op_messages pm
-			JOIN pending_ops p ON p.id = pm.op_id WHERE pm.message_id = ? AND p.state != 'failed')`, msgID).Scan(&queued); err != nil {
+		queued, err := t.queued(ctx, msgID)
+		if err != nil {
 			return nil, fmt.Errorf("update flags uid %d: %w", u.UID, err)
 		}
 		if queued {
@@ -244,6 +243,15 @@ func (t *Tx) UpdateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate)
 		changed = append(changed, msgID)
 	}
 	return changed, nil
+}
+
+// queued reports whether a queued (not failed) action covers a message,
+// whose local state then stands until the replay.
+func (t *Tx) queued(ctx context.Context, msgID int64) (bool, error) {
+	var queued bool
+	err := t.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM pending_op_messages pm
+		JOIN pending_ops p ON p.id = pm.op_id WHERE pm.message_id = ? AND p.state != 'failed')`, msgID).Scan(&queued)
+	return queued, err
 }
 
 // flagCols is a message's flag columns as stored, comparable field by field.

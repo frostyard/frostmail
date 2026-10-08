@@ -107,7 +107,7 @@ func (a *actor) saveDrafts(ctx context.Context, cmd *imapx.Session) error {
 	if err := a.replay(ctx, cmd); err != nil { // the replaced copies
 		return err
 	}
-	return a.reconcile(ctx, cmd, mb)
+	return a.refresh(ctx, cmd, mb)
 }
 
 // draftCopy builds a draft's server copy: Bcc kept, and recipients the
