@@ -36,6 +36,8 @@ type Capabilities struct {
 	Idle         bool
 	SpecialUse   bool
 	ListExtended bool
+	// Gmail is X-GM-EXT-1: X-GM-MSGID, X-GM-THRID, X-GM-LABELS (ADR-0012).
+	Gmail bool
 }
 
 // Session is one logged-in IMAP connection. It is not safe for concurrent
@@ -71,6 +73,7 @@ func Open(ctx context.Context, opts DialOptions) (*Session, error) {
 			Idle:         caps.Has(imap.CapIdle),
 			SpecialUse:   caps.Has(imap.CapSpecialUse),
 			ListExtended: caps.Has(imap.CapListExtended),
+			Gmail:        caps.Has("X-GM-EXT-1"),
 		}
 		if caps.Has(imap.CapID) {
 			// Some servers require ID; nothing depends on the answer.
@@ -315,6 +318,16 @@ var extraHeaders = []string{"References", "List-Id", "List-Unsubscribe", "Authen
 // the selected mailbox. UIDs the server no longer has are missing from the
 // result.
 func (s *Session) FetchHeaders(ctx context.Context, uids []uint32) ([]store.MessageHeader, error) {
+	return s.fetchHeaders(ctx, uids, false)
+}
+
+// FetchGmailHeaders is FetchHeaders plus X-GM-MSGID, X-GM-THRID and
+// X-GM-LABELS (Caps.Gmail).
+func (s *Session) FetchGmailHeaders(ctx context.Context, uids []uint32) ([]store.MessageHeader, error) {
+	return s.fetchHeaders(ctx, uids, true)
+}
+
+func (s *Session) fetchHeaders(ctx context.Context, uids []uint32, gmail bool) ([]store.MessageHeader, error) {
 	if len(uids) == 0 {
 		return nil, nil
 	}
@@ -326,6 +339,7 @@ func (s *Session) FetchHeaders(ctx context.Context, uids []uint32) ([]store.Mess
 			UID: true, Flags: true, InternalDate: true, RFC822Size: true, Envelope: true,
 			BodyStructure: &imap.FetchItemBodyStructure{Extended: true}, ModSeq: s.Caps.CondStore,
 			BodySection: []*imap.FetchItemBodySection{headerSection},
+			GmailMsgID:  gmail, GmailThreadID: gmail, GmailLabels: gmail,
 		}).Collect()
 		return err
 	})
@@ -336,6 +350,9 @@ func (s *Session) FetchHeaders(ctx context.Context, uids []uint32) ([]store.Mess
 	previewPart := map[uint32]Part{}
 	for _, m := range msgs {
 		h, part := convertHeader(m, m.FindBodySection(headerSection))
+		if gmail {
+			h.GmMsgID, h.GmThrID, h.Labels = m.GmailMsgID, m.GmailThreadID, nonNilLabels(m.GmailLabels)
+		}
 		out = append(out, h)
 		if part.Path != "" {
 			previewPart[h.UID] = part
@@ -542,6 +559,69 @@ func (s *Session) FetchFlags(ctx context.Context, uids []uint32, changedSince ui
 		out = append(out, store.FlagUpdate{UID: uint32(m.UID), ModSeq: m.ModSeq, Flags: store.FlagsFromIMAP(flagStrings(m.Flags))})
 	}
 	return out, nil
+}
+
+// FetchGmailChanges is FetchFlags plus each message's X-GM-LABELS.
+func (s *Session) FetchGmailChanges(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error) {
+	if len(uids) == 0 {
+		return nil, nil
+	}
+	opts := &imap.FetchOptions{UID: true, Flags: true, ModSeq: s.Caps.CondStore, GmailLabels: true}
+	if s.Caps.CondStore {
+		opts.ChangedSince = changedSince
+	}
+	var msgs []*imapclient.FetchMessageBuffer
+	err := s.run(ctx, func() error {
+		var err error
+		msgs, err = s.c.Fetch(uidSet(uids), opts).Collect()
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetch gmail changes: %w", err)
+	}
+	out := make([]store.FlagUpdate, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, store.FlagUpdate{
+			UID: uint32(m.UID), ModSeq: m.ModSeq, Flags: store.FlagsFromIMAP(flagStrings(m.Flags)),
+			Labels: nonNilLabels(m.GmailLabels),
+		})
+	}
+	return out, nil
+}
+
+// nonNilLabels makes "no labels" an empty list, so it differs from "not
+// fetched".
+func nonNilLabels(l []string) []string {
+	if l == nil {
+		return []string{}
+	}
+	return l
+}
+
+// StoreLabels adds and removes Gmail labels (STORE ±X-GM-LABELS) on uids in
+// the selected mailbox.
+func (s *Session) StoreLabels(ctx context.Context, uids []uint32, add, remove []string) error {
+	if len(uids) == 0 {
+		return nil
+	}
+	err := s.run(ctx, func() error {
+		for _, step := range []struct {
+			op     imap.StoreFlagsOp
+			labels []string
+		}{{imap.StoreFlagsAdd, add}, {imap.StoreFlagsDel, remove}} {
+			if len(step.labels) == 0 {
+				continue
+			}
+			if err := s.c.StoreGmailLabels(uidSet(uids), step.op, step.labels, true).Close(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("store gmail labels: %w", err)
+	}
+	return nil
 }
 
 // ErrNoMessage means the server no longer has the requested message.

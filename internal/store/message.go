@@ -54,13 +54,20 @@ type MessageHeader struct {
 	HasAttachments  bool
 	Preview         string
 	Parts           []Part
+	// Gmail (ADR-0012): X-GM-MSGID, X-GM-THRID and X-GM-LABELS; zero and nil
+	// elsewhere.
+	GmMsgID uint64
+	GmThrID uint64
+	Labels  []string
 }
 
-// FlagUpdate is a message's flags as the server reports them.
+// FlagUpdate is a message's flags as the server reports them, with its
+// Gmail labels when they were fetched.
 type FlagUpdate struct {
 	UID    uint32
 	ModSeq uint64
 	Flags  Flags
+	Labels []string // Gmail; nil when not fetched
 }
 
 // InsertHeaders stores the messages in hs that mailboxID does not hold yet
