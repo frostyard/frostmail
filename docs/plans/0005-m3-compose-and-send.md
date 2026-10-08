@@ -1,5 +1,9 @@
 # Plan 0005: M3 compose and send
 
+Status: **done** (2026-10-07), pending the native checks of the file
+dialog and drag and drop on the user's desktop (WebDriver cannot drive
+them).
+
 M3 adds writing mail: compose windows with a rich-text editor, replies and
 forwards with quoting, attachments, drafts saved locally and to the server,
 an outbox with undo send that keeps working offline and never sends twice.
@@ -88,6 +92,35 @@ framework's own behavior, assert every relationship the contract names.
   4. Drafts survive a maild restart and match the server's Drafts copy.
   5. Undo within 10 seconds cancels a send; a crash after acceptance does
      not send twice.
+
+Evidence, recorded 2026-10-07:
+
+| # | How | Result |
+| --- | --- | --- |
+| 1 | The UI in the browser pane through `maild -devgw` on the Dovecot account test3: New Message, a recipient token, subject, a body with bold, Send. `make engine-it`: `TestPostfixDeliversAndSentIsFiled` (test4 to test5). | The message waited out the 10-second undo delay, went through Postfix (587, STARTTLS) and was in test2's INBOX with a copy in test3's Sent; the draft was gone. The run found two bugs (below). A forward of a message with two attachments carried both over. |
+| 2 | Postfix stopped in the container (`systemctl stop postfix`), `mailctl send` through the dev maild, Postfix started again. `make engine-it`: `TestOutboxFlushesWhenTheServerReturns`. | While down the row was queued with attempt 1 and "connection refused"; it went out 32 s after Postfix returned and was delivered. The test passes with an unreachable server, then the real one. |
+| 3 | `make engine-it`: `TestLargeAttachmentArrivesIntact` | 25,000,000 random bytes attached, sent through Postfix, fetched from Dovecot: the SHA-256 matches. |
+| 4 | `make engine-it`: `TestDraftsSurviveARestart`; unit tests with the in-memory server (`TestDraftCopyIsSavedReplacedAndDeleted`, `TestOpenADraftFromTheDraftsMailbox`) | After a restart on the same data the draft is listed; editing it replaces its Dovecot copy (one copy, new subject). Copies keep Bcc, drop half-typed recipients, and are deleted with the draft. |
+| 5 | `make ui-e2e`: `compose.e2e.ts` in the built app; unit tests `TestUndoCancelsASend`, `TestInterruptedSendIsSentOnce`, `TestInterruptedSendFoundInSentIsNotResent`, `TestCrashAfterAcceptanceSendsOnce` | In the built app a compose window opened from the main window, sent, Undo on the toast reopened the draft with nothing sent, and the second send delivered exactly one message. maild stopped after the server accepted a message (Sent unreachable) and restarted: one delivery, one Sent copy. |
+| 6 | `make check` (222 Go tests), `make ui-check` (271 tests), `make ui-e2e` (5), `make engine-it`, `go test -race` five times over the send packages | All green; cards T-0037 to T-0047 merged. |
+
+**Bugs found by using and testing it.** A new message started with a
+hard break (TipTap read mail's `<p><br></p>` as a paragraph holding a
+break), and blank lines left the editor as `<p></p>`, which mail clients
+collapse; both directions are converted now. A browser that opened
+`#/compose/<id>` in the same tab stayed on the main window. Draft edits in
+the same millisecond as the last save were never copied (times have
+millisecond resolution); `updated_at` now always moves forward. After a
+restart, a Sent copy replayed before the first mailbox listing marked its
+message sent without a copy; such ops now wait for the list. The smtpx
+integration test delivered to the mailbox the Dovecot sync test counts.
+
+**Executor record.** 11 cards (T-0037 to T-0047), every one passed through
+taskrun on the first run, in 102 to 355 seconds. One defect slipped past a
+given test (T-0043: suggestions arriving after a commit reopened the list);
+the planner fixed it with a test. Cards carried a reference implementation
+checked against the given test before handing over, plus Biome's verdict on
+the prescribed markup, which removed the failure modes of M2.
 
 ## Later / ideas
 
