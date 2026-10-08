@@ -175,9 +175,14 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 	go func() {
 		select {
 		case <-fctx.Done():
+			_ = srv.Close()
 		case <-f.done:
+			// Shut down gracefully: Close could drop the connection before
+			// the browser has the page that says the sign-in worked.
+			sctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = srv.Shutdown(sctx)
+			stop()
 		}
-		_ = srv.Close()
 		cancel()
 	}()
 	return AuthURL(c.endpoint, c.clientID, redirect, state, Challenge(verifier), c.acct.Email), nil
