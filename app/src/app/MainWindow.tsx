@@ -13,6 +13,7 @@ import { UndoToasts } from "./OutboxContainer";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
+import { openSettings } from "./settings";
 import { ToolbarContainer, useListQuery } from "./ToolbarContainer";
 
 const SIDEBAR = { min: 160, max: 320 };
@@ -99,6 +100,9 @@ export function MainWindow() {
         case "pageUp":
           if (ui.focus === "sidebar") handled = false;
           else reader.current?.page(cmd === "pageDown" ? 1 : -1);
+          break;
+        case "settings":
+          void openSettings().catch((err: unknown) => console.warn("settings", err));
           break;
         case "compose":
         case "reply":

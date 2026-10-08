@@ -19,6 +19,7 @@ import {
   setFlagColor,
   toggleRead,
 } from "./commands";
+import { openSettings } from "./settings";
 
 /** ToolbarContainer connects Toolbar to the stores, the list and the window. */
 export function ToolbarContainer(props: {
@@ -115,6 +116,9 @@ export function ToolbarContainer(props: {
             ui.source,
             mailboxes,
           );
+          break;
+        case "settings":
+          void openSettings().catch((err: unknown) => console.warn("settings", err));
           break;
         case "compose":
         case "reply":

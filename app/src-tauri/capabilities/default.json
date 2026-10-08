@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main and compose windows. App commands (maild_*, open_link, open_part, open_compose) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach.",
+  "description": "The main, compose and settings windows. App commands (maild_*, open_link, open_part, open_compose, open_settings) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach and confirms.",
   "windows": [
     "main",
-    "compose-*"
+    "compose-*",
+    "settings"
   ],
   "permissions": [
     "core:default",

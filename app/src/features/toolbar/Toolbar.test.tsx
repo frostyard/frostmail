@@ -62,6 +62,7 @@ describe("Toolbar", () => {
       ["Delete", { kind: "delete" }],
       ["Archive", { kind: "archive" }],
       ["Mark as Unread", { kind: "toggleRead" }],
+      ["Settings", { kind: "settings" }],
       ["Minimize", { kind: "minimize" }],
       ["Maximize", { kind: "toggleMaximize" }],
       ["Close", { kind: "close" }],
@@ -74,6 +75,7 @@ describe("Toolbar", () => {
     expect(button("Archive").getAttribute("title")).toBe("Archive (Ctrl+Alt+A)");
     expect(button("Get Mail").getAttribute("title")).toBe("Get Mail (Ctrl+Shift+N)");
     expect(button("Mark as Unread").getAttribute("title")).toBe("Mark as Unread (Ctrl+Shift+U)");
+    expect(button("Settings").getAttribute("title")).toBe("Settings (Ctrl+,)");
   });
 
   it("disables what needs a selection", () => {

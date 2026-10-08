@@ -1,6 +1,7 @@
 //! Commands the webview calls: links open in the system browser and
 //! attachments in their default application (docs/design/app.md, Reader),
-//! and drafts open in compose windows (docs/design/send.md).
+//! drafts open in compose windows (docs/design/send.md), and the settings
+//! window opens (docs/specs/settings-ui.md).
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
@@ -57,6 +58,29 @@ pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), St
         .initialization_script(format!(
             "window.__frostmailCompose = {draft_id}; window.__frostmailComposeFresh = {fresh};"
         ))
+        .on_navigation(crate::allowed_navigation)
+        .visible(false)
+        .build()
+        .map(crate::show_soon)
+        .map_err(|e| e.to_string())
+}
+
+/// Open the settings window, labeled settings, or focus it when it is open.
+/// It learns that it is the settings window from an initialization script.
+#[tauri::command]
+pub fn open_settings(app: AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        return w.set_focus().map_err(|e| e.to_string());
+    }
+    WebviewWindowBuilder::new(&app, "settings", WebviewUrl::default())
+        .title("Settings")
+        .inner_size(760.0, 560.0)
+        .min_inner_size(640.0, 440.0)
+        // The settings toolbar is the title bar (docs/specs/settings-ui.md).
+        .decorations(false)
+        .initialization_script("window.__frostmailSettings = true;")
         .on_navigation(crate::allowed_navigation)
         .visible(false)
         .build()

@@ -98,9 +98,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     Flag), Mark (read/unread toggle), Move (menu of the account's mailboxes),
     Reply, Reply All and Forward (on the selection); New Message sits over
     the list.
-    Then the search field (220 wide, 28 high, rounded 6) and the window
-    controls (minimize, maximize/restore, close: 28 × 28 targets, 16px
-    icons).
+    Then the search field (220 wide, 28 high, rounded 6), Settings
+    (`Settings`, Ctrl+,) and the window controls (minimize,
+    maximize/restore, close: 28 × 28 targets, 16px icons).
   - Buttons are 28 × 28 with 16px Lucide icons in `--text-secondary`;
     hover background `--selection-inactive`; disabled at 40% opacity. Every
     button has a tooltip naming it and its shortcut.
@@ -232,6 +232,7 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 | Ctrl+N | new message | anywhere but a text field |
 | Ctrl+R / Ctrl+Shift+R | reply / reply all to the selection | Ctrl+R: not in a text field |
 | Ctrl+Shift+F | forward the selection | anywhere |
+| Ctrl+, | open the settings window ([settings-ui.md](settings-ui.md)) | anywhere |
 
 Ctrl+Shift+J is reserved for junk (M4). The compose window's own keys are in
 [compose-ui.md](compose-ui.md).

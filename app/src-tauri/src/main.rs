@@ -21,7 +21,8 @@ fn main() {
             bridge::maild_send,
             commands::open_link,
             commands::open_part,
-            commands::open_compose
+            commands::open_compose,
+            commands::open_settings
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

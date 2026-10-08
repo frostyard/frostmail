@@ -32,7 +32,8 @@ export type Command =
   | "compose"
   | "reply"
   | "replyAll"
-  | "forward";
+  | "forward"
+  | "settings";
 
 /** KeyInput is the part of a KeyboardEvent the keymap reads. */
 export interface KeyInput {
@@ -81,11 +82,12 @@ const BINDINGS: Binding[] = [
   { key: "r", ctrl: true, alt: false, shift: false, command: "reply" },
   { key: "r", ctrl: true, alt: false, shift: true, command: "replyAll" },
   { key: "f", ctrl: true, alt: false, shift: true, command: "forward" },
+  { key: ",", ctrl: true, alt: false, shift: false, command: "settings" },
 ];
 
 function allowedInTextField(b: Binding): boolean {
   if (b.key === "escape" || b.key === "tab") return true;
-  if (b.key === "1" && b.ctrl) return true;
+  if ((b.key === "1" || b.key === ",") && b.ctrl) return true;
   return b.ctrl && (b.alt || b.shift);
 }
 

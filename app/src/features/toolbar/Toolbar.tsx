@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Reply,
   ReplyAll,
+  Settings,
   Square,
   SquarePen,
   Trash2,
@@ -43,7 +44,8 @@ export type ToolbarCommand =
   | { kind: "forward" }
   | { kind: "minimize" }
   | { kind: "toggleMaximize" }
-  | { kind: "close" };
+  | { kind: "close" }
+  | { kind: "settings" };
 
 /** MoveTarget is one entry of the Move menu. */
 export interface MoveTarget {
@@ -287,6 +289,12 @@ function ReaderSegment({
       />
       <div data-tauri-drag-region className="flex-1" />
       {search}
+      <ToolbarButton
+        label="Settings"
+        icon={<Settings size={16} />}
+        shortcut="Ctrl+,"
+        onClick={() => onCommand({ kind: "settings" })}
+      />
       <ToolbarButton label="Minimize" icon={<Minus size={16} />} onClick={() => onCommand({ kind: "minimize" })} />
       <ToolbarButton
         label={maximized ? "Restore" : "Maximize"}

@@ -220,12 +220,14 @@ interface AccountFormProps {
 ### Behavior (container)
 
 - **Add:** + selects "New Account" with an empty form (kind `imap`, auth
-  `password`, TLS defaults, notify on). Find Settings calls
+  `password`, TLS defaults, notify on, and read-only on until M5, as
+  [accounts.md](../design/accounts.md#read-only-accounts) says). Find Settings calls
   `account.discover` and fills kind, the first auth kind, and the servers
   it found; a found username left empty becomes the email. Add Account
   calls `account.create`, then `account.setPassword` (password auth) or
   `account.authorize` and opens its URL in the system browser (oauth2),
-  then selects the new account. An `unavailable` error from authorize
+  then selects the new account. Servers with an empty host are left out, so
+  a Gmail or iCloud profile fills them. An `unavailable` error from authorize
   means no Google client is stored: the error says "Set up your Google
   client under Sign-In first."
 - **Edit:** Save sends `account.update` with every editable field, then
