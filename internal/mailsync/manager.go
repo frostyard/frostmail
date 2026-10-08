@@ -25,10 +25,13 @@ import (
 // Config tunes sync. Zero fields take the defaults in brackets.
 type Config struct {
 	PollInterval time.Duration // STATUS polling of mailboxes IDLE does not watch [5m]
-	IdleMax      time.Duration // re-issue IDLE before servers time it out [25m]
-	Chunk        int           // UIDs per header fetch [500]
-	MinBackoff   time.Duration // first retry after a failure [2s]
-	MaxBackoff   time.Duration // longest retry interval [5m]
+	// GmailPoll is the Gmail accounts' polling interval [1m]: Gmail's IDLE
+	// reports new mail but not label or flag changes made elsewhere.
+	GmailPoll  time.Duration
+	IdleMax    time.Duration // re-issue IDLE before servers time it out [25m]
+	Chunk      int           // UIDs per header fetch [500]
+	MinBackoff time.Duration // first retry after a failure [2s]
+	MaxBackoff time.Duration // longest retry interval [5m]
 	// InsecureSkipVerify accepts any TLS certificate; for test servers only
 	// (FROSTMAIL_INSECURE_TLS=1).
 	InsecureSkipVerify bool
@@ -55,6 +58,9 @@ type Config struct {
 func (c Config) withDefaults() Config {
 	if c.PollInterval == 0 {
 		c.PollInterval = 5 * time.Minute
+	}
+	if c.GmailPoll == 0 {
+		c.GmailPoll = time.Minute
 	}
 	if c.IdleMax == 0 {
 		c.IdleMax = 25 * time.Minute

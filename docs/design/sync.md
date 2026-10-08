@@ -100,7 +100,10 @@ The decision and every operation's mapping are in
   change runs the whole pass, because a message that leaves one folder may
   have arrived in another; removing a UID keeps the row until the prune, so
   a message moved to Trash keeps its ID and cached body. C2 idles on All
-  Mail; polling checks Spam and Trash with `STATUS`.
+  Mail, which reports new mail; Gmail's IDLE does not report label or flag
+  changes made elsewhere, so every minute (`GmailPoll`) a poll checks All
+  Mail, Spam and Trash with `STATUS` and runs a pass when the
+  account-wide HIGHESTMODSEQ moved.
 - **Offline actions** (`internal/mailsync/gmailops.go`) act on the message's
   copy in its synced folder. `message.move` takes an optional
   `fromMailboxId`, the label being left; without it a message leaves INBOX

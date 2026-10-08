@@ -36,7 +36,9 @@ reads a personal Gmail account daily in M4.
 - **Changes come from All Mail:** headers, flags and labels are fetched
   together, and incremental passes use CONDSTORE (`CHANGEDSINCE`), so a
   label edited in Gmail's web UI arrives with the next pass. IDLE watches
-  All Mail. Spam and Trash are polled.
+  All Mail for new mail; Gmail's IDLE does not report label or flag changes
+  made elsewhere (observed 2026-10-08), so All Mail, Spam and Trash are
+  polled with STATUS every minute and any change runs a pass.
 - **Operations act on All Mail UIDs** (or the Spam/Trash UID):
   - flags: `UID STORE` on the message's folder; Starred follows `\Flagged`;
   - archive: `-X-GM-LABELS \Inbox`;

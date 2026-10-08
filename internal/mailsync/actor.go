@@ -232,7 +232,11 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 	if watched != nil {
 		go a.idleLoop(sctx, opts, watched.Path, dirty, idleErr)
 	}
-	poll := time.NewTicker(a.m.cfg.PollInterval)
+	every := a.m.cfg.PollInterval
+	if a.gmail {
+		every = min(every, a.m.cfg.GmailPoll)
+	}
+	poll := time.NewTicker(every)
 	defer poll.Stop()
 	for {
 		select {
