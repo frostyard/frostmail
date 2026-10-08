@@ -226,10 +226,13 @@ interface AccountFormProps {
   it found; a found username left empty becomes the email. Add Account
   calls `account.create`, then `account.setPassword` (password auth) or
   `account.authorize` and opens its URL in the system browser (oauth2),
-  then selects the new account. Servers with an empty host are left out, so
-  a Gmail or iCloud profile fills them. An `unavailable` error from authorize
-  means no Google client is stored: the error says "Set up your Google
-  client under Sign-In first."
+  then selects the new account, which stays selected though the account
+  list shows it only after maild's `account.changed` (create returns
+  first). Only a selected account that leaves the list (removed, here or
+  elsewhere) moves the selection to the first account. Servers with an
+  empty host are left out, so a Gmail or iCloud profile fills them. An
+  `unavailable` error from authorize means no Google client is stored: the
+  error says "Set up your Google client under Sign-In first."
 - **Edit:** Save sends `account.update` with every editable field, then
   `account.setPassword` when a new password was typed. Sign In… calls
   `account.authorize` and opens the URL; `account.changed` updates the

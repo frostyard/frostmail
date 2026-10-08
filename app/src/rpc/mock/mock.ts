@@ -4,6 +4,8 @@
 // changes, flag and move calls emit message.changed and mailbox.changed.
 import {
   type Account,
+  type AccountCreateParams,
+  type AccountUpdateParams,
   type Address,
   ErrorCode,
   type Event,
@@ -131,6 +133,48 @@ export class MockTransport implements Transport {
     this.closeHandlers.clear();
   }
 
+  /** createAccount adds an account as maild does: it emits account.changed, and account.list shows it after. */
+  private createAccount(p: AccountCreateParams): Account {
+    const server = (port: number): Account["imap"] => ({ host: "", port, tls: "tls", username: p.email });
+    const a: Account = {
+      id: Math.max(0, ...this.accounts.map((x) => x.id)) + 1,
+      kind: p.kind,
+      email: p.email,
+      displayName: p.displayName,
+      auth: p.auth,
+      imap: p.imap ?? server(993),
+      smtp: p.smtp ?? server(465),
+      createdAt: new Date().toISOString(),
+      readOnly: p.readOnly ?? false,
+      notify: p.notify ?? true,
+      signedIn: p.auth === "password",
+    };
+    this.accounts.push(a);
+    this.accountChanged(a.id);
+    return a;
+  }
+
+  private updateAccount(p: AccountUpdateParams): Account {
+    const a = this.account(p.id);
+    if (p.displayName !== undefined) a.displayName = p.displayName;
+    if (p.imap) a.imap = p.imap;
+    if (p.smtp) a.smtp = p.smtp;
+    if (p.readOnly !== undefined) a.readOnly = p.readOnly;
+    if (p.notify !== undefined) a.notify = p.notify;
+    this.accountChanged(a.id);
+    return { ...a };
+  }
+
+  private account(id: number): Account {
+    const a = this.accounts.find((x) => x.id === id);
+    if (!a) throw new RPCError(ErrorCode.notFound, `account ${id} not found`);
+    return a;
+  }
+
+  private accountChanged(id: number): void {
+    this.emit({ event: "account.changed", data: { id, deleted: false } });
+  }
+
   /** emit sends an event to subscribers on the next microtask. */
   emit(event: Event): void {
     queueMicrotask(() => {
@@ -200,7 +244,20 @@ export class MockTransport implements Transport {
       case "events.subscribe":
         return { seq: 0, resync: false };
       case "account.list":
-        return this.accounts;
+        return this.accounts.map((a) => ({ ...a })); // a new list each call, as from maild
+      case "account.create":
+        return this.createAccount(p as unknown as AccountCreateParams);
+      case "account.update":
+        return this.updateAccount(p as unknown as AccountUpdateParams);
+      case "account.setPassword":
+        this.accountChanged(this.account(num(p.id)).id);
+        return null;
+      case "account.delete": {
+        const a = this.account(num(p.id));
+        this.accounts.splice(this.accounts.indexOf(a), 1);
+        this.emit({ event: "account.changed", data: { id: a.id, deleted: true } });
+        return null;
+      }
       case "mailbox.list":
         return this.mailboxList(typeof p.accountId === "number" ? p.accountId : undefined);
       case "sync.status":

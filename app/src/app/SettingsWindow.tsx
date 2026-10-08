@@ -5,7 +5,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { AtSign, KeyRound, PenLine, X } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
 import { useMail } from "../data/stores";
@@ -168,10 +168,15 @@ function AccountsPane() {
     },
     [accounts, setError],
   );
+  // A selected account that leaves the list was removed, and the form
+  // moves to the first. One the list has not shown yet stays selected: a
+  // new account's create returns before the list reloads on maild's event.
+  const listed = useRef(new Set<number>());
   useEffect(() => {
-    if (selected === null || (typeof selected === "number" && !accounts.some((a) => a.id === selected))) {
-      select(accounts[0]?.id ?? "new");
-    }
+    for (const a of accounts) listed.current.add(a.id);
+    const removed =
+      typeof selected === "number" && listed.current.has(selected) && !accounts.some((a) => a.id === selected);
+    if (selected === null || removed) select(accounts[0]?.id ?? "new");
   }, [accounts, selected, select]);
 
   const discover = () =>
