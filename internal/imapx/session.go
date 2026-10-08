@@ -135,7 +135,6 @@ func (s *Session) List(ctx context.Context) ([]store.ServerMailbox, error) {
 		return nil, fmt.Errorf("list: %w", err)
 	}
 	out := make([]store.ServerMailbox, 0, len(list))
-	taken := map[api.MailboxRole]bool{}
 	for _, l := range list {
 		mb := store.ServerMailbox{Path: l.Mailbox, Selectable: true, Subscribed: !s.Caps.ListExtended}
 		if l.Delim != 0 {
@@ -153,20 +152,50 @@ func (s *Session) List(ctx context.Context) ([]store.ServerMailbox, error) {
 		if l.ChildInfo != nil && l.ChildInfo.Subscribed || strings.EqualFold(mb.Path, "INBOX") {
 			mb.Subscribed = true // INBOX always shows, subscribed or not
 		}
-		role := RoleFor(mb.Path, mb.Delimiter, mb.Attrs)
-		if role != api.MailboxRoleNone && taken[role] {
-			role = api.MailboxRoleNone
-		}
-		taken[role] = true
-		mb.Role = role
 		out = append(out, mb)
 	}
+	AssignRoles(out)
 	return out, nil
+}
+
+// AssignRoles gives each role to at most one mailbox. Roles the server
+// states (INBOX and special-use attributes) are given first, in list order;
+// roles guessed from names only go to roles still free, so iCloud's
+// "Sent Messages" (\Sent) wins over a "Sent Items" another client made.
+func AssignRoles(list []store.ServerMailbox) {
+	taken := map[api.MailboxRole]bool{}
+	for i := range list {
+		list[i].Role = api.MailboxRoleNone
+	}
+	for _, byName := range []bool{false, true} {
+		for i := range list {
+			mb := &list[i]
+			if mb.Role != api.MailboxRoleNone {
+				continue
+			}
+			role := roleFromServer(mb.Path, mb.Attrs)
+			if byName {
+				role = roleFromName(mb.Path, mb.Delimiter)
+			}
+			if role != api.MailboxRoleNone && !taken[role] {
+				mb.Role, taken[role] = role, true
+			}
+		}
+	}
 }
 
 // RoleFor resolves a mailbox's role from its SPECIAL-USE attributes, then
 // from common names (top-level only).
 func RoleFor(path, delim string, attrs []string) api.MailboxRole {
+	if role := roleFromServer(path, attrs); role != api.MailboxRoleNone {
+		return role
+	}
+	return roleFromName(path, delim)
+}
+
+// roleFromServer is the role the server states: INBOX, or a special-use
+// attribute.
+func roleFromServer(path string, attrs []string) api.MailboxRole {
 	if strings.EqualFold(path, "INBOX") {
 		return api.MailboxRoleInbox
 	}
@@ -188,6 +217,11 @@ func RoleFor(path, delim string, attrs []string) api.MailboxRole {
 			return api.MailboxRoleFlagged
 		}
 	}
+	return api.MailboxRoleNone
+}
+
+// roleFromName guesses a top-level mailbox's role from common names.
+func roleFromName(path, delim string) api.MailboxRole {
 	if delim != "" && strings.Contains(path, delim) {
 		return api.MailboxRoleNone
 	}
