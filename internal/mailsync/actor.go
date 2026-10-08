@@ -167,6 +167,11 @@ func (a *actor) dialOptions(secret string, isOAuth bool) imapx.DialOptions {
 		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: secret, OAuth: isOAuth,
 		ReadOnly: a.acct.ReadOnly, InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
 	}
+	return opts
+}
+
+// traced is dialOptions for C1, the connection traces record.
+func (a *actor) traced(opts imapx.DialOptions) imapx.DialOptions {
 	if a.m.cfg.Trace != nil {
 		opts.Trace = a.m.cfg.Trace(a.acct.ID)
 	}
@@ -182,13 +187,13 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 	}
 	opts := a.dialOptions(secret, isOAuth)
 	a.phase(api.SyncPhaseConnecting, "")
-	cmd, err := imapx.Open(ctx, opts)
+	cmd, err := imapx.Open(ctx, a.traced(opts))
 	if errors.Is(err, imapx.ErrAuth) && isOAuth {
 		// Usually an expired access token: refresh once and try again.
 		if opts.Password, err = a.refreshed(ctx); err != nil {
 			return false, err
 		}
-		cmd, err = imapx.Open(ctx, opts)
+		cmd, err = imapx.Open(ctx, a.traced(opts))
 	}
 	if err != nil {
 		return false, err

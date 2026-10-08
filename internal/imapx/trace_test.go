@@ -2,9 +2,11 @@ package imapx_test
 
 import (
 	"encoding/base64"
+	"net"
 	"strings"
 	"testing"
 
+	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 )
@@ -79,5 +81,24 @@ func TestTraceRedactsXOAuth2(t *testing.T) {
 	}
 	if !strings.Contains(got, " AUTHENTICATE XOAUTH2 [redacted]") {
 		t.Errorf("no redacted AUTHENTICATE in the trace:\n%s", got)
+	}
+}
+
+func TestFailedDialClosesItsTrace(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().(*net.TCPAddr)
+	_ = ln.Close() // nothing listens there now
+	tr := &closingTrace{}
+	_, err = imapx.Open(t.Context(), imapx.DialOptions{Host: "127.0.0.1", Port: addr.Port, TLS: api.TLSModeInsecure, Trace: tr})
+	if err == nil {
+		t.Fatal("dialing a closed port succeeded")
+	}
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if !tr.closed {
+		t.Error("a failed dial left its trace open")
 	}
 }

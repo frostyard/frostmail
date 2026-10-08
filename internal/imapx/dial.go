@@ -97,9 +97,14 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 		return nil, fmt.Errorf("imap %s: unknown TLS mode %q", addr, opts.TLS)
 	}
 	if err != nil {
+		closeTrace(opts.Trace)
 		return nil, fmt.Errorf("imap %s: %w", addr, err)
 	}
-	if opts.Trace != nil && opts.TLS != api.TLSModeStartTLS {
+	switch {
+	case opts.Trace == nil:
+	case opts.TLS == api.TLSModeStartTLS:
+		closeTrace(opts.Trace) // not traced
+	default:
 		conn = &traceConn{Conn: conn, t: newTrace(opts.Trace)}
 	}
 	// Bound the greeting, STARTTLS and LOGIN by the context deadline.

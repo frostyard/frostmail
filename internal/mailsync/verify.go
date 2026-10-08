@@ -51,7 +51,7 @@ func (m *Manager) Verify(ctx context.Context, accountID int64) ([]Check, error) 
 		return nil, err
 	}
 	opts := a.dialOptions(secret, isOAuth)
-	opts.ReadOnly, opts.Trace = true, nil
+	opts.ReadOnly = true
 	s, err := imapx.Open(ctx, opts)
 	if err != nil {
 		return nil, err

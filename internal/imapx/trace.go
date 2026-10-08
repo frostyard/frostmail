@@ -126,3 +126,10 @@ func (t *trace) close() {
 		_ = c.Close()
 	}
 }
+
+// closeTrace closes a trace writer that will not be used.
+func closeTrace(w io.Writer) {
+	if c, ok := w.(io.Closer); ok {
+		_ = c.Close()
+	}
+}
