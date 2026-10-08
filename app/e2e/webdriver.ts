@@ -87,9 +87,13 @@ export class Session {
     await this.do("POST", `/element/${el.id}/click`, {});
   }
 
-  /** text returns an element's rendered text. */
+  /**
+   * text returns an element's innerText. WebKitWebDriver's own element text
+   * drops text inside overflow-hidden, ellipsized elements (Tailwind's
+   * truncate), which the app uses for every label.
+   */
   text(el: Element): Promise<string> {
-    return this.do<string>("GET", `/element/${el.id}/text`);
+    return this.execute<string>("return arguments[0].innerText", { [ELEMENT]: el.id });
   }
 
   /** screenshot returns the window as base64 PNG. */

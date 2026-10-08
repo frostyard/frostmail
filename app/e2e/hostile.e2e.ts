@@ -58,17 +58,27 @@ describe("hostile HTML", () => {
       "every hostile message",
       async () => (await s.findAll('[role="option"]')).length >= Math.min(count, 8),
     );
+    const shown = new Set<string>();
     for (let i = 0; i < count; i++) {
-      // Select row i by keyboard from the first, so rows scrolled out of view are reached.
+      // Select row i by keyboard from the first, so rows scrolled out of view
+      // are reached.
       if (i === 0) {
         const [first] = await s.findAll('[role="option"]');
         if (first) await s.click(first);
       } else {
+        // Loading remote content moved focus to the reader; give it back to
+        // the list (a separate call, so the app sees the focus change first).
+        await s.execute(`document.querySelector('[role="listbox"]').focus()`);
+        await settle(50);
         await s.execute(
           `document.querySelector('[role="listbox"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))`,
         );
       }
       await settle(300);
+      const subject = await s.execute<string | null>(
+        `return document.querySelector('section[aria-label="Message"] article')?.getAttribute("aria-label") ?? null`,
+      );
+      if (subject) shown.add(subject);
       const load = await s.findAll('section[aria-label="Message"] [role="status"] button');
       for (const b of load) await s.click(b).catch(() => {});
       await settle(300);
@@ -78,6 +88,8 @@ describe("hostile HTML", () => {
       expect(frames.every((sb) => sb === "allow-same-origin")).toBe(true);
     }
     await settle(2000);
+    // Every corpus message was opened, not the first one again and again.
+    expect(shown.size).toBe(count);
     expect(trap.hits).toEqual([]);
   });
 });
