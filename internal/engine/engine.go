@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -223,10 +224,17 @@ func (a accounts) SetPassword(ctx context.Context, p *api.AccountSetPasswordPara
 	if p.Password == "" {
 		return api.InvalidParams("password is empty")
 	}
-	if _, err := a.DB.GetAccount(ctx, p.ID); err != nil {
+	acct, err := a.DB.GetAccount(ctx, p.ID)
+	if err != nil {
 		return apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
-	if err := a.Secrets.Set(ctx, secrets.AccountPassword(p.ID), p.Password); err != nil {
+	password := p.Password
+	if acct.Kind == api.AccountKindGmail {
+		// Google shows app passwords as four groups of four letters; the
+		// spaces are not part of them.
+		password = strings.ReplaceAll(password, " ", "")
+	}
+	if err := a.Secrets.Set(ctx, secrets.AccountPassword(p.ID), password); err != nil {
 		return err
 	}
 	if err := a.DB.Tx(ctx, func(tx *store.Tx) error { return tx.SetNeedsReauth(ctx, p.ID, false) }); err != nil {

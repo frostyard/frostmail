@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/secrets"
 )
 
 type noSRV struct{}
@@ -219,5 +220,26 @@ func TestAuthorizeWithoutWaiting(t *testing.T) {
 	}
 	if _, err := runWithStdin(t, "", append(sock, "account", "authorize", "x")...); err == nil || !strings.Contains(err.Error(), `invalid account id "x"`) {
 		t.Errorf("authorize x: %v", err)
+	}
+}
+
+func TestAccountPassword(t *testing.T) {
+	srv := signinServer(t)
+	sock := []string{"--socket", srv.Socket}
+	if _, err := runWithStdin(t, "first\n", append(sock, "account", "connect", "bob@icloud.com", "--password-stdin")...); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runWithStdin(t, "second-pw\n", append(sock, "account", "password", "1", "--password-stdin")...)
+	if err != nil || out != "password stored for account 1\n" {
+		t.Fatalf("password = %q, %v", out, err)
+	}
+	if got, err := srv.Secrets.Get(t.Context(), secrets.AccountPassword(1)); err != nil || got != "second-pw" {
+		t.Errorf("stored = %q, %v", got, err)
+	}
+	if _, err := runWithStdin(t, "x\n", append(sock, "account", "password", "1")...); err == nil {
+		t.Error("password without --password-stdin succeeded")
+	}
+	if _, err := runWithStdin(t, "x\n", append(sock, "account", "password", "9", "--password-stdin")...); err == nil {
+		t.Error("password for a missing account succeeded")
 	}
 }

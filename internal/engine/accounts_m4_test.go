@@ -6,6 +6,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/secrets"
 )
 
 func code(err error) api.ErrorCode {
@@ -111,5 +112,33 @@ func TestDiscoverOverTheAPI(t *testing.T) {
 	}
 	if _, err := c.Account().Discover(t.Context(), &api.AccountDiscoverParams{Email: "nobody"}); code(err) != api.CodeInvalidParams {
 		t.Errorf("no @: %v", err)
+	}
+}
+
+// Gmail app passwords are shown with spaces that are not part of them.
+func TestGmailAppPasswordSpaces(t *testing.T) {
+	srv := rpctest.Start(t)
+	c := srv.Dial(t)
+	ctx := t.Context()
+	gmail := createParams("ann@gmail.com")
+	gmail.Kind = api.AccountKindGmail
+	g, err := c.Account().Create(ctx, gmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := c.Account().Create(ctx, createParams("ann@mailtest.test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{g.ID, other.ID} {
+		if err := c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: id, Password: "abcd efgh ijkl mnop"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id, want := range map[int64]string{g.ID: "abcdefghijklmnop", other.ID: "abcd efgh ijkl mnop"} {
+		got, err := srv.Secrets.Get(ctx, secrets.AccountPassword(id))
+		if err != nil || got != want {
+			t.Errorf("stored password of account %d = %q, %v; want %q", id, got, err, want)
+		}
 	}
 }
