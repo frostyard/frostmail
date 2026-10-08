@@ -151,6 +151,16 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   junk (`UID MOVE` Spam → INBOX: Gmail restores it to All Mail with
   `\Inbox` under a new UID; same message row), delete (`UID MOVE` to
   Trash) and restore. Found: verify leaked an empty trace file (fixed).
+- **Throwaway Gmail, with the user (2026-10-08):** the app (local
+  Flatpak) opened; mail from the user's other address landed in Gmail's
+  Spam and "not junk" from the app moved it to INBOX; a reply went out
+  through Gmail's SMTP with XOAUTH2 and Gmail filed it in Sent (nothing
+  appended); an open draft's copies were appended to Drafts and the
+  replaced ones moved to Trash and expunged there. A label and an archive
+  made in the web UI synced; a web label applies to the whole
+  conversation. Found: Gmail's IDLE reports no label changes (the label
+  arrived with the 5-minute poll, which then skipped All Mail on Gmail);
+  fixed by polling All Mail, Spam and Trash every minute on Gmail.
 
 ## Later / ideas
 
