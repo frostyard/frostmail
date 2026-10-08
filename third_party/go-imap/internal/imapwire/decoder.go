@@ -272,6 +272,16 @@ func (dec *Decoder) DiscardLine() {
 	dec.CRLF()
 }
 
+// Peek reports whether the next byte is b, without consuming it
+// (frostmail patch).
+func (dec *Decoder) Peek(b byte) bool {
+	if dec.acceptByte(b) {
+		dec.mustUnreadByte()
+		return true
+	}
+	return false
+}
+
 // RawValue reads one value, an atom, a quoted string, a literal or a
 // parenthesized list (whose elements may run together, as the parts of a
 // multipart BODYSTRUCTURE do), and stores it as received, literals written

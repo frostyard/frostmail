@@ -1108,7 +1108,10 @@ func readBodyType1part(dec *imapwire.Decoder, typ string, options *Options) (*im
 		return &bs, nil
 	}
 
-	if strings.EqualFold(bs.Type, "message") && (strings.EqualFold(bs.Subtype, "rfc822") || strings.EqualFold(bs.Subtype, "global")) {
+	// frostmail patch: Gmail sends some message/rfc822 parts (the returned
+	// message in a bounce) as a basic body, NIL after the size where the
+	// envelope belongs; read those as basic bodies.
+	if strings.EqualFold(bs.Type, "message") && (strings.EqualFold(bs.Subtype, "rfc822") || strings.EqualFold(bs.Subtype, "global")) && dec.Peek('(') {
 		var msg imap.BodyStructureMessageRFC822
 
 		msg.Envelope, err = readEnvelope(dec, options)

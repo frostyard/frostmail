@@ -180,3 +180,37 @@ func TestUnparsedBodyStructure(t *testing.T) {
 		t.Errorf("the connection did not survive: %v", err)
 	}
 }
+
+// Gmail sends the returned message in a bounce (multipart/report) as a
+// message/rfc822 part without envelope, body and lines: a basic body with
+// its extension data. Recorded shape, made-up values.
+func TestMessagePartWithoutEnvelope(t *testing.T) {
+	c := scripted(t, []step{{
+		want: "UID FETCH 1:* (UID BODYSTRUCTURE)",
+		reply: []string{
+			`* 1 FETCH (UID 9 BODYSTRUCTURE (((("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 465 10 NIL NIL NIL)` +
+				`("TEXT" "HTML" ("CHARSET" "utf-8") NIL NIL "7BIT" 1723 35 NIL NIL NIL) "ALTERNATIVE" ("BOUNDARY" "b1") NIL NIL)` +
+				`("IMAGE" "PNG" ("NAME" "icon.png") "<icon.png>" NIL "BASE64" 1986 NIL ("ATTACHMENT" ("FILENAME" "icon.png")) NIL)` +
+				` "RELATED" ("BOUNDARY" "b2") NIL NIL)("MESSAGE" "DELIVERY-STATUS" NIL NIL NIL "7BIT" 620 NIL NIL NIL)` +
+				`("MESSAGE" "RFC822" NIL NIL NIL "7BIT" 4023 NIL NIL NIL) "REPORT" ("BOUNDARY" "b3" "REPORT-TYPE" "delivery-status") NIL NIL))`,
+			`TAG OK done`,
+		},
+	}})
+	msgs, err := c.Fetch(imap.UIDSet{imap.UIDRange{Start: 1}}, &imap.FetchOptions{
+		UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+	}).Collect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].BodyStructureErr != nil {
+		t.Fatalf("messages = %d, err %v", len(msgs), msgs[0].BodyStructureErr)
+	}
+	report, ok := msgs[0].BodyStructure.(*imap.BodyStructureMultiPart)
+	if !ok || report.Subtype != "REPORT" || len(report.Children) != 3 {
+		t.Fatalf("structure = %#v", msgs[0].BodyStructure)
+	}
+	returned := report.Children[2].(*imap.BodyStructureSinglePart)
+	if returned.Type != "MESSAGE" || returned.Subtype != "RFC822" || returned.Size != 4023 || returned.MessageRFC822 != nil {
+		t.Errorf("returned message = %+v", returned)
+	}
+}
