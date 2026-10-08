@@ -14,10 +14,12 @@ Code: `internal/mailsync` (`Manager`, `actor`, `reconcile`, `ops`) over
   schedules work by priority: **P0** what the user is viewing (a body, an
   attachment) > **P1** replaying `pending_ops` > **P2** INBOX > **P3**
   incremental sync of other folders > **P4** backfill and prefetch.
-- Connections per account (Gmail allows 15): C1 runs commands, polling and
-  body fetches; C2 IDLEs on INBOX, re-issuing IDLE every 25 minutes and
-  treating 10 silent minutes as dead. M4 may add C3 for bulk fetches.
-  Provider profiles can lower the count.
+- Connections per account (Gmail allows 15): C1 runs commands and
+  polling; C2 IDLEs on INBOX (All Mail on Gmail), re-issuing IDLE every 25
+  minutes and treating 10 silent minutes as dead; C3 fetches the bodies the
+  user opens (`internal/mailsync/bodies.go`), so reading never waits behind
+  a long pass on C1. C3 opens on demand, examines mailboxes read-only and
+  closes after two idle minutes. Provider profiles can lower the count.
 - Connect: CAPABILITY, ID; CONDSTORE needs no ENABLE because
   `SELECT … (CONDSTORE)` turns it on (RFC 7162 3.1);
   `LIST "" "*" RETURN (SPECIAL-USE SUBSCRIBED)`, with role fallback by name

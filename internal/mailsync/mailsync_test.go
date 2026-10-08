@@ -516,3 +516,49 @@ func TestNewMailIsAnnounced(t *testing.T) {
 		t.Fatal("mail after the account became writable was not announced")
 	}
 }
+
+// Opening a message does not wait for a sync pass: bodies come over their
+// own connection while C1 is held in a header fetch.
+func TestBodiesLoadWhileASyncIsBusy(t *testing.T) {
+	mem, gate := imapxtest.StartMemGated(t)
+	seed(t, mem)
+	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
+	h.waitPhase(api.SyncPhaseIdle)
+	ctx := t.Context()
+	inbox := h.inbox()
+	v, err := h.c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{MailboxID: &inbox.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := h.c.View().Range(ctx, &api.ViewRangeParams{ID: v.ID, Start: 0, End: 1})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("rows = %v, %v", rows, err)
+	}
+
+	// New mail arrives; the pass that fetches it is held at the gate.
+	gate.Shut()
+	if _, err := mem.User.Append("INBOX", strings.NewReader("Subject: Later\r\n\r\nlater\r\n"), &imap.AppendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-gate.Held:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the sync pass never reached the header fetch")
+	}
+
+	rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	r, err := h.c.Message().Render(rctx, &api.MessageRenderParams{ID: rows[0].ID})
+	if err != nil {
+		t.Fatalf("render while the sync is busy: %v", err)
+	}
+	if r.Text == "" && r.HTML == "" {
+		t.Error("the rendered message is empty")
+	}
+
+	gate.Open()
+	waitUntil(t, 5*time.Second, "the held pass to finish", func() bool { return h.inbox().Total == inbox.Total+1 })
+}

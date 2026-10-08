@@ -1,6 +1,8 @@
 package replay_test
 
 import (
+	"bufio"
+	"net"
 	"strings"
 	"sync"
 	"testing"
@@ -119,5 +121,90 @@ func TestParseRejectsUnmarkedLines(t *testing.T) {
 	lines, err := replay.Parse(strings.NewReader("# a comment\n\nS: * OK ready\nC: a NOOP\n"))
 	if err != nil || len(lines) != 2 || lines[0].Sent || !lines[1].Sent {
 		t.Errorf("parse = %+v, %v", lines, err)
+	}
+}
+
+// A client may send pipelined commands in another order than recorded;
+// each still gets its own recorded answer, under the client's tags.
+func TestReplayAnswersCommandsInAnyOrder(t *testing.T) {
+	script, err := replay.Parse(strings.NewReader(strings.Join([]string{
+		"S: * OK ready",
+		"C: a1 NOOP",
+		"C: a2 CAPABILITY",
+		"S: * CAPABILITY IMAP4rev1 IDLE",
+		"S: a2 OK capability done",
+		"S: * 3 EXISTS",
+		"S: a1 OK noop done",
+		"C: a3 IDLE",
+		"S: + idling",
+		"S: * 4 EXISTS",
+		"C: DONE",
+		"S: a3 OK idle done",
+	}, "\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := replay.Start(t, script)
+	conn, err := net.Dial("tcp", s.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(conn)
+	readUntil := func(prefix string) []string {
+		t.Helper()
+		var lines []string
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				t.Fatalf("read: %v (so far %q)", err, lines)
+			}
+			line = strings.TrimRight(line, "\r\n")
+			lines = append(lines, line)
+			if strings.HasPrefix(line, prefix) {
+				return lines
+			}
+		}
+	}
+	readUntil("* OK")
+	send := func(line string) {
+		t.Helper()
+		if _, err := conn.Write([]byte(line + "\r\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send("x1 CAPABILITY")
+	if got := strings.Join(readUntil("x1 "), "|"); got != "* CAPABILITY IMAP4rev1 IDLE|x1 OK capability done" {
+		t.Errorf("CAPABILITY answer = %q", got)
+	}
+	send("x2 NOOP")
+	if got := strings.Join(readUntil("x2 "), "|"); got != "* 3 EXISTS|x2 OK noop done" {
+		t.Errorf("NOOP answer = %q", got)
+	}
+	send("x3 IDLE")
+	if got := strings.Join(readUntil("* 4"), "|"); got != "+ idling|* 4 EXISTS" {
+		t.Errorf("IDLE answer = %q", got)
+	}
+	send("DONE")
+	readUntil("x3 OK")
+	_ = conn.Close()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReplayReportsCommandsNeverSent(t *testing.T) {
+	script, _ := replay.Parse(strings.NewReader("S: * OK ready\nC: a1 NOOP\nS: a1 OK\nC: a2 CAPABILITY\nS: a2 OK\n"))
+	s := replay.Start(t, script)
+	conn, err := net.Dial("tcp", s.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(conn)
+	_, _ = r.ReadString('\n')
+	_, _ = conn.Write([]byte("b1 NOOP\r\n"))
+	_, _ = r.ReadString('\n')
+	_ = conn.Close()
+	if err := s.Close(); err == nil || !strings.Contains(err.Error(), "CAPABILITY") {
+		t.Errorf("close = %v, want the unsent CAPABILITY named", err)
 	}
 }

@@ -25,6 +25,9 @@ import (
 // Config tunes sync. Zero fields take the defaults in brackets.
 type Config struct {
 	PollInterval time.Duration // STATUS polling of mailboxes IDLE does not watch [5m]
+	// BodyIdle closes the body connection (C3) after this long without a
+	// request [2m].
+	BodyIdle time.Duration
 	// GmailPoll is the Gmail accounts' polling interval [1m]: Gmail's IDLE
 	// reports new mail but not label or flag changes made elsewhere.
 	GmailPoll  time.Duration
@@ -61,6 +64,9 @@ func (c Config) withDefaults() Config {
 	}
 	if c.GmailPoll == 0 {
 		c.GmailPoll = time.Minute
+	}
+	if c.BodyIdle == 0 {
+		c.BodyIdle = 2 * time.Minute
 	}
 	if c.IdleMax == 0 {
 		c.IdleMax = 25 * time.Minute
@@ -202,6 +208,7 @@ func (m *Manager) startLocked(acct store.Account) {
 		defer close(a.done)
 		var senders sync.WaitGroup
 		senders.Go(func() { a.sendLoop(ctx) })
+		senders.Go(func() { a.bodyLoop(ctx) })
 		a.run(ctx)
 		senders.Wait()
 	})

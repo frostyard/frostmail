@@ -15,9 +15,9 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-// actor owns one account's connections. C1 runs every command; C2, when the
-// server has IDLE, idles on INBOX (All Mail on Gmail) and only signals
-// changes.
+// actor owns one account's connections. C1 runs sync and every change;
+// C2, when the server has IDLE, idles on INBOX (All Mail on Gmail) and only
+// signals changes; C3 fetches the bodies the user opens (bodies.go).
 type actor struct {
 	m      *Manager
 	acct   store.Account
@@ -155,8 +155,6 @@ func (a *actor) run(ctx context.Context) {
 			return
 		case <-retry:
 		case <-a.wake:
-		case req := <-a.bodies:
-			req.reply <- bodyResult{err: ErrOffline}
 		}
 	}
 }
@@ -274,12 +272,6 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			}
 			saveAt = a.nextDraftSave(ctx, true)
 			a.settled(ctx)
-		case req := <-a.bodies:
-			id, err := a.fetchBody(ctx, cmd, req.id)
-			req.reply <- bodyResult{blobID: id, err: err}
-			if err != nil && !errors.Is(err, store.ErrNotFound) && !errors.Is(err, imapx.ErrNoMessage) {
-				return true, err
-			}
 		}
 	}
 }

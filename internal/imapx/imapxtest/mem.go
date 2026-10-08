@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/emersion/go-imap/v2"
@@ -141,4 +142,76 @@ func (x *xoauth2Server) Next(response []byte) ([]byte, bool, error) {
 		return nil, true, err
 	}
 	return nil, true, nil
+}
+
+// HeaderGate holds a Mem server's header fetches (FETCH with ENVELOPE)
+// while it is shut, so a test can keep a sync pass busy; other fetches,
+// such as bodies, pass.
+type HeaderGate struct {
+	mu      sync.Mutex
+	release chan struct{} // nil while open
+	// Held receives once for every fetch the gate holds.
+	Held chan struct{}
+}
+
+// Shut makes later header fetches wait until Open.
+func (g *HeaderGate) Shut() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.release == nil {
+		g.release = make(chan struct{})
+	}
+}
+
+// Open lets held and later header fetches through.
+func (g *HeaderGate) Open() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.release != nil {
+		close(g.release)
+		g.release = nil
+	}
+}
+
+func (g *HeaderGate) wait() {
+	g.mu.Lock()
+	release := g.release
+	g.mu.Unlock()
+	if release == nil {
+		return
+	}
+	select {
+	case g.Held <- struct{}{}:
+	default:
+	}
+	<-release
+}
+
+// StartMemGated is StartMem whose header fetches wait at the returned gate
+// while it is shut. The gate opens when the test ends.
+func StartMemGated(t testing.TB) (*Mem, *HeaderGate) {
+	t.Helper()
+	g := &HeaderGate{Held: make(chan struct{}, 16)}
+	m := startMemWith(t, imap.CapSet{imap.CapIMAP4rev1: {}}, func(s imapserver.Session) imapserver.Session {
+		return &gatedSession{Session: s, gate: g}
+	})
+	t.Cleanup(g.Open)
+	return m, g
+}
+
+// gatedSession holds header fetches at its gate.
+type gatedSession struct {
+	imapserver.Session
+	gate *HeaderGate
+}
+
+func (s *gatedSession) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, options *imap.FetchOptions) error {
+	if options.Envelope {
+		s.gate.wait()
+	}
+	return s.Session.Fetch(w, numSet, options)
+}
+
+func (s *gatedSession) Namespace() (*imap.NamespaceData, error) {
+	return s.Session.(imapserver.SessionNamespace).Namespace()
 }

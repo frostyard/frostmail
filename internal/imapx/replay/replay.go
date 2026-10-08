@@ -1,10 +1,12 @@
 // Package replay serves a recorded IMAP session back to a client
 // (docs/design/testing.md, transcript replay). A script is a trace as
 // imapx writes it: "C: " lines the client sent and "S: " lines the server
-// answered. The server sends the "S: " lines in order and expects the
-// client to send the next "C: " line; the client's tags may differ from
-// the recorded ones and are mapped. Anything the script does not expect
-// fails the test, and so does a session that ends with lines left over.
+// answered. Each command the client sends is answered with the first
+// unused recorded exchange for the same command, in its recorded order;
+// commands may come in another order than recorded (clients pipeline),
+// and the client's tags are mapped to the recorded ones. A command the
+// script does not expect fails the test, and so does a recorded command
+// the client never sends (LOGOUT aside).
 package replay
 
 import (
@@ -134,43 +136,142 @@ func (s *Server) serve() {
 	}
 }
 
-// play runs the script on conn.
+// exchange is one recorded command: its command line, then every line
+// that belongs to it in recorded order (continuation lines from the
+// client, and the server's continuation requests, untagged data and
+// tagged completion).
+type exchange struct {
+	lines []Line
+	used  bool
+}
+
+// split divides a script into the greeting and the exchanges. Untagged
+// server lines belong to the next completion of a command (or, while a
+// command waits on a continuation, to that command); lines that continue a
+// response, such as literal data, follow the line before them.
+func split(script []Line) (greeting []Line, exchanges []*exchange) {
+	open := map[string]*exchange{}
+	var last, continued *exchange // the newest command; one in continuation
+	var pending []Line            // untagged lines awaiting a completion
+	prevPending := false          // the previous server line went to pending
+	for _, l := range script {
+		if l.Sent {
+			tag, rest, ok := strings.Cut(l.Text, " ")
+			if ok && isTag(tag) && isCommand(rest) && (continued == nil || continued != last) {
+				x := &exchange{lines: []Line{l}}
+				exchanges = append(exchanges, x)
+				open[tag], last = x, x
+				continue
+			}
+			if last != nil {
+				last.lines = append(last.lines, l)
+			}
+			continue
+		}
+		tag, rest, _ := strings.Cut(l.Text, " ")
+		word, _, _ := strings.Cut(rest, " ")
+		switch {
+		case last == nil:
+			greeting = append(greeting, l)
+		case strings.HasPrefix(l.Text, "+"):
+			last.lines = append(last.lines, l)
+			continued, prevPending = last, false
+		case open[tag] != nil && (word == "OK" || word == "NO" || word == "BAD"):
+			x := open[tag]
+			x.lines = append(append(x.lines, pending...), l)
+			pending, prevPending = nil, false
+			delete(open, tag)
+			if continued == x {
+				continued = nil
+			}
+		case continued != nil:
+			continued.lines = append(continued.lines, l)
+		case tag == "*" || prevPending:
+			pending, prevPending = append(pending, l), true
+		default:
+			last.lines = append(last.lines, l)
+		}
+	}
+	if len(pending) > 0 && last != nil {
+		last.lines = append(last.lines, pending...)
+	}
+	return greeting, exchanges
+}
+
+// isCommand reports whether the text after a tag starts a command: an
+// uppercase word, not a response's status.
+func isCommand(rest string) bool {
+	word, _, _ := strings.Cut(rest, " ")
+	if word == "" || word == "OK" || word == "NO" || word == "BAD" || word == "BYE" || word == "PREAUTH" {
+		return false
+	}
+	return strings.ToUpper(word) == word && !strings.ContainsFunc(word, func(r rune) bool { return r < 'A' || r > 'Z' })
+}
+
+// play answers each command the client sends with the first unused
+// recorded exchange that matches it, so commands the client pipelines in
+// another order still replay; within an exchange the recorded order holds.
 func play(conn net.Conn, script []Line) error {
 	r := bufio.NewReader(conn)
 	tags := map[string]string{} // recorded tag → the client's
-	for i := 0; i < len(script); i++ {
-		l := script[i]
-		if !l.Sent {
-			if _, err := io.WriteString(conn, mapTag(l.Text, tags)+"\r\n"); err != nil {
-				return fmt.Errorf("script line %d: write: %w", i+1, err)
-			}
-			continue
-		}
-		got, err := r.ReadString('\n')
-		if err != nil {
-			if errors.Is(err, io.EOF) && l.Text == "" {
-				return nil
-			}
-			return fmt.Errorf("script line %d: want %q, the client sent nothing more (%w)", i+1, l.Text, err)
-		}
-		got = strings.TrimRight(got, "\r\n")
-		if err := match(l.Text, got, tags); err != nil {
-			return fmt.Errorf("script line %d: %w", i+1, err)
+	greeting, exchanges := split(script)
+	for _, l := range greeting {
+		if _, err := io.WriteString(conn, l.Text+"\r\n"); err != nil {
+			return fmt.Errorf("greeting: %w", err)
 		}
 	}
-	// The client may still log out after the script; anything else is a
-	// command the script does not expect.
+	read := func() (string, error) {
+		got, err := r.ReadString('\n')
+		return strings.TrimRight(got, "\r\n"), err
+	}
 	for {
-		got, err := r.ReadString('\n')
+		got, err := read()
 		if err != nil {
-			return nil
+			break
 		}
-		got = strings.TrimRight(got, "\r\n")
-		if _, rest, _ := strings.Cut(got, " "); strings.EqualFold(rest, "LOGOUT") {
-			continue
+		x := find(exchanges, got)
+		if x == nil {
+			if _, rest, _ := strings.Cut(got, " "); strings.EqualFold(rest, "LOGOUT") {
+				continue
+			}
+			return fmt.Errorf("the client sent %q, which the script does not expect", got)
 		}
-		return fmt.Errorf("after the script, the client sent %q", got)
+		x.used = true
+		if err := match(x.lines[0].Text, got, tags); err != nil {
+			return err
+		}
+		for _, l := range x.lines[1:] {
+			if !l.Sent {
+				if _, err := io.WriteString(conn, mapTag(l.Text, tags)+"\r\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+				continue
+			}
+			got, err := read()
+			if err != nil {
+				return fmt.Errorf("want %q, the client sent nothing more (%w)", l.Text, err)
+			}
+			if err := match(l.Text, got, tags); err != nil {
+				return err
+			}
+		}
 	}
+	for _, x := range exchanges {
+		if _, rest, _ := strings.Cut(x.lines[0].Text, " "); !x.used && !strings.EqualFold(rest, "LOGOUT") {
+			return fmt.Errorf("the client never sent %q", x.lines[0].Text)
+		}
+	}
+	return nil
+}
+
+// find returns the first unused exchange whose command matches got.
+func find(exchanges []*exchange, got string) *exchange {
+	for _, x := range exchanges {
+		if !x.used && match(x.lines[0].Text, got, map[string]string{}) == nil {
+			return x
+		}
+	}
+	return nil
 }
 
 // match compares a client line with the recorded one, learning the
