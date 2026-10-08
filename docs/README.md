@@ -43,6 +43,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [RPC protocol](specs/rpc-protocol.md): framing, connection setup, events
 - [RPC API](specs/rpc-api.md): every method, type and event (generated)
 - [Reader UI](specs/ui.md): tokens, layout, behavior and keyboard map
+- [Compose UI](specs/compose-ui.md): the compose window, undo toast and outbox
 
 ### Plans
 
