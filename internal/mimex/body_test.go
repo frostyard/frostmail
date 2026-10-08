@@ -138,3 +138,14 @@ func TestBodyTextMalformed(t *testing.T) {
 		t.Fatal("BodyText of garbage succeeded; want an error")
 	}
 }
+
+func TestBodyTextKeepsSignatureSeparator(t *testing.T) {
+	raw := "Content-Type: text/plain\r\n\r\nHi   \r\n-- \r\nAnn  \r\n"
+	text, _, err := BodyText([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "Hi\n-- \nAnn" {
+		t.Fatalf("BodyText = %q, want the trailing space of the signature separator kept", text)
+	}
+}

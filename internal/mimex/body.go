@@ -131,11 +131,14 @@ func isDecodingError(err error) bool {
 }
 
 // tidyLines normalizes line endings, trims trailing whitespace from every
-// line, and drops the leading and trailing blank lines so the result
-// begins and ends with text.
+// line except the signature separator "-- " (RFC 3676, 4.3), and drops the
+// leading and trailing blank lines so the result begins and ends with text.
 func tidyLines(s string) string {
 	lines := strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n")
 	for i, line := range lines {
+		if line == "-- " {
+			continue
+		}
 		lines[i] = strings.TrimRightFunc(line, unicode.IsSpace)
 	}
 	return strings.Trim(strings.Join(lines, "\n"), "\n")
