@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { Account, Mailbox, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
+import type { Account, Mailbox, MailboxRole, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
 export type Connection = { state: "connecting" } | { state: "ready" } | { state: "lost"; reason: string };
@@ -28,7 +28,11 @@ export const useMail = create<MailState>(() => ({
 }));
 
 /** Source is what the sidebar selected. */
-export type Source = { kind: "mailbox"; mailboxId: number } | { kind: "allInboxes" } | { kind: "flagged" };
+export type Source =
+  | { kind: "mailbox"; mailboxId: number }
+  | { kind: "allInboxes" }
+  | { kind: "role"; role: MailboxRole }
+  | { kind: "flagged" };
 
 /** Pane is a focusable area of the window. */
 export type Pane = "sidebar" | "list" | "reader";
@@ -113,6 +117,8 @@ export function sourceKey(s: Source): string {
   switch (s.kind) {
     case "allInboxes":
       return "all-inboxes";
+    case "role":
+      return `role:${s.role}`;
     case "flagged":
       return "flagged";
     case "mailbox":
@@ -120,10 +126,15 @@ export function sourceKey(s: Source): string {
   }
 }
 
+/** UNIFIED_ROLES are the roles a unified source can show (lib/mailboxTree.ts). */
+const UNIFIED_ROLES: readonly MailboxRole[] = ["drafts", "sent", "junk", "trash", "archive"];
+
 /** sourceFromKey parses a sidebar key; null for keys that are not sources. */
 export function sourceFromKey(key: string): Source | null {
   if (key === "all-inboxes") return { kind: "allInboxes" };
   if (key === "flagged") return { kind: "flagged" };
+  const role = UNIFIED_ROLES.find((r) => key === `role:${r}`);
+  if (role) return { kind: "role", role };
   const m = /^mailbox:(\d+)$/.exec(key);
   return m ? { kind: "mailbox", mailboxId: Number(m[1]) } : null;
 }
@@ -134,6 +145,8 @@ export function sourceQuery(s: Source, conversations: boolean): ViewQuery {
   switch (s.kind) {
     case "allInboxes":
       return { role: "inbox", ...threads };
+    case "role":
+      return { role: s.role, ...threads };
     case "flagged":
       return { flagged: true, ...threads };
     case "mailbox":

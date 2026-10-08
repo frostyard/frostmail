@@ -46,4 +46,11 @@ describe("moveParams", () => {
       mailboxId: 12,
     });
   });
+  it("leaves the account's mailbox of a unified source", () => {
+    expect(moveParams([5], work, { kind: "role", role: "inbox" }, mailboxes)).toEqual({
+      ids: [5],
+      mailboxId: 12,
+      fromMailboxId: 10,
+    });
+  });
 });

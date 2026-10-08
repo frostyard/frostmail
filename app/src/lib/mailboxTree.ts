@@ -10,7 +10,7 @@ export type SidebarIcon = "inbox" | "file" | "send" | "shield-alert" | "trash-2"
 
 /** SidebarItem is one row of a sidebar section. */
 export interface SidebarItem {
-  /** "all-inboxes", "flagged", "mailbox:<id>", or "path:<accountId>:<path>" for a parent not in the list. */
+  /** "all-inboxes", "role:<role>", "flagged", "mailbox:<id>", or "path:<accountId>:<path>" for a parent not in the list. */
   key: string;
   label: string;
   icon: SidebarIcon;
@@ -151,6 +151,25 @@ function accountRows(account: Account, mailboxes: Mailbox[]): SidebarItem[] {
   return out;
 }
 
+/** UNIFIED are the roles Favorites unifies across accounts, after All Inboxes, with their labels. */
+const UNIFIED: [MailboxRole, string][] = [
+  ["drafts", "All Drafts"],
+  ["sent", "All Sent"],
+  ["junk", "All Junk"],
+  ["trash", "All Trash"],
+  ["archive", "All Archives"],
+];
+
+/** unifiedRows are Favorites' rows for roles that two or more accounts have. */
+function unifiedRows(mailboxes: Mailbox[]): SidebarItem[] {
+  return UNIFIED.flatMap(([role, label]) => {
+    const own = mailboxes.filter((m) => m.role === role);
+    if (new Set(own.map((m) => m.accountId)).size < 2) return [];
+    const unread = own.reduce((sum, m) => sum + m.unread, 0);
+    return [{ key: `role:${role}`, label, icon: ROLE_ICON[role], depth: 0, unread, selectable: true }];
+  });
+}
+
 /** buildSidebar builds the sidebar from accounts and their mailboxes. */
 export function buildSidebar(accounts: Account[], mailboxes: Mailbox[]): SidebarSection[] {
   const allInboxes = mailboxes.filter((m) => m.role === "inbox").reduce((sum, m) => sum + m.unread, 0);
@@ -159,6 +178,7 @@ export function buildSidebar(accounts: Account[], mailboxes: Mailbox[]): Sidebar
     title: "Favorites",
     items: [
       { key: "all-inboxes", label: "All Inboxes", icon: "inbox", depth: 0, unread: allInboxes, selectable: true },
+      ...unifiedRows(mailboxes),
       { key: "flagged", label: "Flagged", icon: "flag", depth: 0, unread: 0, selectable: true },
     ],
   };

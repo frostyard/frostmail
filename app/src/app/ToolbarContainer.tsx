@@ -72,6 +72,10 @@ export function ToolbarContainer(props: {
       return `${formatCount(total)} messages, ${formatCount(unread)} unread`;
     };
     if (src.kind === "allInboxes") return { title: "All Inboxes", subtitle: counts(inboxes) };
+    if (src.kind === "role") {
+      const label = buildSidebar(accounts, mailboxes)[0]?.items.find((i) => i.key === `role:${src.role}`)?.label;
+      return { title: label ?? "", subtitle: counts(mailboxes.filter((mb) => mb.role === src.role)) };
+    }
     if (src.kind === "flagged")
       return { title: "Flagged", subtitle: count === null ? "" : `${formatCount(count)} messages` };
     const mb = mailboxes.find((m) => m.id === src.mailboxId);

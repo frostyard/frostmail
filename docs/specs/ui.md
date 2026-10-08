@@ -108,8 +108,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 ### Sidebar
 
 - Background `--bg-sidebar`, 8px top padding.
-- **Sections:** "Favorites" (All Inboxes, Flagged), then one section per
-  account titled with the account name. Section header: 26 high, 11/600
+- **Sections:** "Favorites", then one section per account titled with the
+  account name. Favorites holds All Inboxes; then All Drafts, All Sent, All
+  Junk, All Trash and All Archives, each only when two or more accounts
+  have a mailbox of that role (unread counts summed); then Flagged. Section header: 26 high, 11/600
   `--text-secondary`, 12px left padding; a chevron appears on hover and
   collapses the section.
 - **Rows:** 28 high, left padding 12 + 16 × depth, 16px icon in `--accent`,
@@ -120,7 +122,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   shows but cannot be selected.
 - **Icons by role:** inbox `inbox`, drafts `file`, sent `send`, junk
   `shield-alert`, trash `trash-2`, archive `archive`, flagged `flag`, all
-  inboxes `inbox`, other `folder` (Lucide names).
+  inboxes `inbox`, a unified row its role's icon, other `folder` (Lucide
+  names).
 - **Selection:** the selected row has a 6px-rounded background inset 8px
   each side: `--accent` with `--accent-contrast` text and icon while the
   sidebar has focus, `--selection-sidebar` otherwise.

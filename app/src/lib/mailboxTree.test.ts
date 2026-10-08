@@ -126,3 +126,33 @@ describe("buildSidebar", () => {
     ]);
   });
 });
+
+describe("unified mailboxes", () => {
+  it("adds a Favorites row for each role two or more accounts have", () => {
+    nextId = 300;
+    const list = [
+      mb(5, "INBOX", "inbox", 1),
+      mb(5, "Sent", "sent"),
+      mb(5, "Trash", "trash", 2),
+      mb(5, "Archive", "archive"),
+      mb(6, "INBOX", "inbox", 3),
+      mb(6, "Sent Messages", "sent"),
+      mb(6, "Deleted Messages", "trash", 1),
+      mb(6, "Junk", "junk"),
+    ];
+    const s = buildSidebar([account(5, "e@x.test"), account(6, "f@x.test")], list);
+    expect(s[0]?.items.map((i) => [i.key, i.label, i.icon, i.unread])).toEqual([
+      ["all-inboxes", "All Inboxes", "inbox", 4],
+      ["role:sent", "All Sent", "send", 0],
+      ["role:trash", "All Trash", "trash-2", 3],
+      ["flagged", "Flagged", "flag", 0],
+    ]);
+  });
+
+  it("does not unify one account's mailboxes", () => {
+    nextId = 400;
+    const list = [mb(7, "INBOX", "inbox"), mb(7, "Sent", "sent"), mb(7, "Old Sent", "sent")];
+    const s = buildSidebar([account(7, "g@x.test")], list);
+    expect(s[0]?.items.map((i) => i.key)).toEqual(["all-inboxes", "flagged"]);
+  });
+});

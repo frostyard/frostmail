@@ -55,14 +55,16 @@ export function archiveOf(accountId: number, mailboxes: Mailbox[]): Mailbox | un
 
 /**
  * moveParams are message.move's params. When the list shows a mailbox of the
- * destination's account, the messages leave that one: on Gmail, moving out of
- * a label removes only that label.
+ * destination's account (or a unified one, such as All Sent), the messages
+ * leave that one: on Gmail, moving out of a label removes only that label.
  */
 export function moveParams(ids: number[], to: Mailbox, source: Source, mailboxes: Mailbox[]) {
   const from =
     source.kind === "mailbox"
       ? mailboxes.find((mb) => mb.id === source.mailboxId && mb.accountId === to.accountId)
-      : undefined;
+      : source.kind === "role"
+        ? mailboxes.find((mb) => mb.role === source.role && mb.accountId === to.accountId)
+        : undefined;
   return from ? { ids, mailboxId: to.id, fromMailboxId: from.id } : { ids, mailboxId: to.id };
 }
 
