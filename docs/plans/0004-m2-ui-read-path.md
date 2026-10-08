@@ -8,9 +8,8 @@ menus and the keyboard map, for the single IMAP account M1 syncs. It follows
 [ADR-0008](../adr/0008-local-executor-workflow.md): the planner owns
 contracts, the data layer, containers, the reader frame and rendering; cards
 own presentational components, pure helpers and simple handlers.
-Status: **done** (2026-10-07) except two checks that need a desktop session:
-the native, GPU-rendered scroll check by eye and undecorated-window resizing on
-Wayland (see Phase 5 and Open questions).
+Status: **done** (2026-10-07), including the native checks on the user's
+desktop.
 
 ## Decisions taken for M2
 
@@ -117,7 +116,7 @@ Evidence, recorded 2026-10-07:
 | # | How | Result |
 | --- | --- | --- |
 | 1 | A reading session on the Dovecot test account (test3, `dev/incus/demo` mail) with maild synced from the server and the UI in the browser pane through `maild -devgw`; the built app in WebKitGTK through `make ui-e2e` (smoke test, fixture data) | HTML mail with an inline image, a table layout and a stripped form and script; remote content loaded on request with the tracker still blocked; a three-message conversation with quote levels, collapsing and the signature; flags set from the context menu by mouse and keyboard, stored on the server as `$MailFlagBit` colors; mark unread with live counts; search; delete moving the selection; attachments opened from the parts cache. No console errors. The session found and fixed three bugs (below). |
-| 2 | `make ui-e2e`: scroll test, 100,000-row fixture, nsl machine, Xvfb, software rendering | 299 frames, p95 19.0 ms, max 21.0 ms, 120,000 px scrolled, 0 blank rows after stopping. The native GPU run by eye is pending (needs a desktop session). |
+| 2 | `make ui-e2e`: scroll test, 100,000-row fixture, nsl machine, Xvfb, software rendering | 299 frames, p95 19.0 ms, max 21.0 ms, 120,000 px scrolled, 0 blank rows after stopping. Natively on the user's desktop (GPU), scrolling the same 100,000-message fixture: smooth ("like butter"). |
 | 3 | `make ui-e2e`: hostile suite, 50 messages, canary server on loopback | Zero requests raw in the sandboxed frame under the app CSP; zero requests through maild with "Load Remote Content" clicked wherever offered (maild's fetcher refused the loopback canary). The test checks that all 50 messages were opened. Sanitizer fuzzing: 236 million inputs in 15 minutes, clean after two fixes. |
 | 4 | `make check`, `make ui-check` (188 tests), `go test -race ./...`, `make engine-it` | All green; cards T-0024 to T-0036 merged. |
 
@@ -152,13 +151,11 @@ every relationship the contract names.
 - Per-sender "always load remote content" (the `remote_allow` table).
 - Find in message (Ctrl+F inside the reader) and printing.
 
-## Open questions
+## Decided after Phase 5
 
-- **Undecorated window resizing on Wayland (GNOME, KDE):** if Tauri's
-  resize handles for undecorated windows fall short, keep server-side
-  decorations with the unified toolbar beneath. Not yet checked: needs a
-  native run on a desktop (`make app-run`, or `build/frostmail-app` with a
-  maild running). Decide before M3 starts.
+- **The window stays undecorated.** Resizing the borderless window from its
+  edges and corners works on the user's desktop, so the toolbar remains the
+  title bar (ADR-0009); no fallback to server-side decorations.
 
 ## References
 
