@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -102,6 +103,13 @@ func run(ctx context.Context, args []string) error {
 		Parts:              parts,
 		Tokens:             tokens,
 	}
+	if dir := os.Getenv("MAILD_IMAP_TRACE"); dir != "" {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return fmt.Errorf("trace directory: %w", err)
+		}
+		logger.Warn("tracing IMAP sessions; the traces hold mail", "dir", dir)
+		syncCfg.Trace = traceFiles(dir, logger)
+	}
 	if desktop, err := notify.OpenDesktop(ctx, logger, openInApp(logger)); err != nil {
 		logger.Info("no desktop notifications", "err", err)
 	} else {
@@ -176,5 +184,19 @@ func openInApp(logger *slog.Logger) func(messageID int64) {
 			return
 		}
 		go func() { _ = cmd.Wait() }()
+	}
+}
+
+// traceFiles gives each IMAP connection its own trace file in dir
+// (MAILD_IMAP_TRACE, docs/design/testing.md), readable only by the user.
+func traceFiles(dir string, logger *slog.Logger) func(accountID int64) io.Writer {
+	return func(accountID int64) io.Writer {
+		name := fmt.Sprintf("account-%d-%s.trace", accountID, time.Now().UTC().Format("20060102T150405.000000"))
+		f, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err != nil {
+			logger.Warn("trace", "account", accountID, "err", err)
+			return nil
+		}
+		return f
 	}
 }

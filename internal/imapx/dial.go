@@ -46,8 +46,9 @@ type DialOptions struct {
 	// InsecureSkipVerify accepts any certificate; only for test servers
 	// with self-signed certificates.
 	InsecureSkipVerify bool
-	// Trace receives the raw protocol exchange when set
-	// (MAILD_IMAP_TRACE, docs/design/testing.md); credentials included.
+	// Trace, when set, receives the session's lines with their direction
+	// and credentials redacted (trace.go); a Closer is closed with the
+	// connection. STARTTLS connections are not traced.
 	Trace io.Writer
 	// Timeout bounds connecting and logging in; zero means 30s.
 	Timeout time.Duration
@@ -69,7 +70,6 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 	tlsConfig := &tls.Config{ServerName: opts.Host, InsecureSkipVerify: opts.InsecureSkipVerify} //nolint:gosec // opt-in for test servers
 	copts := &imapclient.Options{
 		TLSConfig:   tlsConfig,
-		DebugWriter: opts.Trace,
 		WordDecoder: &mime.WordDecoder{CharsetReader: charset.Reader},
 	}
 	if f := opts.OnUpdate; f != nil {
@@ -98,6 +98,9 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("imap %s: %w", addr, err)
+	}
+	if opts.Trace != nil && opts.TLS != api.TLSModeStartTLS {
+		conn = &traceConn{Conn: conn, t: newTrace(opts.Trace)}
 	}
 	// Bound the greeting, STARTTLS and LOGIN by the context deadline.
 	stop := context.AfterFunc(ctx, func() { _ = conn.SetDeadline(time.Now()) })

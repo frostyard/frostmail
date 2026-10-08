@@ -23,8 +23,13 @@ IDLE, MOVE, UIDPLUS, ESEARCH, SPECIAL-USE, LIST-STATUS and NOTIFY.
 
 ## Planned layers
 
-- **Transcript replay (M1/M4):** `MAILD_IMAP_TRACE=dir` records sessions
-  (`imapx.DialOptions.Trace`), with AUTH lines redacted; a replay server
+- **Transcript replay (M1/M4):** `MAILD_IMAP_TRACE=dir` records each
+  command connection (C1) to its own file in `dir` (0700, files 0600):
+  `C: <line>` for what maild sent and `S: <line>` for what it received,
+  after TLS, with LOGIN, AUTHENTICATE and SASL lines replaced by
+  `[redacted]` (`internal/imapx/trace.go`). STARTTLS connections are not
+  traced. Traces hold the account's mail: they stay on the machine until
+  `tools/imaprec` rewrites them into replay scripts, and a replay server
   answers recorded responses. One directory per provider quirk under
   `testdata/transcripts/`.
 - **Fault injection (M1):** a `faultconn` that drops, delays and truncates;
