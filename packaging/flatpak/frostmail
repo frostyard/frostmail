@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the Frostmail app from its local Flatpak (docs/adr/0013). maild
+# runs this for notification clicks: frostmail --open-message <id>.
+exec flatpak run --user org.frostyard.Frostmail "$@"

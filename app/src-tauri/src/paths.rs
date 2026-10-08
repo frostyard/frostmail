@@ -19,11 +19,14 @@ pub fn socket() -> Result<PathBuf, String> {
 
 /// The cache maild writes decoded parts into:
 /// $FROSTMAIL_CACHE_DIR or $XDG_CACHE_HOME/frostmail or ~/.cache/frostmail.
+/// In a Flatpak, XDG_CACHE_HOME is the app's own, so the host's
+/// ($HOST_XDG_CACHE_HOME, else ~/.cache) is used instead (ADR-0013).
 pub fn cache_dir() -> Result<PathBuf, String> {
     if let Some(p) = env_abs("FROSTMAIL_CACHE_DIR") {
         return Ok(p);
     }
-    if let Some(p) = env_abs("XDG_CACHE_HOME") {
+    let xdg = if std::env::var_os("FLATPAK_ID").is_some() { "HOST_XDG_CACHE_HOME" } else { "XDG_CACHE_HOME" };
+    if let Some(p) = env_abs(xdg) {
         return Ok(p.join("frostmail"));
     }
     env_abs("HOME")

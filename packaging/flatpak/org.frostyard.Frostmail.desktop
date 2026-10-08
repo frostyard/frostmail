@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Frostmail
+Comment=Read and send mail
+Exec=frostmail
+Icon=org.frostyard.Frostmail
+Categories=Network;Email;
+Terminal=false
+StartupNotify=true

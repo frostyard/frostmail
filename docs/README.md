@@ -28,6 +28,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0010 — maild owns drafts and the outbox; the app edits them](adr/0010-compose-and-send.md)
 - [0011 — maild signs in with the user's own OAuth client and keeps secrets in the Secret Service](adr/0011-sign-in-and-credentials.md)
 - [0012 — Gmail is synced as one store with labels as memberships](adr/0012-gmail-labels-as-memberships.md)
+- [0013 — The app installs as a local Flatpak; maild stays on the host](adr/0013-app-as-a-local-flatpak.md)
 
 ### Design
 

@@ -1,30 +1,34 @@
 # Running on the desktop
 
-Living document. How Frostmail runs as the user's daily client before the
-Flatpak (M6): maild as a user service, the app as a desktop application,
-and notifications. Rationale: [ADR-0002](../adr/0002-daemon-and-thin-clients.md).
+Living document. How Frostmail runs as the user's daily client before
+M6's release packaging: maild as a user service, the app as a local
+Flatpak, notifications, and one app instance. Rationale: [ADR-0002](../adr/0002-daemon-and-thin-clients.md).
 
 ## Installing for one user
 
-`make install` (no root) builds release binaries and installs maild and
-mailctl with the user service (`packaging/systemd/maild.service`); `make uninstall`
-removes them. How the app is installed on an image-based host without
-WebKitGTK is still open (see below). The full set is:
+No root is needed. maild and mailctl run on the host; the app is a local
+Flatpak, because the host may have no WebKitGTK
+([ADR-0013](../adr/0013-app-as-a-local-flatpak.md)).
 
-| File | Path |
-| --- | --- |
-| maild, mailctl | `~/.local/bin/` |
-| the app | `~/.local/bin/frostmail` |
-| `maild.service` | `~/.config/systemd/user/` |
-| `frostmail.desktop`, icon | `~/.local/share/applications/`, `~/.local/share/icons/hicolor/scalable/apps/` |
+- `make install` builds release binaries and installs maild and mailctl
+  in `~/.local/bin`, `packaging/systemd/maild.service` in
+  `~/.config/systemd/user/`, then enables and restarts the service.
+  `make uninstall` reverses it and leaves the data.
+- `make install-app` builds the app in the nsl machine and runs
+  `packaging/flatpak/install.sh`: the binary, the desktop entry
+  (`org.frostyard.Frostmail.desktop`) and icons go into a Flatpak on
+  `org.gnome.Platform//51`, installed for the user, and
+  `~/.local/bin/frostmail` runs it. The runtime must be installed
+  (`flatpak --user install flathub org.gnome.Platform//51`).
 
-and runs `systemctl --user enable --now maild.service`. `make uninstall`
-reverses it and leaves the data. maild's data stays in
-`$XDG_DATA_HOME/frostmail`, its cache in `$XDG_CACHE_HOME/frostmail`, its
-socket in `$XDG_RUNTIME_DIR/frostmail/maild.sock`.
+maild's data stays in `$XDG_DATA_HOME/frostmail`, its cache in
+`$XDG_CACHE_HOME/frostmail`, its socket in
+`$XDG_RUNTIME_DIR/frostmail/maild.sock`. The Flatpak sees the socket's
+directory and, read-only, the cache and the home directory.
 
 `maild.service` is a simple service: `ExecStart` maild,
-`Restart=on-failure`, `RestartSec=2`, started with the graphical session
+`Restart=on-failure`, `RestartSec=2`, `FROSTMAIL_APP` set to
+`~/.local/bin/frostmail`, started with the user's session
 (`WantedBy=default.target`). maild keeps syncing, sending and notifying
 while the app is closed.
 

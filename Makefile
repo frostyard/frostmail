@@ -1,4 +1,4 @@
-.PHONY: help build install uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
+.PHONY: help build install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt app-test app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -36,6 +36,9 @@ install: build ## Install maild and mailctl for this user and (re)start maild as
 	systemctl --user daemon-reload
 	systemctl --user enable maild.service
 	systemctl --user restart maild.service
+
+install-app: app-build ## Package the app as a local Flatpak and install it for this user (ADR-0013)
+	packaging/flatpak/install.sh
 
 uninstall: ## Stop maild and remove it, mailctl and the user service; mail data stays
 	-systemctl --user disable --now maild.service
