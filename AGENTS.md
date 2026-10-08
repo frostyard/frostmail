@@ -36,6 +36,8 @@ symlinks to it; edit this file only.
   `third_party/go-imap` is a patched fork (Gmail X-GM-EXT-1); see its
   `FROSTMAIL-PATCHES.md` and [ADR-0004](docs/adr/0004-go-imap-fork.md).
 - `internal/mimex`: message parsing and normalization helpers.
+- `internal/compose`: outgoing mail (reply rules, the message builder).
+  `internal/smtpx`: the only package that imports go-smtp.
 - `app/`: Tauri v2 + React + TypeScript. `app/src-tauri/src/bridge.rs` only
   moves lines; JSON-RPC multiplexing is in `app/src/rpc/transport.ts`.
   `app/src/rpc/gen/api.ts` is generated.
