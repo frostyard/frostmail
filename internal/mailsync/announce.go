@@ -39,5 +39,7 @@ func (a *actor) announceNew(ctx context.Context) {
 	}
 	if err := a.m.cfg.Announce(ctx, a.acct.ID, mail); err != nil {
 		a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
+		return
 	}
+	a.m.log.Info("announced new mail", "account", a.acct.ID, "messages", len(mail))
 }
