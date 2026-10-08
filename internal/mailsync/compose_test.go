@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
@@ -24,7 +25,9 @@ const plansMessage = "From: Bob <bob@x.test>\r\n" +
 	"Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n" +
 	"--b--\r\n"
 
-// deliver puts a raw message in a server mailbox, syncs, and returns its ID.
+// deliver puts a raw message in a server mailbox, syncs, and returns its ID
+// once the message is stored (waiting for a sync phase could match an
+// earlier pass).
 func (h *sendHarness) deliver(mailbox, raw, subject string, flags ...imap.Flag) int64 {
 	h.t.Helper()
 	ctx := h.t.Context()
@@ -34,7 +37,21 @@ func (h *sendHarness) deliver(mailbox, raw, subject string, flags ...imap.Flag) 
 	if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
 		h.t.Fatal(err)
 	}
-	h.waitPhase(api.SyncPhaseIdle)
+	var id int64
+	find := func() bool {
+		id = h.find(mailbox, subject)
+		return id != 0
+	}
+	if !find() {
+		h.waitFor(10*time.Second, subject+" in "+mailbox, func(api.EventEnvelope, api.Event) bool { return find() })
+	}
+	return id
+}
+
+// find returns the ID of the message with subject in a mailbox, or 0.
+func (h *sendHarness) find(mailbox, subject string) int64 {
+	h.t.Helper()
+	ctx := h.t.Context()
 	list, err := h.c.Mailbox().List(ctx, &api.MailboxListParams{AccountID: &h.acct})
 	if err != nil {
 		h.t.Fatal(err)
@@ -47,6 +64,7 @@ func (h *sendHarness) deliver(mailbox, raw, subject string, flags ...imap.Flag) 
 		if err != nil {
 			h.t.Fatal(err)
 		}
+		defer func() { _ = h.c.View().Close(ctx, &api.ViewCloseParams{ID: v.ID}) }()
 		rows, err := h.c.View().Range(ctx, &api.ViewRangeParams{ID: v.ID, Start: 0, End: v.Count})
 		if err != nil {
 			h.t.Fatal(err)
@@ -57,7 +75,6 @@ func (h *sendHarness) deliver(mailbox, raw, subject string, flags ...imap.Flag) 
 			}
 		}
 	}
-	h.t.Fatalf("no %q in %s after sync", subject, mailbox)
 	return 0
 }
 

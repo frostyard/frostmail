@@ -14,6 +14,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
@@ -44,6 +45,9 @@ type Options struct {
 	// OAuthEndpoints replace the providers' real endpoints (a fake token
 	// server); nil means the real ones, which tests must not reach.
 	OAuthEndpoints map[string]oauth.Endpoint
+	// Discovery replaces account.discover's network access; zero means the
+	// real one (provider profiles need none).
+	Discovery discover.Deps
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -99,7 +103,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
-		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth}
+		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery}
 	if o.Sync != nil {
 		cfg := *o.Sync
 		if cfg.Parts == nil {
