@@ -15,11 +15,17 @@ import (
 type ViewFilter struct {
 	AccountID int64
 	MailboxID int64
-	Text      string // full-text search terms, as typed (see SearchQuery)
-	Unread    *bool  // true: unseen only; false: seen only
+	Unread    *bool // true: unseen only; false: seen only
 	Flagged   *bool
 	Role      string // a mailbox role (api.MailboxRole), in any account
 	Threads   bool   // one row per thread: its newest matching message
+
+	// A search (docs/specs/search.md), as internal/search parses it.
+	Match         string    // FTS5 expression every message must match
+	Exclude       string    // FTS5 expression no message may match
+	HasAttachment *bool     // has:attachment
+	After, Before time.Time // arrival in [After, Before)
+	Roles         []string  // in: any of these mailbox roles
 }
 
 // viewOrder is the order every view lists messages in: newest first by
@@ -32,9 +38,9 @@ const viewOrder = `m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DES
 // of appended messages with one arrival time still list them by sent date). Deleted messages never match; every other
 // condition is added only for the filter fields that are set. The
 // mailbox filter uses EXISTS, not a JOIN, so a message in several
-// mailboxes appears once. Text is turned into an FTS5 MATCH expression
-// with SearchQuery; text with nothing searchable adds no condition.
-// Role keeps only messages in a mailbox of that role, in any account.
+// mailboxes appears once. Match and Exclude are FTS5 expressions over
+// messages_fts; dates bound the arrival (internal) date. Role, and any of
+// Roles, keep only messages in a mailbox of that role, in any account.
 // Threads keeps one row per thread: its newest message among those that
 // match every other condition, a message with no thread being its own
 // thread. The result keeps the view's order.
@@ -57,13 +63,35 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 		conds = append(conds, "m.flagged = ?")
 		args = append(args, bit(*f.Flagged))
 	}
-	if q := SearchQuery(f.Text); q != "" {
+	if f.Match != "" {
 		conds = append(conds, "m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
-		args = append(args, q)
+		args = append(args, f.Match)
 	}
-	if f.Role != "" {
-		conds = append(conds, `EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id WHERE mm.message_id = m.id AND mb.role = ?)`)
-		args = append(args, f.Role)
+	if f.Exclude != "" {
+		conds = append(conds, "m.id NOT IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")
+		args = append(args, f.Exclude)
+	}
+	if f.HasAttachment != nil {
+		conds = append(conds, "m.has_attachments = ?")
+		args = append(args, bit(*f.HasAttachment))
+	}
+	if !f.After.IsZero() {
+		conds = append(conds, "m.internal_date >= ?")
+		args = append(args, FormatTime(f.After))
+	}
+	if !f.Before.IsZero() {
+		conds = append(conds, "m.internal_date < ?")
+		args = append(args, FormatTime(f.Before))
+	}
+	for _, roles := range [][]string{{f.Role}, f.Roles} {
+		if len(roles) == 0 || roles[0] == "" {
+			continue
+		}
+		conds = append(conds, `EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id
+			WHERE mm.message_id = m.id AND mb.role IN (`+inPlace(len(roles))+`))`)
+		for _, r := range roles {
+			args = append(args, r)
+		}
 	}
 	where := strings.Join(conds, " AND ")
 	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + viewOrder

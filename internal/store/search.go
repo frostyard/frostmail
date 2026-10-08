@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode"
 )
 
 // SearchDoc is the text indexed for one message.
@@ -43,23 +42,6 @@ func (t *Tx) RemoveFromIndex(ctx context.Context, ids []int64) error {
 		}
 	}
 	return nil
-}
-
-// SearchQuery turns what a user typed into an FTS5 MATCH expression, or ""
-// when there is nothing to search for. Input is split on whitespace; terms
-// with no letter or digit are dropped. Each remaining term becomes a quoted
-// prefix phrase: every double quote in it is doubled, the term is wrapped in
-// double quotes and suffixed with *. Quoting keeps FTS5 operators (OR, NOT,
-// -, ") in the input from being read as syntax. Juxtaposed phrases are ANDed.
-func SearchQuery(input string) string {
-	var phrases []string
-	for _, term := range strings.Fields(input) {
-		if !strings.ContainsFunc(term, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }) {
-			continue
-		}
-		phrases = append(phrases, `"`+strings.ReplaceAll(term, `"`, `""`)+`"*`)
-	}
-	return strings.Join(phrases, " ")
 }
 
 // SearchDocFor is the search entry for a newly stored message: its subject,

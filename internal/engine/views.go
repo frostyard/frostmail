@@ -3,8 +3,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/search"
 	"github.com/frostyard/frostmail/internal/store"
 	"github.com/frostyard/frostmail/internal/view"
 )
@@ -24,7 +26,7 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 		f.MailboxID = *q.MailboxID
 	}
 	if q.Text != nil {
-		f.Text = *q.Text
+		applySearch(&f, search.Parse(*q.Text, time.Now(), time.Local))
 	}
 	if q.Role != nil {
 		f.Role = string(*q.Role)
@@ -95,4 +97,20 @@ func (s syncService) Now(ctx context.Context, p *api.SyncNowParams) error {
 		return api.Unavailable("sync is not running")
 	}
 	return s.Sync.SyncNow(p.AccountID)
+}
+
+// applySearch adds a parsed search (docs/specs/search.md) to a view's
+// filter. is:unread and is:flagged apply when the query has not set them.
+func applySearch(f *store.ViewFilter, q search.Query) {
+	f.Match, f.Exclude = q.Match(), q.Exclude()
+	if f.Unread == nil {
+		f.Unread = q.Unread
+	}
+	if f.Flagged == nil {
+		f.Flagged = q.Flagged
+	}
+	f.HasAttachment, f.After, f.Before = q.HasAttachment, q.After, q.Before
+	for _, r := range q.Roles {
+		f.Roles = append(f.Roles, string(r))
+	}
 }

@@ -79,7 +79,7 @@ func TestBuildMessages(t *testing.T) {
 	if err != nil || len(threads) >= 300 || len(threads) < 150 {
 		t.Fatalf("INBOX threads = %d, %v; want replies grouped into threads", len(threads), err)
 	}
-	found, err := db.ViewIDs(ctx, store.ViewFilter{Text: "ledger"})
+	found, err := db.ViewIDs(ctx, store.ViewFilter{Match: `"ledger"*`})
 	if err != nil || len(found) == 0 {
 		t.Fatalf("search for ledger = %d, %v; want the search index filled", len(found), err)
 	}

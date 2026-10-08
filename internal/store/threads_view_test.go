@@ -46,7 +46,7 @@ func TestViewIDsRolesAndThreads(t *testing.T) {
 		{"a role no mailbox has", ViewFilter{Role: "junk"}, nil},
 		{"threads: newest message of each", ViewFilter{Threads: true}, []int64{7, 6, 4, 3}},
 		{"threads within a mailbox", ViewFilter{Threads: true, MailboxID: 10}, []int64{6, 4, 1}},
-		{"threads of search results", ViewFilter{Threads: true, Text: "invoice"}, []int64{7, 3}},
+		{"threads of search results", ViewFilter{Threads: true, Match: `"invoice"*`}, []int64{7, 3}},
 		{"threads of unread messages", ViewFilter{Threads: true, AccountID: 1, Unread: viewBool(true)}, []int64{6, 4, 1}},
 		{"threads of every inbox", ViewFilter{Threads: true, Role: "inbox"}, []int64{7, 6, 4, 1}},
 	}

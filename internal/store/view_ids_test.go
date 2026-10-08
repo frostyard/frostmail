@@ -82,11 +82,11 @@ func TestViewIDsFilters(t *testing.T) {
 		{"read", ViewFilter{AccountID: acctA, Unread: viewBool(false)}, []int64{2, 3}},
 		{"flagged", ViewFilter{Flagged: viewBool(true)}, []int64{2, 4}},
 		{"unflagged in archive", ViewFilter{MailboxID: archiveA, Flagged: viewBool(false)}, []int64{3}},
-		{"search", ViewFilter{Text: "invoice"}, []int64{7, 3, 1}},
-		{"search prefix in mailbox", ViewFilter{MailboxID: inboxA, Text: "inv"}, []int64{1}},
-		{"search and unread", ViewFilter{AccountID: acctA, Text: "invoice", Unread: viewBool(true)}, []int64{1}},
-		{"nothing searchable means no text filter", ViewFilter{AccountID: acctB, Text: "!!!"}, []int64{7}},
-		{"no match", ViewFilter{Text: "zebra"}, nil},
+		{"search", ViewFilter{Match: `"invoice"*`}, []int64{7, 3, 1}},
+		{"search prefix in mailbox", ViewFilter{MailboxID: inboxA, Match: `"inv"*`}, []int64{1}},
+		{"search and unread", ViewFilter{AccountID: acctA, Match: `"invoice"*`, Unread: viewBool(true)}, []int64{1}},
+		{"search excluding", ViewFilter{Match: `"invoice"*`, Exclude: `"zebra"*`}, []int64{7, 3, 1}},
+		{"no match", ViewFilter{Match: `"zebra"*`}, nil},
 	}
 	for _, tc := range cases {
 		got, err := d.ViewIDs(t.Context(), tc.f)
@@ -128,5 +128,47 @@ func TestViewIDsLargeMailbox(t *testing.T) {
 	unread, err := d.ViewIDs(ctx, ViewFilter{MailboxID: 10, Unread: viewBool(true)})
 	if err != nil || len(unread) != 25000 {
 		t.Fatalf("unread = %d, %v", len(unread), err)
+	}
+}
+
+// Search filters (docs/specs/search.md) over the same fixture, with roles
+// on the mailboxes and attachments on 3 and 4.
+func TestViewIDsSearchFilters(t *testing.T) {
+	d, acctA, _, _, _ := viewFixture(t)
+	ctx := t.Context()
+	for _, q := range []string{
+		`UPDATE mailboxes SET role = 'inbox' WHERE id IN (10, 20)`,
+		`UPDATE mailboxes SET role = 'archive' WHERE id = 11`,
+		`UPDATE messages SET has_attachments = 1 WHERE id IN (3, 4)`,
+	} {
+		if _, err := d.db.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	at := func(minute int) time.Time { return time.Date(2026, 10, 7, 10, minute, 0, 0, time.UTC) }
+	cases := []struct {
+		name string
+		f    ViewFilter
+		want []int64
+	}{
+		{"match except", ViewFilter{Match: `"invoice"*`, Exclude: `"april"*`}, []int64{7, 1}},
+		{"exclude alone", ViewFilter{AccountID: acctA, Exclude: `("invoice"* OR "lunch"*)`}, []int64{6, 4}},
+		{"with attachments", ViewFilter{HasAttachment: viewBool(true)}, []int64{4, 3}},
+		{"without attachments", ViewFilter{AccountID: acctA, HasAttachment: viewBool(false)}, []int64{6, 2, 1}},
+		{"after, inclusive", ViewFilter{After: at(4)}, []int64{7, 6, 2, 4}},
+		{"before, exclusive", ViewFilter{Before: at(4)}, []int64{3, 1}},
+		{"between", ViewFilter{After: at(3), Before: at(5)}, []int64{4, 3}},
+		{"in archive", ViewFilter{Roles: []string{"archive"}}, []int64{4, 3}},
+		{"in inbox or archive, matching", ViewFilter{Roles: []string{"inbox", "archive"}, Match: `"invoice"*`}, []int64{7, 3, 1}},
+		{"role and roles together", ViewFilter{Role: "inbox", Roles: []string{"archive"}}, []int64{4}},
+	}
+	for _, tc := range cases {
+		got, err := d.ViewIDs(ctx, tc.f)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

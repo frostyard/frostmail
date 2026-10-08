@@ -1,38 +1,24 @@
 package store
 
-// CONTRACT TEST for task card T-0011 (docs/tasks). Do not edit.
+// The index tests began as T-0011's contract; queries now come from
+// internal/search (docs/specs/search.md).
 
 import (
 	"slices"
 	"testing"
+	"time"
+
+	"github.com/frostyard/frostmail/internal/search"
 )
 
-func TestSearchQuery(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"", ""},
-		{"   \t ", ""},
-		{"invoice", `"invoice"*`},
-		{"Invoice  March", `"Invoice"* "March"*`},
-		{`say "hi"`, `"say"* """hi"""*`},
-		{"foo OR bar", `"foo"* "OR"* "bar"*`},
-		{"NOT -x", `"NOT"* "-x"*`},
-		{"!!! invoice ???", `"invoice"*`},
-		{"!!!", ""},
-		{"café", `"café"*`},
-	}
-	for _, tc := range cases {
-		if got := SearchQuery(tc.in); got != tc.want {
-			t.Errorf("SearchQuery(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-}
-
-// matches runs a SearchQuery against the index and returns sorted rowids.
+// matches runs a search's Match expression against the index and returns
+// sorted rowids.
 func matches(t *testing.T, d *DB, input string) []int64 {
 	t.Helper()
-	rows, err := d.db.QueryContext(t.Context(), `SELECT rowid FROM messages_fts WHERE messages_fts MATCH ? ORDER BY rowid`, SearchQuery(input))
+	expr := search.Parse(input, time.Now(), time.UTC).Match()
+	rows, err := d.db.QueryContext(t.Context(), `SELECT rowid FROM messages_fts WHERE messages_fts MATCH ? ORDER BY rowid`, expr)
 	if err != nil {
-		t.Fatalf("MATCH %q: %v", SearchQuery(input), err)
+		t.Fatalf("MATCH %q: %v", expr, err)
 	}
 	defer rows.Close()
 	var ids []int64

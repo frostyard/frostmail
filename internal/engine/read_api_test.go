@@ -153,3 +153,51 @@ func TestViewRoleAndThreads(t *testing.T) {
 		}
 	}
 }
+
+// The search language (docs/specs/search.md) through view.open's text.
+func TestViewSearchLanguage(t *testing.T) {
+	srv := rpctest.Start(t)
+	c := srv.Dial(t)
+	ids := conversation(t, srv, c)
+	ctx := t.Context()
+	subjects := []string{"Plan", "Re: Plan", "Other", "Re: Plan"}
+	err := srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		for i, id := range ids {
+			doc := store.SearchDoc{Subject: subjects[i], From: "Ann ann@mailtest.test"}
+			if err := tx.IndexMessage(ctx, id, doc); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, `UPDATE messages SET seen = 1 WHERE id = ?`, ids[1])
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		text string
+		want []int64
+	}{
+		{"plan", []int64{ids[3], ids[1], ids[0]}},
+		{"plan in:archive", []int64{ids[3]}},
+		{"plan -re", []int64{ids[0]}},
+		{"from:ann is:read", []int64{ids[1]}},
+		{"subject:other", []int64{ids[2]}},
+		{"-has:attachment in:inbox -plan", []int64{ids[2]}},
+		{"!!!", []int64{ids[3], ids[2], ids[1], ids[0]}},
+	}
+	for _, tc := range cases {
+		text := tc.text
+		v, err := c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{Text: &text}})
+		if err != nil {
+			t.Fatalf("%q: %v", tc.text, err)
+		}
+		rows, err := c.View().Range(ctx, &api.ViewRangeParams{ID: v.ID, Start: 0, End: 10})
+		if err != nil {
+			t.Fatalf("%q: %v", tc.text, err)
+		}
+		if got := summaryIDs(rows); !slices.Equal(got, tc.want) {
+			t.Errorf("%q = %v, want %v", tc.text, got, tc.want)
+		}
+	}
+}
