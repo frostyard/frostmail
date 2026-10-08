@@ -30,6 +30,20 @@ type Store interface {
 // AccountPassword is the key of an account's password.
 func AccountPassword(accountID int64) string { return fmt.Sprintf("account/%d/password", accountID) }
 
+// RefreshToken is the key of an oauth2 account's refresh token.
+func RefreshToken(accountID int64) string { return fmt.Sprintf("account/%d/refresh-token", accountID) }
+
+// OAuthClientSecret is the key of a provider's OAuth client secret.
+func OAuthClientSecret(provider string) string { return "oauth/" + provider + "/client-secret" }
+
+// Credential is the key of the secret an account signs in with.
+func Credential(accountID int64, oauth bool) string {
+	if oauth {
+		return RefreshToken(accountID)
+	}
+	return AccountPassword(accountID)
+}
+
 // File is a Store kept in one JSON object ({"key": "value", ...}) in a file
 // with mode 0600. It is the M1 development store: plain text on disk, guarded
 // only by file permissions.

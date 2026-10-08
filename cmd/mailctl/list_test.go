@@ -20,7 +20,7 @@ func listFixture(t *testing.T) *rpctest.Server {
 	ctx := t.Context()
 	c := srv.Dial(t)
 	server := api.ServerConfig{Host: "h", Port: 993, TLS: api.TLSModeTLS, Username: "u"}
-	acct, err := c.Account().Create(ctx, &api.AccountCreateParams{Kind: api.AccountKindIMAP, Email: "a@mailtest.test", Auth: api.AuthKindPassword, IMAP: server, SMTP: server})
+	acct, err := c.Account().Create(ctx, &api.AccountCreateParams{Kind: api.AccountKindIMAP, Email: "a@mailtest.test", Auth: api.AuthKindPassword, IMAP: &server, SMTP: &server})
 	if err != nil {
 		t.Fatal(err)
 	}

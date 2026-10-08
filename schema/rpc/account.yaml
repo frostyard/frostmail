@@ -13,6 +13,14 @@ enums:
     values:
       - {name: password, doc: "A password or app-specific password, kept in the secret store."}
       - {name: oauth2, doc: "OAuth 2.0 tokens (SASL XOAUTH2), kept in the secret store."}
+  - name: DiscoverySource
+    doc: Where account.discover found server settings.
+    values:
+      - {name: profile, doc: "Frostmail's own profile for the provider (Gmail, iCloud)."}
+      - {name: autoconfig, doc: "The domain's Mozilla autoconfig file."}
+      - {name: ispdb, doc: "Thunderbird's ISP database."}
+      - {name: srv, doc: "The domain's RFC 6186 SRV records."}
+      - {name: none, doc: "Nothing found; the user enters the servers."}
   - name: TLSMode
     doc: How a connection is secured.
     values:
@@ -38,6 +46,39 @@ types:
       - {name: imap, type: ServerConfig}
       - {name: smtp, type: ServerConfig}
       - {name: createdAt, type: time}
+      - {name: readOnly, type: bool, doc: "maild makes no changes on the server: no flags, moves, deletes, sends or draft copies."}
+      - {name: notify, type: bool, doc: "New mail in the inbox shows a desktop notification."}
+      - {name: signedIn, type: bool, doc: "A password or OAuth token is stored and the server has not refused it."}
+  - name: Discovery
+    doc: Server settings found for an address.
+    fields:
+      - {name: kind, type: AccountKind}
+      - {name: source, type: DiscoverySource}
+      - {name: auth, type: "[]AuthKind", doc: "The sign-in kinds the provider accepts, preferred first."}
+      - {name: imap, type: ServerConfig, optional: true}
+      - {name: smtp, type: ServerConfig, optional: true}
+  - name: AuthorizeResult
+    doc: An OAuth sign-in in progress.
+    fields:
+      - {name: url, type: string, doc: "Open in the system browser; maild finishes the sign-in when the browser returns."}
+  - name: MailboxCheck
+    doc: How one synced folder compares with the server.
+    fields:
+      - {name: mailboxId, type: int}
+      - {name: path, type: string}
+      - {name: server, type: int, doc: "Messages on the server."}
+      - {name: local, type: int, doc: "Messages stored locally."}
+      - {name: missingLocally, type: "[]int", doc: "Server UIDs with no local message (at most 20)."}
+      - {name: missingOnServer, type: "[]int", doc: "Local messages whose UID the server no longer has (at most 20)."}
+      - {name: flagDiffs, type: int, doc: "Messages whose flags differ."}
+      - {name: labelDiffs, type: int, doc: "Gmail: messages whose labels differ."}
+  - name: VerifyReport
+    doc: The result of account.verify.
+    fields:
+      - {name: accountId, type: int}
+      - {name: ok, type: bool, doc: "No folder differs."}
+      - {name: mailboxes, type: "[]MailboxCheck"}
+      - {name: checkedAt, type: time}
 methods:
   - name: list
     doc: All accounts, oldest first.
@@ -49,14 +90,18 @@ methods:
     result: Account
     errors: [notFound]
   - name: create
-    doc: Add an account. The email address must be unique.
+    doc: >-
+      Add an account. The email address must be unique. Gmail and iCloud
+      accounts may leave the servers out; their profiles fill them in.
     params:
       - {name: kind, type: AccountKind}
       - {name: email, type: string}
       - {name: displayName, type: string}
       - {name: auth, type: AuthKind}
-      - {name: imap, type: ServerConfig}
-      - {name: smtp, type: ServerConfig}
+      - {name: imap, type: ServerConfig, optional: true}
+      - {name: smtp, type: ServerConfig, optional: true}
+      - {name: readOnly, type: bool, optional: true, doc: "Default false."}
+      - {name: notify, type: bool, optional: true, doc: "Default true."}
     result: Account
     errors: [invalidParams, conflict]
   - name: update
@@ -66,6 +111,8 @@ methods:
       - {name: displayName, type: string, optional: true}
       - {name: imap, type: ServerConfig, optional: true}
       - {name: smtp, type: ServerConfig, optional: true}
+      - {name: readOnly, type: bool, optional: true}
+      - {name: notify, type: bool, optional: true}
     result: Account
     errors: [invalidParams, notFound]
   - name: delete
@@ -79,6 +126,27 @@ methods:
       - {name: id, type: int}
       - {name: password, type: string}
     errors: [notFound, invalidParams]
+  - name: discover
+    doc: Find server settings for an address (provider profiles, autoconfig, the ISPDB, SRV records).
+    params:
+      - {name: email, type: string}
+    result: Discovery
+    errors: [invalidParams]
+  - name: authorize
+    doc: >-
+      Start an OAuth sign-in for an oauth2 account. maild listens on a
+      loopback port for the browser's return for 5 minutes, then stores the
+      token, reconnects, and emits account.changed.
+    params:
+      - {name: id, type: int}
+    result: AuthorizeResult
+    errors: [notFound, invalidParams, unavailable]
+  - name: verify
+    doc: Compare the stored mail with the server, changing nothing on either side.
+    params:
+      - {name: id, type: int}
+    result: VerifyReport
+    errors: [notFound, unavailable]
 events:
   - name: changed
     doc: An account was created, updated or deleted.

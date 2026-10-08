@@ -45,7 +45,7 @@ Errors: `notFound`.
 
 ### `account.create`
 
-Add an account. The email address must be unique.
+Add an account. The email address must be unique. Gmail and iCloud accounts may leave the servers out; their profiles fill them in.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -53,8 +53,10 @@ Add an account. The email address must be unique.
 | `email` | `string` |  |
 | `displayName` | `string` |  |
 | `auth` | `AuthKind` |  |
-| `imap` | `ServerConfig` |  |
-| `smtp` | `ServerConfig` |  |
+| `imap` | `ServerConfig` (optional) |  |
+| `smtp` | `ServerConfig` (optional) |  |
+| `readOnly` | `bool` (optional) | Default false. |
+| `notify` | `bool` (optional) | Default true. |
 
 Result: `Account`.
 Errors: `invalidParams`, `conflict`.
@@ -69,6 +71,8 @@ Change an account's settings. Omitted fields keep their values.
 | `displayName` | `string` (optional) |  |
 | `imap` | `ServerConfig` (optional) |  |
 | `smtp` | `ServerConfig` (optional) |  |
+| `readOnly` | `bool` (optional) |  |
+| `notify` | `bool` (optional) |  |
 
 Result: `Account`.
 Errors: `invalidParams`, `notFound`.
@@ -95,6 +99,39 @@ Store the password (or app-specific password) the account logs in with, and reco
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.
+
+### `account.discover`
+
+Find server settings for an address (provider profiles, autoconfig, the ISPDB, SRV records).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `email` | `string` |  |
+
+Result: `Discovery`.
+Errors: `invalidParams`.
+
+### `account.authorize`
+
+Start an OAuth sign-in for an oauth2 account. maild listens on a loopback port for the browser's return for 5 minutes, then stores the token, reconnects, and emits account.changed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `AuthorizeResult`.
+Errors: `notFound`, `invalidParams`, `unavailable`.
+
+### `account.verify`
+
+Compare the stored mail with the server, changing nothing on either side.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `VerifyReport`.
+Errors: `notFound`, `unavailable`.
 
 ### Event `account.changed` (durable)
 
@@ -130,6 +167,55 @@ A configured mail account.
 | `imap` | `ServerConfig` |  |
 | `smtp` | `ServerConfig` |  |
 | `createdAt` | `time` |  |
+| `readOnly` | `bool` | maild makes no changes on the server: no flags, moves, deletes, sends or draft copies. |
+| `notify` | `bool` | New mail in the inbox shows a desktop notification. |
+| `signedIn` | `bool` | A password or OAuth token is stored and the server has not refused it. |
+
+### Type `Discovery`
+
+Server settings found for an address.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `AccountKind` |  |
+| `source` | `DiscoverySource` |  |
+| `auth` | `[]AuthKind` | The sign-in kinds the provider accepts, preferred first. |
+| `imap` | `ServerConfig` (optional) |  |
+| `smtp` | `ServerConfig` (optional) |  |
+
+### Type `AuthorizeResult`
+
+An OAuth sign-in in progress.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `url` | `string` | Open in the system browser; maild finishes the sign-in when the browser returns. |
+
+### Type `MailboxCheck`
+
+How one synced folder compares with the server.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `mailboxId` | `int` |  |
+| `path` | `string` |  |
+| `server` | `int` | Messages on the server. |
+| `local` | `int` | Messages stored locally. |
+| `missingLocally` | `[]int` | Server UIDs with no local message (at most 20). |
+| `missingOnServer` | `[]int` | Local messages whose UID the server no longer has (at most 20). |
+| `flagDiffs` | `int` | Messages whose flags differ. |
+| `labelDiffs` | `int` | Gmail: messages whose labels differ. |
+
+### Type `VerifyReport`
+
+The result of account.verify.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `ok` | `bool` | No folder differs. |
+| `mailboxes` | `[]MailboxCheck` |  |
+| `checkedAt` | `time` |  |
 
 ### Enum `AccountKind`
 
@@ -150,6 +236,18 @@ How the account authenticates to its servers.
 | --- | --- |
 | `password` | A password or app-specific password, kept in the secret store. |
 | `oauth2` | OAuth 2.0 tokens (SASL XOAUTH2), kept in the secret store. |
+
+### Enum `DiscoverySource`
+
+Where account.discover found server settings.
+
+| Value | Meaning |
+| --- | --- |
+| `profile` | Frostmail's own profile for the provider (Gmail, iCloud). |
+| `autoconfig` | The domain's Mozilla autoconfig file. |
+| `ispdb` | Thunderbird's ISP database. |
+| `srv` | The domain's RFC 6186 SRV records. |
+| `none` | Nothing found; the user enters the servers. |
 
 ### Enum `TLSMode`
 
@@ -688,6 +786,53 @@ Flags to set or clear; omitted fields keep their values.
 | `flagged` | `bool` (optional) |  |
 | `answered` | `bool` (optional) |  |
 | `flagColor` | `int` (optional) |  |
+
+## oauth
+
+The OAuth clients maild signs in with. Until Frostmail ships verified clients (M6) the user registers their own (docs/design/accounts.md). The client secret is write-only.
+
+### `oauth.setClient`
+
+Store the client maild signs in to a provider with, replacing any previous one.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `provider` | `OAuthProvider` |  |
+| `clientId` | `string` |  |
+| `clientSecret` | `string` (optional) | Desktop clients have one; it is kept in the secret store. |
+
+Result: `OAuthClient`.
+Errors: `invalidParams`.
+
+### `oauth.getClient`
+
+The client stored for a provider.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `provider` | `OAuthProvider` |  |
+
+Result: `OAuthClient`.
+Errors: `notFound`.
+
+### Type `OAuthClient`
+
+A registered OAuth client.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `provider` | `OAuthProvider` |  |
+| `clientId` | `string` |  |
+| `hasSecret` | `bool` | A client secret is stored. |
+
+### Enum `OAuthProvider`
+
+An OAuth identity provider maild knows the endpoints of.
+
+| Value | Meaning |
+| --- | --- |
+| `google` | Google accounts (Gmail). |
+| `microsoft` | Microsoft accounts (not yet used). |
 
 ## outbox
 

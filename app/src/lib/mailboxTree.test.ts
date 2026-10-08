@@ -15,6 +15,9 @@ function account(id: number, email: string): Account {
     imap: server,
     smtp: server,
     createdAt: "2026-10-07T00:00:00Z",
+    readOnly: false,
+    notify: true,
+    signedIn: true,
   };
 }
 

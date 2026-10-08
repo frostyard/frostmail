@@ -43,7 +43,7 @@ func newSendEnv(t *testing.T, undo time.Duration) *sendEnv {
 	o := mem.DialOptions()
 	a, err := c.Account().Create(ctx, &api.AccountCreateParams{
 		Kind: api.AccountKindIMAP, Email: "ann@x.test", DisplayName: "Ann", Auth: api.AuthKindPassword,
-		IMAP: api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username},
+		IMAP: &api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username},
 		SMTP: sm.Config(imapxtest.Username),
 	})
 	if err != nil {

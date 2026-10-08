@@ -180,6 +180,31 @@ func (v AuthKind) Valid() bool {
 	return false
 }
 
+// DiscoverySource: Where account.discover found server settings.
+type DiscoverySource string
+
+const (
+	// Frostmail's own profile for the provider (Gmail, iCloud).
+	DiscoverySourceProfile DiscoverySource = "profile"
+	// The domain's Mozilla autoconfig file.
+	DiscoverySourceAutoconfig DiscoverySource = "autoconfig"
+	// Thunderbird's ISP database.
+	DiscoverySourceIspdb DiscoverySource = "ispdb"
+	// The domain's RFC 6186 SRV records.
+	DiscoverySourceSrv DiscoverySource = "srv"
+	// Nothing found; the user enters the servers.
+	DiscoverySourceNone DiscoverySource = "none"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v DiscoverySource) Valid() bool {
+	switch v {
+	case DiscoverySourceProfile, DiscoverySourceAutoconfig, DiscoverySourceIspdb, DiscoverySourceSrv, DiscoverySourceNone:
+		return true
+	}
+	return false
+}
+
 // TLSMode: How a connection is secured.
 type TLSMode string
 
@@ -223,6 +248,57 @@ type Account struct {
 	IMAP        ServerConfig `json:"imap"`
 	SMTP        ServerConfig `json:"smtp"`
 	CreatedAt   time.Time    `json:"createdAt"`
+	// maild makes no changes on the server: no flags, moves, deletes, sends or
+	// draft copies.
+	ReadOnly bool `json:"readOnly"`
+	// New mail in the inbox shows a desktop notification.
+	Notify bool `json:"notify"`
+	// A password or OAuth token is stored and the server has not refused it.
+	SignedIn bool `json:"signedIn"`
+}
+
+// Discovery: Server settings found for an address.
+type Discovery struct {
+	Kind   AccountKind     `json:"kind"`
+	Source DiscoverySource `json:"source"`
+	// The sign-in kinds the provider accepts, preferred first.
+	Auth []AuthKind    `json:"auth"`
+	IMAP *ServerConfig `json:"imap,omitzero"`
+	SMTP *ServerConfig `json:"smtp,omitzero"`
+}
+
+// AuthorizeResult: An OAuth sign-in in progress.
+type AuthorizeResult struct {
+	// Open in the system browser; maild finishes the sign-in when the browser
+	// returns.
+	URL string `json:"url"`
+}
+
+// MailboxCheck: How one synced folder compares with the server.
+type MailboxCheck struct {
+	MailboxID int64  `json:"mailboxId"`
+	Path      string `json:"path"`
+	// Messages on the server.
+	Server int64 `json:"server"`
+	// Messages stored locally.
+	Local int64 `json:"local"`
+	// Server UIDs with no local message (at most 20).
+	MissingLocally []int64 `json:"missingLocally"`
+	// Local messages whose UID the server no longer has (at most 20).
+	MissingOnServer []int64 `json:"missingOnServer"`
+	// Messages whose flags differ.
+	FlagDiffs int64 `json:"flagDiffs"`
+	// Gmail: messages whose labels differ.
+	LabelDiffs int64 `json:"labelDiffs"`
+}
+
+// VerifyReport: The result of account.verify.
+type VerifyReport struct {
+	AccountID int64 `json:"accountId"`
+	// No folder differs.
+	Ok        bool           `json:"ok"`
+	Mailboxes []MailboxCheck `json:"mailboxes"`
+	CheckedAt time.Time      `json:"checkedAt"`
 }
 
 // AccountListParams holds the params of account.list.
@@ -235,12 +311,16 @@ type AccountGetParams struct {
 
 // AccountCreateParams holds the params of account.create.
 type AccountCreateParams struct {
-	Kind        AccountKind  `json:"kind"`
-	Email       string       `json:"email"`
-	DisplayName string       `json:"displayName"`
-	Auth        AuthKind     `json:"auth"`
-	IMAP        ServerConfig `json:"imap"`
-	SMTP        ServerConfig `json:"smtp"`
+	Kind        AccountKind   `json:"kind"`
+	Email       string        `json:"email"`
+	DisplayName string        `json:"displayName"`
+	Auth        AuthKind      `json:"auth"`
+	IMAP        *ServerConfig `json:"imap,omitzero"`
+	SMTP        *ServerConfig `json:"smtp,omitzero"`
+	// Default false.
+	ReadOnly *bool `json:"readOnly,omitzero"`
+	// Default true.
+	Notify *bool `json:"notify,omitzero"`
 }
 
 // AccountUpdateParams holds the params of account.update.
@@ -249,6 +329,8 @@ type AccountUpdateParams struct {
 	DisplayName *string       `json:"displayName,omitzero"`
 	IMAP        *ServerConfig `json:"imap,omitzero"`
 	SMTP        *ServerConfig `json:"smtp,omitzero"`
+	ReadOnly    *bool         `json:"readOnly,omitzero"`
+	Notify      *bool         `json:"notify,omitzero"`
 }
 
 // AccountDeleteParams holds the params of account.delete.
@@ -262,6 +344,21 @@ type AccountSetPasswordParams struct {
 	Password string `json:"password"`
 }
 
+// AccountDiscoverParams holds the params of account.discover.
+type AccountDiscoverParams struct {
+	Email string `json:"email"`
+}
+
+// AccountAuthorizeParams holds the params of account.authorize.
+type AccountAuthorizeParams struct {
+	ID int64 `json:"id"`
+}
+
+// AccountVerifyParams holds the params of account.verify.
+type AccountVerifyParams struct {
+	ID int64 `json:"id"`
+}
+
 // AccountService: Mail accounts and their server settings. Credentials are
 // write-only over RPC; account.setPassword stores one and no method returns
 // it.
@@ -271,7 +368,8 @@ type AccountService interface {
 	// Get implements account.get. One account.
 	Get(ctx context.Context, p *AccountGetParams) (*Account, error)
 	// Create implements account.create. Add an account. The email address must be
-	// unique.
+	// unique. Gmail and iCloud accounts may leave the servers out; their profiles
+	// fill them in.
 	Create(ctx context.Context, p *AccountCreateParams) (*Account, error)
 	// Update implements account.update. Change an account's settings. Omitted
 	// fields keep their values.
@@ -282,6 +380,17 @@ type AccountService interface {
 	// SetPassword implements account.setPassword. Store the password (or
 	// app-specific password) the account logs in with, and reconnect.
 	SetPassword(ctx context.Context, p *AccountSetPasswordParams) error
+	// Discover implements account.discover. Find server settings for an address
+	// (provider profiles, autoconfig, the ISPDB, SRV records).
+	Discover(ctx context.Context, p *AccountDiscoverParams) (*Discovery, error)
+	// Authorize implements account.authorize. Start an OAuth sign-in for an
+	// oauth2 account. maild listens on a loopback port for the browser's return
+	// for 5 minutes, then stores the token, reconnects, and emits
+	// account.changed.
+	Authorize(ctx context.Context, p *AccountAuthorizeParams) (*AuthorizeResult, error)
+	// Verify implements account.verify. Compare the stored mail with the server,
+	// changing nothing on either side.
+	Verify(ctx context.Context, p *AccountVerifyParams) (*VerifyReport, error)
 }
 
 func registerAccount(r *Router, s AccountService) {
@@ -301,7 +410,7 @@ func registerAccount(r *Router, s AccountService) {
 	})
 	r.handle("account.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p AccountCreateParams
-		if err := decodeParams(raw, &p, []string{"kind", "email", "displayName", "auth", "imap", "smtp"}); err != nil {
+		if err := decodeParams(raw, &p, []string{"kind", "email", "displayName", "auth"}); err != nil {
 			return nil, err
 		}
 		return s.Create(ctx, &p)
@@ -326,6 +435,27 @@ func registerAccount(r *Router, s AccountService) {
 			return nil, err
 		}
 		return nil, s.SetPassword(ctx, &p)
+	})
+	r.handle("account.discover", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountDiscoverParams
+		if err := decodeParams(raw, &p, []string{"email"}); err != nil {
+			return nil, err
+		}
+		return s.Discover(ctx, &p)
+	})
+	r.handle("account.authorize", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountAuthorizeParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Authorize(ctx, &p)
+	})
+	r.handle("account.verify", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountVerifyParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Verify(ctx, &p)
 	})
 }
 
@@ -382,6 +512,36 @@ func (x AccountClient) Delete(ctx context.Context, p *AccountDeleteParams) error
 // SetPassword calls account.setPassword.
 func (x AccountClient) SetPassword(ctx context.Context, p *AccountSetPasswordParams) error {
 	return x.c.Call(ctx, "account.setPassword", p, nil)
+}
+
+// Discover calls account.discover.
+func (x AccountClient) Discover(ctx context.Context, p *AccountDiscoverParams) (*Discovery, error) {
+	var r Discovery
+	err := x.c.Call(ctx, "account.discover", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Authorize calls account.authorize.
+func (x AccountClient) Authorize(ctx context.Context, p *AccountAuthorizeParams) (*AuthorizeResult, error) {
+	var r AuthorizeResult
+	err := x.c.Call(ctx, "account.authorize", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Verify calls account.verify.
+func (x AccountClient) Verify(ctx context.Context, p *AccountVerifyParams) (*VerifyReport, error) {
+	var r VerifyReport
+	err := x.c.Call(ctx, "account.verify", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // AccountChanged: An account was created, updated or deleted.
@@ -1319,6 +1479,104 @@ func (MessageRemoved) EventName() string { return "message.removed" }
 // Durable reports whether MessageRemoved is kept in the changes log.
 func (MessageRemoved) Durable() bool { return true }
 
+// ---- oauth ----
+
+// OAuthProvider: An OAuth identity provider maild knows the endpoints of.
+type OAuthProvider string
+
+const (
+	// Google accounts (Gmail).
+	OAuthProviderGoogle OAuthProvider = "google"
+	// Microsoft accounts (not yet used).
+	OAuthProviderMicrosoft OAuthProvider = "microsoft"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v OAuthProvider) Valid() bool {
+	switch v {
+	case OAuthProviderGoogle, OAuthProviderMicrosoft:
+		return true
+	}
+	return false
+}
+
+// OAuthClient: A registered OAuth client.
+type OAuthClient struct {
+	Provider OAuthProvider `json:"provider"`
+	ClientID string        `json:"clientId"`
+	// A client secret is stored.
+	HasSecret bool `json:"hasSecret"`
+}
+
+// OauthSetClientParams holds the params of oauth.setClient.
+type OauthSetClientParams struct {
+	Provider OAuthProvider `json:"provider"`
+	ClientID string        `json:"clientId"`
+	// Desktop clients have one; it is kept in the secret store.
+	ClientSecret *string `json:"clientSecret,omitzero"`
+}
+
+// OauthGetClientParams holds the params of oauth.getClient.
+type OauthGetClientParams struct {
+	Provider OAuthProvider `json:"provider"`
+}
+
+// OauthService: The OAuth clients maild signs in with. Until Frostmail ships
+// verified clients (M6) the user registers their own
+// (docs/design/accounts.md). The client secret is write-only.
+type OauthService interface {
+	// SetClient implements oauth.setClient. Store the client maild signs in to a
+	// provider with, replacing any previous one.
+	SetClient(ctx context.Context, p *OauthSetClientParams) (*OAuthClient, error)
+	// GetClient implements oauth.getClient. The client stored for a provider.
+	GetClient(ctx context.Context, p *OauthGetClientParams) (*OAuthClient, error)
+}
+
+func registerOauth(r *Router, s OauthService) {
+	r.handle("oauth.setClient", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p OauthSetClientParams
+		if err := decodeParams(raw, &p, []string{"provider", "clientId"}); err != nil {
+			return nil, err
+		}
+		return s.SetClient(ctx, &p)
+	})
+	r.handle("oauth.getClient", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p OauthGetClientParams
+		if err := decodeParams(raw, &p, []string{"provider"}); err != nil {
+			return nil, err
+		}
+		return s.GetClient(ctx, &p)
+	})
+}
+
+// OauthClient calls the oauth methods; it implements OauthService.
+type OauthClient struct{ c *Client }
+
+// Oauth returns the oauth methods.
+func (c *Client) Oauth() OauthClient { return OauthClient{c} }
+
+var _ OauthService = OauthClient{}
+
+// SetClient calls oauth.setClient.
+func (x OauthClient) SetClient(ctx context.Context, p *OauthSetClientParams) (*OAuthClient, error) {
+	var r OAuthClient
+	err := x.c.Call(ctx, "oauth.setClient", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// GetClient calls oauth.getClient.
+func (x OauthClient) GetClient(ctx context.Context, p *OauthGetClientParams) (*OAuthClient, error) {
+	var r OAuthClient
+	err := x.c.Call(ctx, "oauth.getClient", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 // ---- outbox ----
 
 // OutboxState: Where a message is on its way out.
@@ -1823,6 +2081,7 @@ type Services struct {
 	Identity IdentityService
 	Mailbox  MailboxService
 	Message  MessageService
+	Oauth    OauthService
 	Outbox   OutboxService
 	RPC      RPCService
 	Sync     SyncService
@@ -1859,6 +2118,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Message is nil")
 	}
 	registerMessage(r, s.Message)
+	if s.Oauth == nil {
+		return errors.New("api: Services.Oauth is nil")
+	}
+	registerOauth(r, s.Oauth)
 	if s.Outbox == nil {
 		return errors.New("api: Services.Outbox is nil")
 	}
@@ -1890,6 +2153,9 @@ var Methods = []string{
 	"account.update",
 	"account.delete",
 	"account.setPassword",
+	"account.discover",
+	"account.authorize",
+	"account.verify",
 	"address.suggest",
 	"draft.create",
 	"draft.open",
@@ -1912,6 +2178,8 @@ var Methods = []string{
 	"message.setFlags",
 	"message.move",
 	"message.delete",
+	"oauth.setClient",
+	"oauth.getClient",
 	"outbox.list",
 	"outbox.cancel",
 	"outbox.retry",

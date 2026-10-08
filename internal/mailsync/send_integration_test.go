@@ -75,7 +75,7 @@ func startIT(t *testing.T, data string, create bool, smtp *api.ServerConfig) *it
 	}
 	a, err := h.c.Account().Create(ctx, &api.AccountCreateParams{
 		Kind: api.AccountKindIMAP, Email: "test4@mailtest.test", DisplayName: "Test Four",
-		Auth: api.AuthKindPassword, IMAP: imapCfg, SMTP: smtpCfg,
+		Auth: api.AuthKindPassword, IMAP: &imapCfg, SMTP: &smtpCfg,
 	})
 	if err != nil {
 		t.Fatal(err)

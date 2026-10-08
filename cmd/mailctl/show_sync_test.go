@@ -43,7 +43,7 @@ func syncFixture(t *testing.T, withPassword bool) *rpctest.Server {
 	server := api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username}
 	c := srv.Dial(t)
 	if _, err := c.Account().Create(t.Context(), &api.AccountCreateParams{
-		Kind: api.AccountKindIMAP, Email: "test@mailtest.test", Auth: api.AuthKindPassword, IMAP: server, SMTP: server,
+		Kind: api.AccountKindIMAP, Email: "test@mailtest.test", Auth: api.AuthKindPassword, IMAP: &server, SMTP: &server,
 	}); err != nil {
 		t.Fatal(err)
 	}

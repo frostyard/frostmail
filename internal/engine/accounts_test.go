@@ -15,8 +15,8 @@ import (
 func createParams(email string) *api.AccountCreateParams {
 	return &api.AccountCreateParams{
 		Kind: api.AccountKindIMAP, Email: email, DisplayName: "Test", Auth: api.AuthKindPassword,
-		IMAP: api.ServerConfig{Host: "imap.mailtest.test", Port: 993, TLS: api.TLSModeTLS, Username: email},
-		SMTP: api.ServerConfig{Host: "smtp.mailtest.test", Port: 587, TLS: api.TLSModeStartTLS, Username: email},
+		IMAP: &api.ServerConfig{Host: "imap.mailtest.test", Port: 993, TLS: api.TLSModeTLS, Username: email},
+		SMTP: &api.ServerConfig{Host: "smtp.mailtest.test", Port: 587, TLS: api.TLSModeStartTLS, Username: email},
 	}
 }
 

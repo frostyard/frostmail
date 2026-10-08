@@ -63,6 +63,9 @@ export function mockData(opts: FixtureOptions = {}): MockData {
       imap: { host: "imap.mailtest.test", port: 993, tls: "tls", username: ME.address },
       smtp: { host: "smtp.mailtest.test", port: 587, tls: "starttls", username: ME.address },
       createdAt: "2026-01-01T00:00:00Z",
+      readOnly: false,
+      notify: true,
+      signedIn: true,
     },
   ];
   const mb = (id: number, path: string, role: MockMailbox["role"]): MockMailbox => ({

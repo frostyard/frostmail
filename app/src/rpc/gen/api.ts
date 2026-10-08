@@ -50,6 +50,10 @@ export const AccountKindValues: readonly AccountKind[] = ["imap", "gmail", "micr
 export type AuthKind = "password" | "oauth2";
 export const AuthKindValues: readonly AuthKind[] = ["password", "oauth2"];
 
+/** Where account.discover found server settings. */
+export type DiscoverySource = "profile" | "autoconfig" | "ispdb" | "srv" | "none";
+export const DiscoverySourceValues: readonly DiscoverySource[] = ["profile", "autoconfig", "ispdb", "srv", "none"];
+
 /** How a connection is secured. */
 export type TLSMode = "tls" | "starttls" | "insecure";
 export const TLSModeValues: readonly TLSMode[] = ["tls", "starttls", "insecure"];
@@ -76,6 +80,61 @@ export interface Account {
   imap: ServerConfig;
   smtp: ServerConfig;
   createdAt: string /* RFC 3339 */;
+  /**
+   * maild makes no changes on the server: no flags, moves, deletes, sends or
+   * draft copies.
+   */
+  readOnly: boolean;
+  /** New mail in the inbox shows a desktop notification. */
+  notify: boolean;
+  /** A password or OAuth token is stored and the server has not refused it. */
+  signedIn: boolean;
+}
+
+/** Server settings found for an address. */
+export interface Discovery {
+  kind: AccountKind;
+  source: DiscoverySource;
+  /** The sign-in kinds the provider accepts, preferred first. */
+  auth: AuthKind[];
+  imap?: ServerConfig;
+  smtp?: ServerConfig;
+}
+
+/** An OAuth sign-in in progress. */
+export interface AuthorizeResult {
+  /**
+   * Open in the system browser; maild finishes the sign-in when the browser
+   * returns.
+   */
+  url: string;
+}
+
+/** How one synced folder compares with the server. */
+export interface MailboxCheck {
+  mailboxId: number;
+  path: string;
+  /** Messages on the server. */
+  server: number;
+  /** Messages stored locally. */
+  local: number;
+  /** Server UIDs with no local message (at most 20). */
+  missingLocally: number[];
+  /** Local messages whose UID the server no longer has (at most 20). */
+  missingOnServer: number[];
+  /** Messages whose flags differ. */
+  flagDiffs: number;
+  /** Gmail: messages whose labels differ. */
+  labelDiffs: number;
+}
+
+/** The result of account.verify. */
+export interface VerifyReport {
+  accountId: number;
+  /** No folder differs. */
+  ok: boolean;
+  mailboxes: MailboxCheck[];
+  checkedAt: string /* RFC 3339 */;
 }
 
 /** Params of account.list. */
@@ -92,8 +151,12 @@ export interface AccountCreateParams {
   email: string;
   displayName: string;
   auth: AuthKind;
-  imap: ServerConfig;
-  smtp: ServerConfig;
+  imap?: ServerConfig;
+  smtp?: ServerConfig;
+  /** Default false. */
+  readOnly?: boolean;
+  /** Default true. */
+  notify?: boolean;
 }
 
 /** Params of account.update. */
@@ -102,6 +165,8 @@ export interface AccountUpdateParams {
   displayName?: string;
   imap?: ServerConfig;
   smtp?: ServerConfig;
+  readOnly?: boolean;
+  notify?: boolean;
 }
 
 /** Params of account.delete. */
@@ -113,6 +178,21 @@ export interface AccountDeleteParams {
 export interface AccountSetPasswordParams {
   id: number;
   password: string;
+}
+
+/** Params of account.discover. */
+export interface AccountDiscoverParams {
+  email: string;
+}
+
+/** Params of account.authorize. */
+export interface AccountAuthorizeParams {
+  id: number;
+}
+
+/** Params of account.verify. */
+export interface AccountVerifyParams {
+  id: number;
 }
 
 /** An account was created, updated or deleted. */
@@ -130,7 +210,10 @@ export interface AccountClient {
   list(params?: AccountListParams): Promise<Account[]>;
   /** One account. */
   get(params: AccountGetParams): Promise<Account>;
-  /** Add an account. The email address must be unique. */
+  /**
+   * Add an account. The email address must be unique. Gmail and iCloud
+   * accounts may leave the servers out; their profiles fill them in.
+   */
   create(params: AccountCreateParams): Promise<Account>;
   /** Change an account's settings. Omitted fields keep their values. */
   update(params: AccountUpdateParams): Promise<Account>;
@@ -141,6 +224,21 @@ export interface AccountClient {
    * and reconnect.
    */
   setPassword(params: AccountSetPasswordParams): Promise<void>;
+  /**
+   * Find server settings for an address (provider profiles, autoconfig, the
+   * ISPDB, SRV records).
+   */
+  discover(params: AccountDiscoverParams): Promise<Discovery>;
+  /**
+   * Start an OAuth sign-in for an oauth2 account. maild listens on a loopback
+   * port for the browser's return for 5 minutes, then stores the token,
+   * reconnects, and emits account.changed.
+   */
+  authorize(params: AccountAuthorizeParams): Promise<AuthorizeResult>;
+  /**
+   * Compare the stored mail with the server, changing nothing on either side.
+   */
+  verify(params: AccountVerifyParams): Promise<VerifyReport>;
 }
 
 function accountClient(t: Transport): AccountClient {
@@ -151,6 +249,9 @@ function accountClient(t: Transport): AccountClient {
     update: (params) => t.call<Account>("account.update", params),
     delete: (params) => t.call<null>("account.delete", params).then(() => undefined),
     setPassword: (params) => t.call<null>("account.setPassword", params).then(() => undefined),
+    discover: (params) => t.call<Discovery>("account.discover", params),
+    authorize: (params) => t.call<AuthorizeResult>("account.authorize", params),
+    verify: (params) => t.call<VerifyReport>("account.verify", params),
   };
 }
 
@@ -689,6 +790,55 @@ function messageClient(t: Transport): MessageClient {
   };
 }
 
+// ---- oauth ----
+
+/** An OAuth identity provider maild knows the endpoints of. */
+export type OAuthProvider = "google" | "microsoft";
+export const OAuthProviderValues: readonly OAuthProvider[] = ["google", "microsoft"];
+
+/** A registered OAuth client. */
+export interface OAuthClient {
+  provider: OAuthProvider;
+  clientId: string;
+  /** A client secret is stored. */
+  hasSecret: boolean;
+}
+
+/** Params of oauth.setClient. */
+export interface OauthSetClientParams {
+  provider: OAuthProvider;
+  clientId: string;
+  /** Desktop clients have one; it is kept in the secret store. */
+  clientSecret?: string;
+}
+
+/** Params of oauth.getClient. */
+export interface OauthGetClientParams {
+  provider: OAuthProvider;
+}
+
+/**
+ * The OAuth clients maild signs in with. Until Frostmail ships verified
+ * clients (M6) the user registers their own (docs/design/accounts.md). The
+ * client secret is write-only.
+ */
+export interface OauthClient {
+  /**
+   * Store the client maild signs in to a provider with, replacing any
+   * previous one.
+   */
+  setClient(params: OauthSetClientParams): Promise<OAuthClient>;
+  /** The client stored for a provider. */
+  getClient(params: OauthGetClientParams): Promise<OAuthClient>;
+}
+
+function oauthClient(t: Transport): OauthClient {
+  return {
+    setClient: (params) => t.call<OAuthClient>("oauth.setClient", params),
+    getClient: (params) => t.call<OAuthClient>("oauth.getClient", params),
+  };
+}
+
 // ---- outbox ----
 
 /** Where a message is on its way out. */
@@ -981,6 +1131,9 @@ export const METHODS = [
   "account.update",
   "account.delete",
   "account.setPassword",
+  "account.discover",
+  "account.authorize",
+  "account.verify",
   "address.suggest",
   "draft.create",
   "draft.open",
@@ -1003,6 +1156,8 @@ export const METHODS = [
   "message.setFlags",
   "message.move",
   "message.delete",
+  "oauth.setClient",
+  "oauth.getClient",
   "outbox.list",
   "outbox.cancel",
   "outbox.retry",
@@ -1024,6 +1179,7 @@ export class Client {
   readonly identity: IdentityClient;
   readonly mailbox: MailboxClient;
   readonly message: MessageClient;
+  readonly oauth: OauthClient;
   readonly outbox: OutboxClient;
   readonly rpc: RPCClient;
   readonly sync: SyncClient;
@@ -1038,6 +1194,7 @@ export class Client {
     this.identity = identityClient(transport);
     this.mailbox = mailboxClient(transport);
     this.message = messageClient(transport);
+    this.oauth = oauthClient(transport);
     this.outbox = outboxClient(transport);
     this.rpc = rpcClient(transport);
     this.sync = syncClient(transport);

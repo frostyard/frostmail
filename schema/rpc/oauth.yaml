@@ -1,0 +1,33 @@
+domain: oauth
+doc: >-
+  The OAuth clients maild signs in with. Until Frostmail ships verified
+  clients (M6) the user registers their own (docs/design/accounts.md). The
+  client secret is write-only.
+enums:
+  - name: OAuthProvider
+    doc: An OAuth identity provider maild knows the endpoints of.
+    values:
+      - {name: google, doc: "Google accounts (Gmail)."}
+      - {name: microsoft, doc: "Microsoft accounts (not yet used)."}
+types:
+  - name: OAuthClient
+    doc: A registered OAuth client.
+    fields:
+      - {name: provider, type: OAuthProvider}
+      - {name: clientId, type: string}
+      - {name: hasSecret, type: bool, doc: "A client secret is stored."}
+methods:
+  - name: setClient
+    doc: Store the client maild signs in to a provider with, replacing any previous one.
+    params:
+      - {name: provider, type: OAuthProvider}
+      - {name: clientId, type: string}
+      - {name: clientSecret, type: string, optional: true, doc: "Desktop clients have one; it is kept in the secret store."}
+    result: OAuthClient
+    errors: [invalidParams]
+  - name: getClient
+    doc: The client stored for a provider.
+    params:
+      - {name: provider, type: OAuthProvider}
+    result: OAuthClient
+    errors: [notFound]

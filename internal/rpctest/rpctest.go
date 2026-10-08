@@ -118,6 +118,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		RPC: rpc, Events: rpc, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
+		Oauth: eng.Oauth(),
 	})
 	if err != nil {
 		t.Fatal(err)

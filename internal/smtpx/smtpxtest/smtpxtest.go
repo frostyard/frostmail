@@ -72,10 +72,10 @@ func Start(t testing.TB, password string) *Server {
 }
 
 // Config is the account setting that reaches the server.
-func (s *Server) Config(username string) api.ServerConfig {
+func (s *Server) Config(username string) *api.ServerConfig {
 	host, port, _ := net.SplitHostPort(s.Addr)
 	p, _ := strconv.Atoi(port)
-	return api.ServerConfig{Host: host, Port: int64(p), TLS: api.TLSModeInsecure, Username: username}
+	return &api.ServerConfig{Host: host, Port: int64(p), TLS: api.TLSModeInsecure, Username: username}
 }
 
 // Messages returns the accepted messages so far.

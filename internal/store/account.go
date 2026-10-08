@@ -20,6 +20,9 @@ type Account struct {
 	IMAP        ServerConfig
 	SMTP        ServerConfig
 	CreatedAt   time.Time
+	ReadOnly    bool // maild makes no changes on the server
+	Notify      bool // new inbox mail shows a desktop notification
+	NeedsReauth bool // the server or OAuth provider refused the stored credential
 }
 
 // ServerConfig is one server's connection settings.
@@ -35,11 +38,13 @@ type AccountUpdate struct {
 	DisplayName *string
 	IMAP        *ServerConfig
 	SMTP        *ServerConfig
+	ReadOnly    *bool
+	Notify      *bool
 }
 
 const accountColumns = `SELECT id, kind, email, display_name, auth,
 	imap_host, imap_port, imap_tls, imap_username,
-	smtp_host, smtp_port, smtp_tls, smtp_username, created_at
+	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, needs_reauth
 	FROM accounts`
 
 func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
@@ -48,7 +53,7 @@ func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
 	err := row.Scan(&a.ID, &a.Kind, &a.Email, &a.DisplayName, &a.Auth,
 		&a.IMAP.Host, &a.IMAP.Port, &a.IMAP.TLS, &a.IMAP.Username,
 		&a.SMTP.Host, &a.SMTP.Port, &a.SMTP.TLS, &a.SMTP.Username,
-		&createdAt)
+		&createdAt, &a.ReadOnly, &a.Notify, &a.NeedsReauth)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
@@ -72,12 +77,12 @@ func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
 	res, err := t.ExecContext(ctx, `INSERT INTO accounts (
 		kind, email, display_name, auth,
 		imap_host, imap_port, imap_tls, imap_username,
-		smtp_host, smtp_port, smtp_tls, smtp_username, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Kind, a.Email, a.DisplayName, a.Auth,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
-		FormatTime(createdAt))
+		FormatTime(createdAt), a.ReadOnly, a.Notify)
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return Account{}, ErrConflict
@@ -140,14 +145,22 @@ func (t *Tx) UpdateAccount(ctx context.Context, id int64, u AccountUpdate) (Acco
 	if u.SMTP != nil {
 		a.SMTP = *u.SMTP
 	}
+	if u.ReadOnly != nil {
+		a.ReadOnly = *u.ReadOnly
+	}
+	if u.Notify != nil {
+		a.Notify = *u.Notify
+	}
 	_, err = t.ExecContext(ctx, `UPDATE accounts SET
 		display_name = ?,
 		imap_host = ?, imap_port = ?, imap_tls = ?, imap_username = ?,
-		smtp_host = ?, smtp_port = ?, smtp_tls = ?, smtp_username = ?
+		smtp_host = ?, smtp_port = ?, smtp_tls = ?, smtp_username = ?,
+		read_only = ?, notify = ?
 		WHERE id = ?`,
 		a.DisplayName,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
+		a.ReadOnly, a.Notify,
 		id)
 	if err != nil {
 		if IsUniqueViolation(err) {
@@ -177,4 +190,17 @@ func (t *Tx) DeleteAccount(ctx context.Context, id int64) error {
 		return ErrNotFound
 	}
 	return t.Emit(ctx, api.AccountChanged{ID: id, Deleted: true})
+}
+
+// SetNeedsReauth records whether the account's stored credential was
+// refused, and announces the change.
+func (t *Tx) SetNeedsReauth(ctx context.Context, id int64, needs bool) error {
+	res, err := t.ExecContext(ctx, `UPDATE accounts SET needs_reauth = ? WHERE id = ? AND needs_reauth != ?`, needs, id, needs)
+	if err != nil {
+		return fmt.Errorf("set needs_reauth: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil
+	}
+	return t.Emit(ctx, api.AccountChanged{ID: id})
 }

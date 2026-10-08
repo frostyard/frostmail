@@ -49,7 +49,7 @@ func newSendHarness(t *testing.T, undo time.Duration) *sendHarness {
 	o := mem.DialOptions()
 	a, err := c.Account().Create(ctx, &api.AccountCreateParams{
 		Kind: api.AccountKindIMAP, Email: "ann@x.test", DisplayName: "Ann Example", Auth: api.AuthKindPassword,
-		IMAP: api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username},
+		IMAP: &api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username},
 		SMTP: sm.Config(imapxtest.Username),
 	})
 	if err != nil {
@@ -435,7 +435,7 @@ func TestCrashAfterAcceptanceSendsOnce(t *testing.T) {
 	}
 	a, err := h.c.Account().Create(ctx, &api.AccountCreateParams{
 		Kind: api.AccountKindIMAP, Email: "ann@x.test", Auth: api.AuthKindPassword,
-		IMAP: api.ServerConfig{Host: "127.0.0.1", Port: int64(deadPort), TLS: api.TLSModeInsecure, Username: imapxtest.Username},
+		IMAP: &api.ServerConfig{Host: "127.0.0.1", Port: int64(deadPort), TLS: api.TLSModeInsecure, Username: imapxtest.Username},
 		SMTP: sm.Config(imapxtest.Username),
 	})
 	if err != nil {

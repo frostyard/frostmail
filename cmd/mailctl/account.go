@@ -128,8 +128,8 @@ func newAccountAddCmd(opts *rootOptions) *cobra.Command {
 				Email:       email,
 				DisplayName: name,
 				Auth:        api.AuthKindPassword,
-				IMAP:        imap,
-				SMTP:        smtp,
+				IMAP:        &imap,
+				SMTP:        &smtp,
 			})
 			if err != nil {
 				return err

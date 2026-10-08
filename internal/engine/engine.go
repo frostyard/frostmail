@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
+	"slices"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
@@ -124,7 +126,7 @@ func (a accounts) List(ctx context.Context, _ *api.AccountListParams) ([]api.Acc
 	}
 	out := make([]api.Account, 0, len(list))
 	for _, acct := range list {
-		out = append(out, toAPIAccount(acct))
+		out = append(out, a.toAPI(ctx, acct))
 	}
 	return out, nil
 }
@@ -134,20 +136,22 @@ func (a accounts) Get(ctx context.Context, p *api.AccountGetParams) (*api.Accoun
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
-	r := toAPIAccount(acct)
+	r := a.toAPI(ctx, acct)
 	return &r, nil
 }
 
 func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.Account, error) {
-	if err := validateAccount(p); err != nil {
+	imapCfg, smtpCfg, err := serversFor(p)
+	if err != nil {
 		return nil, err
 	}
 	in := store.Account{
 		Kind: p.Kind, Email: p.Email, DisplayName: p.DisplayName, Auth: p.Auth,
-		IMAP: toStoreServer(p.IMAP), SMTP: toStoreServer(p.SMTP),
+		IMAP: toStoreServer(imapCfg), SMTP: toStoreServer(smtpCfg),
+		ReadOnly: p.ReadOnly != nil && *p.ReadOnly, Notify: p.Notify == nil || *p.Notify,
 	}
 	var out store.Account
-	err := a.DB.Tx(ctx, func(tx *store.Tx) error {
+	err = a.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		out, err = tx.InsertAccount(ctx, in)
 		return err
@@ -156,12 +160,12 @@ func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.
 		return nil, apiError(err, "an account for "+p.Email)
 	}
 	a.afterAccountChange(ctx, 0)
-	r := toAPIAccount(out)
+	r := a.toAPI(ctx, out)
 	return &r, nil
 }
 
 func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.Account, error) {
-	u := store.AccountUpdate{DisplayName: p.DisplayName}
+	u := store.AccountUpdate{DisplayName: p.DisplayName, ReadOnly: p.ReadOnly, Notify: p.Notify}
 	for _, s := range []struct {
 		in  *api.ServerConfig
 		out **store.ServerConfig
@@ -186,7 +190,7 @@ func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.
 		return nil, apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
 	a.afterAccountChange(ctx, p.ID)
-	r := toAPIAccount(out)
+	r := a.toAPI(ctx, out)
 	return &r, nil
 }
 
@@ -196,8 +200,10 @@ func (a accounts) Delete(ctx context.Context, p *api.AccountDeleteParams) error 
 		return apiError(err, fmt.Sprintf("account %d", p.ID))
 	}
 	// Best effort: account IDs are never reused, so a leftover secret is inert.
-	if err := a.Secrets.Delete(ctx, secrets.AccountPassword(p.ID)); err != nil {
-		a.Log.Warn("account deleted but its password was not", "account", p.ID, "err", err)
+	for _, key := range []string{secrets.AccountPassword(p.ID), secrets.RefreshToken(p.ID)} {
+		if err := a.Secrets.Delete(ctx, key); err != nil {
+			a.Log.Warn("account deleted but a secret was not", "account", p.ID, "key", key, "err", err)
+		}
 	}
 	a.afterAccountChange(ctx, 0)
 	return nil
@@ -213,24 +219,44 @@ func (a accounts) SetPassword(ctx context.Context, p *api.AccountSetPasswordPara
 	if err := a.Secrets.Set(ctx, secrets.AccountPassword(p.ID), p.Password); err != nil {
 		return err
 	}
+	if err := a.DB.Tx(ctx, func(tx *store.Tx) error { return tx.SetNeedsReauth(ctx, p.ID, false) }); err != nil {
+		return err
+	}
 	a.afterAccountChange(ctx, p.ID)
 	return nil
 }
 
-func validateAccount(p *api.AccountCreateParams) error {
+// serversFor validates a create request and returns its servers: as given,
+// or from the kind's provider profile when left out (with the address as
+// the user name).
+func serversFor(p *api.AccountCreateParams) (imapCfg, smtpCfg api.ServerConfig, err error) {
 	if !p.Kind.Valid() {
-		return api.InvalidParams("unknown account kind %q", p.Kind)
+		return imapCfg, smtpCfg, api.InvalidParams("unknown account kind %q", p.Kind)
 	}
 	if !p.Auth.Valid() {
-		return api.InvalidParams("unknown auth kind %q", p.Auth)
+		return imapCfg, smtpCfg, api.InvalidParams("unknown auth kind %q", p.Auth)
 	}
 	if addr, err := mail.ParseAddress(p.Email); err != nil || addr.Address != p.Email {
-		return api.InvalidParams("email %q is not a bare address", p.Email)
+		return imapCfg, smtpCfg, api.InvalidParams("email %q is not a bare address", p.Email)
 	}
-	if err := validateServer("imap", p.IMAP); err != nil {
-		return err
+	prof := providers.ForKind(p.Kind)
+	if !slices.Contains(prof.Auth, p.Auth) {
+		return imapCfg, smtpCfg, api.InvalidParams("%s accounts do not sign in with %s", p.Kind, p.Auth)
 	}
-	return validateServer("smtp", p.SMTP)
+	pick := func(key string, given *api.ServerConfig, def providers.Server) (api.ServerConfig, error) {
+		if given != nil {
+			return *given, validateServer(key, *given)
+		}
+		if def.Host == "" {
+			return api.ServerConfig{}, api.InvalidParams("%s is required for %s accounts", key, p.Kind)
+		}
+		return api.ServerConfig{Host: def.Host, Port: int64(def.Port), TLS: def.TLS, Username: p.Email}, nil
+	}
+	if imapCfg, err = pick("imap", p.IMAP, prof.IMAP); err != nil {
+		return imapCfg, smtpCfg, err
+	}
+	smtpCfg, err = pick("smtp", p.SMTP, prof.SMTP)
+	return imapCfg, smtpCfg, err
 }
 
 func validateServer(key string, s api.ServerConfig) error {
@@ -247,11 +273,18 @@ func validateServer(key string, s api.ServerConfig) error {
 	return nil
 }
 
-func toAPIAccount(a store.Account) api.Account {
-	return api.Account{
-		ID: a.ID, Kind: a.Kind, Email: a.Email, DisplayName: a.DisplayName, Auth: a.Auth,
-		IMAP: toAPIServer(a.IMAP), SMTP: toAPIServer(a.SMTP), CreatedAt: a.CreatedAt,
+// toAPI converts an account; signedIn needs a look in the secret store.
+func (a accounts) toAPI(ctx context.Context, acct store.Account) api.Account {
+	r := api.Account{
+		ID: acct.ID, Kind: acct.Kind, Email: acct.Email, DisplayName: acct.DisplayName, Auth: acct.Auth,
+		IMAP: toAPIServer(acct.IMAP), SMTP: toAPIServer(acct.SMTP), CreatedAt: acct.CreatedAt,
+		ReadOnly: acct.ReadOnly, Notify: acct.Notify,
 	}
+	if !acct.NeedsReauth && a.Secrets != nil {
+		_, err := a.Secrets.Get(ctx, secrets.Credential(acct.ID, acct.Auth == api.AuthKindOAuth2))
+		r.SignedIn = err == nil
+	}
+	return r
 }
 
 func toAPIServer(s store.ServerConfig) api.ServerConfig {

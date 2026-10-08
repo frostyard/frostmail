@@ -48,7 +48,7 @@ func newHarness(t *testing.T, opts imapx.DialOptions, password string) *harness 
 	}
 	server := api.ServerConfig{Host: opts.Host, Port: int64(opts.Port), TLS: opts.TLS, Username: opts.Username}
 	a, err := c.Account().Create(ctx, &api.AccountCreateParams{
-		Kind: api.AccountKindIMAP, Email: "test@mailtest.test", Auth: api.AuthKindPassword, IMAP: server, SMTP: server,
+		Kind: api.AccountKindIMAP, Email: "test@mailtest.test", Auth: api.AuthKindPassword, IMAP: &server, SMTP: &server,
 	})
 	if err != nil {
 		t.Fatal(err)
