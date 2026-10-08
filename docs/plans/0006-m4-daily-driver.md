@@ -140,6 +140,18 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   query (`le`, 101,848 results) has p95 97.7 ms. The user's own mail is
   measured in Phase 5.
 
+- **Throwaway Gmail, first session (2026-10-08):** OAuth sign-in with the
+  user's client through `mailctl account connect --oauth`; the refresh
+  token in the Secret Service survived a maild restart. Gmail offered
+  X-GM-EXT-1, CONDSTORE, MOVE, UIDPLUS, ESEARCH and no QRESYNC; its MODSEQ
+  is account-wide. Run from mailctl, each verified with `mailctl verify`
+  (no differences) and read back from the trace: star (`STORE +FLAGS` on
+  All Mail, Gmail adds `\Starred`), archive (`-X-GM-LABELS \Inbox`), back
+  to INBOX (`+X-GM-LABELS \Inbox`), to Spam (`UID MOVE`, COPYUID), not
+  junk (`UID MOVE` Spam → INBOX: Gmail restores it to All Mail with
+  `\Inbox` under a new UID; same message row), delete (`UID MOVE` to
+  Trash) and restore. Found: verify leaked an empty trace file (fixed).
+
 ## Later / ideas
 
 - Microsoft (Outlook.com, Microsoft 365) profile and OAuth: when an
