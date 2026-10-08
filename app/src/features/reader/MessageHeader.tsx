@@ -1,7 +1,25 @@
-// The reader's message header, attachment strip and remote-content banner
-// (docs/specs/ui.md, Reader). Task T-0031 implements all three; the stubs
-// show the bare minimum.
+// The reader's per-message header, attachment strip and remote-content
+// banner (docs/specs/ui.md, Reader). The header shows the sender's avatar,
+// name, date, subject and recipients; the strip lists a message's
+// attachments as chips; the banner reports remote content and trackers that
+// were held back and offers to load them.
+import { File } from "lucide-react";
+
+import { avatarTone, displayName, formatAddressList, formatHeaderDate, formatSize, initials } from "../../lib/format";
 import type { Message, Part } from "../../rpc/gen/api";
+
+// Tailwind only generates a class it finds whole in the source, so the
+// eight avatar tones are listed rather than built from the tone number.
+const AVATAR_CLASSES: Record<number, string> = {
+  0: "bg-avatar-0",
+  1: "bg-avatar-1",
+  2: "bg-avatar-2",
+  3: "bg-avatar-3",
+  4: "bg-avatar-4",
+  5: "bg-avatar-5",
+  6: "bg-avatar-6",
+  7: "bg-avatar-7",
+};
 
 /** MessageHeaderProps are a header's inputs. */
 export interface MessageHeaderProps {
@@ -10,7 +28,36 @@ export interface MessageHeaderProps {
 
 /** MessageHeader shows the sender, subject, recipients and date. */
 export function MessageHeader(props: MessageHeaderProps) {
-  return <header>{props.message.summary.subject}</header>;
+  const { summary, to, cc } = props.message;
+  const subject = summary.subject.trim();
+
+  return (
+    <header className="flex gap-3 px-5 py-4">
+      <div
+        aria-hidden="true"
+        className={`size-10 shrink-0 rounded-full flex items-center justify-center text-[13px] font-semibold text-white ${
+          AVATAR_CLASSES[avatarTone(summary.from.address)] ?? ""
+        }`}
+      >
+        {initials(summary.from)}
+      </div>
+      <div className="min-w-0 flex-1 select-text">
+        <div className="flex items-baseline gap-2">
+          <span className="text-reader-sender truncate flex-1" title={summary.from.address}>
+            {displayName(summary.from)}
+          </span>
+          <span className="text-reader-meta text-secondary shrink-0">{formatHeaderDate(new Date(summary.date))}</span>
+        </div>
+        <div className="text-reader-subject">{subject === "" ? "(No Subject)" : subject}</div>
+        {to.length > 0 && (
+          <div className="text-reader-meta text-secondary truncate">{`To: ${formatAddressList(to)}`}</div>
+        )}
+        {cc.length > 0 && (
+          <div className="text-reader-meta text-secondary truncate">{`Cc: ${formatAddressList(cc)}`}</div>
+        )}
+      </div>
+    </header>
+  );
 }
 
 /** AttachmentStripProps are the attachment strip's inputs. */
@@ -19,9 +66,38 @@ export interface AttachmentStripProps {
   onOpen: (part: Part) => void;
 }
 
+/** isAttachment is whether a part is shown as an attachment rather than inline. */
+function isAttachment(part: Part): boolean {
+  return part.disposition === "attachment" || (part.filename !== "" && part.disposition !== "inline");
+}
+
 /** AttachmentStrip shows a message's attachments as chips. */
-export function AttachmentStrip(_props: AttachmentStripProps) {
-  return null;
+export function AttachmentStrip(props: AttachmentStripProps) {
+  const attachments = props.parts.filter(isAttachment);
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul aria-label="Attachments" className="flex flex-wrap gap-2 px-5 pb-4">
+      {attachments.map((part) => (
+        <li key={part.path}>
+          <button
+            type="button"
+            title={part.filename}
+            className="flex h-8 items-center gap-2 rounded-md bg-banner px-2"
+            onClick={() => props.onOpen(part)}
+          >
+            <File size={16} className="text-secondary" />
+            <span className="max-w-[200px] truncate text-[12px]">
+              {part.filename === "" ? "Untitled" : part.filename}
+            </span>
+            <span className="text-[12px] text-secondary tabular-nums">{formatSize(part.size)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** RemoteBannerProps are the remote-content banner's inputs. */
@@ -36,6 +112,33 @@ export interface RemoteBannerProps {
 }
 
 /** RemoteBanner offers to load remote content. */
-export function RemoteBanner(_props: RemoteBannerProps) {
-  return null;
+export function RemoteBanner(props: RemoteBannerProps) {
+  const { remote, trackers, loading, onLoad } = props;
+  if (remote === 0 && trackers === 0) {
+    return null;
+  }
+
+  const sentences: string[] = [];
+  if (remote > 0) {
+    sentences.push("This message contains remote content.");
+  }
+  if (trackers > 0) {
+    sentences.push(`${trackers} tracker${trackers === 1 ? "" : "s"} blocked.`);
+  }
+
+  return (
+    <div role="status" className="flex items-center gap-2 bg-banner px-5 py-2 text-[12px]">
+      <span>{sentences.join(" ")}</span>
+      {remote > 0 && (
+        <button
+          type="button"
+          className="ml-auto h-6 rounded border border-separator bg-window px-2"
+          disabled={loading}
+          onClick={onLoad}
+        >
+          {loading ? "Loading…" : "Load Remote Content"}
+        </button>
+      )}
+    </div>
+  );
 }
