@@ -36,6 +36,9 @@ type actor struct {
 	// gmail is set per session when the account syncs the Gmail way
 	// (ADR-0012); only the IMAP loop touches it.
 	gmail bool
+	// fresh collects messages new to a folder synced before, for the
+	// next announcement; only the IMAP loop touches it.
+	fresh []int64
 
 	mu     sync.Mutex
 	status api.SyncStatus
@@ -211,7 +214,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 		return false, err
 	}
 	saveAt := a.nextDraftSave(ctx, true)
-	a.idlePhase()
+	a.settled(ctx)
 
 	sctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -236,12 +239,12 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			if err := a.refresh(ctx, cmd, *watched); err != nil {
 				return true, err
 			}
-			a.idlePhase()
+			a.settled(ctx)
 		case <-poll.C:
 			if err := a.pollPass(ctx, cmd, mailboxes, watched); err != nil {
 				return true, err
 			}
-			a.idlePhase()
+			a.settled(ctx)
 		case <-a.wake:
 			if err := a.replay(ctx, cmd); err != nil {
 				return true, err
@@ -249,7 +252,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			if mailboxes, err = a.fullPass(ctx, cmd); err != nil {
 				return true, err
 			}
-			a.idlePhase()
+			a.settled(ctx)
 		case <-a.ops:
 			if err := a.replay(ctx, cmd); err != nil {
 				return true, err
@@ -261,7 +264,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 				return true, err
 			}
 			saveAt = a.nextDraftSave(ctx, true)
-			a.idlePhase()
+			a.settled(ctx)
 		case req := <-a.bodies:
 			id, err := a.fetchBody(ctx, cmd, req.id)
 			req.reply <- bodyResult{blobID: id, err: err}
@@ -270,6 +273,12 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			}
 		}
 	}
+}
+
+// settled announces the new mail of the work just done and goes idle.
+func (a *actor) settled(ctx context.Context) {
+	a.announceNew(ctx)
+	a.idlePhase()
 }
 
 func (a *actor) idlePhase() {

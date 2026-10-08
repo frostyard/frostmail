@@ -15,6 +15,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/imapx"
+	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -928,5 +929,33 @@ func TestGmailVerify(t *testing.T) {
 				t.Errorf("Trash = %+v, want T missing here and X missing on the server", ch)
 			}
 		}
+	}
+}
+
+func TestGmailAnnouncesNewInboxMail(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	var announced [][]notify.Mail
+	e.a.m.cfg.Announce = func(_ context.Context, _ int64, mail []notify.Mail) error {
+		announced = append(announced, mail)
+		return nil
+	}
+	e.a.acct.Notify = true
+	g.add(gAll, "Old", 0, `\Inbox`)
+	e.pass()
+	e.a.announceNew(t.Context())
+	if len(announced) != 0 {
+		t.Fatalf("the first sync announced %+v", announced)
+	}
+
+	g.add(gAll, "New", 0, `\Inbox`)
+	g.add(gAll, "Filtered", 0, "Work")
+	seen := g.add(gAll, "Read on the phone", 0, `\Inbox`)
+	seen.flags = []string{`\Seen`}
+	g.add(gSpam, "Spam", 0)
+	e.pass()
+	e.a.announceNew(t.Context())
+	if len(announced) != 1 || len(announced[0]) != 1 || announced[0][0].Subject != "New" {
+		t.Errorf("announced %+v, want only New", announced)
 	}
 }

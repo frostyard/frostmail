@@ -17,6 +17,7 @@ import (
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/rpctest"
 )
 
@@ -35,7 +36,12 @@ var testConfig = mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, 
 // opts with password.
 func newHarness(t *testing.T, opts imapx.DialOptions, password string) *harness {
 	t.Helper()
-	cfg := testConfig
+	return newHarnessWith(t, opts, password, testConfig)
+}
+
+// newHarnessWith is newHarness with a sync configuration.
+func newHarnessWith(t *testing.T, opts imapx.DialOptions, password string, cfg mailsync.Config) *harness {
+	t.Helper()
 	cfg.InsecureSkipVerify = opts.InsecureSkipVerify
 	var log *slog.Logger
 	if os.Getenv("FROSTMAIL_TEST_LOG") != "" {
@@ -446,5 +452,63 @@ func TestVerifyAfterACleanSync(t *testing.T) {
 	}
 	if _, err := h.c.Account().Verify(ctx, &api.AccountVerifyParams{ID: 999}); !isCode(err, api.CodeNotFound) {
 		t.Errorf("verify of a missing account = %v", err)
+	}
+}
+
+// New unread inbox mail is announced once it is synced; the first sync of
+// a folder announces nothing, and neither do read-only accounts.
+func TestNewMailIsAnnounced(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	announced := make(chan []notify.Mail, 8)
+	cfg := testConfig
+	cfg.Announce = func(_ context.Context, _ int64, mail []notify.Mail) error {
+		announced <- mail
+		return nil
+	}
+	h := newHarnessWith(t, mem.DialOptions(), imapxtest.Password, cfg)
+	h.waitPhase(api.SyncPhaseIdle)
+	ctx := t.Context()
+	deliver := func(subject string, flags ...imap.Flag) {
+		t.Helper()
+		raw := "From: Ann <ann@x.test>\r\nSubject: " + subject + "\r\n\r\nSee you at noon.\r\n"
+		if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{Flags: flags}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deliver("Read elsewhere", imap.FlagSeen)
+	deliver("Lunch")
+	select {
+	case mail := <-announced:
+		if len(mail) != 1 || mail[0].Subject != "Lunch" || mail[0].FromName != "Ann" || mail[0].FromAddr != "ann@x.test" {
+			t.Errorf("announced %+v, want only Lunch from Ann", mail)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("new mail was not announced")
+	}
+
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, ReadOnly: ptr(true)}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitPhase(api.SyncPhaseIdle)
+	deliver("Quiet")
+	waitUntil(t, 5*time.Second, "Quiet synced", func() bool { return slices.Contains(h.subjects(h.inbox().ID), "Quiet") })
+
+	// Writable again, the next mail is announced; had Quiet been announced
+	// it would come first.
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, ReadOnly: ptr(false)}); err != nil {
+		t.Fatal(err)
+	}
+	deliver("Loud")
+	select {
+	case mail := <-announced:
+		if len(mail) != 1 || mail[0].Subject != "Loud" {
+			t.Errorf("announced %+v, want only Loud (nothing while read-only)", mail)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("mail after the account became writable was not announced")
 	}
 }

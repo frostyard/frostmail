@@ -69,8 +69,12 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		if err != nil {
 			return err
 		}
-		if err := a.insert(ctx, mb, headers); err != nil {
+		ids, err := a.insert(ctx, mb, headers)
+		if err != nil {
 			return err
+		}
+		if ok && mb.Role == api.MailboxRoleInbox {
+			a.fresh = append(a.fresh, ids...) // new mail, not the first sync
 		}
 		done := start + len(chunk)
 		a.setStatus(func(s *api.SyncStatus) { s.Done, s.Total = int64(done), int64(total) })
@@ -122,16 +126,19 @@ func diffUIDs(local, server []uint32) (added, gone, kept []uint32) {
 	return added, gone, kept
 }
 
-// insert stores new headers, threads and indexes them, and emits the batch.
-func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.MessageHeader) error {
+// insert stores new headers, threads and indexes them, emits the batch,
+// and returns the messages it created.
+func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.MessageHeader) ([]int64, error) {
 	if len(headers) == 0 {
-		return nil
+		return nil, nil
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	var created []int64
+	err := a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		ids, err := tx.InsertHeaders(ctx, a.acct.ID, mb.ID, headers)
 		if err != nil || len(ids) == 0 {
 			return err
 		}
+		created = ids
 		if _, err := tx.AssignThreads(ctx, a.acct.ID, ids); err != nil {
 			return err
 		}
@@ -158,6 +165,7 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
 	})
+	return created, err
 }
 
 // remove deletes local copies of UIDs the server no longer has.

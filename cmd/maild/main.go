@@ -10,8 +10,10 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
@@ -94,11 +97,18 @@ func run(ctx context.Context, args []string) error {
 	parts := &render.PartsCache{Root: filepath.Join(paths.CacheDir, "parts")}
 	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil)}
 	tokens := &oauth.Manager{DB: db, Secrets: sec, Log: logger}
-	syncer := mailsync.New(db, sec, blobs, logger, mailsync.Config{
+	syncCfg := mailsync.Config{
 		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
 		Parts:              parts,
 		Tokens:             tokens,
-	}, broker.Publish)
+	}
+	if desktop, err := notify.OpenDesktop(ctx, logger, openInApp(logger)); err != nil {
+		logger.Info("no desktop notifications", "err", err)
+	} else {
+		defer func() { _ = desktop.Close() }()
+		syncCfg.Announce = desktop.Announce
+	}
+	syncer := mailsync.New(db, sec, blobs, logger, syncCfg, broker.Publish)
 	tokens.SignedIn = func(id int64) {
 		if err := syncer.Restart(ctx, id); err != nil {
 			logger.Warn("restart a signed-in account", "account", id, "err", err)
@@ -146,4 +156,25 @@ func run(ctx context.Context, args []string) error {
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
 	return err
+}
+
+// openInApp runs the app on a clicked notification's message (or just the
+// app, for a group): frostmail --open-message <id>, or $FROSTMAIL_APP.
+func openInApp(logger *slog.Logger) func(messageID int64) {
+	app := os.Getenv("FROSTMAIL_APP")
+	if app == "" {
+		app = "frostmail"
+	}
+	return func(messageID int64) {
+		var args []string
+		if messageID != 0 {
+			args = []string{"--open-message", strconv.FormatInt(messageID, 10)}
+		}
+		cmd := exec.Command(app, args...)
+		if err := cmd.Start(); err != nil {
+			logger.Warn("open the app", "app", app, "err", err)
+			return
+		}
+		go func() { _ = cmd.Wait() }()
+	}
 }

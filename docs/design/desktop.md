@@ -27,17 +27,24 @@ while the app is closed.
 
 ## Notifications
 
-- maild notifies through `org.freedesktop.Notifications` (godbus) when new
-  unread mail arrives in an inbox (Gmail: the `\Inbox` label) after the
-  account's first full pass, never for mail it already knew.
+- maild notifies through `org.freedesktop.Notifications` (godbus,
+  `internal/notify/desktop.go`) when new unread mail arrives in an inbox
+  (Gmail: the `\Inbox` label). Only folders synced before collect new
+  mail, so an account's first sync, and a folder resynced after a
+  UIDVALIDITY change, announce nothing; mail that arrived while maild was
+  stopped is announced at its next start. Announcements go out when a pass
+  settles (`internal/mailsync/announce.go`).
 - One notification per message: the sender's name as the summary, the
   subject and the start of the preview as the body, the app icon, and a
   default action. Four or more in one pass become one notification:
   "N new messages" with the first senders' names.
-- A notification replaces the account's previous one
-  (`replaces_id`), so the shade does not fill up.
-- Clicking it (`ActionInvoked`, action `default`) runs
-  `frostmail --open-message <id>`.
+- A group notification replaces the account's previous group notification
+  (`replaces_id`), so a busy inbox does not fill the shade; one-message
+  notifications stay until dismissed.
+- Clicking one (`ActionInvoked`, action `default`) runs
+  `frostmail --open-message <id>` (a group runs `frostmail`);
+  `FROSTMAIL_APP` names another binary. Without a session bus maild runs
+  without notifications.
 - Per account: notifications on or off (`account.update {notify}`); off
   for read-only accounts.
 

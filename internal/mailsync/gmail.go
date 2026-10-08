@@ -131,8 +131,12 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 		if err != nil {
 			return err
 		}
-		if err := a.insertGmail(ctx, mb, allMail, headers); err != nil {
+		added, err := a.insertGmail(ctx, mb, allMail, headers)
+		if err != nil {
 			return err
+		}
+		if ok && allMail {
+			a.fresh = append(a.fresh, added...) // new mail, not the first sync
 		}
 		done := start + len(chunk)
 		a.setStatus(func(s *api.SyncStatus) { s.Done, s.Total = int64(done), int64(total) })
@@ -162,12 +166,14 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 }
 
 // insertGmail stores new headers of a synced folder, threads and indexes
-// the new messages, and announces what changed.
-func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool, headers []store.MessageHeader) error {
+// the new messages, announces what changed, and returns the messages it
+// created.
+func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool, headers []store.MessageHeader) ([]int64, error) {
 	if len(headers) == 0 {
-		return nil
+		return nil, nil
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	var added []int64
+	err := a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		labels, err := tx.GmailLabels(ctx, a.acct.ID)
 		if err != nil {
 			return err
@@ -176,6 +182,7 @@ func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool,
 		if err != nil {
 			return err
 		}
+		added = r.Added
 		ids := append(slices.Clone(r.Added), r.Changed...)
 		if len(ids) == 0 {
 			return nil
@@ -201,6 +208,7 @@ func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool,
 		}
 		return a.announce(ctx, tx, ids, append([]int64{mb.ID}, r.Mailboxes...))
 	})
+	return added, err
 }
 
 // applyGmail stores flag and label changes reported for kept UIDs.

@@ -16,6 +16,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
@@ -42,6 +43,9 @@ type Config struct {
 	// Tokens gives OAuth accounts their access tokens (oauth.Manager); nil
 	// leaves OAuth accounts unable to sign in.
 	Tokens TokenSource
+	// Announce shows an account's new inbox mail on the desktop
+	// (notify.Desktop); nil announces nothing.
+	Announce func(ctx context.Context, accountID int64, mail []notify.Mail) error
 	// SendRetry is the unit of the outbox's retry schedule [1m]: one unit
 	// while the server cannot be reached, else 1, 2, 5 and 15 units by
 	// attempt, then 60.
