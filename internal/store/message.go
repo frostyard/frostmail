@@ -88,6 +88,9 @@ func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs [
 		if err != nil {
 			return nil, err
 		}
+		if err := t.recordSeen(ctx, h); err != nil {
+			return nil, err
+		}
 		if _, err := t.ExecContext(ctx,
 			`INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq) VALUES (?, ?, ?, ?)`,
 			id, mailboxID, int64(h.UID), int64(h.ModSeq)); err != nil {
@@ -96,6 +99,21 @@ func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs [
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// recordSeen counts a new message's From, To and Cc addresses for
+// recipient suggestions (docs/design/send.md, Addresses), as seen at its
+// Date (else its arrival).
+func (t *Tx) recordSeen(ctx context.Context, h MessageHeader) error {
+	seen := h.Date
+	if seen.IsZero() {
+		seen = h.InternalDate
+	}
+	as := make([]Address, 0, 1+len(h.To)+len(h.Cc))
+	as = append(as, h.From)
+	as = append(as, h.To...)
+	as = append(as, h.Cc...)
+	return t.RecordAddresses(ctx, as, seen)
 }
 
 // insertMessage writes one messages row and its parts rows, returning the

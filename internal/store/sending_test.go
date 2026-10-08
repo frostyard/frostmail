@@ -49,3 +49,22 @@ func TestDraftChangesAreAlwaysNewerThanTheSavedCopy(t *testing.T) {
 		t.Errorf("updated_at = %v, want the clock", got.UpdatedAt)
 	}
 }
+
+func TestInsertHeadersCountsAddresses(t *testing.T) {
+	d, _ := openTest(t)
+	acct, inbox, _ := mailboxFixture(t, d)
+	insertHeaders(t, d, acct, inbox, header(1, "One"), header(2, "Two"))
+	got, err := d.SuggestAddresses(t.Context(), "bob", 0)
+	if err != nil || len(got) != 1 || got[0].Name != "Bob Builder" {
+		t.Fatalf("suggest(bob) = %+v, %v", got, err)
+	}
+	var count int
+	var lastSeen string
+	if err := d.db.QueryRowContext(t.Context(), `SELECT count, last_seen FROM addresses WHERE address = 'carol@mailtest.test'`).
+		Scan(&count, &lastSeen); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 || lastSeen != FormatTime(header(1, "").Date) {
+		t.Errorf("carol: count %d, last seen %s", count, lastSeen)
+	}
+}
