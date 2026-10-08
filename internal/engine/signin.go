@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -17,8 +18,20 @@ import (
 
 var errM4 = api.Unavailable("this arrives later in M4")
 
-func (accounts) Discover(context.Context, *api.AccountDiscoverParams) (*api.Discovery, error) {
-	return nil, errM4
+func (a accounts) Discover(ctx context.Context, p *api.AccountDiscoverParams) (*api.Discovery, error) {
+	r, err := discover.Discover(ctx, strings.TrimSpace(p.Email), a.Discovery)
+	if err != nil {
+		return nil, api.InvalidParams("%v", err)
+	}
+	out := &api.Discovery{Kind: r.Kind, Source: r.Source, Auth: r.Auth}
+	conv := func(s *discover.Server) *api.ServerConfig {
+		if s == nil {
+			return nil
+		}
+		return &api.ServerConfig{Host: s.Host, Port: int64(s.Port), TLS: s.TLS, Username: s.Username}
+	}
+	out.IMAP, out.SMTP = conv(r.IMAP), conv(r.SMTP)
+	return out, nil
 }
 
 func (accounts) Authorize(context.Context, *api.AccountAuthorizeParams) (*api.AuthorizeResult, error) {

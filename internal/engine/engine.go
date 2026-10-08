@@ -13,6 +13,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -49,6 +50,9 @@ type Deps struct {
 	Render  *render.Renderer
 	// UndoDelay is how long draft.send holds a message [DefaultUndoDelay].
 	UndoDelay time.Duration
+	// Discovery is how account.discover reaches the network; zero means
+	// the real HTTPS and DNS.
+	Discovery discover.Deps
 }
 
 // Engine owns the domain services.

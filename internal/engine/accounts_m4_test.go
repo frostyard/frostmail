@@ -101,3 +101,15 @@ func TestOAuthClients(t *testing.T) {
 		}
 	}
 }
+
+func TestDiscoverOverTheAPI(t *testing.T) {
+	c := rpctest.Start(t).Dial(t)
+	d, err := c.Account().Discover(t.Context(), &api.AccountDiscoverParams{Email: " bob@icloud.com "})
+	if err != nil || d.Kind != api.AccountKindICloud || d.Source != api.DiscoverySourceProfile ||
+		d.IMAP == nil || d.IMAP.Host != "imap.mail.me.com" || d.SMTP.Username != "bob@icloud.com" {
+		t.Fatalf("discover = %+v, %v", d, err)
+	}
+	if _, err := c.Account().Discover(t.Context(), &api.AccountDiscoverParams{Email: "nobody"}); code(err) != api.CodeInvalidParams {
+		t.Errorf("no @: %v", err)
+	}
+}
