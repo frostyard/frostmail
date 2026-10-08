@@ -58,7 +58,8 @@ pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), St
             "window.__frostmailCompose = {draft_id}; window.__frostmailComposeFresh = {fresh};"
         ))
         .on_navigation(crate::allowed_navigation)
+        .visible(false)
         .build()
-        .map(|_| ())
+        .map(crate::show_soon)
         .map_err(|e| e.to_string())
 }

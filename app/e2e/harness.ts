@@ -3,7 +3,7 @@
 // tools/uifixture, and the built app driven through WebKitWebDriver against a
 // maild on that data. Run with make ui-e2e, which builds the binaries first.
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHTTPServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -139,7 +139,7 @@ async function until(what: string, ok: () => boolean | Promise<boolean>, timeout
   }
 }
 
-/** App is a running maild plus the app in a WebDriver session. */
+/** App is a running maild plus the app in a WebDriver session; stop also deletes its directory. */
 export interface App {
   session: Session;
   cache: string;
@@ -188,7 +188,18 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
     cache,
     stop: async () => {
       await session.quit().catch(() => {});
-      for (const p of procs.reverse()) p.kill("SIGTERM");
+      await Promise.all(
+        procs.reverse().map(
+          (p) =>
+            new Promise<void>((done) => {
+              if (p.exitCode !== null) return done();
+              p.once("exit", () => done());
+              p.kill("SIGTERM");
+            }),
+        ),
+      );
+      // The run's data (fixtures reach 500 MB) lives in the machine's small /tmp.
+      rmSync(dir, { recursive: true, force: true });
     },
   };
 }

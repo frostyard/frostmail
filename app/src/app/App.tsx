@@ -1,5 +1,7 @@
 // The app root: the connection to maild around the main window or, in a
 // compose window, the draft it edits (docs/design/app.md).
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 
 import { type Connect, Session } from "../data/session";
@@ -32,6 +34,11 @@ function useComposeTarget() {
 /** App connects to maild with connect and shows the main window, or a compose window's draft. */
 export function App(props: { connect: Connect }) {
   const target = useComposeTarget();
+  // Tauri creates windows hidden; show this one now that it has rendered,
+  // so it never flashes WebKit's blank white page (src-tauri main.rs).
+  useEffect(() => {
+    if (isTauri()) void getCurrentWindow().show();
+  }, []);
   return (
     <Session connect={props.connect} fallback={<Connecting />}>
       {target === null ? <MainWindow /> : <ComposeWindow draftId={target.draftId} fresh={target.fresh} />}

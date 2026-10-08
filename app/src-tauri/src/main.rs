@@ -31,18 +31,32 @@ fn main() {
             }
         })
         .setup(|app| {
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Frostmail")
                 .inner_size(1200.0, 780.0)
                 .min_inner_size(800.0, 500.0)
                 // The toolbar is the title bar (docs/specs/ui.md, Layout).
                 .decorations(false)
                 .on_navigation(|url| allowed_navigation(url))
+                .visible(false)
                 .build()?;
+            show_soon(main);
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("frostmail failed to start");
+}
+
+/// Windows start hidden and the page shows its own window once it has
+/// rendered, so the first frame is never WebKit's blank white page; if the
+/// page has not done so after 1.5 s, the window is shown anyway.
+pub(crate) fn show_soon(window: tauri::WebviewWindow) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        if window.is_visible().is_ok_and(|v| !v) {
+            let _ = window.show();
+        }
+    });
 }
 
 /// Only the app itself may load in a window's main frame; links in messages
