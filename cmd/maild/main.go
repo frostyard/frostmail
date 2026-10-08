@@ -22,6 +22,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -92,10 +93,17 @@ func run(ctx context.Context, args []string) error {
 	blobs := blob.New(paths.Blobs)
 	parts := &render.PartsCache{Root: filepath.Join(paths.CacheDir, "parts")}
 	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil)}
+	tokens := &oauth.Manager{DB: db, Secrets: sec, Log: logger}
 	syncer := mailsync.New(db, sec, blobs, logger, mailsync.Config{
 		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
 		Parts:              parts,
+		Tokens:             tokens,
 	}, broker.Publish)
+	tokens.SignedIn = func(id int64) {
+		if err := syncer.Restart(ctx, id); err != nil {
+			logger.Warn("restart a signed-in account", "account", id, "err", err)
+		}
+	}
 	undo := engine.DefaultUndoDelay
 	if v := os.Getenv("FROSTMAIL_UNDO_DELAY"); v != "" {
 		if undo, err = time.ParseDuration(v); err != nil {
@@ -110,6 +118,7 @@ func run(ctx context.Context, args []string) error {
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
 	eng := engine.New(engine.Deps{
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
+		OAuth: tokens,
 	})
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),

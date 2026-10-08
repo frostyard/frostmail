@@ -7,6 +7,7 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,9 @@ type Message struct {
 type Server struct {
 	Addr     string
 	password string
+	// Token, when set before mail is sent, is the access token XOAUTH2
+	// accepts (offered next to PLAIN).
+	Token string
 
 	mu      sync.Mutex
 	changed chan struct{} // closed and replaced whenever state changes
@@ -158,9 +162,12 @@ type session struct {
 	to   []string
 }
 
-func (ss *session) AuthMechanisms() []string { return []string{sasl.Plain} }
+func (ss *session) AuthMechanisms() []string { return []string{sasl.Plain, "XOAUTH2"} }
 
-func (ss *session) Auth(string) (sasl.Server, error) {
+func (ss *session) Auth(mech string) (sasl.Server, error) {
+	if mech == "XOAUTH2" {
+		return &xoauth2{token: ss.s.Token}, nil
+	}
 	return sasl.NewPlainServer(func(_, _, pass string) error {
 		if pass != ss.s.password {
 			return &smtp.SMTPError{Code: 535, EnhancedCode: smtp.EnhancedCode{5, 7, 8}, Message: "bad credentials"}
@@ -216,3 +223,21 @@ func (ss *session) Reset() {
 }
 
 func (ss *session) Logout() error { return nil }
+
+// xoauth2 accepts "user=…\x01auth=Bearer <Token>\x01\x01" for any user.
+type xoauth2 struct {
+	token   string
+	refused bool
+}
+
+func (x *xoauth2) Next(response []byte) ([]byte, bool, error) {
+	if x.refused {
+		return nil, true, &smtp.SMTPError{Code: 535, EnhancedCode: smtp.EnhancedCode{5, 7, 8}, Message: "bad token"}
+	}
+	r := string(response)
+	if x.token != "" && strings.HasPrefix(r, "user=") && strings.HasSuffix(r, "\x01auth=Bearer "+x.token+"\x01\x01") {
+		return nil, true, nil
+	}
+	x.refused = true
+	return []byte(`{"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}`), false, nil
+}

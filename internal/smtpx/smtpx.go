@@ -18,6 +18,7 @@ import (
 	"github.com/emersion/go-smtp"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/oauth"
 )
 
 var (
@@ -36,6 +37,8 @@ type Options struct {
 	TLS      api.TLSMode
 	Username string // "" skips AUTH
 	Password string
+	// OAuth makes Password an OAuth access token, sent with AUTH XOAUTH2.
+	OAuth bool
 
 	// InsecureSkipVerify accepts any certificate; only for test servers
 	// with self-signed certificates.
@@ -203,11 +206,18 @@ func dial(ctx context.Context, opts Options) (*smtp.Client, error) {
 	return c, nil
 }
 
-// authenticate logs in with PLAIN, or LOGIN when the server offers only
-// that. A rejection wraps ErrAuth.
+// authenticate logs in with XOAUTH2 for OAuth, else PLAIN, or LOGIN when
+// the server offers only that. A rejection wraps ErrAuth.
 func authenticate(c *smtp.Client, opts Options) error {
 	var mech sasl.Client
+	var xoauth *oauth.XOAuth2Client
 	switch {
+	case opts.OAuth:
+		if !c.SupportsAuth("XOAUTH2") {
+			return fmt.Errorf("auth: %w: XOAUTH2 not offered", ErrAuth)
+		}
+		xoauth = oauth.SASL(opts.Username, opts.Password)
+		mech = xoauth
 	case c.SupportsAuth(sasl.Plain):
 		mech = sasl.NewPlainClient("", opts.Username, opts.Password)
 	case c.SupportsAuth(sasl.Login):
@@ -216,6 +226,9 @@ func authenticate(c *smtp.Client, opts Options) error {
 		return fmt.Errorf("auth: %w: neither PLAIN nor LOGIN offered", ErrAuth)
 	}
 	if err := c.Auth(mech); err != nil {
+		if xoauth != nil && xoauth.Err() != nil {
+			err = fmt.Errorf("%w (%w)", err, xoauth.Err())
+		}
 		var se *smtp.SMTPError
 		if errors.As(err, &se) && se.Code >= 500 {
 			return fmt.Errorf("auth: %w: %w", ErrAuth, err)

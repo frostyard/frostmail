@@ -17,6 +17,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -40,6 +41,9 @@ type Options struct {
 	// fresh temporary directory. Reusing one after Stop restarts maild on
 	// the same data.
 	DataDir string
+	// OAuthEndpoints replace the providers' real endpoints (a fake token
+	// server); nil means the real ones, which tests must not reach.
+	OAuthEndpoints map[string]oauth.Endpoint
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -52,6 +56,7 @@ type Server struct {
 	Views   *view.Manager
 	Sync    *mailsync.Manager // nil unless Options.Sync was set
 	Parts   *render.PartsCache
+	OAuth   *oauth.Manager
 
 	stop func()
 }
@@ -92,15 +97,18 @@ func StartWith(t testing.TB, o Options) *Server {
 	if undo == 0 {
 		undo = 50 * time.Millisecond
 	}
+	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
-		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo}
+		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth}
 	if o.Sync != nil {
 		cfg := *o.Sync
 		if cfg.Parts == nil {
 			cfg.Parts = srv.Parts
 		}
+		cfg.Tokens = srv.OAuth
 		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, cfg, broker.Publish)
 		deps.Sync = srv.Sync
+		srv.OAuth.SignedIn = func(id int64) { _ = srv.Sync.Restart(context.Background(), id) }
 	}
 
 	dir, err := os.MkdirTemp("", "fm")

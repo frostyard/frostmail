@@ -9,6 +9,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx"
+	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -46,6 +47,46 @@ type bodyResult struct {
 
 // errNoPassword means no password is stored for the account.
 var errNoPassword = errors.New("no password is stored; use account.setPassword")
+
+// errSignIn means an OAuth account has no usable grant: sign in again.
+var errSignIn = errors.New("sign in again")
+
+// credential returns what the account signs in with: its password, or for
+// OAuth accounts a current access token (oauth true).
+func (a *actor) credential(ctx context.Context) (secret string, isOAuth bool, err error) {
+	if a.acct.Auth == api.AuthKindOAuth2 {
+		if a.m.cfg.Tokens == nil {
+			return "", true, fmt.Errorf("%w: maild has no OAuth sign-in", errSignIn)
+		}
+		tok, err := a.m.cfg.Tokens.AccessToken(ctx, a.acct.ID)
+		if errors.Is(err, oauth.ErrReauth) || errors.Is(err, oauth.ErrNoClient) {
+			return "", true, fmt.Errorf("%w: %w", errSignIn, err)
+		}
+		return tok, true, err
+	}
+	password, err := a.m.secrets.Get(ctx, secrets.AccountPassword(a.acct.ID))
+	if errors.Is(err, secrets.ErrNotFound) {
+		return "", false, errNoPassword
+	}
+	return password, false, err
+}
+
+// refreshed returns a new access token after the server refused one, or
+// the error that ends the attempt.
+func (a *actor) refreshed(ctx context.Context) (string, error) {
+	a.m.cfg.Tokens.Invalidate(a.acct.ID)
+	tok, _, err := a.credential(ctx)
+	return tok, err
+}
+
+// refused records that the server refused the account's credential, so the
+// account shows "Sign in again".
+func (a *actor) refused(ctx context.Context) {
+	err := a.m.db.Tx(context.WithoutCancel(ctx), func(tx *store.Tx) error { return tx.SetNeedsReauth(ctx, a.acct.ID, true) })
+	if err != nil {
+		a.m.log.Warn("mark account for sign-in", "account", a.acct.ID, "err", err)
+	}
+}
 
 func (a *actor) stop() {
 	a.cancel()
@@ -92,7 +133,8 @@ func (a *actor) run(ctx context.Context) {
 		a.m.log.Warn("sync stopped", "account", a.acct.ID, "err", err)
 		var retry <-chan time.Time
 		switch {
-		case errors.Is(err, imapx.ErrAuth), errors.Is(err, errNoPassword):
+		case errors.Is(err, imapx.ErrAuth), errors.Is(err, errNoPassword), errors.Is(err, errSignIn):
+			a.refused(ctx)
 			a.phase(api.SyncPhaseUnauthorized, err.Error())
 		default:
 			a.phase(api.SyncPhaseOffline, err.Error())
@@ -110,10 +152,10 @@ func (a *actor) run(ctx context.Context) {
 	}
 }
 
-func (a *actor) dialOptions(password string) imapx.DialOptions {
+func (a *actor) dialOptions(secret string, isOAuth bool) imapx.DialOptions {
 	s := a.acct.IMAP
 	opts := imapx.DialOptions{
-		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: password,
+		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: secret, OAuth: isOAuth,
 		InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
 	}
 	if a.m.cfg.Trace != nil {
@@ -125,16 +167,20 @@ func (a *actor) dialOptions(password string) imapx.DialOptions {
 // connected runs one connected session. healthy reports whether it got as
 // far as a completed pass, which resets the retry backoff.
 func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
-	password, err := a.m.secrets.Get(ctx, secrets.AccountPassword(a.acct.ID))
-	if errors.Is(err, secrets.ErrNotFound) {
-		return false, errNoPassword
-	}
+	secret, isOAuth, err := a.credential(ctx)
 	if err != nil {
 		return false, err
 	}
-	opts := a.dialOptions(password)
+	opts := a.dialOptions(secret, isOAuth)
 	a.phase(api.SyncPhaseConnecting, "")
 	cmd, err := imapx.Open(ctx, opts)
+	if errors.Is(err, imapx.ErrAuth) && isOAuth {
+		// Usually an expired access token: refresh once and try again.
+		if opts.Password, err = a.refreshed(ctx); err != nil {
+			return false, err
+		}
+		cmd, err = imapx.Open(ctx, opts)
+	}
 	if err != nil {
 		return false, err
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/discover"
+	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -34,8 +35,22 @@ func (a accounts) Discover(ctx context.Context, p *api.AccountDiscoverParams) (*
 	return out, nil
 }
 
-func (accounts) Authorize(context.Context, *api.AccountAuthorizeParams) (*api.AuthorizeResult, error) {
-	return nil, errM4
+func (a accounts) Authorize(ctx context.Context, p *api.AccountAuthorizeParams) (*api.AuthorizeResult, error) {
+	if a.OAuth == nil {
+		return nil, api.Unavailable("OAuth sign-in is not running")
+	}
+	u, err := a.OAuth.Authorize(ctx, p.ID)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return nil, api.NotFound("account %d does not exist", p.ID)
+	case errors.Is(err, oauth.ErrNotOAuth):
+		return nil, api.InvalidParams("account %d does not sign in with OAuth", p.ID)
+	case errors.Is(err, oauth.ErrNoClient):
+		return nil, api.Unavailable("no Google client is set: add one in Settings or with mailctl oauth set-client")
+	case err != nil:
+		return nil, err
+	}
+	return &api.AuthorizeResult{URL: u}, nil
 }
 
 func (accounts) Verify(context.Context, *api.AccountVerifyParams) (*api.VerifyReport, error) {

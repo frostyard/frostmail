@@ -39,6 +39,9 @@ type Config struct {
 	// Parts is the parts cache quoted inline images are read from when a
 	// draft is built; nil leaves them out.
 	Parts *render.PartsCache
+	// Tokens gives OAuth accounts their access tokens (oauth.Manager); nil
+	// leaves OAuth accounts unable to sign in.
+	Tokens TokenSource
 	// SendRetry is the unit of the outbox's retry schedule [1m]: one unit
 	// while the server cannot be reached, else 1, 2, 5 and 15 units by
 	// attempt, then 60.
@@ -68,6 +71,13 @@ func (c Config) withDefaults() Config {
 		c.SendRetry = time.Minute
 	}
 	return c
+}
+
+// TokenSource gives OAuth access tokens.
+type TokenSource interface {
+	AccessToken(ctx context.Context, accountID int64) (string, error)
+	// Invalidate drops a token the server refused.
+	Invalidate(accountID int64)
 }
 
 // Manager runs one actor per account.

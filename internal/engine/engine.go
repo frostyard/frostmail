@@ -14,6 +14,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/discover"
+	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -53,6 +54,8 @@ type Deps struct {
 	// Discovery is how account.discover reaches the network; zero means
 	// the real HTTPS and DNS.
 	Discovery discover.Deps
+	// OAuth signs accounts in; nil makes account.authorize unavailable.
+	OAuth *oauth.Manager
 }
 
 // Engine owns the domain services.

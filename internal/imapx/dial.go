@@ -17,6 +17,7 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/charset"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/oauth"
 
 	"mime"
 )
@@ -32,6 +33,9 @@ type DialOptions struct {
 	TLS      api.TLSMode
 	Username string
 	Password string
+	// OAuth makes Password an OAuth access token, sent with AUTHENTICATE
+	// XOAUTH2 instead of LOGIN.
+	OAuth bool
 
 	// InsecureSkipVerify accepts any certificate; only for test servers
 	// with self-signed certificates.
@@ -103,7 +107,7 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 	} else {
 		c = imapclient.New(conn, copts)
 	}
-	if err := c.Login(opts.Username, opts.Password).Wait(); err != nil {
+	if err := login(c, opts); err != nil {
 		_ = c.Close()
 		var imapErr *imap.Error
 		if errors.As(err, &imapErr) && imapErr.Type == imap.StatusResponseTypeNo {
@@ -116,4 +120,20 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 		return nil, fmt.Errorf("imap %s: %w", addr, ctx.Err())
 	}
 	return c, nil
+}
+
+// login signs in with LOGIN, or AUTHENTICATE XOAUTH2 for OAuth; a refused
+// token carries the server's failure details.
+func login(c *imapclient.Client, opts DialOptions) error {
+	if !opts.OAuth {
+		return c.Login(opts.Username, opts.Password).Wait()
+	}
+	sc := oauth.SASL(opts.Username, opts.Password)
+	if err := c.Authenticate(sc); err != nil {
+		if details := sc.Err(); details != nil {
+			return fmt.Errorf("%w (%w)", err, details)
+		}
+		return err
+	}
+	return nil
 }

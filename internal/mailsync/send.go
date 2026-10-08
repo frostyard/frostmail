@@ -12,7 +12,6 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx"
-	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/smtpx"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -215,15 +214,33 @@ func retryDelay(err error, attempt int, unit time.Duration) time.Duration {
 	return 60 * unit
 }
 
-// submit hands one message to the account's SMTP server.
+// submit hands one message to the account's SMTP server. For OAuth
+// accounts a refused token is refreshed once.
 func (a *actor) submit(ctx context.Context, it store.OutboxItem) error {
-	password, err := a.m.secrets.Get(ctx, secrets.AccountPassword(a.acct.ID))
-	if errors.Is(err, secrets.ErrNotFound) {
-		return fmt.Errorf("%w: %w", smtpx.ErrAuth, errNoPassword)
+	secret, isOAuth, err := a.credential(ctx)
+	if errors.Is(err, errNoPassword) || errors.Is(err, errSignIn) {
+		return fmt.Errorf("%w: %w", smtpx.ErrAuth, err)
 	}
 	if err != nil {
 		return err
 	}
+	s := a.acct.SMTP
+	opts := smtpx.Options{
+		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: secret, OAuth: isOAuth,
+		InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
+	}
+	err = a.sendBlob(ctx, opts, it)
+	if errors.Is(err, smtpx.ErrAuth) && isOAuth {
+		if opts.Password, err = a.refreshed(ctx); err != nil {
+			return fmt.Errorf("%w: %w", smtpx.ErrAuth, err)
+		}
+		err = a.sendBlob(ctx, opts, it)
+	}
+	return err
+}
+
+// sendBlob submits the outbox row's built message.
+func (a *actor) sendBlob(ctx context.Context, opts smtpx.Options, it store.OutboxItem) error {
 	f, err := a.m.blobs.Open(it.BlobID)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errUnsendable, err)
@@ -232,11 +249,6 @@ func (a *actor) submit(ctx context.Context, it store.OutboxItem) error {
 	size, err := blobSize(f)
 	if err != nil {
 		return err
-	}
-	s := a.acct.SMTP
-	opts := smtpx.Options{
-		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: password,
-		InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
 	}
 	return smtpx.Send(ctx, opts, smtpx.Envelope{From: it.From, To: it.Recipients}, size, f)
 }
