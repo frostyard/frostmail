@@ -14,7 +14,15 @@ import { ComposeHeader } from "../features/compose/ComposeHeader";
 import { type ComposeCommand, ComposeToolbar, FormatBar, type FormatCommand } from "../features/compose/ComposeToolbar";
 import { isValidAddress } from "../lib/addressParse";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
-import { activeFormats, composeExtensions, isBlank, runFormat, setLink } from "./composeEditor";
+import {
+  activeFormats,
+  composeExtensions,
+  isBlank,
+  runFormat,
+  setLink,
+  toEditorHTML,
+  toMailHTML,
+} from "./composeEditor";
 
 /** SAVE_MS is how long edits wait before draft.update. */
 export const SAVE_MS = 500;
@@ -128,12 +136,12 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
 
   const editor = useEditor({
     extensions: composeExtensions(),
-    content: initial.content.html,
+    content: toEditorHTML(initial.content.html),
     autofocus: initial.content.to.length > 0 ? "start" : false,
     editorProps: {
       attributes: { "aria-label": "Message body", class: "compose-body" },
     },
-    onUpdate: ({ editor: e }) => change({ html: e.getHTML() }),
+    onUpdate: ({ editor: e }) => change({ html: toMailHTML(e.getHTML()) }),
   });
   const active = useEditorState({ editor, selector: ({ editor: e }) => (e ? activeFormats(e) : {}) }) ?? {};
 

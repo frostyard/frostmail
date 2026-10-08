@@ -114,3 +114,20 @@ export function isBlank(editor: Editor): boolean {
   });
   return !images && editor.state.doc.textContent.trim() === "";
 }
+
+/**
+ * toEditorHTML prepares maild's HTML for the editor: mail marks an empty
+ * line as <p><br></p>, which the editor would read as a paragraph holding a
+ * line break, so the text typed into it would start on a second line.
+ */
+export function toEditorHTML(html: string): string {
+  return html.replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, "<p></p>");
+}
+
+/**
+ * toMailHTML is the editor's HTML as it is saved and sent: an empty
+ * paragraph gets a <br>, without which mail clients draw no line at all.
+ */
+export function toMailHTML(html: string): string {
+  return html.replace(/<p><\/p>/g, "<p><br></p>");
+}
