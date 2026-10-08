@@ -8,3 +8,4 @@
 /.worktrees/
 /.env
 /.mcp.json
+/.envrc
