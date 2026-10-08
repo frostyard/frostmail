@@ -1,0 +1,14 @@
+# maild as a user service (docs/design/desktop.md, Installing for one user).
+# make install puts it in ~/.config/systemd/user/ and maild in ~/.local/bin/.
+[Unit]
+Description=Frostmail mail engine (maild)
+Documentation=https://github.com/frostyard/frostmail/blob/main/docs/design/desktop.md
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/maild
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

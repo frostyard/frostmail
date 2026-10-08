@@ -1,4 +1,4 @@
-.PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
+.PHONY: help build install uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt app-test app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -25,6 +25,22 @@ help: ## List targets
 
 build: ## Build maild and mailctl into build/
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o build/ ./cmd/maild ./cmd/mailctl
+
+PREFIX ?= $(HOME)/.local
+UNIT_DIR ?= $(HOME)/.config/systemd/user
+
+install: build ## Install maild and mailctl for this user and (re)start maild as a user service
+	install -Dm755 build/maild $(PREFIX)/bin/maild
+	install -Dm755 build/mailctl $(PREFIX)/bin/mailctl
+	install -Dm644 packaging/systemd/maild.service $(UNIT_DIR)/maild.service
+	systemctl --user daemon-reload
+	systemctl --user enable maild.service
+	systemctl --user restart maild.service
+
+uninstall: ## Stop maild and remove it, mailctl and the user service; mail data stays
+	-systemctl --user disable --now maild.service
+	rm -f $(UNIT_DIR)/maild.service $(PREFIX)/bin/maild $(PREFIX)/bin/mailctl
+	systemctl --user daemon-reload
 
 fmt: ## Format Go code
 	gofmt -w $(GO_FILES)

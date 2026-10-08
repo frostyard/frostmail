@@ -6,7 +6,10 @@ and notifications. Rationale: [ADR-0002](../adr/0002-daemon-and-thin-clients.md)
 
 ## Installing for one user
 
-`make install` (no root) builds release binaries and installs:
+`make install` (no root) builds release binaries and installs maild and
+mailctl with the user service (`packaging/systemd/maild.service`); `make uninstall`
+removes them. How the app is installed on an image-based host without
+WebKitGTK is still open (see below). The full set is:
 
 | File | Path |
 | --- | --- |
