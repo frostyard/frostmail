@@ -241,7 +241,7 @@ export function ContextMenu(props: ContextMenuProps) {
         </span>
         {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}
         <span className="flex-1 truncate">{item.label}</span>
-        {shortcut ? <span className="shrink-0 text-secondary">{shortcut}</span> : null}
+        {shortcut ? <span className="ml-6 shrink-0 text-secondary">{shortcut}</span> : null}
         {item.kind === "submenu" ? <ChevronRight size={14} className="shrink-0 text-tertiary" /> : null}
       </>
     );
