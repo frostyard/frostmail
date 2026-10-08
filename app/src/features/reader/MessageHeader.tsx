@@ -132,7 +132,7 @@ export function RemoteBanner(props: RemoteBannerProps) {
       {remote > 0 && (
         <button
           type="button"
-          className="ml-auto h-6 rounded border border-separator bg-window px-2"
+          className="ml-auto h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2"
           disabled={loading}
           onClick={onLoad}
         >
