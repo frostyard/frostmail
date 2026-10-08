@@ -1,5 +1,6 @@
-//! The Frostmail app shell: the main window and compose windows, a line
-//! bridge per window to maild's socket, and the mailpart:// protocol. All mail logic lives in maild; see
+//! The Frostmail app shell: one instance with the main, compose and
+//! settings windows, a line bridge per window to maild's socket, and the
+//! mailpart:// protocol. All mail logic lives in maild; see
 //! docs/design/overview.md and docs/specs/rpc-protocol.md.
 
 mod bridge;
@@ -11,10 +12,14 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 fn main() {
     apply_webkit_workarounds();
+    let args: Vec<String> = std::env::args().collect();
     tauri::Builder::default()
+        // First, so a second launch hands over before anything else starts.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| commands::second_launch(app, &args)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(bridge::Bridge::default())
+        .manage(commands::Launch(std::sync::Mutex::new(commands::open_request(&args))))
         .register_asynchronous_uri_scheme_protocol("mailpart", protocol::mailpart)
         .invoke_handler(tauri::generate_handler![
             bridge::maild_connect,
@@ -22,7 +27,8 @@ fn main() {
             commands::open_link,
             commands::open_part,
             commands::open_compose,
-            commands::open_settings
+            commands::open_settings,
+            commands::startup_message
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

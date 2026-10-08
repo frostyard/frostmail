@@ -51,7 +51,10 @@ while the app is closed.
 ## One app instance
 
 The app is single-instance (`tauri-plugin-single-instance`): a second
-launch passes its arguments to the running app and exits. `--open-message
+launch passes its arguments to the running app, which shows and focuses
+its main window, and exits. The first launch keeps its own
+`--open-message` until the main window asks for it (`startup_message`);
+later ones arrive as the `open-message` event (`app/src/app/openMessage.ts`). `--open-message
 <id>` shows the main window, selects the message's inbox (or All Inboxes)
 and the message, and focuses the window; with no running app it starts on
 that message.

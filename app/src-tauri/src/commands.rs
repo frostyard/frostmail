@@ -3,7 +3,9 @@
 //! drafts open in compose windows (docs/design/send.md), and the settings
 //! window opens (docs/specs/settings-ui.md).
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use std::sync::Mutex;
+
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::protocol;
@@ -86,4 +88,50 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
         .build()
         .map(crate::show_soon)
         .map_err(|e| e.to_string())
+}
+
+/// The message a launch asked to open with --open-message <id>.
+pub fn open_request(args: &[String]) -> Option<i64> {
+    let i = args.iter().position(|a| a == "--open-message")?;
+    args.get(i + 1)?.parse().ok()
+}
+
+/// The first launch's --open-message, until the main window takes it.
+#[derive(Default)]
+pub struct Launch(pub Mutex<Option<i64>>);
+
+/// Return the message the app was started to open, once.
+#[tauri::command]
+pub fn startup_message(launch: State<'_, Launch>) -> Option<i64> {
+    launch.0.lock().ok()?.take()
+}
+
+/// A second launch (single instance): show the main window and pass on
+/// its --open-message as the open-message event (docs/design/desktop.md).
+pub fn second_launch(app: &AppHandle, args: &[String]) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+    if let Some(id) = open_request(args) {
+        let _ = app.emit_to("main", "open-message", id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::open_request;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn reads_open_message() {
+        assert_eq!(open_request(&args(&["frostmail", "--open-message", "42"])), Some(42));
+        assert_eq!(open_request(&args(&["frostmail"])), None);
+        assert_eq!(open_request(&args(&["frostmail", "--open-message"])), None);
+        assert_eq!(open_request(&args(&["frostmail", "--open-message", "x"])), None);
+    }
 }

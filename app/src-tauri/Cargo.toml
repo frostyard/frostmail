@@ -17,6 +17,7 @@ serde_json = "1"
 tokio = { version = "1.53", features = ["net", "io-util", "sync", "fs", "time"] }
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-dialog = "2.8.1"
+tauri-plugin-single-instance = "2.5.2"
 
 [profile.release]
 lto = true

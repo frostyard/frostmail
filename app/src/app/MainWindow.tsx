@@ -10,6 +10,7 @@ import { commandFor } from "../lib/keymap";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
+import { watchOpenRequests } from "./openMessage";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
@@ -38,6 +39,8 @@ export function MainWindow() {
   const reader = useRef<ReaderHandle>(null);
   const search = useRef<HTMLInputElement>(null);
   const sidebarPane = useRef<HTMLDivElement>(null);
+  // Notifications open their message here (docs/design/desktop.md).
+  useEffect(() => watchOpenRequests(client), [client]);
   const dragStart = useRef({ sidebar: ui.sidebarWidth, list: ui.listWidth });
 
   const onDelete = useCallback(

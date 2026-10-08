@@ -1,5 +1,5 @@
 .PHONY: help build fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt app-test app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -70,7 +70,7 @@ verify: ## Tidy, generated files, vet, format, lint and unit tests
 
 check: fmt verify ## Format, then verify (the developer gate)
 
-ci: verify ui-check app-build ## verify plus race tests and the app checks
+ci: verify ui-check app-test app-build ## verify plus race tests and the app checks
 	go test -race ./...
 
 ui-check: ## Lint (Biome), typecheck and test the app UI (nsl)
@@ -90,6 +90,9 @@ ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 
 app-build: ## Build the release app binary into build/frostmail-app (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm tauri build && mkdir -p ../build && cp "$$CARGO_TARGET_DIR/release/frostmail" ../build/frostmail-app'
+
+app-test: ## Run the app shell's Rust tests (nsl)
+	$(IN_NSL) 'cd app/src-tauri && cargo test --release'
 
 app-dev: build ## Run maild and tauri dev in the nsl machine
 	$(IN_NSL) 'scripts/dev-app.sh'
