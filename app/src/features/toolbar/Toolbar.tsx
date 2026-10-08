@@ -275,21 +275,12 @@ export function Toolbar(props: ToolbarProps) {
     else if (id.startsWith("move:")) props.onCommand({ kind: "move", mailboxId: Number(id.slice(5)) });
   };
 
-  // Only the drag regions themselves toggle maximize: a double click on a
-  // button must not reach this as a window gesture.
-  const dragDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).hasAttribute("data-tauri-drag-region")) {
-      props.onCommand({ kind: "toggleMaximize" });
-    }
-  };
-
   return (
     <div
       role="toolbar"
       aria-label="Toolbar"
       data-tauri-drag-region
       className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar"
-      onDoubleClick={dragDoubleClick}
     >
       <SidebarSegment sidebarWidth={props.sidebarWidth} syncing={props.syncing} onCommand={props.onCommand} />
       <ListSegment listWidth={props.listWidth} title={props.title} subtitle={props.subtitle} />

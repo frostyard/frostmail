@@ -86,7 +86,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   per window in local storage. Ctrl+Alt+S hides and shows the sidebar.
 - **Toolbar (52, `--bg-toolbar`, 1px `--separator` bottom):** one strip
   split at the pane boundaries. It is the window's drag region; double-click
-  on empty toolbar space toggles maximize.
+  on empty toolbar space toggles maximize (Tauri's drag-region handling does
+  this; the app adds nothing).
   - Over the sidebar: sidebar toggle, Get Mail (spins while any account
     syncs).
   - Over the list: the source title (13/600) above a subtitle (11/400

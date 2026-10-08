@@ -146,12 +146,13 @@ describe("Toolbar", () => {
     expect(button("Get Mail").querySelector("svg")?.getAttribute("class")).toContain("animate-spin");
   });
 
-  it("toggles maximize on a double click on empty toolbar space only", () => {
+  it("leaves double clicks on the drag region to Tauri", () => {
+    // Tauri's drag-region script maximizes on double click itself
+    // (tauri/src/window/scripts/drag.js); sending toggleMaximize too would
+    // undo it.
     const props = toolbar();
     fireEvent.doubleClick(screen.getByRole("toolbar", { name: "Toolbar" }));
-    expect(props.onCommand).toHaveBeenLastCalledWith({ kind: "toggleMaximize" });
-    fireEvent.doubleClick(button("Delete"));
-    expect(props.onCommand).toHaveBeenCalledTimes(1);
+    expect(props.onCommand).not.toHaveBeenCalled();
   });
 
   it("keeps the sidebar segment's buttons while the sidebar is hidden", () => {
