@@ -75,6 +75,8 @@ export function RecipientField(props: RecipientFieldProps) {
   const active = listShown && highlight !== undefined ? visible[highlight] : undefined;
 
   function closeList() {
+    // Results still on their way are for text that is gone.
+    latestRef.current = "";
     setSuggestions([]);
     setOpen(false);
     setHighlight(undefined);

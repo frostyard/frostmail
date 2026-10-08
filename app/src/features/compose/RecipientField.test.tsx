@@ -234,3 +234,21 @@ describe("RecipientField", () => {
     expect(options.map((o) => o.textContent)).toEqual(["Carolcarol@x.test"]);
   });
 });
+
+describe("RecipientField after a commit", () => {
+  it("drops suggestions that arrive after the text was committed", async () => {
+    const user = userEvent.setup();
+    let resolve: (list: Address[]) => void = () => {};
+    const suggest = () =>
+      new Promise<Address[]>((r) => {
+        resolve = r;
+      });
+    render(<Harness suggest={suggest} />);
+    await user.click(input());
+    await user.type(input(), "carol@x.test,");
+    await act(async () => {
+      resolve([bob]);
+    });
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});
