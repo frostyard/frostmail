@@ -161,6 +161,12 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   conversation. Found: Gmail's IDLE reports no label changes (the label
   arrived with the 5-minute poll, which then skipped All Mail on Gmail);
   fixed by polling All Mail, Spam and Trash every minute on Gmail.
+  New mail arrived through IDLE on All Mail within seconds; maild
+  announced it on GNOME's desktop and a click opened the message in the
+  running app (single instance). Found: notifications named the wrong
+  desktop entry and icon, and maild accepted click signals from any
+  program on the session bus (both fixed); a click on a notification sent
+  by a maild that has since restarted does nothing.
 
 ## Later / ideas
 
