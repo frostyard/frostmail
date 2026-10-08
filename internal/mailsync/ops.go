@@ -464,6 +464,10 @@ func (a *actor) replayOne(ctx context.Context, cmd *imapx.Session, op store.Op) 
 		}
 		mb := store.Mailbox{ID: p.Mailbox, AccountID: a.acct.ID, Path: path}
 		return a.remove(ctx, mb, uids)
+	case opAppendSent:
+		return a.replayAppendSent(ctx, cmd, op)
+	case opRemoveCopy:
+		return a.replayRemoveCopy(ctx, cmd, op)
 	}
 	return fmt.Errorf("unknown op kind %q", op.Kind)
 }
@@ -495,6 +499,22 @@ func (a *actor) undo(ctx context.Context, op store.Op, reason string) error {
 				return err
 			}
 			return tx.ForgetFlagState(ctx, p.Mailbox)
+		case opAppendSent:
+			// The message went out; only its copy failed. Settle the row.
+			var p appendSentOp
+			if err := json.Unmarshal(op.Payload, &p); err != nil {
+				return err
+			}
+			err := tx.MoveOutbox(ctx, p.Outbox, "accepted", "sent")
+			if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrConflict) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			return tx.Emit(ctx, api.OutboxChanged{ID: p.Outbox, AccountID: a.acct.ID, State: api.OutboxStateSent})
+		case opRemoveCopy:
+			return nil // the copy stays; the next pass shows it
 		default: // flags: the next pass refetches every flag
 			rows, err := tx.QueryContext(ctx, `SELECT id FROM mailboxes WHERE account_id = ?`, a.acct.ID)
 			if err != nil {

@@ -731,6 +731,11 @@ export interface OutboxChanged {
   id: number;
   accountId: number;
   state: OutboxState;
+  /**
+   * The message left the outbox unsent: cancelled, or replaced by a new send
+   * of its draft.
+   */
+  deleted: boolean;
 }
 
 /** Messages on their way out (docs/design/send.md, Outbox). */

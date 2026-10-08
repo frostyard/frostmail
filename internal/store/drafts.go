@@ -106,15 +106,16 @@ func (d *DB) ListDrafts(ctx context.Context, accountID int64) ([]Draft, error) {
 }
 
 // UpdateDraftContent replaces a draft's content, sets updated_at to the
-// transaction clock and returns the draft as stored. A missing draft is an
-// error wrapping ErrNotFound.
+// transaction clock (see bumpUpdatedAt) and returns the draft as stored. A
+// missing draft is an error wrapping ErrNotFound.
 func (t *Tx) UpdateDraftContent(ctx context.Context, id int64, c DraftContent) (Draft, error) {
 	content, err := json.Marshal(c)
 	if err != nil {
 		return Draft{}, fmt.Errorf("update draft %d: %w", id, err)
 	}
-	res, err := t.ExecContext(ctx, `UPDATE drafts SET content_json = ?, updated_at = ? WHERE id = ?`,
-		string(content), FormatTime(t.Now().Truncate(time.Millisecond)), id)
+	now := FormatTime(t.Now().Truncate(time.Millisecond))
+	res, err := t.ExecContext(ctx, `UPDATE drafts SET content_json = ?, `+bumpUpdatedAt+` WHERE id = ?`,
+		string(content), now, now, id)
 	if err != nil {
 		return Draft{}, fmt.Errorf("update draft %d: %w", id, err)
 	}

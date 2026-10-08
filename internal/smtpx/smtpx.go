@@ -130,6 +130,13 @@ func Permanent(err error) bool {
 	return false
 }
 
+// Replied reports whether err carries a reply from the server, as opposed
+// to a failure to reach it or a connection that broke.
+func Replied(err error) bool {
+	var se *smtp.SMTPError
+	return errors.As(err, &se)
+}
+
 // errConfig marks a server that cannot do what the account says (no
 // STARTTLS, no AUTH).
 var errConfig = errors.New("smtpx: server does not support the account's settings")

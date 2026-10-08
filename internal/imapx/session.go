@@ -270,6 +270,28 @@ func (s *Session) UIDs(ctx context.Context) ([]uint32, error) {
 	return out, nil
 }
 
+// SearchMessageID returns the UIDs in the selected mailbox whose Message-ID
+// header contains msgid (given without angle brackets), ascending.
+func (s *Session) SearchMessageID(ctx context.Context, msgid string) ([]uint32, error) {
+	var d *imap.SearchData
+	err := s.run(ctx, func() error {
+		criteria := &imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: msgid}}}
+		var err error
+		d, err = s.c.UIDSearch(criteria, nil).Wait()
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("uid search message-id: %w", err)
+	}
+	all := d.AllUIDs()
+	out := make([]uint32, len(all))
+	for i, u := range all {
+		out[i] = uint32(u)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
 // uidSet compresses UIDs into ranges, keeping commands short.
 func uidSet(uids []uint32) imap.UIDSet {
 	sorted := slices.Clone(uids)

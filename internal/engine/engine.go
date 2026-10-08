@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
@@ -27,6 +28,11 @@ type Syncer interface {
 	SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error
 	Move(ctx context.Context, ids []int64, mailboxID int64) error
 	Delete(ctx context.Context, ids []int64) error
+	// Kick, OutboxChanged and DraftsChanged wake an account's IMAP actor
+	// (queued ops), sender (queued mail) and draft saver.
+	Kick(accountID int64)
+	OutboxChanged(accountID int64)
+	DraftsChanged(accountID int64)
 }
 
 // Deps are what the engine's domains use. Sync, Views and Render may be nil
@@ -39,6 +45,8 @@ type Deps struct {
 	Blobs   *blob.Store
 	Views   *view.Manager
 	Render  *render.Renderer
+	// UndoDelay is how long draft.send holds a message [DefaultUndoDelay].
+	UndoDelay time.Duration
 }
 
 // Engine owns the domain services.

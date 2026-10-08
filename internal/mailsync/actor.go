@@ -22,7 +22,13 @@ type actor struct {
 	done   chan struct{}
 	wake   chan struct{} // a full pass
 	ops    chan struct{} // offline actions are queued
+	outbox chan struct{} // a message was queued for sending
+	drafts chan struct{} // a draft changed
 	bodies chan bodyRequest
+
+	// unsaved holds drafts whose copy the server refused, by the updated_at
+	// that was refused; only the IMAP loop touches it.
+	unsaved map[int64]time.Time
 
 	mu     sync.Mutex
 	status api.SyncStatus
@@ -141,6 +147,13 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 	if err != nil {
 		return false, err
 	}
+	if err := a.settleInterrupted(ctx); err != nil {
+		return false, err
+	}
+	if err := a.saveDrafts(ctx, cmd); err != nil {
+		return false, err
+	}
+	saveAt := a.nextDraftSave(ctx, true)
 	a.idlePhase()
 
 	sctx, cancel := context.WithCancel(ctx)
@@ -183,6 +196,14 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			if err := a.replay(ctx, cmd); err != nil {
 				return true, err
 			}
+		case <-a.drafts:
+			saveAt = a.nextDraftSave(ctx, false)
+		case <-saveAt:
+			if err := a.saveDrafts(ctx, cmd); err != nil {
+				return true, err
+			}
+			saveAt = a.nextDraftSave(ctx, true)
+			a.idlePhase()
 		case req := <-a.bodies:
 			id, err := a.fetchBody(ctx, cmd, req.id)
 			req.reply <- bodyResult{blobID: id, err: err}

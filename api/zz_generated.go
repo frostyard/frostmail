@@ -1447,6 +1447,9 @@ type OutboxChanged struct {
 	ID        int64       `json:"id"`
 	AccountID int64       `json:"accountId"`
 	State     OutboxState `json:"state"`
+	// The message left the outbox unsent: cancelled, or replaced by a new send of
+	// its draft.
+	Deleted bool `json:"deleted"`
 }
 
 // EventName is the wire name of OutboxChanged.

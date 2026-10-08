@@ -32,6 +32,9 @@ type Options struct {
 	Sync *mailsync.Config
 	// Log receives the server's logs; nil discards them.
 	Log *slog.Logger
+	// UndoDelay is how long sent mail waits; zero means 50ms, so tests
+	// do not wait out the real delay.
+	UndoDelay time.Duration
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -75,10 +78,18 @@ func StartWith(t testing.TB, o Options) *Server {
 		Parts:   &render.PartsCache{Root: filepath.Join(data, "parts")},
 	}
 	// Remote images are never fetched in tests: the renderer has no fetcher.
+	undo := o.UndoDelay
+	if undo == 0 {
+		undo = 50 * time.Millisecond
+	}
 	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
-		Render: &render.Renderer{Parts: srv.Parts}}
+		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo}
 	if o.Sync != nil {
-		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, *o.Sync, broker.Publish)
+		cfg := *o.Sync
+		if cfg.Parts == nil {
+			cfg.Parts = srv.Parts
+		}
+		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, cfg, broker.Publish)
 		deps.Sync = srv.Sync
 	}
 

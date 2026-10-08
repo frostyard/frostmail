@@ -21,17 +21,26 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   message), a Message-ID chosen at creation, and the server copy's UID.
 - `draft.create` makes an empty draft with the identity's signature, or a
   reply, reply-all or forward of a message (below). `draft.update` replaces
-  the content and bumps `updated_at`; it emits `draft.changed`.
-- **Server copy:** the account's draft saver (part of the account actor)
-  looks for drafts quiet for 5 seconds whose server copy is older than their
-  content; it builds the message, APPENDs it to the Drafts mailbox with
-  `\Draft` and `\Seen`, records the new UID (UIDPLUS `APPENDUID`, else a
-  search for the Message-ID), and deletes the previous UID (`\Deleted` and
-  `UID EXPUNGE`, else `EXPUNGE`). Offline, it waits. Deleting a draft queues
-  the server copy's deletion like any offline action.
-- A draft opened from the Drafts mailbox (a message there that is not in the
-  `drafts` table) becomes a draft by parsing it: recipients, subject, HTML or
-  text body, attachments.
+  the content and moves `updated_at` forward: to the clock, or 1 ms past its
+  old value when the clock has not moved on (times have millisecond
+  resolution, and an edit must always be newer than the copy saved before
+  it). Every change emits `draft.changed`.
+- **Server copy:** the account's IMAP actor looks for drafts quiet for 5
+  seconds whose server copy is older than their content (`saved_at <
+  updated_at`); it builds the message (Bcc kept, half-typed recipients left
+  out), APPENDs it to the Drafts mailbox with `\Draft` and `\Seen`, records
+  the new UID (UIDPLUS `APPENDUID`, else a search for the Message-ID) with
+  `saved_at` = the `updated_at` it built from, and queues the previous
+  copy's deletion (`\Deleted`, then `UID EXPUNGE` with UIDPLUS) as an
+  offline op. Offline, it waits. A new draft counts as saved until its first
+  edit, so drafts opened and closed untouched never reach the server.
+  Deleting a draft queues its copy's deletion the same way. A copy the
+  server refuses is retried after the draft changes again.
+- `draft.open` on a message (normally in Drafts) returns the draft with the
+  same Message-ID if there is one; otherwise it parses the message into a
+  new draft (recipients including Bcc, subject, HTML or text body,
+  attachments) that keeps the Message-ID and adopts the message as its
+  server copy, so the next save replaces it.
 
 ## Replies and forwards
 
@@ -77,24 +86,43 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
 ## Outbox
 
 - `draft.send` validates (at least one recipient, every address parses,
-  total size within the account's limit), builds the message, stores it as a
-  blob, and inserts an outbox row: state `queued`, `send_at` = now + the undo
-  delay, the envelope recipients (To, Cc, Bcc), the Message-ID. The draft
-  row is kept, linked to the outbox row, until the message is accepted.
-- `outbox.cancel` on a `queued` row deletes it and returns the draft.
-- **Worker** (one per account, inside the account actor): picks due `queued`
-  rows oldest first; marks `sending`; SMTP: connect (implicit TLS or
-  STARTTLS), AUTH, `MAIL FROM` (identity) with `SIZE` when offered, `RCPT TO`
-  each recipient, `DATA`. On acceptance it marks `accepted` in the same
-  transaction that deletes the draft. Then it APPENDs the message to Sent
-  (unless the account kind saves sent mail itself: Gmail) and marks `sent`.
-- **Errors:** connection and 4xx errors put the row back to `queued` with
-  `send_at` pushed out (1, 2, 5, 15, 60 minutes, then hourly) and
-  `last_error` set; 5xx errors mark it `failed`, keep the draft, and emit
-  `outbox.changed` so the app can tell the user and reopen it.
-- **After a crash:** at startup, `accepted` rows resume at the Sent copy;
-  `sending` rows are looked up in Sent by Message-ID and become `sent` if
-  found, otherwise `queued` again.
+  attachments within the limit), builds the message, stores it as a blob,
+  and inserts an outbox row: state `queued`, `send_at` = now + the undo
+  delay (10 seconds; `FROSTMAIL_UNDO_DELAY`), the envelope recipients (To,
+  Cc, Bcc), the Message-ID. A draft already queued, sending or accepted is a
+  conflict; a failed row of the same draft is replaced. The draft row is
+  kept, linked to the outbox row, until the message is accepted.
+- `outbox.cancel` on a `queued` row deletes it, emits `outbox.changed` with
+  `deleted`, and returns the draft. `outbox.retry` queues a `failed` row
+  again, now.
+- **Sender** (one goroutine per account beside its IMAP actor, so mail goes
+  out while IMAP is down): wakes when a row is queued and when the next
+  falls due; claims due rows oldest first (`queued` → `sending`, compare and
+  set); SMTP (`internal/smtpx`): connect (implicit TLS or STARTTLS), AUTH
+  PLAIN or LOGIN, the announced `SIZE` checked, `MAIL FROM` (identity),
+  `RCPT TO` each recipient (any refusal aborts the whole message), `DATA`.
+- **Accepted:** one transaction marks the row `accepted`, deletes the draft
+  and queues its server copy's deletion, counts the recipients for
+  suggestions, and queues the Sent copy as an offline op. The IMAP actor
+  replays it: unless Sent already holds the Message-ID, it APPENDs the
+  message with `\Seen`, then marks the row `sent`. Gmail files sent mail
+  itself, so its rows go straight to `sent`; without a Sent mailbox, or when
+  the server refuses the copy, the row is marked `sent` too (the message did
+  go out).
+- **Errors:** an unreachable server or broken connection retries after a
+  minute (so queued mail goes out soon after the server returns); a 4xx
+  reply retries after 1, 2, 5 and 15 minutes by attempt, then hourly;
+  `last_error` is set either way. A 5xx reply, a rejected login or a
+  message over the server's `SIZE` marks the row `failed` and keeps the
+  draft, for the app to show with Retry and Edit.
+- **After a crash or restart:** `accepted` rows need nothing, since their
+  Sent copy is a durable op. Rows left in `sending` (found at startup, or
+  stopped mid-send by an account restart) are settled after the account's
+  next full pass has synced Sent: found there by Message-ID, they are
+  accepted without a new copy; otherwise they are queued again at once. A
+  crash between the server's acceptance and maild's commit can therefore
+  send twice on servers that do not file sent mail themselves; the window
+  is the time to commit one transaction.
 
 ## Attachments
 

@@ -142,11 +142,24 @@ func TestBuildHeaders(t *testing.T) {
 	}
 }
 
+func TestBuildReplyTo(t *testing.T) {
+	m := baseMessage()
+	m.ReplyTo = []Address{{Name: "Team", Addr: "team@x.test"}}
+	h, _ := readBack(t, build(t, m))
+	if got := addrs(t, h, "Reply-To"); !slices.Equal(got, []string{"Team <team@x.test>"}) {
+		t.Errorf("Reply-To = %q", got)
+	}
+	m.ReplyTo = []Address{{Addr: "not an address"}}
+	if err := Build(io.Discard, m); !errors.Is(err, ErrInvalid) {
+		t.Errorf("Build with a bad Reply-To = %v, want ErrInvalid", err)
+	}
+}
+
 func TestBuildWithoutReplyFields(t *testing.T) {
 	m := baseMessage()
 	m.InReplyTo, m.References, m.Cc = "", nil, nil
 	h, _ := readBack(t, build(t, m))
-	for _, k := range []string{"In-Reply-To", "References", "Cc"} {
+	for _, k := range []string{"In-Reply-To", "References", "Cc", "Reply-To"} {
 		if h.Has(k) {
 			t.Errorf("%s written for an empty value: %q", k, h.Get(k))
 		}

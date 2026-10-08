@@ -734,6 +734,7 @@ An outbox message changed state.
 | `id` | `int` |  |
 | `accountId` | `int` |  |
 | `state` | `OutboxState` |  |
+| `deleted` | `bool` | The message left the outbox unsent: cancelled, or replaced by a new send of its draft. |
 
 ### Type `OutboxItem`
 

@@ -24,6 +24,7 @@ var ErrInvalid = errors.New("invalid message")
 // Message is what Build writes: a draft's content with its headers.
 type Message struct {
 	From       Address
+	ReplyTo    []Address
 	To         []Address
 	Cc         []Address
 	Bcc        []Address
@@ -135,6 +136,7 @@ func (m Message) header() mail.Header {
 	}
 	h.SetAddressList("Cc", mailAddresses(m.Cc))
 	h.SetAddressList("To", mailAddresses(m.To))
+	h.SetAddressList("Reply-To", mailAddresses(m.ReplyTo))
 	h.SetAddressList("From", []*mail.Address{mailAddress(m.From)})
 	h.SetDate(m.Date)
 	return h
@@ -281,7 +283,7 @@ func (m Message) validate() error {
 	for _, f := range []struct {
 		name string
 		list []Address
-	}{{"To", m.To}, {"Cc", m.Cc}, {"Bcc", m.Bcc}} {
+	}{{"Reply-To", m.ReplyTo}, {"To", m.To}, {"Cc", m.Cc}, {"Bcc", m.Bcc}} {
 		for _, a := range f.list {
 			if err := checkAddress(f.name, a); err != nil {
 				return err
@@ -326,6 +328,9 @@ func (m Message) validate() error {
 	}
 	return nil
 }
+
+// ValidAddress reports whether Build accepts a as a recipient.
+func ValidAddress(a Address) bool { return checkAddress("", a) == nil }
 
 // checkAddress accepts an address whose Addr is a bare addr-spec and whose
 // Name has no line break.

@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
@@ -88,14 +89,23 @@ func run(ctx context.Context, args []string) error {
 	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil)}
 	syncer := mailsync.New(db, sec, blobs, logger, mailsync.Config{
 		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
+		Parts:              parts,
 	}, broker.Publish)
+	undo := engine.DefaultUndoDelay
+	if v := os.Getenv("FROSTMAIL_UNDO_DELAY"); v != "" {
+		if undo, err = time.ParseDuration(v); err != nil {
+			return fmt.Errorf("FROSTMAIL_UNDO_DELAY: %w", err)
+		}
+	}
 
 	ln, err := rpcserver.Listen(paths.Socket)
 	if err != nil {
 		return err
 	}
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
-	eng := engine.New(engine.Deps{DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer})
+	eng := engine.New(engine.Deps{
+		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
+	})
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),

@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,19 @@ func (c *PartsCache) Has(rel string) bool {
 	}
 	_, err = os.Stat(p)
 	return err == nil
+}
+
+// Open opens the cached file at rel.
+func (c *PartsCache) Open(rel string) (io.ReadCloser, error) {
+	p, err := c.abs(rel)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, fmt.Errorf("parts cache: %w", err)
+	}
+	return f, nil
 }
 
 // Write stores data at rel atomically: a temp file in the same directory,

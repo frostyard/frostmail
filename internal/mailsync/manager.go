@@ -16,6 +16,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -32,6 +33,16 @@ type Config struct {
 	InsecureSkipVerify bool
 	// Trace, if set, receives each account's raw IMAP exchange.
 	Trace func(accountID int64) io.Writer
+	// DraftQuiet is how long a draft must be unchanged before its server
+	// copy is written [5s].
+	DraftQuiet time.Duration
+	// Parts is the parts cache quoted inline images are read from when a
+	// draft is built; nil leaves them out.
+	Parts *render.PartsCache
+	// SendRetry is the unit of the outbox's retry schedule [1m]: one unit
+	// while the server cannot be reached, else 1, 2, 5 and 15 units by
+	// attempt, then 60.
+	SendRetry time.Duration
 }
 
 func (c Config) withDefaults() Config {
@@ -50,6 +61,12 @@ func (c Config) withDefaults() Config {
 	if c.MaxBackoff == 0 {
 		c.MaxBackoff = 5 * time.Minute
 	}
+	if c.DraftQuiet == 0 {
+		c.DraftQuiet = 5 * time.Second
+	}
+	if c.SendRetry == 0 {
+		c.SendRetry = time.Minute
+	}
 	return c
 }
 
@@ -66,6 +83,9 @@ type Manager struct {
 	ctx    context.Context
 	actors map[int64]*actor
 	wg     sync.WaitGroup
+	// interrupted holds outbox rows left in sending, by account, until the
+	// account's next full pass settles them.
+	interrupted map[int64][]int64
 }
 
 // New returns a Manager. publish delivers transient events (sync.progress);
@@ -73,12 +93,15 @@ type Manager struct {
 func New(db *store.DB, sec secrets.Store, blobs *blob.Store, log *slog.Logger, cfg Config, publish func([]api.EventEnvelope)) *Manager {
 	return &Manager{
 		db: db, secrets: sec, blobs: blobs, log: log, cfg: cfg.withDefaults(), publish: publish,
-		actors: map[int64]*actor{},
+		actors: map[int64]*actor{}, interrupted: map[int64][]int64{},
 	}
 }
 
 // Start runs an actor for every account until ctx ends.
 func (m *Manager) Start(ctx context.Context) error {
+	if err := m.collectInterrupted(ctx); err != nil {
+		return err
+	}
 	m.mu.Lock()
 	m.ctx = ctx
 	m.mu.Unlock()
@@ -151,12 +174,16 @@ func (m *Manager) startLocked(acct store.Account) {
 	a := &actor{
 		m: m, acct: acct, cancel: cancel, done: make(chan struct{}),
 		wake: make(chan struct{}, 1), ops: make(chan struct{}, 1), bodies: make(chan bodyRequest),
+		outbox: make(chan struct{}, 1), drafts: make(chan struct{}, 1), unsaved: map[int64]time.Time{},
 		status: api.SyncStatus{AccountID: acct.ID, Phase: api.SyncPhaseConnecting},
 	}
 	m.actors[acct.ID] = a
 	m.wg.Go(func() {
 		defer close(a.done)
+		var senders sync.WaitGroup
+		senders.Go(func() { a.sendLoop(ctx) })
 		a.run(ctx)
+		senders.Wait()
 	})
 }
 

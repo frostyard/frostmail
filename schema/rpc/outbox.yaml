@@ -47,3 +47,4 @@ events:
       - {name: id, type: int}
       - {name: accountId, type: int}
       - {name: state, type: OutboxState}
+      - {name: deleted, type: bool, doc: "The message left the outbox unsent: cancelled, or replaced by a new send of its draft."}
