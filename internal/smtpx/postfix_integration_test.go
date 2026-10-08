@@ -4,7 +4,8 @@ package smtpx_test
 
 // Runs against the frostmail-mailtest container (dev/incus/mailtest.sh):
 // make engine-it sets FROSTMAIL_IT_HOST and restores the clean snapshot.
-// Delivery into Dovecot is checked by the engine's send tests.
+// Mail goes to test5, whose INBOX no count-checking test reads; delivery
+// into Dovecot is checked by the engine's send tests.
 
 import (
 	"errors"
@@ -28,12 +29,12 @@ func postfix(t *testing.T) smtpx.Options {
 	}
 }
 
-const itMessage = "From: test1@mailtest.test\r\nTo: test2@mailtest.test\r\n" +
+const itMessage = "From: test1@mailtest.test\r\nTo: test5@mailtest.test\r\n" +
 	"Subject: smtpx integration\r\nMessage-ID: <smtpx-it@mailtest.test>\r\n\r\nHello from smtpx.\r\n"
 
 func TestPostfixSubmission(t *testing.T) {
 	opts := postfix(t)
-	env := smtpx.Envelope{From: "test1@mailtest.test", To: []string{"test2@mailtest.test"}}
+	env := smtpx.Envelope{From: "test1@mailtest.test", To: []string{"test5@mailtest.test"}}
 	if err := smtpx.Send(t.Context(), opts, env, int64(len(itMessage)), strings.NewReader(itMessage)); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -46,7 +47,7 @@ func TestPostfixSubmission(t *testing.T) {
 func TestPostfixRejectsBadPassword(t *testing.T) {
 	opts := postfix(t)
 	opts.Password = "wrong"
-	env := smtpx.Envelope{From: "test1@mailtest.test", To: []string{"test2@mailtest.test"}}
+	env := smtpx.Envelope{From: "test1@mailtest.test", To: []string{"test5@mailtest.test"}}
 	err := smtpx.Send(t.Context(), opts, env, int64(len(itMessage)), strings.NewReader(itMessage))
 	if !errors.Is(err, smtpx.ErrAuth) || !smtpx.Permanent(err) {
 		t.Fatalf("Send = %v; want a permanent ErrAuth", err)

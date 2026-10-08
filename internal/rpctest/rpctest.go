@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,6 +36,10 @@ type Options struct {
 	// UndoDelay is how long sent mail waits; zero means 50ms, so tests
 	// do not wait out the real delay.
 	UndoDelay time.Duration
+	// DataDir holds the database, secrets, blobs and parts; empty means a
+	// fresh temporary directory. Reusing one after Stop restarts maild on
+	// the same data.
+	DataDir string
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -47,6 +52,8 @@ type Server struct {
 	Views   *view.Manager
 	Sync    *mailsync.Manager // nil unless Options.Sync was set
 	Parts   *render.PartsCache
+
+	stop func()
 }
 
 // Start runs a server without the sync engine.
@@ -60,7 +67,10 @@ func StartWith(t testing.TB, o Options) *Server {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	data := t.TempDir()
+	data := o.DataDir
+	if data == "" {
+		data = t.TempDir()
+	}
 	db, err := store.Open(context.Background(), filepath.Join(data, "frostmail.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +131,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	done := make(chan error, 1)
 	go func() { done <- rpc.Serve(ctx, ln, router) }()
-	t.Cleanup(func() {
+	srv.stop = sync.OnceFunc(func() {
 		cancel()
 		select {
 		case err := <-done:
@@ -137,8 +147,14 @@ func StartWith(t testing.TB, o Options) *Server {
 		_ = db.Close()
 		_ = os.RemoveAll(dir)
 	})
+	t.Cleanup(srv.stop)
 	return srv
 }
+
+// Stop shuts the server down now, as a crash between transactions would:
+// sync stops, the socket closes and the database is closed. The test's
+// cleanup does the same; Stop is for restarting on the same DataDir.
+func (s *Server) Stop() { s.stop() }
 
 // Dial connects and completes rpc.hello; the client closes when the test ends.
 func (s *Server) Dial(t testing.TB) *api.Client {

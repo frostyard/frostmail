@@ -344,6 +344,8 @@ func (a *actor) replay(ctx context.Context, cmd *imapx.Session) error {
 		err := a.replayOne(ctx, cmd, op)
 		var imapErr *imap.Error
 		switch {
+		case errors.Is(err, errAfterListing):
+			continue // stays queued for the replay after the first full pass
 		case err == nil:
 			if err := a.m.db.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteOp(ctx, op.ID) }); err != nil {
 				return err

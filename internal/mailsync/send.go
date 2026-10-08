@@ -377,6 +377,13 @@ func (a *actor) replayAppendSent(ctx context.Context, cmd *imapx.Session, op sto
 	if err := json.Unmarshal(op.Payload, &p); err != nil {
 		return err
 	}
+	mbs, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
+	if err != nil {
+		return err
+	}
+	if len(mbs) == 0 {
+		return errAfterListing // never listed: whether there is a Sent mailbox is unknown
+	}
 	sent, err := a.m.db.MailboxByRole(ctx, a.acct.ID, api.MailboxRoleSent)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -405,6 +412,10 @@ func (a *actor) replayAppendSent(ctx context.Context, cmd *imapx.Session, op sto
 	}
 	return a.markSent(ctx, p.Outbox)
 }
+
+// errAfterListing keeps an op queued until the account's mailboxes have
+// been listed; the replay after the first full pass runs it.
+var errAfterListing = errors.New("mailsync: the op waits for the mailbox list")
 
 // markSent moves an accepted row to sent.
 func (a *actor) markSent(ctx context.Context, id int64) error {

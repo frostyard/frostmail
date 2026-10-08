@@ -147,6 +147,10 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 	if err != nil {
 		return false, err
 	}
+	// Ops that needed the mailbox list (a Sent copy on a new account).
+	if err := a.replay(ctx, cmd); err != nil {
+		return false, err
+	}
 	if err := a.settleInterrupted(ctx); err != nil {
 		return false, err
 	}

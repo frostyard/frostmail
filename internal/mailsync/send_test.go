@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -405,5 +406,69 @@ func TestInterruptedSendFoundInSentIsNotResent(t *testing.T) {
 	}
 	if _, err := h.c.Draft().Get(ctx, &api.DraftGetParams{ID: d.ID}); !isCode(err, api.CodeNotFound) {
 		t.Errorf("the draft of a delivered message = %v, want notFound", err)
+	}
+}
+
+// TestCrashAfterAcceptanceSendsOnce stops maild after the SMTP server
+// accepted a message but before its Sent copy was written (IMAP is down),
+// then restarts it on the same data: the copy is written once and the
+// message is not sent again.
+func TestCrashAfterAcceptanceSendsOnce(t *testing.T) {
+	mem := imapxtest.StartMemFull(t)
+	sm := smtpxtest.Start(t, imapxtest.Password)
+	data := t.TempDir()
+	cfg := testConfig
+	cfg.SendRetry = 50 * time.Millisecond
+	ctx := t.Context()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadPort := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+
+	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, DataDir: data})
+	h := &sendHarness{harness: &harness{t: t, srv: srv, c: srv.Dial(t)}, mem: mem, smtp: sm}
+	if _, err := h.c.Events().Subscribe(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	a, err := h.c.Account().Create(ctx, &api.AccountCreateParams{
+		Kind: api.AccountKindIMAP, Email: "ann@x.test", Auth: api.AuthKindPassword,
+		IMAP: api.ServerConfig{Host: "127.0.0.1", Port: int64(deadPort), TLS: api.TLSModeInsecure, Username: imapxtest.Username},
+		SMTP: sm.Config(imapxtest.Username),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.acct = a.ID
+	if err := h.c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: a.ID, Password: imapxtest.Password}); err != nil {
+		t.Fatal(err)
+	}
+	d := h.draft("Once only", []api.Address{bob}, nil, nil)
+	item, err := h.c.Draft().Send(ctx, &api.DraftSendParams{ID: d.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.waitOutbox(item.ID, api.OutboxStateAccepted)
+	srv.Stop()
+
+	srv2 := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, DataDir: data})
+	h2 := &sendHarness{harness: &harness{t: t, srv: srv2, c: srv2.Dial(t), acct: a.ID}, mem: mem, smtp: sm}
+	if _, err := h2.c.Events().Subscribe(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	o := mem.DialOptions()
+	imapCfg := api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username}
+	if _, err := h2.c.Account().Update(ctx, &api.AccountUpdateParams{ID: a.ID, IMAP: &imapCfg}); err != nil {
+		t.Fatal(err)
+	}
+	h2.waitOutbox(item.ID, api.OutboxStateSent)
+	if n := len(sm.Messages()); n != 1 {
+		t.Errorf("SMTP server got %d messages, want 1", n)
+	}
+	sent := h2.serverMessages("Sent")
+	if len(sent) != 1 || !bytes.Equal(sent[0], sm.Messages()[0].Data) {
+		t.Errorf("Sent holds %d messages; want the one sent", len(sent))
 	}
 }
