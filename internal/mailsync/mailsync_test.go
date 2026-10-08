@@ -421,3 +421,30 @@ func TestReadOnlyAccountChangesNothing(t *testing.T) {
 		return err == nil && len(ups) == 1 && ups[0].Flags.Seen
 	})
 }
+
+// account.verify over RPC: a clean sync matches the server. Detection is
+// tested in TestGmailVerify, where no actor can repair the planted
+// differences before the check.
+func TestVerifyAfterACleanSync(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
+	h.waitPhase(api.SyncPhaseIdle)
+	ctx := t.Context()
+	r, err := h.c.Account().Verify(ctx, &api.AccountVerifyParams{ID: h.acct})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox := h.inbox()
+	if !r.Ok || len(r.Mailboxes) == 0 {
+		t.Fatalf("verify after a clean sync = %+v", r)
+	}
+	for _, mb := range r.Mailboxes {
+		if mb.MailboxID == inbox.ID && (mb.Server != 5 || mb.Local != 5) {
+			t.Errorf("INBOX check = %+v, want 5 on both sides", mb)
+		}
+	}
+	if _, err := h.c.Account().Verify(ctx, &api.AccountVerifyParams{ID: 999}); !isCode(err, api.CodeNotFound) {
+		t.Errorf("verify of a missing account = %v", err)
+	}
+}

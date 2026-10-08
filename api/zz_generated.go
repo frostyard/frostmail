@@ -282,13 +282,15 @@ type MailboxCheck struct {
 	Server int64 `json:"server"`
 	// Messages stored locally.
 	Local int64 `json:"local"`
-	// Server UIDs with no local message (at most 20).
+	// Server UIDs with no local message (at most 20). UIDs from the folder's last
+	// UIDNEXT on are new mail, not missing.
 	MissingLocally []int64 `json:"missingLocally"`
-	// Local messages whose UID the server no longer has (at most 20).
+	// Local UIDs the server no longer has (at most 20).
 	MissingOnServer []int64 `json:"missingOnServer"`
-	// Messages whose flags differ.
+	// Messages whose flags differ, leaving out those changed since the last pass
+	// or waiting for a queued action.
 	FlagDiffs int64 `json:"flagDiffs"`
-	// Gmail: messages whose labels differ.
+	// Gmail: messages whose labels differ, with the same exceptions.
 	LabelDiffs int64 `json:"labelDiffs"`
 }
 

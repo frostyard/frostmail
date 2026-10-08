@@ -37,6 +37,7 @@ func newRootCmd() *cobra.Command {
 		newSendCmd(opts),
 		newOutboxCmd(opts),
 		newOAuthCmd(opts),
+		newVerifyCmd(opts),
 	)
 	return root
 }

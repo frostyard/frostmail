@@ -201,10 +201,10 @@ How one synced folder compares with the server.
 | `path` | `string` |  |
 | `server` | `int` | Messages on the server. |
 | `local` | `int` | Messages stored locally. |
-| `missingLocally` | `[]int` | Server UIDs with no local message (at most 20). |
-| `missingOnServer` | `[]int` | Local messages whose UID the server no longer has (at most 20). |
-| `flagDiffs` | `int` | Messages whose flags differ. |
-| `labelDiffs` | `int` | Gmail: messages whose labels differ. |
+| `missingLocally` | `[]int` | Server UIDs with no local message (at most 20). UIDs from the folder's last UIDNEXT on are new mail, not missing. |
+| `missingOnServer` | `[]int` | Local UIDs the server no longer has (at most 20). |
+| `flagDiffs` | `int` | Messages whose flags differ, leaving out those changed since the last pass or waiting for a queued action. |
+| `labelDiffs` | `int` | Gmail: messages whose labels differ, with the same exceptions. |
 
 ### Type `VerifyReport`
 

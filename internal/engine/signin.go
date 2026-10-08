@@ -5,19 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/discover"
+	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-// Sign-in, discovery and the safety check (docs/design/accounts.md). The
-// OAuth flow, discovery and verification arrive in M4 phase 3; until then
-// they report unavailable.
-
-var errM4 = api.Unavailable("this arrives later in M4")
+// Sign-in, discovery and the safety check (docs/design/accounts.md).
 
 func (a accounts) Discover(ctx context.Context, p *api.AccountDiscoverParams) (*api.Discovery, error) {
 	r, err := discover.Discover(ctx, strings.TrimSpace(p.Email), a.Discovery)
@@ -53,8 +51,37 @@ func (a accounts) Authorize(ctx context.Context, p *api.AccountAuthorizeParams) 
 	return &api.AuthorizeResult{URL: u}, nil
 }
 
-func (accounts) Verify(context.Context, *api.AccountVerifyParams) (*api.VerifyReport, error) {
-	return nil, errM4
+func (a accounts) Verify(ctx context.Context, p *api.AccountVerifyParams) (*api.VerifyReport, error) {
+	if a.Sync == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	checks, err := a.Sync.Verify(ctx, p.ID)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return nil, api.NotFound("account %d does not exist", p.ID)
+	case errors.Is(err, mailsync.ErrNotSynced):
+		return nil, api.Unavailable("account %d has not synced yet", p.ID)
+	case err != nil:
+		return nil, api.Unavailable("cannot check account %d: %v", p.ID, err)
+	}
+	r := &api.VerifyReport{AccountID: p.ID, Ok: true, Mailboxes: []api.MailboxCheck{}, CheckedAt: time.Now().UTC()}
+	for _, c := range checks {
+		r.Ok = r.Ok && c.OK()
+		r.Mailboxes = append(r.Mailboxes, api.MailboxCheck{
+			MailboxID: c.MailboxID, Path: c.Path, Server: int64(c.Server), Local: int64(c.Local),
+			MissingLocally: uids(c.MissingLocally), MissingOnServer: uids(c.MissingOnServer),
+			FlagDiffs: int64(c.FlagDiffs), LabelDiffs: int64(c.LabelDiffs),
+		})
+	}
+	return r, nil
+}
+
+func uids(in []uint32) []int64 {
+	out := make([]int64, len(in))
+	for i, u := range in {
+		out[i] = int64(u)
+	}
+	return out
 }
 
 // Oauth implements the oauth domain.

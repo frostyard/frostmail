@@ -14,6 +14,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/discover"
+	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/render"
@@ -32,6 +33,8 @@ type Syncer interface {
 	SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error
 	Move(ctx context.Context, ids []int64, from, to int64) error
 	Delete(ctx context.Context, ids []int64) error
+	// Verify compares an account's synced folders with the server.
+	Verify(ctx context.Context, accountID int64) ([]mailsync.Check, error)
 	// Kick, OutboxChanged and DraftsChanged wake an account's IMAP actor
 	// (queued ops), sender (queued mail) and draft saver.
 	Kick(accountID int64)

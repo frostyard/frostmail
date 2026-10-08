@@ -68,10 +68,10 @@ types:
       - {name: path, type: string}
       - {name: server, type: int, doc: "Messages on the server."}
       - {name: local, type: int, doc: "Messages stored locally."}
-      - {name: missingLocally, type: "[]int", doc: "Server UIDs with no local message (at most 20)."}
-      - {name: missingOnServer, type: "[]int", doc: "Local messages whose UID the server no longer has (at most 20)."}
-      - {name: flagDiffs, type: int, doc: "Messages whose flags differ."}
-      - {name: labelDiffs, type: int, doc: "Gmail: messages whose labels differ."}
+      - {name: missingLocally, type: "[]int", doc: "Server UIDs with no local message (at most 20). UIDs from the folder's last UIDNEXT on are new mail, not missing."}
+      - {name: missingOnServer, type: "[]int", doc: "Local UIDs the server no longer has (at most 20)."}
+      - {name: flagDiffs, type: int, doc: "Messages whose flags differ, leaving out those changed since the last pass or waiting for a queued action."}
+      - {name: labelDiffs, type: int, doc: "Gmail: messages whose labels differ, with the same exceptions."}
   - name: VerifyReport
     doc: The result of account.verify.
     fields:

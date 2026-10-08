@@ -23,6 +23,7 @@ type conn interface {
 	Select(ctx context.Context, path string) (imapx.Selected, error)
 	UIDs(ctx context.Context) ([]uint32, error)
 	SearchMessageID(ctx context.Context, msgid string) ([]uint32, error)
+	FetchFlags(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
 	FetchGmailHeaders(ctx context.Context, uids []uint32) ([]store.MessageHeader, error)
 	FetchGmailChanges(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
 	StoreLabels(ctx context.Context, uids []uint32, add, remove []string) error

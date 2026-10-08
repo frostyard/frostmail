@@ -184,6 +184,14 @@ func (g *gmailModel) FetchGmailChanges(_ context.Context, uids []uint32, since u
 	return out, nil
 }
 
+func (g *gmailModel) FetchFlags(ctx context.Context, uids []uint32, since uint64) ([]store.FlagUpdate, error) {
+	ups, err := g.FetchGmailChanges(ctx, uids, since)
+	for i := range ups {
+		ups[i].Labels = nil
+	}
+	return ups, err
+}
+
 func (g *gmailModel) StoreLabels(_ context.Context, uids []uint32, add, remove []string) error {
 	g.log = append(g.log, fmt.Sprintf("STORE %v +labels %v -labels %v", uids, add, remove))
 	if g.refuse["STORE labels"] {
@@ -844,4 +852,81 @@ func TestGmailDraftCopyIsDeletedThroughTrash(t *testing.T) {
 	e.pass()
 	eq(t, "Drafts after", e.subjects("[Gmail]/Drafts"), []string{"Draft v2"})
 	eq(t, "All Mail after", e.subjects(gAll), []string{"Draft v2"})
+}
+
+func TestGmailVerify(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	a := g.add(gAll, "A", 0, `\Inbox`, "Work")
+	b := g.add(gAll, "B", 0, `\Inbox`)
+	c := g.add(gAll, "C", 0, `\Inbox`)
+	g.add(gTrash, "T", 0)
+	e.pass()
+	checks, err := e.a.m.verify(t.Context(), g, e.a.acct.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paths []string
+	for _, ch := range checks {
+		paths = append(paths, ch.Path)
+		if !ch.OK() {
+			t.Errorf("%s after a clean pass: %+v", ch.Path, ch)
+		}
+	}
+	eq(t, "checked folders", sorted(paths), []string{gAll, gSpam, gTrash})
+
+	// Not differences: A changed in the web UI after the pass, new mail
+	// arrived, and C waits for a queued move to Work. A difference: B's
+	// INBOX label was lost locally by a bug.
+	g.label(a, nil, []string{"Work"})
+	g.add(gAll, "New", 0, `\Inbox`)
+	e.move([]int64{e.id(c.subject)}, "INBOX", "Work")
+	bID := e.id(b.subject)
+	e.query(func(tx *store.Tx) error {
+		_, err := tx.EditGmailLabels(t.Context(), bID, nil, []int64{e.mbs["INBOX"]})
+		return err
+	})
+	checks, err = e.a.m.verify(t.Context(), g, e.a.acct.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ch := range checks {
+		want := 0
+		if ch.Path == gAll {
+			want = 1
+		}
+		if ch.MissingLocally != nil || ch.MissingOnServer != nil || ch.FlagDiffs != 0 || ch.LabelDiffs != want {
+			t.Errorf("%s = %+v, want only %d label differences", ch.Path, ch, want)
+		}
+	}
+
+	// More bugs: B marked read locally only, T lost from the store, and a
+	// copy of X kept locally after the server expunged it.
+	x := g.add(gTrash, "X", 0)
+	e.pass()
+	tUID := g.find("T").uid
+	e.query(func(tx *store.Tx) error {
+		if _, err := tx.ExecContext(t.Context(), `UPDATE messages SET seen = 1 WHERE id = ?`, bID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(t.Context(), `DELETE FROM message_mailbox WHERE mailbox_id = ? AND uid = ?`, e.mbs[gTrash], tUID)
+		return err
+	})
+	g.msgs = slices.DeleteFunc(g.msgs, func(m *gmMsg) bool { return m == x })
+	checks, err = e.a.m.verify(t.Context(), g, e.a.acct.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ch := range checks {
+		switch ch.Path {
+		case gAll:
+			if ch.FlagDiffs != 1 {
+				t.Errorf("All Mail = %+v, want one flag difference", ch)
+			}
+		case gTrash:
+			if !slices.Equal(ch.MissingLocally, []uint32{tUID}) || !slices.Equal(ch.MissingOnServer, []uint32{x.uid}) {
+				t.Errorf("Trash = %+v, want T missing here and X missing on the server", ch)
+			}
+		}
+	}
 }

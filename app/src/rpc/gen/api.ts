@@ -118,13 +118,19 @@ export interface MailboxCheck {
   server: number;
   /** Messages stored locally. */
   local: number;
-  /** Server UIDs with no local message (at most 20). */
+  /**
+   * Server UIDs with no local message (at most 20). UIDs from the folder's
+   * last UIDNEXT on are new mail, not missing.
+   */
   missingLocally: number[];
-  /** Local messages whose UID the server no longer has (at most 20). */
+  /** Local UIDs the server no longer has (at most 20). */
   missingOnServer: number[];
-  /** Messages whose flags differ. */
+  /**
+   * Messages whose flags differ, leaving out those changed since the last
+   * pass or waiting for a queued action.
+   */
   flagDiffs: number;
-  /** Gmail: messages whose labels differ. */
+  /** Gmail: messages whose labels differ, with the same exceptions. */
   labelDiffs: number;
 }
 
