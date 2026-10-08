@@ -323,3 +323,29 @@ func TestFlagChangesReplayToServer(t *testing.T) {
 		t.Fatal("setFlags on a missing message succeeded")
 	}
 }
+
+// A local flag change moves mailbox counts, so clients showing them must hear
+// mailbox.changed, as they do for changes found on the server.
+func TestLocalFlagChangeAnnouncesMailboxCounts(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
+	h.waitPhase(api.SyncPhaseIdle)
+	ctx := t.Context()
+	inbox := h.inbox()
+	v, err := h.c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{MailboxID: &inbox.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := h.c.View().Range(ctx, &api.ViewRangeParams{ID: v.ID, Start: 0, End: 1})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("rows = %v, %v", rows, err)
+	}
+	if err := h.c.Message().SetFlags(ctx, &api.MessageSetFlagsParams{IDs: []int64{rows[0].ID}, Changes: api.FlagChanges{Seen: ptr(!rows[0].Flags.Seen)}}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(5*time.Second, "mailbox.changed for INBOX", func(_ api.EventEnvelope, ev api.Event) bool {
+		c, ok := ev.(api.MailboxChanged)
+		return ok && c.ID == inbox.ID
+	})
+}

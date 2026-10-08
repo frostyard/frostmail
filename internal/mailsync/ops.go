@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
@@ -88,6 +89,16 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 			accounts[acct] = true
 			if err := emitChanged(ctx, tx, acct, intersect(changed, msgs)); err != nil {
 				return err
+			}
+		}
+		// Changed flags move the counts of every mailbox holding the messages.
+		touched := map[int64]bool{}
+		for _, mem := range mems {
+			if !touched[mem.MailboxID] && slices.Contains(changed, mem.MessageID) {
+				touched[mem.MailboxID] = true
+				if err := tx.Emit(ctx, api.MailboxChanged{ID: mem.MailboxID, AccountID: mem.AccountID}); err != nil {
+					return err
+				}
 			}
 		}
 		return refreshThreadsOf(ctx, tx, changed)
