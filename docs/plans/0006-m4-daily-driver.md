@@ -174,6 +174,14 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   refused over IMAP (expected) and there was no way to replace a stored
   password, so `mailctl account password` was added; Gmail accounts now
   drop the spaces Google shows in app passwords.
+- **Real iCloud, read-only (2026-10-08):** app-specific password; first
+  sync of 5,231 messages in 12 folders in about 7½ minutes (EXAMINE only),
+  verify clean in every folder. iCloud marks its own folders with \Sent
+  and \Trash without advertising SPECIAL-USE. Found: on an account other
+  clients had used, "Sent Items" and "Trash" took the sent and trash roles
+  from iCloud's "Sent Messages" and "Deleted Messages" (fixed: roles the
+  server states win over names); and opening a message waited for the
+  first sync's passes (fixed: bodies come over their own connection, C3).
 
 ## Later / ideas
 
