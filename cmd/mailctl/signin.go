@@ -100,6 +100,7 @@ func newOAuthShowCmd(opts *rootOptions) *cobra.Command {
 func newAccountConnectCmd(opts *rootOptions) *cobra.Command {
 	var name string
 	var useOAuth, passwordStdin, readOnly, noNotify, noWait bool
+	var syncDays int64
 	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "connect EMAIL",
@@ -149,6 +150,7 @@ func newAccountConnectCmd(opts *rootOptions) *cobra.Command {
 				SMTP:        disc.SMTP,
 				ReadOnly:    &readOnly,
 				Notify:      &notify,
+				SyncDays:    &syncDays,
 			})
 			if err != nil {
 				return err
@@ -169,6 +171,7 @@ func newAccountConnectCmd(opts *rootOptions) *cobra.Command {
 	cmd.Flags().BoolVar(&passwordStdin, "password-stdin", false, "read the password from the first line of stdin")
 	cmd.Flags().BoolVar(&readOnly, "read-only", false, "never change anything on the server")
 	cmd.Flags().BoolVar(&noNotify, "no-notify", false, "do not notify on new mail")
+	cmd.Flags().Int64Var(&syncDays, "sync-days", 0, "keep the mail of the last `n` days; 0 keeps every message")
 	cmd.Flags().BoolVar(&noWait, "no-wait", false, "print the sign-in address and return without waiting")
 	cmd.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "how long to wait for the sign-in")
 	return cmd

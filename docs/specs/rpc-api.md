@@ -57,6 +57,7 @@ Add an account. The email address must be unique. Gmail and iCloud accounts may 
 | `smtp` | `ServerConfig` (optional) |  |
 | `readOnly` | `bool` (optional) | Default false. |
 | `notify` | `bool` (optional) | Default true. |
+| `syncDays` | `int` (optional) | Default 0: every message. At most 36500. |
 
 Result: `Account`.
 Errors: `invalidParams`, `conflict`.
@@ -73,6 +74,7 @@ Change an account's settings. Omitted fields keep their values.
 | `smtp` | `ServerConfig` (optional) |  |
 | `readOnly` | `bool` (optional) |  |
 | `notify` | `bool` (optional) |  |
+| `syncDays` | `int` (optional) | A new window: the next pass fetches what it adds and drops what it leaves. |
 
 Result: `Account`.
 Errors: `invalidParams`, `notFound`.
@@ -169,6 +171,7 @@ A configured mail account.
 | `createdAt` | `time` |  |
 | `readOnly` | `bool` | maild makes no changes on the server: no flags, moves, deletes, sends or draft copies. |
 | `notify` | `bool` | New mail in the inbox shows a desktop notification. |
+| `syncDays` | `int` | maild keeps the messages that arrived in the last syncDays days; 0 keeps every message (ADR-0016). |
 | `signedIn` | `bool` | A password or OAuth token is stored and the server has not refused it. |
 
 ### Type `Discovery`

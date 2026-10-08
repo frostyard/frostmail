@@ -202,12 +202,24 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   iCloud marks `\Sent` and `\Trash` in LIST without SPECIAL-USE, answers
   EXAMINE with `[READ-WRITE]` and reports HIGHESTMODSEQ 0 for empty
   folders.
+- **Real Gmail, read-only (2026-10-08):** added from the app's Settings
+  with Google sign-in (the user's client). All Mail holds 688,585
+  messages: the first sync stored about 500 a minute at about 4.2 KB each,
+  so it would have run about 23 hours and downloaded about 2.9 GB, over
+  Gmail's 2,500 MB daily IMAP limit. Fixed by the sync window
+  ([ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md)), set to 365
+  days for this account (about 42,000 messages). Found: after Add Account,
+  the Settings window switched its form to the first account before the
+  account list caught up, so the user's next edit (Read only) changed the
+  throwaway account (fixed).
 
 ## Later / ideas
 
 - Microsoft (Outlook.com, Microsoft 365) profile and OAuth: when an
   account needs it; tenant admin consent documented.
 - Gmail categories (Primary, Promotions) via `X-GM-RAW`: M5 spike.
+- The sync window in Settings (a "Keep mail from" choice) and server search
+  for mail outside it (`UID SEARCH`, `X-GM-RAW` on Gmail).
 - Contacts beyond seen addresses (CardDAV): after M6.
 
 ## References

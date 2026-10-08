@@ -31,6 +31,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0013 — The app installs as a local Flatpak; maild stays on the host](adr/0013-app-as-a-local-flatpak.md)
 - [0014 — Images reach the reader's frame as data: URLs](adr/0014-images-embedded-in-the-reader-frame.md)
 - [0015 — Use a Frostyard mail icon](adr/0015-use-a-frostyard-mail-icon.md)
+- [0016 — Sync a window of recent mail](adr/0016-sync-a-window-of-recent-mail.md)
 
 ### Design
 

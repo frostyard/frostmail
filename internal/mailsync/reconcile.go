@@ -50,8 +50,8 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		return err
 	}
 	server := local
-	if !ok || sel.UIDNext != st.UIDNext || sel.Messages != st.ServerCount || uint32(len(local)) != sel.Messages {
-		if server, err = cmd.UIDs(ctx); err != nil {
+	if now := time.Now(); a.mustSearch(ok, st, sel, len(local), now) {
+		if server, err = cmd.UIDsSince(ctx, windowAt(a.acct.SyncDays, now)); err != nil {
 			return err
 		}
 	}

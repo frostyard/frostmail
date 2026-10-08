@@ -48,6 +48,7 @@ types:
       - {name: createdAt, type: time}
       - {name: readOnly, type: bool, doc: "maild makes no changes on the server: no flags, moves, deletes, sends or draft copies."}
       - {name: notify, type: bool, doc: "New mail in the inbox shows a desktop notification."}
+      - {name: syncDays, type: int, doc: "maild keeps the messages that arrived in the last syncDays days; 0 keeps every message (ADR-0016)."}
       - {name: signedIn, type: bool, doc: "A password or OAuth token is stored and the server has not refused it."}
   - name: Discovery
     doc: Server settings found for an address.
@@ -102,6 +103,7 @@ methods:
       - {name: smtp, type: ServerConfig, optional: true}
       - {name: readOnly, type: bool, optional: true, doc: "Default false."}
       - {name: notify, type: bool, optional: true, doc: "Default true."}
+      - {name: syncDays, type: int, optional: true, doc: "Default 0: every message. At most 36500."}
     result: Account
     errors: [invalidParams, conflict]
   - name: update
@@ -113,6 +115,7 @@ methods:
       - {name: smtp, type: ServerConfig, optional: true}
       - {name: readOnly, type: bool, optional: true}
       - {name: notify, type: bool, optional: true}
+      - {name: syncDays, type: int, optional: true, doc: "A new window: the next pass fetches what it adds and drops what it leaves."}
     result: Account
     errors: [invalidParams, notFound]
   - name: delete

@@ -147,6 +147,7 @@ export class MockTransport implements Transport {
       createdAt: new Date().toISOString(),
       readOnly: p.readOnly ?? false,
       notify: p.notify ?? true,
+      syncDays: p.syncDays ?? 0,
       signedIn: p.auth === "password",
     };
     this.accounts.push(a);
@@ -161,6 +162,7 @@ export class MockTransport implements Transport {
     if (p.smtp) a.smtp = p.smtp;
     if (p.readOnly !== undefined) a.readOnly = p.readOnly;
     if (p.notify !== undefined) a.notify = p.notify;
+    if (p.syncDays !== undefined) a.syncDays = p.syncDays;
     this.accountChanged(a.id);
     return { ...a };
   }

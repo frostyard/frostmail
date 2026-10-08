@@ -19,6 +19,7 @@ function account(id: number, email: string): Account {
     createdAt: "2026-10-01T00:00:00Z",
     readOnly: false,
     notify: true,
+    syncDays: 0,
     signedIn: true,
   };
 }

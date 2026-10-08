@@ -22,6 +22,7 @@ type Account struct {
 	CreatedAt   time.Time
 	ReadOnly    bool // maild makes no changes on the server
 	Notify      bool // new inbox mail shows a desktop notification
+	SyncDays    int  // keep the messages of the last SyncDays days; 0 keeps all (ADR-0016)
 	NeedsReauth bool // the server or OAuth provider refused the stored credential
 }
 
@@ -40,11 +41,12 @@ type AccountUpdate struct {
 	SMTP        *ServerConfig
 	ReadOnly    *bool
 	Notify      *bool
+	SyncDays    *int
 }
 
 const accountColumns = `SELECT id, kind, email, display_name, auth,
 	imap_host, imap_port, imap_tls, imap_username,
-	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, needs_reauth
+	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days, needs_reauth
 	FROM accounts`
 
 func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
@@ -53,7 +55,7 @@ func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
 	err := row.Scan(&a.ID, &a.Kind, &a.Email, &a.DisplayName, &a.Auth,
 		&a.IMAP.Host, &a.IMAP.Port, &a.IMAP.TLS, &a.IMAP.Username,
 		&a.SMTP.Host, &a.SMTP.Port, &a.SMTP.TLS, &a.SMTP.Username,
-		&createdAt, &a.ReadOnly, &a.Notify, &a.NeedsReauth)
+		&createdAt, &a.ReadOnly, &a.Notify, &a.SyncDays, &a.NeedsReauth)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
@@ -77,12 +79,12 @@ func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
 	res, err := t.ExecContext(ctx, `INSERT INTO accounts (
 		kind, email, display_name, auth,
 		imap_host, imap_port, imap_tls, imap_username,
-		smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Kind, a.Email, a.DisplayName, a.Auth,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
-		FormatTime(createdAt), a.ReadOnly, a.Notify)
+		FormatTime(createdAt), a.ReadOnly, a.Notify, a.SyncDays)
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return Account{}, ErrConflict
@@ -165,22 +167,34 @@ func (t *Tx) UpdateAccount(ctx context.Context, id int64, u AccountUpdate) (Acco
 	if u.Notify != nil {
 		a.Notify = *u.Notify
 	}
+	window := u.SyncDays != nil && *u.SyncDays != a.SyncDays
+	if u.SyncDays != nil {
+		a.SyncDays = *u.SyncDays
+	}
 	_, err = t.ExecContext(ctx, `UPDATE accounts SET
 		display_name = ?,
 		imap_host = ?, imap_port = ?, imap_tls = ?, imap_username = ?,
 		smtp_host = ?, smtp_port = ?, smtp_tls = ?, smtp_username = ?,
-		read_only = ?, notify = ?
+		read_only = ?, notify = ?, sync_days = ?
 		WHERE id = ?`,
 		a.DisplayName,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
-		a.ReadOnly, a.Notify,
+		a.ReadOnly, a.Notify, a.SyncDays,
 		id)
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return Account{}, ErrConflict
 		}
 		return Account{}, fmt.Errorf("update account: %w", err)
+	}
+	if window {
+		// A new window: the fast path must not skip the next pass, which
+		// fetches what the window adds and drops what it leaves.
+		if _, err := t.ExecContext(ctx, `UPDATE mailboxes SET highestmodseq = 0, server_count = NULL
+			WHERE account_id = ?`, id); err != nil {
+			return Account{}, fmt.Errorf("update account: %w", err)
+		}
 	}
 	if err := t.Emit(ctx, api.AccountChanged{ID: id}); err != nil {
 		return Account{}, err

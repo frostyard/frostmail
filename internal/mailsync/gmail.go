@@ -22,7 +22,7 @@ type conn interface {
 	Capabilities() imapx.Capabilities
 	Select(ctx context.Context, path string) (imapx.Selected, error)
 	Status(ctx context.Context, path string) (imapx.Selected, error)
-	UIDs(ctx context.Context) ([]uint32, error)
+	UIDsSince(ctx context.Context, since time.Time) ([]uint32, error)
 	SearchMessageID(ctx context.Context, msgid string) ([]uint32, error)
 	FetchFlags(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
 	FetchGmailHeaders(ctx context.Context, uids []uint32) ([]store.MessageHeader, error)
@@ -141,8 +141,8 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 		return err
 	}
 	server := local
-	if !ok || sel.UIDNext != st.UIDNext || sel.Messages != st.ServerCount || uint32(len(local)) != sel.Messages {
-		if server, err = conn.UIDs(ctx); err != nil {
+	if now := time.Now(); a.mustSearch(ok, st, sel, len(local), now) {
+		if server, err = conn.UIDsSince(ctx, windowAt(a.acct.SyncDays, now)); err != nil {
 			return err
 		}
 	}

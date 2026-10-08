@@ -36,8 +36,20 @@ Gmail. The preview comes from a partial fetch of the first text part chosen
 from BODYSTRUCTURE: `BINARY.PEEK[part]<0.2048>` with BINARY, else
 `BODY.PEEK[part]<0.2048>` decoded locally (`mimex.DecodePart`). Bodies are
 fetched when opened (P0) and prefetched for INBOX and VIPs within 90 days
-(P4). Headers are backfilled down to the configured window; search beyond it
-falls back to server `UID SEARCH` (`X-GM-RAW` on Gmail).
+(P4).
+
+**The sync window** ([ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md)):
+an account keeps the messages that arrived in its last `syncDays` days (0
+keeps everything). A pass that searches asks for
+`UID SEARCH SINCE <first day>` instead of every UID, so S is the window:
+older stored messages leave the store as deleted ones do, and a wider
+window fetches what it adds. Without a window a pass searches when UIDNEXT
+or the count moved or the store's count differs from the server's; with
+one, when UIDNEXT or the count moved or the window's first day moved since
+the last pass (`internal/mailsync/window.go`). Changing `syncDays` clears
+the mailboxes' sync state, so the fast path does not skip the next pass.
+Mail outside the window is reached through the server (server search, with
+`X-GM-RAW` on Gmail, is later work).
 
 ## The reconcile pass
 
@@ -48,9 +60,10 @@ Every sync of a mailbox, initial or incremental, is one reconcile pass
    UIDVALIDITY with the stored value; on a change, see below.
 2. **Fast path:** if UIDNEXT, HIGHESTMODSEQ and the message count all equal
    the stored state, the pass ends.
-3. **Server UIDs:** if UIDNEXT or the count changed, ESEARCH
-   `UID SEARCH RETURN (ALL) ALL` (plain `UID SEARCH ALL` without ESEARCH)
-   gives the server set S; L is the local set.
+3. **Server UIDs:** if UIDNEXT or the count changed (or the sync window
+   moved, above), ESEARCH `UID SEARCH RETURN (ALL) ALL`, or `SINCE` the
+   window's first day (plain `UID SEARCH` without ESEARCH), gives the server
+   set S; L is the local set.
 4. **New:** fetch headers for S \ L, newest first, in chunks of 500. Each
    chunk is one transaction: insert (idempotent on `(mailbox, uid)`), thread,
    index, emit `message.changed`.

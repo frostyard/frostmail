@@ -82,6 +82,17 @@ does not mark messages read on such accounts and shows "Read-only" in the
 toolbar subtitle. New accounts in M4's trial start read-only (a checkbox
 in the add-account form, on by default until M5).
 
+## Sync window
+
+An account keeps the mail of its last `syncDays` days (`account.syncDays`,
+0 for everything, set at creation or with `account.update`;
+[ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md)): a big account
+syncs in an hour rather than a day and stays within Gmail's 2,500 MB daily
+IMAP download limit. `mailctl account set ID --sync-days N` changes it (and
+`--read-only`/`--read-write`, `--notify`/`--no-notify`); `mailctl account
+connect --sync-days N` sets it at creation. Verify compares the window the
+folder's last pass kept.
+
 ## Safety check
 
 `mailctl verify ACCOUNT` (`account.verify`) compares the store with the

@@ -65,6 +65,7 @@ export function mockData(opts: FixtureOptions = {}): MockData {
       createdAt: "2026-01-01T00:00:00Z",
       readOnly: false,
       notify: true,
+      syncDays: 0,
       signedIn: true,
     },
   ];

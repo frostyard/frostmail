@@ -52,6 +52,7 @@ type gmMsg struct {
 	flags      []string
 	modseq     uint64
 	subject    string
+	arrived    time.Time // INTERNALDATE, for SEARCH SINCE
 }
 
 func newGmailModel() *gmailModel {
@@ -75,7 +76,7 @@ func (g *gmailModel) add(folder, subject string, thread uint64, labels ...string
 	if thread == 0 {
 		thread = g.nextID
 	}
-	m := &gmMsg{id: g.nextID, thread: thread, subject: subject, labels: labels}
+	m := &gmMsg{id: g.nextID, thread: thread, subject: subject, labels: labels, arrived: time.Now()}
 	g.msgs = append(g.msgs, m)
 	g.place(m, folder)
 	return m
@@ -159,11 +160,17 @@ func (g *gmailModel) Status(_ context.Context, path string) (imapx.Selected, err
 	return imapx.Selected{UIDValidity: f.validity, UIDNext: f.next, HighestModSeq: g.modseq, Messages: uint32(len(g.in(path)))}, nil
 }
 
-func (g *gmailModel) UIDs(context.Context) ([]uint32, error) {
-	g.log = append(g.log, "UID SEARCH")
+func (g *gmailModel) UIDsSince(_ context.Context, since time.Time) ([]uint32, error) {
+	if since.IsZero() {
+		g.log = append(g.log, "UID SEARCH")
+	} else {
+		g.log = append(g.log, "UID SEARCH SINCE "+since.Format("2-Jan-2006"))
+	}
 	uids := []uint32{}
 	for _, m := range g.in(g.selected) {
-		uids = append(uids, g.uidIn(m, g.selected))
+		if !m.arrived.Before(since) {
+			uids = append(uids, g.uidIn(m, g.selected))
+		}
 	}
 	return uids, nil
 }
@@ -618,7 +625,7 @@ func TestGmailModelRefusesUnmodeled(t *testing.T) {
 		if _, err := g.Select(t.Context(), from); err != nil {
 			t.Fatal(err)
 		}
-		uids, _ := g.UIDs(t.Context())
+		uids, _ := g.UIDsSince(t.Context(), time.Time{})
 		if _, err := g.Move(t.Context(), uids, "INBOX"); err == nil {
 			t.Errorf("moving from %s to a label folder should fail in the model", from)
 		}
@@ -996,4 +1003,84 @@ func TestGmailPollFindsWebChanges(t *testing.T) {
 		t.Errorf("a web label change did not start a pass: %q", log)
 	}
 	eq(t, "Work", e.subjects("Work"), []string{"Welcome"})
+}
+
+// window sets the account's sync window, in the store and in the actor.
+func (e *gmailEnv) window(days int) {
+	e.t.Helper()
+	e.query(func(tx *store.Tx) error {
+		_, err := tx.UpdateAccount(e.t.Context(), e.a.acct.ID, store.AccountUpdate{SyncDays: &days})
+		return err
+	})
+	e.a.acct.SyncDays = days
+}
+
+// The sync window on Gmail (ADR-0016): each synced folder is searched
+// SINCE the window's first day, so mail that arrived before it is not
+// stored, and verify compares the same window. A narrower window drops a
+// message from the store, labels and all.
+func TestGmailWindow(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	old := g.add(gAll, "Old", 0, `\Inbox`, "Work")
+	old.arrived = time.Now().AddDate(-2, 0, 0)
+	month := g.add(gAll, "Last month", 0, `\Inbox`)
+	month.arrived = time.Now().AddDate(0, 0, -30)
+	g.add(gAll, "Today", 0, `\Inbox`)
+	e.window(365)
+	log := e.pass()
+	since := "UID SEARCH SINCE " + windowAt(365, time.Now()).Format("2-Jan-2006")
+	if !slices.Contains(log, since) {
+		t.Errorf("the pass did not search the window: %q", log)
+	}
+	eq(t, "INBOX", e.subjects("INBOX"), []string{"Last month", "Today"})
+	eq(t, "Work", e.subjects("Work"), []string{})
+	checks, err := e.a.m.verify(t.Context(), g, e.a.acct.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ch := range checks {
+		if !ch.OK() {
+			t.Errorf("%s with a window: %+v", ch.Path, ch)
+		}
+	}
+
+	e.window(7)
+	e.pass()
+	eq(t, "INBOX after narrowing", e.subjects("INBOX"), []string{"Today"})
+	if n := e.count(`SELECT COUNT(*) FROM messages`); n != 1 {
+		t.Errorf("%d messages stored, want only today's", n)
+	}
+}
+
+// A pass searches the server when it must: first, when messages arrived
+// or left, and when the window's first day moved (or, with no window,
+// when the store's count differs from the server's).
+func TestMustSearch(t *testing.T) {
+	last := time.Date(2026, 10, 8, 23, 0, 0, 0, time.UTC)
+	st := store.SyncState{UIDNext: 10, ServerCount: 5, LastSyncAt: last}
+	sel := imapx.Selected{UIDNext: 10, Messages: 5}
+	a := &actor{acct: store.Account{SyncDays: 30}}
+	for _, c := range []struct {
+		what   string
+		ok     bool
+		sel    imapx.Selected
+		stored int
+		now    time.Time
+		want   bool
+	}{
+		{"first pass", false, sel, 3, last, true},
+		{"nothing moved, same day", true, sel, 3, last.Add(30 * time.Minute), false},
+		{"the window's first day moved", true, sel, 3, last.Add(2 * time.Hour), true},
+		{"new mail", true, imapx.Selected{UIDNext: 11, Messages: 6}, 3, last, true},
+		{"mail left", true, imapx.Selected{UIDNext: 10, Messages: 4}, 3, last, true},
+	} {
+		if got := a.mustSearch(c.ok, st, c.sel, c.stored, c.now); got != c.want {
+			t.Errorf("%s: mustSearch = %v, want %v", c.what, got, c.want)
+		}
+	}
+	a.acct.SyncDays = 0
+	if !a.mustSearch(true, st, sel, 3, last) || a.mustSearch(true, st, sel, 5, last.Add(48*time.Hour)) {
+		t.Error("without a window, a pass must search when the counts differ, and only then")
+	}
 }

@@ -287,6 +287,13 @@ func (s *Session) Status(ctx context.Context, path string) (Selected, error) {
 
 // UIDs returns every UID in the selected mailbox, ascending.
 func (s *Session) UIDs(ctx context.Context) ([]uint32, error) {
+	return s.UIDsSince(ctx, time.Time{})
+}
+
+// UIDsSince returns the UIDs of the messages in the selected mailbox that
+// arrived on since's day or later (SEARCH SINCE, by INTERNALDATE), or
+// every UID when since is zero; ascending.
+func (s *Session) UIDsSince(ctx context.Context, since time.Time) ([]uint32, error) {
 	var d *imap.SearchData
 	err := s.run(ctx, func() error {
 		var opts *imap.SearchOptions
@@ -294,7 +301,7 @@ func (s *Session) UIDs(ctx context.Context) ([]uint32, error) {
 			opts = &imap.SearchOptions{ReturnAll: true}
 		}
 		var err error
-		d, err = s.c.UIDSearch(&imap.SearchCriteria{}, opts).Wait()
+		d, err = s.c.UIDSearch(&imap.SearchCriteria{Since: since}, opts).Wait()
 		return err
 	})
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx"
@@ -75,6 +76,10 @@ func (m *Manager) verify(ctx context.Context, cmd conn, accountID int64) ([]Chec
 	if err != nil {
 		return nil, err
 	}
+	acct, err := m.db.GetAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
 	mailboxes, err := m.db.ListMailboxes(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -91,7 +96,7 @@ func (m *Manager) verify(ctx context.Context, cmd conn, accountID int64) ([]Chec
 		if !ok {
 			continue // never reconciled: \Noselect, or not reached yet
 		}
-		c, err := m.verifyFolder(ctx, cmd, mb, st, gmail && mb.Role == api.MailboxRoleAll, labels)
+		c, err := m.verifyFolder(ctx, cmd, mb, st, windowAt(acct.SyncDays, st.LastSyncAt), gmail && mb.Role == api.MailboxRoleAll, labels)
 		if err != nil {
 			return nil, err
 		}
@@ -103,12 +108,15 @@ func (m *Manager) verify(ctx context.Context, cmd conn, accountID int64) ([]Chec
 	return out, nil
 }
 
-func (m *Manager) verifyFolder(ctx context.Context, cmd conn, mb store.Mailbox, st store.SyncState, allMail bool, labels map[string]int64) (Check, error) {
+// verifyFolder compares one folder over the window its last pass kept
+// (since; zero for every message): mail that aged out after that pass is
+// not a difference.
+func (m *Manager) verifyFolder(ctx context.Context, cmd conn, mb store.Mailbox, st store.SyncState, since time.Time, allMail bool, labels map[string]int64) (Check, error) {
 	c := Check{MailboxID: mb.ID, Path: mb.Path}
 	if _, err := cmd.Select(ctx, mb.Path); err != nil {
 		return c, err
 	}
-	server, err := cmd.UIDs(ctx)
+	server, err := cmd.UIDsSince(ctx, since)
 	if err != nil {
 		return c, err
 	}

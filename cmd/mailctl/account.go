@@ -92,6 +92,7 @@ func newAccountCmd(opts *rootOptions) *cobra.Command {
 		newAccountListCmd(opts),
 		newAccountRmCmd(opts),
 		newAccountPasswordCmd(opts),
+		newAccountSetCmd(opts),
 	)
 	return cmd
 }

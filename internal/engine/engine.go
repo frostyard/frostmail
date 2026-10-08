@@ -156,10 +156,17 @@ func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.
 	if err != nil {
 		return nil, err
 	}
+	days, err := syncDays(p.SyncDays)
+	if err != nil {
+		return nil, err
+	}
 	in := store.Account{
 		Kind: p.Kind, Email: p.Email, DisplayName: p.DisplayName, Auth: p.Auth,
 		IMAP: toStoreServer(imapCfg), SMTP: toStoreServer(smtpCfg),
 		ReadOnly: p.ReadOnly != nil && *p.ReadOnly, Notify: p.Notify == nil || *p.Notify,
+	}
+	if days != nil {
+		in.SyncDays = *days
 	}
 	var out store.Account
 	err = a.DB.Tx(ctx, func(tx *store.Tx) error {
@@ -176,7 +183,11 @@ func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.
 }
 
 func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.Account, error) {
-	u := store.AccountUpdate{DisplayName: p.DisplayName, ReadOnly: p.ReadOnly, Notify: p.Notify}
+	days, err := syncDays(p.SyncDays)
+	if err != nil {
+		return nil, err
+	}
+	u := store.AccountUpdate{DisplayName: p.DisplayName, ReadOnly: p.ReadOnly, Notify: p.Notify, SyncDays: days}
 	for _, s := range []struct {
 		in  *api.ServerConfig
 		out **store.ServerConfig
@@ -192,7 +203,7 @@ func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.
 		*s.out = &sc
 	}
 	var out store.Account
-	err := a.DB.Tx(ctx, func(tx *store.Tx) error {
+	err = a.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		out, err = tx.UpdateAccount(ctx, p.ID, u)
 		return err
@@ -296,13 +307,28 @@ func (a accounts) toAPI(ctx context.Context, acct store.Account) api.Account {
 	r := api.Account{
 		ID: acct.ID, Kind: acct.Kind, Email: acct.Email, DisplayName: acct.DisplayName, Auth: acct.Auth,
 		IMAP: toAPIServer(acct.IMAP), SMTP: toAPIServer(acct.SMTP), CreatedAt: acct.CreatedAt,
-		ReadOnly: acct.ReadOnly, Notify: acct.Notify,
+		ReadOnly: acct.ReadOnly, Notify: acct.Notify, SyncDays: int64(acct.SyncDays),
 	}
 	if !acct.NeedsReauth && a.Secrets != nil {
 		_, err := a.Secrets.Get(ctx, secrets.Credential(acct.ID, acct.Auth == api.AuthKindOAuth2))
 		r.SignedIn = err == nil
 	}
 	return r
+}
+
+// maxSyncDays bounds the sync window: a hundred years is every message.
+const maxSyncDays = 36500
+
+// syncDays checks a requested sync window (ADR-0016); nil leaves it as is.
+func syncDays(p *int64) (*int, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if *p < 0 || *p > maxSyncDays {
+		return nil, api.InvalidParams("syncDays must be between 0 (every message) and %d", maxSyncDays)
+	}
+	d := int(*p)
+	return &d, nil
 }
 
 func toAPIServer(s store.ServerConfig) api.ServerConfig {

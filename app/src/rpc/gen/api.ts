@@ -87,6 +87,11 @@ export interface Account {
   readOnly: boolean;
   /** New mail in the inbox shows a desktop notification. */
   notify: boolean;
+  /**
+   * maild keeps the messages that arrived in the last syncDays days; 0 keeps
+   * every message (ADR-0016).
+   */
+  syncDays: number;
   /** A password or OAuth token is stored and the server has not refused it. */
   signedIn: boolean;
 }
@@ -163,6 +168,8 @@ export interface AccountCreateParams {
   readOnly?: boolean;
   /** Default true. */
   notify?: boolean;
+  /** Default 0: every message. At most 36500. */
+  syncDays?: number;
 }
 
 /** Params of account.update. */
@@ -173,6 +180,11 @@ export interface AccountUpdateParams {
   smtp?: ServerConfig;
   readOnly?: boolean;
   notify?: boolean;
+  /**
+   * A new window: the next pass fetches what it adds and drops what it
+   * leaves.
+   */
+  syncDays?: number;
 }
 
 /** Params of account.delete. */

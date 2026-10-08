@@ -253,6 +253,9 @@ type Account struct {
 	ReadOnly bool `json:"readOnly"`
 	// New mail in the inbox shows a desktop notification.
 	Notify bool `json:"notify"`
+	// maild keeps the messages that arrived in the last syncDays days; 0 keeps
+	// every message (ADR-0016).
+	SyncDays int64 `json:"syncDays"`
 	// A password or OAuth token is stored and the server has not refused it.
 	SignedIn bool `json:"signedIn"`
 }
@@ -323,6 +326,8 @@ type AccountCreateParams struct {
 	ReadOnly *bool `json:"readOnly,omitzero"`
 	// Default true.
 	Notify *bool `json:"notify,omitzero"`
+	// Default 0: every message. At most 36500.
+	SyncDays *int64 `json:"syncDays,omitzero"`
 }
 
 // AccountUpdateParams holds the params of account.update.
@@ -333,6 +338,8 @@ type AccountUpdateParams struct {
 	SMTP        *ServerConfig `json:"smtp,omitzero"`
 	ReadOnly    *bool         `json:"readOnly,omitzero"`
 	Notify      *bool         `json:"notify,omitzero"`
+	// A new window: the next pass fetches what it adds and drops what it leaves.
+	SyncDays *int64 `json:"syncDays,omitzero"`
 }
 
 // AccountDeleteParams holds the params of account.delete.
