@@ -177,3 +177,20 @@ func syncTemp(tmp *os.File, data []byte) error {
 	}
 	return nil
 }
+
+// All returns every stored secret (for moving them to another store).
+func (f *File) All() (map[string]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.read()
+}
+
+// Remove deletes the file; a missing file is not an error.
+func (f *File) Remove() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := os.Remove(f.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("secrets: remove %s: %w", f.path, err)
+	}
+	return nil
+}

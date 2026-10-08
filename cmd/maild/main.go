@@ -83,7 +83,12 @@ func run(ctx context.Context, args []string) error {
 		broker.Publish(evs)
 		views.OnCommit(evs)
 	}
-	sec := secrets.NewFile(filepath.Join(paths.DataDir, "secrets.json"))
+	// The Secret Service when the desktop has one; FROSTMAIL_SECRETS=file
+	// keeps a development or test maild out of the user's keyring.
+	sec, err := secrets.Open(ctx, filepath.Join(paths.DataDir, "secrets.json"), logger)
+	if err != nil {
+		return err
+	}
 	blobs := blob.New(paths.Blobs)
 	parts := &render.PartsCache{Root: filepath.Join(paths.CacheDir, "parts")}
 	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil)}

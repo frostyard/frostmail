@@ -8,6 +8,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/frostyard/clix v0.4.0
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/spf13/cobra v1.10.2
 	github.com/tdewolff/parse/v2 v2.8.16
 	go.yaml.in/yaml/v3 v3.0.5

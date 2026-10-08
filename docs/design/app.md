@@ -129,7 +129,9 @@ client.
   on loopback, needs the token and the dev server's Origin (browsers do not
   apply CORS to WebSockets), and is off unless asked for. Links and
   attachments open in browser tabs there instead of through Tauri.
-  `dev/incus/mailtest.sh demo USER` delivers realistic demo mail.
+  `dev/incus/mailtest.sh demo USER` delivers realistic demo mail. Run a
+  development maild with `FROSTMAIL_SECRETS=file`, or its test passwords
+  move into the desktop's keyring (docs/design/accounts.md, Secrets).
 - `make ui-check` runs Biome, the TypeScript check and Vitest (happy-dom,
   Testing Library) in the nsl machine. Task cards that touch `app/` are
   verified with it.
