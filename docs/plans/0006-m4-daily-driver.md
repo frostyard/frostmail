@@ -211,7 +211,16 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   days for this account (about 42,000 messages). Found: after Add Account,
   the Settings window switched its form to the first account before the
   account list caught up, so the user's next edit (Read only) changed the
-  throwaway account (fixed).
+  throwaway account (fixed). With the window, the first pass stored 40,427
+  messages (38,922 in All Mail, 1,248 in Spam, 257 in Trash) and
+  `mailctl verify` found no difference. Found: one message's BODYSTRUCTURE
+  (a bounce whose returned message Gmail sends as a message/rfc822 part
+  without envelope) failed go-imap's parser, which failed the whole FETCH
+  and stopped the sync at that chunk on every retry; fixed twice over: a
+  structure the parser rejects now costs only that message its parts
+  (logged with its strings masked), and the parser reads that shape.
+  Search on the user's mail (about 45,000 messages, `tools/searchbench
+  -runs 10`): p95 22.6 ms over the nine queries, worst 24.3 ms.
 
 ## Later / ideas
 
