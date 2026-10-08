@@ -1,0 +1,28 @@
+domain: identity
+doc: The addresses an account sends as, with their signatures.
+types:
+  - name: Identity
+    doc: One From address of an account.
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: name, type: string}
+      - {name: email, type: string}
+      - {name: replyTo, type: string}
+      - {name: signatureHtml, type: string}
+      - {name: isDefault, type: bool}
+methods:
+  - name: list
+    doc: Identities, default first per account.
+    params:
+      - {name: accountId, type: int, optional: true}
+    result: "[]Identity"
+  - name: update
+    doc: Change an identity's name, Reply-To or signature.
+    params:
+      - {name: id, type: int}
+      - {name: name, type: string, optional: true}
+      - {name: replyTo, type: string, optional: true}
+      - {name: signatureHtml, type: string, optional: true}
+    result: Identity
+    errors: [notFound, invalidParams]

@@ -56,6 +56,18 @@ func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.d.DB} }
 // Messages implements the message domain.
 func (e *Engine) Messages() api.MessageService { return messages{e.d} }
 
+// Drafts implements the draft domain.
+func (e *Engine) Drafts() api.DraftService { return drafts{e.d} }
+
+// Outbox implements the outbox domain.
+func (e *Engine) Outbox() api.OutboxService { return outbox{e.d} }
+
+// Addresses implements the address domain.
+func (e *Engine) Addresses() api.AddressService { return addresses{e.d} }
+
+// Identities implements the identity domain.
+func (e *Engine) Identities() api.IdentityService { return identities{e.d} }
+
 // Threads implements the thread domain.
 func (e *Engine) Threads() api.ThreadService { return threads{e.d} }
 

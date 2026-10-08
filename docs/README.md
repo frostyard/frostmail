@@ -25,6 +25,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0007 — A YAML IDL generates the RPC contract](adr/0007-rpc-contract.md)
 - [0008 — Claude plans and verifies; a local model executes task cards](adr/0008-local-executor-workflow.md)
 - [0009 — Build the app as a thin client over live views](adr/0009-ui-architecture.md)
+- [0010 — maild owns drafts and the outbox; the app edits them](adr/0010-compose-and-send.md)
 
 ### Design
 
@@ -33,6 +34,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Sync engine](design/sync.md)
 - [Message rendering](design/rendering.md)
 - [The app](design/app.md)
+- [Drafts and sending](design/send.md)
 - [Testing](design/testing.md)
 - [Agent workflow](design/agent-workflow.md)
 
@@ -48,6 +50,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0002 — Roadmap to Mail.app parity](plans/0002-roadmap.md)
 - [0003 — M1 headless read path](plans/0003-m1-headless-read-path.md), done, with its evidence
 - [0004 — M2 UI read path](plans/0004-m2-ui-read-path.md), done, with its evidence
+- [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md)
 
 ## Conventions
 

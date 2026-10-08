@@ -1,0 +1,49 @@
+domain: outbox
+doc: Messages on their way out (docs/design/send.md, Outbox).
+enums:
+  - name: OutboxState
+    doc: Where a message is on its way out.
+    values:
+      - {name: queued, doc: "Waiting for its send time: the undo delay, or a retry after an error."}
+      - {name: sending, doc: "Being handed to the SMTP server."}
+      - {name: accepted, doc: "The SMTP server took it; the Sent copy is being saved."}
+      - {name: sent, doc: "Done."}
+      - {name: failed, doc: "The server refused it; the draft is kept."}
+types:
+  - name: OutboxItem
+    doc: One message on its way out.
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: draftId, type: int, optional: true, doc: "Set until the message is accepted."}
+      - {name: subject, type: string}
+      - {name: to, type: "[]Address"}
+      - {name: state, type: OutboxState}
+      - {name: sendAt, type: time, optional: true, doc: "When a queued message goes out."}
+      - {name: attempts, type: int}
+      - {name: error, type: string, optional: true, doc: "The last error, when there was one."}
+methods:
+  - name: list
+    doc: Messages not yet sent, oldest first.
+    params:
+      - {name: accountId, type: int, optional: true}
+    result: "[]OutboxItem"
+  - name: cancel
+    doc: Stop a queued message (undo send) and return its draft.
+    params:
+      - {name: id, type: int}
+    result: Draft
+    errors: [notFound, conflict]
+  - name: retry
+    doc: Queue a failed message again, now.
+    params:
+      - {name: id, type: int}
+    errors: [notFound, conflict]
+events:
+  - name: changed
+    doc: An outbox message changed state.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: state, type: OutboxState}

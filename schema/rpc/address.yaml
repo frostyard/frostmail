@@ -1,0 +1,11 @@
+domain: address
+doc: Addresses seen in stored and sent mail, for completing recipients.
+methods:
+  - name: suggest
+    doc: >-
+      Addresses whose address, or any word of whose name, starts with prefix
+      (case-insensitively), most used first.
+    params:
+      - {name: prefix, type: string}
+      - {name: limit, type: int, optional: true, doc: "At most this many; default 10."}
+    result: "[]Address"

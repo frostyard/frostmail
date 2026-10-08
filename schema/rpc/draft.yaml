@@ -1,0 +1,109 @@
+domain: draft
+doc: >-
+  Drafts: messages being written. maild stores a draft at once on every
+  update and keeps a copy in the account's Drafts mailbox; draft.send hands it
+  to the outbox (docs/design/send.md).
+enums:
+  - name: DraftKind
+    doc: How a new draft starts.
+    values:
+      - {name: new, doc: "An empty message with the identity's signature."}
+      - {name: reply, doc: "A reply to the source's sender."}
+      - {name: replyall, doc: "A reply to the sender and every other recipient but the account's own addresses."}
+      - {name: forward, doc: "The source as quoted text with its attachments."}
+types:
+  - name: DraftAttachment
+    doc: A file attached to a draft, stored by maild.
+    fields:
+      - {name: id, type: int}
+      - {name: filename, type: string}
+      - {name: contentType, type: string, doc: "Lowercase type/subtype."}
+      - {name: size, type: int, doc: "Bytes."}
+  - name: DraftContent
+    doc: What a compose window edits.
+    fields:
+      - {name: identityId, type: int}
+      - {name: to, type: "[]Address"}
+      - {name: cc, type: "[]Address"}
+      - {name: bcc, type: "[]Address"}
+      - {name: subject, type: string}
+      - {name: html, type: string, doc: "The body as the editor's HTML."}
+  - name: Draft
+    doc: A message being written.
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: content, type: DraftContent}
+      - {name: attachments, type: "[]DraftAttachment"}
+      - {name: sourceId, type: int, optional: true, doc: "The message this draft replies to or forwards."}
+      - {name: kind, type: DraftKind}
+      - {name: updatedAt, type: time}
+methods:
+  - name: create
+    doc: >-
+      Start a draft: a new message in the account (or the first account), or a
+      reply, reply-all or forward of a message.
+    params:
+      - {name: kind, type: DraftKind}
+      - {name: accountId, type: int, optional: true}
+      - {name: sourceId, type: int, optional: true, doc: "Required for reply, replyall and forward."}
+    result: Draft
+    errors: [notFound, invalidParams]
+  - name: open
+    doc: Turn a message in a Drafts mailbox into a draft, or return the draft it already is.
+    params:
+      - {name: messageId, type: int}
+    result: Draft
+    errors: [notFound, unavailable]
+  - name: get
+    doc: One draft.
+    params:
+      - {name: id, type: int}
+    result: Draft
+    errors: [notFound]
+  - name: list
+    doc: Drafts, most recently changed first.
+    params:
+      - {name: accountId, type: int, optional: true}
+    result: "[]Draft"
+  - name: update
+    doc: Replace a draft's content; maild stores it at once and updates the server copy later.
+    params:
+      - {name: id, type: int}
+      - {name: content, type: DraftContent}
+    result: Draft
+    errors: [notFound, invalidParams]
+  - name: attach
+    doc: Attach a local file; maild copies it, so later changes to the file do not matter.
+    params:
+      - {name: id, type: int}
+      - {name: path, type: string, doc: "An absolute path on this machine."}
+    result: DraftAttachment
+    errors: [notFound, invalidParams]
+  - name: detach
+    doc: Remove an attachment from a draft.
+    params:
+      - {name: id, type: int}
+      - {name: attachmentId, type: int}
+    errors: [notFound]
+  - name: delete
+    doc: Discard a draft, and its server copy.
+    params:
+      - {name: id, type: int}
+    errors: [notFound]
+  - name: send
+    doc: >-
+      Queue a draft for sending after the undo delay. Fails with invalidParams
+      when it has no recipients, an address does not parse, or it is too large.
+    params:
+      - {name: id, type: int}
+    result: OutboxItem
+    errors: [notFound, invalidParams]
+events:
+  - name: changed
+    doc: A draft was created, changed or deleted.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: deleted, type: bool}

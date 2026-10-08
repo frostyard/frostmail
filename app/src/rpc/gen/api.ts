@@ -154,6 +154,183 @@ function accountClient(t: Transport): AccountClient {
   };
 }
 
+// ---- address ----
+
+/** Params of address.suggest. */
+export interface AddressSuggestParams {
+  prefix: string;
+  /** At most this many; default 10. */
+  limit?: number;
+}
+
+/** Addresses seen in stored and sent mail, for completing recipients. */
+export interface AddressClient {
+  /**
+   * Addresses whose address, or any word of whose name, starts with prefix
+   * (case-insensitively), most used first.
+   */
+  suggest(params: AddressSuggestParams): Promise<Address[]>;
+}
+
+function addressClient(t: Transport): AddressClient {
+  return {
+    suggest: (params) => t.call<Address[]>("address.suggest", params),
+  };
+}
+
+// ---- draft ----
+
+/** How a new draft starts. */
+export type DraftKind = "new" | "reply" | "replyall" | "forward";
+export const DraftKindValues: readonly DraftKind[] = ["new", "reply", "replyall", "forward"];
+
+/** A file attached to a draft, stored by maild. */
+export interface DraftAttachment {
+  id: number;
+  filename: string;
+  /** Lowercase type/subtype. */
+  contentType: string;
+  /** Bytes. */
+  size: number;
+}
+
+/** What a compose window edits. */
+export interface DraftContent {
+  identityId: number;
+  to: Address[];
+  cc: Address[];
+  bcc: Address[];
+  subject: string;
+  /** The body as the editor's HTML. */
+  html: string;
+}
+
+/** A message being written. */
+export interface Draft {
+  id: number;
+  accountId: number;
+  content: DraftContent;
+  attachments: DraftAttachment[];
+  /** The message this draft replies to or forwards. */
+  sourceId?: number;
+  kind: DraftKind;
+  updatedAt: string /* RFC 3339 */;
+}
+
+/** Params of draft.create. */
+export interface DraftCreateParams {
+  kind: DraftKind;
+  accountId?: number;
+  /** Required for reply, replyall and forward. */
+  sourceId?: number;
+}
+
+/** Params of draft.open. */
+export interface DraftOpenParams {
+  messageId: number;
+}
+
+/** Params of draft.get. */
+export interface DraftGetParams {
+  id: number;
+}
+
+/** Params of draft.list. */
+export interface DraftListParams {
+  accountId?: number;
+}
+
+/** Params of draft.update. */
+export interface DraftUpdateParams {
+  id: number;
+  content: DraftContent;
+}
+
+/** Params of draft.attach. */
+export interface DraftAttachParams {
+  id: number;
+  /** An absolute path on this machine. */
+  path: string;
+}
+
+/** Params of draft.detach. */
+export interface DraftDetachParams {
+  id: number;
+  attachmentId: number;
+}
+
+/** Params of draft.delete. */
+export interface DraftDeleteParams {
+  id: number;
+}
+
+/** Params of draft.send. */
+export interface DraftSendParams {
+  id: number;
+}
+
+/** A draft was created, changed or deleted. */
+export interface DraftChanged {
+  id: number;
+  accountId: number;
+  deleted: boolean;
+}
+
+/**
+ * Drafts: messages being written. maild stores a draft at once on every
+ * update and keeps a copy in the account's Drafts mailbox; draft.send hands
+ * it to the outbox (docs/design/send.md).
+ */
+export interface DraftClient {
+  /**
+   * Start a draft: a new message in the account (or the first account), or a
+   * reply, reply-all or forward of a message.
+   */
+  create(params: DraftCreateParams): Promise<Draft>;
+  /**
+   * Turn a message in a Drafts mailbox into a draft, or return the draft it
+   * already is.
+   */
+  open(params: DraftOpenParams): Promise<Draft>;
+  /** One draft. */
+  get(params: DraftGetParams): Promise<Draft>;
+  /** Drafts, most recently changed first. */
+  list(params?: DraftListParams): Promise<Draft[]>;
+  /**
+   * Replace a draft's content; maild stores it at once and updates the server
+   * copy later.
+   */
+  update(params: DraftUpdateParams): Promise<Draft>;
+  /**
+   * Attach a local file; maild copies it, so later changes to the file do not
+   * matter.
+   */
+  attach(params: DraftAttachParams): Promise<DraftAttachment>;
+  /** Remove an attachment from a draft. */
+  detach(params: DraftDetachParams): Promise<void>;
+  /** Discard a draft, and its server copy. */
+  delete(params: DraftDeleteParams): Promise<void>;
+  /**
+   * Queue a draft for sending after the undo delay. Fails with invalidParams
+   * when it has no recipients, an address does not parse, or it is too large.
+   */
+  send(params: DraftSendParams): Promise<OutboxItem>;
+}
+
+function draftClient(t: Transport): DraftClient {
+  return {
+    create: (params) => t.call<Draft>("draft.create", params),
+    open: (params) => t.call<Draft>("draft.open", params),
+    get: (params) => t.call<Draft>("draft.get", params),
+    list: (params = {}) => t.call<Draft[]>("draft.list", params),
+    update: (params) => t.call<Draft>("draft.update", params),
+    attach: (params) => t.call<DraftAttachment>("draft.attach", params),
+    detach: (params) => t.call<null>("draft.detach", params).then(() => undefined),
+    delete: (params) => t.call<null>("draft.delete", params).then(() => undefined),
+    send: (params) => t.call<OutboxItem>("draft.send", params),
+  };
+}
+
 // ---- events ----
 
 /** The state of a new subscription. */
@@ -193,6 +370,47 @@ export interface EventsClient {
 function eventsClient(t: Transport): EventsClient {
   return {
     subscribe: (params = {}) => t.call<Subscription>("events.subscribe", params),
+  };
+}
+
+// ---- identity ----
+
+/** One From address of an account. */
+export interface Identity {
+  id: number;
+  accountId: number;
+  name: string;
+  email: string;
+  replyTo: string;
+  signatureHtml: string;
+  isDefault: boolean;
+}
+
+/** Params of identity.list. */
+export interface IdentityListParams {
+  accountId?: number;
+}
+
+/** Params of identity.update. */
+export interface IdentityUpdateParams {
+  id: number;
+  name?: string;
+  replyTo?: string;
+  signatureHtml?: string;
+}
+
+/** The addresses an account sends as, with their signatures. */
+export interface IdentityClient {
+  /** Identities, default first per account. */
+  list(params?: IdentityListParams): Promise<Identity[]>;
+  /** Change an identity's name, Reply-To or signature. */
+  update(params: IdentityUpdateParams): Promise<Identity>;
+}
+
+function identityClient(t: Transport): IdentityClient {
+  return {
+    list: (params = {}) => t.call<Identity[]>("identity.list", params),
+    update: (params) => t.call<Identity>("identity.update", params),
   };
 }
 
@@ -471,6 +689,68 @@ function messageClient(t: Transport): MessageClient {
   };
 }
 
+// ---- outbox ----
+
+/** Where a message is on its way out. */
+export type OutboxState = "queued" | "sending" | "accepted" | "sent" | "failed";
+export const OutboxStateValues: readonly OutboxState[] = ["queued", "sending", "accepted", "sent", "failed"];
+
+/** One message on its way out. */
+export interface OutboxItem {
+  id: number;
+  accountId: number;
+  /** Set until the message is accepted. */
+  draftId?: number;
+  subject: string;
+  to: Address[];
+  state: OutboxState;
+  /** When a queued message goes out. */
+  sendAt?: string /* RFC 3339 */;
+  attempts: number;
+  /** The last error, when there was one. */
+  error?: string;
+}
+
+/** Params of outbox.list. */
+export interface OutboxListParams {
+  accountId?: number;
+}
+
+/** Params of outbox.cancel. */
+export interface OutboxCancelParams {
+  id: number;
+}
+
+/** Params of outbox.retry. */
+export interface OutboxRetryParams {
+  id: number;
+}
+
+/** An outbox message changed state. */
+export interface OutboxChanged {
+  id: number;
+  accountId: number;
+  state: OutboxState;
+}
+
+/** Messages on their way out (docs/design/send.md, Outbox). */
+export interface OutboxClient {
+  /** Messages not yet sent, oldest first. */
+  list(params?: OutboxListParams): Promise<OutboxItem[]>;
+  /** Stop a queued message (undo send) and return its draft. */
+  cancel(params: OutboxCancelParams): Promise<Draft>;
+  /** Queue a failed message again, now. */
+  retry(params: OutboxRetryParams): Promise<void>;
+}
+
+function outboxClient(t: Transport): OutboxClient {
+  return {
+    list: (params = {}) => t.call<OutboxItem[]>("outbox.list", params),
+    cancel: (params) => t.call<Draft>("outbox.cancel", params),
+    retry: (params) => t.call<null>("outbox.retry", params).then(() => undefined),
+  };
+}
+
 // ---- rpc ----
 
 /** Server identity and the negotiated protocol. */
@@ -679,9 +959,11 @@ function viewClient(t: Transport): ViewClient {
 /** A server notification. Durable events carry seq. */
 export type Event =
   | { event: "account.changed"; seq?: number; data: AccountChanged }
+  | { event: "draft.changed"; seq?: number; data: DraftChanged }
   | { event: "mailbox.changed"; seq?: number; data: MailboxChanged }
   | { event: "message.changed"; seq?: number; data: MessageChanged }
   | { event: "message.removed"; seq?: number; data: MessageRemoved }
+  | { event: "outbox.changed"; seq?: number; data: OutboxChanged }
   | { event: "sync.progress"; seq?: number; data: SyncProgress }
   | { event: "view.delta"; seq?: number; data: ViewDelta }
 ;
@@ -694,7 +976,19 @@ export const METHODS = [
   "account.update",
   "account.delete",
   "account.setPassword",
+  "address.suggest",
+  "draft.create",
+  "draft.open",
+  "draft.get",
+  "draft.list",
+  "draft.update",
+  "draft.attach",
+  "draft.detach",
+  "draft.delete",
+  "draft.send",
   "events.subscribe",
+  "identity.list",
+  "identity.update",
   "mailbox.list",
   "message.get",
   "message.body",
@@ -704,6 +998,9 @@ export const METHODS = [
   "message.setFlags",
   "message.move",
   "message.delete",
+  "outbox.list",
+  "outbox.cancel",
+  "outbox.retry",
   "rpc.hello",
   "sync.status",
   "sync.now",
@@ -716,9 +1013,13 @@ export const METHODS = [
 /** The typed maild API over a Transport. */
 export class Client {
   readonly account: AccountClient;
+  readonly address: AddressClient;
+  readonly draft: DraftClient;
   readonly events: EventsClient;
+  readonly identity: IdentityClient;
   readonly mailbox: MailboxClient;
   readonly message: MessageClient;
+  readonly outbox: OutboxClient;
   readonly rpc: RPCClient;
   readonly sync: SyncClient;
   readonly thread: ThreadClient;
@@ -726,9 +1027,13 @@ export class Client {
 
   constructor(readonly transport: Transport) {
     this.account = accountClient(transport);
+    this.address = addressClient(transport);
+    this.draft = draftClient(transport);
     this.events = eventsClient(transport);
+    this.identity = identityClient(transport);
     this.mailbox = mailboxClient(transport);
     this.message = messageClient(transport);
+    this.outbox = outboxClient(transport);
     this.rpc = rpcClient(transport);
     this.sync = syncClient(transport);
     this.thread = threadClient(transport);

@@ -396,6 +396,353 @@ func (AccountChanged) EventName() string { return "account.changed" }
 // Durable reports whether AccountChanged is kept in the changes log.
 func (AccountChanged) Durable() bool { return true }
 
+// ---- address ----
+
+// AddressSuggestParams holds the params of address.suggest.
+type AddressSuggestParams struct {
+	Prefix string `json:"prefix"`
+	// At most this many; default 10.
+	Limit *int64 `json:"limit,omitzero"`
+}
+
+// AddressService: Addresses seen in stored and sent mail, for completing
+// recipients.
+type AddressService interface {
+	// Suggest implements address.suggest. Addresses whose address, or any word of
+	// whose name, starts with prefix (case-insensitively), most used first.
+	Suggest(ctx context.Context, p *AddressSuggestParams) ([]Address, error)
+}
+
+func registerAddress(r *Router, s AddressService) {
+	r.handle("address.suggest", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AddressSuggestParams
+		if err := decodeParams(raw, &p, []string{"prefix"}); err != nil {
+			return nil, err
+		}
+		return s.Suggest(ctx, &p)
+	})
+}
+
+// AddressClient calls the address methods; it implements AddressService.
+type AddressClient struct{ c *Client }
+
+// Address returns the address methods.
+func (c *Client) Address() AddressClient { return AddressClient{c} }
+
+var _ AddressService = AddressClient{}
+
+// Suggest calls address.suggest.
+func (x AddressClient) Suggest(ctx context.Context, p *AddressSuggestParams) ([]Address, error) {
+	var r []Address
+	err := x.c.Call(ctx, "address.suggest", p, &r)
+	return r, err
+}
+
+// ---- draft ----
+
+// DraftKind: How a new draft starts.
+type DraftKind string
+
+const (
+	// An empty message with the identity's signature.
+	DraftKindNew DraftKind = "new"
+	// A reply to the source's sender.
+	DraftKindReply DraftKind = "reply"
+	// A reply to the sender and every other recipient but the account's own
+	// addresses.
+	DraftKindReplyall DraftKind = "replyall"
+	// The source as quoted text with its attachments.
+	DraftKindForward DraftKind = "forward"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v DraftKind) Valid() bool {
+	switch v {
+	case DraftKindNew, DraftKindReply, DraftKindReplyall, DraftKindForward:
+		return true
+	}
+	return false
+}
+
+// DraftAttachment: A file attached to a draft, stored by maild.
+type DraftAttachment struct {
+	ID       int64  `json:"id"`
+	Filename string `json:"filename"`
+	// Lowercase type/subtype.
+	ContentType string `json:"contentType"`
+	// Bytes.
+	Size int64 `json:"size"`
+}
+
+// DraftContent: What a compose window edits.
+type DraftContent struct {
+	IdentityID int64     `json:"identityId"`
+	To         []Address `json:"to"`
+	Cc         []Address `json:"cc"`
+	Bcc        []Address `json:"bcc"`
+	Subject    string    `json:"subject"`
+	// The body as the editor's HTML.
+	HTML string `json:"html"`
+}
+
+// Draft: A message being written.
+type Draft struct {
+	ID          int64             `json:"id"`
+	AccountID   int64             `json:"accountId"`
+	Content     DraftContent      `json:"content"`
+	Attachments []DraftAttachment `json:"attachments"`
+	// The message this draft replies to or forwards.
+	SourceID  *int64    `json:"sourceId,omitzero"`
+	Kind      DraftKind `json:"kind"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// DraftCreateParams holds the params of draft.create.
+type DraftCreateParams struct {
+	Kind      DraftKind `json:"kind"`
+	AccountID *int64    `json:"accountId,omitzero"`
+	// Required for reply, replyall and forward.
+	SourceID *int64 `json:"sourceId,omitzero"`
+}
+
+// DraftOpenParams holds the params of draft.open.
+type DraftOpenParams struct {
+	MessageID int64 `json:"messageId"`
+}
+
+// DraftGetParams holds the params of draft.get.
+type DraftGetParams struct {
+	ID int64 `json:"id"`
+}
+
+// DraftListParams holds the params of draft.list.
+type DraftListParams struct {
+	AccountID *int64 `json:"accountId,omitzero"`
+}
+
+// DraftUpdateParams holds the params of draft.update.
+type DraftUpdateParams struct {
+	ID      int64        `json:"id"`
+	Content DraftContent `json:"content"`
+}
+
+// DraftAttachParams holds the params of draft.attach.
+type DraftAttachParams struct {
+	ID int64 `json:"id"`
+	// An absolute path on this machine.
+	Path string `json:"path"`
+}
+
+// DraftDetachParams holds the params of draft.detach.
+type DraftDetachParams struct {
+	ID           int64 `json:"id"`
+	AttachmentID int64 `json:"attachmentId"`
+}
+
+// DraftDeleteParams holds the params of draft.delete.
+type DraftDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// DraftSendParams holds the params of draft.send.
+type DraftSendParams struct {
+	ID int64 `json:"id"`
+}
+
+// DraftService: Drafts: messages being written. maild stores a draft at once
+// on every update and keeps a copy in the account's Drafts mailbox;
+// draft.send hands it to the outbox (docs/design/send.md).
+type DraftService interface {
+	// Create implements draft.create. Start a draft: a new message in the account
+	// (or the first account), or a reply, reply-all or forward of a message.
+	Create(ctx context.Context, p *DraftCreateParams) (*Draft, error)
+	// Open implements draft.open. Turn a message in a Drafts mailbox into a
+	// draft, or return the draft it already is.
+	Open(ctx context.Context, p *DraftOpenParams) (*Draft, error)
+	// Get implements draft.get. One draft.
+	Get(ctx context.Context, p *DraftGetParams) (*Draft, error)
+	// List implements draft.list. Drafts, most recently changed first.
+	List(ctx context.Context, p *DraftListParams) ([]Draft, error)
+	// Update implements draft.update. Replace a draft's content; maild stores it
+	// at once and updates the server copy later.
+	Update(ctx context.Context, p *DraftUpdateParams) (*Draft, error)
+	// Attach implements draft.attach. Attach a local file; maild copies it, so
+	// later changes to the file do not matter.
+	Attach(ctx context.Context, p *DraftAttachParams) (*DraftAttachment, error)
+	// Detach implements draft.detach. Remove an attachment from a draft.
+	Detach(ctx context.Context, p *DraftDetachParams) error
+	// Delete implements draft.delete. Discard a draft, and its server copy.
+	Delete(ctx context.Context, p *DraftDeleteParams) error
+	// Send implements draft.send. Queue a draft for sending after the undo delay.
+	// Fails with invalidParams when it has no recipients, an address does not
+	// parse, or it is too large.
+	Send(ctx context.Context, p *DraftSendParams) (*OutboxItem, error)
+}
+
+func registerDraft(r *Router, s DraftService) {
+	r.handle("draft.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftCreateParams
+		if err := decodeParams(raw, &p, []string{"kind"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("draft.open", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftOpenParams
+		if err := decodeParams(raw, &p, []string{"messageId"}); err != nil {
+			return nil, err
+		}
+		return s.Open(ctx, &p)
+	})
+	r.handle("draft.get", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftGetParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Get(ctx, &p)
+	})
+	r.handle("draft.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("draft.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftUpdateParams
+		if err := decodeParams(raw, &p, []string{"id", "content"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("draft.attach", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftAttachParams
+		if err := decodeParams(raw, &p, []string{"id", "path"}); err != nil {
+			return nil, err
+		}
+		return s.Attach(ctx, &p)
+	})
+	r.handle("draft.detach", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftDetachParams
+		if err := decodeParams(raw, &p, []string{"id", "attachmentId"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Detach(ctx, &p)
+	})
+	r.handle("draft.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("draft.send", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftSendParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Send(ctx, &p)
+	})
+}
+
+// DraftClient calls the draft methods; it implements DraftService.
+type DraftClient struct{ c *Client }
+
+// Draft returns the draft methods.
+func (c *Client) Draft() DraftClient { return DraftClient{c} }
+
+var _ DraftService = DraftClient{}
+
+// Create calls draft.create.
+func (x DraftClient) Create(ctx context.Context, p *DraftCreateParams) (*Draft, error) {
+	var r Draft
+	err := x.c.Call(ctx, "draft.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Open calls draft.open.
+func (x DraftClient) Open(ctx context.Context, p *DraftOpenParams) (*Draft, error) {
+	var r Draft
+	err := x.c.Call(ctx, "draft.open", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Get calls draft.get.
+func (x DraftClient) Get(ctx context.Context, p *DraftGetParams) (*Draft, error) {
+	var r Draft
+	err := x.c.Call(ctx, "draft.get", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// List calls draft.list.
+func (x DraftClient) List(ctx context.Context, p *DraftListParams) ([]Draft, error) {
+	var r []Draft
+	err := x.c.Call(ctx, "draft.list", p, &r)
+	return r, err
+}
+
+// Update calls draft.update.
+func (x DraftClient) Update(ctx context.Context, p *DraftUpdateParams) (*Draft, error) {
+	var r Draft
+	err := x.c.Call(ctx, "draft.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Attach calls draft.attach.
+func (x DraftClient) Attach(ctx context.Context, p *DraftAttachParams) (*DraftAttachment, error) {
+	var r DraftAttachment
+	err := x.c.Call(ctx, "draft.attach", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Detach calls draft.detach.
+func (x DraftClient) Detach(ctx context.Context, p *DraftDetachParams) error {
+	return x.c.Call(ctx, "draft.detach", p, nil)
+}
+
+// Delete calls draft.delete.
+func (x DraftClient) Delete(ctx context.Context, p *DraftDeleteParams) error {
+	return x.c.Call(ctx, "draft.delete", p, nil)
+}
+
+// Send calls draft.send.
+func (x DraftClient) Send(ctx context.Context, p *DraftSendParams) (*OutboxItem, error) {
+	var r OutboxItem
+	err := x.c.Call(ctx, "draft.send", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// DraftChanged: A draft was created, changed or deleted.
+type DraftChanged struct {
+	ID        int64 `json:"id"`
+	AccountID int64 `json:"accountId"`
+	Deleted   bool  `json:"deleted"`
+}
+
+// EventName is the wire name of DraftChanged.
+func (DraftChanged) EventName() string { return "draft.changed" }
+
+// Durable reports whether DraftChanged is kept in the changes log.
+func (DraftChanged) Durable() bool { return true }
+
 // ---- events ----
 
 // Subscription: The state of a new subscription.
@@ -446,6 +793,83 @@ var _ EventsService = EventsClient{}
 func (x EventsClient) Subscribe(ctx context.Context, p *EventsSubscribeParams) (*Subscription, error) {
 	var r Subscription
 	err := x.c.Call(ctx, "events.subscribe", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// ---- identity ----
+
+// Identity: One From address of an account.
+type Identity struct {
+	ID            int64  `json:"id"`
+	AccountID     int64  `json:"accountId"`
+	Name          string `json:"name"`
+	Email         string `json:"email"`
+	ReplyTo       string `json:"replyTo"`
+	SignatureHTML string `json:"signatureHtml"`
+	IsDefault     bool   `json:"isDefault"`
+}
+
+// IdentityListParams holds the params of identity.list.
+type IdentityListParams struct {
+	AccountID *int64 `json:"accountId,omitzero"`
+}
+
+// IdentityUpdateParams holds the params of identity.update.
+type IdentityUpdateParams struct {
+	ID            int64   `json:"id"`
+	Name          *string `json:"name,omitzero"`
+	ReplyTo       *string `json:"replyTo,omitzero"`
+	SignatureHTML *string `json:"signatureHtml,omitzero"`
+}
+
+// IdentityService: The addresses an account sends as, with their signatures.
+type IdentityService interface {
+	// List implements identity.list. Identities, default first per account.
+	List(ctx context.Context, p *IdentityListParams) ([]Identity, error)
+	// Update implements identity.update. Change an identity's name, Reply-To or
+	// signature.
+	Update(ctx context.Context, p *IdentityUpdateParams) (*Identity, error)
+}
+
+func registerIdentity(r *Router, s IdentityService) {
+	r.handle("identity.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p IdentityListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("identity.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p IdentityUpdateParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+}
+
+// IdentityClient calls the identity methods; it implements IdentityService.
+type IdentityClient struct{ c *Client }
+
+// Identity returns the identity methods.
+func (c *Client) Identity() IdentityClient { return IdentityClient{c} }
+
+var _ IdentityService = IdentityClient{}
+
+// List calls identity.list.
+func (x IdentityClient) List(ctx context.Context, p *IdentityListParams) ([]Identity, error) {
+	var r []Identity
+	err := x.c.Call(ctx, "identity.list", p, &r)
+	return r, err
+}
+
+// Update calls identity.update.
+func (x IdentityClient) Update(ctx context.Context, p *IdentityUpdateParams) (*Identity, error) {
+	var r Identity
+	err := x.c.Call(ctx, "identity.update", p, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -895,6 +1319,142 @@ func (MessageRemoved) EventName() string { return "message.removed" }
 // Durable reports whether MessageRemoved is kept in the changes log.
 func (MessageRemoved) Durable() bool { return true }
 
+// ---- outbox ----
+
+// OutboxState: Where a message is on its way out.
+type OutboxState string
+
+const (
+	// Waiting for its send time: the undo delay, or a retry after an error.
+	OutboxStateQueued OutboxState = "queued"
+	// Being handed to the SMTP server.
+	OutboxStateSending OutboxState = "sending"
+	// The SMTP server took it; the Sent copy is being saved.
+	OutboxStateAccepted OutboxState = "accepted"
+	// Done.
+	OutboxStateSent OutboxState = "sent"
+	// The server refused it; the draft is kept.
+	OutboxStateFailed OutboxState = "failed"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v OutboxState) Valid() bool {
+	switch v {
+	case OutboxStateQueued, OutboxStateSending, OutboxStateAccepted, OutboxStateSent, OutboxStateFailed:
+		return true
+	}
+	return false
+}
+
+// OutboxItem: One message on its way out.
+type OutboxItem struct {
+	ID        int64 `json:"id"`
+	AccountID int64 `json:"accountId"`
+	// Set until the message is accepted.
+	DraftID *int64      `json:"draftId,omitzero"`
+	Subject string      `json:"subject"`
+	To      []Address   `json:"to"`
+	State   OutboxState `json:"state"`
+	// When a queued message goes out.
+	SendAt   *time.Time `json:"sendAt,omitzero"`
+	Attempts int64      `json:"attempts"`
+	// The last error, when there was one.
+	Error *string `json:"error,omitzero"`
+}
+
+// OutboxListParams holds the params of outbox.list.
+type OutboxListParams struct {
+	AccountID *int64 `json:"accountId,omitzero"`
+}
+
+// OutboxCancelParams holds the params of outbox.cancel.
+type OutboxCancelParams struct {
+	ID int64 `json:"id"`
+}
+
+// OutboxRetryParams holds the params of outbox.retry.
+type OutboxRetryParams struct {
+	ID int64 `json:"id"`
+}
+
+// OutboxService: Messages on their way out (docs/design/send.md, Outbox).
+type OutboxService interface {
+	// List implements outbox.list. Messages not yet sent, oldest first.
+	List(ctx context.Context, p *OutboxListParams) ([]OutboxItem, error)
+	// Cancel implements outbox.cancel. Stop a queued message (undo send) and
+	// return its draft.
+	Cancel(ctx context.Context, p *OutboxCancelParams) (*Draft, error)
+	// Retry implements outbox.retry. Queue a failed message again, now.
+	Retry(ctx context.Context, p *OutboxRetryParams) error
+}
+
+func registerOutbox(r *Router, s OutboxService) {
+	r.handle("outbox.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p OutboxListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("outbox.cancel", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p OutboxCancelParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Cancel(ctx, &p)
+	})
+	r.handle("outbox.retry", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p OutboxRetryParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Retry(ctx, &p)
+	})
+}
+
+// OutboxClient calls the outbox methods; it implements OutboxService.
+type OutboxClient struct{ c *Client }
+
+// Outbox returns the outbox methods.
+func (c *Client) Outbox() OutboxClient { return OutboxClient{c} }
+
+var _ OutboxService = OutboxClient{}
+
+// List calls outbox.list.
+func (x OutboxClient) List(ctx context.Context, p *OutboxListParams) ([]OutboxItem, error) {
+	var r []OutboxItem
+	err := x.c.Call(ctx, "outbox.list", p, &r)
+	return r, err
+}
+
+// Cancel calls outbox.cancel.
+func (x OutboxClient) Cancel(ctx context.Context, p *OutboxCancelParams) (*Draft, error) {
+	var r Draft
+	err := x.c.Call(ctx, "outbox.cancel", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Retry calls outbox.retry.
+func (x OutboxClient) Retry(ctx context.Context, p *OutboxRetryParams) error {
+	return x.c.Call(ctx, "outbox.retry", p, nil)
+}
+
+// OutboxChanged: An outbox message changed state.
+type OutboxChanged struct {
+	ID        int64       `json:"id"`
+	AccountID int64       `json:"accountId"`
+	State     OutboxState `json:"state"`
+}
+
+// EventName is the wire name of OutboxChanged.
+func (OutboxChanged) EventName() string { return "outbox.changed" }
+
+// Durable reports whether OutboxChanged is kept in the changes log.
+func (OutboxChanged) Durable() bool { return true }
+
 // ---- rpc ----
 
 // Hello: Server identity and the negotiated protocol.
@@ -1253,14 +1813,18 @@ func (ViewDelta) Durable() bool { return false }
 
 // Services is one implementation per domain, for NewRouter.
 type Services struct {
-	Account AccountService
-	Events  EventsService
-	Mailbox MailboxService
-	Message MessageService
-	RPC     RPCService
-	Sync    SyncService
-	Thread  ThreadService
-	View    ViewService
+	Account  AccountService
+	Address  AddressService
+	Draft    DraftService
+	Events   EventsService
+	Identity IdentityService
+	Mailbox  MailboxService
+	Message  MessageService
+	Outbox   OutboxService
+	RPC      RPCService
+	Sync     SyncService
+	Thread   ThreadService
+	View     ViewService
 }
 
 func (s Services) register(r *Router) error {
@@ -1268,10 +1832,22 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Account is nil")
 	}
 	registerAccount(r, s.Account)
+	if s.Address == nil {
+		return errors.New("api: Services.Address is nil")
+	}
+	registerAddress(r, s.Address)
+	if s.Draft == nil {
+		return errors.New("api: Services.Draft is nil")
+	}
+	registerDraft(r, s.Draft)
 	if s.Events == nil {
 		return errors.New("api: Services.Events is nil")
 	}
 	registerEvents(r, s.Events)
+	if s.Identity == nil {
+		return errors.New("api: Services.Identity is nil")
+	}
+	registerIdentity(r, s.Identity)
 	if s.Mailbox == nil {
 		return errors.New("api: Services.Mailbox is nil")
 	}
@@ -1280,6 +1856,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Message is nil")
 	}
 	registerMessage(r, s.Message)
+	if s.Outbox == nil {
+		return errors.New("api: Services.Outbox is nil")
+	}
+	registerOutbox(r, s.Outbox)
 	if s.RPC == nil {
 		return errors.New("api: Services.RPC is nil")
 	}
@@ -1307,7 +1887,19 @@ var Methods = []string{
 	"account.update",
 	"account.delete",
 	"account.setPassword",
+	"address.suggest",
+	"draft.create",
+	"draft.open",
+	"draft.get",
+	"draft.list",
+	"draft.update",
+	"draft.attach",
+	"draft.detach",
+	"draft.delete",
+	"draft.send",
 	"events.subscribe",
+	"identity.list",
+	"identity.update",
 	"mailbox.list",
 	"message.get",
 	"message.body",
@@ -1317,6 +1909,9 @@ var Methods = []string{
 	"message.setFlags",
 	"message.move",
 	"message.delete",
+	"outbox.list",
+	"outbox.cancel",
+	"outbox.retry",
 	"rpc.hello",
 	"sync.status",
 	"sync.now",
@@ -1335,6 +1930,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}
 		return e, nil
+	case "draft.changed":
+		var e DraftChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
 	case "mailbox.changed":
 		var e MailboxChanged
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -1349,6 +1950,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "message.removed":
 		var e MessageRemoved
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "outbox.changed":
+		var e OutboxChanged
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

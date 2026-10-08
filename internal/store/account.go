@@ -63,7 +63,8 @@ func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
 }
 
 // InsertAccount inserts a, ignoring a.ID and a.CreatedAt: the row gets a new
-// ID and CreatedAt = tx.Now() truncated to the millisecond. It emits
+// ID and CreatedAt = tx.Now() truncated to the millisecond, and a default
+// identity with the account's display name and email. It emits
 // api.AccountChanged{ID: id} and returns the stored account. A duplicate
 // email (case-insensitive) returns ErrConflict.
 func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
@@ -89,6 +90,11 @@ func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
 	}
 	a.ID = id
 	a.CreatedAt = createdAt
+	// Every account sends as itself by default (docs/design/send.md).
+	if _, err := t.ExecContext(ctx, `INSERT INTO identities (account_id, name, email, is_default) VALUES (?, ?, ?, 1)`,
+		id, a.DisplayName, a.Email); err != nil {
+		return Account{}, fmt.Errorf("insert default identity: %w", err)
+	}
 	if err := t.Emit(ctx, api.AccountChanged{ID: id}); err != nil {
 		return Account{}, err
 	}

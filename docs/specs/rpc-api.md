@@ -161,6 +161,187 @@ How a connection is secured.
 | `starttls` | Plain connection upgraded with STARTTLS (143, 587). |
 | `insecure` | No TLS. Only for local test servers. |
 
+## address
+
+Addresses seen in stored and sent mail, for completing recipients.
+
+### `address.suggest`
+
+Addresses whose address, or any word of whose name, starts with prefix (case-insensitively), most used first.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `prefix` | `string` |  |
+| `limit` | `int` (optional) | At most this many; default 10. |
+
+Result: `[]Address`.
+
+## draft
+
+Drafts: messages being written. maild stores a draft at once on every update and keeps a copy in the account's Drafts mailbox; draft.send hands it to the outbox (docs/design/send.md).
+
+### `draft.create`
+
+Start a draft: a new message in the account (or the first account), or a reply, reply-all or forward of a message.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `DraftKind` |  |
+| `accountId` | `int` (optional) |  |
+| `sourceId` | `int` (optional) | Required for reply, replyall and forward. |
+
+Result: `Draft`.
+Errors: `notFound`, `invalidParams`.
+
+### `draft.open`
+
+Turn a message in a Drafts mailbox into a draft, or return the draft it already is.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `int` |  |
+
+Result: `Draft`.
+Errors: `notFound`, `unavailable`.
+
+### `draft.get`
+
+One draft.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Draft`.
+Errors: `notFound`.
+
+### `draft.list`
+
+Drafts, most recently changed first.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+
+Result: `[]Draft`.
+
+### `draft.update`
+
+Replace a draft's content; maild stores it at once and updates the server copy later.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `content` | `DraftContent` |  |
+
+Result: `Draft`.
+Errors: `notFound`, `invalidParams`.
+
+### `draft.attach`
+
+Attach a local file; maild copies it, so later changes to the file do not matter.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `path` | `string` | An absolute path on this machine. |
+
+Result: `DraftAttachment`.
+Errors: `notFound`, `invalidParams`.
+
+### `draft.detach`
+
+Remove an attachment from a draft.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `attachmentId` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### `draft.delete`
+
+Discard a draft, and its server copy.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### `draft.send`
+
+Queue a draft for sending after the undo delay. Fails with invalidParams when it has no recipients, an address does not parse, or it is too large.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `OutboxItem`.
+Errors: `notFound`, `invalidParams`.
+
+### Event `draft.changed` (durable)
+
+A draft was created, changed or deleted.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `deleted` | `bool` |  |
+
+### Type `DraftAttachment`
+
+A file attached to a draft, stored by maild.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `filename` | `string` |  |
+| `contentType` | `string` | Lowercase type/subtype. |
+| `size` | `int` | Bytes. |
+
+### Type `DraftContent`
+
+What a compose window edits.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `identityId` | `int` |  |
+| `to` | `[]Address` |  |
+| `cc` | `[]Address` |  |
+| `bcc` | `[]Address` |  |
+| `subject` | `string` |  |
+| `html` | `string` | The body as the editor's HTML. |
+
+### Type `Draft`
+
+A message being written.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `content` | `DraftContent` |  |
+| `attachments` | `[]DraftAttachment` |  |
+| `sourceId` | `int` (optional) | The message this draft replies to or forwards. |
+| `kind` | `DraftKind` |  |
+| `updatedAt` | `time` |  |
+
+### Enum `DraftKind`
+
+How a new draft starts.
+
+| Value | Meaning |
+| --- | --- |
+| `new` | An empty message with the identity's signature. |
+| `reply` | A reply to the source's sender. |
+| `replyall` | A reply to the sender and every other recipient but the account's own addresses. |
+| `forward` | The source as quoted text with its attachments. |
+
 ## events
 
 Change notifications. After events.subscribe, the server sends JSON-RPC notifications with method "event" on the same connection. Durable events carry a sequence number and are kept in the changes log, so a client that reconnects can resume from the last sequence number it saw.
@@ -183,6 +364,48 @@ The state of a new subscription.
 | --- | --- | --- |
 | `seq` | `int` | The latest durable sequence number when the subscription started. |
 | `resync` | `bool` | True when sinceSeq is older than the retained log; the client must refetch all state. |
+
+## identity
+
+The addresses an account sends as, with their signatures.
+
+### `identity.list`
+
+Identities, default first per account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+
+Result: `[]Identity`.
+
+### `identity.update`
+
+Change an identity's name, Reply-To or signature.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` (optional) |  |
+| `replyTo` | `string` (optional) |  |
+| `signatureHtml` | `string` (optional) |  |
+
+Result: `Identity`.
+Errors: `notFound`, `invalidParams`.
+
+### Type `Identity`
+
+One From address of an account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `name` | `string` |  |
+| `email` | `string` |  |
+| `replyTo` | `string` |  |
+| `signatureHtml` | `string` |  |
+| `isDefault` | `bool` |  |
 
 ## mailbox
 
@@ -465,6 +688,80 @@ Flags to set or clear; omitted fields keep their values.
 | `flagged` | `bool` (optional) |  |
 | `answered` | `bool` (optional) |  |
 | `flagColor` | `int` (optional) |  |
+
+## outbox
+
+Messages on their way out (docs/design/send.md, Outbox).
+
+### `outbox.list`
+
+Messages not yet sent, oldest first.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+
+Result: `[]OutboxItem`.
+
+### `outbox.cancel`
+
+Stop a queued message (undo send) and return its draft.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Draft`.
+Errors: `notFound`, `conflict`.
+
+### `outbox.retry`
+
+Queue a failed message again, now.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
+### Event `outbox.changed` (durable)
+
+An outbox message changed state.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `state` | `OutboxState` |  |
+
+### Type `OutboxItem`
+
+One message on its way out.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `draftId` | `int` (optional) | Set until the message is accepted. |
+| `subject` | `string` |  |
+| `to` | `[]Address` |  |
+| `state` | `OutboxState` |  |
+| `sendAt` | `time` (optional) | When a queued message goes out. |
+| `attempts` | `int` |  |
+| `error` | `string` (optional) | The last error, when there was one. |
+
+### Enum `OutboxState`
+
+Where a message is on its way out.
+
+| Value | Meaning |
+| --- | --- |
+| `queued` | Waiting for its send time: the undo delay, or a retry after an error. |
+| `sending` | Being handed to the SMTP server. |
+| `accepted` | The SMTP server took it; the Sent copy is being saved. |
+| `sent` | Done. |
+| `failed` | The server refused it; the draft is kept. |
 
 ## rpc
 
