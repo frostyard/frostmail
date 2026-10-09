@@ -29,6 +29,8 @@ type PIMSyncer interface {
 	// Discover finds a service's DAV home set from start, signing in as the
 	// account.
 	Discover(ctx context.Context, accountID int64, service api.ServiceKind, start string) (string, error)
+	// Verify compares the account's synced collections with the servers.
+	Verify(ctx context.Context, accountID int64) ([]api.CollectionCheck, error)
 }
 
 // notBuilt answers a method M4.5 has not built yet (docs/plans/0007).

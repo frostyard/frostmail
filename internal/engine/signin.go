@@ -64,7 +64,18 @@ func (a accounts) Verify(ctx context.Context, p *api.AccountVerifyParams) (*api.
 	case err != nil:
 		return nil, api.Unavailable("cannot check account %d: %v", p.ID, err)
 	}
-	r := &api.VerifyReport{AccountID: p.ID, Ok: true, Mailboxes: []api.MailboxCheck{}, CheckedAt: time.Now().UTC()}
+	r := &api.VerifyReport{AccountID: p.ID, Ok: true, Mailboxes: []api.MailboxCheck{}, Collections: []api.CollectionCheck{},
+		CheckedAt: time.Now().UTC()}
+	if a.PIM != nil {
+		cols, err := a.PIM.Verify(ctx, p.ID)
+		if err != nil {
+			return nil, api.Unavailable("cannot check account %d's contacts and calendars: %v", p.ID, err)
+		}
+		for _, c := range cols {
+			r.Ok = r.Ok && len(c.MissingLocally) == 0 && len(c.MissingOnServer) == 0 && c.EtagDiffs == 0
+		}
+		r.Collections = cols
+	}
 	for _, c := range checks {
 		r.Ok = r.Ok && c.OK()
 		r.Mailboxes = append(r.Mailboxes, api.MailboxCheck{
