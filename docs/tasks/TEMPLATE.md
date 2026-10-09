@@ -2,7 +2,7 @@
 id: "NNNN"
 title: Imperative title, under 60 characters
 milestone: M1
-size: S # S: at most 150 non-test lines in at most 3 files. M (at most 400 lines) only after calibration.
+size: M # S: at most 150 non-test lines in 3 files; M: 400 lines in 6 files; L: 1,000 lines, one package or feature (ADR-0021).
 touch:
   - path/of/file/to/create/or/edit.go
 given:

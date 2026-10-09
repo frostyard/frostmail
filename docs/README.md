@@ -32,6 +32,11 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0014 — Images reach the reader's frame as data: URLs](adr/0014-images-embedded-in-the-reader-frame.md)
 - [0015 — Use a Frostyard mail icon](adr/0015-use-a-frostyard-mail-icon.md)
 - [0016 — Sync a window of recent mail](adr/0016-sync-a-window-of-recent-mail.md)
+- [0017 — Sync contacts, calendars and tasks with CardDAV, CalDAV and Google Tasks](adr/0017-sync-contacts-calendars-and-tasks.md)
+- [0018 — Keep each contact, event and task as the server sent it](adr/0018-keep-contacts-events-and-tasks-as-sent.md)
+- [0019 — Answer invitations through the server's scheduling, else by mail](adr/0019-answer-invitations-through-the-server.md)
+- [0020 — One window for mail, calendar, people and tasks](adr/0020-one-window-for-mail-calendar-people-and-tasks.md)
+- [0021 — Run task cards with Codex](adr/0021-run-task-cards-with-codex.md)
 
 ### Design
 
@@ -43,6 +48,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Drafts and sending](design/send.md)
 - [Accounts, sign-in and providers](design/accounts.md)
 - [Running on the desktop](design/desktop.md)
+- [Contacts, calendars and tasks](design/pim.md)
 - [Testing](design/testing.md)
 - [Agent workflow](design/agent-workflow.md)
 
@@ -63,6 +69,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0004 — M2 UI read path](plans/0004-m2-ui-read-path.md), done, with its evidence
 - [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md), done, with its evidence
 - [0006 — M4 daily driver](plans/0006-m4-daily-driver.md)
+- [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md)
 
 ## Conventions
 
