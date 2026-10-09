@@ -42,9 +42,20 @@ type Config struct {
 	Tokens TokenSource
 	// UserAgent is sent with every request.
 	UserAgent string
+	// Now is the clock that places the instances window; nil means
+	// time.Now.
+	Now func() time.Time
+	// Local is the zone of floating event times; nil means time.Local.
+	Local *time.Location
 }
 
 func (c Config) withDefaults() Config {
+	if c.Now == nil {
+		c.Now = time.Now
+	}
+	if c.Local == nil {
+		c.Local = time.Local
+	}
 	if c.Interval == 0 {
 		c.Interval = 5 * time.Minute
 	}

@@ -52,6 +52,9 @@ type Options struct {
 	// PIM, when set, runs contacts, calendar and tasks sync with this
 	// configuration (point HTTP at a davtest server's client).
 	PIM *pimsync.Config
+	// Now, when set, is the clock for stored timestamps and for PIM's
+	// instances window (unless PIM sets its own).
+	Now func() time.Time
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -89,6 +92,9 @@ func StartWith(t testing.TB, o Options) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if o.Now != nil {
+		db.Now = o.Now
+	}
 	broker := events.NewBroker(db)
 	views := view.NewManager(db, log)
 	db.OnCommit = func(evs []api.EventEnvelope) {
@@ -112,6 +118,9 @@ func StartWith(t testing.TB, o Options) *Server {
 	if o.PIM != nil {
 		cfg := *o.PIM
 		cfg.Tokens = srv.OAuth
+		if cfg.Now == nil {
+			cfg.Now = o.Now
+		}
 		srv.PIM = pimsync.New(db, srv.Secrets, log, cfg)
 		deps.PIM = srv.PIM
 	}

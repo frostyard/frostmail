@@ -86,10 +86,13 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   (UTC with their IANA zone, or dates for all-day), recurrence text, status,
   transparency, organizer, the user's `PARTSTAT`, sequence.
 - `event_attendees`: event, email, name, role, `PARTSTAT`.
-- `instances`: event, start and end in UTC, all-day flag, override event;
-  materialized for a window (a year back, two ahead) by
-  `internal/calendar` (rrule-go for RRULE, RDATE and EXDATE), extended as
-  views ask for ranges beyond it.
+- `instances`: event, start and end in UTC (dates for all-day), recurrence
+  ID; under the override's event when one replaces the occurrence.
+  Materialized for a window (a year back, two ahead: `instance_window`) by
+  `internal/calendar` (rrule-go for RRULE, RDATE and EXDATE). The first
+  pass of a new UTC day moves the window, re-expanding the stored events
+  without fetching them. Ranges beyond it (`calendar.range` far ahead) are
+  expanded on demand from the stored events, not stored.
 - `alarms`: instance, trigger time, action; `reminders`: snoozed until,
   dismissed.
 - `tasks`: object (CalDAV) or Google id, list, title, notes, due date,
@@ -108,6 +111,11 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - **Views** ask maild for instances in a range (`calendar.range`), joined
   with their events and calendars; `calendar.changed` events name the
   ranges that moved.
+- **Bounds.** A rule generates at most 200,000 starts, counted from
+  `DTSTART`, and rules repeating more than hourly read as single events, so
+  a hostile invitation cannot stall indexing. RDATE and EXDATE values with
+  a `TZID` that only the object's `VTIMEZONE` names are read in the event's
+  zone.
 - **Reminders.** maild keeps the next alarm per account and, when it is due,
   announces it: to the app's reminder window when the app is running, as a
   desktop notification otherwise (`internal/notify`, with Snooze and
@@ -168,4 +176,4 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - A collection whose objects fail to parse keeps the source and its
   `parse_error`, so a parser fix can rebuild the index without a resync.
 - Reminders for a series far in the future come from the instances window;
-  the window is extended daily by the DAV loop.
+  the window moves daily with the first pass of the day.
