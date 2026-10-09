@@ -177,6 +177,35 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - CalDAV tasks (VTODO) on servers that have them, in the same table.
 - Create, edit, complete and delete are in scope from the start: a task
   list that cannot be ticked is not one.
+- **Google lists and tasks.** A task list is a `tasklist` collection (its
+  href the list's ID); a task is an `objects` row of kind `gtask` (its href
+  the task's ID, `raw` the task's JSON as sent, the ETag its `etag`),
+  through `internal/gtasks`. A list's sync token is the `updated` of the
+  newest task seen; `updatedMin` is inclusive, so that task comes again and
+  is stored again unchanged. A deleted task removes its object; a list gone
+  from `tasklists.list` removes its collection.
+- **CalDAV lists.** With tasks on, a DAV account's calendar collections
+  that support VTODO are also `tasklist` collections (the same href). A
+  task list stores every object of the collection, so ETags stay
+  comparable, and indexes only its VTODOs; the calendar of the same href
+  indexes only events. Tasks has its own `account_services` row and home.
+- **The index.** One `tasks` row per task object: Google's ID or the
+  VTODO's `UID`, the parent (`parent`, or `RELATED-TO` with `RELTYPE=PARENT`
+  or none), title, notes, the due date (a VTODO's `DUE` date-time is read
+  as its date in maild's zone; its time stays in the source), completion
+  (`status: completed`, or `STATUS:COMPLETED` or a `COMPLETED` time) and
+  when, the position (Google's `position`; Apple's `X-APPLE-SORT-ORDER`),
+  and for a task made from Gmail the thread its `email` link names. A
+  task's ID in the API is its object's ID.
+- **Order.** Lists in collection order; in a list, parents by position
+  (text), then those without one by title, each parent followed by its
+  subtasks the same way.
+- **Writes.** Google tasks change through `tasks.insert`, `tasks.patch` and
+  `tasks.delete` ops whose payload is the change (`gtasks.Fields`, and the
+  parent for an insert); the object's JSON is patched at once and replaced
+  by the server's answer. CalDAV tasks change through `put` and `delete`
+  ops whose source `internal/calendar` patches (`SUMMARY`, `DESCRIPTION`,
+  `DUE`, `STATUS`, `COMPLETED`, `PERCENT-COMPLETE`), with golden tests.
 
 ### Testing
 
