@@ -1383,6 +1383,10 @@ export interface Contact {
   nickname: string;
   organization: string;
   title: string;
+  /**
+   * Each address once, compared trimmed and without case, though the vCard
+   * may give it twice.
+   */
   emails: LabeledValue[];
   phones: LabeledValue[];
   addresses: PostalAddress[];
