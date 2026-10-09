@@ -46,14 +46,35 @@ func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body
 	return &api.Body{Text: text, HasHTML: hasHTML}, nil
 }
 
+// storedBody is the blob of a message's stored body, or "" when there is
+// none yet.
+func (m messages) storedBody(ctx context.Context, id int64) (string, error) {
+	detail, err := m.DB.GetMessage(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if detail.BlobID != "" {
+		if ok, _ := m.Blobs.Has(detail.BlobID); ok {
+			return detail.BlobID, nil
+		}
+	}
+	return "", nil
+}
+
 // raw returns a message as stored, fetching it from the server first if
 // needed: notFound for an unknown message, unavailable when it cannot be
 // fetched now.
 func (m messages) raw(ctx context.Context, id int64) ([]byte, error) {
-	if m.Sync == nil || m.Blobs == nil {
+	if m.Blobs == nil {
 		return nil, api.Unavailable("sync is not running")
 	}
-	blobID, err := m.Sync.FetchBody(ctx, id)
+	blobID, err := m.storedBody(ctx, id)
+	if err == nil && blobID == "" {
+		if m.Sync == nil {
+			return nil, api.Unavailable("message %d is not stored locally and sync is not running", id)
+		}
+		blobID, err = m.Sync.FetchBody(ctx, id)
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, api.NotFound("message %d does not exist", id)
 	}

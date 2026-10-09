@@ -136,3 +136,34 @@ func addShowcaseCalendars(ctx context.Context, db *store.DB, accountID int64, em
 		return tx.SetInstanceWindow(ctx, from, to)
 	})
 }
+
+// showcaseInvitation is the iTIP invitation to the showcase's unanswered
+// event (Release planning) as mail in its attendee's INBOX, with the next
+// free UID there: the reader's invitation card in the screenshots. ok is
+// false for an account without one.
+func showcaseInvitation(email string, now time.Time, inbox []showcaseMessage) (showcaseMessage, bool) {
+	for _, c := range showcaseCalendars(now)[email] {
+		for _, e := range c.events {
+			if e.uid != "planning" {
+				continue
+			}
+			y, m, d := now.In(time.Local).Date()
+			ics := strings.Replace(string(e.ics(time.Date(y, m, d, 0, 0, 0, 0, time.Local))),
+				"PRODID:-//Frostmail//Showcase//EN\r\n", "PRODID:-//Frostmail//Showcase//EN\r\nMETHOD:REQUEST\r\n", 1)
+			var uid uint32
+			for _, msg := range inbox {
+				uid = max(uid, msg.uid)
+			}
+			sent := now.Add(-2 * time.Hour)
+			raw := "From: David King <david.king@northwind.example>\r\nTo: Ann Lee <" + email + ">\r\n" +
+				"Subject: Invitation: " + e.summary + "\r\nDate: " + sent.Format(time.RFC1123Z) + "\r\n" +
+				"Message-ID: <planning-invite@showcase.example>\r\nMIME-Version: 1.0\r\n" +
+				"Content-Type: multipart/alternative; boundary=\"invite\"\r\n\r\n" +
+				"--invite\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" +
+				"David King has invited you to " + e.summary + ".\r\n" +
+				"--invite\r\nContent-Type: text/calendar; charset=utf-8; method=REQUEST\r\n\r\n" + ics + "--invite--\r\n"
+			return showcaseMessage{mailbox: "INBOX", uid: uid + 1, raw: []byte(raw), date: sent}, true
+		}
+	}
+	return showcaseMessage{}, false
+}

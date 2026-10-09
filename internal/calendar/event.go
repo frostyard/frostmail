@@ -103,6 +103,20 @@ func Parse(raw []byte, opts Options) ([]Event, error) {
 	return nil, errors.New("parse calendar: no VCALENDAR")
 }
 
+// VEventRecurrenceID is the RecurrenceID Parse gives vevent, a VEVENT of
+// the VCALENDAR cal: "" for a single event or a series' master. local
+// reads floating times; nil means time.Local.
+func VEventRecurrenceID(cal, vevent *contentline.Component, local *time.Location) string {
+	if local == nil {
+		local = time.Local
+	}
+	id, ok := timeReader{calendar: cal, local: local}.read(vevent.Prop("RECURRENCE-ID"))
+	if !ok {
+		return ""
+	}
+	return RecurrenceKey(id.instant, id.allDay)
+}
+
 // RecurrenceKey formats an occurrence's original start as a UTC date for
 // all-day events, or a UTC instant with millisecond precision otherwise.
 func RecurrenceKey(t time.Time, allDay bool) string {

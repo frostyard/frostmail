@@ -63,9 +63,9 @@ func TestBuildShowcase(t *testing.T) {
 		want  int
 	}{
 		"Projects, which holds no mail": {`SELECT COUNT(*) FROM mailboxes WHERE path = 'Projects' AND selectable = 0`, nil, 1},
-		"work inbox":                    {`SELECT COUNT(*) FROM message_mailbox WHERE mailbox_id = ?`, []any{boxes["INBOX"].ID}, 8},
+		"work inbox":                    {`SELECT COUNT(*) FROM message_mailbox WHERE mailbox_id = ?`, []any{boxes["INBOX"].ID}, 9},
 		"Projects/Aurora":               {`SELECT COUNT(*) FROM message_mailbox WHERE mailbox_id = ?`, []any{boxes["Projects/Aurora"].ID}, 2},
-		"unread":                        {`SELECT COUNT(*) FROM messages WHERE seen = 0`, nil, 3},
+		"unread":                        {`SELECT COUNT(*) FROM messages WHERE seen = 0`, nil, 4},
 		"red flags":                     {`SELECT COUNT(*) FROM messages WHERE flagged = 1 AND flag_color = 1`, nil, 1},
 		"orange flags":                  {`SELECT COUNT(*) FROM messages WHERE flagged = 1 AND flag_color = 2`, nil, 1},
 		"with attachments":              {`SELECT COUNT(*) FROM messages WHERE has_attachments = 1`, nil, 2},
@@ -118,7 +118,7 @@ func TestShowcaseContacts(t *testing.T) {
 		t.Errorf("Maria = %+v, %v", maria, err)
 	}
 	services, _ := db.Services(t.Context(), 0)
-	if len(services) != 4 || !services[0].Enabled || services[0].LastSyncAt == nil {
+	if len(services) != 6 || !services[0].Enabled || services[0].LastSyncAt == nil {
 		t.Errorf("services = %+v", services)
 	}
 }
@@ -157,5 +157,36 @@ func TestShowcaseCalendars(t *testing.T) {
 		if !summaries[s] {
 			t.Errorf("no %q around today: %v", s, summaries)
 		}
+	}
+}
+
+// TestShowcaseTasks: the showcase accounts have task lists with subtasks,
+// due dates around today and a completed task.
+func TestShowcaseTasks(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if err := Build(t.Context(), Options{Out: dir, Showcase: showcaseDir}); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "frostmail.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	open, err := db.Tasks(t.Context(), store.TaskFilter{})
+	if err != nil || len(open) != 9 {
+		t.Fatalf("open tasks = %d, %v", len(open), err)
+	}
+	all, _ := db.Tasks(t.Context(), store.TaskFilter{Completed: true})
+	var subtasks, done int
+	for _, r := range all {
+		if r.ParentID != 0 {
+			subtasks++
+		}
+		if r.Completed {
+			done++
+		}
+	}
+	if len(all) != 11 || subtasks != 2 || done != 2 {
+		t.Errorf("tasks = %d, %d subtasks, %d done", len(all), subtasks, done)
 	}
 }

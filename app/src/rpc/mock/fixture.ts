@@ -10,10 +10,12 @@ import type {
   MessageSummary,
   Part,
   Person,
+  Task,
 } from "../gen/api";
 import type { MockCalendarData, MockEvent } from "./calendar";
 import type { MockData, MockMailbox, MockMessage } from "./mock";
 import type { MockPeopleData } from "./people";
+import type { MockTasksData } from "./tasks";
 
 /** FixtureOptions size the fixture. */
 export interface FixtureOptions {
@@ -26,6 +28,8 @@ export interface FixtureOptions {
   /** Seed two fired reminders, which raise the reminder window (default
    *  false: tests that render the main window need not mock window.open). */
   reminders?: boolean;
+  /** Add a mail invitation to Lunch with Ann (default false). */
+  invitation?: boolean;
 }
 
 /** Mailbox IDs of the fixture account. */
@@ -246,6 +250,27 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     flagColor: 3,
   });
 
+  const invitation = opts.invitation
+    ? make({
+        mailbox: FIXTURE.inbox,
+        minutesAgo: 5,
+        from: ann,
+        subject: "Invitation: Lunch with Ann",
+        seen: false,
+        text: "Shall we have lunch at Cafe Nord tomorrow?\n\nAnn",
+        attachments: [
+          {
+            path: "2",
+            contentType: "text/calendar",
+            filename: "invite.ics",
+            disposition: "attachment",
+            contentId: "",
+            size: 900,
+          },
+        ],
+      })
+    : undefined;
+
   const fill = Math.max(
     0,
     (opts.inbox ?? 60) - messages.filter((m) => m.summary.mailboxIds[0] === FIXTURE.inbox).length,
@@ -278,8 +303,82 @@ export function mockData(opts: FixtureOptions = {}): MockData {
   }
   for (const m of messages) m.summary.threadCount = threadSize.get(m.summary.threadId) ?? 1;
   const pim = fixturePeople(now);
-  pim.collections.push(...fixtureCalendars());
-  return { accounts, mailboxes, messages, pim, calendar: fixtureCalendar(now, opts.reminders === true) };
+  pim.collections.push(...fixtureCalendars(), ...fixtureTaskLists());
+  const linked = messages.find(
+    (m) =>
+      m.summary.subject === "Re: Offsite plan" &&
+      m.summary.flags.flagged &&
+      m.summary.mailboxIds.includes(FIXTURE.inbox),
+  );
+  return {
+    accounts,
+    mailboxes,
+    messages,
+    pim,
+    calendar: {
+      ...fixtureCalendar(now, opts.reminders === true),
+      invitations: invitation ? [{ messageId: invitation.summary.id, eventId: 303 }] : [],
+    },
+    tasks: fixtureTasks(now, linked?.summary.id),
+  };
+}
+
+/** TASK_LISTS are the task list IDs of the fixture account. */
+export const TASK_LISTS = { tasks: 301, errands: 302, team: 303 } as const;
+
+function fixtureTaskLists(): Collection[] {
+  return Object.entries(TASK_LISTS).map(([name, id]) => ({
+    id,
+    accountId: FIXTURE.accountId,
+    kind: "tasklist",
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    color: "",
+    tasks: true,
+    events: false,
+    enabled: true,
+    readOnly: id === TASK_LISTS.team,
+    isDefault: id === TASK_LISTS.tasks,
+  }));
+}
+
+function fixtureTasks(now: Date, messageId: number | undefined): MockTasksData {
+  const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const date = (offset: number) => new Date(day + offset * 86_400_000).toISOString().slice(0, 10);
+  let id = 401;
+  const task = (title: string, listId: number, over: Partial<Task> = {}): Task => ({
+    id: id++,
+    title,
+    listId,
+    accountId: FIXTURE.accountId,
+    notes: "",
+    due: "",
+    completed: false,
+    readOnly: listId === TASK_LISTS.team,
+    ...over,
+  });
+  return {
+    now: now.toISOString(),
+    tasks: [
+      task("Send the Q3 report", TASK_LISTS.tasks, {
+        due: date(1),
+        notes: "Numbers from Maria\nCharts in the shared folder",
+      }),
+      task("Draft the charts", TASK_LISTS.tasks, { parentId: 401 }),
+      task("Renew the passport", TASK_LISTS.tasks, { due: date(-2) }),
+      task("Reply about the offsite", TASK_LISTS.tasks, {
+        due: date(0),
+        ...(messageId === undefined ? {} : { messageId }),
+      }),
+      task("Book flights", TASK_LISTS.tasks, {
+        due: date(-1),
+        completed: true,
+        completedAt: `${date(-1)}T10:00:00.000Z`,
+      }),
+      task("Pick up the dry cleaning", TASK_LISTS.errands, { due: date(0) }),
+      task("Buy oat milk", TASK_LISTS.errands),
+      task("Quarterly planning", TASK_LISTS.team, { due: date(5) }),
+    ],
+  };
 }
 
 /** Calendar IDs of the fixture account. */

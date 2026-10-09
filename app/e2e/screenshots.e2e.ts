@@ -26,6 +26,17 @@ async function start(prefix: string, env: Record<string, string> = {}): Promise<
   app = await launch(dir, fixture(dir, 0, { showcase: SHOWCASE }), { FROSTMAIL_SYNC: "off", ...env });
   const s = app.session;
   await s.waitFor("message rows", async () => (await s.findAll('[role="option"]')).length >= 10, 30_000);
+  // WebKit keeps localStorage across launches: start each shot from the
+  // default layout (no To-Do bar), not the last shot's.
+  await s.execute(`localStorage.removeItem("frostmail.ui"); location.reload();`);
+  await s.waitFor(
+    "message rows after a reload",
+    () =>
+      s.execute<boolean>(
+        `return document.querySelectorAll('[role="option"]').length >= 10 && !document.querySelector("aside");`,
+      ),
+    30_000,
+  );
   return s;
 }
 
@@ -92,6 +103,49 @@ async function calendar(s: Session, view: "Day" | "Week" | "Month", select?: str
   await s.click(await s.find(`button[aria-label^="${select},"]`));
   await s.waitFor(`${select} in the event pane`, () =>
     s.execute<boolean>(`const h = document.querySelector("h2"); return !!h && h.textContent === arguments[0];`, select),
+  );
+}
+
+/** tasks shows the Tasks module on a source with the task titled select selected. */
+async function tasks(s: Session, source: string, select: string): Promise<void> {
+  await s.click(await s.find('[role="toolbar"][aria-label="Modules"] button[aria-label="Tasks"]'));
+  for (const row of await s.findAll('[role="tree"][aria-label="Task Lists"] [role="treeitem"]')) {
+    if ((await s.text(row)).startsWith(source)) {
+      await s.click(row);
+      break;
+    }
+  }
+  const rows = `[role="listbox"][aria-label="${source}"] [role="option"]`;
+  await s.waitFor("the tasks", async () => (await s.findAll(rows)).length >= 3);
+  for (const r of await s.findAll(rows)) {
+    if ((await s.text(r)).includes(select)) {
+      await s.click(r);
+      break;
+    }
+  }
+  await s.waitFor(`${select} in the task pane`, () =>
+    s.execute<boolean>(
+      `const t = document.querySelector('input[aria-label="Title"]'); return !!t && t.value === arguments[0];`,
+      select,
+    ),
+  );
+}
+
+/** todoBar shows Mail with the To-Do bar beside the reader: it turns the
+ *  persisted setting on and reloads, rather than racing the toolbar's
+ *  rebuild for a click. */
+async function todoBar(s: Session): Promise<void> {
+  await s.execute(
+    `const v = JSON.parse(localStorage.getItem("frostmail.ui") || '{"state":{},"version":0}');
+     v.state.todoBar = true;
+     localStorage.setItem("frostmail.ui", JSON.stringify(v));
+     location.reload();`,
+  );
+  await s.waitFor("Mail with the To-Do bar's tasks", () =>
+    s.execute<boolean>(
+      `return document.querySelectorAll('[role="option"]').length >= 10 &&
+         document.querySelectorAll('aside[aria-label="To-Do Bar"] li').length >= 3;`,
+    ),
   );
 }
 
@@ -166,6 +220,30 @@ describe.skipIf(!out)("README screenshots", () => {
     await save(s, "calendar.png");
     await calendar(s, "Month");
     await save(s, "calendar-month.png");
+  });
+
+  it("shows Tasks and the To-Do bar in light", async () => {
+    const s = await start("shots-tasks");
+    await tasks(s, "All Tasks", "Book the Lisbon venue");
+    await save(s, "tasks.png");
+    await todoBar(s);
+    await open(s, "Aurora launch checklist", "no errors");
+    await save(s, "todo-bar.png");
+  });
+
+  it("shows an invitation in the reader", async () => {
+    const s = await start("shots-invitation");
+    await open(s, "Invitation: Release planning", "has invited you");
+    await s.waitFor("the invitation card", () =>
+      s.execute<boolean>(`return !!document.querySelector('section[aria-label="Invitation"] [role="group"]');`),
+    );
+    await save(s, "invitation.png");
+  });
+
+  it("shows Tasks in dark", async () => {
+    const s = await start("shots-tasks-dark", { GTK_THEME: "Adwaita:dark" });
+    await tasks(s, "All Tasks", "Book the Lisbon venue");
+    await save(s, "tasks-dark.png");
   });
 
   it("shows Calendar in dark", async () => {

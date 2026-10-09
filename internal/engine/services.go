@@ -33,11 +33,6 @@ type PIMSyncer interface {
 	Verify(ctx context.Context, accountID int64) ([]api.CollectionCheck, error)
 }
 
-// notBuilt answers a method M4.5 has not built yet (docs/plans/0007).
-func notBuilt(method string) error {
-	return api.Unavailable("%s is not built yet", method)
-}
-
 // serviceOrder is account.services' order.
 func serviceOrder() []api.ServiceKind {
 	return []api.ServiceKind{api.ServiceKindContacts, api.ServiceKindCalendar, api.ServiceKindTasks}

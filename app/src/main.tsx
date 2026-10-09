@@ -19,7 +19,7 @@ const connect: Connect = gateway
           import("./rpc/mock/fixture"),
         ]);
         const rows = Number(import.meta.env.VITE_MOCK_ROWS ?? 60);
-        return new MockTransport(mockData({ inbox: rows }), { latency: 15 });
+        return new MockTransport(mockData({ inbox: rows, invitation: true }), { latency: 15 });
       }
     : async () => (await import("./rpc/transport/tauri")).connectTauri();
 

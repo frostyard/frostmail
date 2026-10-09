@@ -388,12 +388,211 @@ width and its right segment the event pane's.
   pane switches to Calendar, selects the occurrence's date and the
   occurrence, and keeps the current view.
 
-## Tasks module and the To-Do bar (Phase 4)
+## Tasks module
 
-Lists with subtasks, due dates and completion, flagged mail as a list of
-its own (`view.open` with `flagged`), and the To-Do bar beside Mail's
-reader: a small month, the next events and the tasks due soon. Specified
-with the Phase 3 and 4 cards.
+Task lists from Google Tasks and CalDAV, with subtasks, due dates and
+completion, and flagged mail as a list of its own: Apple Reminders' rows
+in Mail.app's panes, with Outlook's keys.
+
+```
+┌──────────────┬──────────────────────────────────────────┬─────────────────┐
+│ ▢            │ +  Work            [Show Completed]      │     ⚙  – □ ✕    │
+├──────────────┼──────────────────────────────────────────┼─────────────────┤
+│ Tasks        │ +  New Task                               │ [Report       ] │
+│  ☀ Today   2 │ ○  Report                                 │ Due   10/10/2026 ✕│
+│  ☰ All     5 │    Tomorrow · Q3 numbers                  │ List  Work ·    │
+│  ⚑ Flagged 3 │      ○  Charts                            │       user@…    │
+│ USER@GMAIL   │ ○  Groceries                         ✉    │ Notes           │
+│  ☰ Work    3 │    Yesterday                              │ [Q3 numbers   ] │
+│  ☰ Home 🔒 1 │                                           │                 │
+│ ✉ ▦ 👥 ☑     │                                           │ Delete Task     │
+└──────────────┴──────────────────────────────────────────┴─────────────────┘
+```
+
+- **Panes:** the sidebar (Mail's width and splitter), the task list (the
+  rest), and the task pane, 320 wide at the right with a 1px
+  `--separator` left border and no splitter, as Calendar's.
+- **Sources:** Today (open tasks due today or earlier, in every list),
+  All Tasks (every open task, list by list), Flagged Mail (flagged
+  messages), and each task list. A source is `"today"`, `"all"`,
+  `"flagged"` or a list's ID (`TasksSource`, `lib/taskText.ts`).
+- **Dates:** `due` is a `YYYY-MM-DD` string compared with today in the
+  app's time zone, as Calendar's dates are.
+
+### Tasks sidebar (`TasksSidebar`)
+
+- As People's sidebar: a `tree` named "Task Lists" with Mail's rows,
+  selection and section titles; sections collapse.
+- **Sections:** "Tasks" holds **Today** (icon `Sun`, key `today`), **All
+  Tasks** (`ListChecks`, key `all`) and **Flagged Mail** (`Flag`, key
+  `flagged`). Then one section per account with task lists, titled with
+  its email, holding a row per list (`List`, key `list:<id>`) in
+  collection order; a read-only list shows the 12px `Lock`
+  (`aria-label="Read-only"`).
+- **Counts** at the right of a row, 12/16 `--text-secondary`
+  (`--accent-contrast` on the focused selection): Today's and a list's
+  open tasks, All Tasks' every open task, Flagged Mail's flagged
+  messages. None when 0.
+- ↑ ↓ Home End move the selection within the tree's shown rows. The
+  module bar follows.
+
+### Task list (`TaskList`)
+
+- A `listbox` named by the source ("Today", "All Tasks", "Flagged Mail"
+  or the list's name), `--bg-window`, scrolling; not virtualized.
+- **New Task field** at the top, for every source but Flagged Mail and a
+  read-only list: 40 high, a 1px `--separator` bottom, a 16px `Plus`
+  in `--text-tertiary` where the check circles are, then a borderless
+  input 13/18 named "New Task" with that placeholder. Enter with text
+  creates the task (the title trimmed): in the selected list; for Today
+  and All Tasks in the default list, due today for Today. The field
+  empties and keeps focus. Escape empties it and focuses the list.
+- **List headers** in Today and All Tasks: before each list's first
+  task, 28 high, 12px left padding, the list's name 11/14 600
+  `--text-secondary` (`role="presentation"`).
+- **Task rows** (`role="option"`, `aria-selected`), at least 36 high,
+  8px vertical padding, 12px left padding plus 28px for a subtask whose
+  parent is shown above it, and a 1px `--separator` bottom inset 40:
+  - the **check circle**, 18px: a `checkbox` named "Completed"
+    (`aria-checked`), a 1.5px `--text-tertiary` ring; checked, an
+    `--accent` disc with a 12px `Check` in `--accent-contrast`. Clicking
+    it toggles completion without selecting the row. Disabled in a
+    read-only list.
+  - 10px gap, the title 13/18 (`--text-tertiary` when completed), and
+    under it, when there is either, a line 12/16 `--text-secondary`
+    truncated: the due text (`dueText`; in `--flag-1` when overdue) and
+    " · " the first line of the notes.
+  - a 14px `Mail` icon at the right (`aria-label="From mail"`) for a
+    task made from a message.
+- **Completed tasks** show only with Show Completed (a list or All
+  Tasks), and a task ticked here stays, ticked, until the source changes.
+- **Flagged Mail rows:** the check circle (ticking clears the flag; the
+  row leaves), the subject 13/18 ("No Subject"), under it the sender's
+  name or address, " · " and the date (`formatListDate`) 12/16
+  `--text-secondary`, and a 14px filled `Flag` in the flag's color at
+  the right. The view's first 200 rows.
+- **Selection** as People's list: click selects; the selection is
+  `--accent` with `--accent-contrast` text (and ring) while the list has
+  focus, `--selection-inactive` otherwise. No multiple selection.
+- **Empty:** "No Tasks" ("No Flagged Mail") centered, 15/400
+  `--text-secondary`, under the New Task field.
+
+### Task pane (`TaskPane`)
+
+- `--bg-window`, 20px padding, scrolling. Without a selection: "No Task
+  Selected" centered, 13/16 `--text-tertiary`.
+- **Title:** a text field 17/22 600 named "Title", borderless but for a
+  1px `--separator` rounded 6 on hover and focus. Enter or leaving it
+  commits a changed, non-empty title; an empty one returns to the old
+  title; Escape returns to it and leaves the field.
+- **Rows** (label 12/16 `--text-secondary` 80 wide, value 13/18, 32
+  high): **Due**, a date input named "Due" that commits on change, and
+  when there is a date a 14px `X` button named "Clear Due Date";
+  **List**, the list's name, " · " and the account's email
+  `--text-tertiary` on one line, truncated, the whole in its tooltip; **Completed**, when it is, the date and time
+  (medium date, short time, in the app's zone); **From mail**, for a
+  task made from a message, an **Open Message** text button in
+  `--accent` that shows the message in Mail.
+- **Notes:** a heading "Notes" 12/16 `--text-secondary`, then a textarea
+  named "Notes", 13/18, at least 120 high, 1px `--separator` rounded 6,
+  8px padding; leaving it commits a change.
+- **Delete Task:** a text button 13/16 `--flag-1` at the bottom; it
+  deletes the task and its subtasks at once, as Reminders does.
+- **Read-only:** the fields are read-only, the date input disabled, no
+  Clear or Delete, and a line "Read-only" 12/16 `--text-tertiary` with a
+  12px `Lock` under the title.
+- **A flagged message** shows its subject as an `h2` 17/22 600, the
+  sender and date 13/18 `--text-secondary`, and two text buttons:
+  **Open in Mail** and **Clear Flag**.
+
+### Tasks toolbar
+
+`Toolbar`'s `mode` is `"tasks"`, laid out as Calendar's: the middle
+segment fills the list's width and the right segment the pane's.
+
+- Over the sidebar: the sidebar toggle.
+- Over the list: **New Task** (`Plus`, "New Task (Ctrl+N)"), which
+  focuses the New Task field (disabled in Flagged Mail and a read-only
+  list), the source's name 15/20 600, and at the
+  right **Show Completed**, a 28-high text button with `aria-pressed`,
+  shown for a list and All Tasks.
+- Over the pane: Settings and the window controls.
+
+### Tasks behavior
+
+- **State** (`useUI`): `tasksSource` (first `"today"`), `tasksSelected`
+  (a task's ID, or a message's in Flagged Mail; first none),
+  `tasksFocus` (first `list`) and `tasksShowCompleted` (first false).
+  Window state, not persisted.
+- **Keys** with the list focused: ↑ ↓ Home End move the selection;
+  Space toggles the selected task's completion (in Flagged Mail, clears
+  the flag); Delete and Backspace delete the selected task (never a
+  message); Enter focuses the pane's Title (in Flagged Mail, opens the
+  message in Mail); Escape clears the selection. Ctrl+N focuses the New
+  Task field from any pane. Tab and Shift+Tab move between the panes;
+  Ctrl+4 shows Tasks from anywhere.
+- **Data:** one `tasks.list` with `completed` true holds every task; the
+  sources, counts and To-Do bar come from it (`sourceTasks`). A
+  `tasks.changed` event refetches it within 100 ms; `account.changed`
+  refetches the lists (`account.collections` of kind `tasklist` that are
+  enabled, sections named by `account.list`). Flagged Mail is
+  `view.open` with `flagged` (no threads), its first 200 rows, open
+  while the Tasks module or the To-Do bar shows.
+- **Writes:** ticking calls `tasks.update` with `completed` and shows the
+  change at once; a failure refetches. The pane's edits call
+  `tasks.update` with the changed field; New Task `tasks.create`; Delete
+  `tasks.delete`, selecting the next row. Clearing a flag is
+  `message.setFlags` with `flagColor` 0.
+- **Selection** follows the ID across refetches; when it is gone the
+  pane is empty. Changing the source clears it.
+- **From elsewhere:** the To-Do bar's tasks open in Tasks with their list
+  and the task selected; Open Message shows the message in Mail as a
+  notification's does (`revealMessage`).
+
+## To-Do bar
+
+Mail's optional right-hand pane (ADR-0020): the small month, what is
+next in the calendar, and what is due.
+
+```
+┌──────────┬──────────────┬─────────────────────┬────────────────────┐
+│ sidebar  │ list         │ reader              │ ‹ October 2026 ›   │
+│          │              │                     │ M T W T F S S      │
+│          │              │                     │ …                  │
+│          │              │                     │ Upcoming           │
+│          │              │                     │▌Standup   In 10 min│
+│          │              │                     │ Tasks              │
+│          │              │                     │ + New Task         │
+│          │              │                     │ ○ Report     Today │
+│          │              │                     │ ○ ⚑ Contract       │
+└──────────┴──────────────┴─────────────────────┴────────────────────┘
+```
+
+- **Pane:** 280 wide at the right of the reader, which narrows; 1px
+  `--separator` left border, `--bg-sidebar`, scrolling as a whole, a
+  `complementary` region named "To-Do Bar". Shown and hidden with the
+  toolbar's **To-Do Bar** button (`PanelRight`, `aria-pressed`, over
+  the reader before the search field); the choice persists (`todoBar`
+  in `useUI`'s persisted part). Mail only.
+- **Small month:** `MiniMonth` with its busy days; clicking a day shows
+  Calendar on that date, the view kept.
+- **Upcoming:** a heading 11/14 600 `--text-secondary` (12px padding,
+  16px above), then `UpcomingList` with the occurrences not yet ended and
+  not cancelled from now to the end of the seventh day, at most 5, else "No Upcoming
+  Events" 12/16 `--text-tertiary`. Clicking one opens it in Calendar.
+- **Tasks:** a heading, a New Task field (32 high, into the default
+  list), then up to 10 open tasks due within seven days or earlier, by
+  due date and then list order, and up to 5 flagged messages, newest
+  first. Rows are 32 high: a 16px check circle (completes the task, or
+  clears the flag), the title or subject 13/16 truncated, and at the
+  right the due text 12/16 (`--flag-1` when overdue) or a 12px `Flag`
+  in the flag's color. "Nothing Due" 12/16 `--text-tertiary` when there
+  are neither. Clicking a task's title opens it in Tasks; a message's
+  subject shows it in Mail.
+- **Data:** the tasks of the Tasks module; `calendar.range` over the
+  small month's 42 days (dots) and from today to seven days on
+  (upcoming), refetched on `calendar.changed` and every minute; the
+  flagged view.
 
 ## Reminder window
 
@@ -445,10 +644,62 @@ whatever the app shows.
   connects and `calendar.reminders` has any, and on each
   `calendar.reminders` event with a count above zero.
 
-## Invitation card (Phase 4)
+## Invitation card
 
-The reader's invitation card (`calendar.invitation`, answering with
-`calendar.respond`). Specified with its card.
+The reader shows an invitation as a card above the message's body
+(ADR-0019), answered there.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ┌───┐  Lunch with Ann                              Invitation│
+│ │OCT│  Friday, October 9, 2026 · 12:00 – 1:00 PM             │
+│ │ 9 │  Cafe Nord · Ann Smith (organizer)                     │
+│ └───┘  ⚠ Conflicts with Design review                        │
+│        Before: Standup · After: Weekly sync                  │
+│        [Accept] [Maybe] [Decline]          Show in Calendar  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **When:** a message whose parts include one that is `text/calendar`,
+  `application/ics` or named `*.ics` (`invitationPart`): the reader asks
+  `calendar.invitation` for it, and shows the card when the answer comes;
+  an error shows no card. The invitation's part leaves the attachment
+  strip while the card shows.
+- **Card** (`InvitationCard`): a `region` named "Invitation", 12px from
+  the header's sides and 8px below it, rounded 8, a 1px `--separator`
+  border, `--bg-sidebar`, 12px padding, a 12px gap between the date tile
+  and the text.
+  - **Date tile:** 40 × 44, rounded 6, `--bg-window`: the month (short,
+    uppercase) 10/12 600 `--flag-1`, then the day 18/22 600, in the app's
+    zone (an all-day event's own date).
+  - **Title** 15/20 600 (the summary, or "No Title"), and at the right a
+    badge 11/14 600: "Invitation" (request), "Cancelled" (cancel, in
+    `--flag-1`), "Reply" (reply), "Event" (publish and others).
+  - **When** 13/18: `dateText` and " · " and `timeRange` in the app's zone,
+    or "All day".
+  - **Where and who** 12/16 `--text-secondary`: the location, " · ", the
+    organizer's name (else address) and " (organizer)". For a reply,
+    instead: the sender's name (else address) and their answer, "accepted",
+    "declined" or "said maybe".
+  - **Conflicts** 12/16 `--flag-2` with a 12px `TriangleAlert`: "Conflicts
+    with " and the conflicts' summaries joined by ", "; left out when
+    there are none. **Adjacent** 12/16 `--text-tertiary`: "Before: <summary>"
+    and "After: <summary>" joined by " · "; left out when there are none.
+  - **Answers** when `canRespond`: a `group` named "Answer" of three text
+    buttons, 28 high, 10px padding: Accept, Maybe, Decline; the current
+    answer's has `aria-pressed="true"` and `--accent` with
+    `--accent-contrast`, the others `--bg-window` with a 1px `--separator`
+    border. Otherwise one line 12/16 `--text-secondary`: "This invitation
+    is out of date." when outdated, else the user's answer ("You
+    accepted", "You declined", "You said maybe"), else nothing.
+  - **Show in Calendar** at the right of the last line, a text button in
+    `--accent`: Calendar on the event's date, its occurrence selected when
+    the calendar has it (`eventId`).
+- **Answering** calls `calendar.respond` with the message's ID and the
+  answer; the buttons are disabled until it answers, then the card asks
+  `calendar.invitation` again. A `calendar.changed` event refreshes it
+  too. When maild mails the reply, the outbox's undo toast offers to stop
+  it.
 
 ## Rules
 

@@ -246,14 +246,6 @@ func calendarEventAPI(e store.EventRow, emails []string) api.CalendarEvent {
 	return out
 }
 
-func (c calendarService) Invitation(context.Context, *api.CalendarInvitationParams) (*api.Invitation, error) {
-	return nil, notBuilt("calendar.invitation")
-}
-
-func (c calendarService) Respond(context.Context, *api.CalendarRespondParams) (*api.CalendarEvent, error) {
-	return nil, notBuilt("calendar.respond")
-}
-
 // Reminders returns the fired reminders currently visible.
 func (c calendarService) Reminders(ctx context.Context, _ *api.CalendarRemindersParams) ([]api.Reminder, error) {
 	rows, err := c.DB.ActiveReminders(ctx, c.DB.Now())

@@ -41,6 +41,15 @@ type Message struct {
 	// WriteBcc writes the Bcc header field. Only the Drafts copy sets it, so
 	// its recipients survive on the server; a sent message never does.
 	WriteBcc bool
+	// Calendar, when set, is an iTIP object sent as mail (RFC 6047): the
+	// last part of the alternative.
+	Calendar *Calendar
+}
+
+// Calendar is an iCalendar object with its iTIP method, such as REPLY.
+type Calendar struct {
+	Method string
+	Data   []byte
 }
 
 // Inline is an image the HTML shows from a cid:<CID> URL.
@@ -161,6 +170,9 @@ func (m Message) body() part {
 		html = multipart("related", map[string]string{"type": "text/html"}, children)
 	}
 	alt := multipart("alternative", nil, []part{textPart("text/plain", mimex.HTMLToText(m.HTML)+"\n"), html})
+	if m.Calendar != nil {
+		alt.children = append(alt.children, calendarPart(*m.Calendar))
+	}
 	if len(m.Attachments) == 0 {
 		return alt
 	}
@@ -205,6 +217,19 @@ func textPart(typ, body string) part {
 	return part{header: h, body: func(w io.Writer) error {
 		if _, err := io.WriteString(w, body); err != nil {
 			return fmt.Errorf("build %s part: %w", typ, err)
+		}
+		return nil
+	}}
+}
+
+// calendarPart is a base64 text/calendar part naming its iTIP method.
+func calendarPart(c Calendar) part {
+	var h message.Header
+	h.Set("Content-Transfer-Encoding", "base64")
+	h.SetContentType("text/calendar", map[string]string{"charset": "utf-8", "method": c.Method})
+	return part{header: h, body: func(w io.Writer) error {
+		if _, err := w.Write(c.Data); err != nil {
+			return fmt.Errorf("build text/calendar part: %w", err)
 		}
 		return nil
 	}}
@@ -303,6 +328,9 @@ func (m Message) validate() error {
 		if !validMsgID(id) {
 			return fmt.Errorf("%w: References %q", ErrInvalid, id)
 		}
+	}
+	if c := m.Calendar; c != nil && (c.Method == "" || strings.Trim(c.Method, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") != "") {
+		return fmt.Errorf("%w: iTIP method %q", ErrInvalid, c.Method)
 	}
 	for _, in := range m.Inline {
 		if !validMsgID(in.CID) {

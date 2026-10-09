@@ -29,7 +29,9 @@ methods:
       - {name: accountId, type: int, optional: true}
     result: "[]OutboxItem"
   - name: cancel
-    doc: Stop a queued message (undo send) and return its draft.
+    doc: >-
+      Stop a queued message (undo send) and return its draft; a draft with
+      id 0 for a message maild wrote itself, such as an invitation's answer.
     params:
       - {name: id, type: int}
     result: Draft

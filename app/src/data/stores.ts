@@ -6,6 +6,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { OccurrenceKey } from "../features/calendar/TimeGrid";
 import type { CalendarView } from "../lib/calendarDates";
 import type { Module } from "../lib/modules";
+import type { TasksSource } from "../lib/taskText";
 import type { Account, Mailbox, MailboxRole, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
@@ -47,6 +48,11 @@ export interface UIState {
   calendarDate: string;
   calendarSelected: OccurrenceKey | null;
   calendarFocus: Pane;
+  tasksSource: TasksSource;
+  tasksSelected: number | null;
+  tasksFocus: Pane;
+  tasksShowCompleted: boolean;
+  todoBar: boolean;
   peopleBook: "all" | number;
   peopleSelected: number | null;
   peopleSearch: string;
@@ -77,6 +83,11 @@ export interface UIActions {
   selectOccurrence: (key: OccurrenceKey | null, date?: string) => void;
   setCalendarFocus: (pane: Pane) => void;
   setModule: (module: Module) => void;
+  setTasksSource: (source: TasksSource) => void;
+  selectTask: (id: number | null) => void;
+  setTasksFocus: (pane: Pane) => void;
+  toggleShowCompleted: () => void;
+  toggleTodoBar: () => void;
   setPeopleBook: (peopleBook: "all" | number) => void;
   selectPerson: (peopleSelected: number | null) => void;
   setPeopleSearchDraft: (peopleSearchDraft: string) => void;
@@ -100,6 +111,11 @@ const initialUI: UIState = {
   calendarDate: "",
   calendarSelected: null,
   calendarFocus: "list",
+  tasksSource: "today",
+  tasksSelected: null,
+  tasksFocus: "list",
+  tasksShowCompleted: false,
+  todoBar: false,
   peopleBook: "all",
   peopleSelected: null,
   peopleSearch: "",
@@ -129,6 +145,11 @@ export const useUI = create<UIState & UIActions>()(
         set({ calendarSelected, ...(date === undefined ? {} : { calendarDate: date }) }),
       setCalendarFocus: (calendarFocus) => set({ calendarFocus }),
       setModule: (module) => set({ module }),
+      setTasksSource: (tasksSource) => set({ tasksSource, tasksSelected: null }),
+      selectTask: (tasksSelected) => set({ tasksSelected }),
+      setTasksFocus: (tasksFocus) => set({ tasksFocus }),
+      toggleShowCompleted: () => set((s) => ({ tasksShowCompleted: !s.tasksShowCompleted })),
+      toggleTodoBar: () => set((s) => ({ todoBar: !s.todoBar })),
       setPeopleBook: (peopleBook) => set({ peopleBook }),
       selectPerson: (peopleSelected) => set({ peopleSelected }),
       setPeopleSearchDraft: (peopleSearchDraft) => set({ peopleSearchDraft }),
@@ -153,6 +174,7 @@ export const useUI = create<UIState & UIActions>()(
         sidebarWidth: s.sidebarWidth,
         listWidth: s.listWidth,
         conversations: s.conversations,
+        todoBar: s.todoBar,
       }),
     },
   ),

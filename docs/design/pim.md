@@ -145,17 +145,36 @@ query flagged messages alongside tasks, and completing one clears the flag.
 
 ### Invitations
 
-- `mimex` finds `text/calendar` parts with a `METHOD`; the reader asks
-  `calendar.invitation {messageId}`, which resolves the `UID` against the
-  account's events (ADR-0019) and returns the card: times in the user's
-  zone, organizer and attendees, the user's answer, conflicts and the
-  adjacent events.
-- `calendar.respond {messageId, answer}` patches `PARTSTAT` and either
-  queues a `dav.put` (the server schedules) or builds an iTIP `REPLY` with
-  `internal/compose` and queues it in the outbox (it does not), putting an
-  accepted event in the default calendar.
-- Whether a provider schedules is in its profile (Google, iCloud: to verify
-  in the trial), else from the `DAV` header's `calendar-auto-schedule`.
+- `internal/itip` finds a message's iCalendar part (the first
+  `text/calendar`, else an `.ics` attachment), reads its `METHOD` and
+  events, and writes answers: the iTIP `REPLY` (RFC 5546) and the
+  `PARTSTAT` patch of a stored copy (ADR-0018).
+- `calendar.invitation {messageId}` resolves the message's `UID` against
+  the account's events (ADR-0019) and returns the card: the event as the
+  message has it, the stored copy's ID, the user's answer (the stored
+  copy's when there is one), whether the user can answer (a request to
+  them, not older than the stored copy, in a writable account and
+  calendar), the busy occurrences it overlaps and the ones just before and
+  after it that day.
+- `calendar.respond {messageId | eventId, answer, recurrenceId?,
+  comment?}`:
+  - **A stored copy** (the event, or the message's `UID` in a calendar)
+    gets the user's `PARTSTAT` patched and its `put` queued on the ETag it
+    was read with. A message older than the copy (`SEQUENCE`) is refused.
+  - **Only the message:** an accepted or tentative invitation goes into the
+    account's default calendar (the invitation without `METHOD`, a `put`
+    that creates it); a declined one is not stored.
+  - **The reply:** unless the account's provider schedules
+    (`providers.DAV.Schedules`: Google and iCloud, to verify in Phase 5),
+    maild mails the organizer the `REPLY` (`text/calendar;
+    method=REPLY`, "Accepted: <summary>") through the outbox with the undo
+    delay. A declined or unstored answer is always mailed. Undo cancels
+    the mail; the calendar keeps the answer.
+  - One occurrence of a series is answered only when the series has a
+    VEVENT for it (an override); otherwise `invalidParams`.
+  - Read-only accounts and calendars, cancellations and replies are
+    refused with `conflict`.
+- Whether a provider schedules is in its profile, else not.
 
 ### People in mail
 
@@ -177,6 +196,43 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - CalDAV tasks (VTODO) on servers that have them, in the same table.
 - Create, edit, complete and delete are in scope from the start: a task
   list that cannot be ticked is not one.
+- **Google lists and tasks.** A task list is a `tasklist` collection (its
+  href the list's ID); a task is an `objects` row of kind `gtask` (its href
+  the task's ID, `raw` the task's JSON as sent, the ETag its `etag`),
+  through `internal/gtasks`. A list's sync token is the `updated` of the
+  newest task seen; `updatedMin` is inclusive, so that task comes again and
+  is stored again unchanged. A deleted task removes its object; a list gone
+  from `tasklists.list` removes its collection.
+- **CalDAV lists.** With tasks on, a DAV account's calendar collections
+  that support VTODO are also `tasklist` collections (the same href). A
+  task list stores every object of the collection, so ETags stay
+  comparable, and indexes only its VTODOs; the calendar of the same href
+  indexes only events. Tasks has its own `account_services` row and home.
+- **The index.** One `tasks` row per task object: Google's ID or the
+  VTODO's `UID`, the parent (`parent`, or `RELATED-TO` with `RELTYPE=PARENT`
+  or none), title, notes, the due date (a VTODO's `DUE` date-time is read
+  as its date in maild's zone; its time stays in the source), completion
+  (`status: completed`, or `STATUS:COMPLETED` or a `COMPLETED` time) and
+  when, the position (Google's `position`; Apple's `X-APPLE-SORT-ORDER`),
+  and for a task made from Gmail the thread its `email` link names. A
+  task's ID in the API is its object's ID.
+- **Order.** Lists in collection order; in a list, parents by position
+  (text), then those without one by title, each parent followed by its
+  subtasks the same way.
+- **Writes.** Google tasks change through `tasks.insert`, `tasks.patch` and
+  `tasks.delete` ops whose payload is the change (`gtasks.Fields`, and the
+  parent for an insert); the object's JSON is patched at once and replaced
+  by the server's answer. A new Google task waits as `local-<uuid>` until
+  its insert names it; its subtasks and later changes follow the new ID.
+  CalDAV tasks change through `put` and `delete` ops whose source
+  `internal/calendar` patches (`SUMMARY`, `DESCRIPTION`, `DUE`, `STATUS`,
+  `COMPLETED`, `PERCENT-COMPLETE`), with golden tests; a new one is
+  `<uid>.ics` in its list, with `RELATED-TO` for a parent. A put waiting
+  for an object writes its source as it is when it runs, so edits made
+  before the pass add no ops. Deleting a task deletes its subtasks: Google
+  takes them with the parent's `tasks.delete`; CalDAV gets a delete per
+  object, on its ETag. A task the server never had is only dropped, with
+  its waiting ops.
 
 ### Testing
 
