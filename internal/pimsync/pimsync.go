@@ -18,6 +18,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
+	"github.com/frostyard/frostmail/internal/gtasks"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -270,7 +271,8 @@ type pass struct {
 // the server refuses an OAuth account's.
 func (p *pass) service(ctx context.Context, s store.Service) error {
 	err := p.serviceOnce(ctx, s)
-	if errors.Is(err, davx.ErrUnauthorized) && p.acct.Auth == api.AuthKindOAuth2 && p.m.cfg.Tokens != nil {
+	unauthorized := errors.Is(err, davx.ErrUnauthorized) || errors.Is(err, gtasks.ErrUnauthorized)
+	if unauthorized && p.acct.Auth == api.AuthKindOAuth2 && p.m.cfg.Tokens != nil {
 		p.m.cfg.Tokens.Invalidate(p.acct.ID)
 		err = p.serviceOnce(ctx, s)
 	}
@@ -297,7 +299,10 @@ func (p *pass) serviceOnce(ctx context.Context, s store.Service) error {
 			return len(col.Components) == 0 || hasComponent(col, "VEVENT")
 		})
 	case api.ServiceKindTasks:
-		return nil // Google Tasks and CalDAV task lists: M4.5 Phase 4
+		if providers.ForKind(p.acct.Kind).DAV.Tasks == "google" {
+			return p.syncGoogleTasks(ctx, s)
+		}
+		return nil // CalDAV task lists are a later card.
 	}
 	return fmt.Errorf("pimsync: unknown service %q", s.Service)
 }
