@@ -7,13 +7,13 @@ import { SearchField } from "./SearchField";
 describe("SearchField placeholder", () => {
   it("says Search by default", () => {
     render(<SearchField value="" onChange={vi.fn()} onSearch={vi.fn()} onClear={vi.fn()} />);
-    expect(screen.getByRole("textbox", { name: "Search" }).getAttribute("placeholder")).toBe("Search");
+    expect(screen.getByRole("searchbox", { name: "Search" }).getAttribute("placeholder")).toBe("Search");
   });
 
   it("takes the module's placeholder", () => {
     render(
       <SearchField value="" placeholder="Search Contacts" onChange={vi.fn()} onSearch={vi.fn()} onClear={vi.fn()} />,
     );
-    expect(screen.getByRole("textbox", { name: "Search" }).getAttribute("placeholder")).toBe("Search Contacts");
+    expect(screen.getByRole("searchbox", { name: "Search" }).getAttribute("placeholder")).toBe("Search Contacts");
   });
 });
