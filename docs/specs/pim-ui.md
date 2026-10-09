@@ -643,10 +643,62 @@ whatever the app shows.
   connects and `calendar.reminders` has any, and on each
   `calendar.reminders` event with a count above zero.
 
-## Invitation card (Phase 4)
+## Invitation card
 
-The reader's invitation card (`calendar.invitation`, answering with
-`calendar.respond`). Specified with its card.
+The reader shows an invitation as a card above the message's body
+(ADR-0019), answered there.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ┌───┐  Lunch with Ann                              Invitation│
+│ │OCT│  Friday, October 9, 2026 · 12:00 – 1:00 PM             │
+│ │ 9 │  Cafe Nord · Ann Smith (organizer)                     │
+│ └───┘  ⚠ Conflicts with Design review                        │
+│        Before: Standup · After: Weekly sync                  │
+│        [Accept] [Maybe] [Decline]          Show in Calendar  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **When:** a message whose parts include one that is `text/calendar`,
+  `application/ics` or named `*.ics` (`invitationPart`): the reader asks
+  `calendar.invitation` for it, and shows the card when the answer comes;
+  an error shows no card. The invitation's part leaves the attachment
+  strip while the card shows.
+- **Card** (`InvitationCard`): a `region` named "Invitation", 12px from
+  the header's sides and 8px below it, rounded 8, a 1px `--separator`
+  border, `--bg-sidebar`, 12px padding, a 12px gap between the date tile
+  and the text.
+  - **Date tile:** 40 × 44, rounded 6, `--bg-window`: the month (short,
+    uppercase) 10/12 600 `--flag-1`, then the day 18/22 600, in the app's
+    zone (an all-day event's own date).
+  - **Title** 15/20 600 (the summary, or "No Title"), and at the right a
+    badge 11/14 600: "Invitation" (request), "Cancelled" (cancel, in
+    `--flag-1`), "Reply" (reply), "Event" (publish and others).
+  - **When** 13/18: `dateText` and " · " and `timeRange` in the app's zone,
+    or "All day".
+  - **Where and who** 12/16 `--text-secondary`: the location, " · ", the
+    organizer's name (else address) and " (organizer)". For a reply,
+    instead: the sender's name (else address) and their answer, "accepted",
+    "declined" or "said maybe".
+  - **Conflicts** 12/16 `--flag-2` with a 12px `TriangleAlert`: "Conflicts
+    with " and the conflicts' summaries joined by ", "; left out when
+    there are none. **Adjacent** 12/16 `--text-tertiary`: "Before: <summary>"
+    and "After: <summary>" joined by " · "; left out when there are none.
+  - **Answers** when `canRespond`: a `group` named "Answer" of three text
+    buttons, 28 high, 10px padding: Accept, Maybe, Decline; the current
+    answer's has `aria-pressed="true"` and `--accent` with
+    `--accent-contrast`, the others `--bg-window` with a 1px `--separator`
+    border. Otherwise one line 12/16 `--text-secondary`: "This invitation
+    is out of date." when outdated, else the user's answer ("You
+    accepted", "You declined", "You said maybe"), else nothing.
+  - **Show in Calendar** at the right of the last line, a text button in
+    `--accent`: Calendar on the event's date, its occurrence selected when
+    the calendar has it (`eventId`).
+- **Answering** calls `calendar.respond` with the message's ID and the
+  answer; the buttons are disabled until it answers, then the card asks
+  `calendar.invitation` again. A `calendar.changed` event refreshes it
+  too. When maild mails the reply, the outbox's undo toast offers to stop
+  it.
 
 ## Rules
 
