@@ -2,10 +2,12 @@
 import { useEffect, useState } from "react";
 import { useClient } from "../data/session";
 import { useUI } from "../data/stores";
+import { UpcomingList } from "../features/calendar/UpcomingList";
 import { type AddState, ContactPopover } from "../features/people/ContactPopover";
 import type { Address, ContactCard } from "../rpc/gen/api";
 import { composeTo } from "./compose";
 import { revealMessage } from "./openMessage";
+import { openOccurrence, useCalendarColors, useCalendarFrame } from "./useCalendar";
 
 /** ContactCardContainerProps say which card is open. */
 export interface ContactCardContainerProps {
@@ -16,6 +18,8 @@ export interface ContactCardContainerProps {
 
 /** ContactCardContainer loads a contact card and carries out its actions. */
 export function ContactCardContainer({ address, at, onClose }: ContactCardContainerProps) {
+  const frame = useCalendarFrame();
+  const colors = useCalendarColors();
   const client = useClient();
   const [card, setCard] = useState<ContactCard | null>(null);
   const [photo, setPhoto] = useState<string | undefined>();
@@ -71,7 +75,23 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
       card={card}
       photo={photo}
       at={at}
-      now={new Date()}
+      now={frame.now}
+      upcoming={
+        card &&
+        card.upcoming.length > 0 && (
+          <UpcomingList
+            occurrences={card?.upcoming ?? []}
+            colors={colors}
+            timeZone={frame.timeZone}
+            locale={frame.locale}
+            now={frame.now}
+            onOpen={(occurrence) => {
+              openOccurrence(occurrence, frame.timeZone);
+              onClose();
+            }}
+          />
+        )
+      }
       add={add}
       onClose={onClose}
       onCompose={() => {

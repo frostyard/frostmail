@@ -1,5 +1,5 @@
 import type { Occurrence, PartStat } from "../rpc/gen/api";
-import { addDays } from "./calendarDates";
+import { addDays, today, zoned } from "./calendarDates";
 
 const dayNames: Readonly<Record<string, string>> = {
   MO: "Monday",
@@ -171,7 +171,24 @@ export function calendarColor(color: string): string {
 
 /** upcomingWhen says when an occurrence is, for an Upcoming row: today's
  *  time ("Today" for all-day), a weekday within six days, else the date.
- *  Task T-0074 writes it. */
-export function upcomingWhen(_o: Occurrence, _timeZone: string, _locale: string, _now: Date): string {
-  return "";
+ */
+export function upcomingWhen(o: Occurrence, timeZone: string, locale: string, now: Date): string {
+  const current = today(timeZone, now);
+  const date = o.allDay
+    ? o.startDate <= current && current < o.endDate
+      ? current
+      : o.startDate
+    : zoned(o.start, timeZone).date;
+  if (date === current) {
+    return o.allDay
+      ? "Today"
+      : new Intl.DateTimeFormat(locale, {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone,
+        }).format(new Date(o.start));
+  }
+  const options: Intl.DateTimeFormatOptions =
+    date > current && date <= addDays(current, 6) ? { weekday: "short" } : { month: "short", day: "numeric" };
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(new Date(date));
 }

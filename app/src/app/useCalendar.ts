@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { CalendarSection } from "../features/calendar/CalendarSidebar";
-import { addDays, appLocale, localeWeekStart, monthGrid, today, viewRange } from "../lib/calendarDates";
+import { addDays, appLocale, localeWeekStart, monthGrid, today, viewRange, zoned } from "../lib/calendarDates";
 import { busyDates } from "../lib/eventLayout";
 import type { CalendarEvent, Client, Collection, Event, Occurrence } from "../rpc/gen/api";
 
@@ -42,8 +42,7 @@ function useRefresh(client: Client, active: boolean, eventName: Event["event"], 
   }, [client, active, eventName, load]);
 }
 
-function useCalendars(client: Client, active: boolean) {
-  const accounts = useMail((state) => state.accounts);
+function useCalendarCollections(client: Client, active: boolean) {
   const [collections, setCollections] = useState<Collection[]>([]);
   const load = useCallback(() => {
     let stopped = false;
@@ -58,6 +57,28 @@ function useCalendars(client: Client, active: boolean) {
     };
   }, [client]);
   useRefresh(client, active, "account.changed", load);
+  return collections;
+}
+
+/** useCalendarColors loads calendar colors and refreshes them on account changes. */
+export function useCalendarColors() {
+  const collections = useCalendarCollections(useClient(), true);
+  return useMemo(() => new Map(collections.map((calendar) => [calendar.id, calendar.color])), [collections]);
+}
+
+/** openOccurrence selects an occurrence in Calendar, keeping the current view. */
+export function openOccurrence(occurrence: Occurrence, timeZone: string) {
+  const ui = useUI.getState();
+  ui.setModule("calendar");
+  ui.selectOccurrence(
+    { eventId: occurrence.eventId, recurrenceId: occurrence.recurrenceId },
+    occurrence.allDay ? occurrence.startDate : zoned(occurrence.start, timeZone).date,
+  );
+}
+
+function useCalendars(client: Client, active: boolean) {
+  const accounts = useMail((state) => state.accounts);
+  const collections = useCalendarCollections(client, active);
   return useMemo(() => {
     const sections: CalendarSection[] = accounts
       .map((account) => ({

@@ -24,6 +24,7 @@ export interface PersonPaneProps {
   photo?: string;
   /** Recent mail with the person's first email. */
   recent: MessageSummary[];
+  upcoming?: ReactNode;
   /** The clock for the recent mail's dates. */
   now: Date;
   onCompose: (email: string) => void;
@@ -171,6 +172,7 @@ export function PersonPane({
   books,
   photo,
   recent,
+  upcoming,
   now,
   onCompose,
   onOpenMessage,
@@ -214,6 +216,7 @@ export function PersonPane({
           />
         ))}
         <RecentMail recent={recent} now={now} onOpenMessage={onOpenMessage} />
+        {upcoming}
       </div>
     </div>
   );

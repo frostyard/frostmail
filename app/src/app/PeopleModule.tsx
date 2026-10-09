@@ -2,9 +2,9 @@
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-
 import { useClient } from "../data/session";
 import { type Pane, useUI } from "../data/stores";
+import { UpcomingList } from "../features/calendar/UpcomingList";
 import { PeopleSidebar } from "../features/people/PeopleSidebar";
 import { PersonPane } from "../features/people/PersonPane";
 import { IndexHeader, PersonRow } from "../features/people/PersonRow";
@@ -14,6 +14,7 @@ import { type PeopleRow, peopleRows } from "../lib/peopleRows";
 import type { PersonSummary } from "../rpc/gen/api";
 import { revealMessage } from "./openMessage";
 import { Splitter } from "./Splitter";
+import { openOccurrence, useCalendarColors, useCalendarFrame } from "./useCalendar";
 import { type PeopleData, writeToPerson } from "./usePeople";
 
 /** PeopleHandle lets MainWindow cycle focus through the People panes. */
@@ -165,6 +166,8 @@ function PeopleList({ people }: { people: PersonSummary[] }) {
 }
 
 function PeopleDetail({ data }: { data: PeopleData }) {
+  const frame = useCalendarFrame();
+  const colors = useCalendarColors();
   const client = useClient();
   const openMessage = (id: number) => {
     void revealMessage(client, id)
@@ -180,7 +183,17 @@ function PeopleDetail({ data }: { data: PeopleData }) {
       books={data.books}
       recent={data.recent}
       photo={data.photo}
-      now={new Date()}
+      now={frame.now}
+      upcoming={
+        <UpcomingList
+          occurrences={data.upcoming}
+          colors={colors}
+          timeZone={frame.timeZone}
+          locale={frame.locale}
+          now={frame.now}
+          onOpen={(occurrence) => openOccurrence(occurrence, frame.timeZone)}
+        />
+      }
       onCompose={(email) => writeToPerson(client, email)}
       onOpenMessage={openMessage}
       onOpenURL={openURL}
