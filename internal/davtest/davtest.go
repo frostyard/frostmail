@@ -18,6 +18,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -50,6 +51,10 @@ type Options struct {
 	CDATA bool
 	// NoETagOnPut leaves the ETag header out of PUT responses.
 	NoETagOnPut bool
+	// RelocateCreates stores a new object at a name of the server's
+	// choosing, from its UID, and answers 201 with a Location and no ETag,
+	// as Google's CalDAV does.
+	RelocateCreates bool
 	// NoInitialSync answers a sync-collection without a token with 400,
 	// as Google's CardDAV does, while still listing the report.
 	NoInitialSync bool
@@ -377,6 +382,16 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request, body []byte) {
 		http.Error(w, "precondition failed", http.StatusPreconditionFailed)
 		return
 	}
+	if old == nil && s.opts.RelocateCreates {
+		if uid := objectUID(body); uid != "" {
+			ext := path.Ext(r.URL.Path)
+			at := c.path + uid + ext
+			s.store(c, at, body)
+			w.Header().Set("Location", s.URL+escapePath(at))
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+	}
 	etag := s.store(c, r.URL.Path, body)
 	if !s.opts.NoETagOnPut {
 		w.Header().Set("ETag", etag)
@@ -445,4 +460,14 @@ func describeReport(body []byte) (report, token string, hrefs int) {
 			in = ""
 		}
 	}
+}
+
+// objectUID is the first UID in a vCard or iCalendar object.
+func objectUID(data []byte) string {
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if uid, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "UID:"); ok {
+			return strings.TrimSpace(uid)
+		}
+	}
+	return ""
 }

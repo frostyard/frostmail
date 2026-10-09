@@ -241,9 +241,10 @@ func TestWrites(t *testing.T) {
 	ctx := t.Context()
 	p := book + "new.vcf"
 
-	etag, err := cl.Put(ctx, p, card("new", "One"), davx.AddressBooks, "")
-	if err != nil || etag == "" {
-		t.Fatalf("create = %q, %v", etag, err)
+	w, err := cl.Put(ctx, p, card("new", "One"), davx.AddressBooks, "")
+	etag := w.ETag
+	if err != nil || etag == "" || w.Href != p {
+		t.Fatalf("create = %+v, %v", w, err)
 	}
 	if _, err := cl.Put(ctx, p, card("new", "Two"), davx.AddressBooks, ""); !errors.Is(err, davx.ErrPrecondition) {
 		t.Errorf("create over an existing object: %v", err)
@@ -256,7 +257,8 @@ func TestWrites(t *testing.T) {
 	if err != nil || !strings.Contains(string(obj.Data), "Elsewhere") {
 		t.Fatalf("Get = %+v, %v", obj, err)
 	}
-	etag, err = cl.Put(ctx, p, card("new", "Four"), davx.AddressBooks, obj.ETag)
+	w, err = cl.Put(ctx, p, card("new", "Four"), davx.AddressBooks, obj.ETag)
+	etag = w.ETag
 	if err != nil || etag == obj.ETag {
 		t.Errorf("update = %q, %v", etag, err)
 	}
@@ -283,7 +285,7 @@ func TestWrites(t *testing.T) {
 
 	quiet := davtest.New(t, davtest.Options{NoETagOnPut: true})
 	qbook := quiet.AddressBook("default", "Contacts")
-	if etag, err := client(t, quiet, davtest.ContactsHome).Put(ctx, qbook+"x.vcf", card("x", "X"), davx.AddressBooks, ""); err != nil || etag != "" {
+	if w, err := client(t, quiet, davtest.ContactsHome).Put(ctx, qbook+"x.vcf", card("x", "X"), davx.AddressBooks, ""); err != nil || w.ETag != "" {
 		t.Errorf("PUT without an ETag header = %q, %v", etag, err)
 	}
 	var methods []string
@@ -317,5 +319,28 @@ func TestPhantoms(t *testing.T) {
 	objs, missing, err := cl.Multiget(t.Context(), davx.Calendars, cal, []string{cal + "real.ics", cal + "gone.ics"})
 	if err != nil || len(objs) != 1 || !slices.Equal(missing, []string{cal + "gone.ics"}) {
 		t.Errorf("multiget = %d objects, missing %q, %v", len(objs), missing, err)
+	}
+}
+
+// TestPutRelocated: Google's CalDAV stores a new object under a name of
+// its own and says where in Location, without an ETag.
+func TestPutRelocated(t *testing.T) {
+	s := davtest.New(t, davtest.Options{RelocateCreates: true})
+	cal := s.Calendar("work", "Work", "", "VEVENT")
+	cl := client(t, s, davtest.CalendarsHome)
+	ctx := t.Context()
+	event := func(summary string) []byte {
+		return []byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:abc@google.com\r\nSUMMARY:" + summary + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	}
+	w, err := cl.Put(ctx, cal+"mine.ics", event("One"), davx.Calendars, "")
+	if err != nil || w.Href != cal+"abc@google.com.ics" || w.ETag != "" {
+		t.Fatalf("create = %+v, %v", w, err)
+	}
+	obj, err := cl.Get(ctx, w.Href)
+	if err != nil || !strings.Contains(string(obj.Data), "SUMMARY:One") {
+		t.Fatalf("Get = %+v, %v", obj, err)
+	}
+	if w, err := cl.Put(ctx, w.Href, event("Two"), davx.Calendars, obj.ETag); err != nil || w.Href != cal+"abc@google.com.ics" {
+		t.Errorf("update = %+v, %v", w, err)
 	}
 }

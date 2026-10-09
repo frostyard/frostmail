@@ -84,7 +84,9 @@ func enabledService(services []store.Service, kind api.ServiceKind) (store.Servi
 
 // put writes an object as stored here, conditional on op.IfMatch, and
 // records the server's ETag; a server that sends none is asked for the
-// object, whose version then replaces the local one.
+// object, whose version then replaces the local one. A new object the
+// server stored under a name of its own moves there, or gives way to the
+// object a pass already brought from there.
 func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col store.Collection, op store.PIMOp) error {
 	if op.ObjectID == nil {
 		return p.done(ctx, op, nil)
@@ -96,19 +98,38 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 	if err != nil {
 		return err
 	}
-	etag, err := c.Put(ctx, op.Href, obj.Raw, kind, op.IfMatch)
+	w, err := c.Put(ctx, op.Href, obj.Raw, kind, op.IfMatch)
 	if err != nil {
 		return p.failed(ctx, op, err)
 	}
+	moved := w.Href != op.Href
+	there := false
+	if moved {
+		_, err := p.m.db.ObjectByHref(ctx, col.ID, w.Href)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		there = err == nil
+	}
 	var fetched *davx.Object
-	if etag == "" {
-		got, err := c.Get(ctx, op.Href)
+	if w.ETag == "" || there {
+		got, err := c.Get(ctx, w.Href)
 		if err != nil {
 			return p.failed(ctx, op, err)
 		}
 		fetched = &got
 	}
 	return p.done(ctx, op, func(tx *store.Tx) error {
+		switch {
+		case there:
+			if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
+				return err
+			}
+		case moved:
+			if err := tx.SetObjectHref(ctx, obj.ID, w.Href); err != nil {
+				return err
+			}
+		}
 		if fetched != nil {
 			if err := p.indexDAV(ctx, tx, col, *fetched); err != nil {
 				return err
@@ -118,7 +139,7 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 			}
 			return nil
 		}
-		return tx.SetObjectETag(ctx, obj.ID, etag)
+		return tx.SetObjectETag(ctx, obj.ID, w.ETag)
 	})
 }
 
