@@ -1,12 +1,13 @@
 // The toolbar's search field and the scope bar under the toolbar
 // (docs/specs/ui.md, Behavior: Search).
 import { CircleX, Search } from "lucide-react";
-import { type ChangeEvent, type KeyboardEvent, type Ref, useEffect, useRef } from "react";
+import { type ChangeEvent, type KeyboardEvent, type Ref, useCallback, useEffect, useRef } from "react";
 
 /** SearchFieldProps are the search field's inputs. */
 export interface SearchFieldProps {
   /** The text shown; the field is controlled. */
   value: string;
+  placeholder?: string;
   /** Every edit, at once. */
   onChange: (text: string) => void;
   /** The trimmed text, 250 ms after the last edit, or at once on Enter. */
@@ -16,23 +17,18 @@ export interface SearchFieldProps {
   inputRef?: Ref<HTMLInputElement>;
 }
 
-/** SearchField is the toolbar's search box: it reports edits at once and
- * searches the trimmed text 250 ms after the last one. */
-export function SearchField(props: SearchFieldProps) {
+function useSearchHandlers(props: SearchFieldProps) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    };
-  }, []);
-
-  const cancel = () => {
+  const cancel = useCallback(() => {
     if (timer.current !== null) {
       clearTimeout(timer.current);
       timer.current = null;
     }
-  };
+  }, []);
+  useEffect(() => cancel, [cancel]);
+  useEffect(() => {
+    if (props.value === "") cancel();
+  }, [props.value, cancel]);
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const text = event.target.value;
@@ -56,13 +52,20 @@ export function SearchField(props: SearchFieldProps) {
     props.onClear();
   };
 
+  return { handleChange, handleKeyDown, clear };
+}
+
+/** SearchField is the toolbar's search box: it reports edits at once and
+ * searches the trimmed text 250 ms after the last one. */
+export function SearchField(props: SearchFieldProps) {
+  const { handleChange, handleKeyDown, clear } = useSearchHandlers(props);
   return (
     <div className="flex h-[28px] w-[220px] items-center rounded-md bg-selection-inactive px-[6px]">
       <Search size={14} className="text-tertiary" />
       <input
         type="search"
         aria-label="Search"
-        placeholder="Search"
+        placeholder={props.placeholder ?? "Search"}
         className="flex-1 border-0 bg-transparent text-[13px] outline-none"
         value={props.value}
         ref={props.inputRef}

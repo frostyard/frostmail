@@ -2,6 +2,7 @@
 import { useMemo } from "react";
 
 import { sourceFromKey, sourceKey, useMail, useUI } from "../data/stores";
+import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
 import { buildSidebar } from "../lib/mailboxTree";
 import { OutboxSection } from "./OutboxContainer";
@@ -9,7 +10,7 @@ import { OutboxSection } from "./OutboxContainer";
 /** SidebarContainer connects Sidebar to the stores. */
 export function SidebarContainer() {
   const { accounts, mailboxes, sync } = useMail();
-  const { source, search, searchScope, focus, setSource, setFocus } = useUI();
+  const { source, search, searchScope, focus, setSource, setFocus, module, setModule } = useUI();
   const sections = useMemo(() => buildSidebar(accounts, mailboxes), [accounts, mailboxes]);
   const indicators = useMemo(() => {
     const out: Record<number, SyncIndicator> = {};
@@ -41,6 +42,7 @@ export function SidebarContainer() {
       <div className="max-h-[40%] shrink-0 overflow-y-auto">
         <OutboxSection />
       </div>
+      <ModuleBar modules={["mail", "people"]} current={module} onSelect={setModule} />
     </div>
   );
 }

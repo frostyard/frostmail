@@ -59,7 +59,7 @@ describe("commandFor outside text fields", () => {
     "Meta+a",
     "Meta+ArrowDown",
     "Ctrl+Meta+1",
-    "Ctrl+2",
+    "Ctrl+5",
     "Ctrl+Alt+n",
     "Ctrl+Alt+r",
     "F10",

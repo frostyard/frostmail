@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import type { Module } from "../lib/modules";
 import type { Account, Mailbox, MailboxRole, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
@@ -39,6 +40,12 @@ export type Pane = "sidebar" | "list" | "reader";
 
 /** UIState is the window's own state. */
 export interface UIState {
+  module: Module;
+  peopleBook: "all" | number;
+  peopleSelected: number | null;
+  peopleSearch: string;
+  peopleSearchDraft: string;
+  peopleFocus: Pane;
   source: Source;
   /** The committed search ("" when not searching). */
   search: string;
@@ -59,6 +66,13 @@ export interface UIState {
 
 /** UIActions change UIState. */
 export interface UIActions {
+  setModule: (module: Module) => void;
+  setPeopleBook: (peopleBook: "all" | number) => void;
+  selectPerson: (peopleSelected: number | null) => void;
+  setPeopleSearchDraft: (peopleSearchDraft: string) => void;
+  commitPeopleSearch: (peopleSearch: string) => void;
+  clearPeopleSearch: () => void;
+  setPeopleFocus: (peopleFocus: Pane) => void;
   setSource: (s: Source) => void;
   setSearchDraft: (text: string) => void;
   commitSearch: (text: string) => void;
@@ -71,6 +85,12 @@ export interface UIActions {
 }
 
 const initialUI: UIState = {
+  module: "mail",
+  peopleBook: "all",
+  peopleSelected: null,
+  peopleSearch: "",
+  peopleSearchDraft: "",
+  peopleFocus: "list",
   source: { kind: "allInboxes" },
   search: "",
   searchDraft: "",
@@ -89,6 +109,13 @@ export const useUI = create<UIState & UIActions>()(
   persist(
     (set) => ({
       ...initialUI,
+      setModule: (module) => set({ module }),
+      setPeopleBook: (peopleBook) => set({ peopleBook }),
+      selectPerson: (peopleSelected) => set({ peopleSelected }),
+      setPeopleSearchDraft: (peopleSearchDraft) => set({ peopleSearchDraft }),
+      commitPeopleSearch: (peopleSearch) => set({ peopleSearch }),
+      clearPeopleSearch: () => set({ peopleSearch: "", peopleSearchDraft: "" }),
+      setPeopleFocus: (peopleFocus) => set({ peopleFocus }),
       setSource: (source) => set({ source, search: "", searchDraft: "", selected: [], anchor: null }),
       setSearchDraft: (searchDraft) => set({ searchDraft }),
       commitSearch: (search) => set({ search, selected: [], anchor: null }),
