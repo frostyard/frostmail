@@ -62,7 +62,7 @@ type session struct {
 	dav, gmail int64
 }
 
-func newSession(t *testing.T, davBase, tasksBase string, client *http.Client) *session {
+func newSession(t *testing.T, davBase, tasksBase string, client *http.Client, email string) *session {
 	t.Helper()
 	ctx := t.Context()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "frostmail.db"))
@@ -73,7 +73,7 @@ func newSession(t *testing.T, davBase, tasksBase string, client *http.Client) *s
 	s := &session{db: db}
 	err = db.Tx(ctx, func(tx *store.Tx) error {
 		server := store.ServerConfig{Host: "mail.example.com", Port: 993, TLS: api.TLSModeTLS, Username: davtest.User}
-		dav, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindIMAP, Email: account, Auth: api.AuthKindPassword,
+		dav, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindIMAP, Email: email, Auth: api.AuthKindPassword,
 			IMAP: server, SMTP: server})
 		if err != nil {
 			return err
@@ -203,7 +203,7 @@ func TestRecordSession(t *testing.T) {
 	var out bytes.Buffer
 	insecure := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // the test servers' certificates
 	client := &http.Client{Transport: &httprec.Transport{Base: insecure, W: &out}}
-	s := newSession(t, dav.URL, gt.Base, client)
+	s := newSession(t, dav.URL, gt.Base, client, account)
 	s.passes(t)
 	xs, err := httprec.Parse(&out)
 	if err != nil {
@@ -222,6 +222,8 @@ func TestRecordSession(t *testing.T) {
 }
 
 // replay runs the session against a trace and returns the store's shape.
+// The DAV account's address is the trace's "# account" line, the fake
+// davrec made of it, or else the recorded one.
 func replay(t *testing.T, path string) []string {
 	t.Helper()
 	xs, err := httprec.Load(path)
@@ -229,9 +231,25 @@ func replay(t *testing.T, path string) []string {
 		t.Fatal(err)
 	}
 	rs := httprec.Serve(t, xs)
-	s := newSession(t, rs.URL, rs.URL+"/tasks/v1", http.DefaultClient)
+	s := newSession(t, rs.URL, rs.URL+"/tasks/v1", http.DefaultClient, accountOf(t, path))
 	s.passes(t)
 	return s.shape(t)
+}
+
+// accountOf reads a trace's "# account" comment; the recorded account
+// without one.
+func accountOf(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if a, ok := strings.CutPrefix(line, "# account "); ok {
+			return a
+		}
+	}
+	return account
 }
 
 func scrub(t *testing.T, args ...string) (string, error) {
@@ -264,8 +282,13 @@ func TestScrubHidesThePerson(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(out, "# Ann's session, scrubbed\n") {
-		t.Errorf("the note is missing: %.80q", out)
+	if !strings.HasPrefix(out, "# Ann's session, scrubbed\n# account ") {
+		t.Errorf("the note and the account's fake are missing: %.80q", out)
+	}
+	fake, _, _ := strings.Cut(strings.SplitN(out, "\n", 3)[1], "\n")
+	fake = strings.TrimPrefix(fake, "# account ")
+	if fake == account || !strings.HasSuffix(fake, ".com") || !strings.Contains(fake, "@") || len(fake) != len(account) {
+		t.Errorf("the account's fake = %q", fake)
 	}
 	for _, s := range sensitive {
 		if strings.Contains(out, s) || strings.Contains(strings.ToLower(out), strings.ToLower(s)) {
