@@ -85,6 +85,8 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
 - `events`: object, UID, `RECURRENCE-ID`, summary, location, start and end
   (UTC with their IANA zone, or dates for all-day), recurrence text, status,
   transparency, organizer, the user's `PARTSTAT`, sequence.
+  An event keeps its ID while its object keeps its recurrence ID, across
+  syncs, since the app's selection holds it.
 - `event_attendees`: event, email, name, role, `PARTSTAT`.
 - `instances`: event, start and end in UTC (dates for all-day), recurrence
   ID; under the override's event when one replaces the occurrence.

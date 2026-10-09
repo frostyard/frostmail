@@ -198,11 +198,193 @@ does.
 - The card asks `people.card` each time it opens; while the answer is
   pending it shows the name and address it was opened with.
 
-## Calendar module (Phase 3)
+## Calendar module
 
-Day, week and month views over `calendar.range`, a small month and the
-calendars of each account in its sidebar, the event pane, and the To-Do
-bar's agenda. Specified with the Phase 3 cards.
+Day, week and month views over `calendar.range`, Apple Calendar's look
+with Outlook's keys. Phase 3 shows events; creating and editing them is a
+later event editor window (ADR-0020), and answering invitations is Phase
+4's.
+
+```
+┌──────────────┬──────────────────────────────────────────┬─────────────────┐
+│ ▢            │ Today ‹ ›  October 2026   [Day|Week|Month]│     ⚙  – □ ✕    │
+├──────────────┼──────────────────────────────────────────┼─────────────────┤
+│ ‹ October 2026 ›│      Mon 5   Tue 6   Wed 7  (8)Thu  …  │ Standup         │
+│ M T W T F S S │ all-day        [Holiday──────────]        │ Room 4          │
+│ 28 29 30  1 … │  9 AM  ┃Standup ┃Standup                │ Thursday, Oct 8 │
+│ …             │ 10 AM          ┃Review                  │ 9:00 – 9:15 AM  │
+│ USER@DAV.TEST │ ──●──── now                               │ Repeats  Every  │
+│ ■ Work        │ 11 AM                                     │   day, 7 times  │
+│ □ Home 🔒     │                                           │ ● Work          │
+│ ✉ ▦ 👥 ☑      │                                           │ Maria (organizer)│
+└──────────────┴──────────────────────────────────────────┴─────────────────┘
+```
+
+- **Panes:** the sidebar (Mail's width and splitter), the view (the rest),
+  and the event pane, 320 wide at the right with a 1px `--separator` left
+  border and no splitter.
+- **Dates** are `YYYY-MM-DD` strings in the app's time zone
+  (`Intl.DateTimeFormat().resolvedOptions().timeZone`), which every
+  `calendar.range` call names. Weeks start on the locale's first day
+  (`Intl.Locale(navigator.language)`'s week info; Sunday when the browser
+  has none); components take it as `weekStart` (0 is Sunday). Times and
+  dates are formatted with `Intl.DateTimeFormat` in the locale; tests pass
+  `en-US`.
+- **Calendar colors** are the collection's `color`, else `var(--accent)`:
+  data applied inline, like photos. An event's fill is its color mixed 18%
+  into `--bg-window` (`color-mix(in srgb, <color> 18%, var(--bg-window))`)
+  with a 3px left bar in the color; selected, the fill is the color itself
+  and its text `--accent-contrast`.
+- **What shows:** occurrences the user declined (`answer` `declined`) are
+  left out. Cancelled ones (`status` `cancelled`) show at 60% opacity with
+  their title struck through. Unanswered invitations (`needsaction`) and
+  tentative answers have a 1px dashed border in the color and a
+  `--bg-window` fill.
+
+### Calendar sidebar (`CalendarSidebar`)
+
+- **Small month (`MiniMonth`)** at the top, 12px padding: a header with
+  the month and year 13/16 600 and ‹ › buttons (24 × 24, 14px
+  `ChevronLeft`/`ChevronRight`, named "Previous Month"/"Next Month"), then
+  a `grid` named by the month and year: a row of narrow weekday names
+  (11/14 `--text-tertiary`) and six weeks of day buttons, 24 × 24 rounded
+  full, 12/16, named by the full date ("Thursday, October 8, 2026").
+  Days of other months are `--text-tertiary`; today has
+  `aria-current="date"` and `--accent` 600 text; the selected date has
+  `aria-pressed="true"` and a `--selection-sidebar` circle, or an
+  `--accent` circle with `--accent-contrast` text when it is today. A day
+  with occurrences shows a 4px `--text-tertiary` dot under its number.
+  Clicking a day selects it; ‹ › page the small month without changing the
+  selection, and it returns to the selected date's month when the
+  selection changes.
+- **Calendars:** one section per account with calendars, titled with its
+  email as Mail's sidebar titles accounts, holding a row per calendar in
+  collection order: 28 high, 12px left padding, a 14px rounded-3 square
+  (filled with the color when shown, a 1.5px border in the color when
+  hidden), 8px gap, the name 13/16 truncated, and a 12px `Lock`
+  (`aria-label="Read-only"`) for a read-only calendar. A row is a
+  `checkbox` (`aria-checked` = `enabled`) named by the calendar; clicking
+  it or Space toggles it (`account.setCollection` with `enabled`: hidden
+  calendars are neither synced nor shown).
+- The module bar follows.
+
+### Day and week views (`TimeGrid`)
+
+- **Header** (48 high, 1px `--separator` bottom): a 56px gutter, then a
+  column per day: the short weekday 11/14 `--text-secondary` and the day
+  number 15/20 (today's in a 24px `--accent` circle with
+  `--accent-contrast` text). A day's header is a button named by the full
+  date; clicking it shows that day in the day view.
+- **All-day strip** under it: a row of lanes, 22 high each, 2px apart,
+  holding all-day occurrences as bars across the days they cover within the
+  shown days (`allDayLanes`); the gutter says "all-day" 11/14
+  `--text-tertiary`. The week view shows at most 3 lanes; a day with more
+  shows "N more" in the last lane, a button that opens that day in the day
+  view. The day view shows every lane. The strip is 8 high when empty.
+- **Grid:** 24 hours, 48px each, scrolling vertically under the fixed
+  header and strip. The gutter labels each hour but midnight ("9 AM",
+  11/14 `--text-tertiary`, right-aligned 8px from the grid, centered on
+  the line); 1px `--separator` lines at each hour and between days.
+  Opening a view scrolls 7:00 to the top.
+- **Timed occurrences** are blocks in their day's column (split at midnight
+  when they cross it), placed by `timedLayout`: top at the start's minutes
+  × 0.8px, height the duration likewise but at least 18px, left and width
+  by column within the column's width less 4px on the right, rounded 4.
+  Inside, 4px padding: the title 12/15 600 truncated; when the block is at
+  least 36 high, the time range and location 11/14 `--text-secondary`.
+  A block is a `button` named "<title>, <time range>[, <location>]".
+- **Now:** today's column has a 2px `--flag-1` line at the current time
+  with an 8px dot at its left end, and the gutter shows the time 11/14 600
+  `--flag-1`. It moves every minute.
+
+### Month view (`MonthGrid`)
+
+- A row of short weekday names (24 high, 11/14 `--text-secondary`,
+  centered), then six weeks of seven cells filling the view; 1px
+  `--separator` lines between cells.
+- **Cells:** the day number 12/16 at the top right, 4px in (the 1st of a
+  month adds the short month: "Oct 1"); other months' days in
+  `--text-tertiary`; today's number in a 20px `--accent` circle with
+  `--accent-contrast` text. Then one 18-high line per occurrence of the day
+  (`monthItems`): all-day ones first as filled pills (the fill rule above,
+  11/14 600 title), then timed ones as a 6px dot in the color, the start
+  time 11/14 `--text-secondary` and the title 11/14 truncated. A cell shows
+  at most `lines` lines (the container fits them to the cell's height, at
+  least 2): when the day has more, the last line is "N more"
+  (`--text-secondary`), a button that opens the day in the day view.
+- Clicking a cell's empty space selects its date; double-clicking shows it
+  in the day view.
+
+### Event pane (`EventPane`)
+
+- 20px padding, scrolling. Without a selection: "No Event Selected"
+  centered, 13/16 `--text-tertiary`.
+- **Title** 17/22 600 ("No Title" when empty), the location under it
+  13/16 `--text-secondary`, and "Cancelled" 12/16 600 `--flag-1` when it
+  is.
+- **When:** the date line 13/18 ("Thursday, October 8, 2026"; an all-day
+  event over several days "October 12 – 14, 2026") and the time range
+  ("9:00 – 9:15 AM"; "All day"). When the event's `timeZone` differs from
+  the app's, a line 12/16 `--text-tertiary` with that zone and the times
+  there ("Europe/Berlin: 9:00 – 9:15 AM").
+- **Rows** (label 12/16 `--text-secondary` 80 wide, value 13/18):
+  **Repeats** (`describeRecurrence`), **Calendar** (an 8px dot in its
+  color, its name, " · " and the account's email `--text-tertiary`),
+  **Alerts** (`alarmText` per alarm, one per line), **Your answer**
+  ("Accepted", "Declined", "Maybe", "Not answered"; only when invited).
+  Rows without a value are left out.
+- **People:** "Organizer", then "Invitees" (11/14 600 `--text-secondary`
+  headings), a 32-high row per person: a 24px avatar (initials on the
+  address's tone), the name or else the address 13/16, " (you)" when it is
+  the user, " (optional)" `--text-tertiary` for optional ones, and the
+  answer at the right: a 14px `Check` in `--flag-4` (accepted), `X` in
+  `--flag-1` (declined), `CircleHelp` in `--flag-2` (tentative), nothing
+  for no answer; the icon's `aria-label` is the answer. A person's name is
+  a button that opens the contact card.
+- **Notes:** the description 13/18, line breaks kept, links not made.
+
+### Calendar toolbar
+
+`Toolbar`'s `mode` is `"calendar"`; its middle segment fills the view's
+width and its right segment the event pane's.
+
+- Over the sidebar: the sidebar toggle.
+- Over the view: **Today** (a text button 28 high, 10px padding), ‹ ›
+  (28 × 28, named "Previous Day/Week/Month" and "Next …"), the title
+  15/20 600 ("Thursday, October 8, 2026"; a week "October 2026", or
+  "Sep – Oct 2026" across months, or across years "Dec 2026 – Jan 2027";
+  a month "October 2026"), and at the right a `radiogroup` named "View"
+  of Day, Week and Month (a 28-high segmented control: a `--badge-bg`
+  track, the chosen segment `--bg-window` with a soft shadow).
+- Over the event pane: Settings and the window controls; no search field
+  in Phase 3.
+
+### Calendar behavior
+
+- **State** (`useUI`): `calendarView` (`day`, `week` or `month`; first
+  `week`), `calendarDate` (the selected date; first today), the selected
+  occurrence (`eventId` and `recurrenceId`, or none), and the focused pane.
+  Window state, not persisted.
+- **Keys:** Ctrl+Alt+1, Ctrl+Alt+2 and Ctrl+Alt+3 show Day, Week and Month;
+  Ctrl+T selects today; Ctrl+← and Ctrl+→ page the view by its period;
+  with the view focused, ← → move the selected date by a day and ↑ ↓ by a
+  week in the month view (in the day and week views they scroll the grid
+  by an hour); Enter shows the selected date's day; Escape clears the
+  selected occurrence. Tab and Shift+Tab move between sidebar, view and
+  pane.
+- **Data:** the view's days come from `calendar.range` (the day; the
+  week; the month view's 42 days), the small month's dots from another over
+  its 42 days; `account.collections` lists the calendars and `account.list`
+  names their sections. A `calendar.changed` event refetches the ranges and
+  the selected event within 100 ms; `account.changed` refetches the
+  calendars. The pane shows `calendar.event` for the selection.
+- **Selection** follows the occurrence's `eventId` and `recurrenceId`
+  across refetches; when it is gone the pane is empty. Clicking an
+  occurrence selects it and its date; paging keeps the selection when it
+  is still shown.
+- **From elsewhere:** an Upcoming row on a contact card or the person
+  pane switches to Calendar, selects the occurrence's date and the
+  occurrence, and keeps the current view.
 
 ## Tasks module and the To-Do bar (Phase 4)
 
