@@ -8,7 +8,9 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 
 # golangci-lint's release, read from mise.toml (frostyard/core ADR-0043).
 GOLANGCI_LINT_VERSION := $(strip $(shell sed -n 's/^golangci-lint = "\(.*\)"/\1/p' mise.toml))
-GO_VERSION := $(strip $(shell sed -n 's/^go \([0-9.]*\)$$/\1/p' go.mod))
+# The Go release the project builds with: go.mod's toolchain line (its go line is
+# only the minimum).
+GO_VERSION := $(strip $(shell sed -n 's/^toolchain go\([0-9.]*\)$$/\1/p' go.mod))
 # Tracked or new Go files outside third_party (the fork keeps upstream style)
 # and outside docs/tasks (given files are checked when copied into place),
 # skipping files deleted but not yet staged.

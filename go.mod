@@ -1,6 +1,8 @@
 module github.com/frostyard/frostmail
 
-go 1.27.1
+go 1.27.0
+
+toolchain go1.27.1
 
 require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
