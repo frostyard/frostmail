@@ -285,7 +285,8 @@ later event editor window (ADR-0020), and answering invitations is Phase
   header and strip. The gutter labels each hour but midnight ("9 AM",
   11/14 `--text-tertiary`, right-aligned 8px from the grid, centered on
   the line); 1px `--separator` lines at each hour and between days.
-  Opening a view scrolls 7:00 to the top.
+  Opening a view scrolls 7:00 to 12px below the top, so its label shows
+  whole.
 - **Timed occurrences** are blocks in their day's column (split at midnight
   when they cross it), placed by `timedLayout`: top at the start's minutes
   × 0.8px, height the duration likewise but at least 18px, left and width
@@ -307,8 +308,9 @@ later event editor window (ADR-0020), and answering invitations is Phase
   `--text-tertiary`; today's number in a 20px `--accent` circle with
   `--accent-contrast` text. Then one 18-high line per occurrence of the day
   (`monthItems`): all-day ones first as filled pills (the fill rule above,
-  11/14 600 title), then timed ones as a 6px dot in the color, the start
-  time 11/14 `--text-secondary` and the title 11/14 truncated. A cell shows
+  11/14 600 title), then timed ones as a 6px dot in the color, the title
+  11/14 truncated, and the start time 11/14 `--text-secondary` at the
+  right, left out in cells narrower than 9rem (a container query). A cell shows
   at most `lines` lines (the container fits them to the cell's height, at
   least 2): when the day has more, the last line is "N more"
   (`--text-secondary`), a button that opens the day in the day view.
