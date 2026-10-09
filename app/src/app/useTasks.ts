@@ -142,6 +142,9 @@ export function useTasks() {
           : {};
     void client.tasks.create({ title, ...params }).catch((err: unknown) => console.warn("create task", err));
   };
+  const createDefault = (title: string) => {
+    void client.tasks.create({ title }).catch((err: unknown) => console.warn("create task", err));
+  };
   const edit = (id: number, change: TaskEdit) => {
     if (!writable(id)) return;
     void client.tasks.update({ id, ...change }).catch((err: unknown) => console.warn("edit task", err));
@@ -190,6 +193,7 @@ export function useTasks() {
     },
     toggle,
     create,
+    createDefault,
     edit,
     remove,
     clearFlag,

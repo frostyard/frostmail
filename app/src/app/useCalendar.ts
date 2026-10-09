@@ -100,12 +100,21 @@ function useCalendars(client: Client, active: boolean) {
   }, [accounts, collections]);
 }
 
-function useRange(client: Client, active: boolean, from: string, to: string, timeZone: string) {
+/** useCalendarRange loads occurrences and refreshes on changes or a clock tick. */
+export function useCalendarRange(
+  client: Client,
+  active: boolean,
+  from: string,
+  to: string,
+  timeZone: string,
+  refreshAt = 0,
+) {
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
+  const request = useMemo(() => ({ from, to, timeZone, refreshAt }), [from, to, timeZone, refreshAt]);
   const load = useCallback(() => {
     let stopped = false;
     void client.calendar
-      .range({ from, to, timeZone })
+      .range({ from: request.from, to: request.to, timeZone: request.timeZone })
       .then((result) => {
         if (!stopped) setOccurrences(result);
       })
@@ -113,7 +122,7 @@ function useRange(client: Client, active: boolean, from: string, to: string, tim
     return () => {
       stopped = true;
     };
-  }, [client, from, to, timeZone]);
+  }, [client, request]);
   useRefresh(client, active, "calendar.changed", load);
   return occurrences;
 }
@@ -152,8 +161,8 @@ export function useCalendar() {
   const frame = useCalendarFrame();
   const range = viewRange(view, frame.date, frame.weekStart);
   const days = useMemo(() => monthGrid(frame.date, frame.weekStart), [frame.date, frame.weekStart]);
-  const occurrences = useRange(client, active, range.from, range.to, frame.timeZone);
-  const smallMonth = useRange(
+  const occurrences = useCalendarRange(client, active, range.from, range.to, frame.timeZone);
+  const smallMonth = useCalendarRange(
     client,
     active,
     days[0] ?? frame.date,

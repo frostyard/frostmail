@@ -21,6 +21,7 @@ import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
 import { openSettings } from "./settings";
 import { type TasksHandle, TasksModule, tasksCommand } from "./TasksModule";
+import { ToDoBarContainer } from "./ToDoBarContainer";
 import { ToolbarContainer, useListQuery } from "./ToolbarContainer";
 import { type CalendarData, useCalendar } from "./useCalendar";
 import { type PeopleData, personEmail, usePeople, writeToPerson } from "./usePeople";
@@ -282,6 +283,7 @@ function MailScope() {
 }
 
 function MailPanes(props: {
+  tasks: TasksData;
   handles: WindowHandles;
   model: ViewModel | null;
   onDelete: (ids: number[]) => void;
@@ -305,6 +307,7 @@ function MailPanes(props: {
       <div className="h-full min-w-0 flex-1">
         <ReaderContainer ref={props.handles.reader} />
       </div>
+      {ui.todoBar && <ToDoBarContainer tasks={props.tasks} />}
     </div>
   );
 }
@@ -362,7 +365,7 @@ export function MainWindow() {
       ) : module === "calendar" ? (
         <CalendarModule ref={handles.calendar} data={calendar} {...widths} />
       ) : (
-        <MailPanes handles={handles} model={model} onDelete={onDelete} widths={widths} />
+        <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
       )}
       <UndoToasts />
     </div>
