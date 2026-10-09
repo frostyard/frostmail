@@ -32,7 +32,20 @@ type unit struct {
 	escape  bool
 }
 
-var dates = regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}(?:T[0-9:.]+Z)?\b|\b\d{8}(?:T\d{6}Z?)?\b`)
+// dates are kept as they are, being what a sync orders and expands by:
+// ISO 8601 and iCalendar dates (and times) with a real month and day, so a
+// number that only looks like one, a phone number say, is still replaced.
+var dates = regexp.MustCompile(`\b(?:1\d|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T[0-9:.]+Z)?\b|` +
+	`\b(?:1\d|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?:T\d{6}Z?)?\b`)
+
+// zones are IANA time zone names, kept as dates are: they place events.
+var zones = regexp.MustCompile(`\b(?:Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific|Etc)` +
+	`/[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)?\b`)
+
+// kept are the spans of text that scrubbing leaves as they are.
+func kept(text string) [][]int {
+	return append(dates.FindAllStringIndex(text, -1), zones.FindAllStringIndex(text, -1)...)
+}
 
 func percentByte(b byte) string { return fmt.Sprintf("%%%02X", b) }
 
@@ -169,7 +182,7 @@ func (u unit) render(r rune) string {
 func (s *scrubber) text(text string) string {
 	us := units(text)
 	plain := decoded(text)
-	protected := dates.FindAllStringIndex(plain, -1)
+	protected := kept(plain)
 	var b strings.Builder
 	offset := 0
 	for i := 0; i < len(us); {
@@ -247,8 +260,24 @@ func (s *scrubber) replace(xs []httprec.Exchange) error {
 	return nil
 }
 
+// maskKept blanks the dates and zones text keeps, keeping every other
+// offset.
+func maskKept(text string) string {
+	b := []byte(text)
+	for _, span := range kept(text) {
+		for i := span[0]; i < span[1]; i++ {
+			b[i] = ' '
+		}
+	}
+	return string(b)
+}
+
+// leaks adds the personal values and words left in text to found. The
+// dates and zones text keeps are not leaks, though a value or word holds
+// them (a birthday, a UID that starts with its event's date, a calendar's
+// zone).
 func (s *scrubber) leaks(text string, found map[string]bool) {
-	text = strings.ToLower(decoded(text))
+	text = strings.ToLower(maskKept(decoded(text)))
 	for value := range s.values {
 		if strings.Contains(text, value) {
 			found[value] = true
