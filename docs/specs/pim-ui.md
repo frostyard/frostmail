@@ -67,7 +67,8 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
   Mail's sidebar (ui.md, Sidebar), as a `tree` named "Address Books".
 - **Sections:** "People" holds one row, **All Contacts** (icon `Users`,
   key `all`). Then one section per account that has address books, titled
-  with the account name, holding a row per address book (icon `BookUser`,
+  with the account's email address, as Mail's sidebar titles accounts,
+  holding a row per address book (icon `BookUser`,
   key `book:<id>`), in collection order. A read-only book shows a 12px
   `Lock` icon after its name (`aria-label="Read-only"`). Sections collapse
   as Mail's do.
@@ -113,8 +114,8 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
   person has none.
 - **Contacts:** one block per contact, in the person's order, 20px apart:
   a `section` labeled by its heading, an `h3` with the address book's name
-  and the account's name (its display name, else its email) joined by
-  " — ", plus " · Read-only" for a
+  and the account's email address (as Mail's sidebar names accounts)
+  joined by " — ", plus " · Read-only" for a
   read-only contact, shown uppercase (CSS `uppercase`), 11/14 600
   `--text-secondary`. Then a two-column grid (`dl`): labels right-aligned
   in a 96px column, 12/18 `--text-secondary`; values 13/18

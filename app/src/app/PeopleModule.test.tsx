@@ -79,7 +79,7 @@ describe("People module", () => {
     expect(screen.getByText("No Contact Selected")).toBeTruthy();
     fireEvent.click(within(contacts()).getByRole("option", { name: /Ann Smith/ }));
     expect(await screen.findByRole("heading", { level: 2, name: "Ann Smith" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "Contacts — Test One" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Contacts — test1@mailtest.test" })).toBeTruthy();
     await screen.findByRole("region", { name: "Recent Mail" });
     expect(calls("people.card").at(-1)?.params).toEqual({ email: "ann.smith@northwind.test" });
     ctrl("1");

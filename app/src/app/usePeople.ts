@@ -141,7 +141,7 @@ function useAddressBooks(client: Client, active: boolean) {
     const sections: AddressBookSection[] = accounts
       .map((account) => ({
         accountId: account.id,
-        title: account.displayName || account.email,
+        title: account.email,
         books: collections
           .filter((book) => book.accountId === account.id)
           .map((book) => ({
