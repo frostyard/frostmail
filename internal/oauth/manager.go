@@ -174,7 +174,7 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 	m.flows[accountID] = cancel
 	m.mu.Unlock()
 
-	f := &flow{m: m, c: c, state: state, verifier: verifier, redirect: redirect, scopes: scopes, done: make(chan struct{})}
+	f := &flow{m: m, c: c, ln: ln, state: state, verifier: verifier, redirect: redirect, scopes: scopes, done: make(chan struct{})}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	go func() {
@@ -231,6 +231,7 @@ func GoogleScope(service api.ServiceKind) string {
 type flow struct {
 	m                         *Manager
 	c                         creds
+	ln                        net.Listener // the redirect's port
 	state, verifier, redirect string
 	scopes                    []string // what the sign-in asked for
 	once                      sync.Once
@@ -247,6 +248,11 @@ func (f *flow) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.once.Do(func() {
 		finished = true
 		defer close(f.done)
+		// The flow ends with this answer: the port stops answering before
+		// the browser has the page, and this connection closes after it.
+		// Shutdown, once done is closed, waits for the page to go out.
+		_ = f.ln.Close()
+		w.Header().Set("Connection", "close")
 		if e := q.Get("error"); e != "" {
 			f.m.Log.Warn("sign-in refused", "account", f.c.acct.ID, "error", e)
 			page(w, "Sign-in was not completed ("+e+"). You can close this tab and try again from Frostmail.")
