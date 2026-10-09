@@ -113,7 +113,8 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
   person has none.
 - **Contacts:** one block per contact, in the person's order, 20px apart:
   a `section` labeled by its heading, an `h3` with the address book's name
-  and the account's name joined by " — ", plus " · Read-only" for a
+  and the account's name (its display name, else its email) joined by
+  " — ", plus " · Read-only" for a
   read-only contact, shown uppercase (CSS `uppercase`), 11/14 600
   `--text-secondary`. Then a two-column grid (`dl`): labels right-aligned
   in a 96px column, 12/18 `--text-secondary`; values 13/18
@@ -145,14 +146,14 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
 ### People toolbar
 
 The main toolbar keeps its three segments and its right end (search field,
-Settings, window controls). In People:
+Settings, window controls); `Toolbar`'s `mode` is `"people"`:
 
-- over the sidebar: the sidebar toggle only;
-- over the list: the title ("All Contacts", or the book's name) and the
-  subtitle ("1 contact", "N contacts", or "N results" while searching);
-- over the person pane: **New Message** (`SquarePen`, tooltip "New Message
-  (Ctrl+N)") addressed to the selected person's first email, or blank
-  without a selection; none of Mail's message actions.
+- over the sidebar: the sidebar toggle, without Get Mail;
+- over the list: the title ("All Contacts", or the book's name), the
+  subtitle ("1 contact", "N contacts", or "N results" while searching), and
+  **New Message** as in Mail, addressed to the selected person's first
+  email, or blank without a selection;
+- over the person pane: none of Mail's message actions.
 - The search field's placeholder is "Search Contacts"; it filters the list
   (`people.list` with `query`) 250 ms after typing stops; Escape clears it.
   Mail's scope bar does not appear.

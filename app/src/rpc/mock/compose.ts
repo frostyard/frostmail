@@ -73,8 +73,18 @@ export class MockCompose {
   /** dispatch serves draft.*, outbox.*, identity.* and address.*, else returns NOT_HANDLED. */
   dispatch(method: string, p: Params): unknown {
     switch (method) {
-      case "draft.create":
-        return this.create(p.kind as DraftKind, typeof p.accountId === "number" ? p.accountId : undefined, p.sourceId);
+      case "draft.create": {
+        const d = this.create(
+          p.kind as DraftKind,
+          typeof p.accountId === "number" ? p.accountId : undefined,
+          p.sourceId,
+        );
+        if (Array.isArray(p.to) && p.kind === "new") {
+          this.draft(d.id).content.to = p.to as Address[];
+          return structuredClone(this.draft(d.id));
+        }
+        return d;
+      }
       case "draft.open": {
         const src = this.source(num(p.messageId));
         if (!src) throw notFound(`message ${num(p.messageId)}`);

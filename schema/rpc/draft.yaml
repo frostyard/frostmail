@@ -47,6 +47,7 @@ methods:
       - {name: kind, type: DraftKind}
       - {name: accountId, type: int, optional: true}
       - {name: sourceId, type: int, optional: true, doc: "Required for reply, replyall and forward."}
+      - {name: to, type: "[]Address", optional: true, doc: "A new message's recipients, such as the person a contact card writes to."}
     result: Draft
     errors: [notFound, invalidParams]
   - name: open

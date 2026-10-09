@@ -734,6 +734,10 @@ export interface DraftCreateParams {
   accountId?: number;
   /** Required for reply, replyall and forward. */
   sourceId?: number;
+  /**
+   * A new message's recipients, such as the person a contact card writes to.
+   */
+  to?: Address[];
 }
 
 /** Params of draft.open. */

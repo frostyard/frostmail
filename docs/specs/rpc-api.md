@@ -650,6 +650,7 @@ Start a draft: a new message in the account (or the first account), or a reply, 
 | `kind` | `DraftKind` |  |
 | `accountId` | `int` (optional) |  |
 | `sourceId` | `int` (optional) | Required for reply, replyall and forward. |
+| `to` | `[]Address` (optional) | A new message's recipients, such as the person a contact card writes to. |
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.

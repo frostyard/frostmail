@@ -67,6 +67,11 @@ func (d drafts) Create(ctx context.Context, p *api.DraftCreateParams) (*api.Draf
 	var attach []mimePart
 	if src == nil {
 		dr.Content.HTML = "<p><br></p>" + signatureBlock(ident)
+		for _, a := range p.To {
+			if strings.TrimSpace(a.Address) != "" {
+				dr.Content.To = append(dr.Content.To, store.Address{Name: strings.TrimSpace(a.Name), Addr: strings.TrimSpace(a.Address)})
+			}
+		}
 	} else {
 		dr.SourceID = src.ID
 		if attach, err = d.startFrom(ctx, &dr, *src, ident, p.Kind); err != nil {
