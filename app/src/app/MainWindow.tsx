@@ -20,9 +20,11 @@ import { watchOccurrenceRequests, watchReminders } from "./reminders";
 import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
 import { openSettings } from "./settings";
+import { type TasksHandle, TasksModule, tasksCommand } from "./TasksModule";
 import { ToolbarContainer, useListQuery } from "./ToolbarContainer";
 import { type CalendarData, useCalendar } from "./useCalendar";
 import { type PeopleData, personEmail, usePeople, writeToPerson } from "./usePeople";
+import { type TasksData, useTasks } from "./useTasks";
 
 const SIDEBAR = { min: 160, max: 320 };
 const LIST = { min: 280, max: 560 };
@@ -39,6 +41,7 @@ interface WindowHandles {
   reader: RefObject<ReaderHandle | null>;
   people: RefObject<PeopleHandle | null>;
   calendar: RefObject<CalendarHandle | null>;
+  tasks: RefObject<TasksHandle | null>;
   search: RefObject<HTMLInputElement | null>;
   sidebar: RefObject<HTMLDivElement | null>;
 }
@@ -46,10 +49,20 @@ interface WindowHandles {
 function focusPane(handles: WindowHandles, direction: 1 | -1) {
   const ui = useUI.getState();
   const panes: Pane[] = ui.sidebarVisible ? ["sidebar", "list", "reader"] : ["list", "reader"];
-  const focus = ui.module === "calendar" ? ui.calendarFocus : ui.module === "people" ? ui.peopleFocus : ui.focus;
+  const focus =
+    ui.module === "tasks"
+      ? ui.tasksFocus
+      : ui.module === "calendar"
+        ? ui.calendarFocus
+        : ui.module === "people"
+          ? ui.peopleFocus
+          : ui.focus;
   const index = panes.indexOf(focus);
   const next = panes[(index + direction + panes.length) % panes.length] ?? "list";
-  if (ui.module === "calendar") {
+  if (ui.module === "tasks") {
+    ui.setTasksFocus(next);
+    handles.tasks.current?.focus(next);
+  } else if (ui.module === "calendar") {
     ui.setCalendarFocus(next);
     handles.calendar.current?.focus(next);
   } else if (ui.module === "people") {
@@ -106,7 +119,8 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
 
 function moduleCommand(command: Command, client: Client, people: PeopleData) {
   const ui = useUI.getState();
-  if (command === "showCalendar") ui.setModule("calendar");
+  if (command === "showTasks") ui.setModule("tasks");
+  else if (command === "showCalendar") ui.setModule("calendar");
   else if (command === "showPeople") ui.setModule("people");
   else if (command === "allInboxes") {
     ui.setModule("mail");
@@ -164,7 +178,13 @@ function calendarCommand(command: Command, frame: CalendarData, handles: WindowH
   return true;
 }
 
-function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people: PeopleData, calendar: CalendarData) {
+function useWindowEvents(
+  handles: WindowHandles,
+  model: ViewModel | null,
+  people: PeopleData,
+  calendar: CalendarData,
+  tasks: TasksData,
+) {
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
   useEffect(() => watchReminders(client), [client]);
@@ -177,12 +197,16 @@ function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people
       const field = inTextField(event.target);
       const command = commandFor(
         event,
-        field && !(ui.module === "people" && ["f", "n"].includes(event.key.toLowerCase())),
+        field &&
+          !(
+            (ui.module === "people" && ["f", "n"].includes(event.key.toLowerCase())) ||
+            (ui.module === "tasks" && event.key.toLowerCase() === "n")
+          ),
       );
-      if (!command || command === "showTasks") return;
+      if (!command) return;
       let handled = true;
       if (command === "focusSearch") {
-        if (ui.module === "calendar") return;
+        if (ui.module === "calendar" || ui.module === "tasks") return;
         handles.search.current?.focus();
         handles.search.current?.select();
       } else if (command === "toggleSidebar") ui.toggleSidebar();
@@ -190,19 +214,21 @@ function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people
         focusPane(handles, command === "nextPane" ? 1 : -1);
       else if (command === "settings") void openSettings().catch((err: unknown) => console.warn("settings", err));
       else if (
+        command === "showTasks" ||
         command === "showCalendar" ||
         command === "showPeople" ||
         command === "allInboxes" ||
         ui.module === "people"
       ) {
         handled = moduleCommand(command, client, people);
-      } else if (ui.module === "calendar") handled = calendarCommand(command, calendar, handles);
+      } else if (ui.module === "tasks") handled = tasksCommand(command, tasks, handles.tasks.current);
+      else if (ui.module === "calendar") handled = calendarCommand(command, calendar, handles);
       else handled = mailCommand(command, client, model, handles);
       if (handled) event.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [client, handles, model, people, calendar]);
+  }, [client, handles, model, people, calendar, tasks]);
   useEffect(() => {
     const block = (event: MouseEvent) => {
       if (!inTextField(event.target)) event.preventDefault();
@@ -298,17 +324,19 @@ export function MainWindow() {
   const module = useUI((state) => state.module);
   const people = usePeople();
   const calendar = useCalendar();
+  const tasks = useTasks();
   const model = useMailModel();
   const handles: WindowHandles = {
     list: useRef<ListHandle>(null),
     reader: useRef<ReaderHandle>(null),
     people: useRef<PeopleHandle>(null),
     calendar: useRef<CalendarHandle>(null),
+    tasks: useRef<TasksHandle>(null),
     search: useRef<HTMLInputElement>(null),
     sidebar: useRef<HTMLDivElement>(null),
   };
   const widths = usePaneWidths();
-  useWindowEvents(handles, model, people, calendar);
+  useWindowEvents(handles, model, people, calendar, tasks);
   const onDelete = useCallback(
     (ids: number[]) => {
       void client.message.delete({ ids }).catch((err: unknown) => console.warn("delete", err));
@@ -317,10 +345,20 @@ export function MainWindow() {
   );
   return (
     <div className="flex h-full flex-col">
-      <ToolbarContainer key={module} people={people} model={model} onDelete={onDelete} searchRef={handles.search} />
+      <ToolbarContainer
+        key={module}
+        tasks={tasks}
+        onNewTask={() => handles.tasks.current?.focusNewTask()}
+        people={people}
+        model={model}
+        onDelete={onDelete}
+        searchRef={handles.search}
+      />
       {module === "mail" && <MailScope />}
       {module === "people" ? (
         <PeopleModule ref={handles.people} data={people} {...widths} />
+      ) : module === "tasks" ? (
+        <TasksModule ref={handles.tasks} data={tasks} {...widths} />
       ) : module === "calendar" ? (
         <CalendarModule ref={handles.calendar} data={calendar} {...widths} />
       ) : (
