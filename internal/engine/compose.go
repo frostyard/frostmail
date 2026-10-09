@@ -725,7 +725,9 @@ func (o outbox) Cancel(ctx context.Context, p *api.OutboxCancelParams) (*api.Dra
 			return err
 		}
 		if it.DraftID == 0 {
-			return fmt.Errorf("the draft of message %d: %w", p.ID, store.ErrNotFound)
+			// A message maild wrote itself, such as an invitation's
+			// answer, has no draft to return to.
+			return nil
 		}
 		dr, err = tx.GetDraft(ctx, it.DraftID)
 		return err

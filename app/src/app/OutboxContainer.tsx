@@ -27,10 +27,10 @@ function secondsLeft(item: OutboxItem, now: Date): number {
   return Math.ceil((Date.parse(item.sendAt) - now.getTime()) / 1000);
 }
 
-/** undo cancels a queued message and reopens its draft. */
+/** undo cancels a queued message and reopens its draft, when it has one. */
 async function undo(client: Client, id: number): Promise<void> {
   const draft = await client.outbox.cancel({ id });
-  await openCompose(draft.id);
+  if (draft.id !== 0) await openCompose(draft.id);
 }
 
 /** UndoToasts stacks a toast for every message still in its undo delay, newest on top. */

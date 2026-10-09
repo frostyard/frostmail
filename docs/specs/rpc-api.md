@@ -1216,7 +1216,7 @@ Result: `[]OutboxItem`.
 
 ### `outbox.cancel`
 
-Stop a queued message (undo send) and return its draft.
+Stop a queued message (undo send) and return its draft; a draft with id 0 for a message maild wrote itself, such as an invitation's answer.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

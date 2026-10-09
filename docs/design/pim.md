@@ -145,17 +145,36 @@ query flagged messages alongside tasks, and completing one clears the flag.
 
 ### Invitations
 
-- `mimex` finds `text/calendar` parts with a `METHOD`; the reader asks
-  `calendar.invitation {messageId}`, which resolves the `UID` against the
-  account's events (ADR-0019) and returns the card: times in the user's
-  zone, organizer and attendees, the user's answer, conflicts and the
-  adjacent events.
-- `calendar.respond {messageId, answer}` patches `PARTSTAT` and either
-  queues a `dav.put` (the server schedules) or builds an iTIP `REPLY` with
-  `internal/compose` and queues it in the outbox (it does not), putting an
-  accepted event in the default calendar.
-- Whether a provider schedules is in its profile (Google, iCloud: to verify
-  in the trial), else from the `DAV` header's `calendar-auto-schedule`.
+- `internal/itip` finds a message's iCalendar part (the first
+  `text/calendar`, else an `.ics` attachment), reads its `METHOD` and
+  events, and writes answers: the iTIP `REPLY` (RFC 5546) and the
+  `PARTSTAT` patch of a stored copy (ADR-0018).
+- `calendar.invitation {messageId}` resolves the message's `UID` against
+  the account's events (ADR-0019) and returns the card: the event as the
+  message has it, the stored copy's ID, the user's answer (the stored
+  copy's when there is one), whether the user can answer (a request to
+  them, not older than the stored copy, in a writable account and
+  calendar), the busy occurrences it overlaps and the ones just before and
+  after it that day.
+- `calendar.respond {messageId | eventId, answer, recurrenceId?,
+  comment?}`:
+  - **A stored copy** (the event, or the message's `UID` in a calendar)
+    gets the user's `PARTSTAT` patched and its `put` queued on the ETag it
+    was read with. A message older than the copy (`SEQUENCE`) is refused.
+  - **Only the message:** an accepted or tentative invitation goes into the
+    account's default calendar (the invitation without `METHOD`, a `put`
+    that creates it); a declined one is not stored.
+  - **The reply:** unless the account's provider schedules
+    (`providers.DAV.Schedules`: Google and iCloud, to verify in Phase 5),
+    maild mails the organizer the `REPLY` (`text/calendar;
+    method=REPLY`, "Accepted: <summary>") through the outbox with the undo
+    delay. A declined or unstored answer is always mailed. Undo cancels
+    the mail; the calendar keeps the answer.
+  - One occurrence of a series is answered only when the series has a
+    VEVENT for it (an override); otherwise `invalidParams`.
+  - Read-only accounts and calendars, cancellations and replies are
+    refused with `conflict`.
+- Whether a provider schedules is in its profile, else not.
 
 ### People in mail
 

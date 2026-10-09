@@ -2285,7 +2285,8 @@ type OutboxService interface {
 	// List implements outbox.list. Messages not yet sent, oldest first.
 	List(ctx context.Context, p *OutboxListParams) ([]OutboxItem, error)
 	// Cancel implements outbox.cancel. Stop a queued message (undo send) and
-	// return its draft.
+	// return its draft; a draft with id 0 for a message maild wrote itself, such
+	// as an invitation's answer.
 	Cancel(ctx context.Context, p *OutboxCancelParams) (*Draft, error)
 	// Retry implements outbox.retry. Queue a failed message again, now.
 	Retry(ctx context.Context, p *OutboxRetryParams) error

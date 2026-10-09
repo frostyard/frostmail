@@ -1319,7 +1319,10 @@ export interface OutboxChanged {
 export interface OutboxClient {
   /** Messages not yet sent, oldest first. */
   list(params?: OutboxListParams): Promise<OutboxItem[]>;
-  /** Stop a queued message (undo send) and return its draft. */
+  /**
+   * Stop a queued message (undo send) and return its draft; a draft with id 0
+   * for a message maild wrote itself, such as an invitation's answer.
+   */
   cancel(params: OutboxCancelParams): Promise<Draft>;
   /** Queue a failed message again, now. */
   retry(params: OutboxRetryParams): Promise<void>;
