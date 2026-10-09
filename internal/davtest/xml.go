@@ -264,6 +264,10 @@ func (s *Server) syncCollection(w http.ResponseWriter, r *http.Request, body []b
 		return
 	}
 	_, token, _ := describeReport(body)
+	if s.opts.NoInitialSync && strings.TrimSpace(token) == "" {
+		http.Error(w, `{"error": {"code": 400, "status": "INVALID_ARGUMENT"}}`, http.StatusBadRequest)
+		return
+	}
 	since, ok := s.parseToken(strings.TrimSpace(token))
 	if s.opts.NoSync || !ok {
 		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
