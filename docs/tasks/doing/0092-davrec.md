@@ -43,7 +43,8 @@ Phase 5 records Google's and iCloud's sessions with it.
 - **Command:** `davrec -account EMAIL [-name NAME] [-keyfile FILE]
   [-note TEXT] [-o FILE] TRACE`. `-account` is required. Output goes to
   `-o` (default standard output) through `httprec.Write` with `-note` as
-  the comment. Nothing is written when davrec refuses: build the result in
+  the comment, followed by the line `account <fake>`: the `-account`
+  address as scrubbed, which a replay test gives its account. Nothing is written when davrec refuses: build the result in
   memory and write it only when it is complete.
 - **Key:** with `-keyfile`, the key is the SHA-256 of the file (at least 16
   bytes, else an error); otherwise 32 random bytes per run. The same key
