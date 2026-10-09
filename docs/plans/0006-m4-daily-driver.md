@@ -229,7 +229,8 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
 - Gmail categories (Primary, Promotions) via `X-GM-RAW`: M5 spike.
 - The sync window in Settings (a "Keep mail from" choice) and server search
   for mail outside it (`UID SEARCH`, `X-GM-RAW` on Gmail).
-- Contacts beyond seen addresses (CardDAV): after M6.
+- Contacts beyond seen addresses (CardDAV): M4.5,
+  [plan 0007](0007-m4.5-people-calendar-tasks.md).
 
 ## References
 
