@@ -17,6 +17,7 @@ Every change is marked "frostmail patch" in a comment and covered by
 | `SessionTracker.Idle` (the server side, used by the in-memory test server) writes the updates queued before it registered: the client hears `+ idling` first, and a message appended in between woke no one (a lost wake-up that made IDLE tests flaky) | `imapserver/tracker.go` |
 | `SearchCriteria.GmailRaw` sends `X-GM-RAW`; `And` joins two queries with a space | `search.go`, `imapclient/search.go` |
 | `Client.StoreGmailLabels` sends `STORE ±X-GM-LABELS` | `imapclient/store.go` |
+| `toolchain go1.27.1`, the root module's, so mise picks Frostmail's Go in this directory instead of reading the `go 1.18` minimum (not for upstream) | `go.mod` |
 
 To rebase onto a new upstream release: copy the release over this directory,
 reapply the rows above, keep this file and `imapclient/gmail_test.go`, then run
