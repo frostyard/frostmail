@@ -218,6 +218,15 @@ describe.skipIf(!out)("README screenshots", () => {
     await save(s, "todo-bar.png");
   });
 
+  it("shows an invitation in the reader", async () => {
+    const s = await start("shots-invitation");
+    await open(s, "Invitation: Release planning", "has invited you");
+    await s.waitFor("the invitation card", () =>
+      s.execute<boolean>(`return !!document.querySelector('section[aria-label="Invitation"] [role="group"]');`),
+    );
+    await save(s, "invitation.png");
+  });
+
   it("shows Tasks in dark", async () => {
     const s = await start("shots-tasks-dark", { GTK_THEME: "Adwaita:dark" });
     await tasks(s, "All Tasks", "Book the Lisbon venue");

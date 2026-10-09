@@ -63,9 +63,9 @@ func TestBuildShowcase(t *testing.T) {
 		want  int
 	}{
 		"Projects, which holds no mail": {`SELECT COUNT(*) FROM mailboxes WHERE path = 'Projects' AND selectable = 0`, nil, 1},
-		"work inbox":                    {`SELECT COUNT(*) FROM message_mailbox WHERE mailbox_id = ?`, []any{boxes["INBOX"].ID}, 8},
+		"work inbox":                    {`SELECT COUNT(*) FROM message_mailbox WHERE mailbox_id = ?`, []any{boxes["INBOX"].ID}, 9},
 		"Projects/Aurora":               {`SELECT COUNT(*) FROM message_mailbox WHERE mailbox_id = ?`, []any{boxes["Projects/Aurora"].ID}, 2},
-		"unread":                        {`SELECT COUNT(*) FROM messages WHERE seen = 0`, nil, 3},
+		"unread":                        {`SELECT COUNT(*) FROM messages WHERE seen = 0`, nil, 4},
 		"red flags":                     {`SELECT COUNT(*) FROM messages WHERE flagged = 1 AND flag_color = 1`, nil, 1},
 		"orange flags":                  {`SELECT COUNT(*) FROM messages WHERE flagged = 1 AND flag_color = 2`, nil, 1},
 		"with attachments":              {`SELECT COUNT(*) FROM messages WHERE has_attachments = 1`, nil, 2},
