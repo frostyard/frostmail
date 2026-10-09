@@ -52,6 +52,12 @@ type Options struct {
 	// PIM, when set, runs contacts, calendar and tasks sync with this
 	// configuration (point HTTP at a davtest server's client).
 	PIM *pimsync.Config
+	// Now, when set, is the clock for stored timestamps and for PIM's
+	// instances window (unless PIM sets its own).
+	Now func() time.Time
+	// OnAttended learns when the app connects and leaves
+	// (rpcserver.Options.OnAttended).
+	OnAttended func(attended bool)
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -64,6 +70,7 @@ type Server struct {
 	Views   *view.Manager
 	Sync    *mailsync.Manager // nil unless Options.Sync was set
 	PIM     *pimsync.Manager  // nil unless Options.PIM was set
+	RPC     *rpcserver.Server
 	Parts   *render.PartsCache
 	OAuth   *oauth.Manager
 
@@ -89,6 +96,9 @@ func StartWith(t testing.TB, o Options) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if o.Now != nil {
+		db.Now = o.Now
+	}
 	broker := events.NewBroker(db)
 	views := view.NewManager(db, log)
 	db.OnCommit = func(evs []api.EventEnvelope) {
@@ -112,6 +122,9 @@ func StartWith(t testing.TB, o Options) *Server {
 	if o.PIM != nil {
 		cfg := *o.PIM
 		cfg.Tokens = srv.OAuth
+		if cfg.Now == nil {
+			cfg.Now = o.Now
+		}
 		srv.PIM = pimsync.New(db, srv.Secrets, log, cfg)
 		deps.PIM = srv.PIM
 	}
@@ -135,7 +148,8 @@ func StartWith(t testing.TB, o Options) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log})
+	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log, OnAttended: o.OnAttended})
+	srv.RPC = rpc
 	eng := engine.New(deps)
 	router, err := api.NewRouter(api.Services{
 		RPC: rpc, Events: rpc, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),

@@ -1,5 +1,5 @@
-//! The Frostmail app shell: one instance with the main, compose and
-//! settings windows, a line bridge per window to maild's socket, and the
+//! The Frostmail app shell: one instance with the main, compose, settings
+//! and reminder windows, a line bridge per window to maild's socket, and the
 //! mailpart:// protocol. All mail logic lives in maild; see
 //! docs/design/overview.md and docs/specs/rpc-protocol.md.
 
@@ -28,6 +28,7 @@ fn main() {
             commands::open_part,
             commands::open_compose,
             commands::open_settings,
+            commands::open_reminders,
             commands::startup_message
         ])
         .on_window_event(|window, event| {

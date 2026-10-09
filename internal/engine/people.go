@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -168,6 +169,15 @@ func (p people) Card(ctx context.Context, params *api.PeopleCardParams) (*api.Co
 	for _, r := range rows {
 		out.Recent = append(out.Recent, toAPISummary(r))
 	}
+	now := p.DB.Now()
+	to := now.AddDate(0, 0, 30)
+	out.Upcoming, err = calendarService(p).occurrences(ctx, store.OccurrenceFilter{
+		From: now, To: to, FromDate: now.In(time.Local).Format(time.DateOnly),
+		ToDate: to.In(time.Local).Format(time.DateOnly), WithEmail: email, Limit: 5}, time.Local)
+	if err != nil {
+		return nil, err
+	}
+
 	return out, nil
 }
 

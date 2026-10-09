@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -31,11 +32,20 @@ type Options struct {
 	Name   string
 	Broker *events.Broker
 	Logger *slog.Logger
+	// OnAttended, when set, learns when Attended changes.
+	OnAttended func(attended bool)
 }
+
+// AppClient prefixes the rpc.hello client name of the Frostmail app.
+const AppClient = "frostmail-app"
 
 // Server implements api.RPCService and api.EventsService, which need the
 // connection, and serves a Router built with them.
-type Server struct{ opts Options }
+type Server struct {
+	opts Options
+	// apps counts the app's connections that subscribed to events.
+	apps atomic.Int64
+}
 
 // New returns a Server.
 func New(opts Options) *Server {
@@ -126,6 +136,8 @@ type conn struct {
 	ready atomic.Bool
 
 	mu      sync.Mutex
+	app     bool // said AppClient in rpc.hello
+	counted bool // counted in Server.apps
 	sub     *events.Subscription
 	running bool
 	wg      sync.WaitGroup
@@ -143,6 +155,9 @@ func (c *conn) serve(parent context.Context) {
 		c.mu.Lock()
 		if c.sub != nil {
 			c.sub.Close()
+		}
+		if c.counted {
+			c.s.countApp(-1)
 		}
 		c.mu.Unlock()
 	}()
@@ -271,6 +286,9 @@ func (s *Server) Hello(ctx context.Context, p *api.RPCHelloParams) (*api.Hello, 
 		return nil, api.ProtocolMismatch("maild speaks protocol %d, not %d", api.Protocol, p.Protocol)
 	}
 	if c := connFrom(ctx); c != nil {
+		c.mu.Lock()
+		c.app = strings.HasPrefix(p.Client, AppClient)
+		c.mu.Unlock()
 		c.ready.Store(true)
 		s.opts.Logger.Debug("client connected", "client", p.Client)
 	}
@@ -293,5 +311,21 @@ func (s *Server) Subscribe(ctx context.Context, p *api.EventsSubscribeParams) (*
 		return nil, err
 	}
 	c.sub = sub
+	if c.app {
+		c.counted = true
+		s.countApp(1)
+	}
 	return &info, nil
+}
+
+// Attended reports whether the app is connected and receiving events: then
+// what needs the user (reminders) goes to its windows rather than the
+// desktop's notifications.
+func (s *Server) Attended() bool { return s.apps.Load() > 0 }
+
+func (s *Server) countApp(delta int64) {
+	n := s.apps.Add(delta)
+	if s.opts.OnAttended != nil && (n == 0 || n == delta) {
+		s.opts.OnAttended(n > 0)
+	}
 }

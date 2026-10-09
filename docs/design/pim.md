@@ -85,11 +85,16 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
 - `events`: object, UID, `RECURRENCE-ID`, summary, location, start and end
   (UTC with their IANA zone, or dates for all-day), recurrence text, status,
   transparency, organizer, the user's `PARTSTAT`, sequence.
+  An event keeps its ID while its object keeps its recurrence ID, across
+  syncs, since the app's selection holds it.
 - `event_attendees`: event, email, name, role, `PARTSTAT`.
-- `instances`: event, start and end in UTC, all-day flag, override event;
-  materialized for a window (a year back, two ahead) by
-  `internal/calendar` (rrule-go for RRULE, RDATE and EXDATE), extended as
-  views ask for ranges beyond it.
+- `instances`: event, start and end in UTC (dates for all-day), recurrence
+  ID; under the override's event when one replaces the occurrence.
+  Materialized for a window (a year back, two ahead: `instance_window`) by
+  `internal/calendar` (rrule-go for RRULE, RDATE and EXDATE). The first
+  pass of a new UTC day moves the window, re-expanding the stored events
+  without fetching them. Ranges beyond it (`calendar.range` far ahead) are
+  expanded on demand from the stored events, not stored.
 - `alarms`: instance, trigger time, action; `reminders`: snoozed until,
   dismissed.
 - `tasks`: object (CalDAV) or Google id, list, title, notes, due date,
@@ -108,11 +113,35 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - **Views** ask maild for instances in a range (`calendar.range`), joined
   with their events and calendars; `calendar.changed` events name the
   ranges that moved.
-- **Reminders.** maild keeps the next alarm per account and, when it is due,
-  announces it: to the app's reminder window when the app is running, as a
-  desktop notification otherwise (`internal/notify`, with Snooze and
-  Dismiss actions). Only `DISPLAY` and `AUDIO` alarms; `EMAIL` alarms are
-  the server's.
+- **Bounds.** A rule generates at most 200,000 starts, counted from
+  `DTSTART`, and rules repeating more than hourly read as single events, so
+  a hostile invitation cannot stall indexing. RDATE and EXDATE values with
+  a `TZID` that only the object's `VTIMEZONE` names are read in the event's
+  zone.
+- **Reminders.** Only `DISPLAY` and `AUDIO` alarms; `EMAIL` alarms are the
+  server's.
+  - *Triggers.* An occurrence's alarm triggers at its start plus the
+    offset (its end with `RELATED=END`); an all-day occurrence's at its
+    date's midnight in maild's zone. Offsets more than 30 days before or a
+    day after are ignored. An absolute trigger counts for a single event or
+    an override, not a series. A reminder is keyed by the collection, the
+    UID, the occurrence's recurrence ID and the trigger, so it survives
+    resyncs and an event moved to a new time reminds again.
+  - *Firing.* maild's scheduler (`internal/reminders`) checks once a
+    minute, at the minute: the alarms of shown calendars due since its
+    last check (after a start, back at most a day) are recorded as fired
+    (`reminders.fired_at`) and announced, and so are snoozes that ended.
+  - *Announcing.* With the app connected (a client that said
+    `frostmail-app` in `rpc.hello` and subscribed to events), maild sends
+    `calendar.reminders {count}` and the app raises its reminder window.
+    Otherwise each reminder is a desktop notification (`internal/notify`):
+    the title as the summary, the time and place as the body, the actions
+    Snooze (10 minutes) and Dismiss, and clicking it opens the app on its
+    reminder window. Dismissing or snoozing in either place closes the
+    notification.
+  - *State.* `calendar.reminders` lists the fired reminders neither
+    dismissed nor snoozed past now, oldest due first; `calendar.snooze`
+    and `calendar.dismiss` change them.
 
 ### Invitations
 
@@ -168,4 +197,4 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - A collection whose objects fail to parse keeps the source and its
   `parse_error`, so a parser fix can rebuild the index without a resync.
 - Reminders for a series far in the future come from the instances window;
-  the window is extended daily by the DAV loop.
+  the window moves daily with the first pass of the day.

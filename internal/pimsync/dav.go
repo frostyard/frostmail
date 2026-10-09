@@ -155,7 +155,7 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 		}
 		err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
 			for _, o := range objects {
-				if err := indexDAV(ctx, tx, kind, col.ID, o); err != nil {
+				if err := p.indexDAV(ctx, tx, kind, col.ID, o); err != nil {
 					return err
 				}
 			}

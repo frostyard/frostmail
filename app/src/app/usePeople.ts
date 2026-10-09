@@ -5,7 +5,7 @@ import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { AddressBookSection } from "../features/people/PeopleSidebar";
 import type { BookLabel } from "../features/people/PersonPane";
-import type { Client, Collection, Event, MessageSummary, Person, PersonSummary } from "../rpc/gen/api";
+import type { Client, Collection, Event, MessageSummary, Occurrence, Person, PersonSummary } from "../rpc/gen/api";
 import { composeTo, startDraft } from "./compose";
 
 /** writeToPerson starts a message and contains compose-window failures. */
@@ -93,18 +93,23 @@ function usePerson(client: Client, active: boolean) {
 }
 
 function usePersonExtras(client: Client, person: Person | null) {
+  const [upcoming, setUpcoming] = useState<Occurrence[]>([]);
   const [recent, setRecent] = useState<MessageSummary[]>([]);
   const [photo, setPhoto] = useState<string | undefined>();
   useEffect(() => {
     let stopped = false;
     setRecent([]);
+    setUpcoming([]);
     setPhoto(undefined);
     const email = personEmail(person);
     if (email)
       void client.people
         .card({ email })
         .then((card) => {
-          if (!stopped) setRecent(card.recent);
+          if (!stopped) {
+            setRecent(card.recent);
+            setUpcoming(card.upcoming);
+          }
         })
         .catch((err: unknown) => console.warn("people card", err));
     if (person?.hasPhoto)
@@ -118,7 +123,7 @@ function usePersonExtras(client: Client, person: Person | null) {
       stopped = true;
     };
   }, [client, person]);
-  return { recent, photo };
+  return { recent, upcoming, photo };
 }
 
 function useAddressBooks(client: Client, active: boolean) {

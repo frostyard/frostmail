@@ -31,6 +31,7 @@ import (
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/pimsync"
+	"github.com/frostyard/frostmail/internal/reminders"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -114,8 +115,11 @@ func run(ctx context.Context, args []string) error {
 		logger.Warn("tracing IMAP sessions; the traces hold mail", "dir", dir)
 		syncCfg.Trace = traceFiles(dir, logger)
 	}
-	if desktop, err := notify.OpenDesktop(ctx, logger, openInApp(logger)); err != nil {
+	open := openInApp(logger)
+	desktop, err := notify.OpenDesktop(ctx, logger, open)
+	if err != nil {
 		logger.Info("no desktop notifications", "err", err)
+		desktop = nil
 	} else {
 		defer func() { _ = desktop.Close() }()
 		syncCfg.Announce = desktop.Announce
@@ -142,11 +146,14 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
+	var sched *reminders.Scheduler // the app coming or going checks reminders
+	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger,
+		OnAttended: func(bool) { sched.Kick() }})
 	eng := engine.New(engine.Deps{
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
 		OAuth: tokens, PIM: pim,
 	})
+	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, logger)
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
@@ -157,6 +164,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	go views.Run(ctx)
+	go sched.Run(ctx)
 	// FROSTMAIL_SYNC=off serves the store without connecting to any server,
 	// for the README's screenshots, whose accounts have none (make
 	// screenshots). Mail already stored still reads.
@@ -184,6 +192,45 @@ func run(ctx context.Context, args []string) error {
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
 	return err
+}
+
+// newReminders fires calendar reminders (docs/design/pim.md, Reminders):
+// to the app while it is connected, else as desktop notifications, whose
+// Snooze (10 minutes) and Dismiss act here and whose click opens the app.
+func newReminders(ctx context.Context, db *store.DB, cal api.CalendarService, srv *rpcserver.Server,
+	desktop *notify.Desktop, open func(int64), log *slog.Logger,
+) *reminders.Scheduler {
+	cfg := reminders.Config{
+		DB: db,
+		List: func(ctx context.Context) ([]api.Reminder, error) {
+			return cal.Reminders(ctx, &api.CalendarRemindersParams{})
+		},
+		Attended: srv.Attended,
+		Log:      log,
+	}
+	if desktop != nil {
+		cfg.Notifier = desktop
+	}
+	sched := reminders.New(cfg)
+	if desktop != nil {
+		desktop.OnReminder(func(id, action string) {
+			var err error
+			switch action {
+			case notify.ActionSnooze:
+				until := time.Now().Add(10 * time.Minute).Truncate(time.Minute)
+				err = cal.Snooze(ctx, &api.CalendarSnoozeParams{IDs: []string{id}, Until: until})
+			case notify.ActionDismiss:
+				err = cal.Dismiss(ctx, &api.CalendarDismissParams{IDs: []string{id}})
+			default:
+				open(0) // the app raises its reminder window
+			}
+			if err != nil {
+				log.Warn("reminder action", "action", action, "err", err)
+			}
+			sched.Kick()
+		})
+	}
+	return sched
 }
 
 // pimConfig configures contacts, calendar and tasks sync: test servers'

@@ -12,10 +12,18 @@ import (
 
 // fakeServer is org.freedesktop.Notifications on a private bus.
 type fakeServer struct {
-	conn  *dbus.Conn
-	mu    sync.Mutex
-	next  uint32
-	calls []fakeCall
+	conn   *dbus.Conn
+	mu     sync.Mutex
+	next   uint32
+	calls  []fakeCall
+	closed []uint32
+}
+
+func (f *fakeServer) CloseNotification(id uint32) *dbus.Error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = append(f.closed, id)
+	return nil
 }
 
 type fakeCall struct {
@@ -23,6 +31,7 @@ type fakeCall struct {
 	summary, body    string
 	actions          []string
 	entry, icon, app string
+	category         string
 }
 
 func (f *fakeServer) Notify(app string, replaces uint32, icon, summary, body string, actions []string,
@@ -30,7 +39,9 @@ func (f *fakeServer) Notify(app string, replaces uint32, icon, summary, body str
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	entry, _ := hints["desktop-entry"].Value().(string)
-	f.calls = append(f.calls, fakeCall{replaces: replaces, summary: summary, body: body, actions: actions, entry: entry, icon: icon, app: app})
+	category, _ := hints["category"].Value().(string)
+	f.calls = append(f.calls, fakeCall{replaces: replaces, summary: summary, body: body, actions: actions, entry: entry, icon: icon,
+		app: app, category: category})
 	if replaces != 0 {
 		return replaces, nil
 	}
@@ -49,7 +60,7 @@ func startFake(t *testing.T) (*fakeServer, string) {
 	t.Helper()
 	addr := dbustest.Bus(t)
 	f := &fakeServer{conn: dbustest.Connect(t, addr)}
-	if err := f.conn.ExportMethodTable(map[string]any{"Notify": f.Notify}, busPath, busIface); err != nil {
+	if err := f.conn.ExportMethodTable(map[string]any{"Notify": f.Notify, "CloseNotification": f.CloseNotification}, busPath, busIface); err != nil {
 		t.Fatal(err)
 	}
 	if reply, err := f.conn.RequestName(busName, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {

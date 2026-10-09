@@ -541,7 +541,9 @@ type AccountService interface {
 	// task lists, by account, then by the server's order.
 	Collections(ctx context.Context, p *AccountCollectionsParams) ([]Collection, error)
 	// SetCollection implements account.setCollection. Show or hide a collection,
-	// or make it the default of its kind for its account.
+	// or make it the default of its kind for its account. account.changed
+	// follows; showing or hiding also sends the collection's domain event
+	// (people.changed, calendar.changed or tasks.changed).
 	SetCollection(ctx context.Context, p *AccountSetCollectionParams) (*Collection, error)
 }
 

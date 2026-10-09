@@ -90,6 +90,31 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// Open the reminder window, labeled reminders, or raise it when it is open
+/// (docs/specs/pim-ui.md, Reminder window). It floats over the other
+/// windows and learns its role from an initialization script.
+#[tauri::command]
+pub fn open_reminders(app: AppHandle) -> Result<(), String> {
+    if let Some(w) = app.get_webview_window("reminders") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        return w.set_focus().map_err(|e| e.to_string());
+    }
+    WebviewWindowBuilder::new(&app, "reminders", WebviewUrl::default())
+        .title("Reminders")
+        .inner_size(380.0, 300.0)
+        .min_inner_size(320.0, 160.0)
+        .always_on_top(true)
+        // The reminder window draws its own title strip.
+        .decorations(false)
+        .initialization_script("window.__frostmailReminders = true;")
+        .on_navigation(crate::allowed_navigation)
+        .visible(false)
+        .build()
+        .map(crate::show_soon)
+        .map_err(|e| e.to_string())
+}
+
 /// The message a launch asked to open with --open-message <id>.
 pub fn open_request(args: &[String]) -> Option<i64> {
     let i = args.iter().position(|a| a == "--open-message")?;

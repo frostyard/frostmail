@@ -42,9 +42,20 @@ type Config struct {
 	Tokens TokenSource
 	// UserAgent is sent with every request.
 	UserAgent string
+	// Now is the clock that places the instances window; nil means
+	// time.Now.
+	Now func() time.Time
+	// Local is the zone of floating event times; nil means time.Local.
+	Local *time.Location
 }
 
 func (c Config) withDefaults() Config {
+	if c.Now == nil {
+		c.Now = time.Now
+	}
+	if c.Local == nil {
+		c.Local = time.Local
+	}
 	if c.Interval == 0 {
 		c.Interval = 5 * time.Minute
 	}
@@ -71,10 +82,11 @@ type Manager struct {
 	log     *slog.Logger
 	cfg     Config
 
-	mu    sync.Mutex
-	ctx   context.Context
-	loops map[int64]*loop
-	wg    sync.WaitGroup
+	windowMu sync.Mutex
+	mu       sync.Mutex
+	ctx      context.Context
+	loops    map[int64]*loop
+	wg       sync.WaitGroup
 	// passes serializes passes per account: the loop's and Pass's.
 	passes map[int64]*sync.Mutex
 }
@@ -176,6 +188,9 @@ func (m *Manager) Pass(ctx context.Context, accountID int64) error {
 		return err
 	}
 	p := &pass{m: m, acct: acct}
+	if err := p.prepareCalendar(ctx); err != nil {
+		return err
+	}
 	var first error
 	if err := p.replay(ctx, services); err != nil {
 		m.log.Warn("pim changes not written", "account", accountID, "err", err)
@@ -245,8 +260,10 @@ func (l *loop) run(ctx context.Context) {
 
 // pass is one pass over an account's services.
 type pass struct {
-	m    *Manager
-	acct store.Account
+	m          *Manager
+	acct       store.Account
+	userEmails []string
+	from, to   time.Time
 }
 
 // service syncs one service, retrying once with a new access token when

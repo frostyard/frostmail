@@ -102,7 +102,7 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 	}
 	return p.done(ctx, op, func(tx *store.Tx) error {
 		if fetched != nil {
-			if err := indexDAV(ctx, tx, kind, col.ID, *fetched); err != nil {
+			if err := p.indexDAV(ctx, tx, kind, col.ID, *fetched); err != nil {
 				return err
 			}
 			if kind == davx.AddressBooks {

@@ -8,6 +8,7 @@ import { listQuery, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import { SearchField } from "../features/search/SearchField";
 import { type MoveTarget, Toolbar, type ToolbarCommand } from "../features/toolbar/Toolbar";
+import { step, viewTitle } from "../lib/calendarDates";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
 import {
@@ -20,6 +21,7 @@ import {
   toggleRead,
 } from "./commands";
 import { openSettings } from "./settings";
+import { useCalendarFrame } from "./useCalendar";
 import { type PeopleData, personEmail, writeToPerson } from "./usePeople";
 
 interface ToolbarContainerProps {
@@ -130,10 +132,20 @@ function windowCommand(command: ToolbarCommand): boolean {
 
 function useToolbarCommand(props: ToolbarContainerProps) {
   const client = useClient();
+  const frame = useCalendarFrame();
   return useCallback(
     (command: ToolbarCommand) => {
       if (windowCommand(command)) return;
       const ui = useUI.getState();
+      if (ui.module === "calendar") {
+        if (command.kind === "today") ui.setCalendarDate(frame.today);
+        else if (command.kind === "calendarView") ui.setCalendarView(command.view);
+        else if (command.kind === "previousPeriod" || command.kind === "nextPeriod")
+          ui.setCalendarDate(
+            step(ui.calendarView, ui.calendarDate || frame.today, command.kind === "previousPeriod" ? -1 : 1),
+          );
+        return;
+      }
       if (ui.module === "people") {
         if (command.kind === "compose") writeToPerson(client, personEmail(props.people?.person ?? null));
         return;
@@ -176,7 +188,7 @@ function useToolbarCommand(props: ToolbarContainerProps) {
           break;
       }
     },
-    [client, props],
+    [client, props, frame.today],
   );
 }
 
@@ -206,11 +218,21 @@ function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) 
 export function ToolbarContainer(props: ToolbarContainerProps) {
   const ui = useUI();
   const data = useToolbarData(props.model, props.people);
+  const frame = useCalendarFrame();
   const maximized = useMaximized();
   const onCommand = useToolbarCommand(props);
   return (
     <Toolbar
-      mode={ui.module === "people" ? "people" : "mail"}
+      mode={ui.module === "calendar" ? "calendar" : ui.module === "people" ? "people" : "mail"}
+      calendar={
+        ui.module === "calendar"
+          ? {
+              view: ui.calendarView,
+              title: viewTitle(ui.calendarView, frame.date, frame.weekStart, frame.locale),
+              paneWidth: 320,
+            }
+          : undefined
+      }
       sidebarWidth={ui.sidebarVisible ? ui.sidebarWidth : 0}
       listWidth={ui.listWidth}
       title={data.title}

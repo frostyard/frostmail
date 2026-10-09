@@ -188,17 +188,22 @@ func (t *Tx) SetCollectionSync(ctx context.Context, id int64, token, ctag string
 	return nil
 }
 
-// UpdateCollection changes enabled and default settings and emits AccountChanged.
+// UpdateCollection changes enabled and default settings and emits
+// AccountChanged; showing or hiding a collection also emits its domain's
+// change event, since what the domain's queries return changed.
 func (t *Tx) UpdateCollection(ctx context.Context, id int64, enabled *bool, makeDefault bool) (Collection, error) {
 	c, err := readCollection(t.QueryRowContext(ctx, "SELECT "+collectionColumns+" FROM collections WHERE id = ?", id))
 	if err != nil {
 		return Collection{}, err
 	}
-	if enabled != nil {
+	if enabled != nil && *enabled != c.Enabled {
 		if _, err := t.ExecContext(ctx, "UPDATE collections SET enabled = ? WHERE id = ?", *enabled, id); err != nil {
 			return Collection{}, fmt.Errorf("update collection: %w", err)
 		}
 		c.Enabled = *enabled
+		if err := t.Emit(ctx, collectionChanged(c)); err != nil {
+			return Collection{}, err
+		}
 	}
 	if makeDefault {
 		if _, err := t.ExecContext(ctx, "UPDATE collections SET is_default = (id = ?) WHERE account_id = ? AND kind = ?", id, c.AccountID, c.Kind); err != nil {
@@ -210,4 +215,15 @@ func (t *Tx) UpdateCollection(ctx context.Context, id int64, enabled *bool, make
 		return Collection{}, err
 	}
 	return c, nil
+}
+
+// collectionChanged is the change event of a collection's domain.
+func collectionChanged(c Collection) api.Event {
+	switch c.Kind {
+	case api.CollectionKindAddressbook:
+		return api.PeopleChanged{AccountID: c.AccountID}
+	case api.CollectionKindTasklist:
+		return api.TasksChanged{AccountID: c.AccountID}
+	}
+	return api.CalendarChanged{AccountID: c.AccountID}
 }

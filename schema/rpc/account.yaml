@@ -223,7 +223,11 @@ methods:
       - {name: kind, type: CollectionKind, optional: true}
     result: "[]Collection"
   - name: setCollection
-    doc: Show or hide a collection, or make it the default of its kind for its account.
+    doc: >-
+      Show or hide a collection, or make it the default of its kind for its
+      account. account.changed follows; showing or hiding also sends the
+      collection's domain event (people.changed, calendar.changed or
+      tasks.changed).
     params:
       - {name: id, type: int}
       - {name: enabled, type: bool, optional: true}

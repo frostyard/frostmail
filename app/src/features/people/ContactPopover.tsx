@@ -1,5 +1,5 @@
 // The contact card mail shows for an address (docs/specs/pim-ui.md).
-import { useEffect, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { formatListDate } from "../../lib/format";
 import type { Address, ContactCard } from "../../rpc/gen/api";
 import { Avatar } from "./Avatar";
@@ -15,6 +15,7 @@ export interface ContactPopoverProps {
   card: ContactCard | null;
   /** The person's photo as a data: URL, when loaded. */
   photo?: string;
+  upcoming?: ReactNode;
   /** Where the card goes: below the clicked name, in window pixels. */
   at: { x: number; y: number };
   /** The clock for the recent mail's dates. */
@@ -119,6 +120,7 @@ export function ContactPopover(props: ContactPopoverProps) {
           })}
         </section>
       )}
+      {props.upcoming && <div className="mt-4">{props.upcoming}</div>}
     </div>
   );
 }

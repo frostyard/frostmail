@@ -6,6 +6,8 @@
 // command does.
 import {
   Archive,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Flag,
   FolderInput,
@@ -26,11 +28,16 @@ import {
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
+import type { CalendarView } from "../../lib/calendarDates";
 import { FLAG_NAMES } from "../../lib/flags";
 import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ToolbarCommand is what a toolbar control asks for. */
 export type ToolbarCommand =
+  | { kind: "today" }
+  | { kind: "previousPeriod" }
+  | { kind: "nextPeriod" }
+  | { kind: "calendarView"; view: CalendarView }
   | { kind: "toggleSidebar" }
   | { kind: "getMail" }
   | { kind: "delete" }
@@ -64,9 +71,17 @@ export interface ToolbarSelection {
   flagColor: number;
 }
 
+/** ToolbarCalendar describes the calendar view and event pane. */
+export interface ToolbarCalendar {
+  view: CalendarView;
+  title: string;
+  paneWidth: number;
+}
+
 /** ToolbarProps are the toolbar's inputs. */
 export interface ToolbarProps {
-  mode?: "mail" | "people";
+  mode?: "mail" | "people" | "calendar";
+  calendar?: ToolbarCalendar;
   /** The sidebar's width, 0 while it is hidden. */
   sidebarWidth: number;
   listWidth: number;
@@ -117,6 +132,7 @@ function moveItems(targets: MoveTarget[]): MenuItem[] {
 
 interface ToolbarButtonProps {
   label: string;
+  className?: string;
   shortcut?: string;
   icon: ReactNode;
   disabled?: boolean;
@@ -125,7 +141,7 @@ interface ToolbarButtonProps {
 }
 
 function ToolbarButton(props: ToolbarButtonProps) {
-  const { label, shortcut, icon, disabled, hasMenu, onClick } = props;
+  const { label, shortcut, icon, disabled, hasMenu, onClick, className } = props;
   return (
     <button
       type="button"
@@ -134,7 +150,7 @@ function ToolbarButton(props: ToolbarButtonProps) {
       aria-haspopup={hasMenu ? "menu" : undefined}
       disabled={disabled}
       onClick={onClick}
-      className={BUTTON_CLASS}
+      className={className ?? BUTTON_CLASS}
     >
       {icon}
     </button>
@@ -149,7 +165,7 @@ function SidebarSegment({
   syncing,
   onCommand,
 }: {
-  mode: "mail" | "people";
+  mode: "mail" | "people" | "calendar";
   sidebarWidth: number;
   syncing: boolean;
   onCommand: (cmd: ToolbarCommand) => void;
@@ -287,8 +303,10 @@ function ReaderSegment({
   search,
   onCommand,
   onOpenMenu,
+  paneWidth,
 }: {
-  mode: "mail" | "people";
+  paneWidth?: number;
+  mode: "mail" | "people" | "calendar";
   selection: ToolbarSelection;
   canArchive: boolean;
   moveTargets: MoveTarget[];
@@ -298,7 +316,12 @@ function ReaderSegment({
   onOpenMenu: (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
-    <div data-segment="reader" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-2">
+    <div
+      data-segment={mode === "calendar" ? "pane" : "reader"}
+      data-tauri-drag-region
+      className={`flex h-full min-w-0 items-center gap-1 px-2 ${mode === "calendar" ? "shrink-0" : "flex-1"}`}
+      style={mode === "calendar" ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
+    >
       {mode === "mail" && (
         <MessageActions
           selection={selection}
@@ -309,7 +332,7 @@ function ReaderSegment({
         />
       )}
       <div data-tauri-drag-region className="flex-1" />
-      {search}
+      {mode !== "calendar" && search}
       <ToolbarButton
         label="Settings"
         icon={<Settings size={16} />}
@@ -323,6 +346,57 @@ function ReaderSegment({
         onClick={() => onCommand({ kind: "toggleMaximize" })}
       />
       <ToolbarButton label="Close" icon={<X size={16} />} onClick={() => onCommand({ kind: "close" })} />
+    </div>
+  );
+}
+
+function CalendarSegment({
+  calendar,
+  onCommand,
+}: {
+  calendar: ToolbarCalendar;
+  onCommand: (cmd: ToolbarCommand) => void;
+}) {
+  const labels: Record<CalendarView, string> = { day: "Day", week: "Week", month: "Month" };
+  const views: CalendarView[] = ["day", "week", "month"];
+  return (
+    <div data-segment="calendar" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
+      <button
+        type="button"
+        className="h-7 rounded-md px-[10px] text-[13px] hover:bg-selection-inactive"
+        onClick={() => onCommand({ kind: "today" })}
+      >
+        Today
+      </button>
+      <ToolbarButton
+        label={`Previous ${labels[calendar.view]}`}
+        icon={<ChevronLeft size={16} />}
+        onClick={() => onCommand({ kind: "previousPeriod" })}
+      />
+      <ToolbarButton
+        label={`Next ${labels[calendar.view]}`}
+        icon={<ChevronRight size={16} />}
+        onClick={() => onCommand({ kind: "nextPeriod" })}
+      />
+      <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">
+        {calendar.title}
+      </span>
+      <div role="radiogroup" aria-label="View" className="flex h-7 shrink-0 items-center rounded-md bg-badge p-0.5">
+        {views.map((view) => (
+          // biome-ignore lint/a11y/useSemanticElements: a segmented control: buttons with radio semantics, named by their text.
+          <button
+            key={view}
+            type="button"
+            role="radio"
+            aria-checked={calendar.view === view}
+            title={`${labels[view]} (Ctrl+Alt+${views.indexOf(view) + 1})`}
+            className={`h-6 rounded px-[10px] text-[13px] ${calendar.view === view ? "bg-window shadow-sm" : "text-secondary"}`}
+            onClick={() => onCommand({ kind: "calendarView", view })}
+          >
+            {labels[view]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -342,13 +416,21 @@ function ToolbarSegments({
         syncing={props.syncing}
         onCommand={props.onCommand}
       />
-      <ListSegment
-        listWidth={props.listWidth}
-        title={props.title}
-        subtitle={props.subtitle}
-        onCommand={props.onCommand}
-      />
+      {props.mode === "calendar" ? (
+        <CalendarSegment
+          calendar={props.calendar ?? { view: "week", title: props.title, paneWidth: 320 }}
+          onCommand={props.onCommand}
+        />
+      ) : (
+        <ListSegment
+          listWidth={props.listWidth}
+          title={props.title}
+          subtitle={props.subtitle}
+          onCommand={props.onCommand}
+        />
+      )}
       <ReaderSegment
+        paneWidth={props.calendar?.paneWidth}
         mode={props.mode ?? "mail"}
         selection={props.selection}
         canArchive={props.canArchive}
