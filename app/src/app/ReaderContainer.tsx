@@ -5,9 +5,15 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import { MessageFrame } from "../features/reader/MessageFrame";
-import { AttachmentStrip, MessageHeader, RemoteBanner } from "../features/reader/MessageHeader";
+import {
+  AttachmentStrip,
+  MessageHeader,
+  type MessageHeaderProps,
+  RemoteBanner,
+} from "../features/reader/MessageHeader";
 import { PlainText } from "../features/reader/PlainText";
-import type { Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
+import type { Address, Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
+import { ContactCardContainer } from "./ContactCardContainer";
 
 /** MAX_CONVERSATION is how many messages the reader shows before "Show earlier". */
 export const MAX_CONVERSATION = 20;
@@ -27,6 +33,9 @@ export function openLink(url: string): void {
 /** ReaderContainer shows the selection in the reader pane. */
 export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer(_props, ref) {
   const { selected, setFocus } = useUI();
+  const [contact, setContact] = useState<{ address: Address; at: { x: number; y: number } } | null>(null);
+  const openContact = useCallback((address: Address, at: { x: number; y: number }) => setContact({ address, at }), []);
+  const closeContact = useCallback(() => setContact(null), []);
   const scroller = useRef<HTMLElement>(null);
   useImperativeHandle(ref, () => ({
     page: (direction) => {
@@ -47,7 +56,8 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
     >
       {selected.length === 0 && <Empty text="No Message Selected" />}
       {selected.length > 1 && <Empty text={`${selected.length} Messages Selected`} />}
-      {id !== undefined && <Conversation key={id} id={id} />}
+      {id !== undefined && <Conversation key={id} id={id} onAddress={openContact} />}
+      {contact && <ContactCardContainer key={contact.address.address} {...contact} onClose={closeContact} />}
     </section>
   );
 });
@@ -56,7 +66,7 @@ function Empty({ text }: { text: string }) {
   return <div className="flex h-full items-center justify-center text-empty text-secondary">{text}</div>;
 }
 
-function Conversation({ id }: { id: number }) {
+function Conversation({ id, onAddress }: { id: number; onAddress: MessageHeaderProps["onAddress"] }) {
   const client = useClient();
   // Only the Trash mailboxes matter here; counts change on every flag change.
   const trashKey = useMail((s) =>
@@ -109,7 +119,7 @@ function Conversation({ id }: { id: number }) {
   return (
     <div className="divide-y divide-separator">
       {shown.map((s) => (
-        <ConversationMessage key={s.id} summary={s} />
+        <ConversationMessage key={s.id} summary={s} onAddress={onAddress} />
       ))}
       {shown.length < items.length && (
         <button
@@ -122,7 +132,13 @@ function Conversation({ id }: { id: number }) {
   );
 }
 
-function ConversationMessage({ summary }: { summary: MessageSummary }) {
+function ConversationMessage({
+  summary,
+  onAddress,
+}: {
+  summary: MessageSummary;
+  onAddress: MessageHeaderProps["onAddress"];
+}) {
   const client = useClient();
   const [message, setMessage] = useState<Message | null>(null);
   const [rendering, setRendering] = useState<Rendering | null>(null);
@@ -162,7 +178,7 @@ function ConversationMessage({ summary }: { summary: MessageSummary }) {
 
   return (
     <article aria-label={summary.subject} className="pb-2">
-      {message && <MessageHeader message={message} />}
+      {message && <MessageHeader message={message} onAddress={onAddress} />}
       {rendering && (
         <RemoteBanner
           remote={rendering.remote}
