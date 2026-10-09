@@ -382,7 +382,9 @@ export interface AccountClient {
   collections(params?: AccountCollectionsParams): Promise<Collection[]>;
   /**
    * Show or hide a collection, or make it the default of its kind for its
-   * account.
+   * account. account.changed follows; showing or hiding also sends the
+   * collection's domain event (people.changed, calendar.changed or
+   * tasks.changed).
    */
   setCollection(params: AccountSetCollectionParams): Promise<Collection>;
 }

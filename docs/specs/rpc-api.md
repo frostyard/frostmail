@@ -173,7 +173,7 @@ Result: `[]Collection`.
 
 ### `account.setCollection`
 
-Show or hide a collection, or make it the default of its kind for its account.
+Show or hide a collection, or make it the default of its kind for its account. account.changed follows; showing or hiding also sends the collection's domain event (people.changed, calendar.changed or tasks.changed).
 
 | Field | Type | Meaning |
 | --- | --- | --- |

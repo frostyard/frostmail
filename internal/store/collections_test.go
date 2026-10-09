@@ -170,6 +170,31 @@ func TestUpdateCollection(t *testing.T) {
 	if len(*events) != 1 || (*events)[0].Event != "account.changed" {
 		t.Errorf("events = %+v", *events)
 	}
+	// Hiding a collection also tells its domain; setting it as it is does not.
+	for _, c := range []struct {
+		id      int64
+		enabled bool
+		want    []string
+	}{
+		{got[0].ID, false, []string{"calendar.changed", "account.changed"}},
+		{cal[0].ID, false, []string{"people.changed", "account.changed"}},
+		{cal[0].ID, false, []string{"account.changed"}},
+	} {
+		*events = nil
+		if err := d.Tx(ctx, func(tx *Tx) error {
+			_, err := tx.UpdateCollection(ctx, c.id, &c.enabled, false)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, e := range *events {
+			names = append(names, e.Event)
+		}
+		if !slices.Equal(names, c.want) {
+			t.Errorf("events after enabled=%v on %d = %q, want %q", c.enabled, c.id, names, c.want)
+		}
+	}
 	if err := d.Tx(ctx, func(tx *Tx) error {
 		_, err := tx.UpdateCollection(ctx, 999, nil, true)
 		return err
