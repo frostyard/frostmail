@@ -26,7 +26,8 @@ type ContactEmail struct {
 	Label string
 }
 
-// IndexContact replaces contact fields and normalized emails, retaining person_id.
+// IndexContact replaces contact fields and normalized emails, each once,
+// retaining person_id.
 func (t *Tx) IndexContact(ctx context.Context, objectID int64, c ContactIndex) error {
 	_, err := t.ExecContext(ctx, `INSERT INTO contacts
  (object_id, display_name, sort_key, given_name, family_name, organization, photo, photo_type)
@@ -42,11 +43,13 @@ func (t *Tx) IndexContact(ctx context.Context, objectID int64, c ContactIndex) e
 		return fmt.Errorf("replace contact emails: %w", err)
 	}
 	position := 0
+	seen := map[string]bool{}
 	for _, e := range c.Emails {
 		email := strings.ToLower(strings.TrimSpace(e.Email))
-		if email == "" {
+		if email == "" || seen[email] {
 			continue
 		}
+		seen[email] = true
 		if _, err := t.ExecContext(ctx, "INSERT INTO contact_emails (contact_id, position, email, label) VALUES (?, ?, ?, ?)",
 			objectID, position, email, e.Label); err != nil {
 			return fmt.Errorf("index contact email: %w", err)
