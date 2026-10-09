@@ -27,6 +27,7 @@ import (
 	"github.com/frostyard/frostmail/internal/devgw"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
+	"github.com/frostyard/frostmail/internal/httprec"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
@@ -115,6 +116,16 @@ func run(ctx context.Context, args []string) error {
 		logger.Warn("tracing IMAP sessions; the traces hold mail", "dir", dir)
 		syncCfg.Trace = traceFiles(dir, logger)
 	}
+	var davTrace io.Writer
+	if dir := os.Getenv("MAILD_DAV_TRACE"); dir != "" {
+		f, err := davTraceFile(dir)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+		logger.Warn("tracing DAV and Tasks sessions; the trace holds contacts, calendars and tasks", "file", f.Name())
+		davTrace = f
+	}
 	open := openInApp(logger)
 	desktop, err := notify.OpenDesktop(ctx, logger, open)
 	if err != nil {
@@ -125,7 +136,7 @@ func run(ctx context.Context, args []string) error {
 		syncCfg.Announce = desktop.Announce
 	}
 	syncer := mailsync.New(db, sec, blobs, logger, syncCfg, broker.Publish)
-	pim := pimsync.New(db, sec, logger, pimConfig(syncCfg.InsecureSkipVerify, tokens))
+	pim := pimsync.New(db, sec, logger, pimConfig(syncCfg.InsecureSkipVerify, tokens, davTrace, logger))
 	tokens.SignedIn = func(id int64) {
 		if err := syncer.Restart(ctx, id); err != nil {
 			logger.Warn("restart a signed-in account", "account", id, "err", err)
@@ -234,15 +245,39 @@ func newReminders(ctx context.Context, db *store.DB, cal api.CalendarService, sr
 }
 
 // pimConfig configures contacts, calendar and tasks sync: test servers'
-// certificates and plain HTTP only with FROSTMAIL_INSECURE_TLS=1.
-func pimConfig(insecure bool, tokens pimsync.TokenSource) pimsync.Config {
+// certificates and plain HTTP only with FROSTMAIL_INSECURE_TLS=1, and every
+// exchange recorded to trace when it is set (MAILD_DAV_TRACE).
+func pimConfig(insecure bool, tokens pimsync.TokenSource, trace io.Writer, logger *slog.Logger) pimsync.Config {
 	cfg := pimsync.Config{Tokens: tokens, UserAgent: "Frostmail/" + version, AllowHTTP: insecure}
+	var transport http.RoundTripper
 	if insecure {
-		cfg.HTTP = &http.Client{Timeout: time.Minute, Transport: &http.Transport{
+		transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test servers only
+		}
+	}
+	if trace != nil {
+		transport = &httprec.Transport{Base: transport, W: trace, OnError: func(err error) {
+			logger.Warn("dav trace", "err", err)
 		}}
 	}
+	if transport != nil {
+		cfg.HTTP = &http.Client{Timeout: time.Minute, Transport: transport}
+	}
 	return cfg
+}
+
+// davTraceFile creates this run's DAV and Tasks trace in dir
+// (MAILD_DAV_TRACE, docs/design/testing.md), readable only by the user.
+func davTraceFile(dir string) (*os.File, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("trace directory: %w", err)
+	}
+	name := fmt.Sprintf("dav-%s.trace", time.Now().UTC().Format("20060102T150405.000000"))
+	f, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("trace file: %w", err)
+	}
+	return f, nil
 }
 
 // openInApp runs the app on a clicked notification's message (or just the
