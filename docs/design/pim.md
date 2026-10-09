@@ -132,8 +132,12 @@ query flagged messages alongside tasks, and completing one clears the flag.
     resyncs and an event moved to a new time reminds again.
   - *Firing.* maild's scheduler (`internal/reminders`) checks once a
     minute, at the minute: the alarms of shown calendars due since its
-    last check (after a start, back at most a day) are recorded as fired
-    (`reminders.fired_at`) and announced, and so are snoozes that ended.
+    last check are recorded as fired (`reminders.fired_at`) and announced,
+    and so are snoozes that ended. Each check is recorded
+    (`reminders_checked`), so after a start the first check looks back to
+    the last one before maild stopped, at most a day; a database that
+    never checked looks back nowhere. An alarm that was due before its
+    event was synced, or before Frostmail first checked, never reminds.
   - *Announcing.* With the app connected (a client that said
     `frostmail-app` in `rpc.hello` and subscribed to events), maild sends
     `calendar.reminders {count}` and the app raises its reminder window.
