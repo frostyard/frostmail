@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0066 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0066 and T-0093 (docs/tasks). Do not edit.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -76,7 +76,8 @@ describe("ServicesSection", () => {
       busy: "tasks",
     });
     expect(screen.getByText("offline").className).toContain("text-flag-1");
-    expect(screen.getByText("Sign in to Google again to allow this.").className).toContain("text-flag-1");
+    expect(screen.getByText("Waiting for Google sign-in").className).toContain("text-secondary");
+    expect(screen.getByText("Sign in to Google to allow Calendars.").className).toContain("text-flag-1");
     fireEvent.click(screen.getByRole("button", { name: "Sign In…" }));
     expect(props.onSignIn).toHaveBeenCalled();
     expect(screen.getByText("Connecting…")).toBeTruthy();
