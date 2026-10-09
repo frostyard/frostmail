@@ -27,7 +27,7 @@ const contacts = () => screen.getByRole("listbox", { name: "Contacts" });
 const names = () =>
   within(contacts())
     .getAllByRole("option")
-    .map((o) => o.querySelector(".font-semibold")?.textContent);
+    .map((o) => o.querySelector(".font-semibold:not([aria-hidden])")?.textContent);
 
 async function showPeople() {
   ctrl("3");
