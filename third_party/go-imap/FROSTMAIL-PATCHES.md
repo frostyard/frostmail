@@ -14,6 +14,7 @@ Every change is marked "frostmail patch" in a comment and covered by
 | FETCH parses the `<origin>` of a partial `BINARY[part]<origin>` response, as it already did for BODY (upstream bug: Dovecot's partial BINARY answers failed to parse) | `imapclient/fetch.go` |
 | FETCH reads a BODYSTRUCTURE whole (`Decoder.RawValue`) before parsing it; a structure the parser rejects comes back as `FetchItemDataBodyStructure.Unparsed`/`Err` (`FetchMessageBuffer.BodyStructureUnparsed`/`BodyStructureErr`) instead of failing the response and the connection | `internal/imapwire/decoder.go`, `imapclient/fetch.go` |
 | A `message/rfc822` (or `global`) part with NIL where the envelope belongs, as Gmail sends the returned message in a bounce, is read as a basic body (`Decoder.Peek`) | `internal/imapwire/decoder.go`, `imapclient/fetch.go` |
+| `SessionTracker.Idle` (the server side, used by the in-memory test server) writes the updates queued before it registered: the client hears `+ idling` first, and a message appended in between woke no one (a lost wake-up that made IDLE tests flaky) | `imapserver/tracker.go` |
 | `SearchCriteria.GmailRaw` sends `X-GM-RAW`; `And` joins two queries with a space | `search.go`, `imapclient/search.go` |
 | `Client.StoreGmailLabels` sends `STORE ±X-GM-LABELS` | `imapclient/store.go` |
 

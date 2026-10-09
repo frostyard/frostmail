@@ -265,9 +265,19 @@ func TestWrongPasswordIsUnauthorized(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.waitPhase(api.SyncPhaseIdle)
-	statuses, err := h.c.Sync().Status(context.Background(), &api.SyncStatusParams{AccountID: &h.acct})
-	if err != nil || len(statuses) != 1 || statuses[0].Phase != api.SyncPhaseIdle {
-		t.Fatalf("sync.status = %+v, %v", statuses, err)
+	// The first idle is soon followed by a short pass of INBOX: the IDLE
+	// connection asks for one after its SELECT. sync.status settles idle.
+	var statuses []api.SyncStatus
+	waitUntil(t, 10*time.Second, "sync.status to report idle", func() bool {
+		var err error
+		statuses, err = h.c.Sync().Status(context.Background(), &api.SyncStatusParams{AccountID: &h.acct})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(statuses) == 1 && statuses[0].Phase == api.SyncPhaseIdle
+	})
+	if statuses[0].LastSyncAt == nil {
+		t.Errorf("sync.status = %+v, want a last sync time", statuses)
 	}
 }
 

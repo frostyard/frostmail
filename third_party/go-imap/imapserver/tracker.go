@@ -212,6 +212,13 @@ func (t *SessionTracker) Idle(w *UpdateWriter, stop <-chan struct{}) error {
 		t.mutex.Unlock()
 	}()
 
+	// frostmail patch: the client hears "+ idling" before this call
+	// registers updates, and an update queued in between signals nothing;
+	// write what is already queued before waiting.
+	if err := t.Poll(w, true); err != nil {
+		return err
+	}
+
 	for {
 		select {
 		case <-updates:
