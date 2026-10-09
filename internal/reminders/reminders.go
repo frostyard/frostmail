@@ -15,8 +15,8 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-// catchUp is how far back the first check looks: alarms that came due
-// while maild was stopped, up to a day ago, still remind.
+// catchUp is how far back the first check after a start looks: alarms
+// that came due while maild was stopped, up to a day ago, still remind.
 const catchUp = 24 * time.Hour
 
 // Notifier shows reminders on the desktop (notify.Desktop).
@@ -98,7 +98,10 @@ func (s *Scheduler) Check(ctx context.Context) error {
 	now := s.cfg.Now()
 	since := s.last
 	if since.IsZero() {
-		since = now.Add(-catchUp)
+		var err error
+		if since, err = s.resume(ctx, now); err != nil {
+			return err
+		}
 	}
 	due, err := s.cfg.DB.AlarmsDue(ctx, since, now, s.cfg.Local)
 	if err != nil {
@@ -108,10 +111,14 @@ func (s *Scheduler) Check(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if len(due) > 0 {
-		if err := s.cfg.DB.Tx(ctx, func(tx *store.Tx) error { return tx.FireReminders(ctx, due, now) }); err != nil {
-			return fmt.Errorf("fire reminders: %w", err)
+	err = s.cfg.DB.Tx(ctx, func(tx *store.Tx) error {
+		if err := tx.FireReminders(ctx, due, now); err != nil {
+			return err
 		}
+		return tx.SetRemindersChecked(ctx, now)
+	})
+	if err != nil {
+		return fmt.Errorf("fire reminders: %w", err)
 	}
 	s.last = now
 	list, err := s.cfg.List(ctx)
@@ -123,6 +130,23 @@ func (s *Scheduler) Check(ctx context.Context) error {
 		fresh[engine.ReminderID(k)] = true
 	}
 	return s.announce(ctx, list, fresh, now)
+}
+
+// resume is where the first check after a start looks from: the last
+// check recorded before maild stopped, at most catchUp ago. A database
+// that never checked has nothing to catch up on.
+func (s *Scheduler) resume(ctx context.Context, now time.Time) (time.Time, error) {
+	checked, ok, err := s.cfg.DB.RemindersChecked(ctx)
+	if err != nil {
+		return now, err
+	}
+	if !ok {
+		return now, nil
+	}
+	if floor := now.Add(-catchUp); checked.Before(floor) {
+		return floor, nil
+	}
+	return checked, nil
 }
 
 func (s *Scheduler) announce(ctx context.Context, list []api.Reminder, fresh map[string]bool, now time.Time) error {

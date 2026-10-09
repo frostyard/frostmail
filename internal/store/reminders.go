@@ -31,6 +31,31 @@ type ReminderRow struct {
 	Instance InstanceRow
 }
 
+// RemindersChecked returns when the reminder scheduler last checked; ok is
+// false when it never has.
+func (d *DB) RemindersChecked(ctx context.Context) (at time.Time, ok bool, err error) {
+	var s string
+	err = d.db.QueryRowContext(ctx, "SELECT checked_at FROM reminders_checked WHERE id = 1").Scan(&s)
+	if err == sql.ErrNoRows {
+		return at, false, nil
+	}
+	if err != nil {
+		return at, false, fmt.Errorf("reminders checked: %w", err)
+	}
+	at, err = ParseTime(s)
+	return at, err == nil, err
+}
+
+// SetRemindersChecked records the reminder scheduler's check at at.
+func (t *Tx) SetRemindersChecked(ctx context.Context, at time.Time) error {
+	_, err := t.ExecContext(ctx, `INSERT INTO reminders_checked (id, checked_at) VALUES (1, ?)
+ ON CONFLICT(id) DO UPDATE SET checked_at = excluded.checked_at`, FormatTime(at))
+	if err != nil {
+		return fmt.Errorf("set reminders checked: %w", err)
+	}
+	return nil
+}
+
 // AlarmsDue returns the alarms of shown occurrences whose trigger is in
 // (since, until] and that have not fired, by trigger.
 func (d *DB) AlarmsDue(ctx context.Context, since, until time.Time, local *time.Location) ([]AlarmKey, error) {

@@ -206,3 +206,23 @@ func TestReminderLifecycle(t *testing.T) {
 		t.Errorf("with the calendar hidden = %+v", got)
 	}
 }
+
+func TestRemindersChecked(t *testing.T) {
+	d, _ := openTest(t)
+	ctx := t.Context()
+	if _, ok, err := d.RemindersChecked(ctx); err != nil || ok {
+		t.Fatalf("before any check: ok %v, %v", ok, err)
+	}
+	for _, at := range []time.Time{
+		time.Date(2026, 10, 9, 19, 54, 56, 489_000_000, time.UTC),
+		time.Date(2026, 10, 9, 15, 56, 24, 0, time.FixedZone("EDT", -4*3600)),
+	} {
+		if err := d.Tx(ctx, func(tx *Tx) error { return tx.SetRemindersChecked(ctx, at) }); err != nil {
+			t.Fatal(err)
+		}
+		got, ok, err := d.RemindersChecked(ctx)
+		if err != nil || !ok || !got.Equal(at) {
+			t.Errorf("checked = %v, %v, %v; want %v", got, ok, err, at)
+		}
+	}
+}

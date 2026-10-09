@@ -57,21 +57,23 @@ func ics(lines ...string) []byte {
 	return []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n" + strings.Join(lines, "\r\n") + "\r\nEND:VCALENDAR\r\n")
 }
 
-func TestScheduler(t *testing.T) {
+// reminderDB is a store with a Work calendar whose alarms are due on
+// 2026-10-08 (UTC): Birthday's at 9:00, Standup's at 9:20, Lunch's at 11:45.
+// events collects the events committed.
+func reminderDB(t *testing.T, events *[]string) *store.DB {
+	t.Helper()
 	ctx := t.Context()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "frostmail.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	var events []string
 	db.OnCommit = func(evs []api.EventEnvelope) {
 		for _, e := range evs {
-			events = append(events, e.Event)
+			*events = append(*events, e.Event)
 		}
 	}
-	now := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
-	from, to := pimsync.Window(now)
+	from, to := pimsync.Window(time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC))
 	err = db.Tx(ctx, func(tx *store.Tx) error {
 		server := store.ServerConfig{Host: "mail.example", Port: 993, TLS: api.TLSModeTLS, Username: "u"}
 		acct, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindIMAP, Email: "u@example.com",
@@ -108,6 +110,18 @@ func TestScheduler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return db
+}
+
+func TestScheduler(t *testing.T) {
+	ctx := t.Context()
+	var events []string
+	db := reminderDB(t, &events)
+	now := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+	// maild last checked at 8:00, before it stopped.
+	if err := db.Tx(ctx, func(tx *store.Tx) error { return tx.SetRemindersChecked(ctx, now.Add(-time.Hour)) }); err != nil {
+		t.Fatal(err)
+	}
 	db.Now = func() time.Time { return now }
 	cal := engine.New(engine.Deps{DB: db}).Calendar()
 	list := func(ctx context.Context) ([]api.Reminder, error) {
@@ -130,8 +144,8 @@ func TestScheduler(t *testing.T) {
 	}
 	announced := func() bool { return slices.Contains(events, "calendar.reminders") }
 
-	// The first check catches up: the birthday's alarm (15 hours before
-	// midnight) is due now.
+	// The first check after a start catches up on what came due while
+	// maild was stopped: the birthday's alarm (15 hours before midnight).
 	check("2026-10-08T09:00:00Z")
 	if got := notes.take(); !slices.Equal(got, []string{"Birthday | Tomorrow, All day"}) || !announced() {
 		t.Errorf("first check: shown %q, events %q", got, events)
@@ -185,5 +199,53 @@ func TestScheduler(t *testing.T) {
 	check("2026-10-08T11:56:00Z")
 	if slices.Contains(notes.withdraw, standup) || len(notes.take()) != 0 {
 		t.Errorf("after dismissing: active %q", notes.withdraw)
+	}
+}
+
+// TestSchedulerResume: the first check after a start looks back to the
+// last check recorded before maild stopped, at most a day; a database that
+// never checked catches up on nothing. An alarm that was due before
+// Frostmail knew its event, or before it first checked, never reminds.
+func TestSchedulerResume(t *testing.T) {
+	ctx := t.Context()
+	var events []string
+	db := reminderDB(t, &events)
+	cal := engine.New(engine.Deps{DB: db}).Calendar()
+	var now time.Time
+	db.Now = func() time.Time { return now }
+	notes := &fakeNotifier{}
+	start := func() *reminders.Scheduler {
+		return reminders.New(reminders.Config{DB: db, Notifier: notes, Attended: func() bool { return false },
+			List: func(ctx context.Context) ([]api.Reminder, error) {
+				return cal.Reminders(ctx, &api.CalendarRemindersParams{})
+			},
+			Now: func() time.Time { return now }, Local: time.UTC})
+	}
+	check := func(s *reminders.Scheduler, at string) []string {
+		t.Helper()
+		var err error
+		if now, err = time.Parse(time.RFC3339, at); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.Check(ctx); err != nil {
+			t.Fatal(err)
+		}
+		return notes.take()
+	}
+
+	// The first start ever: the birthday's alarm, due at 9:00, is not
+	// caught up at 9:10.
+	if got := check(start(), "2026-10-08T09:10:00Z"); len(got) != 0 {
+		t.Errorf("first start: shown %q", got)
+	}
+	// Stopped after 9:10 and started at 9:25: the standup's alarm came due
+	// while maild was stopped.
+	if got := check(start(), "2026-10-08T09:25:00Z"); !slices.Equal(got, []string{"Standup | Today, 9:30 AM · Room 4"}) {
+		t.Errorf("after a restart: shown %q", got)
+	}
+	// Stopped after 9:25 and started the next day at 11:50: lunch's alarm
+	// (11:45) is more than a day old.
+	if got := check(start(), "2026-10-09T11:50:00Z"); len(got) != 0 {
+		t.Errorf("a day later: shown %q", got)
 	}
 }
