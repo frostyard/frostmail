@@ -29,6 +29,10 @@ export function ServicesSection(props: ServicesSectionProps) {
       </p>
     );
   }
+  const waiting = available
+    .filter((service) => service.enabled && !service.signedIn)
+    .map((service) => NAMES[service.service]);
+  const names = waiting.length < 2 ? waiting.join("") : `${waiting.slice(0, -1).join(", ")} and ${waiting.at(-1)}`;
   return (
     <section aria-labelledby={heading}>
       <h3 id={heading} className="mt-5 mb-2 text-[13px] leading-[18px] font-semibold">
@@ -37,25 +41,25 @@ export function ServicesSection(props: ServicesSectionProps) {
       {available.map((service) => (
         <ServiceRow key={service.service} {...props} value={service} />
       ))}
+      {waiting.length > 0 && (
+        <div className="mt-2 flex items-center gap-3">
+          <span className="text-[12px] leading-4 text-flag-1">Sign in to Google to allow {names}.</span>
+          <button type="button" className={BUTTON} onClick={props.onSignIn}>
+            Sign In…
+          </button>
+        </div>
+      )}
     </section>
   );
 }
 
 const NAMES: Record<ServiceKind, string> = { contacts: "Contacts", calendar: "Calendars", tasks: "Tasks" };
 
-function ServiceStatus({ value, busy, now, onSignIn, errors }: ServicesSectionProps & { value: ServiceSettings }) {
+function ServiceStatus({ value, busy, now, errors }: ServicesSectionProps & { value: ServiceSettings }) {
   const style = "text-[12px] leading-4";
   if (busy === value.service) return <span className={`${style} text-secondary`}>Connecting…</span>;
   if (!value.enabled) return null;
-  if (!value.signedIn)
-    return (
-      <>
-        <span className={`${style} text-flag-1`}>Sign in to Google again to allow this.</span>
-        <button type="button" className={BUTTON} onClick={onSignIn}>
-          Sign In…
-        </button>
-      </>
-    );
+  if (!value.signedIn) return <span className={`${style} text-secondary`}>Waiting for Google sign-in</span>;
   const error = errors[value.service] ?? value.error;
   if (error) return <span className={`${style} text-flag-1`}>{error}</span>;
   let status = "Waiting for the first sync";

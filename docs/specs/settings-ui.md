@@ -140,6 +140,7 @@ interface AccountFormValue {
   readOnly: boolean;
   notify: boolean;
   password: string; // a new password; "" keeps the stored one
+  services?: ServiceKind[]; // add mode: turned on with mail; absent means none
 }
 type DiscoveryState =
   | { kind: "idle" }
@@ -188,14 +189,20 @@ interface AccountFormProps {
   `Found settings for this address.` (`text-secondary`); failed: the
   message (`text-flag-1`); idle: no span.
 - **Changing the kind** to anything but `gmail` also sets auth to
-  `password`.
+  `password`, and sets `services` to the new kind's defaults
+  (`defaultServices`).
+- **Services by kind:** `offeredServices(kind)` is contacts, calendar and
+  tasks for `imap` and `gmail`, contacts and calendar for `icloud` (and
+  none for `microsoft`); `defaultServices(kind)` is all of them for
+  `gmail` and `icloud` and none for `imap`, whose servers rarely have
+  them. Both keep the order contacts, calendar, tasks.
 - **Password hint:** under the password row, for kind `gmail`: "Use an app
   password from your Google account."; for `icloud`: "Use an app-specific
   password from appleid.apple.com."; a `p` (`col-start-2 text-[12px]
   leading-4 text-secondary`).
 - **Google row (oauth2):** in add mode a `p` (`text-[12px] leading-4
   text-secondary`): "After adding the account, sign in with Google in your
-  browser."; in edit mode a `span` (`text-[13px] leading-[18px]`): `Signed
+  browser, once for mail and the services checked below."; in edit mode a `span` (`text-[13px] leading-[18px]`): `Signed
   in` (`text-secondary`) or `Not signed in` (`text-flag-1`), then a
   `button type="button"` (secondary style, `ml-3`) `Sign In Again…` when
   signed in, else `Sign In…`, calling `onSignIn`, disabled while `busy`.
@@ -206,6 +213,16 @@ interface AccountFormProps {
   items-center gap-2 text-[13px] leading-[18px]`) around an `input
   type="checkbox"` and its text: "Read only: never change anything on the
   server" (`readOnly`), "Notify me about new mail" (`notify`).
+- **Add mode, after the options:** a `section` labeled by its `h3`,
+  "Contacts, Calendars and Tasks" (as `ServicesSection`'s), with a `label`
+  (as the options') around an `input type="checkbox"` per service
+  `offeredServices(kind)` lists: "Contacts", "Calendars", "Tasks",
+  checked when `services` holds it; toggling one reports `services` with
+  it added or removed, in the kinds' order. Under them a `p` (`text-[12px]
+  leading-4 text-secondary`): for auth `oauth2`, "Google asks once for
+  mail and the services checked here."; otherwise "Frostmail finds them
+  with the account's password." Disabled while `busy`. Mail itself is
+  always on and has no checkbox.
 - When `error` is set, a `p` with `role="alert"` (`mt-4 text-[12px]
   leading-4 text-flag-1`) shows it.
 - Buttons (`mt-auto flex justify-end gap-2 pt-5`): in add mode "Cancel"
@@ -243,9 +260,8 @@ interface ServicesSectionProps {
   "Calendars", "Tasks"; then its status, a `span` (`text-[12px]
   leading-4`):
   - busy: `Connecting…` (`text-secondary`);
-  - enabled without `signedIn`: `Sign in to Google again to allow this.`
-    (`text-flag-1`) and a `button type="button"` `Sign In…` (secondary)
-    calling `onSignIn`;
+  - enabled without `signedIn`: `Waiting for Google sign-in`
+    (`text-secondary`);
   - enabled with an `error`: the error (`text-flag-1`);
   - enabled with `lastSyncAt` on `now`'s day: `Synced at ` and the local
     time (`toLocaleTimeString(undefined, { hour: "numeric", minute:
@@ -254,6 +270,13 @@ interface ServicesSectionProps {
     day: "numeric" })`);
   - enabled otherwise: `Waiting for the first sync` (`text-secondary`);
   - not enabled: nothing.
+- **One sign-in for all:** when any enabled service lacks `signedIn`,
+  after the rows a `div` (`mt-2 flex items-center gap-3`) holds a `span`
+  (`text-[12px] leading-4 text-flag-1`), "Sign in to Google to allow " and
+  those services' names joined as a list ("Contacts", "Contacts and
+  Calendars", "Contacts, Calendars and Tasks") and ".", and a `button
+  type="button"` `Sign In…` (secondary) calling `onSignIn`. Turning on
+  several services and then signing in once asks Google for all of them.
 - Toggling the checkbox calls `onToggle(service, checked)`.
 - When `errors` has a message for a service that is not enabled, under its
   row: a `p` with `role="alert"` (`text-[12px] leading-4 text-flag-1`)
@@ -274,9 +297,17 @@ interface ServicesSectionProps {
   [accounts.md](../design/accounts.md#read-only-accounts) says). Find Settings calls
   `account.discover` and fills kind, the first auth kind, and the servers
   it found; a found username left empty becomes the email. Add Account
-  calls `account.create`, then `account.setPassword` (password auth) or
-  `account.authorize` and opens its URL in the system browser (oauth2),
-  then selects the new account, which stays selected though the account
+  calls `account.create`; then for password auth `account.setPassword`
+  (when one was typed) and `account.setService` with `enabled: true` for
+  each of the form's `services`, in order; for oauth2 the same
+  `account.setService` calls first (maild records them without discovery,
+  waiting for the sign-in), then one `account.authorize`, whose URL opens
+  in the system browser, so one Google consent covers mail and every
+  service. A service that fails to turn on does not stop the others, the
+  sign-in or the selection; the form's alert says "Could not turn on
+  Calendars: " and maild's message for the first that failed. Find
+  Settings sets `services` to the found kind's defaults. It then selects
+  the new account, which stays selected though the account
   list shows it only after maild's `account.changed` (create returns
   first). Only a selected account that leaves the list (removed, here or
   elsewhere) moves the selection to the first account. Servers with an

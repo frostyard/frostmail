@@ -3,9 +3,9 @@
 // address, Find Settings, the sign-in, both servers and the options) and
 // edits an existing one (its name, servers, options, a new password, or
 // signing in to Google again), reporting every edit as a new value.
-import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useId } from "react";
 
-import type { AccountKind, AuthKind, DiscoverySource, ServerConfig } from "../../rpc/gen/api";
+import type { AccountKind, AuthKind, DiscoverySource, ServerConfig, ServiceKind } from "../../rpc/gen/api";
 import { ALERT, BUTTON, FIELD, GRID, KIND_LABEL, LABEL, PRIMARY_BUTTON } from "./labels";
 import { ServerFields } from "./ServerFields";
 
@@ -21,6 +21,20 @@ export interface AccountFormValue {
   notify: boolean;
   /** A new password; empty keeps the stored one. */
   password: string;
+  /** Add mode: the services turned on with mail; absent means none. */
+  services?: ServiceKind[];
+}
+
+/** offeredServices are the services an account kind can turn on, in order. */
+export function offeredServices(kind: AccountKind): ServiceKind[] {
+  if (kind === "microsoft") return [];
+  if (kind === "icloud") return ["contacts", "calendar"];
+  return ["contacts", "calendar", "tasks"];
+}
+
+/** defaultServices are the services a new account of a kind starts with checked. */
+export function defaultServices(kind: AccountKind): ServiceKind[] {
+  return kind === "gmail" || kind === "icloud" ? offeredServices(kind) : [];
 }
 
 /** DiscoveryState is how far finding a new account's servers got. */
@@ -122,7 +136,7 @@ function GoogleRow(props: { mode: "add" | "edit"; signedIn: boolean; busy: boole
       <span className={LABEL}>Google:</span>
       {props.mode === "add" ? (
         <p className="text-[12px] leading-4 text-secondary">
-          After adding the account, sign in with Google in your browser.
+          After adding the account, sign in with Google in your browser, once for mail and the services checked below.
         </p>
       ) : (
         <div className="flex items-center">
@@ -194,7 +208,13 @@ function KindRows(props: AccountFormProps) {
         disabled={editing}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
           const kind = KINDS.find((candidate) => candidate === event.target.value);
-          if (kind) onChange({ ...value, kind, auth: kind === "gmail" ? value.auth : "password" });
+          if (kind)
+            onChange({
+              ...value,
+              kind,
+              auth: kind === "gmail" ? value.auth : "password",
+              ...(editing ? {} : { services: defaultServices(kind) }),
+            });
         }}
       >
         {KINDS.map((kind) => (
@@ -248,16 +268,58 @@ function ServerRows(props: { value: AccountFormValue; onChange: (v: AccountFormV
   );
 }
 
-function OptionRow(props: { text: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function OptionRow(props: {
+  text: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
   return (
     <label className="flex items-center gap-2 text-[13px] leading-[18px]">
       <input
         type="checkbox"
         checked={props.checked}
+        disabled={props.disabled}
         onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.checked)}
       />
       {props.text}
     </label>
+  );
+}
+
+const SERVICE_NAMES: Record<ServiceKind, string> = { contacts: "Contacts", calendar: "Calendars", tasks: "Tasks" };
+
+function AddServices(props: { value: AccountFormValue; busy: boolean; onChange: (v: AccountFormValue) => void }) {
+  const heading = useId();
+  const offered = offeredServices(props.value.kind);
+  const selected = props.value.services ?? [];
+  return (
+    <section aria-labelledby={heading}>
+      <h3 id={heading} className="mt-5 mb-2 text-[13px] leading-[18px] font-semibold">
+        Contacts, Calendars and Tasks
+      </h3>
+      <div className="flex flex-col gap-2">
+        {offered.map((service) => (
+          <OptionRow
+            key={service}
+            text={SERVICE_NAMES[service]}
+            checked={selected.includes(service)}
+            disabled={props.busy}
+            onChange={(checked) =>
+              props.onChange({
+                ...props.value,
+                services: offered.filter((kind) => (kind === service ? checked : selected.includes(kind))),
+              })
+            }
+          />
+        ))}
+        <p className="text-[12px] leading-4 text-secondary">
+          {props.value.auth === "oauth2"
+            ? "Google asks once for mail and the services checked here."
+            : "Frostmail finds them with the account's password."}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -310,7 +372,7 @@ export function AccountForm(props: AccountFormProps) {
           onChange={(notify) => onChange({ ...value, notify })}
         />
       </div>
-      {mode === "edit" && props.services}
+      {mode === "add" ? <AddServices value={value} busy={busy} onChange={onChange} /> : props.services}
       {error && (
         <p className={ALERT} role="alert">
           {error}
