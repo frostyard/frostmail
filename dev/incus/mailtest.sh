@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# The integration-test mail server: Dovecot 2.4 (IMAP, LMTP) and Postfix
-# (SMTP, submission) in the incus container frostmail-mailtest. Long-running
+# The integration-test mail server: Dovecot 2.4 (IMAP, LMTP), Postfix
+# (SMTP, submission) and Radicale (CardDAV, CalDAV on 5232 over TLS) in the
+# incus container frostmail-mailtest. Long-running
 # services live in incus because idle nsl machines stop
 # (docs/adr/0006-development-environment.md).
 #
 #   dev/incus/mailtest.sh up      create, configure, seed and snapshot `clean`
+#   dev/incus/mailtest.sh dav     add Radicale to an existing container and
+#                                 snapshot `clean` again
 #   dev/incus/mailtest.sh reset [SNAPSHOT]  restore a snapshot (default `clean`)
 #   dev/incus/mailtest.sh ip      print the container's IPv4 address
 #   dev/incus/mailtest.sh seed USER N
@@ -94,9 +97,61 @@ up() {
 	for f in "$HERE"/seed/*.eml; do
 		in_ct doveadm save -u "test1@$DOMAIN" -m INBOX <"$f"
 	done
+	radicale_setup
 
 	incus snapshot create "$NAME" clean
-	echo "$NAME ready at $(ip4): IMAP 143/993, SMTP 25, submission 587"
+	echo "$NAME ready at $(ip4): IMAP 143/993, SMTP 25, submission 587, CardDAV/CalDAV 5232"
+}
+
+# radicale_setup installs Radicale with the test accounts and gives each an
+# empty address book (contacts/) and calendar (calendar/), which Radicale
+# does not create by itself.
+radicale_setup() {
+	in_ct env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends radicale curl
+	in_ct usermod -a -G ssl-cert radicale
+	in_ct install -d -o radicale -g radicale -m 0750 /var/lib/radicale/collections
+	local users=""
+	for i in 1 2 3 4 5; do
+		users+="test$i@$DOMAIN:$MAILTEST_PASSWORD"$'\n'
+	done
+	printf '%s' "$users" | incus file push - "$NAME/etc/radicale/users" --mode 0640
+	in_ct chown root:radicale /etc/radicale/users
+	incus file push - "$NAME/etc/radicale/config" <<'CONF'
+[server]
+hosts = 0.0.0.0:5232
+ssl = True
+certificate = /etc/ssl/certs/ssl-cert-snakeoil.pem
+key = /etc/ssl/private/ssl-cert-snakeoil.key
+
+[auth]
+type = htpasswd
+htpasswd_filename = /etc/radicale/users
+htpasswd_encryption = plain
+
+[rights]
+type = owner_only
+
+[storage]
+filesystem_folder = /var/lib/radicale/collections
+CONF
+	in_ct systemctl enable radicale
+	in_ct systemctl restart radicale
+	in_ct sh -c 'for _ in $(seq 30); do curl -sk -o /dev/null https://localhost:5232/ && exit 0; sleep 1; done; exit 1'
+	local book='<?xml version="1.0"?><mkcol xmlns="DAV:" xmlns:CR="urn:ietf:params:xml:ns:carddav"><set><prop><resourcetype><collection/><CR:addressbook/></resourcetype><displayname>Contacts</displayname></prop></set></mkcol>'
+	local cal='<?xml version="1.0"?><C:mkcalendar xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><set><prop><displayname>Calendar</displayname><C:supported-calendar-component-set><C:comp name="VEVENT"/><C:comp name="VTODO"/></C:supported-calendar-component-set></prop></set></C:mkcalendar>'
+	for i in 1 2 3 4 5; do
+		local u="test$i@$DOMAIN"
+		in_ct curl -sfk -u "$u:$MAILTEST_PASSWORD" -X MKCOL "https://localhost:5232/$u/contacts/" --data "$book" >/dev/null
+		in_ct curl -sfk -u "$u:$MAILTEST_PASSWORD" -X MKCALENDAR "https://localhost:5232/$u/calendar/" --data "$cal" >/dev/null
+	done
+}
+
+# dav adds Radicale to a container made before it had one.
+dav() {
+	reset
+	radicale_setup
+	snapshot clean
+	echo "$NAME has CardDAV/CalDAV at https://$(ip4):5232/"
 }
 
 reset() {
@@ -146,6 +201,7 @@ snapshot() {
 
 case "${1:-}" in
 up) up ;;
+dav) dav ;;
 seed)
 	shift
 	seed "$@"
@@ -159,7 +215,7 @@ reset) reset "${2:-}" ;;
 ip) ip4 ;;
 down) incus delete --force "$NAME" ;;
 *)
-	echo "usage: $0 up|reset [SNAPSHOT]|ip|seed USER N|snapshot NAME|down" >&2
+	echo "usage: $0 up|dav|reset [SNAPSHOT]|ip|seed USER N|snapshot NAME|down" >&2
 	exit 2
 	;;
 esac
