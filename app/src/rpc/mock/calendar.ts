@@ -15,10 +15,23 @@ export interface MockEvent {
   count?: number;
 }
 
+/** MockReminder is a fired reminder of one occurrence of an event (its
+ *  recurrenceId as calendar.range names it), due at dueAt. */
+export interface MockReminder {
+  id: string;
+  eventId: number;
+  recurrenceId: string;
+  dueAt: string;
+  snoozedUntil?: string;
+  dismissed?: boolean;
+}
+
 /** MockCalendarData is the events the mock serves; their calendars are
  *  collections in MockPeopleData. */
 export interface MockCalendarData {
   events: MockEvent[];
+  /** Fired reminders; none when absent. */
+  reminders?: MockReminder[];
   /** The clock contact cards' upcoming occurrences count from. */
   now: string;
 }

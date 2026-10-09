@@ -23,6 +23,9 @@ export interface FixtureOptions {
   now?: Date;
   /** PRNG seed (default 1). */
   seed?: number;
+  /** Seed two fired reminders, which raise the reminder window (default
+   *  false: tests that render the main window need not mock window.open). */
+  reminders?: boolean;
 }
 
 /** Mailbox IDs of the fixture account. */
@@ -276,7 +279,7 @@ export function mockData(opts: FixtureOptions = {}): MockData {
   for (const m of messages) m.summary.threadCount = threadSize.get(m.summary.threadId) ?? 1;
   const pim = fixturePeople(now);
   pim.collections.push(...fixtureCalendars());
-  return { accounts, mailboxes, messages, pim, calendar: fixtureCalendar(now) };
+  return { accounts, mailboxes, messages, pim, calendar: fixtureCalendar(now, opts.reminders === true) };
 }
 
 /** Calendar IDs of the fixture account. */
@@ -318,7 +321,7 @@ const who = (
 // fixtureCalendar is a fortnight of events around now's UTC day D: a daily
 // standup, a weekly sync, a review today, an invitation, a cancelled
 // appointment, a holiday and a three-day conference.
-function fixtureCalendar(now: Date): MockCalendarData {
+function fixtureCalendar(now: Date, withReminders: boolean): MockCalendarData {
   const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const at = (days: number, hh: number, mm: number) =>
     new Date(day.getTime() + days * 86_400_000 + (hh * 60 + mm) * 60_000).toISOString();
@@ -443,7 +446,12 @@ function fixtureCalendar(now: Date): MockCalendarData {
       count: 10,
     },
   ];
-  return { events, now: now.toISOString() };
+  // The standup's alarm fired this morning; the review's is the next.
+  const reminders = [
+    { id: "reminder-standup", eventId: 301, recurrenceId: `${date(0)}T09:00:00.000Z`, dueAt: at(0, 8, 50) },
+    { id: "reminder-review", eventId: 302, recurrenceId: "", dueAt: at(0, 13, 45) },
+  ];
+  return { events, reminders: withReminders ? reminders : [], now: now.toISOString() };
 }
 
 /** Address book IDs of the fixture account. */

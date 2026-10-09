@@ -393,11 +393,60 @@ its own (`view.open` with `flagged`), and the To-Do bar beside Mail's
 reader: a small month, the next events and the tasks due soon. Specified
 with the Phase 3 and 4 cards.
 
-## Invitation card and reminder window (Phases 3 and 4)
+## Reminder window
+
+A small window of its own (ADR-0020) that maild's reminders raise over
+whatever the app shows.
+
+```
+┌──────────────────────────────────────┐
+│ Reminders                         ✕  │ 36
+├──────────────────────────────────────┤
+│▌Standup                 [Snooze ▾] ✓│
+│▌In 10 minutes · Room 4               │ 56
+│▌Design review           [Snooze ▾] ✓│
+│▌Now · Studio B                       │
+├──────────────────────────────────────┤
+│                         Dismiss All  │ 44
+└──────────────────────────────────────┘
+```
+
+- **Window:** the Tauri window labeled `reminders` (`open_reminders`; a
+  new tab at `#/reminders` in a browser), 380 × 300, always on top, no
+  system title bar. `--bg-window`.
+- **Title strip** (36 high, 1px `--separator` bottom, draggable): "Reminders"
+  13/16 600 at 12px, and Close (`X`, 28 × 28) at the right. Escape closes
+  the window; the reminders stay.
+- **Rows** (`list` named "Reminders", oldest due first), 56 high, 12px
+  padding, a 4px bar in the calendar's color at the left (rounded 2):
+  the title 13/18 600 truncated ("No Title"), and under it 12/16
+  `--text-secondary` the time (`reminderWhen`) and " · " the location.
+  At the right: **Snooze**, a 28-high button with a `ChevronDown` that
+  opens a menu of 5 minutes, 10 minutes, 15 minutes, 1 hour and Tomorrow
+  (9:00 the next day), and **Dismiss** (28 × 28, `Check`). Clicking the
+  title opens the occurrence in the Calendar module of the main window
+  (and keeps the reminder). A row is a `listitem`.
+- **Footer** (44 high, 1px `--separator` top) with **Dismiss All**, shown
+  when there are two or more.
+- **When** (`reminderWhen`): timed — "In N minutes" within the hour
+  before the start (N rounded up), "Now" for five minutes from it, "N
+  minutes ago" for the rest of the hour after it, otherwise "Today, 9:30
+  AM", "Tomorrow, 9:30 AM", "Yesterday, 9:30 AM" or "Fri, Oct 9, 9:30
+  AM"; all-day — "Today", "Tomorrow", "Yesterday" or "Fri, Oct 9". It is
+  renewed every 30 seconds.
+- **Behavior:** the window lists `calendar.reminders`, and lists them
+  again on `calendar.reminders` and `calendar.changed` events. Snooze calls
+  `calendar.snooze` with the chosen time, Dismiss and Dismiss All
+  `calendar.dismiss`; the row leaves at once. When the list is empty the
+  window closes itself.
+- **Raising it:** the main window opens the reminder window when it
+  connects and `calendar.reminders` has any, and on each
+  `calendar.reminders` event with a count above zero.
+
+## Invitation card (Phase 4)
 
 The reader's invitation card (`calendar.invitation`, answering with
-`calendar.respond`) and the small reminder window (`calendar.reminders`,
-Snooze and Dismiss). Specified with their cards.
+`calendar.respond`). Specified with its card.
 
 ## Rules
 
