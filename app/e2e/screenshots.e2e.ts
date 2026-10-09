@@ -79,6 +79,22 @@ async function people(s: Session, name: string): Promise<void> {
   );
 }
 
+/** calendar shows the Calendar module in a view, with the occurrence titled select selected. */
+async function calendar(s: Session, view: "Day" | "Week" | "Month", select?: string): Promise<void> {
+  await s.click(await s.find('[role="toolbar"][aria-label="Modules"] button[aria-label="Calendar"]'));
+  for (const radio of await s.findAll('[role="radiogroup"][aria-label="View"] [role="radio"]')) {
+    if ((await s.text(radio)) === view) await s.click(radio);
+  }
+  await s.waitFor("the standups", () =>
+    s.execute<boolean>(`return document.querySelectorAll('button[aria-label^="Standup"]').length > 0;`),
+  );
+  if (!select) return;
+  await s.click(await s.find(`button[aria-label^="${select},"]`));
+  await s.waitFor(`${select} in the event pane`, () =>
+    s.execute<boolean>(`const h = document.querySelector("h2"); return !!h && h.textContent === arguments[0];`, select),
+  );
+}
+
 /** newWindow waits for a window not in known, switches to it and waits for selector. */
 async function newWindow(s: Session, known: string[], selector: string): Promise<string> {
   const handle = await s.waitFor("a new window", async () => (await s.windows()).find((h) => !known.includes(h)));
@@ -137,5 +153,19 @@ describe.skipIf(!out)("README screenshots", () => {
     const s = await start("shots-people");
     await people(s, "Maria Lopez");
     await save(s, "people.png");
+  });
+
+  it("shows Calendar in light and dark", async () => {
+    const s = await start("shots-calendar");
+    await calendar(s, "Week", "Design review");
+    await save(s, "calendar.png");
+    await calendar(s, "Month");
+    await save(s, "calendar-month.png");
+  });
+
+  it("shows Calendar in dark", async () => {
+    const s = await start("shots-calendar-dark", { GTK_THEME: "Adwaita:dark" });
+    await calendar(s, "Week", "Design review");
+    await save(s, "calendar-dark.png");
   });
 });

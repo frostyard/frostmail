@@ -86,10 +86,27 @@ func (p *pass) moveWindow(ctx context.Context) error {
 }
 
 func (p *pass) indexCalendar(ctx context.Context, tx *store.Tx, o store.Object) error {
+	// Another account's pass may have moved the window while this one fetched.
+	// The writer transaction keeps that committed window stable while indexing.
+	from, to, ok, err := p.m.db.InstanceWindow(ctx)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		from, to = p.from, p.to
+	}
+	_, err = StoreCalendarObject(ctx, tx, o, calendar.Options{Local: p.m.cfg.Local, UserEmails: p.userEmails}, from, to)
+	return err
+}
+
+// StoreCalendarObject stores a calendar object as sent and indexes its
+// events, expanding them over [from, to) (the instances window), in tx:
+// what a pass does with each object it fetches. It returns the object's ID.
+func StoreCalendarObject(ctx context.Context, tx *store.Tx, o store.Object, opts calendar.Options, from, to time.Time) (int64, error) {
 	calendarMetadata(&o)
 	var events []store.EventRow
 	if o.Kind == store.ObjectVEvent {
-		parsed, err := calendar.Parse(o.Raw, calendar.Options{Local: p.m.cfg.Local, UserEmails: p.userEmails})
+		parsed, err := calendar.Parse(o.Raw, opts)
 		if err != nil {
 			o.ParseError = err.Error()
 		} else {
@@ -106,29 +123,20 @@ func (p *pass) indexCalendar(ctx context.Context, tx *store.Tx, o store.Object) 
 	}
 	id, err := tx.PutObject(ctx, o)
 	if err != nil {
-		return fmt.Errorf("store calendar object: %w", err)
+		return 0, fmt.Errorf("store calendar object: %w", err)
 	}
 	ids, err := tx.IndexEvents(ctx, id, events)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for i := range events {
 		events[i].ID = ids[i]
 	}
-	// Another account's pass may have moved the window while this one fetched.
-	// The writer transaction keeps that committed window stable while indexing.
-	from, to, ok, err := p.m.db.InstanceWindow(ctx)
+	rows, err := Instances(events, opts.Local, from, to)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if !ok {
-		from, to = p.from, p.to
-	}
-	rows, err := Instances(events, p.m.cfg.Local, from, to)
-	if err != nil {
-		return err
-	}
-	return tx.ReplaceInstances(ctx, id, rows)
+	return id, tx.ReplaceInstances(ctx, id, rows)
 }
 
 func indexedEvent(e calendar.Event) store.EventRow {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/frostyard/frostmail/api"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -117,7 +118,44 @@ func TestShowcaseContacts(t *testing.T) {
 		t.Errorf("Maria = %+v, %v", maria, err)
 	}
 	services, _ := db.Services(t.Context(), 0)
-	if len(services) != 2 || !services[0].Enabled || services[0].LastSyncAt == nil {
+	if len(services) != 4 || !services[0].Enabled || services[0].LastSyncAt == nil {
 		t.Errorf("services = %+v", services)
+	}
+}
+
+// TestShowcaseCalendars: the showcase accounts have calendars whose events
+// are indexed and expanded around today.
+func TestShowcaseCalendars(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if err := Build(t.Context(), Options{Out: dir, Showcase: showcaseDir}); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "frostmail.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	cals, err := db.Collections(ctx, store.CollectionFilter{Kind: api.CollectionKindCalendar})
+	if err != nil || len(cals) != 3 {
+		t.Fatalf("calendars = %+v, %v", cals, err)
+	}
+	if _, _, ok, _ := db.InstanceWindow(ctx); !ok {
+		t.Error("no instances window")
+	}
+	now := time.Now()
+	week, err := db.Occurrences(ctx, store.OccurrenceFilter{From: now.AddDate(0, 0, -7), To: now.AddDate(0, 0, 7),
+		FromDate: now.AddDate(0, 0, -7).Format(time.DateOnly), ToDate: now.AddDate(0, 0, 7).Format(time.DateOnly)})
+	if err != nil || len(week) < 15 {
+		t.Fatalf("occurrences around today = %d, %v", len(week), err)
+	}
+	summaries := map[string]bool{}
+	for _, o := range week {
+		summaries[o.Event.Summary] = true
+	}
+	for _, s := range []string{"Standup", "Design review", "Release planning", "Climbing", "Nina's birthday"} {
+		if !summaries[s] {
+			t.Errorf("no %q around today: %v", s, summaries)
+		}
 	}
 }
