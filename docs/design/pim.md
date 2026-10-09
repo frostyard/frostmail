@@ -34,16 +34,19 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   provider profile's URL, one the user gave, or for other accounts the
   server of the domain's `_carddavs._tcp` or `_caldavs._tcp` SRV record,
   then the domain), and the home set discovery found. New services start
-  off; turning one on in Settings discovers it at once with the account's
-  credentials, or, for a Google account whose grant lacks the scope, at
-  the first pass after the user signs in again. Discovery sends
+  off, except those the user checks when adding the account; turning one
+  on discovers it at once with the account's credentials, or, for a
+  Google account whose grant lacks the scope, at the first pass after the
+  user signs in. Discovery sends
   credentials only to the start's origin, the provider's domains, or the
   start's registrable domain (`davx`'s trust rule).
 - **Credentials.** iCloud and generic servers use the account's password
   (iCloud's app-specific one). Google uses the account's OAuth token: the
   authorization URL asks for `mail.google.com` plus the scopes of the
-  services turned on (calendar, CardDAV, Tasks), and turning one on asks
-  the user to sign in again.
+  services turned on (calendar, CardDAV, Tasks). Adding an account turns
+  the chosen services on before its first sign-in, so one consent covers
+  mail and all of them; turning one on later asks the user to sign in
+  again, and Settings offers one sign-in for every service waiting.
 - **The DAV loop.** `internal/pimsync` runs one loop per account with a
   service on, beside mail's actor and independent of its connections, with
   its own HTTP client (`internal/davx`): list the collections under each home set

@@ -5,7 +5,7 @@
 // signing in to Google again), reporting every edit as a new value.
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
-import type { AccountKind, AuthKind, DiscoverySource, ServerConfig } from "../../rpc/gen/api";
+import type { AccountKind, AuthKind, DiscoverySource, ServerConfig, ServiceKind } from "../../rpc/gen/api";
 import { ALERT, BUTTON, FIELD, GRID, KIND_LABEL, LABEL, PRIMARY_BUTTON } from "./labels";
 import { ServerFields } from "./ServerFields";
 
@@ -21,6 +21,20 @@ export interface AccountFormValue {
   notify: boolean;
   /** A new password; empty keeps the stored one. */
   password: string;
+  /** Add mode: the services turned on with mail; absent means none. */
+  services?: ServiceKind[];
+}
+
+/** offeredServices are the services an account kind can turn on, in
+ *  order. Task T-0093 builds it. */
+export function offeredServices(_kind: AccountKind): ServiceKind[] {
+  return [];
+}
+
+/** defaultServices are the services a new account of a kind starts with
+ *  checked. Task T-0093 builds it. */
+export function defaultServices(_kind: AccountKind): ServiceKind[] {
+  return [];
 }
 
 /** DiscoveryState is how far finding a new account's servers got. */
