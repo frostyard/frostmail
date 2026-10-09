@@ -21,7 +21,7 @@ describe("MockTransport calendar", () => {
       [CALENDARS.home, "Home", false, true],
       [CALENDARS.holidays, "Holidays", true, true],
     ]);
-    expect((await c.account.collections({})).length).toBe(5);
+    expect((await c.account.collections({})).length).toBe(8);
   });
 
   it("answers a range in start order", async () => {
