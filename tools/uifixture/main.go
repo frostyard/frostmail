@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
@@ -46,6 +47,9 @@ type Options struct {
 	// account sends through, with a stored password; "" leaves sending
 	// pointed at nothing.
 	SMTP string
+	// Showcase, when set, replaces the fixture account with hand-written
+	// mail for screenshots (buildShowcase).
+	Showcase string
 }
 
 // Build creates the data directory o.Out and its blobs store, one account
@@ -66,6 +70,9 @@ func Build(ctx context.Context, o Options) error {
 	}
 	defer func() { _ = db.Close() }()
 
+	if o.Showcase != "" {
+		return buildShowcase(ctx, db, blob.New(filepath.Join(o.Out, "blobs")), o.Out, o.Showcase, time.Now())
+	}
 	accountID, mbIDs, err := setupAccount(ctx, db)
 	if err != nil {
 		return err
@@ -97,21 +104,29 @@ func Build(ctx context.Context, o Options) error {
 // setupAccount inserts the fixture account and mailboxes in one transaction
 // and returns the account ID with the mailbox IDs by path.
 func setupAccount(ctx context.Context, db *store.DB) (int64, map[string]int64, error) {
+	return insertAccount(ctx, db, fixtureEmail, "Test One", "127.0.0.1", 1, 1, fixtureMailboxes())
+}
+
+// insertAccount inserts an IMAP account on host (IMAP on imapPort with TLS,
+// submission on smtpPort with STARTTLS) with its mailboxes, and returns
+// its ID with the mailbox IDs by path.
+func insertAccount(ctx context.Context, db *store.DB, email, name, host string, imapPort, smtpPort int,
+	mailboxes []store.ServerMailbox) (int64, map[string]int64, error) {
 	var accountID int64
 	err := db.Tx(ctx, func(tx *store.Tx) error {
 		a, err := tx.InsertAccount(ctx, store.Account{
 			Kind:        api.AccountKindIMAP,
-			Email:       fixtureEmail,
-			DisplayName: "Test One",
+			Email:       email,
+			DisplayName: name,
 			Auth:        api.AuthKindPassword,
-			IMAP:        store.ServerConfig{Host: "127.0.0.1", Port: 1, TLS: api.TLSModeTLS, Username: fixtureEmail},
-			SMTP:        store.ServerConfig{Host: "127.0.0.1", Port: 1, TLS: api.TLSModeStartTLS, Username: fixtureEmail},
+			IMAP:        store.ServerConfig{Host: host, Port: imapPort, TLS: api.TLSModeTLS, Username: email},
+			SMTP:        store.ServerConfig{Host: host, Port: smtpPort, TLS: api.TLSModeStartTLS, Username: email},
 		})
 		if err != nil {
 			return err
 		}
 		accountID = a.ID
-		_, err = tx.ReplaceMailboxes(ctx, accountID, fixtureMailboxes())
+		_, err = tx.ReplaceMailboxes(ctx, accountID, mailboxes)
 		return err
 	})
 	if err != nil {
@@ -325,18 +340,21 @@ func partsOf(raw []byte) ([]store.Part, bool, error) {
 	return parts, hasAttachments, nil
 }
 
-// flagsFromString maps a mailgen Maildir flag string to stored flags.
+// flagsFromString maps a mailgen Maildir flag string to stored flags. A
+// digit after F picks Mail.app's flag color (1 red to 7 gray).
 func flagsFromString(s string) store.Flags {
 	var f store.Flags
 	for _, c := range s {
-		switch c {
-		case 'S':
+		switch {
+		case c == 'S':
 			f.Seen = true
-		case 'R':
+		case c == 'R':
 			f.Answered = true
-		case 'F':
+		case c == 'F':
 			f.Flagged = true
 			f.Color = 1
+		case c >= '1' && c <= '7' && f.Flagged:
+			f.Color = int(c - '0')
 		}
 	}
 	return f
@@ -370,7 +388,8 @@ func useSMTP(ctx context.Context, db *store.DB, accountID int64, out, addr strin
 	return secrets.NewFile(filepath.Join(out, "secrets.json")).Set(ctx, secrets.AccountPassword(accountID), "fixture")
 }
 
-// run parses -out, -n, -seed, -hostile and -smtp into Options and calls Build.
+// run parses -out, -n, -seed, -hostile, -smtp and -showcase into Options
+// and calls Build.
 func run(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("uifixture", flag.ContinueOnError)
 	out := fs.String("out", "", "data directory to create (required)")
@@ -378,6 +397,7 @@ func run(ctx context.Context, args []string) error {
 	seed := fs.Uint64("seed", 1, "mailgen seed")
 	hostile := fs.String("hostile", "", "directory of .html files for the Hostile mailbox")
 	smtpAddr := fs.String("smtp", "", "host:port of a plain SMTP server to send through (tools/smtpsink)")
+	showcase := fs.String("showcase", "", "directory of hand-written mail for screenshots, instead of the fixture account")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -387,5 +407,5 @@ func run(ctx context.Context, args []string) error {
 	if *n < 0 {
 		return errors.New("-n must be at least 0")
 	}
-	return Build(ctx, Options{Out: *out, N: *n, Seed: *seed, Hostile: *hostile, SMTP: *smtpAddr})
+	return Build(ctx, Options{Out: *out, N: *n, Seed: *seed, Hostile: *hostile, SMTP: *smtpAddr, Showcase: *showcase})
 }

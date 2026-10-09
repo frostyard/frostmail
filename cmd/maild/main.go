@@ -148,7 +148,12 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	go views.Run(ctx)
-	if err := syncer.Start(ctx); err != nil {
+	// FROSTMAIL_SYNC=off serves the store without connecting to any server,
+	// for the README's screenshots, whose accounts have none (make
+	// screenshots). Mail already stored still reads.
+	if os.Getenv("FROSTMAIL_SYNC") == "off" {
+		logger.Warn("sync is off (FROSTMAIL_SYNC=off)")
+	} else if err := syncer.Start(ctx); err != nil {
 		return err
 	}
 	defer syncer.Wait()

@@ -1,0 +1,22 @@
+From: Maria Lopez <maria.lopez@northwind.example>
+To: Platform team <platform@northwind.example>
+Subject: Aurora launch checklist
+Date: Tue, 06 Oct 2026 09:12:00 -0400
+Message-ID: <aurora-1@showcase.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hi all,
+
+We're two weeks out from the Aurora launch. Here's what's left:
+
+  1. Final load test on the new sync service (David)
+  2. Pricing page copy review (Ann, Lena)
+  3. Release notes and the migration guide (Peter)
+  4. Support runbook walkthrough (Omar)
+
+Please reply with a status by Thursday. If anything is at risk, say so
+early and we'll move people around.
+
+Thanks,
+Maria

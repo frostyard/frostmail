@@ -1,0 +1,10 @@
+From: Northwind Expenses <expenses@northwind.example>
+To: Ann Lee <ann@northwind.example>
+Subject: Expense report #2291 was approved
+Date: Mon, 05 Oct 2026 14:02:00 -0400
+Message-ID: <expense-2291@showcase.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Your expense report #2291 (Conference travel, $412.80) was approved by
+Omar Ward and will be paid with your next salary.

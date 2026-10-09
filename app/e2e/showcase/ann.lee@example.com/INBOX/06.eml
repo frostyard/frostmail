@@ -1,0 +1,58 @@
+From: Skyline Travel <trips@skyline-travel.example>
+To: Ann Lee <ann.lee@example.com>
+Subject: Your trip to Lisbon: itinerary
+Date: Thu, 08 Oct 2026 06:30:00 -0400
+Message-ID: <lisbon@showcase.example>
+MIME-Version: 1.0
+Content-Type: multipart/related; boundary="rel-sky"
+
+--rel-sky
+Content-Type: multipart/alternative; boundary="alt-sky"
+
+--alt-sky
+Content-Type: text/plain; charset=utf-8
+
+Your trip to Lisbon, 16-20 October. Booking LX4K2Q. Outbound: Boston (BOS) to Lisbon (LIS), 16 October, 19:05. Hotel: Casa do Rio, Alfama, 4 nights. Return: 20 October, 12:30.
+--alt-sky
+Content-Type: text/html; charset=utf-8
+
+<html><body style="margin:0;background:#f2f5f9;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;color:#1d2733">
+<div style="max-width:600px;margin:0 auto;padding:28px">
+<table style="width:100%;border-collapse:collapse"><tr>
+<td style="width:64px"><img src="cid:logo@skyline" width="56" height="56" alt="Skyline Travel"></td>
+<td style="font-size:20px;font-weight:600;padding-left:12px">Skyline Travel</td></tr></table>
+<div style="background:linear-gradient(135deg,#14346e,#2878c8);color:#fff;border-radius:14px;padding:26px;margin:20px 0">
+<div style="font-size:14px;opacity:.85">Your trip to</div>
+<div style="font-size:32px;font-weight:700;margin:4px 0">Lisbon, Portugal</div>
+<div style="font-size:15px;opacity:.9">16&ndash;20 October &middot; 2 travellers &middot; Booking LX4K2Q</div>
+</div>
+<div style="background:#fff;border-radius:12px;padding:20px 22px;margin-bottom:14px">
+<div style="font-size:12px;color:#6b7a8a;text-transform:uppercase;letter-spacing:.06em">Outbound flight</div>
+<div style="font-size:18px;font-weight:600;margin:6px 0">Boston (BOS) &rarr; Lisbon (LIS)</div>
+<div style="color:#44525f">16 October &middot; departs 19:05, arrives 06:50 (+1) &middot; seats 14A, 14B</div>
+</div>
+<div style="background:#fff;border-radius:12px;padding:20px 22px;margin-bottom:14px">
+<div style="font-size:12px;color:#6b7a8a;text-transform:uppercase;letter-spacing:.06em">Hotel</div>
+<div style="font-size:18px;font-weight:600;margin:6px 0">Casa do Rio, Alfama</div>
+<div style="color:#44525f">4 nights &middot; breakfast included &middot; check in from 14:00</div>
+</div>
+<div style="background:#fff;border-radius:12px;padding:20px 22px">
+<div style="font-size:12px;color:#6b7a8a;text-transform:uppercase;letter-spacing:.06em">Return flight</div>
+<div style="font-size:18px;font-weight:600;margin:6px 0">Lisbon (LIS) &rarr; Boston (BOS)</div>
+<div style="color:#44525f">20 October &middot; departs 12:30, arrives 15:10</div>
+</div>
+<p style="margin:24px 0 0"><a href="https://skyline-travel.example/trips/LX4K2Q" style="background:#2878c8;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-weight:600">Manage booking</a></p>
+</div></body></html>
+--alt-sky--
+--rel-sky
+Content-Type: image/png
+Content-ID: <logo@skyline>
+Content-Disposition: inline; filename="logo.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAA4klEQVR42u3bsQ0CMQxGYQ/BEAxA
+yUzUzMQkbBVEQ8PpyCmxif2/SO79vuqusFnHO11uLePYyMsaPQWjWvwhhKrxXQjV43cRVOI3EdTi
+vxAAUAZQjf8gAAAAAAAAAAAAAAAAAAAAAACA/7TH9eeUBOgJ/weErRgeCWGrx3sjWIZ4TwQAssR7
+IQCQKd4DAQAAAAAAAAAAAIAvQQD4GxQFON+fzWtmxnvt6AowC8FzP3eAEYiIvcIAjkBE7hMOsNoA
+AAAAAGgDvJ90PAAAaCJsXo5Jx6sgdF2PSsdXRRi6JK8c/QL+ktPp/qDwwQAAAABJRU5ErkJggg==
+--rel-sky--
