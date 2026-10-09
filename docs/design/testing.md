@@ -112,7 +112,8 @@ against their recorded sessions (plan 0007, Phase 5).
    collection names, and the account's address wherever it appears, URLs
    included) becomes a fake of the same shape, keyed per run as imaprec's
    are, and photos become a one-pixel image. It refuses to write a trace
-   in which a replaced value remains.
+   in which a replaced value remains, and writes the account's fake
+   address as a `# account` comment for the replay test's account.
 3. **Replay.** `httprec.Serve` answers a client on a loopback port with
    the first unused exchange for the same method and path (PROPFIND and
    REPORT bodies must match too; writes' bodies hold timestamps and are
