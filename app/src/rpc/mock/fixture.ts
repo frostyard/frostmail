@@ -28,6 +28,8 @@ export interface FixtureOptions {
   /** Seed two fired reminders, which raise the reminder window (default
    *  false: tests that render the main window need not mock window.open). */
   reminders?: boolean;
+  /** Add a mail invitation to Lunch with Ann (default false). */
+  invitation?: boolean;
 }
 
 /** Mailbox IDs of the fixture account. */
@@ -248,6 +250,27 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     flagColor: 3,
   });
 
+  const invitation = opts.invitation
+    ? make({
+        mailbox: FIXTURE.inbox,
+        minutesAgo: 5,
+        from: ann,
+        subject: "Invitation: Lunch with Ann",
+        seen: false,
+        text: "Shall we have lunch at Cafe Nord tomorrow?\n\nAnn",
+        attachments: [
+          {
+            path: "2",
+            contentType: "text/calendar",
+            filename: "invite.ics",
+            disposition: "attachment",
+            contentId: "",
+            size: 900,
+          },
+        ],
+      })
+    : undefined;
+
   const fill = Math.max(
     0,
     (opts.inbox ?? 60) - messages.filter((m) => m.summary.mailboxIds[0] === FIXTURE.inbox).length,
@@ -292,7 +315,10 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     mailboxes,
     messages,
     pim,
-    calendar: fixtureCalendar(now, opts.reminders === true),
+    calendar: {
+      ...fixtureCalendar(now, opts.reminders === true),
+      invitations: invitation ? [{ messageId: invitation.summary.id, eventId: 303 }] : [],
+    },
     tasks: fixtureTasks(now, linked?.summary.id),
   };
 }
