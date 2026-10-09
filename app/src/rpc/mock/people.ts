@@ -113,6 +113,11 @@ export class MockPeople {
     }
   }
 
+  /** authorize marks the stored services covered by the account's sign-in. */
+  authorize(accountId: number): void {
+    for (const service of this.services(accountId)) service.signedIn = true;
+  }
+
   /** services are an account's three services, as maild reports them. */
   private services(accountId: number): ServiceSettings[] {
     const account = this.accounts().find((a) => a.id === accountId);

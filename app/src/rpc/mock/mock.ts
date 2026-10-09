@@ -7,6 +7,7 @@ import {
   type AccountCreateParams,
   type AccountUpdateParams,
   type Address,
+  type Discovery,
   ErrorCode,
   type Event,
   type FlagChanges,
@@ -183,6 +184,15 @@ export class MockTransport implements Transport {
     return a;
   }
 
+  private discoverAccount(email: string): Discovery {
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (domain === "gmail.com" || domain === "googlemail.com")
+      return { kind: "gmail", source: "profile", auth: ["oauth2", "password"] };
+    if (domain === "icloud.com" || domain === "me.com")
+      return { kind: "icloud", source: "profile", auth: ["password"] };
+    return { kind: "imap", source: "none", auth: ["password"] };
+  }
+
   private updateAccount(p: AccountUpdateParams): Account {
     const a = this.account(p.id);
     if (p.displayName !== undefined) a.displayName = p.displayName;
@@ -275,6 +285,16 @@ export class MockTransport implements Transport {
         return { seq: 0, resync: false };
       case "account.list":
         return this.accounts.map((a) => ({ ...a })); // a new list each call, as from maild
+      case "account.discover":
+        return this.discoverAccount(String(p.email ?? ""));
+      case "account.authorize": {
+        const a = this.account(num(p.id));
+        if (a.auth === "password") throw new RPCError(ErrorCode.invalidParams, "account uses password sign-in");
+        this.people.authorize(a.id);
+        a.signedIn = true;
+        this.accountChanged(a.id);
+        return { url: `https://accounts.google.test/authorize/${a.id}` };
+      }
       case "account.create":
         return this.createAccount(p as unknown as AccountCreateParams);
       case "account.update":
