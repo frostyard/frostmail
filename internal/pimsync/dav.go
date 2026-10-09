@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
@@ -98,6 +99,13 @@ func listDAV(ctx context.Context, c *davx.Client, col store.Collection, sync boo
 			token, full, out = "", true, davx.Delta{}
 			continue
 		}
+		if token == "" && refusedSync(err) {
+			// Google's CardDAV lists sync-collection among its reports yet
+			// refuses one without a token: list the collection instead,
+			// every pass, as for a server without sync-collection.
+			changed, err := c.List(ctx, col.Href)
+			return davx.Delta{Changed: changed}, true, err
+		}
 		if err != nil {
 			return davx.Delta{}, false, err
 		}
@@ -112,6 +120,21 @@ func listDAV(ctx context.Context, c *davx.Client, col store.Collection, sync boo
 		}
 		token = delta.Token
 	}
+}
+
+// refusedSync reports whether a first sync-collection was refused as a
+// request the server does not take (400, 405, 501), rather than for the
+// credentials, a missing collection or a server failure.
+func refusedSync(err error) bool {
+	var status *davx.StatusError
+	if !errors.As(err, &status) {
+		return false
+	}
+	switch status.Code {
+	case http.StatusBadRequest, http.StatusMethodNotAllowed, http.StatusNotImplemented:
+		return true
+	}
+	return false
 }
 
 func davHrefs(delta davx.Delta, full bool, etags map[string]string, pending map[string]bool) (fetch, deleted []string) {

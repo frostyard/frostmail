@@ -50,6 +50,9 @@ type Options struct {
 	CDATA bool
 	// NoETagOnPut leaves the ETag header out of PUT responses.
 	NoETagOnPut bool
+	// NoInitialSync answers a sync-collection without a token with 400,
+	// as Google's CardDAV does, while still listing the report.
+	NoInitialSync bool
 }
 
 // Request is one request the server received.
