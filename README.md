@@ -5,7 +5,9 @@
 A Linux mail client that works like Apple Mail.app, without looking like a
 GNOME or KDE app. Pre-release: it syncs, reads, searches and sends generic
 IMAP, Gmail and iCloud accounts, and is in its daily-driver trial
-([M4](docs/plans/0006-m4-daily-driver.md)). See the
+([M4](docs/plans/0006-m4-daily-driver.md)). Contacts and calendars over
+CardDAV and CalDAV are arriving
+([M4.5](docs/plans/0007-m4.5-people-calendar-tasks.md)). See the
 [roadmap](docs/plans/0002-roadmap.md).
 
 ![The main window: unified inboxes for two accounts, flags, threads and an
@@ -15,6 +17,7 @@ HTML itinerary in the reader](docs/images/main.png)
 | --- | --- |
 | ![Dark mode, reading a conversation](docs/images/main-dark.png) | ![Searching for “aurora”](docs/images/search.png) |
 | ![Replying in a compose window](docs/images/compose.png) | ![Account settings](docs/images/settings.png) |
+| ![People: a contact with recent mail and upcoming events](docs/images/people.png) | ![The Calendar's week with an event's details](docs/images/calendar.png) |
 
 <sub>The screenshots show made-up mail (`app/e2e/showcase`) in the real
 app; `make screenshots` retakes them.</sub>

@@ -95,12 +95,17 @@ async function calendar(s: Session, view: "Day" | "Week" | "Month", select?: str
   );
 }
 
-/** newWindow waits for a window not in known, switches to it and waits for selector. */
+/** newWindow waits for a window not in known that shows selector (another,
+ *  such as the reminder window, may open meanwhile), and switches to it. */
 async function newWindow(s: Session, known: string[], selector: string): Promise<string> {
-  const handle = await s.waitFor("a new window", async () => (await s.windows()).find((h) => !known.includes(h)));
-  await s.switchTo(handle);
-  await s.waitFor(selector, () => s.find(selector));
-  return handle;
+  return s.waitFor(`a new window with ${selector}`, async () => {
+    for (const handle of await s.windows()) {
+      if (known.includes(handle)) continue;
+      await s.switchTo(handle);
+      if (await s.find(selector).catch(() => null)) return handle;
+    }
+    return undefined;
+  });
 }
 
 describe.skipIf(!out)("README screenshots", () => {
