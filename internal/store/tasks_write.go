@@ -65,3 +65,16 @@ func (t *Tx) DropPIMOps(ctx context.Context, objectID int64) (int, error) {
 	n, _ := res.RowsAffected()
 	return int(n), nil
 }
+
+// QueuedPIMOp reports whether an object has a change of a kind waiting
+// (queued, not running): a later put need not be queued, since the waiting
+// one writes the object's source as it is then.
+func (t *Tx) QueuedPIMOp(ctx context.Context, objectID int64, kind string) (bool, error) {
+	var n int
+	err := t.QueryRowContext(ctx, `SELECT COUNT(*) FROM pim_ops WHERE object_id = ? AND kind = ? AND state = 'queued'`,
+		objectID, kind).Scan(&n)
+	if err != nil {
+		return false, fmt.Errorf("queued pim op: %w", err)
+	}
+	return n > 0, nil
+}

@@ -114,8 +114,8 @@ func TestTaskWritesGuarded(t *testing.T) {
 	if _, err := c.Tasks().Create(ctx, &api.TasksCreateParams{Title: "x", ListID: &work.ID, Due: ptr("tomorrow")}); code(err) != api.CodeInvalidParams {
 		t.Errorf("a bad due date: %v", err)
 	}
-	if _, err := c.Tasks().Create(ctx, &api.TasksCreateParams{Title: "x", ListID: &home.ID}); code(err) != api.CodeConflict {
-		t.Errorf("a CalDAV list: %v", err)
+	if made, err := c.Tasks().Create(ctx, &api.TasksCreateParams{Title: "x", ListID: &home.ID}); err != nil || made.ListID != home.ID {
+		t.Errorf("into a CalDAV list = %+v, %v", made, err)
 	}
 	all, _ := c.Tasks().List(ctx, &api.TasksListParams{})
 	charts := all[1]

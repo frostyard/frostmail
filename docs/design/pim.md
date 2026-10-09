@@ -203,9 +203,17 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - **Writes.** Google tasks change through `tasks.insert`, `tasks.patch` and
   `tasks.delete` ops whose payload is the change (`gtasks.Fields`, and the
   parent for an insert); the object's JSON is patched at once and replaced
-  by the server's answer. CalDAV tasks change through `put` and `delete`
-  ops whose source `internal/calendar` patches (`SUMMARY`, `DESCRIPTION`,
-  `DUE`, `STATUS`, `COMPLETED`, `PERCENT-COMPLETE`), with golden tests.
+  by the server's answer. A new Google task waits as `local-<uuid>` until
+  its insert names it; its subtasks and later changes follow the new ID.
+  CalDAV tasks change through `put` and `delete` ops whose source
+  `internal/calendar` patches (`SUMMARY`, `DESCRIPTION`, `DUE`, `STATUS`,
+  `COMPLETED`, `PERCENT-COMPLETE`), with golden tests; a new one is
+  `<uid>.ics` in its list, with `RELATED-TO` for a parent. A put waiting
+  for an object writes its source as it is when it runs, so edits made
+  before the pass add no ops. Deleting a task deletes its subtasks: Google
+  takes them with the parent's `tasks.delete`; CalDAV gets a delete per
+  object, on its ETag. A task the server never had is only dropped, with
+  its waiting ops.
 
 ### Testing
 

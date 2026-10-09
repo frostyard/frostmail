@@ -9,13 +9,15 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
 // Tasks implements the tasks domain (docs/design/pim.md, Tasks). Changes
 // apply to the store at once and wait in pim_ops for pimsync to write
-// them: tasks.insert, tasks.patch and tasks.delete for Google lists.
+// them: tasks.insert, tasks.patch and tasks.delete for Google lists, put
+// and delete for CalDAV ones.
 func (e *Engine) Tasks() api.TasksService { return tasksService{e.d} }
 
 type tasksService struct{ Deps }
@@ -73,24 +75,21 @@ func validDate(s string) bool {
 	return err == nil && d.Format(time.DateOnly) == s
 }
 
-// writableList returns a task list Frostmail can change: a Google list of
-// an account that is not read-only.
-func (t tasksService) writableList(ctx context.Context, id int64) (store.Collection, error) {
+// writableList returns a task list Frostmail can change, one of an
+// account that is not read-only, and whether it is Google's.
+func (t tasksService) writableList(ctx context.Context, id int64) (store.Collection, bool, error) {
 	col, err := t.DB.GetCollection(ctx, id)
 	if err != nil || col.Kind != api.CollectionKindTasklist {
-		return col, api.NotFound("task list %d does not exist", id)
+		return col, false, api.NotFound("task list %d does not exist", id)
 	}
 	acct, err := t.DB.GetAccount(ctx, col.AccountID)
 	if err != nil {
-		return col, err
+		return col, false, err
 	}
 	if col.ReadOnly || acct.ReadOnly {
-		return col, api.Conflict("the task list %q is read-only", col.Name)
+		return col, false, api.Conflict("the task list %q is read-only", col.Name)
 	}
-	if providers.ForKind(acct.Kind).DAV.Tasks != "google" {
-		return col, api.Conflict("tasks in CalDAV lists cannot be changed yet")
-	}
-	return col, nil
+	return col, providers.ForKind(acct.Kind).DAV.Tasks == "google", nil
 }
 
 // defaultList is the default list of the first account with tasks on, else
@@ -137,7 +136,7 @@ func (t tasksService) Create(ctx context.Context, p *api.TasksCreateParams) (*ap
 	} else if listID, err = t.defaultList(ctx); err != nil {
 		return nil, err
 	}
-	col, err := t.writableList(ctx, listID)
+	col, google, err := t.writableList(ctx, listID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +150,11 @@ func (t tasksService) Create(ctx context.Context, p *api.TasksCreateParams) (*ap
 		}
 		change.Parent = parent.ObjectID
 	}
-	id, err := t.createLocal(ctx, col, change, parent.UID)
+	create := t.createLocal
+	if !google {
+		create = t.createDAV
+	}
+	id, err := create(ctx, col, change, parent.UID)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +268,7 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 	if err != nil {
 		return nil, apiError(err, "the task")
 	}
-	col, err := t.writableList(ctx, row.ListID)
+	col, google, err := t.writableList(ctx, row.ListID)
 	if err != nil {
 		return nil, err
 	}
@@ -277,19 +280,17 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 	if err != nil {
 		return nil, err
 	}
-	task := map[string]any{}
-	if err := json.Unmarshal(obj.Raw, &task); err != nil {
-		return nil, fmt.Errorf("task %d's source: %w", row.ObjectID, err)
-	}
 	now := t.DB.Now()
-	if obj.Raw, err = json.Marshal(applyChange(task, c, now)); err != nil {
-		return nil, err
+	var op store.PIMOp
+	if google {
+		op, err = patchGoogle(&obj, &row, c, now)
+	} else {
+		op, err = patchDAV(&obj, &row, c, now)
 	}
-	row = patchRow(row, c, now)
-	payload, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
 	}
+	op.AccountID, op.CollectionID, op.ObjectID, op.Href = col.AccountID, col.ID, &row.ObjectID, obj.Href
 	err = t.DB.Tx(ctx, func(tx *store.Tx) error {
 		if _, err := tx.PutObject(ctx, obj); err != nil {
 			return err
@@ -297,9 +298,17 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 		if err := tx.IndexTask(ctx, row.ObjectID, row); err != nil {
 			return err
 		}
-		if _, err := tx.QueuePIMOp(ctx, store.PIMOp{AccountID: col.AccountID, CollectionID: col.ID, ObjectID: &row.ObjectID,
-			Kind: "tasks.patch", Href: obj.Href, Payload: string(payload)}); err != nil {
-			return err
+		// A waiting put writes the source as it is when it runs.
+		waiting := false
+		if op.Kind == "put" {
+			if waiting, err = tx.QueuedPIMOp(ctx, row.ObjectID, "put"); err != nil {
+				return err
+			}
+		}
+		if !waiting {
+			if _, err := tx.QueuePIMOp(ctx, op); err != nil {
+				return err
+			}
 		}
 		return tx.Emit(ctx, api.TasksChanged{AccountID: col.AccountID})
 	})
@@ -307,6 +316,79 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 		return nil, err
 	}
 	return t.after(ctx, col.AccountID, row.ObjectID)
+}
+
+// patchGoogle changes a Google task's JSON and row, and returns its
+// tasks.patch.
+func patchGoogle(obj *store.Object, row *store.TaskRow, c store.TaskChange, now time.Time) (store.PIMOp, error) {
+	task := map[string]any{}
+	if err := json.Unmarshal(obj.Raw, &task); err != nil {
+		return store.PIMOp{}, fmt.Errorf("task %d's source: %w", row.ObjectID, err)
+	}
+	raw, err := json.Marshal(applyChange(task, c, now))
+	if err != nil {
+		return store.PIMOp{}, err
+	}
+	payload, err := json.Marshal(c)
+	if err != nil {
+		return store.PIMOp{}, err
+	}
+	obj.Raw, *row = raw, patchRow(*row, c, now)
+	return store.PIMOp{Kind: "tasks.patch", Payload: string(payload)}, nil
+}
+
+// patchDAV patches a VTODO's source, reads the row back from it, and
+// returns its put, conditional on the ETag the change was made on.
+func patchDAV(obj *store.Object, row *store.TaskRow, c store.TaskChange, now time.Time) (store.PIMOp, error) {
+	raw, err := calendar.PatchTodo(obj.Raw, todoChange(c), now)
+	if err != nil {
+		return store.PIMOp{}, fmt.Errorf("task %d's source: %w", row.ObjectID, err)
+	}
+	todo, err := calendar.ParseTodo(raw, calendar.Options{})
+	if err != nil {
+		return store.PIMOp{}, err
+	}
+	obj.Raw = raw
+	row.Title, row.Notes, row.Due, row.Completed, row.CompletedAt = todo.Summary, todo.Description, todo.Due, todo.Completed, nil
+	if !todo.CompletedAt.IsZero() {
+		at := todo.CompletedAt
+		row.CompletedAt = &at
+	}
+	return store.PIMOp{Kind: "put", IfMatch: obj.ETag}, nil
+}
+
+func todoChange(c store.TaskChange) calendar.TodoChange {
+	return calendar.TodoChange{Summary: c.Title, Description: c.Notes, Due: c.Due, Completed: c.Completed}
+}
+
+// createDAV stores a new VTODO in a CalDAV list and queues its creation.
+func (t tasksService) createDAV(ctx context.Context, col store.Collection, c store.TaskChange, parentUID string) (int64, error) {
+	uid, err := newUUID()
+	if err != nil {
+		return 0, err
+	}
+	href := strings.TrimSuffix(col.Href, "/") + "/" + uid + ".ics"
+	raw := calendar.NewTodo(uid, todoChange(c), parentUID, t.DB.Now())
+	todo, err := calendar.ParseTodo(raw, calendar.Options{})
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	err = t.DB.Tx(ctx, func(tx *store.Tx) error {
+		if id, err = tx.PutObject(ctx, store.Object{CollectionID: col.ID, Href: href, Kind: store.ObjectVTodo, UID: uid, Raw: raw}); err != nil {
+			return err
+		}
+		row := store.TaskRow{UID: uid, ParentUID: parentUID, Title: todo.Summary, Notes: todo.Description, Due: todo.Due}
+		if err := tx.IndexTask(ctx, id, row); err != nil {
+			return err
+		}
+		if _, err := tx.QueuePIMOp(ctx, store.PIMOp{AccountID: col.AccountID, CollectionID: col.ID, ObjectID: &id,
+			Kind: "put", Href: href}); err != nil {
+			return err
+		}
+		return tx.Emit(ctx, api.TasksChanged{AccountID: col.AccountID})
+	})
+	return id, err
 }
 
 func updateChange(p *api.TasksUpdateParams) (store.TaskChange, error) {
@@ -352,7 +434,7 @@ func (t tasksService) Delete(ctx context.Context, p *api.TasksDeleteParams) erro
 	if err != nil {
 		return apiError(err, "the task")
 	}
-	col, err := t.writableList(ctx, row.ListID)
+	col, google, err := t.writableList(ctx, row.ListID)
 	if err != nil {
 		return err
 	}
@@ -366,7 +448,7 @@ func (t tasksService) Delete(ctx context.Context, p *api.TasksDeleteParams) erro
 			gone = append(gone, r.ObjectID)
 		}
 	}
-	err = t.DB.Tx(ctx, func(tx *store.Tx) error { return t.deleteLocal(ctx, tx, col, gone) })
+	err = t.DB.Tx(ctx, func(tx *store.Tx) error { return t.deleteLocal(ctx, tx, col, google, gone) })
 	if err != nil {
 		return err
 	}
@@ -376,10 +458,12 @@ func (t tasksService) Delete(ctx context.Context, p *api.TasksDeleteParams) erro
 	return nil
 }
 
-// deleteLocal deletes a task and its subtasks here, and queues a
-// tasks.delete for the first (Google deletes the subtasks with it) unless
-// Google never had it.
-func (t tasksService) deleteLocal(ctx context.Context, tx *store.Tx, col store.Collection, ids []int64) error {
+// deleteLocal deletes a task and its subtasks here and queues their
+// deletion: for Google one tasks.delete for the task, which takes its
+// subtasks along; for CalDAV a delete per object, conditional on its ETag.
+// An object the server never had is only dropped, with its waiting
+// changes.
+func (t tasksService) deleteLocal(ctx context.Context, tx *store.Tx, col store.Collection, google bool, ids []int64) error {
 	var hrefs []string
 	for i, id := range ids {
 		obj, err := t.DB.GetObject(ctx, id)
@@ -387,17 +471,31 @@ func (t tasksService) deleteLocal(ctx context.Context, tx *store.Tx, col store.C
 			return err
 		}
 		hrefs = append(hrefs, obj.Href)
-		if strings.HasPrefix(obj.Href, localPrefix) {
+		unwritten := strings.HasPrefix(obj.Href, localPrefix)
+		if !google && obj.ETag == "" {
+			// Its creation still waits (or the server sends no ETags).
+			if unwritten, err = tx.QueuedPIMOp(ctx, id, "put"); err != nil {
+				return err
+			}
+		}
+		if unwritten {
 			if _, err := tx.DropPIMOps(ctx, id); err != nil {
 				return err
 			}
 			continue
 		}
-		if i == 0 {
-			if _, err := tx.QueuePIMOp(ctx, store.PIMOp{AccountID: col.AccountID, CollectionID: col.ID,
-				Kind: "tasks.delete", Href: obj.Href}); err != nil {
-				return err
+		op := store.PIMOp{AccountID: col.AccountID, CollectionID: col.ID, Kind: "delete", Href: obj.Href, IfMatch: obj.ETag}
+		if google {
+			if i > 0 {
+				continue
 			}
+			op.Kind, op.IfMatch = "tasks.delete", ""
+		}
+		if _, err := tx.DropPIMOps(ctx, id); err != nil {
+			return err
+		}
+		if _, err := tx.QueuePIMOp(ctx, op); err != nil {
+			return err
 		}
 	}
 	if _, err := tx.DeleteObjects(ctx, col.ID, hrefs); err != nil {
