@@ -1,3 +1,4 @@
+// CONTRACT TEST for task card T-0094 (docs/tasks). Do not edit.
 package pimsync_test
 
 import (
@@ -38,9 +39,10 @@ func TestVerify(t *testing.T) {
 		!slices.Equal(c.MissingOnServer, []string{book + "b.vcf"}) {
 		t.Errorf("check = %+v", c)
 	}
+	// It lists, and asks for what is missing locally; it writes nothing.
 	for _, r := range e.dav.Requests() {
-		if r.Method != "PROPFIND" {
-			t.Errorf("verify sent %s %s", r.Method, r.Path)
+		if r.Method != "PROPFIND" && r.Report != "addressbook-multiget" {
+			t.Errorf("verify sent %s %s %s", r.Method, r.Path, r.Report)
 		}
 	}
 }
