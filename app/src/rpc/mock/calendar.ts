@@ -2,7 +2,7 @@
 // occurrences, as maild answers calendar.range and calendar.event
 // (docs/specs/pim-ui.md; internal/engine/calendar.go).
 import { addDays, dayStart } from "../../lib/calendarDates";
-import { type CalendarEvent, type Collection, ErrorCode, type Event, type Occurrence } from "../gen/api";
+import { type CalendarEvent, type Collection, ErrorCode, type Event, type Occurrence, type Reminder } from "../gen/api";
 import { RPCError } from "../transport";
 import { NOT_HANDLED } from "./compose";
 
@@ -92,11 +92,59 @@ export class MockCalendar {
         return this.range(params);
       case "calendar.event":
         return this.event(Number(params.id), params.recurrenceId);
+      case "calendar.reminders":
+        return this.reminders();
+      case "calendar.snooze":
+      case "calendar.dismiss":
+        return this.changeReminders(method, params);
       case "account.setCollection":
         return this.setCollection(params);
       default:
         return NOT_HANDLED;
     }
+  }
+
+  private reminders(): Reminder[] {
+    const now = Date.parse(this.data.now);
+    return (this.data.reminders ?? [])
+      .filter((r) => !r.dismissed && (r.snoozedUntil === undefined || Date.parse(r.snoozedUntil) <= now))
+      .flatMap((r) => {
+        if (!this.data.events.some((mock) => mock.event.id === r.eventId)) return [];
+        const event = this.event(r.eventId, r.recurrenceId);
+        return [
+          {
+            id: r.id,
+            eventId: r.eventId,
+            recurrenceId: r.recurrenceId,
+            calendarId: event.calendarId,
+            summary: event.summary,
+            location: event.location,
+            allDay: event.allDay,
+            start: event.start,
+            startDate: event.startDate,
+            dueAt: r.snoozedUntil ?? r.dueAt,
+          },
+        ];
+      })
+      .sort((a, b) => Date.parse(a.dueAt) - Date.parse(b.dueAt));
+  }
+
+  private changeReminders(method: string, params: Params): null {
+    const ids = params.ids;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => typeof id !== "string")) {
+      throw new RPCError(ErrorCode.invalidParams, "ids must be a non-empty list");
+    }
+    const until = params.until;
+    if (method === "calendar.snooze" && (typeof until !== "string" || !Number.isFinite(Date.parse(until)))) {
+      throw new RPCError(ErrorCode.invalidParams, "until must be a time");
+    }
+    for (const r of this.data.reminders ?? []) {
+      if (!ids.includes(r.id)) continue;
+      if (method === "calendar.dismiss") r.dismissed = true;
+      else if (typeof until === "string") r.snoozedUntil = until;
+    }
+    this.emit({ event: "calendar.reminders", data: { count: this.reminders().length } });
+    return null;
   }
 
   private visible(): MockEvent[] {

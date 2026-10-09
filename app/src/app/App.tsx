@@ -1,5 +1,5 @@
 // The app root: the connection to maild around the main window, a compose
-// window's draft, or the settings window (docs/design/app.md).
+// window's draft, the reminders, or the settings window (docs/design/app.md).
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
@@ -9,6 +9,8 @@ import { useMail } from "../data/stores";
 import { ComposeWindow } from "./ComposeWindow";
 import { composeTarget } from "./compose";
 import { MainWindow } from "./MainWindow";
+import { RemindersWindow } from "./RemindersWindow";
+import { isRemindersWindow } from "./reminders";
 import { SettingsWindow } from "./SettingsWindow";
 import { isSettingsWindow } from "./settings";
 
@@ -22,7 +24,7 @@ function Connecting() {
   );
 }
 
-/** useHash re-renders on hash changes (a browser may open #/compose/<id> or #/settings in the same tab). */
+/** useHash re-renders on hash changes (a browser may open #/compose/<id>, #/reminders or #/settings in the same tab). */
 function useHash() {
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
@@ -33,7 +35,7 @@ function useHash() {
   return hash;
 }
 
-/** App connects to maild with connect and shows the main window, a compose window's draft, or the settings. */
+/** App connects to maild with connect and shows the main window, a compose window's draft, reminders, or settings. */
 export function App(props: { connect: Connect }) {
   useHash();
   const target = composeTarget();
@@ -46,6 +48,8 @@ export function App(props: { connect: Connect }) {
     <Session connect={props.connect} fallback={<Connecting />}>
       {target !== null ? (
         <ComposeWindow draftId={target.draftId} fresh={target.fresh} />
+      ) : isRemindersWindow() ? (
+        <RemindersWindow />
       ) : isSettingsWindow() ? (
         <SettingsWindow />
       ) : (
