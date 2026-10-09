@@ -60,6 +60,8 @@ func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, coll
 	return first
 }
 
+// collectionName is a collection's name, or its kind's for one the server
+// leaves unnamed (iCloud's address book).
 func collectionName(name string, kind api.CollectionKind) string {
 	if strings.TrimSpace(name) != "" {
 		return name
