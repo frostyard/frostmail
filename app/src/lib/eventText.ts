@@ -1,4 +1,4 @@
-import type { PartStat } from "../rpc/gen/api";
+import type { Occurrence, PartStat } from "../rpc/gen/api";
 import { addDays } from "./calendarDates";
 
 const dayNames: Readonly<Record<string, string>> = {
@@ -167,4 +167,11 @@ export function answerText(answer: PartStat): string {
 /** calendarColor returns a collection's color or the theme accent. */
 export function calendarColor(color: string): string {
   return color || "var(--accent)";
+}
+
+/** upcomingWhen says when an occurrence is, for an Upcoming row: today's
+ *  time ("Today" for all-day), a weekday within six days, else the date.
+ *  Task T-0074 writes it. */
+export function upcomingWhen(_o: Occurrence, _timeZone: string, _locale: string, _now: Date): string {
+  return "";
 }
