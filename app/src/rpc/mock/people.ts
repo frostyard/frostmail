@@ -13,6 +13,8 @@ import {
   type Person,
   type PersonSummary,
   type Photo,
+  type ServiceKind,
+  type ServiceSettings,
 } from "../gen/api";
 import { RPCError } from "../transport";
 import { NOT_HANDLED } from "./compose";
@@ -23,7 +25,14 @@ export interface MockPeopleData {
   people: Person[];
   /** Photos by person ID. */
   photos?: Record<number, Photo>;
+  /** Services by account ID, contacts, calendar, tasks; absent means none on. */
+  services?: Record<number, ServiceSettings[]>;
 }
+
+const SERVICE_KINDS: readonly ServiceKind[] = ["contacts", "calendar", "tasks"];
+
+/** MOCK_UNREACHABLE is a server URL the mock's discovery cannot reach. */
+export const MOCK_UNREACHABLE = "https://unreachable.test/";
 
 /** MockMail is what contact cards need from the stored mail. */
 export interface MockMail {
@@ -93,9 +102,51 @@ export class MockPeople {
       }
       case "people.add":
         return this.add(String(p.email ?? ""), typeof p.name === "string" ? p.name : "");
+      case "account.services":
+        return this.services(Number(p.id)).map((s) => ({ ...s }));
+      case "account.setService":
+        return this.setService(Number(p.id), p.service as ServiceKind, p.enabled === true, p.url);
       default:
         return NOT_HANDLED;
     }
+  }
+
+  /** services are an account's three services, as maild reports them. */
+  private services(accountId: number): ServiceSettings[] {
+    const account = this.accounts().find((a) => a.id === accountId);
+    if (!account) throw new RPCError(ErrorCode.notFound, `account ${accountId} does not exist`);
+    this.data.services ??= {};
+    const known = this.data.services[accountId];
+    if (known) return known;
+    const google = account.kind === "gmail" && account.auth === "oauth2";
+    const fresh = SERVICE_KINDS.map(
+      (service): ServiceSettings => ({
+        service,
+        available: account.kind !== "microsoft" && !(account.kind === "icloud" && service === "tasks"),
+        enabled: false,
+        url: "",
+        signedIn: !google,
+      }),
+    );
+    this.data.services[accountId] = fresh;
+    return fresh;
+  }
+
+  /** setService turns a service on or off; MOCK_UNREACHABLE, and an IMAP
+   * account without a URL, fail discovery as maild's would. */
+  private setService(accountId: number, service: ServiceKind, enabled: boolean, url: unknown): ServiceSettings {
+    const list = this.services(accountId);
+    const s = list.find((x) => x.service === service) as ServiceSettings;
+    if (!s.available) throw new RPCError(ErrorCode.invalidParams, `no ${service} for this account`);
+    const account = this.accounts().find((a) => a.id === accountId) as Account;
+    const given = typeof url === "string" && url.trim() !== "" ? url.trim() : undefined;
+    if (enabled && (given === MOCK_UNREACHABLE || (!given && s.url === "" && account.kind === "imap"))) {
+      throw new RPCError(ErrorCode.unavailable, `found no ${service} server for ${account.email}; enter its address`);
+    }
+    s.enabled = enabled;
+    if (enabled) s.url = given ?? (s.url || `https://dav.${account.email.split("@")[1] ?? "test"}/`);
+    this.emit({ event: "account.changed", data: { id: accountId, deleted: false } });
+    return { ...s };
   }
 
   private sorted(): Person[] {

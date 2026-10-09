@@ -263,7 +263,7 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     }
   }
   for (const m of messages) m.summary.threadCount = threadSize.get(m.summary.threadId) ?? 1;
-  return { accounts, mailboxes, messages, pim: fixturePeople() };
+  return { accounts, mailboxes, messages, pim: fixturePeople(now) };
 }
 
 /** Address book IDs of the fixture account. */
@@ -271,7 +271,7 @@ export const BOOKS = { contacts: 101, shared: 102 } as const;
 
 // fixturePeople is the fixture account's address books: Contacts, and a
 // read-only Shared book that also has Elif.
-function fixturePeople(): MockPeopleData {
+function fixturePeople(now: Date): MockPeopleData {
   const collections: Collection[] = [
     {
       id: BOOKS.contacts,
@@ -401,7 +401,21 @@ function fixturePeople(): MockPeopleData {
     ),
     person(contact({ displayName: "42 Club", emails: [{ label: "", value: "hello@42club.test" }] })),
   ];
-  return { collections, people };
+  const services: MockPeopleData["services"] = {
+    [FIXTURE.accountId]: [
+      {
+        service: "contacts",
+        available: true,
+        enabled: true,
+        url: "https://dav.mailtest.test/",
+        signedIn: true,
+        lastSyncAt: new Date(now.getTime() - 5 * 60_000).toISOString(),
+      },
+      { service: "calendar", available: true, enabled: false, url: "", signedIn: true },
+      { service: "tasks", available: true, enabled: false, url: "", signedIn: true },
+    ],
+  };
+  return { collections, people, services };
 }
 
 function mulberry32(seed: number): () => number {

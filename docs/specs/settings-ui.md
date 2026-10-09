@@ -217,6 +217,56 @@ interface AccountFormProps {
   `h-7 rounded-md bg-accent px-3 text-[13px] leading-[18px] font-semibold
   text-accent-contrast disabled:opacity-40`.
 
+### `ServicesSection`
+
+An existing account's contacts, calendar and tasks services (ADR-0017),
+inside `AccountForm` in edit mode: the form takes it as `services`, a
+`ReactNode` placed after the options, and ignores it in add mode.
+
+```ts
+interface ServicesSectionProps {
+  services: ServiceSettings[]; // account.services: contacts, calendar, tasks
+  busy: ServiceKind | null;    // the service a request is running for
+  errors: Partial<Record<ServiceKind, string>>; // each service's last request error
+  now: Date;
+  onToggle: (service: ServiceKind, enabled: boolean, url?: string) => void;
+  onSignIn: () => void;
+}
+```
+
+- A `section` labeled by its `h3`, "Contacts, Calendars and Tasks" (`mt-5
+  mb-2 text-[13px] leading-[18px] font-semibold`).
+- One row per **available** service, in order, a `div` (`flex
+  items-center gap-3`): a `label` (`flex items-center gap-2 text-[13px]
+  leading-[18px]`) around an `input type="checkbox"` (checked when
+  enabled, disabled while that service is busy) and the name: "Contacts",
+  "Calendars", "Tasks"; then its status, a `span` (`text-[12px]
+  leading-4`):
+  - busy: `Connecting…` (`text-secondary`);
+  - enabled without `signedIn`: `Sign in to Google again to allow this.`
+    (`text-flag-1`) and a `button type="button"` `Sign In…` (secondary)
+    calling `onSignIn`;
+  - enabled with an `error`: the error (`text-flag-1`);
+  - enabled with `lastSyncAt` on `now`'s day: `Synced at ` and the local
+    time (`toLocaleTimeString(undefined, { hour: "numeric", minute:
+    "2-digit" })`); on an earlier day `Synced ` and the short date
+    (`toLocaleDateString(undefined, { year: "2-digit", month: "numeric",
+    day: "numeric" })`);
+  - enabled otherwise: `Waiting for the first sync` (`text-secondary`);
+  - not enabled: nothing.
+- Toggling the checkbox calls `onToggle(service, checked)`.
+- When `errors` has a message for a service that is not enabled, under its
+  row: a `p` with `role="alert"` (`text-[12px] leading-4 text-flag-1`)
+  with the message, then a row with a `label` `Server:` for an `input
+  type="url"` (`id` `service-url-<service>`, placeholder
+  `https://dav.example.com/`, the shared field style) and a `button
+  type="button"` `Connect` (secondary, disabled while the field is empty
+  or the service busy) calling `onToggle(service, true, url)` with the
+  trimmed text.
+- With no available service, only a `p` (`text-[12px] leading-4
+  text-secondary`): `This account has no contacts, calendars or tasks
+  Frostmail can reach.`
+
 ### Behavior (container)
 
 - **Add:** + selects "New Account" with an empty form (kind `imap`, auth
@@ -239,6 +289,13 @@ interface AccountFormProps {
   status.
 - **Remove:** asks "Remove <email>? Its mail is deleted from this computer,
   not from the server." and calls `account.delete` when confirmed.
+- **Services (edit mode):** `account.services` of the selected account,
+  fetched when it is selected and after each `account.changed` for it.
+  Toggling calls `account.setService` with the service, the new state and
+  the URL when one was typed; while it runs that service is busy. Success
+  clears the service's error and refetches; an error stays under its row
+  (for `unavailable`, maild's message, which asks for the server's
+  address). Sign In… does what the Google row's Sign In… does.
 - Errors from maild show in the form's alert; the form keeps its values.
 
 ## Signatures pane

@@ -188,7 +188,7 @@ does.
   the address 12/16 `--text-secondary`, and the person's organization when
   there is one.
 - **Actions** (a row of buttons, 28 high): **Message** (new message to the
-  address); **Add to Contacts** when `canAdd` (calls `people.add` and shows
+  address, closing the card); **Add to Contacts** when `canAdd` (calls `people.add` and shows
   "Added" in place of the button when it succeeds, or the error under the
   row); **Open in People** when there is a person (switches to People with
   them selected).

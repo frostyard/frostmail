@@ -74,8 +74,10 @@ function usePerson(client: Client, active: boolean) {
   const [person, setPerson] = useState<Person | null>(null);
   const load = useCallback(() => {
     let stopped = false;
-    setPerson(null);
-    if (selected !== null)
+    // A refetch of the same person keeps showing them until it answers;
+    // another person shows only once loaded (the hook's return checks the ID).
+    if (selected === null) setPerson(null);
+    else
       void client.people
         .get({ id: selected })
         .then((result) => {
