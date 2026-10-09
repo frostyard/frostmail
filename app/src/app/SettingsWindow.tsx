@@ -9,7 +9,12 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 
 import { useClient } from "../data/session";
 import { useMail } from "../data/stores";
-import { AccountForm, type AccountFormValue, type DiscoveryState } from "../features/settings/AccountForm";
+import {
+  AccountForm,
+  type AccountFormValue,
+  type DiscoveryState,
+  defaultServices,
+} from "../features/settings/AccountForm";
 import { AccountList } from "../features/settings/AccountList";
 import { type IdentityChange, IdentityEditor } from "../features/settings/IdentityEditor";
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
@@ -125,6 +130,7 @@ function emptyAccount(): AccountFormValue {
     readOnly: true,
     notify: true,
     password: "",
+    services: [],
   };
 }
 
@@ -151,6 +157,19 @@ function noClient(err: unknown): string | null {
 async function signIn(client: Client, id: number): Promise<void> {
   const r = await client.account.authorize({ id });
   await openInBrowser(r.url);
+}
+
+async function enableServices(client: Client, id: number, services: ServiceKind[]): Promise<string | null> {
+  const names: Record<ServiceKind, string> = { contacts: "Contacts", calendar: "Calendars", tasks: "Tasks" };
+  let error: string | null = null;
+  for (const service of services) {
+    try {
+      await client.account.setService({ id, service, enabled: true });
+    } catch (err) {
+      error ??= `Could not turn on ${names[service]}: ${message(err)}`;
+    }
+  }
+  return error;
 }
 
 async function confirmRemove(email: string): Promise<boolean> {
@@ -259,6 +278,7 @@ function AccountsPane() {
         setValue((v) => ({
           ...v,
           kind: d.kind,
+          services: defaultServices(d.kind),
           auth: d.auth[0] ?? "password",
           imap: withUser(d.imap, v.imap),
           smtp: withUser(d.smtp, v.smtp),
@@ -284,8 +304,11 @@ function AccountsPane() {
         });
         setSelected(a.id);
         setValue(accountValue(a));
+        if (value.auth === "password" && value.password !== "")
+          await client.account.setPassword({ id: a.id, password: value.password });
+        const serviceError = await enableServices(client, a.id, value.services ?? []);
         if (value.auth === "oauth2") await signIn(client, a.id);
-        else if (value.password !== "") await client.account.setPassword({ id: a.id, password: value.password });
+        if (serviceError) throw new Error(serviceError);
       }, noClient);
     } else if (account) {
       void run(async () => {

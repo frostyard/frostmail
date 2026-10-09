@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0057 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0057 and T-0093 (docs/tasks). Do not edit.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -129,13 +129,18 @@ describe("AccountForm", () => {
     const gmail = { ...value, kind: "gmail" as const, auth: "oauth2" as const };
     const { onChange } = form({ value: gmail });
     fireEvent.change(screen.getByLabelText("Account Type:"), { target: { value: "icloud" } });
-    expect(onChange).toHaveBeenLastCalledWith({ ...gmail, kind: "icloud", auth: "password" });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...gmail,
+      kind: "icloud",
+      auth: "password",
+      services: ["contacts", "calendar"],
+    });
   });
 
   it("changes the kind and the sign-in", () => {
     const { onChange } = form();
     fireEvent.change(screen.getByLabelText("Account Type:"), { target: { value: "gmail" } });
-    expect(onChange).toHaveBeenLastCalledWith({ ...value, kind: "gmail" });
+    expect(onChange).toHaveBeenLastCalledWith({ ...value, kind: "gmail", services: ["contacts", "calendar", "tasks"] });
     fireEvent.change(screen.getByLabelText("Sign In:"), { target: { value: "password" } });
     expect(onChange).toHaveBeenLastCalledWith({ ...value, auth: "password" });
   });
@@ -143,7 +148,11 @@ describe("AccountForm", () => {
   it("explains Google sign-in when adding", () => {
     form({ value: { ...value, kind: "gmail", auth: "oauth2" } });
     expect(screen.queryByLabelText("Password:")).toBeNull();
-    expect(screen.getByText("After adding the account, sign in with Google in your browser.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "After adding the account, sign in with Google in your browser, once for mail and the services checked below.",
+      ),
+    ).toBeTruthy();
   });
 
   it("adds or cancels", () => {
