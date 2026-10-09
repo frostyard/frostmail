@@ -9,6 +9,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
 // The sync window (ADR-0016): an account keeps the messages that arrived
@@ -18,28 +19,14 @@ import (
 func TestSyncWindowNarrowsAndWidens(t *testing.T) {
 	mem := imapxtest.StartMem(t)
 	now := time.Now()
-	for _, m := range []struct {
-		subject string
-		arrived time.Time
-	}{{"Old", now.AddDate(0, 0, -400)}, {"Last month", now.AddDate(0, 0, -30)}, {"Today", now}} {
-		raw := "From: Ann <ann@x.test>\r\nSubject: " + m.subject + "\r\nMessage-ID: <" + strings.ReplaceAll(m.subject, " ", ".") +
-			"@x.test>\r\n\r\nHello.\r\n"
-		if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{Time: m.arrived}); err != nil {
-			t.Fatal(err)
-		}
-	}
+	appendArrived(t, mem, "Old", now.AddDate(0, 0, -400))
+	appendArrived(t, mem, "Last month", now.AddDate(0, 0, -30))
+	appendArrived(t, mem, "Today", now)
 	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
 	h.waitPhase(api.SyncPhaseIdle)
 	inbox := h.inbox()
 	ctx := t.Context()
-	has := func(want ...string) func() bool {
-		return func() bool {
-			got := h.subjects(inbox.ID)
-			slices.Sort(got)
-			slices.Sort(want)
-			return slices.Equal(got, want)
-		}
-	}
+	has := h.inboxHas(inbox.ID)
 	if !has("Last month", "Old", "Today")() {
 		t.Fatalf("without a window INBOX = %q", h.subjects(inbox.ID))
 	}
@@ -75,6 +62,66 @@ func TestSyncWindowNarrowsAndWidens(t *testing.T) {
 	for _, bad := range []int64{-1, 36501} {
 		if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, SyncDays: ptr(bad)}); !isCode(err, api.CodeInvalidParams) {
 			t.Errorf("syncDays %d = %v, want invalid params", bad, err)
+		}
+	}
+}
+
+// TestSyncWindowSurvivesAPassInFlight: a pass that searched the old window
+// and ends after the window changed does not store its sync state, which
+// would undo the reset and let the new actor's pass take the fast path.
+func TestSyncWindowSurvivesAPassInFlight(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	now := time.Now()
+	appendArrived(t, mem, "Old", now.AddDate(0, 0, -400))
+	appendArrived(t, mem, "Today", now)
+	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
+	h.waitPhase(api.SyncPhaseIdle)
+	inbox := h.inbox()
+	ctx := t.Context()
+	has := h.inboxHas(inbox.ID)
+
+	// account.update without its restart: the old actor, still keeping
+	// every message, runs a whole pass after the window changed.
+	err := h.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.UpdateAccount(ctx, h.acct, store.AccountUpdate{SyncDays: ptr(365)})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.srv.Sync.SyncNow(h.acct); err != nil {
+		t.Fatal(err)
+	}
+	h.waitPhase(api.SyncPhaseListing)
+	h.waitPhase(api.SyncPhaseIdle)
+	if !has("Old", "Today")() {
+		t.Fatalf("after the old actor's pass INBOX = %q", h.subjects(inbox.ID))
+	}
+
+	if err := h.srv.Sync.Restart(ctx, h.acct); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 5*time.Second, "the old message to leave the store", has("Today"))
+}
+
+// appendArrived puts a message that arrived at a time in the server's INBOX.
+func appendArrived(t *testing.T, mem *imapxtest.Mem, subject string, arrived time.Time) {
+	t.Helper()
+	raw := "From: Ann <ann@x.test>\r\nSubject: " + subject + "\r\nMessage-ID: <" + strings.ReplaceAll(subject, " ", ".") +
+		"@x.test>\r\n\r\nHello.\r\n"
+	if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{Time: arrived}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// inboxHas reports, when called, whether a mailbox holds exactly these subjects.
+func (h *harness) inboxHas(mailboxID int64) func(want ...string) func() bool {
+	return func(want ...string) func() bool {
+		return func() bool {
+			got := h.subjects(mailboxID)
+			slices.Sort(got)
+			slices.Sort(want)
+			return slices.Equal(got, want)
 		}
 	}
 }

@@ -47,7 +47,8 @@ window fetches what it adds. Without a window a pass searches when UIDNEXT
 or the count moved or the store's count differs from the server's; with
 one, when UIDNEXT or the count moved or the window's first day moved since
 the last pass (`internal/mailsync/window.go`). Changing `syncDays` clears
-the mailboxes' sync state, so the fast path does not skip the next pass.
+the mailboxes' sync state, so the fast path does not skip the next pass; a
+pass of the old window still running stores no state over the cleared one.
 Mail outside the window is reached through the server (server search, with
 `X-GM-RAW` on Gmail, is later work).
 

@@ -1,6 +1,7 @@
 package mailsync
 
 import (
+	"context"
 	"time"
 
 	"github.com/frostyard/frostmail/internal/imapx"
@@ -36,4 +37,19 @@ func (a *actor) mustSearch(ok bool, st store.SyncState, sel imapx.Selected, stor
 		return !windowAt(days, st.LastSyncAt).Equal(windowAt(days, now))
 	}
 	return uint32(stored) != sel.Messages
+}
+
+// storeSyncState ends a pass by storing its mailbox's sync state, unless the
+// account's window changed while the pass ran. account.update cleared the
+// state so the new window's first pass searches, and this pass, from the
+// actor it restarts, searched the old window: its state would undo the
+// clear and let the fast path skip the new window.
+func (a *actor) storeSyncState(ctx context.Context, mailboxID int64, st store.SyncState) error {
+	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+		days, err := tx.AccountSyncDays(ctx, a.acct.ID)
+		if err != nil || days != a.acct.SyncDays {
+			return err
+		}
+		return tx.SetMailboxSyncState(ctx, mailboxID, st)
+	})
 }

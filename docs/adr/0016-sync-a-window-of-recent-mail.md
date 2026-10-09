@@ -28,8 +28,10 @@ like messages deleted on the server, so mail that ages out leaves the store
 fetched for the stored messages. `account.verify` compares the same window.
 Changing `syncDays` clears the account's mailbox sync state, so the next
 pass searches again: a wider window backfills, a narrower one drops the
-mail that left it. The user set the window to 365 days for their Gmail
-account; the iCloud and test accounts keep everything.
+mail that left it. A pass that searched the old window and ends after the
+change does not store its state, which would undo the clear. The user set
+the window to 365 days for their Gmail account; the iCloud and test
+accounts keep everything.
 
 ## Consequences
 

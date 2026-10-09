@@ -184,11 +184,9 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 			}
 		}
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
-		return tx.SetMailboxSyncState(ctx, mb.ID, store.SyncState{
-			UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
-			ServerCount: sel.Messages, LastSyncAt: time.Now(),
-		})
+	return a.storeSyncState(ctx, mb.ID, store.SyncState{
+		UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
+		ServerCount: sel.Messages, LastSyncAt: time.Now(),
 	})
 }
 
