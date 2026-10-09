@@ -20,6 +20,7 @@ import {
   type ViewQuery,
 } from "../gen/api";
 import { RPCError, type Transport } from "../transport";
+import type { MockCalendarData } from "./calendar";
 import { MockCompose, NOT_HANDLED } from "./compose";
 import { diffIds } from "./diff";
 import { MockPeople, type MockPeopleData } from "./people";
@@ -48,6 +49,8 @@ export interface MockData {
   messages: MockMessage[];
   /** Address books and people; none when absent. */
   pim?: MockPeopleData;
+  /** Events in pim's calendars; none when absent. */
+  calendar?: MockCalendarData;
 }
 
 /** MockOptions tune the mock. */

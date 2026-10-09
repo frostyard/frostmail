@@ -1,6 +1,17 @@
 // Deterministic fixture data for MockTransport: one account with Mail.app's
 // usual mailboxes, conversations, flags, attachments, plain and HTML bodies.
-import type { Account, Address, Collection, Contact, MessageSummary, Part, Person } from "../gen/api";
+import type {
+  Account,
+  Address,
+  Attendee,
+  CalendarEvent,
+  Collection,
+  Contact,
+  MessageSummary,
+  Part,
+  Person,
+} from "../gen/api";
+import type { MockCalendarData, MockEvent } from "./calendar";
 import type { MockData, MockMailbox, MockMessage } from "./mock";
 import type { MockPeopleData } from "./people";
 
@@ -263,7 +274,176 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     }
   }
   for (const m of messages) m.summary.threadCount = threadSize.get(m.summary.threadId) ?? 1;
-  return { accounts, mailboxes, messages, pim: fixturePeople(now) };
+  const pim = fixturePeople(now);
+  pim.collections.push(...fixtureCalendars());
+  return { accounts, mailboxes, messages, pim, calendar: fixtureCalendar(now) };
+}
+
+/** Calendar IDs of the fixture account. */
+export const CALENDARS = { work: 201, home: 202, holidays: 203 } as const;
+
+function fixtureCalendars(): Collection[] {
+  const calendar = (id: number, name: string, color: string, readOnly: boolean): Collection => ({
+    id,
+    accountId: FIXTURE.accountId,
+    kind: "calendar",
+    name,
+    color,
+    events: true,
+    tasks: false,
+    readOnly,
+    enabled: true,
+    isDefault: id === CALENDARS.work,
+  });
+  return [
+    calendar(CALENDARS.work, "Work", "#3366cc", false),
+    calendar(CALENDARS.home, "Home", "#34c759", false),
+    calendar(CALENDARS.holidays, "Holidays", "#ff9500", true),
+  ];
+}
+
+const who = (
+  email: string,
+  name: string,
+  answer: Attendee["answer"],
+  role: Attendee["role"] = "required",
+): Attendee => ({
+  email,
+  name,
+  role,
+  answer,
+  isUser: email === ME.address,
+});
+
+// fixtureCalendar is a fortnight of events around now's UTC day D: a daily
+// standup, a weekly sync, a review today, an invitation, a cancelled
+// appointment, a holiday and a three-day conference.
+function fixtureCalendar(now: Date): MockCalendarData {
+  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const at = (days: number, hh: number, mm: number) =>
+    new Date(day.getTime() + days * 86_400_000 + (hh * 60 + mm) * 60_000).toISOString();
+  const date = (days: number) => at(days, 0, 0).slice(0, 10);
+  const me = who(ME.address, "", "accepted");
+  const base = {
+    recurrenceId: "",
+    accountId: FIXTURE.accountId,
+    location: "",
+    description: "",
+    allDay: false,
+    startDate: "",
+    endDate: "",
+    timeZone: "",
+    recurring: false,
+    recurrence: "",
+    status: "confirmed",
+    transparent: false,
+    attendees: [],
+    alarms: [],
+    readOnly: false,
+  } satisfies Partial<CalendarEvent>;
+  const event = (e: Partial<CalendarEvent> & Pick<CalendarEvent, "id" | "calendarId" | "summary" | "start" | "end">) =>
+    ({ ...base, uid: `fixture-${e.id}`, ...e }) as CalendarEvent;
+  const allDay = (days: number, length: number) => ({
+    allDay: true,
+    start: at(days, 0, 0),
+    end: at(days + length, 0, 0),
+    startDate: date(days),
+    endDate: date(days + length),
+  });
+  const events: MockEvent[] = [
+    {
+      event: event({
+        id: 301,
+        calendarId: CALENDARS.work,
+        summary: "Standup",
+        location: "Room 4",
+        start: at(-7, 9, 0),
+        end: at(-7, 9, 15),
+        recurring: true,
+        recurrence: "RRULE:FREQ=DAILY;COUNT=30",
+        organizer: who("bob.okafor@acme.test", "Bob Okafor", "accepted", "chair"),
+        attendees: [
+          me,
+          who("carmen@vertex.test", "Carmen Lindqvist", "accepted"),
+          who("hiro.haddad@acme.test", "Hiro Haddad", "needsaction"),
+        ],
+        answer: "accepted",
+        alarms: [10],
+      }),
+      every: "day",
+      count: 30,
+    },
+    {
+      event: event({
+        id: 302,
+        calendarId: CALENDARS.work,
+        summary: "Design review",
+        location: "Studio B",
+        description: "Walk through the calendar views.\nBring screenshots.",
+        start: at(0, 14, 0),
+        end: at(0, 15, 30),
+        organizer: { ...who(ME.address, ME.name, "accepted", "chair") },
+        attendees: [
+          who("carmen@vertex.test", "Carmen Lindqvist", "accepted"),
+          who("ines.kim@vertex.test", "Ines Kim", "tentative", "optional"),
+        ],
+        alarms: [15],
+      }),
+    },
+    {
+      event: event({
+        id: 303,
+        calendarId: CALENDARS.home,
+        summary: "Lunch with Ann",
+        location: "Cafe Nord",
+        start: at(1, 12, 0),
+        end: at(1, 13, 0),
+        organizer: who("ann.smith@northwind.test", "Ann Smith", "accepted", "chair"),
+        attendees: [who(ME.address, "", "needsaction")],
+        answer: "needsaction",
+      }),
+    },
+    {
+      event: event({
+        id: 304,
+        calendarId: CALENDARS.holidays,
+        summary: "Holiday",
+        ...allDay(4, 1),
+        transparent: true,
+        readOnly: true,
+      }),
+    },
+    {
+      event: event({ id: 305, calendarId: CALENDARS.work, summary: "Conference", location: "Lisbon", ...allDay(6, 3) }),
+    },
+    {
+      event: event({
+        id: 306,
+        calendarId: CALENDARS.home,
+        summary: "Dentist",
+        start: at(2, 16, 0),
+        end: at(2, 17, 0),
+        status: "cancelled",
+      }),
+    },
+    {
+      event: event({
+        id: 307,
+        calendarId: CALENDARS.work,
+        summary: "Weekly sync",
+        start: at(-14, 15, 0),
+        end: at(-14, 16, 0),
+        recurring: true,
+        recurrence: "RRULE:FREQ=WEEKLY;COUNT=10",
+        organizer: who("farah.garcia@northwind.test", "Farah Garcia", "accepted", "chair"),
+        attendees: [me, who("bob.okafor@acme.test", "Bob Okafor", "accepted")],
+        answer: "accepted",
+      }),
+      every: "week",
+      count: 10,
+    },
+  ];
+  return { events, now: now.toISOString() };
 }
 
 /** Address book IDs of the fixture account. */
