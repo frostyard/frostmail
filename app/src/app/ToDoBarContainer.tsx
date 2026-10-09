@@ -3,8 +3,9 @@ import { useMemo } from "react";
 import { useClient } from "../data/session";
 import { useUI } from "../data/stores";
 import { ToDoBar } from "../features/tasks/ToDoBar";
-import { addDays, dayStart, monthGrid } from "../lib/calendarDates";
+import { addDays, monthGrid } from "../lib/calendarDates";
 import { busyDates } from "../lib/eventLayout";
+import { nextOccurrences } from "../lib/eventText";
 import { dueSoon } from "../lib/taskText";
 import { openOccurrence, useCalendarColors, useCalendarFrame, useCalendarRange } from "./useCalendar";
 import type { TasksData } from "./useTasks";
@@ -32,12 +33,7 @@ export function ToDoBarContainer({ tasks }: { tasks: TasksData }) {
     frame.timeZone,
     frame.now.getTime(),
   );
-  const occurrences = upcoming
-    .filter(
-      (occurrence) =>
-        (occurrence.allDay ? dayStart(occurrence.endDate, frame.timeZone) : new Date(occurrence.end)) > frame.now,
-    )
-    .slice(0, 5);
+  const occurrences = nextOccurrences(upcoming, frame.now, frame.timeZone, 5);
   const busy = useMemo(() => busyDates(smallMonth, days, frame.timeZone), [smallMonth, days, frame.timeZone]);
   return (
     <ToDoBar
