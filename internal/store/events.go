@@ -100,35 +100,86 @@ func eventTime(t time.Time, allDay bool) string {
 	return FormatTime(t)
 }
 
-// IndexEvents replaces an object's events.
+// IndexEvents stores an object's events, which have distinct recurrence
+// IDs. An event whose recurrence ID the object already had keeps its ID,
+// since clients hold event IDs; the object's other events are deleted, and
+// its instances are dropped for ReplaceInstances to store again.
 func (t *Tx) IndexEvents(ctx context.Context, objectID int64, events []EventRow) ([]int64, error) {
-	var next int64
-	if err := t.QueryRowContext(ctx, "SELECT COALESCE(MAX(id), 0) + 1 FROM events").Scan(&next); err != nil {
-		return nil, fmt.Errorf("next event id: %w", err)
+	if _, err := t.ExecContext(ctx, "DELETE FROM instances WHERE event_id IN (SELECT id FROM events WHERE object_id = ?)", objectID); err != nil {
+		return nil, fmt.Errorf("delete instances: %w", err)
 	}
-	if _, err := t.ExecContext(ctx, "DELETE FROM events WHERE object_id = ?", objectID); err != nil {
-		return nil, fmt.Errorf("delete events: %w", err)
+	kept, err := t.objectEventIDs(ctx, objectID)
+	if err != nil {
+		return nil, err
 	}
 	ids := make([]int64, 0, len(events))
 	for _, e := range events {
-		id := next
-		next++
-		_, err := t.ExecContext(ctx, `INSERT INTO events
- (id, object_id, uid, recurrence_id, summary, location, description, all_day, start_at, end_at, tzid,
- recurrence, status, transparent, organizer, organizer_name, partstat, sequence)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, objectID, e.UID, e.RecurrenceID, e.Summary, e.Location, e.Description, e.AllDay,
-			eventTime(e.Start, e.AllDay), eventTime(e.End, e.AllDay), e.TZID, e.Recurrence, e.Status,
-			e.Transparent, e.Organizer, e.OrganizerName, e.PartStat, e.Sequence)
-		if err != nil {
-			return nil, fmt.Errorf("insert event: %w", err)
+		id, ok := kept[e.RecurrenceID]
+		delete(kept, e.RecurrenceID)
+		if id, err = t.putEvent(ctx, objectID, id, ok, e); err != nil {
+			return nil, err
 		}
 		if err := t.insertEventDetails(ctx, id, e); err != nil {
 			return nil, err
 		}
 		ids = append(ids, id)
 	}
+	for _, id := range kept {
+		if _, err := t.ExecContext(ctx, "DELETE FROM events WHERE id = ?", id); err != nil {
+			return nil, fmt.Errorf("delete event: %w", err)
+		}
+	}
 	return ids, nil
+}
+
+// objectEventIDs maps an object's events' recurrence IDs to their IDs.
+func (t *Tx) objectEventIDs(ctx context.Context, objectID int64) (map[string]int64, error) {
+	rows, err := t.QueryContext(ctx, "SELECT recurrence_id, id FROM events WHERE object_id = ?", objectID)
+	if err != nil {
+		return nil, fmt.Errorf("object events: %w", err)
+	}
+	defer rows.Close()
+	ids := map[string]int64{}
+	for rows.Next() {
+		var rid string
+		var id int64
+		if err := rows.Scan(&rid, &id); err != nil {
+			return nil, fmt.Errorf("read object event: %w", err)
+		}
+		ids[rid] = id
+	}
+	return ids, rows.Err()
+}
+
+// putEvent updates the event with an ID the object had (clearing its
+// attendees and alarms) or inserts a new one, and returns its ID.
+func (t *Tx) putEvent(ctx context.Context, objectID, id int64, exists bool, e EventRow) (int64, error) {
+	args := []any{e.UID, e.Summary, e.Location, e.Description, e.AllDay, eventTime(e.Start, e.AllDay),
+		eventTime(e.End, e.AllDay), e.TZID, e.Recurrence, e.Status, e.Transparent, e.Organizer, e.OrganizerName,
+		e.PartStat, e.Sequence}
+	if !exists {
+		err := t.QueryRowContext(ctx, `INSERT INTO events
+ (uid, summary, location, description, all_day, start_at, end_at, tzid, recurrence, status, transparent,
+ organizer, organizer_name, partstat, sequence, object_id, recurrence_id)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+			append(args, objectID, e.RecurrenceID)...).Scan(&id)
+		if err != nil {
+			return 0, fmt.Errorf("insert event: %w", err)
+		}
+		return id, nil
+	}
+	_, err := t.ExecContext(ctx, `UPDATE events SET uid = ?, summary = ?, location = ?, description = ?,
+ all_day = ?, start_at = ?, end_at = ?, tzid = ?, recurrence = ?, status = ?, transparent = ?, organizer = ?,
+ organizer_name = ?, partstat = ?, sequence = ? WHERE id = ?`, append(args, id)...)
+	if err != nil {
+		return 0, fmt.Errorf("update event: %w", err)
+	}
+	for _, table := range []string{"event_attendees", "alarms"} {
+		if _, err := t.ExecContext(ctx, "DELETE FROM "+table+" WHERE event_id = ?", id); err != nil {
+			return 0, fmt.Errorf("clear event details: %w", err)
+		}
+	}
+	return id, nil
 }
 
 func (t *Tx) insertEventDetails(ctx context.Context, id int64, e EventRow) error {

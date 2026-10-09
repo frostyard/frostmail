@@ -3,14 +3,14 @@ package engine
 import (
 	"cmp"
 	"context"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/pimsync"
 	"github.com/frostyard/frostmail/internal/store"
-	"slices"
-	"strings"
-	"time"
 )
 
 // Calendar implements the calendar domain.

@@ -93,8 +93,14 @@ func (p *pass) indexCalendar(ctx context.Context, tx *store.Tx, o store.Object) 
 		if err != nil {
 			o.ParseError = err.Error()
 		} else {
+			// The store holds one event per recurrence ID in an object:
+			// keep the first of any that repeat one (two UIDs in a file).
+			seen := map[string]bool{}
 			for _, e := range parsed {
-				events = append(events, indexedEvent(e))
+				if !seen[e.RecurrenceID] {
+					seen[e.RecurrenceID] = true
+					events = append(events, indexedEvent(e))
+				}
 			}
 		}
 	}

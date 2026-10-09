@@ -1,6 +1,7 @@
 package store
 
-// CONTRACT TEST for task card T-0069 (docs/tasks). Do not edit.
+// CONTRACT TEST for task card T-0069 (docs/tasks), amended for stable
+// event IDs. Do not edit.
 
 import (
 	"errors"
@@ -150,22 +151,37 @@ func TestIndexEvents(t *testing.T) {
 		t.Errorf("all-day = %+v", h)
 	}
 
-	// Indexing an object again replaces its events, attendees, alarms and
-	// instances.
+	// Indexing an object again keeps the ID of an event with the same
+	// recurrence ID, replacing its fields, attendees and alarms; it deletes
+	// the object's other events and drops its instances.
 	obj, _ := f.d.ObjectByHref(ctx, f.b.ID, "/b/s.ics")
+	var again []int64
 	if err := f.d.Tx(ctx, func(tx *Tx) error {
-		_, err := tx.IndexEvents(ctx, obj.ID, []EventRow{{UID: "s", Summary: "Renamed", Start: master.Start, End: master.End, Status: "confirmed"}})
+		var err error
+		again, err = tx.IndexEvents(ctx, obj.ID, []EventRow{
+			{UID: "s", Summary: "Renamed", Start: master.Start, End: master.End, Status: "confirmed"},
+			{UID: "s", RecurrenceID: "2026-10-11T14:00:00.000Z", Summary: "New override", Start: at("2026-10-11T16:00Z"),
+				End: at("2026-10-11T16:15Z"), Status: "confirmed"},
+		})
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.d.Event(ctx, ids[0]); !errors.Is(err, ErrNotFound) {
-		t.Errorf("an old event: %v", err)
+	if len(again) != 2 || again[0] != ids[0] || again[1] == ids[1] {
+		t.Errorf("ids after indexing again = %v; before %v", again, ids)
+	}
+	renamed, err := f.d.Event(ctx, ids[0])
+	if err != nil || renamed.Summary != "Renamed" || renamed.Location != "" || renamed.Organizer != "" ||
+		len(renamed.Attendees) != 0 || len(renamed.Alarms) != 0 {
+		t.Errorf("the kept event = %+v, %v", renamed, err)
+	}
+	if _, err := f.d.Event(ctx, ids[1]); !errors.Is(err, ErrNotFound) {
+		t.Errorf("an event the object lost: %v", err)
 	}
 	occ, _ := f.d.Occurrences(ctx, OccurrenceFilter{From: at("2026-10-01T00:00Z"), To: at("2026-11-01T00:00Z"),
 		FromDate: "2026-10-01", ToDate: "2026-11-01"})
 	if len(occ) != 0 {
-		t.Errorf("instances of replaced events = %+v", occ)
+		t.Errorf("instances after indexing again = %+v", occ)
 	}
 }
 
