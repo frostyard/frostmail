@@ -1,4 +1,5 @@
-// CONTRACT TEST for task card T-0064 (docs/tasks). Do not edit.
+// CONTRACT TEST for task card T-0064 (docs/tasks), amended by T-0073 for
+// the Calendar module. Do not edit.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -60,7 +61,8 @@ describe("People module", () => {
     await screen.findByRole("tree", { name: "Address Books" });
     const peopleBar = screen.getByRole("toolbar", { name: "Modules" });
     expect(within(peopleBar).getByRole("button", { name: "People" }).getAttribute("aria-pressed")).toBe("true");
-    expect(within(peopleBar).queryByRole("button", { name: "Calendar" })).toBeNull();
+    expect(within(peopleBar).getByRole("button", { name: "Calendar" })).toBeTruthy();
+    expect(within(peopleBar).queryByRole("button", { name: "Tasks" })).toBeNull();
   });
 
   it("lists people with letter headers, and the toolbar counts them", async () => {
