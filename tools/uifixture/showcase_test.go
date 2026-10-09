@@ -118,7 +118,7 @@ func TestShowcaseContacts(t *testing.T) {
 		t.Errorf("Maria = %+v, %v", maria, err)
 	}
 	services, _ := db.Services(t.Context(), 0)
-	if len(services) != 4 || !services[0].Enabled || services[0].LastSyncAt == nil {
+	if len(services) != 6 || !services[0].Enabled || services[0].LastSyncAt == nil {
 		t.Errorf("services = %+v", services)
 	}
 }
@@ -157,5 +157,36 @@ func TestShowcaseCalendars(t *testing.T) {
 		if !summaries[s] {
 			t.Errorf("no %q around today: %v", s, summaries)
 		}
+	}
+}
+
+// TestShowcaseTasks: the showcase accounts have task lists with subtasks,
+// due dates around today and a completed task.
+func TestShowcaseTasks(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if err := Build(t.Context(), Options{Out: dir, Showcase: showcaseDir}); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "frostmail.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	open, err := db.Tasks(t.Context(), store.TaskFilter{})
+	if err != nil || len(open) != 9 {
+		t.Fatalf("open tasks = %d, %v", len(open), err)
+	}
+	all, _ := db.Tasks(t.Context(), store.TaskFilter{Completed: true})
+	var subtasks, done int
+	for _, r := range all {
+		if r.ParentID != 0 {
+			subtasks++
+		}
+		if r.Completed {
+			done++
+		}
+	}
+	if len(all) != 11 || subtasks != 2 || done != 2 {
+		t.Errorf("tasks = %d, %d subtasks, %d done", len(all), subtasks, done)
 	}
 }

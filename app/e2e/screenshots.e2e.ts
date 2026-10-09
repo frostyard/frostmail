@@ -95,6 +95,47 @@ async function calendar(s: Session, view: "Day" | "Week" | "Month", select?: str
   );
 }
 
+/** tasks shows the Tasks module on a source with the task titled select selected. */
+async function tasks(s: Session, source: string, select: string): Promise<void> {
+  await s.click(await s.find('[role="toolbar"][aria-label="Modules"] button[aria-label="Tasks"]'));
+  for (const row of await s.findAll('[role="tree"][aria-label="Task Lists"] [role="treeitem"]')) {
+    if ((await s.text(row)).startsWith(source)) {
+      await s.click(row);
+      break;
+    }
+  }
+  const rows = `[role="listbox"][aria-label="${source}"] [role="option"]`;
+  await s.waitFor("the tasks", async () => (await s.findAll(rows)).length >= 3);
+  for (const r of await s.findAll(rows)) {
+    if ((await s.text(r)).includes(select)) {
+      await s.click(r);
+      break;
+    }
+  }
+  await s.waitFor(`${select} in the task pane`, () =>
+    s.execute<boolean>(
+      `const t = document.querySelector('input[aria-label="Title"]'); return !!t && t.value === arguments[0];`,
+      select,
+    ),
+  );
+}
+
+/** todoBar shows Mail with the To-Do bar beside the reader. */
+async function todoBar(s: Session): Promise<void> {
+  await s.click(await s.find('[role="toolbar"][aria-label="Modules"] button[aria-label="Mail"]'));
+  // The toolbar is rebuilt for Mail; click its button once it is there.
+  await s.waitFor("Mail's toolbar", () =>
+    s.execute<boolean>(
+      `return !!document.querySelector('button[aria-label="To-Do Bar"]') &&
+         document.querySelectorAll('[role="option"]').length >= 10;`,
+    ),
+  );
+  await s.click(await s.find('button[aria-label="To-Do Bar"]'));
+  await s.waitFor("the To-Do bar's tasks", () =>
+    s.execute<boolean>(`return document.querySelectorAll('aside[aria-label="To-Do Bar"] li').length >= 3;`),
+  );
+}
+
 /** newWindow waits for a window not in known that shows selector (another,
  *  such as the reminder window, may open meanwhile), and switches to it. */
 async function newWindow(s: Session, known: string[], selector: string): Promise<string> {
@@ -166,6 +207,21 @@ describe.skipIf(!out)("README screenshots", () => {
     await save(s, "calendar.png");
     await calendar(s, "Month");
     await save(s, "calendar-month.png");
+  });
+
+  it("shows Tasks and the To-Do bar in light", async () => {
+    const s = await start("shots-tasks");
+    await tasks(s, "All Tasks", "Book the Lisbon venue");
+    await save(s, "tasks.png");
+    await todoBar(s);
+    await open(s, "Aurora launch checklist", "no errors");
+    await save(s, "todo-bar.png");
+  });
+
+  it("shows Tasks in dark", async () => {
+    const s = await start("shots-tasks-dark", { GTK_THEME: "Adwaita:dark" });
+    await tasks(s, "All Tasks", "Book the Lisbon venue");
+    await save(s, "tasks-dark.png");
   });
 
   it("shows Calendar in dark", async () => {
