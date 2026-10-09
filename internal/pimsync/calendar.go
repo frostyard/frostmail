@@ -116,7 +116,7 @@ func StoreCalendarObject(ctx context.Context, tx *store.Tx, o store.Object, opts
 			for _, e := range parsed {
 				if !seen[e.RecurrenceID] {
 					seen[e.RecurrenceID] = true
-					events = append(events, indexedEvent(e))
+					events = append(events, EventRow(e))
 				}
 			}
 		}
@@ -139,7 +139,8 @@ func StoreCalendarObject(ctx context.Context, tx *store.Tx, o store.Object, opts
 	return id, tx.ReplaceInstances(ctx, id, rows)
 }
 
-func indexedEvent(e calendar.Event) store.EventRow {
+// EventRow is a parsed event as the events store keeps it.
+func EventRow(e calendar.Event) store.EventRow {
 	row := store.EventRow{UID: e.UID, RecurrenceID: e.RecurrenceID, Summary: e.Summary, Location: e.Location,
 		Description: e.Description, AllDay: e.AllDay, Start: e.Start, End: e.End, TZID: e.TZID,
 		Recurrence: e.Recurrence, Status: e.Status, Transparent: e.Transparent, PartStat: e.PartStat, Sequence: e.Sequence}
