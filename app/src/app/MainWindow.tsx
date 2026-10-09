@@ -6,8 +6,10 @@ import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
 import type { ViewModel } from "../data/view";
 import { ScopeBar } from "../features/search/SearchField";
+import { addDays, step } from "../lib/calendarDates";
 import { type Command, commandFor } from "../lib/keymap";
 import type { Client } from "../rpc/gen/api";
+import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
@@ -18,6 +20,7 @@ import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
 import { openSettings } from "./settings";
 import { ToolbarContainer, useListQuery } from "./ToolbarContainer";
+import { type CalendarData, useCalendar } from "./useCalendar";
 import { type PeopleData, personEmail, usePeople, writeToPerson } from "./usePeople";
 
 const SIDEBAR = { min: 160, max: 320 };
@@ -34,6 +37,7 @@ interface WindowHandles {
   list: RefObject<ListHandle | null>;
   reader: RefObject<ReaderHandle | null>;
   people: RefObject<PeopleHandle | null>;
+  calendar: RefObject<CalendarHandle | null>;
   search: RefObject<HTMLInputElement | null>;
   sidebar: RefObject<HTMLDivElement | null>;
 }
@@ -41,9 +45,13 @@ interface WindowHandles {
 function focusPane(handles: WindowHandles, direction: 1 | -1) {
   const ui = useUI.getState();
   const panes: Pane[] = ui.sidebarVisible ? ["sidebar", "list", "reader"] : ["list", "reader"];
-  const index = panes.indexOf(ui.module === "people" ? ui.peopleFocus : ui.focus);
+  const focus = ui.module === "calendar" ? ui.calendarFocus : ui.module === "people" ? ui.peopleFocus : ui.focus;
+  const index = panes.indexOf(focus);
   const next = panes[(index + direction + panes.length) % panes.length] ?? "list";
-  if (ui.module === "people") {
+  if (ui.module === "calendar") {
+    ui.setCalendarFocus(next);
+    handles.calendar.current?.focus(next);
+  } else if (ui.module === "people") {
     ui.setPeopleFocus(next);
     handles.people.current?.focus(next);
   } else {
@@ -97,7 +105,8 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
 
 function moduleCommand(command: Command, client: Client, people: PeopleData) {
   const ui = useUI.getState();
-  if (command === "showPeople") ui.setModule("people");
+  if (command === "showCalendar") ui.setModule("calendar");
+  else if (command === "showPeople") ui.setModule("people");
   else if (command === "allInboxes") {
     ui.setModule("mail");
     ui.setSource({ kind: "allInboxes" });
@@ -107,7 +116,54 @@ function moduleCommand(command: Command, client: Client, people: PeopleData) {
   return true;
 }
 
-function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people: PeopleData) {
+function calendarCommand(command: Command, frame: CalendarData, handles: WindowHandles): boolean {
+  const ui = useUI.getState();
+  const date = ui.calendarDate || frame.today;
+  switch (command) {
+    case "dayView":
+      ui.setCalendarView("day");
+      break;
+    case "weekView":
+      ui.setCalendarView("week");
+      break;
+    case "monthView":
+      ui.setCalendarView("month");
+      break;
+    case "today":
+      ui.setCalendarDate(frame.today);
+      break;
+    case "previousPeriod":
+    case "nextPeriod":
+      ui.setCalendarDate(step(ui.calendarView, date, command === "previousPeriod" ? -1 : 1));
+      break;
+    case "left":
+    case "right":
+      if (ui.calendarFocus !== "list") return false;
+      ui.setCalendarDate(addDays(date, command === "left" ? -1 : 1));
+      break;
+    case "previous":
+    case "next": {
+      if (ui.calendarFocus !== "list") return false;
+      const direction = command === "previous" ? -1 : 1;
+      if (ui.calendarView === "month") ui.setCalendarDate(addDays(date, direction * 7));
+      else handles.calendar.current?.scroll(direction);
+      break;
+    }
+    case "open":
+      if (ui.calendarFocus !== "list") return false;
+      ui.setCalendarDate(date);
+      ui.setCalendarView("day");
+      break;
+    case "escape":
+      ui.selectOccurrence(null);
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+
+function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people: PeopleData, calendar: CalendarData) {
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
   useEffect(() => {
@@ -118,23 +174,30 @@ function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people
         event,
         field && !(ui.module === "people" && ["f", "n"].includes(event.key.toLowerCase())),
       );
-      if (!command || command === "showCalendar" || command === "showTasks") return;
+      if (!command || command === "showTasks") return;
       let handled = true;
       if (command === "focusSearch") {
+        if (ui.module === "calendar") return;
         handles.search.current?.focus();
         handles.search.current?.select();
       } else if (command === "toggleSidebar") ui.toggleSidebar();
       else if (command === "nextPane" || command === "previousPane")
         focusPane(handles, command === "nextPane" ? 1 : -1);
       else if (command === "settings") void openSettings().catch((err: unknown) => console.warn("settings", err));
-      else if (command === "showPeople" || command === "allInboxes" || ui.module === "people") {
+      else if (
+        command === "showCalendar" ||
+        command === "showPeople" ||
+        command === "allInboxes" ||
+        ui.module === "people"
+      ) {
         handled = moduleCommand(command, client, people);
-      } else handled = mailCommand(command, client, model, handles);
+      } else if (ui.module === "calendar") handled = calendarCommand(command, calendar, handles);
+      else handled = mailCommand(command, client, model, handles);
       if (handled) event.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [client, handles, model, people]);
+  }, [client, handles, model, people, calendar]);
   useEffect(() => {
     const block = (event: MouseEvent) => {
       if (!inTextField(event.target)) event.preventDefault();
@@ -229,16 +292,18 @@ export function MainWindow() {
   const client = useClient();
   const module = useUI((state) => state.module);
   const people = usePeople();
+  const calendar = useCalendar();
   const model = useMailModel();
   const handles: WindowHandles = {
     list: useRef<ListHandle>(null),
     reader: useRef<ReaderHandle>(null),
     people: useRef<PeopleHandle>(null),
+    calendar: useRef<CalendarHandle>(null),
     search: useRef<HTMLInputElement>(null),
     sidebar: useRef<HTMLDivElement>(null),
   };
   const widths = usePaneWidths();
-  useWindowEvents(handles, model, people);
+  useWindowEvents(handles, model, people, calendar);
   const onDelete = useCallback(
     (ids: number[]) => {
       void client.message.delete({ ids }).catch((err: unknown) => console.warn("delete", err));
@@ -251,6 +316,8 @@ export function MainWindow() {
       {module === "mail" && <MailScope />}
       {module === "people" ? (
         <PeopleModule ref={handles.people} data={people} {...widths} />
+      ) : module === "calendar" ? (
+        <CalendarModule ref={handles.calendar} data={calendar} {...widths} />
       ) : (
         <MailPanes handles={handles} model={model} onDelete={onDelete} widths={widths} />
       )}

@@ -209,7 +209,7 @@ function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef:
           }}
         />
       </div>
-      <ModuleBar modules={["mail", "people"]} current={ui.module} onSelect={ui.setModule} />
+      <ModuleBar modules={["mail", "calendar", "people"]} current={ui.module} onSelect={ui.setModule} />
     </fieldset>
   );
 }

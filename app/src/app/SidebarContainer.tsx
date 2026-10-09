@@ -42,7 +42,7 @@ export function SidebarContainer() {
       <div className="max-h-[40%] shrink-0 overflow-y-auto">
         <OutboxSection />
       </div>
-      <ModuleBar modules={["mail", "people"]} current={module} onSelect={setModule} />
+      <ModuleBar modules={["mail", "calendar", "people"]} current={module} onSelect={setModule} />
     </div>
   );
 }
