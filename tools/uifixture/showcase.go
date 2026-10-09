@@ -96,6 +96,9 @@ func buildShowcase(ctx context.Context, db *store.DB, blobs *blob.Store, out, di
 			m.raw = dateHeader.ReplaceAll(m.raw, []byte("Date: "+m.date.AddDate(0, 0, days).Format(time.RFC1123Z)))
 			boxes[m.mailbox] = append(boxes[m.mailbox], m)
 		}
+		if inv, ok := showcaseInvitation(a.email, now, boxes["INBOX"]); ok {
+			boxes["INBOX"] = append(boxes["INBOX"], inv)
+		}
 		host := "mail." + a.email[strings.LastIndexByte(a.email, '@')+1:]
 		id, mbIDs, err := insertAccount(ctx, db, a.email, a.name, host, 993, 587, showcaseMailboxes(boxes))
 		if err != nil {
@@ -110,6 +113,9 @@ func buildShowcase(ctx context.Context, db *store.DB, blobs *blob.Store, out, di
 			return err
 		}
 		if err := addShowcaseCalendars(ctx, db, id, a.email, now); err != nil {
+			return err
+		}
+		if err := addShowcaseTasks(ctx, db, id, a.email, now); err != nil {
 			return err
 		}
 		b := &builder{db: db, blobs: blobs, accountID: id}

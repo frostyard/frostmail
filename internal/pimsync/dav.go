@@ -12,7 +12,7 @@ import (
 
 // syncDAV reconciles accepted collections and syncs enabled ones in order,
 // continuing past collection failures unless the server refuses credentials.
-func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, want func(davx.Collection) bool) error {
+func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, collectionKind api.CollectionKind, want func(davx.Collection) bool) error {
 	remote, err := c.Collections(ctx, kind)
 	if err != nil {
 		return fmt.Errorf("list dav collections: %w", err)
@@ -26,10 +26,6 @@ func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, want
 		byHref[col.Href] = col
 		list = append(list, store.RemoteCollection{Href: col.Href, Name: col.Name,
 			Description: col.Description, Color: col.Color, Components: col.Components, ReadOnly: col.ReadOnly})
-	}
-	collectionKind := api.CollectionKindAddressbook
-	if kind == davx.Calendars {
-		collectionKind = api.CollectionKindCalendar
 	}
 	var cols []store.Collection
 	err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
@@ -79,7 +75,7 @@ func (p *pass) syncCollection(ctx context.Context, c *davx.Client, kind davx.Kin
 	if err := p.fetchDAV(ctx, c, kind, col, fetch); err != nil {
 		return err
 	}
-	if err := p.deleteDAV(ctx, kind, col.ID, deleted); err != nil {
+	if err := p.deleteDAV(ctx, kind, col, deleted); err != nil {
 		return err
 	}
 	return p.m.db.Tx(ctx, func(tx *store.Tx) error {
@@ -155,7 +151,7 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 		}
 		err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
 			for _, o := range objects {
-				if err := p.indexDAV(ctx, tx, kind, col.ID, o); err != nil {
+				if err := p.indexDAV(ctx, tx, col, o); err != nil {
 					return err
 				}
 			}
@@ -164,7 +160,7 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 				return err
 			}
 			if len(objects) > 0 || n > 0 {
-				if err := p.emitDAV(ctx, tx, kind); err != nil {
+				if err := p.emitDAV(ctx, tx, col.Kind); err != nil {
 					return err
 				}
 			}
@@ -177,17 +173,17 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 	return nil
 }
 
-func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, collectionID int64, hrefs []string) error {
+func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, col store.Collection, hrefs []string) error {
 	if len(hrefs) == 0 {
 		return nil
 	}
 	err := p.m.db.Tx(ctx, func(tx *store.Tx) error {
-		n, err := tx.DeleteObjects(ctx, collectionID, hrefs)
+		n, err := tx.DeleteObjects(ctx, col.ID, hrefs)
 		if err != nil {
 			return err
 		}
 		if n > 0 {
-			if err := p.emitDAV(ctx, tx, kind); err != nil {
+			if err := p.emitDAV(ctx, tx, col.Kind); err != nil {
 				return err
 			}
 		}
@@ -199,11 +195,15 @@ func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, collectionID int64
 	return nil
 }
 
-func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind davx.Kind) error {
-	if kind == davx.AddressBooks {
+func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind api.CollectionKind) error {
+	switch kind {
+	case api.CollectionKindAddressbook:
 		return tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID})
+	case api.CollectionKindTasklist:
+		return tx.Emit(ctx, api.TasksChanged{AccountID: p.acct.ID})
+	default:
+		return tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID})
 	}
-	return tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID})
 }
 
 // relinkDAVPeople keeps the people index in step only for address books.

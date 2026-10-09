@@ -62,7 +62,7 @@ describe("People module", () => {
     const peopleBar = screen.getByRole("toolbar", { name: "Modules" });
     expect(within(peopleBar).getByRole("button", { name: "People" }).getAttribute("aria-pressed")).toBe("true");
     expect(within(peopleBar).getByRole("button", { name: "Calendar" })).toBeTruthy();
-    expect(within(peopleBar).queryByRole("button", { name: "Tasks" })).toBeNull();
+    expect(within(peopleBar).getByRole("button", { name: "Tasks" })).toBeTruthy();
   });
 
   it("lists people with letter headers, and the toolbar counts them", async () => {

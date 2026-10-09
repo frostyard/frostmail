@@ -132,7 +132,7 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
                 }}
               />
             </div>
-            <ModuleBar modules={["mail", "calendar", "people"]} current={ui.module} onSelect={ui.setModule} />
+            <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
           </fieldset>
           <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
         </>

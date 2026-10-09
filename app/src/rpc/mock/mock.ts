@@ -24,6 +24,7 @@ import { MockCalendar, type MockCalendarData } from "./calendar";
 import { MockCompose, NOT_HANDLED } from "./compose";
 import { diffIds } from "./diff";
 import { MockPeople, type MockPeopleData } from "./people";
+import { MockTasks, type MockTasksData } from "./tasks";
 
 /** MockMessage is a stored message: its summary plus what the reader shows. */
 export interface MockMessage {
@@ -51,6 +52,8 @@ export interface MockData {
   pim?: MockPeopleData;
   /** Events in pim's calendars; none when absent. */
   calendar?: MockCalendarData;
+  /** Tasks in pim's task lists; none when absent. */
+  tasks?: MockTasksData;
 }
 
 /** MockOptions tune the mock. */
@@ -83,6 +86,7 @@ export class MockTransport implements Transport {
   private readonly compose: MockCompose;
   private readonly people: MockPeople;
   private readonly calendar: MockCalendar;
+  private readonly tasks: MockTasks;
 
   constructor(
     data: MockData,
@@ -116,6 +120,9 @@ export class MockTransport implements Transport {
       data.calendar ?? { events: [], now: new Date().toISOString() },
       pim.collections,
       (e) => this.emit(e),
+    );
+    this.tasks = new MockTasks(data.tasks ?? { tasks: [], now: new Date().toISOString() }, pim.collections, (e) =>
+      this.emit(e),
     );
     this.people = new MockPeople(
       pim,
@@ -326,6 +333,8 @@ export class MockTransport implements Transport {
         if (r !== NOT_HANDLED) return r;
         const calendar = this.calendar.dispatch(method, p);
         if (calendar !== NOT_HANDLED) return calendar;
+        const tasks = this.tasks.dispatch(method, p);
+        if (tasks !== NOT_HANDLED) return tasks;
         const q = this.people.dispatch(method, p);
         if (q !== NOT_HANDLED) return q;
         throw new RPCError(ErrorCode.methodNotFound, `method ${method} does not exist`);
