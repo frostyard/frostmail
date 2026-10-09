@@ -1,0 +1,17 @@
+From: David King <david.king@northwind.example>
+To: Platform team <platform@northwind.example>
+Subject: Re: Aurora launch checklist
+Date: Thu, 08 Oct 2026 08:41:00 -0400
+Message-ID: <aurora-3@showcase.example>
+In-Reply-To: <aurora-2@showcase.example>
+References: <aurora-1@showcase.example> <aurora-2@showcase.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The load test finished overnight: 50,000 accounts, p95 sync latency
+1.8 s, no errors. Graphs are on the dashboard. I'd call item 1 done.
+
+David
+
+> Pricing page copy is with Lena for a last read; we'll have it back
+> to you on Wednesday.

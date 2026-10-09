@@ -8,6 +8,17 @@ IMAP, Gmail and iCloud accounts, and is in its daily-driver trial
 ([M4](docs/plans/0006-m4-daily-driver.md)). See the
 [roadmap](docs/plans/0002-roadmap.md).
 
+![The main window: unified inboxes for two accounts, flags, threads and an
+HTML itinerary in the reader](docs/images/main.png)
+
+| | |
+| --- | --- |
+| ![Dark mode, reading a conversation](docs/images/main-dark.png) | ![Searching for “aurora”](docs/images/search.png) |
+| ![Replying in a compose window](docs/images/compose.png) | ![Account settings](docs/images/settings.png) |
+
+<sub>The screenshots show made-up mail (`app/e2e/showcase`) in the real
+app; `make screenshots` retakes them.</sub>
+
 - **maild** is a per-user Go daemon that owns sync, a SQLite cache with
   full-text search, and a JSON-RPC socket.
 - **The app** is Tauri v2 with a React UI in the system WebKitGTK.

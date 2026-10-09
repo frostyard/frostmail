@@ -1,0 +1,20 @@
+From: Lena Price <lena.price@northwind.example>
+To: Ann Lee <ann@northwind.example>
+Subject: Design review notes: onboarding flow
+Date: Wed, 07 Oct 2026 16:20:00 -0400
+Message-ID: <design-review@showcase.example>
+Cc: Maria Lopez <maria.lopez@northwind.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Ann,
+
+Notes from today's review of the onboarding flow:
+
+- The account step should come before the theme picker.
+- "Skip for now" needs to be a real button, not a link.
+- The empty inbox state could use a friendlier illustration.
+
+Can we pair on the first two tomorrow afternoon?
+
+Lena
