@@ -46,11 +46,11 @@ describe("SettingsWindow services", () => {
     const alert = await within(region).findByRole("alert");
     expect(alert.textContent).toContain("enter its address");
     expect(box("Calendars").checked).toBe(false);
-    fireEvent.change(screen.getByLabelText("Server:"), { target: { value: MOCK_UNREACHABLE } });
+    fireEvent.change(within(region).getByLabelText("Server:"), { target: { value: MOCK_UNREACHABLE } });
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(calls("account.setService")).toHaveLength(2));
     expect(within(region).getByRole("alert")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Server:"), { target: { value: "https://dav.example.com/" } });
+    fireEvent.change(within(region).getByLabelText("Server:"), { target: { value: "https://dav.example.com/" } });
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(box("Calendars").checked).toBe(true));
     expect(calls("account.setService").at(-1)?.params).toEqual({
