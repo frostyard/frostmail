@@ -24,7 +24,7 @@ func (p *pass) syncGoogleTasks(ctx context.Context, s store.Service) error {
 	}
 	remote := make([]store.RemoteCollection, 0, len(lists))
 	for _, list := range lists {
-		remote = append(remote, store.RemoteCollection{Href: list.ID, Name: list.Title})
+		remote = append(remote, store.RemoteCollection{Href: list.ID, Name: collectionName(list.Title, api.CollectionKindTasklist)})
 	}
 	var cols []store.Collection
 	if err := p.m.db.Tx(ctx, func(tx *store.Tx) error {

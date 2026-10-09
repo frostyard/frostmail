@@ -297,3 +297,25 @@ func TestWrites(t *testing.T) {
 		t.Errorf("requests = %q", methods)
 	}
 }
+
+// TestPhantoms: davtest imitates Google listing events its sync reports
+// as deleted and does not serve.
+func TestPhantoms(t *testing.T) {
+	s := davtest.New(t, davtest.Options{})
+	cal := s.Calendar("work", "Work", "", "VEVENT")
+	s.Put(cal+"real.ics", []byte("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:real\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"))
+	s.Phantom(cal + "gone.ics")
+	cl := client(t, s, davtest.CalendarsHome)
+	listed, err := cl.List(t.Context(), cal)
+	if err != nil || len(listed) != 2 {
+		t.Fatalf("list = %+v, %v", listed, err)
+	}
+	d, err := cl.Sync(t.Context(), cal, "")
+	if err != nil || len(d.Changed) != 1 || d.Changed[0].Href != cal+"real.ics" {
+		t.Errorf("sync = %+v, %v", d, err)
+	}
+	objs, missing, err := cl.Multiget(t.Context(), davx.Calendars, cal, []string{cal + "real.ics", cal + "gone.ics"})
+	if err != nil || len(objs) != 1 || !slices.Equal(missing, []string{cal + "gone.ics"}) {
+		t.Errorf("multiget = %d objects, missing %q, %v", len(objs), missing, err)
+	}
+}

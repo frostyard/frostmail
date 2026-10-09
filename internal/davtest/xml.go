@@ -189,6 +189,9 @@ func (s *Server) propfind(w http.ResponseWriter, r *http.Request, body []byte) {
 			for _, p := range slices.Sorted(maps.Keys(c.objects)) {
 				rs = append(rs, answer(p, objectProps(c, c.objects[p]), names, all))
 			}
+			for _, p := range slices.Sorted(maps.Keys(c.phantoms)) {
+				rs = append(rs, answer(p, objectProps(c, &object{etag: c.phantoms[p]}), names, all))
+			}
 		}
 	case s.parent(path) != nil && s.parent(path).objects[path] != nil:
 		c := s.parent(path)

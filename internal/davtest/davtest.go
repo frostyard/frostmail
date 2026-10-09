@@ -91,6 +91,9 @@ type collection struct {
 	readOnly          bool
 	objects           map[string]*object // by decoded path
 	changes           []change
+	// phantoms are listed by a PROPFIND of the collection, with an ETag,
+	// and nowhere else (Phantom).
+	phantoms map[string]string
 }
 
 type object struct {
@@ -154,6 +157,22 @@ func (s *Server) RemoveCollection(coll string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.colls, coll)
+}
+
+// Phantom makes a PROPFIND of path's collection list path with an ETag,
+// while a sync-collection, a multiget and a GET do not have it: Google
+// lists events its sync reports as deleted and does not serve.
+func (s *Server) Phantom(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.parent(path)
+	if c == nil {
+		panic("davtest: no collection for " + path)
+	}
+	if c.phantoms == nil {
+		c.phantoms = map[string]string{}
+	}
+	c.phantoms[path] = fmt.Sprintf(`"phantom-%d"`, len(c.phantoms)+1)
 }
 
 // Put stores data at path, a decoded path inside a collection, as another

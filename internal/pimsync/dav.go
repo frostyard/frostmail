@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
@@ -25,7 +26,7 @@ func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, coll
 			continue
 		}
 		byHref[col.Href] = col
-		list = append(list, store.RemoteCollection{Href: col.Href, Name: col.Name,
+		list = append(list, store.RemoteCollection{Href: col.Href, Name: collectionName(col.Name, collectionKind),
 			Description: col.Description, Color: col.Color, Components: col.Components, ReadOnly: col.ReadOnly})
 	}
 	var cols []store.Collection
@@ -57,6 +58,24 @@ func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, coll
 		}
 	}
 	return first
+}
+
+// collectionName is a collection's name, or its kind's for one the server
+// leaves unnamed (iCloud's address book).
+func collectionName(name string, kind api.CollectionKind) string {
+	if strings.TrimSpace(name) != "" {
+		return name
+	}
+	switch kind {
+	case api.CollectionKindAddressbook:
+		return "Contacts"
+	case api.CollectionKindCalendar:
+		return "Calendar"
+	case api.CollectionKindTasklist:
+		return "Tasks"
+	default:
+		return name
+	}
 }
 
 func (p *pass) syncCollection(ctx context.Context, c *davx.Client, kind davx.Kind, col store.Collection, remote davx.Collection) error {
