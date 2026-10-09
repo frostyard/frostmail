@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
