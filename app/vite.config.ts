@@ -83,6 +83,8 @@ export default defineConfig({
   build: { target: "es2022" },
   test: {
     environment: "happy-dom",
+    // Tests read dates in UTC wherever they run (CI already does).
+    env: { TZ: "UTC" },
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["src/testing/setup.ts"],
   },
