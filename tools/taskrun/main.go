@@ -1,7 +1,7 @@
-// Command taskrun runs task cards (docs/tasks) through a local executor
-// model and enforces the card's contract: only the listed files change, the
-// given tests stay byte-identical, the acceptance command and make check pass.
-// See docs/design/agent-workflow.md.
+// Command taskrun runs task cards (docs/tasks) through an executor (Codex,
+// or opencode with a local model) and enforces the card's contract: only the
+// listed files change, the given tests stay byte-identical, the acceptance
+// command and make check pass. See docs/design/agent-workflow.md.
 //
 //	taskrun list
 //	taskrun start ID      branch task/ID, copy given files, commit "T-ID: start"
@@ -34,6 +34,7 @@ func main() {
 
 type runner struct {
 	root     string
+	executor string
 	model    string
 	attempts int
 	out      io.Writer
@@ -41,7 +42,8 @@ type runner struct {
 
 func run(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("taskrun", flag.ContinueOnError)
-	model := fs.String("model", os.Getenv("FROSTMAIL_EXECUTOR_MODEL"), "opencode provider/model for the executor")
+	exe := fs.String("executor", envOr("FROSTMAIL_EXECUTOR", "codex"), "the executor: codex or opencode")
+	model := fs.String("model", os.Getenv("FROSTMAIL_EXECUTOR_MODEL"), "the executor's model (opencode's provider/model; Codex defaults to the user's)")
 	attempts := fs.Int("attempts", 3, "executor attempts before giving up")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -50,10 +52,10 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	r := &runner{root: root, model: *model, attempts: *attempts, out: os.Stdout}
+	r := &runner{root: root, executor: *exe, model: *model, attempts: *attempts, out: os.Stdout}
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return errors.New("usage: taskrun [-model M] list|start|run|accept|verify|finish [ID]")
+		return errors.New("usage: taskrun [-executor codex|opencode] [-model M] list|start|run|accept|verify|finish [ID]")
 	}
 	if rest[0] == "list" {
 		return r.list()
@@ -142,8 +144,9 @@ func (r *runner) start(ctx context.Context, c *Card) error {
 }
 
 func (r *runner) runTask(ctx context.Context, c *Card) error {
-	if r.model == "" {
-		return errors.New("no executor model: pass -model or set FROSTMAIL_EXECUTOR_MODEL")
+	e := executor{name: r.executor, model: r.model, root: r.root, title: "T-" + c.ID, writable: writableCaches(ctx)}
+	if _, _, err := e.command("", false); err != nil {
+		return err
 	}
 	if c.State == "todo" {
 		if err := r.start(ctx, c); err != nil {
@@ -157,12 +160,20 @@ func (r *runner) runTask(ctx context.Context, c *Card) error {
 		return err
 	}
 	prompt := fmt.Sprintf("Implement task card T-%s. Follow docs/tasks/EXECUTOR.md exactly.\n"+
-		"When you believe you are done, run `make accept T=%s` and fix any failure.\n\n%s", c.ID, c.ID, card)
-	args := []string{"run", "--model", r.model, "--title", "T-" + c.ID, prompt}
+		"When you believe you are done, run `make accept T=%s` and fix any failure.\n%s\n%s", c.ID, c.ID, e.guidance(c), card)
+	resume := false
 	for attempt := 1; attempt <= r.attempts; attempt++ {
-		fmt.Fprintf(r.out, "== T-%s executor attempt %d/%d\n", c.ID, attempt, r.attempts)
-		if err := r.cmd(ctx, "opencode", args...); err != nil {
+		fmt.Fprintf(r.out, "== T-%s %s attempt %d/%d\n", c.ID, e.name, attempt, r.attempts)
+		name, args, _ := e.command(prompt, resume)
+		if err := r.cmd(ctx, name, args...); err != nil {
 			fmt.Fprintf(r.out, "executor exited: %v\n", err)
+		}
+		resume = true
+		if e.name == "codex" && TouchesApp(c) {
+			// Codex's sandbox cannot reach the nsl machine; format for it.
+			if err := r.cmd(ctx, "make", "ui-fmt"); err != nil {
+				fmt.Fprintf(r.out, "make ui-fmt: %v\n", err)
+			}
 		}
 		var buf bytes.Buffer
 		accErr := r.accept(ctx, c, io.MultiWriter(r.out, &buf))
@@ -172,16 +183,37 @@ func (r *runner) runTask(ctx context.Context, c *Card) error {
 			if verr == nil {
 				return nil
 			}
-			args = []string{"run", "--continue", "--model", r.model,
-				fmt.Sprintf("`make accept T=%s` passes, but the task does not verify: %v\n"+
-					"Fix the cause (run `make ui-fmt` for formatting, then `make check` and, for app cards, `make ui-check`); "+
-					"do not edit the given tests.\n\n%s", c.ID, verr, tail(buf.String(), 80))}
+			prompt = fmt.Sprintf("`make accept T=%s` passes, but the task does not verify: %v\n"+
+				"Fix the cause (formatting, then `make check` and, for app cards, `make ui-check`); "+
+				"do not edit the given tests.\n\n%s", c.ID, verr, tail(buf.String(), 80))
 			continue
 		}
-		args = []string{"run", "--continue", "--model", r.model,
-			fmt.Sprintf("`make accept T=%s` still fails. Fix the cause; do not edit the given tests.\n\n%s", c.ID, tail(buf.String(), 80))}
+		prompt = fmt.Sprintf("`make accept T=%s` still fails. Fix the cause; do not edit the given tests.\n\n%s", c.ID, tail(buf.String(), 80))
 	}
 	return fmt.Errorf("task %s: still failing after %d attempts; review branch %s", c.ID, r.attempts, branch(c))
+}
+
+// writableCaches are the caches outside the repository that the gates
+// write: Go's build cache, golangci-lint's and mise's.
+func writableCaches(ctx context.Context) []string {
+	var dirs []string
+	if gocache, err := exec.CommandContext(ctx, "go", "env", "GOCACHE").Output(); err == nil {
+		dirs = append(dirs, strings.TrimSpace(string(gocache)))
+	}
+	if cache, err := os.UserCacheDir(); err == nil {
+		dirs = append(dirs, filepath.Join(cache, "golangci-lint"), filepath.Join(cache, "mise"))
+	}
+	return slices.DeleteFunc(dirs, func(d string) bool {
+		fi, err := os.Stat(d)
+		return d == "" || err != nil || !fi.IsDir()
+	})
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func (r *runner) accept(ctx context.Context, c *Card, out io.Writer) error {

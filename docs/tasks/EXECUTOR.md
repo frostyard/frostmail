@@ -17,7 +17,11 @@ You are implementing one task card. The card is the whole job.
    For a card that touches `app/`, `make ui-check` (Biome lint and format
    check, the TypeScript check, every Vitest test) must pass too;
    `make ui-fmt` formats your files. Never run `pnpm`, `npx` or `node`
-   directly.
+   directly. If your shell lacks the pinned tools (Codex's does), run make
+   through mise: `mise exec -- make check`. If the app's targets cannot
+   reach the nsl machine (Codex's sandbox cannot), do not run them: taskrun
+   formats your files, runs them after you finish, and sends you any
+   failure.
 6. Fix the code, not the check: no `//nolint`, no skipped tests, no deleted
    assertions.
 7. After five failed attempts at the same failure, stop and write what you

@@ -1,13 +1,16 @@
 # Design: agent workflow
 
-Decided in [ADR-0008](../adr/0008-local-executor-workflow.md).
+Decided in [ADR-0008](../adr/0008-local-executor-workflow.md); the
+executor is Codex since [ADR-0021](../adr/0021-run-task-cards-with-codex.md).
 
 ## Roles
 
-- **Planner (Claude):** milestone plans, ADRs, designs, the RPC and SQL
-  schemas, interfaces, hard subsystems, task cards with contract tests, and
-  milestone reviews.
-- **Executor (local model through opencode):** one task card at a time.
+- **Planner (Claude):** milestone plans, ADRs, designs, specs, the RPC and
+  SQL schemas and migrations, interfaces, security boundaries (credentials,
+  OAuth, the sanitizer, what is sent), fork patches, task cards with
+  contract tests, and a review of every card before it merges.
+- **Executor (Codex, the user's model; opencode with a local model on
+  request):** one task card at a time.
 - **Human:** approves plans, merges task branches, runs anything with
   credentials.
 
@@ -21,12 +24,19 @@ Decided in [ADR-0008](../adr/0008-local-executor-workflow.md).
 2. `make task T=NNNN` (`tools/taskrun run`) requires a clean tree, creates
    branch `task/NNNN`, copies the given files into place, moves the card to
    `doing/` and commits that as `chore(tasks): start T-NNNN …`.
-3. It runs `opencode run --model $(EXECUTOR_MODEL)` with the card. opencode
-   loads `AGENTS.md` and `docs/tasks/EXECUTOR.md` (`opencode.json`
-   `instructions`) and may only run `make`, `go` and read-only commands.
+3. It runs the executor with the card (`EXECUTOR`, `codex` by default):
+   `codex exec` in the `workspace-write` sandbox, with Go's build cache and
+   golangci-lint's and mise's caches writable and the network off. Codex
+   loads `AGENTS.md` itself and runs the Go gates through
+   `mise exec -- make …`; it cannot reach the nsl machine, so for a card
+   that touches `app/` taskrun runs `make ui-fmt` before checking.
+   (`EXECUTOR=opencode` runs `opencode run --model $(EXECUTOR_MODEL)`,
+   which loads `AGENTS.md` and `docs/tasks/EXECUTOR.md` through
+   `opencode.json` and may only run `make`, `go` and read-only commands.)
 4. After each attempt it runs the acceptance command, then `taskrun verify`;
-   on either failure it continues the session with the error and the last 80
-   lines of output, up to `-attempts` (3).
+   on either failure it continues the session (`codex exec resume --last`,
+   or `opencode run --continue`) with the error and the last 80 lines of
+   output, up to `-attempts` (3).
 5. `taskrun verify` (and `make task-verify T=NNNN`) fails if any changed file
    is outside `touch`, a given file differs from `_given`, acceptance fails,
    `make check` fails, or, for a card that touches `app/`, `make ui-check`
@@ -55,16 +65,21 @@ the same `main` cannot see each other's code, so:
 
 ## Executor model
 
-`EXECUTOR_MODEL` in the Makefile names an opencode `provider/model`; the
-provider (endpoint and model ID) lives in the user's global opencode config,
-not in this repository. Override per run:
-`make task T=0001 EXECUTOR_MODEL=provider/model`.
+`EXECUTOR` in the Makefile picks the executor: `codex` (default) or
+`opencode`. Codex uses the user's default model from `~/.codex/config.toml`
+unless `EXECUTOR_MODEL` names one; opencode needs `EXECUTOR_MODEL` as a
+`provider/model`, whose endpoint lives in the user's opencode config. Per
+run: `make task T=0001 EXECUTOR=opencode
+EXECUTOR_MODEL=selfie/halogen-qwen3.8-flash-next`.
 
 ## Sizing
 
-Size S: at most 150 non-test lines in at most 3 files. Size M (at most 400)
-was allowed once the M0 calibration cards (T-0001 CLI, T-0002 SQL, T-0003
-pure logic) passed with at most one retry each; all three passed on the first
-attempt in 1–2 minutes ([plan 0001](../plans/0001-m0-foundations.md)). Keep a
-card to one concern even when it is size M, and keep sync, threading and
-security code with the planner regardless of size.
+- **S:** at most 150 non-test lines in at most 3 files.
+- **M:** at most 400 lines in at most 6 files.
+- **L:** at most 1,000 lines: one package or one feature (a module of the
+  app, a sync loop with its store queries), with Codex only.
+
+The local model ran S and, after the M0 calibration cards, M
+([plan 0001](../plans/0001-m0-foundations.md)). A card of any size keeps one
+concern, a fixed file list and given tests at its boundary; schemas,
+migrations and security boundaries stay with the planner regardless of size.

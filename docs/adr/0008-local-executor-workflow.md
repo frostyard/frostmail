@@ -1,6 +1,7 @@
 # 0008 — Claude plans and verifies; a local model executes task cards
 
-- **Status:** Accepted
+- **Status:** Accepted; the executor and card sizes superseded by
+  [0021](0021-run-task-cards-with-codex.md)
 - **Date:** 2026-10-07
 
 ## Context

@@ -18,8 +18,11 @@ GO_FILES = $(shell git ls-files --cached --others --exclude-standard '*.go' | gr
 # CI, whose runner has the toolchain, runs the same targets with IN_NSL='sh -c'.
 NSL_MACHINE ?= frostmail
 IN_NSL := nsl run -m $(NSL_MACHINE) sh -lc
-# The executor model for task cards: an opencode provider/model.
-EXECUTOR_MODEL ?= selfie/halogen-qwen3.8-flash-next
+# The executor for task cards (ADR-0021): codex, with the user's Codex model
+# unless EXECUTOR_MODEL names one; or opencode with EXECUTOR_MODEL as its
+# provider/model (EXECUTOR=opencode EXECUTOR_MODEL=selfie/halogen-qwen3.8-flash-next).
+EXECUTOR ?= codex
+EXECUTOR_MODEL ?=
 
 help: ## List targets
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | expand -t 18
@@ -147,9 +150,9 @@ accept: ## Run a task card's acceptance command: make accept T=0001
 	@test -n "$(T)" || { echo "usage: make accept T=NNNN"; exit 2; }
 	go run ./tools/taskrun accept $(T)
 
-task: ## Run a task card through the executor model: make task T=0001
+task: ## Run a task card through the executor (Codex by default): make task T=0001
 	@test -n "$(T)" || { echo "usage: make task T=NNNN"; exit 2; }
-	go run ./tools/taskrun -model '$(EXECUTOR_MODEL)' run $(T)
+	go run ./tools/taskrun -executor '$(EXECUTOR)' -model '$(EXECUTOR_MODEL)' run $(T)
 
 task-verify: ## Check a task branch's scope, given files and gates
 	go run ./tools/taskrun verify $(T)
