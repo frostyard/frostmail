@@ -7,6 +7,14 @@
 
 /** Command is what a shortcut asks the focused pane or the app to do. */
 export type Command =
+  | "dayView"
+  | "weekView"
+  | "monthView"
+  | "today"
+  | "previousPeriod"
+  | "nextPeriod"
+  | "left"
+  | "right"
   | "previous"
   | "next"
   | "extendPrevious"
@@ -56,6 +64,15 @@ interface Binding {
 }
 
 const BINDINGS: Binding[] = [
+  { key: "1", ctrl: true, alt: true, shift: false, command: "dayView" },
+  { key: "2", ctrl: true, alt: true, shift: false, command: "weekView" },
+  { key: "3", ctrl: true, alt: true, shift: false, command: "monthView" },
+  { key: "t", ctrl: true, alt: false, shift: false, command: "today" },
+  { key: "arrowleft", ctrl: true, alt: false, shift: false, command: "previousPeriod" },
+  { key: "arrowright", ctrl: true, alt: false, shift: false, command: "nextPeriod" },
+  { key: "arrowleft", ctrl: false, alt: false, shift: false, command: "left" },
+  { key: "arrowright", ctrl: false, alt: false, shift: false, command: "right" },
+
   { key: "arrowup", ctrl: false, alt: false, shift: false, command: "previous" },
   { key: "arrowdown", ctrl: false, alt: false, shift: false, command: "next" },
   { key: "arrowup", ctrl: false, alt: false, shift: true, command: "extendPrevious" },

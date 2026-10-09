@@ -10,6 +10,7 @@ import {
   ErrorCode,
   type Event,
   type MessageSummary,
+  type Occurrence,
   type Person,
   type PersonSummary,
   type Photo,
@@ -73,6 +74,7 @@ export class MockPeople {
     private readonly emit: (e: Event) => void,
     private readonly mail: () => MockMail[],
     private readonly accounts: () => Account[],
+    private readonly upcoming?: (email: string) => Occurrence[],
   ) {
     this.nextId = 1 + Math.max(1000, ...data.people.flatMap((p) => [p.id, ...p.contacts.map((c) => c.id)]));
   }
@@ -204,7 +206,7 @@ export class MockPeople {
       name: person?.displayName ?? seen?.name ?? "",
       person: person ? structuredClone(person) : undefined,
       recent,
-      upcoming: [],
+      upcoming: this.upcoming?.(email) ?? [],
       canAdd: !person && this.writableBooks().length > 0,
     };
   }
