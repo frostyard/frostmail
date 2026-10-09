@@ -11,13 +11,8 @@ import (
 
 // resolveZone tries IANA, Windows and object-local zone definitions in order.
 func resolveZone(tzid string, calendar *contentline.Component) *time.Location {
-	if zone, ok := loadZone(tzid); ok {
+	if zone, ok := namedZone(tzid); ok {
 		return zone
-	}
-	if name, ok := WindowsZone(tzid); ok {
-		if zone, ok := loadZone(name); ok {
-			return zone
-		}
 	}
 	for _, component := range calendar.ChildrenNamed("VTIMEZONE") {
 		if propertyText(component, "TZID") != tzid {
@@ -31,6 +26,17 @@ func resolveZone(tzid string, calendar *contentline.Component) *time.Location {
 		}
 	}
 	return time.UTC
+}
+
+// namedZone resolves an IANA or Windows zone name.
+func namedZone(tzid string) (*time.Location, bool) {
+	if zone, ok := loadZone(tzid); ok {
+		return zone, true
+	}
+	if name, ok := WindowsZone(tzid); ok {
+		return loadZone(name)
+	}
+	return nil, false
 }
 
 func loadZone(name string) (*time.Location, bool) {
@@ -90,4 +96,22 @@ func zoneOffset(value string) (int, bool) {
 		offset = -offset
 	}
 	return offset, true
+}
+
+// ZoneNamed returns the zone an Event's TZID names: an IANA zone, UTC, or
+// a fixed offset written UTC±hh:mm; local for "" (floating). A name it
+// cannot read is UTC.
+func ZoneNamed(tzid string, local *time.Location) *time.Location {
+	if tzid == "" {
+		return local
+	}
+	if zone, ok := loadZone(tzid); ok {
+		return zone
+	}
+	if len(tzid) == len("UTC+05:30") && tzid[:3] == "UTC" && tzid[6] == ':' {
+		if offset, ok := zoneOffset(tzid[3:6] + tzid[7:]); ok {
+			return time.FixedZone(tzid, offset)
+		}
+	}
+	return time.UTC
 }

@@ -114,10 +114,19 @@ func seriesStarts(event Event, from, to time.Time) map[string]time.Time {
 	return starts
 }
 
+// maxRuleStarts bounds the starts one RRULE generates, counted from
+// DTSTART: a hostile or mistaken rule must not stall indexing.
+const maxRuleStarts = 200_000
+
 func ruleStarts(event Event, value string, from, to time.Time) []time.Time {
 	zone := eventZone(event)
 	options, err := rrule.StrToROptionInLocation(value, zone)
 	if err != nil {
+		return nil
+	}
+	// Calendar apps do not make series repeating more than hourly, and
+	// those iterate from DTSTART for too long: read them as single events.
+	if options.Freq == rrule.MINUTELY || options.Freq == rrule.SECONDLY {
 		return nil
 	}
 	options.Dtstart = event.Start.In(zone)
@@ -126,20 +135,48 @@ func ruleStarts(event Event, value string, from, to time.Time) []time.Time {
 		return nil
 	}
 	// Include starts at the lower bound, including zero-duration events.
-	after := from.Add(-event.End.Sub(event.Start)).Add(-time.Nanosecond)
-	return rule.Between(after, to, true)
+	after := from.Add(-event.End.Sub(event.Start))
+	var starts []time.Time
+	next := rule.Iterator()
+	for range maxRuleStarts {
+		start, ok := next()
+		if !ok || !start.Before(to) {
+			break
+		}
+		if !start.Before(after) {
+			starts = append(starts, start)
+		}
+	}
+	return starts
 }
 
 func recurrenceDates(event Event, prop contentline.Prop) []time.Time {
 	if strings.EqualFold(prop.Param("VALUE"), "PERIOD") {
 		return nil
 	}
-	reader := timeReader{calendar: &contentline.Component{}, local: eventZone(event)}
+	// A TZID defined only by the object's VTIMEZONE is the one DTSTART
+	// used, in practice: read it in the event's zone rather than UTC.
+	zone := eventZone(event)
+	if tzid := prop.Param("TZID"); tzid != "" {
+		if named, ok := namedZone(tzid); ok {
+			zone = named
+		}
+	}
 	var dates []time.Time
 	for value := range strings.SplitSeq(prop.Value, ",") {
-		prop.Value = value
-		if date, ok := reader.read(&prop); ok {
-			dates = append(dates, date.instant)
+		value = strings.TrimSpace(value)
+		var date time.Time
+		var err error
+		switch {
+		case strings.EqualFold(prop.Param("VALUE"), "DATE") || len(value) == 8:
+			date, err = time.ParseInLocation("20060102", value, time.UTC)
+		case strings.HasSuffix(value, "Z"):
+			date, err = time.Parse("20060102T150405Z", value)
+		default:
+			date, err = time.ParseInLocation("20060102T150405", value, zone)
+		}
+		if err == nil {
+			dates = append(dates, date)
 		}
 	}
 	return dates
