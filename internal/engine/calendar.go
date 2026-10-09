@@ -3,6 +3,10 @@ package engine
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -250,14 +254,99 @@ func (c calendarService) Respond(context.Context, *api.CalendarRespondParams) (*
 	return nil, notBuilt("calendar.respond")
 }
 
-func (c calendarService) Reminders(context.Context, *api.CalendarRemindersParams) ([]api.Reminder, error) {
-	return []api.Reminder{}, nil
+// Reminders returns the fired reminders currently visible.
+func (c calendarService) Reminders(ctx context.Context, _ *api.CalendarRemindersParams) ([]api.Reminder, error) {
+	rows, err := c.DB.ActiveReminders(ctx, c.DB.Now())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.Reminder, 0, len(rows))
+	for _, r := range rows {
+		id, err := reminderID(r.AlarmKey)
+		if err != nil {
+			return nil, err
+		}
+		reminder := api.Reminder{ID: id, EventID: r.Instance.EventID, RecurrenceID: r.Instance.RecurrenceID,
+			CalendarID: r.Event.CalendarID, Summary: r.Event.Summary, Location: r.Event.Location,
+			AllDay: r.Instance.AllDay, Start: r.Instance.Start, DueAt: r.DueAt}
+		if reminder.AllDay {
+			reminder.StartDate = r.Instance.Start.Format(time.DateOnly)
+			reminder.Start = dayInZone(r.Instance.Start, time.UTC)
+		}
+		out = append(out, reminder)
+	}
+	return out, nil
 }
 
-func (c calendarService) Snooze(context.Context, *api.CalendarSnoozeParams) error {
-	return notBuilt("calendar.snooze")
+func reminderID(key store.AlarmKey) (string, error) {
+	data, err := json.Marshal([4]any{key.CollectionID, key.UID, key.RecurrenceID, store.FormatTime(key.TriggerAt)})
+	if err != nil {
+		return "", fmt.Errorf("encode reminder id: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(data), nil
 }
 
-func (c calendarService) Dismiss(context.Context, *api.CalendarDismissParams) error {
-	return notBuilt("calendar.dismiss")
+func reminderKeys(ids []string) ([]store.AlarmKey, error) {
+	if len(ids) == 0 {
+		return nil, api.InvalidParams("ids must not be empty")
+	}
+	keys := make([]store.AlarmKey, 0, len(ids))
+	for _, id := range ids {
+		key, err := decodeReminderID(id)
+		if err != nil {
+			return nil, api.InvalidParams("invalid reminder id")
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+func decodeReminderID(id string) (store.AlarmKey, error) {
+	var key store.AlarmKey
+	data, err := base64.RawURLEncoding.DecodeString(id)
+	if err != nil {
+		return key, err
+	}
+	var parts []jsontext.Value
+	if err := json.Unmarshal(data, &parts); err != nil {
+		return key, err
+	}
+	if len(parts) != 4 {
+		return key, fmt.Errorf("reminder id must contain four fields")
+	}
+	var trigger string
+	for i, dest := range []any{&key.CollectionID, &key.UID, &key.RecurrenceID, &trigger} {
+		if string(parts[i]) == "null" {
+			return key, fmt.Errorf("null reminder id field")
+		}
+		if err := json.Unmarshal(parts[i], dest); err != nil {
+			return key, err
+		}
+	}
+	key.TriggerAt, err = store.ParseTime(trigger)
+	return key, err
+}
+
+// Snooze hides reminders until the requested instant.
+func (c calendarService) Snooze(ctx context.Context, p *api.CalendarSnoozeParams) error {
+	keys, err := reminderKeys(p.IDs)
+	if err != nil {
+		return err
+	}
+	return c.DB.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.SnoozeReminders(ctx, keys, p.Until)
+		return err
+	})
+}
+
+// Dismiss stops showing reminders.
+func (c calendarService) Dismiss(ctx context.Context, p *api.CalendarDismissParams) error {
+	keys, err := reminderKeys(p.IDs)
+	if err != nil {
+		return err
+	}
+	return c.DB.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.DismissReminders(ctx, keys, c.DB.Now())
+		return err
+	})
 }
