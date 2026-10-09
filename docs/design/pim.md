@@ -262,7 +262,16 @@ query flagged messages alongside tasks, and completing one clears the flag.
 ## Operational notes
 
 - `mailctl verify` grows a check per service: hrefs and ETags on the
-  server against the store, changing nothing.
+  server against the store, changing nothing. It asks for what it finds
+  missing locally and leaves out what the server cannot serve (Google's
+  listing keeps objects its sync calls deleted).
+- Google's sync-collection also calls some objects deleted that its
+  listing and a multiget do serve and Google Calendar shows: on the
+  user's account in 2026-10, two single occurrences from 2020 stored
+  without their series. Sync follows sync-collection, so they stay
+  missing locally and verify lists them. A single occurrence accepted
+  now syncs normally; a Google-only listing check on changed calendars
+  would fetch them if more turn up.
 - A collection whose objects fail to parse keeps the source and its
   `parse_error`, so a parser fix can rebuild the index without a resync.
 - Reminders for a series far in the future come from the instances window;
