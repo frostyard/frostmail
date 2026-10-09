@@ -118,11 +118,30 @@ query flagged messages alongside tasks, and completing one clears the flag.
   a hostile invitation cannot stall indexing. RDATE and EXDATE values with
   a `TZID` that only the object's `VTIMEZONE` names are read in the event's
   zone.
-- **Reminders.** maild keeps the next alarm per account and, when it is due,
-  announces it: to the app's reminder window when the app is running, as a
-  desktop notification otherwise (`internal/notify`, with Snooze and
-  Dismiss actions). Only `DISPLAY` and `AUDIO` alarms; `EMAIL` alarms are
-  the server's.
+- **Reminders.** Only `DISPLAY` and `AUDIO` alarms; `EMAIL` alarms are the
+  server's.
+  - *Triggers.* An occurrence's alarm triggers at its start plus the
+    offset (its end with `RELATED=END`); an all-day occurrence's at its
+    date's midnight in maild's zone. Offsets more than 30 days before or a
+    day after are ignored. An absolute trigger counts for a single event or
+    an override, not a series. A reminder is keyed by the collection, the
+    UID, the occurrence's recurrence ID and the trigger, so it survives
+    resyncs and an event moved to a new time reminds again.
+  - *Firing.* maild's scheduler (`internal/reminders`) checks once a
+    minute, at the minute: the alarms of shown calendars due since its
+    last check (after a start, back at most a day) are recorded as fired
+    (`reminders.fired_at`) and announced, and so are snoozes that ended.
+  - *Announcing.* With the app connected (a client that said
+    `frostmail-app` in `rpc.hello` and subscribed to events), maild sends
+    `calendar.reminders {count}` and the app raises its reminder window.
+    Otherwise each reminder is a desktop notification (`internal/notify`):
+    the title as the summary, the time and place as the body, the actions
+    Snooze (10 minutes) and Dismiss, and clicking it opens the app on its
+    reminder window. Dismissing or snoozing in either place closes the
+    notification.
+  - *State.* `calendar.reminders` lists the fired reminders neither
+    dismissed nor snoozed past now, oldest due first; `calendar.snooze`
+    and `calendar.dismiss` change them.
 
 ### Invitations
 
