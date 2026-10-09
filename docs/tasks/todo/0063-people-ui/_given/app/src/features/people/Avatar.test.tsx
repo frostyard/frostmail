@@ -20,7 +20,9 @@ describe("Avatar", () => {
   });
 
   it("shows the photo when there is one", () => {
-    const { container } = render(<Avatar name="Ada" email="ada@example.com" size={48} photo="data:image/png;base64,AA==" />);
+    const { container } = render(
+      <Avatar name="Ada" email="ada@example.com" size={48} photo="data:image/png;base64,AA==" />,
+    );
     const img = container.querySelector("img");
     expect(img?.getAttribute("src")).toBe("data:image/png;base64,AA==");
     expect(img?.getAttribute("alt")).toBe("");

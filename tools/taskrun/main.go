@@ -174,6 +174,11 @@ func (r *runner) runTask(ctx context.Context, c *Card) error {
 			if err := r.cmd(ctx, "make", "ui-fmt"); err != nil {
 				fmt.Fprintf(r.out, "make ui-fmt: %v\n", err)
 			}
+			// A given file the formatter changes was never formatted: the
+			// executor may not touch it, so no attempt can fix it.
+			if bad, err := r.changedGiven(c); err != nil || len(bad) > 0 {
+				return fmt.Errorf("task %s: given files differ after make ui-fmt (unformatted by the planner, or edited): %v %v", c.ID, bad, err)
+			}
 		}
 		var buf bytes.Buffer
 		accErr := r.accept(ctx, c, io.MultiWriter(r.out, &buf))
@@ -273,15 +278,12 @@ func (r *runner) verify(ctx context.Context, c *Card) error {
 	if bad := ScopeViolations(c, changed); len(bad) > 0 {
 		problems = append(problems, fmt.Sprintf("changed files outside the card's touch list: %v", bad))
 	}
-	for _, g := range c.Given {
-		want, err := os.ReadFile(filepath.Join(r.root, c.GivenSource(g)))
-		if err != nil {
-			return err
-		}
-		got, err := os.ReadFile(filepath.Join(r.root, g))
-		if err != nil || !bytes.Equal(got, want) {
-			problems = append(problems, fmt.Sprintf("given file %s was modified or removed", g))
-		}
+	changedGiven, err := r.changedGiven(c)
+	if err != nil {
+		return err
+	}
+	for _, g := range changedGiven {
+		problems = append(problems, fmt.Sprintf("given file %s was modified or removed", g))
 	}
 	if err := r.accept(ctx, c, r.out); err != nil {
 		problems = append(problems, err.Error())
@@ -299,6 +301,22 @@ func (r *runner) verify(ctx context.Context, c *Card) error {
 	}
 	fmt.Fprintf(r.out, "T-%s verifies: %d files changed, all in scope\n", c.ID, len(changed))
 	return nil
+}
+
+// changedGiven lists the given files that differ from the card's copies.
+func (r *runner) changedGiven(c *Card) ([]string, error) {
+	var out []string
+	for _, g := range c.Given {
+		want, err := os.ReadFile(filepath.Join(r.root, c.GivenSource(g)))
+		if err != nil {
+			return nil, err
+		}
+		got, err := os.ReadFile(filepath.Join(r.root, g))
+		if err != nil || !bytes.Equal(got, want) {
+			out = append(out, g)
+		}
+	}
+	return out, nil
 }
 
 func (r *runner) finish(ctx context.Context, c *Card) error {

@@ -1,7 +1,8 @@
 // Deterministic fixture data for MockTransport: one account with Mail.app's
 // usual mailboxes, conversations, flags, attachments, plain and HTML bodies.
-import type { Account, Address, MessageSummary, Part } from "../gen/api";
+import type { Account, Address, Collection, Contact, MessageSummary, Part, Person } from "../gen/api";
 import type { MockData, MockMailbox, MockMessage } from "./mock";
+import type { MockPeopleData } from "./people";
 
 /** FixtureOptions size the fixture. */
 export interface FixtureOptions {
@@ -262,7 +263,145 @@ export function mockData(opts: FixtureOptions = {}): MockData {
     }
   }
   for (const m of messages) m.summary.threadCount = threadSize.get(m.summary.threadId) ?? 1;
-  return { accounts, mailboxes, messages };
+  return { accounts, mailboxes, messages, pim: fixturePeople() };
+}
+
+/** Address book IDs of the fixture account. */
+export const BOOKS = { contacts: 101, shared: 102 } as const;
+
+// fixturePeople is the fixture account's address books: Contacts, and a
+// read-only Shared book that also has Elif.
+function fixturePeople(): MockPeopleData {
+  const collections: Collection[] = [
+    {
+      id: BOOKS.contacts,
+      accountId: FIXTURE.accountId,
+      kind: "addressbook",
+      name: "Contacts",
+      color: "",
+      events: false,
+      tasks: false,
+      readOnly: false,
+      enabled: true,
+      isDefault: true,
+    },
+    {
+      id: BOOKS.shared,
+      accountId: FIXTURE.accountId,
+      kind: "addressbook",
+      name: "Shared",
+      color: "",
+      events: false,
+      tasks: false,
+      readOnly: true,
+      enabled: true,
+      isDefault: false,
+    },
+  ];
+  let next = 201;
+  const contact = (over: Partial<Contact>): Contact => ({
+    id: next++,
+    collectionId: BOOKS.contacts,
+    accountId: FIXTURE.accountId,
+    displayName: `${over.givenName ?? ""} ${over.familyName ?? ""}`.trim(),
+    givenName: "",
+    familyName: "",
+    nickname: "",
+    organization: "",
+    title: "",
+    emails: [],
+    phones: [],
+    addresses: [],
+    urls: [],
+    birthday: "",
+    note: "",
+    readOnly: false,
+    ...over,
+  });
+  const person = (...contacts: Contact[]): Person => {
+    const first = contacts[0] as Contact;
+    return {
+      id: first.id,
+      displayName: first.displayName,
+      organization: contacts.find((c) => c.organization !== "")?.organization ?? "",
+      hasPhoto: false,
+      contacts,
+    };
+  };
+  const simple = (given: string, family: string, org: string, email: string, title = "") =>
+    person(
+      contact({
+        givenName: given,
+        familyName: family,
+        organization: org,
+        title,
+        emails: [{ label: "work", value: email }],
+      }),
+    );
+  const people: Person[] = [
+    person(
+      contact({
+        givenName: "Ann",
+        familyName: "Smith",
+        organization: "Northwind",
+        title: "Head of Operations",
+        emails: [
+          { label: "work", value: "ann.smith@northwind.test" },
+          { label: "home", value: "ann@smith-family.test" },
+        ],
+        phones: [
+          { label: "mobile", value: "+1 555 0142" },
+          { label: "work", value: "+1 555 0100" },
+        ],
+        addresses: [
+          {
+            label: "work",
+            street: "1 Harbour Way",
+            locality: "Portland",
+            region: "OR",
+            postcode: "97201",
+            country: "USA",
+          },
+        ],
+        urls: [{ label: "", value: "https://northwind.test/" }],
+        birthday: "--04-12",
+        note: "Runs the offsite.\nPrefers Lisbon.",
+      }),
+    ),
+    simple("Bob", "Okafor", "Acme", "bob.okafor@acme.test", "Engineer"),
+    simple("Carmen", "Lindqvist", "Vertex", "carmen@vertex.test", "Designer"),
+    simple("Dmitri", "Moreau", "", "dmitri.moreau@mailtest.test"),
+    person(
+      contact({
+        givenName: "Elif",
+        familyName: "Tanaka",
+        organization: "Frostyard",
+        emails: [{ label: "work", value: "elif@frostyard.test" }],
+      }),
+      contact({
+        collectionId: BOOKS.shared,
+        displayName: "Elif T.",
+        nickname: "Elif",
+        emails: [{ label: "", value: "elif@frostyard.test" }],
+        phones: [{ label: "mobile", value: "+1 555 0177" }],
+        readOnly: true,
+      }),
+    ),
+    simple("Farah", "Garcia", "Northwind", "farah.garcia@northwind.test", "Finance"),
+    simple("Gus", "Novak", "", "gus@novak.test"),
+    simple("Hiro", "Haddad", "Acme", "hiro.haddad@acme.test"),
+    simple("Ines", "Kim", "Vertex", "ines.kim@vertex.test", "Product Manager"),
+    simple("Jonas", "Rossi", "", "jonas.rossi@mailtest.test"),
+    person(
+      contact({
+        displayName: "Vertex News",
+        organization: "Vertex",
+        emails: [{ label: "", value: "news@vertex.test" }],
+      }),
+    ),
+    person(contact({ displayName: "42 Club", emails: [{ label: "", value: "hello@42club.test" }] })),
+  ];
+  return { collections, people };
 }
 
 function mulberry32(seed: number): () => number {

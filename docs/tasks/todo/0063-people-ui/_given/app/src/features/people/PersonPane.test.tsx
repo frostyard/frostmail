@@ -112,7 +112,10 @@ function pane(over: Partial<PersonPaneProps> = {}) {
 
 // pairs reads a contact block's dl as [label, value] rows.
 function pairs(block: HTMLElement): [string, string][] {
-  return [...block.querySelectorAll("dt")].map((dt) => [dt.textContent ?? "", dt.nextElementSibling?.textContent ?? ""]);
+  return [...block.querySelectorAll("dt")].map((dt) => [
+    dt.textContent ?? "",
+    dt.nextElementSibling?.textContent ?? "",
+  ]);
 }
 
 const longDate = new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date(1815, 11, 10));
@@ -182,7 +185,9 @@ describe("PersonPane", () => {
   it("puts each address line on its own line", () => {
     pane();
     const block = screen.getByRole("region", { name: "Contacts — Gmail" });
-    const dd = [...block.querySelectorAll("dt")].find((dt) => dt.textContent === "home" && dt.nextElementSibling?.querySelector("div"))?.nextElementSibling;
+    const dd = [...block.querySelectorAll("dt")].find(
+      (dt) => dt.textContent === "home" && dt.nextElementSibling?.querySelector("div"),
+    )?.nextElementSibling;
     expect([...(dd?.querySelectorAll("div") ?? [])].map((d) => d.textContent)).toEqual([
       "12 St James's Square",
       "London SW1Y 4JH",

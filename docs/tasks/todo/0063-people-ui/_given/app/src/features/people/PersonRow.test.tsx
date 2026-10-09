@@ -15,7 +15,13 @@ const ada: PersonSummary = {
 };
 
 function row(over: Partial<PersonRowProps> = {}, person: Partial<PersonSummary> = {}) {
-  const props: PersonRowProps = { person: { ...ada, ...person }, selected: false, focused: false, onSelect: vi.fn(), ...over };
+  const props: PersonRowProps = {
+    person: { ...ada, ...person },
+    selected: false,
+    focused: false,
+    onSelect: vi.fn(),
+    ...over,
+  };
   render(<PersonRow {...props} />);
   return { props, el: screen.getByRole("option") };
 }

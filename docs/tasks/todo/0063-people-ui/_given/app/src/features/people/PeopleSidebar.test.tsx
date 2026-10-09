@@ -29,12 +29,11 @@ describe("PeopleSidebar", () => {
     sidebar();
     const tree = screen.getByRole("tree", { name: "Address Books" });
     expect(tree.getAttribute("tabindex")).toBe("0");
-    expect(within(tree).getAllByRole("treeitem").map((r) => r.getAttribute("data-key"))).toEqual([
-      "all",
-      "book:10",
-      "book:20",
-      "book:21",
-    ]);
+    expect(
+      within(tree)
+        .getAllByRole("treeitem")
+        .map((r) => r.getAttribute("data-key")),
+    ).toEqual(["all", "book:10", "book:20", "book:21"]);
     for (const title of ["People", "Gmail", "iCloud"]) {
       expect(screen.getByRole("button", { name: title }).getAttribute("aria-expanded")).toBe("true");
     }
