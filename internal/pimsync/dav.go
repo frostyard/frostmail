@@ -35,7 +35,10 @@ func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, want
 	err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		cols, err = tx.ReplaceCollections(ctx, p.acct.ID, collectionKind, list)
-		return err
+		if err != nil {
+			return err
+		}
+		return relinkDAVPeople(ctx, tx, kind)
 	})
 	if err != nil {
 		return fmt.Errorf("replace dav collections: %w", err)
@@ -160,10 +163,12 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 			if err != nil {
 				return err
 			}
-			if len(objects) == 0 && n == 0 {
-				return nil
+			if len(objects) > 0 || n > 0 {
+				if err := p.emitDAV(ctx, tx, kind); err != nil {
+					return err
+				}
 			}
-			return p.emitDAV(ctx, tx, kind)
+			return relinkDAVPeople(ctx, tx, kind)
 		})
 		if err != nil {
 			return fmt.Errorf("store dav batch: %w", err)
@@ -181,10 +186,12 @@ func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, collectionID int64
 		if err != nil {
 			return err
 		}
-		if n == 0 {
-			return nil
+		if n > 0 {
+			if err := p.emitDAV(ctx, tx, kind); err != nil {
+				return err
+			}
 		}
-		return p.emitDAV(ctx, tx, kind)
+		return relinkDAVPeople(ctx, tx, kind)
 	})
 	if err != nil {
 		return fmt.Errorf("delete dav objects: %w", err)
@@ -197,4 +204,12 @@ func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind davx.Kind) error 
 		return tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID})
 	}
 	return tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID})
+}
+
+// relinkDAVPeople keeps the people index in step only for address books.
+func relinkDAVPeople(ctx context.Context, tx *store.Tx, kind davx.Kind) error {
+	if kind == davx.AddressBooks {
+		return tx.RelinkPeople(ctx)
+	}
+	return nil
 }

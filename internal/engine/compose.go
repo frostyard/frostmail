@@ -761,13 +761,33 @@ func (o outbox) Retry(ctx context.Context, p *api.OutboxRetryParams) error {
 type addresses struct{ Deps }
 
 func (a addresses) Suggest(ctx context.Context, p *api.AddressSuggestParams) ([]api.Address, error) {
-	limit := 0
-	if p.Limit != nil {
+	limit := 10
+	if p.Limit != nil && *p.Limit > 0 {
 		limit = int(*p.Limit)
 	}
-	list, err := a.DB.SuggestAddresses(ctx, p.Prefix, limit)
+	list, err := a.DB.SuggestContacts(ctx, p.Prefix, limit)
 	if err != nil {
 		return nil, err
+	}
+	if len(list) == limit {
+		return toAPIAddresses(list), nil
+	}
+	seen, err := a.DB.SuggestAddresses(ctx, p.Prefix, limit)
+	if err != nil {
+		return nil, err
+	}
+	done := make(map[string]bool, len(list))
+	for _, addr := range list {
+		done[addr.Addr] = true
+	}
+	for _, addr := range seen {
+		if !done[addr.Addr] {
+			list = append(list, addr)
+			done[addr.Addr] = true
+			if len(list) == limit {
+				break
+			}
+		}
 	}
 	return toAPIAddresses(list), nil
 }
