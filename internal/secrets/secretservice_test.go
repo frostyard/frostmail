@@ -231,11 +231,13 @@ func TestSecretServiceStore(t *testing.T) {
 	if got := f.snapshot(); len(got) != 2 {
 		t.Fatalf("items = %v; replacing must not add one", got)
 	}
+	f.mu.Lock() // the bus's goroutines change items
 	for _, it := range f.items {
 		if !strings.HasPrefix(it.label, "Frostmail: account/") || it.attrs["application"] != "frostmail" {
 			t.Errorf("item %+v", it)
 		}
 	}
+	f.mu.Unlock()
 	if err := ss.Delete(ctx, "account/1/password"); err != nil {
 		t.Fatal(err)
 	}
