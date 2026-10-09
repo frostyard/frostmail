@@ -1,5 +1,5 @@
 import type { Occurrence, PartStat } from "../rpc/gen/api";
-import { addDays, today, zoned } from "./calendarDates";
+import { addDays, dayStart, today, zoned } from "./calendarDates";
 
 const dayNames: Readonly<Record<string, string>> = {
   MO: "Monday",
@@ -196,14 +196,14 @@ export function upcomingWhen(o: Occurrence, timeZone: string, locale: string, no
 /**
  * nextOccurrences keeps the occurrences that have not ended by now and are
  * not cancelled, in their order, at most limit: the To-Do bar's Upcoming.
- * An all-day occurrence ends at midnight of its endDate in timeZone. Task
- * T-0091 builds it.
+ * An all-day occurrence ends at midnight of its endDate in timeZone.
  */
-export function nextOccurrences(
-  _occurrences: Occurrence[],
-  _now: Date,
-  _timeZone: string,
-  _limit: number,
-): Occurrence[] {
-  throw new Error("Task T-0091 builds it");
+export function nextOccurrences(occurrences: Occurrence[], now: Date, timeZone: string, limit: number): Occurrence[] {
+  return occurrences
+    .filter(
+      (occurrence) =>
+        occurrence.status !== "cancelled" &&
+        (occurrence.allDay ? dayStart(occurrence.endDate, timeZone) : new Date(occurrence.end)) > now,
+    )
+    .slice(0, Math.max(0, limit));
 }

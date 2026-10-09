@@ -86,6 +86,7 @@ export interface ToolbarCalendar {
 /** ToolbarTasks describes the task source and detail pane. */
 export interface ToolbarTasks {
   title: string;
+  canCreate?: boolean;
   showCompleted: boolean | null;
   paneWidth: number;
 }
@@ -435,6 +436,7 @@ function TasksSegment({ tasks, onCommand }: { tasks: ToolbarTasks; onCommand: To
         label="New Task"
         shortcut="Ctrl+N"
         icon={<Plus size={16} />}
+        disabled={tasks.canCreate === false}
         onClick={() => onCommand({ kind: "newTask" })}
       />
       <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">

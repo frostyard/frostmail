@@ -152,7 +152,7 @@ export function TaskPane(props: TaskPaneProps) {
         </Field>
         {list && (
           <Field label="List">
-            <span>
+            <span className="truncate" title={`${list.name} · ${list.account}`}>
               {list.name}
               <span className="text-tertiary"> · {list.account}</span>
             </span>

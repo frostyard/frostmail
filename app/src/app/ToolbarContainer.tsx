@@ -241,6 +241,11 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
         ui.module === "tasks"
           ? {
               title: props.tasks?.title ?? "",
+              canCreate:
+                ui.tasksSource !== "flagged" &&
+                !props.tasks?.sections.some((section) =>
+                  section.lists.some((list) => list.id === ui.tasksSource && list.readOnly),
+                ),
               showCompleted: ui.tasksSource === "today" || ui.tasksSource === "flagged" ? null : ui.tasksShowCompleted,
               paneWidth: 320,
             }
