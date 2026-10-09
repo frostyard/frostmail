@@ -75,8 +75,10 @@ func (s *scrubber) collectValue(text string) {
 			eligible = true
 		}
 	}
-	if eligible && len([]rune(text)) >= 6 {
-		s.values[strings.ToLower(text)] = true
+	// The leak check looks for a value without the dates and zones
+	// scrubbing keeps.
+	if v := strings.ToLower(maskKept(text)); eligible && len([]rune(text)) >= 6 && len(strings.TrimSpace(v)) >= 3 {
+		s.values[v] = true
 	}
 }
 
@@ -110,8 +112,15 @@ func (s *scrubber) jsonValues(v any, links bool) {
 			s.jsonValues(item, links)
 		}
 	case map[string]any:
+		// A task list's ID encodes a number of the account's.
+		list := v["kind"] == "tasks#taskList"
 		for k, item := range v {
-			if text, ok := item.(string); ok && (k == "title" || k == "notes" || links && (k == "description" || k == "link")) {
+			s.syntax(k)
+			if kind, ok := item.(string); ok && k == "kind" {
+				s.syntax(kind)
+			}
+			if text, ok := item.(string); ok && (k == "title" || k == "notes" || links && (k == "description" || k == "link") ||
+				list && k == "id") {
 				s.collectValue(text)
 			}
 			s.jsonValues(item, k == "links" || links)
@@ -122,6 +131,7 @@ func (s *scrubber) jsonValues(v any, links bool) {
 // XML token offsets let us patch embedded content without reserializing
 // the envelope: request bodies must retain the client's exact formatting.
 func (s *scrubber) xmlBody(body string) (string, error) {
+	s.xmlNames(body)
 	d := xml.NewDecoder(strings.NewReader(body))
 	var stack []string
 	var edits []contentline.Edit
@@ -169,6 +179,44 @@ func (s *scrubber) xmlBody(body string) (string, error) {
 	return string(out), err
 }
 
+// xmlNames marks the words of body's element and attribute names, their
+// prefixes, and attribute values (namespaces, a comp's name) as syntax.
+func (s *scrubber) xmlNames(body string) {
+	d := xml.NewDecoder(strings.NewReader(body))
+	for {
+		token, err := d.RawToken()
+		if err != nil {
+			return
+		}
+		switch t := token.(type) {
+		case xml.StartElement:
+			s.syntax(t.Name.Space, t.Name.Local)
+			for _, a := range t.Attr {
+				s.syntax(a.Name.Space, a.Name.Local, a.Value)
+			}
+		case xml.EndElement:
+			s.syntax(t.Name.Space, t.Name.Local)
+		}
+	}
+}
+
+// syntaxParams are the parameters whose values are enumerations or
+// references, never a person's text. TZID is not one: a zone is kept by
+// its own rule (zones), and its city may be a personal place elsewhere.
+var syntaxParams = fieldSet("TYPE VALUE ENCODING CHARSET PREF PARTSTAT ROLE CUTYPE RSVP RELTYPE RELATED FBTYPE FMTTYPE " +
+	"MEDIATYPE RANGE SCHEDULE-AGENT SCHEDULE-STATUS SCHEDULE-FORCE-SEND LANGUAGE CALSCALE")
+
+// syntax marks every word of texts as never personal: it is part of a
+// format, and replacing it would change what parses or what the replay
+// matches. A personal word that is also syntax is kept everywhere.
+func (s *scrubber) syntax(texts ...string) {
+	for _, text := range texts {
+		for _, w := range words(text) {
+			s.excluded[strings.ToLower(w)] = true
+		}
+	}
+}
+
 func (s *scrubber) content(body string) (string, error) {
 	body = folds.ReplaceAllString(body, "")
 	cs, err := contentline.Parse([]byte(body))
@@ -184,7 +232,15 @@ func (s *scrubber) content(body string) (string, error) {
 }
 
 func (s *scrubber) component(c *contentline.Component, body string, edits *[]contentline.Edit) {
+	s.syntax(c.Name)
 	for _, p := range c.Props {
+		s.syntax(p.Group, p.Name)
+		for _, q := range p.Params {
+			s.syntax(q.Name)
+			if syntaxParams[q.Name] {
+				s.syntax(q.Values...)
+			}
+		}
 		personal := calendarFields[p.Name]
 		if c.Name == "VCARD" {
 			personal = cardFields[p.Name]

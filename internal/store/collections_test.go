@@ -275,7 +275,10 @@ func TestContacts(t *testing.T) {
 	index(ContactIndex{
 		DisplayName: "Ada Lovelace", SortKey: "lovelace ada", GivenName: "Ada", FamilyName: "Lovelace",
 		Organization: "Engines", Photo: []byte{1, 2}, PhotoType: "image/png",
-		Emails: []ContactEmail{{Email: " Ada@Example.COM ", Label: "home"}, {Email: ""}, {Email: "ada@work.example", Label: "work"}},
+		// Google's vCards may give an address twice (preferred, then plain):
+		// the first is kept.
+		Emails: []ContactEmail{{Email: " Ada@Example.COM ", Label: "home"}, {Email: ""}, {Email: "ada@work.example", Label: "work"},
+			{Email: "ada@example.com"}},
 	})
 	got, err := d.Contact(ctx, id)
 	want := ContactIndex{

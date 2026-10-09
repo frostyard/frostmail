@@ -109,9 +109,12 @@ against their recorded sessions (plan 0007, Phase 5).
 2. **Scrub.** `tools/davrec` turns a trace into one that can be checked
    in. Every personal value (names, addresses, phone numbers, postal
    addresses, notes, event and task text, places, people, UIDs,
-   collection names, and the account's address wherever it appears, URLs
-   included) becomes a fake of the same shape, keyed per run as imaprec's
-   are, and photos become a one-pixel image. It refuses to write a trace
+   collection names, Google task list IDs, and the account's address
+   wherever it appears, URLs included) becomes a fake of the same shape,
+   keyed per run as imaprec's are, and photos become a one-pixel image.
+   Dates, IANA time zone names and a format's own words (XML element and
+   attribute names, vCard and iCalendar property and parameter names, JSON
+   keys) are kept, so request bodies replay byte for byte. It refuses to write a trace
    in which a replaced value remains, and writes the account's fake
    address as a `# account` comment for the replay test's account.
 3. **Replay.** `httprec.Serve` answers a client on a loopback port with

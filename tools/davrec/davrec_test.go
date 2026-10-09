@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -411,5 +412,124 @@ func TestScrubRefusesWhatItCannotScrub(t *testing.T) {
 	}
 	if err := run([]string{trace}, io.Discard); err == nil {
 		t.Error("no -account was accepted")
+	}
+}
+
+// TestScrubKeepsDates: dates stay, being what a sync orders by, and the
+// check for remaining personal words allows them. Google's holiday events
+// begin their UIDs with the date; a birthday is a date too. A number that
+// is no date, like a phone number, is still replaced.
+func TestScrubKeepsDates(t *testing.T) {
+	xs := []httprec.Exchange{
+		{Method: "GET", URL: "https://apidata.googleusercontent.com/caldav/v2/h/events/new-year.ics", Status: 200,
+			RespBody: "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:20210101_60o30chp6so30c1g60o30dr4ck@google.com\r\n" +
+				"DTSTART;VALUE=DATE:20210101\r\nSUMMARY:Lunar Festival\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"},
+		{Method: "GET", URL: "https://www.googleapis.com/carddav/v1/principals/p/lists/default/c1.vcf", Status: 200,
+			RespBody: "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:c1\r\nFN:Rowan Quill\r\nBDAY:1993-09-29\r\nTEL:55512345\r\nEND:VCARD\r\n"},
+	}
+	out := filepath.Join(t.TempDir(), "out.trace")
+	if err := run([]string{"-account", account, "-keyfile", keyfile, "-o", out, writeTrace(t, xs)}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	for _, kept := range []string{`DTSTART;VALUE=DATE:20210101`, `BDAY:1993-09-29`} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("%s was not kept:\n%s", kept, got)
+		}
+	}
+	for _, gone := range []string{"60o30chp6so30c1g60o30dr4ck", "Lunar", "Rowan", "55512345"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("%s survived:\n%s", gone, got)
+		}
+	}
+}
+
+// TestScrubTaskListIDs: a Google task list's ID encodes a number of the
+// account's. It becomes the same fake in the lists, the URLs that name
+// it and the tasks' links.
+func TestScrubTaskListIDs(t *testing.T) {
+	const id = "MTM0NTAxNDk2NTkzMDAzNTk0ODc6MDow"
+	list := "https://tasks.googleapis.com/tasks/v1/lists/" + id + "/tasks"
+	xs := []httprec.Exchange{
+		{Method: "GET", URL: "https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=100", Status: 200,
+			RespBody: `{"kind":"tasks#taskLists","items":[{"kind":"tasks#taskList","id":"` + id + `","title":"My Tasks"}]}`},
+		{Method: "GET", URL: list + "?maxResults=100", Status: 200,
+			RespBody: `{"kind":"tasks#tasks","items":[{"kind":"tasks#task","id":"UHpLcndzRXJTdXBpUEV3bg","title":"Pay rent",` +
+				`"selfLink":"https://www.googleapis.com/tasks/v1/lists/` + id + `/tasks/UHpLcndzRXJTdXBpUEV3bg"}]}`},
+	}
+	out := filepath.Join(t.TempDir(), "out.trace")
+	if err := run([]string{"-account", account, "-keyfile", keyfile, "-o", out, writeTrace(t, xs)}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	got, err := httprec.Load(out)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("scrubbed = %+v, %v", got, err)
+	}
+	raw, _ := os.ReadFile(out)
+	if strings.Contains(string(raw), id) {
+		t.Fatalf("the list ID survived:\n%s", raw)
+	}
+	var lists struct {
+		Items []struct{ ID string } `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(got[0].RespBody), &lists); err != nil || len(lists.Items) != 1 {
+		t.Fatalf("lists = %s, %v", got[0].RespBody, err)
+	}
+	fake := lists.Items[0].ID
+	if len(fake) != len(id) || !strings.Contains(got[1].URL, "/lists/"+fake+"/tasks") ||
+		!strings.Contains(got[1].RespBody, "/lists/"+fake+"/tasks/") {
+		t.Errorf("the list is not the same fake everywhere: %q, %q, %q", fake, got[1].URL, got[1].RespBody)
+	}
+}
+
+// TestScrubKeepsStructure: a word that is personal in one place is still
+// kept where it is syntax, an XML name or a property's, and time zone
+// names stay with the dates. A contact's note says "address", which is
+// part of CardDAV's address-data; an event's place names the zone's city.
+func TestScrubKeepsStructure(t *testing.T) {
+	card := "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:c1\r\nFN:Rowan Quill\r\nNOTE:Mailing address changed\r\n" +
+		"item1.TEL;TYPE=CELL:(213) 395-8201\r\nEND:VCARD\r\n"
+	event := "BEGIN:VCALENDAR\r\nX-WR-TIMEZONE:America/New_York\r\nBEGIN:VEVENT\r\nUID:e1\r\n" +
+		"DTSTART;TZID=America/New_York:20261014T120000\r\nSUMMARY:Lunch\r\nLOCATION:York Harbour office\r\n" +
+		"END:VEVENT\r\nEND:VCALENDAR\r\n"
+	xs := []httprec.Exchange{
+		{Method: "REPORT", URL: "https://www.googleapis.com/carddav/v1/principals/p/lists/default/",
+			ReqBody: `<cr:addressbook-multiget xmlns:d="DAV:" xmlns:cr="urn:ietf:params:xml:ns:carddav">` +
+				`<d:prop><cr:address-data/></d:prop><d:href>c1</d:href></cr:addressbook-multiget>`,
+			Status: 207,
+			RespBody: `<d:multistatus xmlns:d="DAV:" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:response><d:href>c1</d:href>` +
+				`<d:propstat><d:prop><card:address-data>` + card + `</card:address-data></d:prop></d:propstat></d:response></d:multistatus>`},
+		{Method: "GET", URL: "https://apidata.googleusercontent.com/caldav/v2/h/events/e1.ics", Status: 200, RespBody: event},
+	}
+	out := filepath.Join(t.TempDir(), "out.trace")
+	if err := run([]string{"-account", account, "-keyfile", keyfile, "-o", out, writeTrace(t, xs)}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	got, err := httprec.Load(out)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("scrubbed = %+v, %v", got, err)
+	}
+	if got[0].ReqBody != xs[0].ReqBody {
+		t.Errorf("the request changed:\n%s", got[0].ReqBody)
+	}
+	for _, kept := range []string{"<card:address-data>", "</card:address-data>", "item1.TEL;TYPE=CELL:"} {
+		if !strings.Contains(got[0].RespBody, kept) {
+			t.Errorf("%s was not kept:\n%s", kept, got[0].RespBody)
+		}
+	}
+	for _, kept := range []string{"X-WR-TIMEZONE:America/New_York", "DTSTART;TZID=America/New_York:20261014T120000"} {
+		if !strings.Contains(got[1].RespBody, kept) {
+			t.Errorf("%s was not kept:\n%s", kept, got[1].RespBody)
+		}
+	}
+	raw, _ := os.ReadFile(out)
+	for _, gone := range []string{"Mailing", "Rowan", "Harbour", "York Harbour", "Lunch"} {
+		if strings.Contains(string(raw), gone) {
+			t.Errorf("%s survived:\n%s", gone, raw)
+		}
 	}
 }
