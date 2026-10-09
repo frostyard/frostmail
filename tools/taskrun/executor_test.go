@@ -17,6 +17,7 @@ func TestCodexCommand(t *testing.T) {
 		"exec --color never -C /repo",
 		`sandbox_mode="workspace-write"`,
 		`sandbox_workspace_write.writable_roots=["/home/u/.cache/go-build", "/home/u/.cache/mise"]`,
+		"sandbox_workspace_write.network_access=true",
 		`approval_policy="never"`,
 	} {
 		if !strings.Contains(joined, want) {

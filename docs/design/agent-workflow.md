@@ -26,7 +26,7 @@ executor is Codex since [ADR-0021](../adr/0021-run-task-cards-with-codex.md).
    `doing/` and commits that as `chore(tasks): start T-NNNN …`.
 3. It runs the executor with the card (`EXECUTOR`, `codex` by default):
    `codex exec` in the `workspace-write` sandbox, with Go's build cache and
-   golangci-lint's and mise's caches writable and the network off. Codex
+   golangci-lint's and mise's caches writable and the network on. Codex
    loads `AGENTS.md` itself and runs the Go gates through
    `mise exec -- make …`; it cannot reach the nsl machine, so for a card
    that touches `app/` taskrun runs `make ui-fmt` before checking.

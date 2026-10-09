@@ -33,3 +33,9 @@ func (t *Tx) IndexContact(ctx context.Context, objectID int64, c ContactIndex) e
 func (t *Tx) RemoveContact(ctx context.Context, objectID int64) error {
 	return errNotYet
 }
+
+// Contact returns an object's contact index, or ErrNotFound when the
+// object is not a contact.
+func (d *DB) Contact(ctx context.Context, objectID int64) (ContactIndex, error) {
+	return ContactIndex{}, errNotYet
+}

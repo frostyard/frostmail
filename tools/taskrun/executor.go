@@ -39,10 +39,11 @@ func (e executor) command(prompt string, resume bool) (string, []string, error) 
 }
 
 // codexArgs runs Codex non-interactively in a workspace-write sandbox:
-// edits stay in the repository, commands may write the repository, /tmp and
-// the caches in writable, and the network stays off. A follow-up resumes the
-// newest session started in the repository, which is the card's own:
-// taskrun runs one card at a time.
+// edits stay in the repository, and commands may write the repository,
+// /tmp and the caches in writable, and use the network (the sandbox
+// refuses even loopback sockets without it, and tests start servers). A
+// follow-up resumes the newest session started in the repository, which is
+// the card's own: taskrun runs one card at a time.
 func (e executor) codexArgs(prompt string, resume bool) []string {
 	quoted := make([]string, len(e.writable))
 	for i, d := range e.writable {
@@ -51,6 +52,7 @@ func (e executor) codexArgs(prompt string, resume bool) []string {
 	cfg := []string{
 		"-c", `sandbox_mode="workspace-write"`,
 		"-c", "sandbox_workspace_write.writable_roots=[" + strings.Join(quoted, ", ") + "]",
+		"-c", "sandbox_workspace_write.network_access=true",
 		"-c", `approval_policy="never"`,
 	}
 	if e.model != "" {
