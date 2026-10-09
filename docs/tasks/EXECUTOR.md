@@ -19,9 +19,13 @@ You are implementing one task card. The card is the whole job.
    `make ui-fmt` formats your files. Never run `pnpm`, `npx` or `node`
    directly. If your shell lacks the pinned tools (Codex's does), run make
    through mise: `mise exec -- make check`. If the app's targets cannot
-   reach the nsl machine (Codex's sandbox cannot), do not run them: taskrun
-   formats your files, runs them after you finish, and sends you any
-   failure.
+   reach the nsl machine (Codex's sandbox cannot), do not run them; run the
+   same tools on the host from `app/` instead:
+   `mise exec -- pnpm exec vitest run <test files>`,
+   `mise exec -- pnpm exec biome check --write <your files>` and
+   `mise exec -- pnpm exec tsc --noEmit`, never `pnpm install`. taskrun
+   formats your files, runs the make targets after you finish, and sends
+   you any failure.
 6. Fix the code, not the check: no `//nolint`, no skipped tests, no deleted
    assertions.
 7. After five failed attempts at the same failure, stop and write what you

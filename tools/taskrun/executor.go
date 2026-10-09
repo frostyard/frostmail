@@ -73,9 +73,11 @@ func (e executor) guidance(c *Card) string {
 	s := "Your shell does not load the repository's pinned tools: run make through mise, as in " +
 		"`mise exec -- make accept T=" + c.ID + "` and `mise exec -- make check`."
 	if TouchesApp(c) {
-		s += " The app's targets (`make ui-check`, `make ui-vitest`, `make ui-fmt`) run in the nsl machine, " +
-			"which your sandbox cannot reach: do not run them. taskrun formats your files and runs them " +
-			"after you finish, and sends you any failure."
+		s += " The app's make targets (`make ui-check`, `make ui-vitest`, `make ui-fmt`) run in the nsl machine, " +
+			"which your sandbox cannot reach: do not run them. Run the same tools on the host instead, from app/: " +
+			"`mise exec -- pnpm exec vitest run <test files>`, `mise exec -- pnpm exec biome check --write <your files>` " +
+			"and `mise exec -- pnpm exec tsc --noEmit`; never `pnpm install`. taskrun formats your files and " +
+			"runs the make targets after you finish, and sends you any failure."
 	}
 	return s + "\n"
 }

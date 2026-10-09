@@ -39,9 +39,13 @@ it (checked with T-0060, the first card Codex ran).
   rpctest, davtest) fail inside it; the user chose to give Codex the
   network for every card rather than per card.
 - **Codex runs the Go gates itself** through `mise exec -- make …`. For a
-  card that touches `app/`, taskrun runs `make ui-fmt`, the acceptance
-  command and `make ui-check` outside the sandbox after each attempt and
-  sends Codex any failure.
+  card that touches `app/`, it runs Biome, tsc and Vitest on the host from
+  the `node_modules` the nsl machine installed (the host's Node from mise;
+  both are Linux x86-64), and taskrun runs `make ui-fmt`, the acceptance
+  command and `make ui-check` in nsl after each attempt and sends Codex a
+  digest of any failure: the lines that name failures, then the run's
+  last lines. (Without host runs, T-0064 spent three attempts on failures
+  it could not see.)
 - **Larger cards.** Cards may be S, M (400 lines in 6 files) or L (1,000
   lines: one package or one feature, such as a module of the app or a sync
   loop with its store queries). A card still has a fixed file list, a
