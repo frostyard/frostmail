@@ -17,13 +17,7 @@ import (
 )
 
 func (p *pass) syncGoogleTasks(ctx context.Context, s store.Service) error {
-	c := gtasks.New(s.URL, gtasks.Options{HTTP: p.m.cfg.HTTP, UserAgent: p.m.cfg.UserAgent,
-		Token: func(ctx context.Context) (string, error) {
-			if p.m.cfg.Tokens == nil {
-				return "", fmt.Errorf("%w: maild has no OAuth sign-in", errSignIn)
-			}
-			return p.m.cfg.Tokens.AccessToken(ctx, p.acct.ID)
-		}})
+	c := p.googleTasksClient(s)
 	lists, err := c.Lists(ctx)
 	if err != nil {
 		return fmt.Errorf("list google task lists: %w", err)
