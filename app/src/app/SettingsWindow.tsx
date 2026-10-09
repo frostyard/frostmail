@@ -13,7 +13,16 @@ import { AccountForm, type AccountFormValue, type DiscoveryState } from "../feat
 import { AccountList } from "../features/settings/AccountList";
 import { type IdentityChange, IdentityEditor } from "../features/settings/IdentityEditor";
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
-import type { Account, Client, Identity, OAuthClient, ServerConfig } from "../rpc/gen/api";
+import { ServicesSection } from "../features/settings/ServicesSection";
+import type {
+  Account,
+  Client,
+  Identity,
+  OAuthClient,
+  ServerConfig,
+  ServiceKind,
+  ServiceSettings,
+} from "../rpc/gen/api";
 import { ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 import { openInBrowser } from "./settings";
@@ -149,6 +158,66 @@ async function confirmRemove(email: string): Promise<boolean> {
   return isTauri() ? ask(text, { title: "Remove Account?", kind: "warning", okLabel: "Remove" }) : window.confirm(text);
 }
 
+// Keyed by the selected ID so requests and field state cannot follow the
+// user to another account, including one created before the list reloads.
+function AccountServices(props: { id: number; onSignIn: () => void; onError: (error: string) => void }) {
+  const client = useClient();
+  const { id, onError } = props;
+  const [services, setServices] = useState<ServiceSettings[]>([]);
+  const [busy, setBusy] = useState<ServiceKind | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<ServiceKind, string>>>({});
+  const active = useRef(true);
+  const revision = useRef(0);
+  const load = useCallback(async () => {
+    const request = ++revision.current;
+    try {
+      const result = await client.account.services({ id });
+      if (active.current && request === revision.current) setServices(result);
+    } catch (err) {
+      if (active.current && request === revision.current) onError(message(err));
+    }
+  }, [client, id, onError]);
+  useEffect(() => {
+    active.current = true;
+    void load();
+    const off = client.transport.onEvent((event) => {
+      if (event.event === "account.changed" && event.data.id === id) void load();
+    });
+    return () => {
+      active.current = false;
+      ++revision.current;
+      off();
+    };
+  }, [client, id, load]);
+  const toggle = async (service: ServiceKind, enabled: boolean, url?: string) => {
+    setBusy(service);
+    try {
+      await client.account.setService({ id, service, enabled, ...(url === undefined ? {} : { url }) });
+      if (!active.current) return;
+      setErrors((current) => {
+        const next = { ...current };
+        delete next[service];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      if (active.current) setErrors((current) => ({ ...current, [service]: message(err) }));
+    } finally {
+      if (active.current) setBusy((current) => (current === service ? null : current));
+    }
+  };
+  return (
+    <ServicesSection
+      services={services}
+      busy={busy}
+      errors={errors}
+      now={new Date()}
+      onToggle={(service, enabled, url) => void toggle(service, enabled, url)}
+      onSignIn={props.onSignIn}
+    />
+  );
+}
+
 function AccountsPane() {
   const client = useClient();
   const accounts = useMail((s) => s.accounts);
@@ -242,6 +311,10 @@ function AccountsPane() {
     });
   };
 
+  const authorize = () => {
+    if (typeof selected === "number") void run(() => signIn(client, selected), noClient);
+  };
+
   return (
     <div className="flex h-full">
       <AccountList
@@ -259,9 +332,12 @@ function AccountsPane() {
           discovery={discovery}
           onDiscover={() => void discover()}
           signedIn={account?.signedIn ?? false}
-          onSignIn={() => {
-            if (account) void run(() => signIn(client, account.id), noClient);
-          }}
+          onSignIn={authorize}
+          services={
+            typeof selected === "number" && (
+              <AccountServices key={selected} id={selected} onSignIn={authorize} onError={setError} />
+            )
+          }
           busy={busy}
           error={error}
           onSubmit={submit}

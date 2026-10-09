@@ -3,7 +3,7 @@
 // address, Find Settings, the sign-in, both servers and the options) and
 // edits an existing one (its name, servers, options, a new password, or
 // signing in to Google again), reporting every edit as a new value.
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
 
 import type { AccountKind, AuthKind, DiscoverySource, ServerConfig } from "../../rpc/gen/api";
 import { ALERT, BUTTON, FIELD, GRID, KIND_LABEL, LABEL, PRIMARY_BUTTON } from "./labels";
@@ -48,6 +48,7 @@ export interface AccountFormProps {
   error: string | null;
   onSubmit: () => void;
   onCancel: () => void;
+  services?: ReactNode;
 }
 
 const KINDS: readonly AccountKind[] = ["imap", "gmail", "icloud"];
@@ -309,6 +310,7 @@ export function AccountForm(props: AccountFormProps) {
           onChange={(notify) => onChange({ ...value, notify })}
         />
       </div>
+      {mode === "edit" && props.services}
       {error && (
         <p className={ALERT} role="alert">
           {error}
