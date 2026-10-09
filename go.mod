@@ -11,6 +11,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/spf13/cobra v1.10.2
 	github.com/tdewolff/parse/v2 v2.8.16
+	github.com/teambition/rrule-go v1.8.2
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.59.0
 	modernc.org/sqlite v1.60.1
