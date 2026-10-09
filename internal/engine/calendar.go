@@ -246,10 +246,6 @@ func calendarEventAPI(e store.EventRow, emails []string) api.CalendarEvent {
 	return out
 }
 
-func (c calendarService) Invitation(context.Context, *api.CalendarInvitationParams) (*api.Invitation, error) {
-	return nil, notBuilt("calendar.invitation")
-}
-
 func (c calendarService) Respond(context.Context, *api.CalendarRespondParams) (*api.CalendarEvent, error) {
 	return nil, notBuilt("calendar.respond")
 }
