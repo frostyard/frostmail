@@ -5,11 +5,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,6 +19,7 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
@@ -27,6 +30,7 @@ import (
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
+	"github.com/frostyard/frostmail/internal/pimsync"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -117,10 +121,15 @@ func run(ctx context.Context, args []string) error {
 		syncCfg.Announce = desktop.Announce
 	}
 	syncer := mailsync.New(db, sec, blobs, logger, syncCfg, broker.Publish)
+	pim := pimsync.New(db, sec, logger, pimConfig(syncCfg.InsecureSkipVerify, tokens))
 	tokens.SignedIn = func(id int64) {
 		if err := syncer.Restart(ctx, id); err != nil {
 			logger.Warn("restart a signed-in account", "account", id, "err", err)
 		}
+		if err := pim.Reload(ctx); err != nil {
+			logger.Warn("restart a signed-in account's services", "account", id, "err", err)
+		}
+		pim.Poll(id, true)
 	}
 	undo := engine.DefaultUndoDelay
 	if v := os.Getenv("FROSTMAIL_UNDO_DELAY"); v != "" {
@@ -136,13 +145,13 @@ func run(ctx context.Context, args []string) error {
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger})
 	eng := engine.New(engine.Deps{
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
-		OAuth: tokens,
+		OAuth: tokens, PIM: pim,
 	})
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
-		Oauth: eng.Oauth(),
+		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
 	})
 	if err != nil {
 		return err
@@ -153,10 +162,16 @@ func run(ctx context.Context, args []string) error {
 	// screenshots). Mail already stored still reads.
 	if os.Getenv("FROSTMAIL_SYNC") == "off" {
 		logger.Warn("sync is off (FROSTMAIL_SYNC=off)")
-	} else if err := syncer.Start(ctx); err != nil {
-		return err
+	} else {
+		if err := syncer.Start(ctx); err != nil {
+			return err
+		}
+		if err := pim.Start(ctx); err != nil {
+			return err
+		}
 	}
 	defer syncer.Wait()
+	defer pim.Wait()
 	if *devgwAddr != "" {
 		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router) }
 		go func() {
@@ -169,6 +184,18 @@ func run(ctx context.Context, args []string) error {
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
 	return err
+}
+
+// pimConfig configures contacts, calendar and tasks sync: test servers'
+// certificates and plain HTTP only with FROSTMAIL_INSECURE_TLS=1.
+func pimConfig(insecure bool, tokens pimsync.TokenSource) pimsync.Config {
+	cfg := pimsync.Config{Tokens: tokens, UserAgent: "Frostmail/" + version, AllowHTTP: insecure}
+	if insecure {
+		cfg.HTTP = &http.Client{Timeout: time.Minute, Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test servers only
+		}}
+	}
+	return cfg
 }
 
 // openInApp runs the app on a clicked notification's message (or just the

@@ -135,9 +135,58 @@ Compare the stored mail with the server, changing nothing on either side.
 Result: `VerifyReport`.
 Errors: `notFound`, `unavailable`.
 
+### `account.services`
+
+An account's contacts, calendar and tasks services, in that order.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `[]ServiceSettings`.
+Errors: `notFound`.
+
+### `account.setService`
+
+Turn a service on or off. Turning one on without a url takes the provider's profile or discovers the server (well-known URLs, then SRV records) and syncs it; a Google account whose grant lacks the service's scope waits for account.authorize. Turning one off stops syncing and keeps what is stored.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `service` | `ServiceKind` |  |
+| `enabled` | `bool` |  |
+| `url` | `string` (optional) | The server's address, when discovery finds nothing. |
+
+Result: `ServiceSettings`.
+Errors: `notFound`, `invalidParams`, `unavailable`.
+
+### `account.collections`
+
+Address books, calendars and task lists, by account, then by the server's order.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+| `kind` | `CollectionKind` (optional) |  |
+
+Result: `[]Collection`.
+
+### `account.setCollection`
+
+Show or hide a collection, or make it the default of its kind for its account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `enabled` | `bool` (optional) |  |
+| `isDefault` | `bool` (optional) | Only true: the previous default stops being one. |
+
+Result: `Collection`.
+Errors: `notFound`, `invalidParams`.
+
 ### Event `account.changed` (durable)
 
-An account was created, updated or deleted.
+An account was created, updated or deleted, or its services or collections changed.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -209,6 +258,51 @@ How one synced folder compares with the server.
 | `flagDiffs` | `int` | Messages whose flags differ, leaving out those changed since the last pass or waiting for a queued action. |
 | `labelDiffs` | `int` | Gmail: messages whose labels differ, with the same exceptions. |
 
+### Type `ServiceSettings`
+
+One of an account's services besides mail.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `service` | `ServiceKind` |  |
+| `available` | `bool` | The provider offers the service; iCloud's tasks, for one, are out of reach. |
+| `enabled` | `bool` |  |
+| `url` | `string` | Where the service lives: the DAV home set, or the Tasks API. Empty until found. |
+| `signedIn` | `bool` | The account's sign-in covers the service. False for a Google account whose grant lacks the service's scope: account.authorize asks for it. |
+| `lastSyncAt` | `time` (optional) | The end of the last complete pass. |
+| `error` | `string` (optional) | Why the last pass failed. |
+
+### Type `Collection`
+
+An address book, calendar or task list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `accountId` | `int` |  |
+| `kind` | `CollectionKind` |  |
+| `name` | `string` |  |
+| `color` | `string` | #rrggbb, or empty for the module's default. |
+| `events` | `bool` | Holds events. |
+| `tasks` | `bool` | Holds tasks: a task list, or a calendar with VTODO. |
+| `readOnly` | `bool` | The server refuses changes, or the account is read-only. |
+| `enabled` | `bool` | Synced and shown. |
+| `isDefault` | `bool` | Where the account's new contacts, events or tasks go. |
+
+### Type `CollectionCheck`
+
+How one synced address book, calendar or task list compares with the server.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `collectionId` | `int` |  |
+| `name` | `string` |  |
+| `server` | `int` | Objects on the server. |
+| `local` | `int` | Objects stored locally. |
+| `missingLocally` | `[]string` | Server hrefs with no local object (at most 20). |
+| `missingOnServer` | `[]string` | Local hrefs the server does not have (at most 20), leaving out changes waiting to be written. |
+| `etagDiffs` | `int` | Objects whose ETag differs, with the same exception. |
+
 ### Type `VerifyReport`
 
 The result of account.verify.
@@ -216,8 +310,9 @@ The result of account.verify.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `accountId` | `int` |  |
-| `ok` | `bool` | No folder differs. |
+| `ok` | `bool` | No folder or collection differs. |
 | `mailboxes` | `[]MailboxCheck` |  |
+| `collections` | `[]CollectionCheck` | The enabled collections of the services that are on. |
 | `checkedAt` | `time` |  |
 
 ### Enum `AccountKind`
@@ -262,6 +357,26 @@ How a connection is secured.
 | `starttls` | Plain connection upgraded with STARTTLS (143, 587). |
 | `insecure` | No TLS. Only for local test servers. |
 
+### Enum `ServiceKind`
+
+A service an account syncs besides mail (ADR-0017).
+
+| Value | Meaning |
+| --- | --- |
+| `contacts` | Address books over CardDAV. |
+| `calendar` | Calendars over CalDAV. |
+| `tasks` | Google Tasks for Google accounts; task lists over CalDAV for others. |
+
+### Enum `CollectionKind`
+
+What a collection holds.
+
+| Value | Meaning |
+| --- | --- |
+| `addressbook` | A CardDAV address book. |
+| `calendar` | A CalDAV calendar, holding events, tasks or both. |
+| `tasklist` | A Google Tasks list. |
+
 ## address
 
 Addresses seen in stored and sent mail, for completing recipients.
@@ -277,6 +392,251 @@ Addresses whose address, or any word of whose name, starts with prefix (case-ins
 
 Result: `[]Address`.
 
+## calendar
+
+Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+
+### `calendar.range`
+
+The occurrences that overlap the days from to to, in start order, from enabled calendars of accounts with the calendar service on.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `from` | `string` | The first day, YYYY-MM-DD. |
+| `to` | `string` | The day after the last; at most 400 days after from. |
+| `timeZone` | `string` (optional) | The IANA zone the days are in. Default: maild's local zone. |
+| `calendarIds` | `[]int` (optional) | Only these calendars. |
+
+Result: `[]Occurrence`.
+Errors: `invalidParams`.
+
+### `calendar.event`
+
+An event, or one occurrence of a series.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `recurrenceId` | `string` (optional) |  |
+
+Result: `CalendarEvent`.
+Errors: `notFound`.
+
+### `calendar.invitation`
+
+The invitation in a message's text/calendar part.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `int` |  |
+
+Result: `Invitation`.
+Errors: `notFound`, `invalidParams`.
+
+### `calendar.respond`
+
+Answer an invitation, from its message or its stored event. maild changes the user's PARTSTAT in the stored event and lets the server tell the organizer, or sends the organizer an iTIP REPLY itself when the server does not (ADR-0019). An accepted invitation not yet stored goes into the account's default calendar.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `int` (optional) |  |
+| `eventId` | `int` (optional) |  |
+| `recurrenceId` | `string` (optional) | Answer one occurrence only. |
+| `answer` | `PartStat` | accepted, declined or tentative. |
+| `comment` | `string` (optional) | A note for the organizer. |
+
+Result: `CalendarEvent`.
+Errors: `notFound`, `invalidParams`, `conflict`.
+
+### `calendar.reminders`
+
+The reminders that are due now and neither dismissed nor snoozed, oldest first.
+
+No params.
+
+Result: `[]Reminder`.
+
+### `calendar.snooze`
+
+Show reminders again at until.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]string` |  |
+| `until` | `time` |  |
+
+Result: none (`null`).
+Errors: `invalidParams`.
+
+### `calendar.dismiss`
+
+Stop showing reminders.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]string` |  |
+
+Result: none (`null`).
+Errors: `invalidParams`.
+
+### Event `calendar.changed` (durable)
+
+An account's calendars or events changed; views refetch their ranges.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+
+### Event `calendar.reminders` (transient)
+
+Reminders became due; the app raises its reminder window with calendar.reminders.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `count` | `int` | How many are due now. |
+
+### Type `Occurrence`
+
+One occurrence of an event.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `eventId` | `int` | The single event, the series' master, or the override that replaced this occurrence. |
+| `recurrenceId` | `string` | Which occurrence of a series: its original start as stored; empty for a single event. |
+| `calendarId` | `int` |  |
+| `accountId` | `int` |  |
+| `summary` | `string` |  |
+| `location` | `string` |  |
+| `allDay` | `bool` |  |
+| `start` | `time` | Timed: the start. All-day: midnight of startDate in the range's time zone. |
+| `end` | `time` | Exclusive. |
+| `startDate` | `string` | All-day: the first day, YYYY-MM-DD. Empty for timed events. |
+| `endDate` | `string` | All-day: the day after the last. Empty for timed events. |
+| `status` | `EventStatus` |  |
+| `answer` | `PartStat` (optional) | The user's answer, when invited. |
+| `transparent` | `bool` | Does not count as busy. |
+| `recurring` | `bool` | Part of a series. |
+
+### Type `Attendee`
+
+An organizer or attendee.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `email` | `string` | Lowercased. |
+| `name` | `string` |  |
+| `role` | `AttendeeRole` |  |
+| `answer` | `PartStat` |  |
+| `isUser` | `bool` | One of the account's own addresses. |
+
+### Type `CalendarEvent`
+
+An event in full; for an occurrence of a series, that occurrence's times.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `recurrenceId` | `string` |  |
+| `calendarId` | `int` |  |
+| `accountId` | `int` |  |
+| `uid` | `string` |  |
+| `summary` | `string` |  |
+| `location` | `string` |  |
+| `description` | `string` | Plain text. |
+| `allDay` | `bool` |  |
+| `start` | `time` |  |
+| `end` | `time` |  |
+| `startDate` | `string` |  |
+| `endDate` | `string` |  |
+| `timeZone` | `string` | The IANA zone the event was made in, or empty (UTC, floating or all-day). |
+| `recurring` | `bool` |  |
+| `recurrence` | `string` | The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty for a single event. |
+| `status` | `EventStatus` |  |
+| `transparent` | `bool` |  |
+| `organizer` | `Attendee` (optional) |  |
+| `attendees` | `[]Attendee` | Without the organizer. |
+| `answer` | `PartStat` (optional) | The user's answer, when invited. |
+| `alarms` | `[]int` | Reminders shown, as minutes before the start (negative: after). |
+| `readOnly` | `bool` |  |
+
+### Type `Invitation`
+
+An iTIP message in mail, matched against the stored events (ADR-0019).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `method` | `ITIPMethod` |  |
+| `event` | `CalendarEvent` | The event as the message describes it; id is 0 when it is not stored. |
+| `eventId` | `int` (optional) | The stored event with the message's UID, when there is one. |
+| `from` | `Attendee` (optional) | Request and cancel: the organizer. Reply: the attendee who answered. |
+| `answer` | `PartStat` (optional) | The user's current answer to the stored event or, before it is stored, to the message. |
+| `canRespond` | `bool` | A request the user is invited to, not outdated, in an account that can write. |
+| `outdated` | `bool` | The stored event has a later SEQUENCE than the message. |
+| `conflicts` | `[]Occurrence` | Busy occurrences overlapping the event's first occurrence. |
+| `adjacent` | `[]Occurrence` | The occurrences just before and after it on the same day. |
+
+### Type `Reminder`
+
+An alarm that is due.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `string` | Opaque; names the occurrence and alarm for calendar.snooze and calendar.dismiss. |
+| `eventId` | `int` |  |
+| `recurrenceId` | `string` |  |
+| `calendarId` | `int` |  |
+| `summary` | `string` |  |
+| `location` | `string` |  |
+| `allDay` | `bool` |  |
+| `start` | `time` |  |
+| `startDate` | `string` |  |
+| `dueAt` | `time` | When the alarm went off, or the snooze ended. |
+
+### Enum `PartStat`
+
+An attendee's answer to an invitation (iCalendar PARTSTAT).
+
+| Value | Meaning |
+| --- | --- |
+| `needsaction` | Not answered. |
+| `accepted` |  |
+| `declined` |  |
+| `tentative` | Maybe. |
+| `delegated` |  |
+
+### Enum `EventStatus`
+
+An event's STATUS.
+
+| Value | Meaning |
+| --- | --- |
+| `confirmed` |  |
+| `tentative` |  |
+| `cancelled` |  |
+
+### Enum `AttendeeRole`
+
+An attendee's ROLE.
+
+| Value | Meaning |
+| --- | --- |
+| `chair` |  |
+| `required` |  |
+| `optional` |  |
+| `none` | Copied for information. |
+
+### Enum `ITIPMethod`
+
+What an invitation message asks (iTIP METHOD).
+
+| Value | Meaning |
+| --- | --- |
+| `request` | An invitation, or an update of one. |
+| `cancel` | The organizer cancelled the event or the user's place in it. |
+| `reply` | An attendee answered the user's invitation. |
+| `publish` | An event to add; no answer expected. |
+| `other` | ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on. |
+
 ## draft
 
 Drafts: messages being written. maild stores a draft at once on every update and keeps a copy in the account's Drafts mailbox; draft.send hands it to the outbox (docs/design/send.md).
@@ -290,6 +650,7 @@ Start a draft: a new message in the account (or the first account), or a reply, 
 | `kind` | `DraftKind` |  |
 | `accountId` | `int` (optional) |  |
 | `sourceId` | `int` (optional) | Required for reply, replyall and forward. |
+| `to` | `[]Address` (optional) | A new message's recipients, such as the person a contact card writes to. |
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.
@@ -914,6 +1275,167 @@ Where a message is on its way out.
 | `sent` | Done. |
 | `failed` | The server refused it; the draft is kept. |
 
+## people
+
+Contacts from the accounts' address books, joined into people by email address across address books and accounts (docs/design/pim.md).
+
+### `people.list`
+
+People sorted by name. With query, those whose name, organization or email address has a word starting with it, case-insensitively.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `query` | `string` (optional) |  |
+| `collectionId` | `int` (optional) | Only people with a contact in this address book. |
+
+Result: `[]PersonSummary`.
+
+### `people.get`
+
+One person with their contacts.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Person`.
+Errors: `notFound`.
+
+### `people.card`
+
+The contact card for an email address, person or not.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `email` | `string` |  |
+
+Result: `ContactCard`.
+Errors: `invalidParams`.
+
+### `people.photo`
+
+A person's photo, from the first of their contacts that has one.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Photo`.
+Errors: `notFound`.
+
+### `people.add`
+
+Add to Contacts: store a new vCard 3.0 with the name and address in an address book and write it to the server.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `email` | `string` |  |
+| `name` | `string` (optional) | Default: the name last seen with the address in mail. |
+| `collectionId` | `int` (optional) | Default: the default address book of the first account with contacts on. |
+
+Result: `Person`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### Event `people.changed` (durable)
+
+An account's contacts changed, so people may have.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+
+### Type `PersonSummary`
+
+A row of the People list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `displayName` | `string` |  |
+| `organization` | `string` |  |
+| `email` | `string` | The first email address of the person's first contact, or empty. |
+| `hasPhoto` | `bool` |  |
+| `index` | `string` | The letter the person files under in the list: the sort key's first letter, uppercased, or # when it is not a letter. |
+
+### Type `LabeledValue`
+
+An email address, phone number or URL with its label.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `label` | `string` | home, work, mobile, other, or the card's own label; may be empty. |
+| `value` | `string` |  |
+
+### Type `PostalAddress`
+
+A postal address from a vCard's ADR.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `label` | `string` | home, work, other, or the card's own label; may be empty. |
+| `street` | `string` | The street lines, joined by newlines. |
+| `locality` | `string` |  |
+| `region` | `string` |  |
+| `postcode` | `string` |  |
+| `country` | `string` |  |
+
+### Type `Contact`
+
+One vCard of a person, from one address book, read from its source.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `collectionId` | `int` |  |
+| `accountId` | `int` |  |
+| `displayName` | `string` |  |
+| `givenName` | `string` |  |
+| `familyName` | `string` |  |
+| `nickname` | `string` |  |
+| `organization` | `string` |  |
+| `title` | `string` |  |
+| `emails` | `[]LabeledValue` |  |
+| `phones` | `[]LabeledValue` |  |
+| `addresses` | `[]PostalAddress` |  |
+| `urls` | `[]LabeledValue` |  |
+| `birthday` | `string` | YYYY-MM-DD, or --MM-DD without a year; empty when unknown. |
+| `note` | `string` |  |
+| `readOnly` | `bool` |  |
+
+### Type `Person`
+
+A person and every contact that makes them up.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `displayName` | `string` |  |
+| `organization` | `string` |  |
+| `hasPhoto` | `bool` |  |
+| `contacts` | `[]Contact` | In address book order: by account, then collection position. |
+
+### Type `Photo`
+
+A person's photo.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `contentType` | `string` | Such as image/jpeg. |
+| `data` | `string` | The image, base64-encoded. |
+
+### Type `ContactCard`
+
+What the app shows for an email address in mail.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `email` | `string` | Lowercased. |
+| `name` | `string` | The person's name, else the name last seen with the address in mail; may be empty. |
+| `person` | `Person` (optional) | Absent when no contact has the address. |
+| `recent` | `[]MessageSummary` | The newest messages from or to the address, at most 5. |
+| `upcoming` | `[]Occurrence` | The next occurrences with the address as organizer or attendee, within 30 days, at most 5. |
+| `canAdd` | `bool` | No contact has the address and an address book can take one: Add to Contacts is offered. |
+
 ## rpc
 
 Connection setup. A client calls rpc.hello first on every connection; the server answers any other method with notReady until hello succeeds.
@@ -964,6 +1486,17 @@ Reconcile every mailbox of the account now instead of at the next poll.
 Result: none (`null`).
 Errors: `notFound`.
 
+### `sync.pim`
+
+Poll the contacts, calendar and tasks services now instead of at the next 5-minute pass. The app calls it when its window gains focus; maild skips accounts polled in the last minute.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) | Default: every account. |
+
+Result: none (`null`).
+Errors: `notFound`.
+
 ### Event `sync.progress` (transient)
 
 An account's sync state changed.
@@ -999,6 +1532,90 @@ What an account's sync is doing.
 | `offline` | The server cannot be reached; retrying with backoff. |
 | `unauthorized` | The server rejected the credentials; account.setPassword retries. |
 | `failed` | An unexpected error stopped sync; the error field says why. Retried with backoff. |
+
+## tasks
+
+Tasks from Google Tasks and from CalDAV task lists (docs/design/pim.md). Flagged mail, which the Tasks module and the To-Do bar show beside them, comes from view.open with flagged set.
+
+### `tasks.list`
+
+Tasks of enabled lists of accounts with the tasks service on, list by list in collection order; within a list, by the server's position, each parent followed by its subtasks.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `listId` | `int` (optional) | Only this list. |
+| `completed` | `bool` (optional) | Include completed tasks. Default false. |
+| `dueBefore` | `string` (optional) | Only tasks due before this day, YYYY-MM-DD, as the To-Do bar asks. |
+
+Result: `[]Task`.
+Errors: `notFound`.
+
+### `tasks.create`
+
+Add a task at the top of its list, and write it to the server.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `listId` | `int` (optional) | Default: the default list of the first account with tasks on. |
+| `title` | `string` |  |
+| `notes` | `string` (optional) |  |
+| `due` | `string` (optional) | YYYY-MM-DD. |
+| `parentId` | `int` (optional) |  |
+
+Result: `Task`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `tasks.update`
+
+Change a task; omitted fields keep their values.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `title` | `string` (optional) |  |
+| `notes` | `string` (optional) |  |
+| `due` | `string` (optional) | YYYY-MM-DD, or empty to clear. |
+| `completed` | `bool` (optional) |  |
+
+Result: `Task`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `tasks.delete`
+
+Delete a task and its subtasks.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
+### Event `tasks.changed` (durable)
+
+An account's task lists or tasks changed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+
+### Type `Task`
+
+A task.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `listId` | `int` | Its collection. |
+| `accountId` | `int` |  |
+| `parentId` | `int` (optional) | The task this one is a subtask of. |
+| `title` | `string` |  |
+| `notes` | `string` |  |
+| `due` | `string` | YYYY-MM-DD, or empty. Google keeps only the date; a CalDAV due time is kept in the source and not shown. |
+| `completed` | `bool` |  |
+| `completedAt` | `time` (optional) |  |
+| `messageId` | `int` (optional) | The stored message a task made from mail in Gmail links to. |
+| `readOnly` | `bool` |  |
 
 ## thread
 

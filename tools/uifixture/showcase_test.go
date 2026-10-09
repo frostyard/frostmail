@@ -95,3 +95,29 @@ func today() time.Time {
 	y, m, d := time.Now().Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
 }
+
+// The showcase's accounts have contacts on, with an address book each of
+// made-up people joined into People.
+func TestShowcaseContacts(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if err := Build(t.Context(), Options{Out: dir, Showcase: showcaseDir}); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.Context(), filepath.Join(dir, "frostmail.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	people, err := db.People(t.Context(), "")
+	if err != nil || len(people) != 11 || people[0].DisplayName != "Hugo Bauer" {
+		t.Fatalf("people = %+v, %v", people, err)
+	}
+	maria, err := db.PersonByEmail(t.Context(), "maria.lopez@northwind.example")
+	if err != nil || maria.Organization != "Northwind" {
+		t.Errorf("Maria = %+v, %v", maria, err)
+	}
+	services, _ := db.Services(t.Context(), 0)
+	if len(services) != 2 || !services[0].Enabled || services[0].LastSyncAt == nil {
+		t.Errorf("services = %+v", services)
+	}
+}

@@ -226,6 +226,48 @@ func (v TLSMode) Valid() bool {
 	return false
 }
 
+// ServiceKind: A service an account syncs besides mail (ADR-0017).
+type ServiceKind string
+
+const (
+	// Address books over CardDAV.
+	ServiceKindContacts ServiceKind = "contacts"
+	// Calendars over CalDAV.
+	ServiceKindCalendar ServiceKind = "calendar"
+	// Google Tasks for Google accounts; task lists over CalDAV for others.
+	ServiceKindTasks ServiceKind = "tasks"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ServiceKind) Valid() bool {
+	switch v {
+	case ServiceKindContacts, ServiceKindCalendar, ServiceKindTasks:
+		return true
+	}
+	return false
+}
+
+// CollectionKind: What a collection holds.
+type CollectionKind string
+
+const (
+	// A CardDAV address book.
+	CollectionKindAddressbook CollectionKind = "addressbook"
+	// A CalDAV calendar, holding events, tasks or both.
+	CollectionKindCalendar CollectionKind = "calendar"
+	// A Google Tasks list.
+	CollectionKindTasklist CollectionKind = "tasklist"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v CollectionKind) Valid() bool {
+	switch v {
+	case CollectionKindAddressbook, CollectionKindCalendar, CollectionKindTasklist:
+		return true
+	}
+	return false
+}
+
 // ServerConfig: Where and how to reach one server.
 type ServerConfig struct {
 	Host string  `json:"host"`
@@ -297,13 +339,71 @@ type MailboxCheck struct {
 	LabelDiffs int64 `json:"labelDiffs"`
 }
 
+// ServiceSettings: One of an account's services besides mail.
+type ServiceSettings struct {
+	Service ServiceKind `json:"service"`
+	// The provider offers the service; iCloud's tasks, for one, are out of reach.
+	Available bool `json:"available"`
+	Enabled   bool `json:"enabled"`
+	// Where the service lives: the DAV home set, or the Tasks API. Empty until
+	// found.
+	URL string `json:"url"`
+	// The account's sign-in covers the service. False for a Google account whose
+	// grant lacks the service's scope: account.authorize asks for it.
+	SignedIn bool `json:"signedIn"`
+	// The end of the last complete pass.
+	LastSyncAt *time.Time `json:"lastSyncAt,omitzero"`
+	// Why the last pass failed.
+	Error *string `json:"error,omitzero"`
+}
+
+// Collection: An address book, calendar or task list.
+type Collection struct {
+	ID        int64          `json:"id"`
+	AccountID int64          `json:"accountId"`
+	Kind      CollectionKind `json:"kind"`
+	Name      string         `json:"name"`
+	// #rrggbb, or empty for the module's default.
+	Color string `json:"color"`
+	// Holds events.
+	Events bool `json:"events"`
+	// Holds tasks: a task list, or a calendar with VTODO.
+	Tasks bool `json:"tasks"`
+	// The server refuses changes, or the account is read-only.
+	ReadOnly bool `json:"readOnly"`
+	// Synced and shown.
+	Enabled bool `json:"enabled"`
+	// Where the account's new contacts, events or tasks go.
+	IsDefault bool `json:"isDefault"`
+}
+
+// CollectionCheck: How one synced address book, calendar or task list
+// compares with the server.
+type CollectionCheck struct {
+	CollectionID int64  `json:"collectionId"`
+	Name         string `json:"name"`
+	// Objects on the server.
+	Server int64 `json:"server"`
+	// Objects stored locally.
+	Local int64 `json:"local"`
+	// Server hrefs with no local object (at most 20).
+	MissingLocally []string `json:"missingLocally"`
+	// Local hrefs the server does not have (at most 20), leaving out changes
+	// waiting to be written.
+	MissingOnServer []string `json:"missingOnServer"`
+	// Objects whose ETag differs, with the same exception.
+	EtagDiffs int64 `json:"etagDiffs"`
+}
+
 // VerifyReport: The result of account.verify.
 type VerifyReport struct {
 	AccountID int64 `json:"accountId"`
-	// No folder differs.
+	// No folder or collection differs.
 	Ok        bool           `json:"ok"`
 	Mailboxes []MailboxCheck `json:"mailboxes"`
-	CheckedAt time.Time      `json:"checkedAt"`
+	// The enabled collections of the services that are on.
+	Collections []CollectionCheck `json:"collections"`
+	CheckedAt   time.Time         `json:"checkedAt"`
 }
 
 // AccountListParams holds the params of account.list.
@@ -368,6 +468,34 @@ type AccountVerifyParams struct {
 	ID int64 `json:"id"`
 }
 
+// AccountServicesParams holds the params of account.services.
+type AccountServicesParams struct {
+	ID int64 `json:"id"`
+}
+
+// AccountSetServiceParams holds the params of account.setService.
+type AccountSetServiceParams struct {
+	ID      int64       `json:"id"`
+	Service ServiceKind `json:"service"`
+	Enabled bool        `json:"enabled"`
+	// The server's address, when discovery finds nothing.
+	URL *string `json:"url,omitzero"`
+}
+
+// AccountCollectionsParams holds the params of account.collections.
+type AccountCollectionsParams struct {
+	AccountID *int64          `json:"accountId,omitzero"`
+	Kind      *CollectionKind `json:"kind,omitzero"`
+}
+
+// AccountSetCollectionParams holds the params of account.setCollection.
+type AccountSetCollectionParams struct {
+	ID      int64 `json:"id"`
+	Enabled *bool `json:"enabled,omitzero"`
+	// Only true: the previous default stops being one.
+	IsDefault *bool `json:"isDefault,omitzero"`
+}
+
 // AccountService: Mail accounts and their server settings. Credentials are
 // write-only over RPC; account.setPassword stores one and no method returns
 // it.
@@ -400,6 +528,21 @@ type AccountService interface {
 	// Verify implements account.verify. Compare the stored mail with the server,
 	// changing nothing on either side.
 	Verify(ctx context.Context, p *AccountVerifyParams) (*VerifyReport, error)
+	// Services implements account.services. An account's contacts, calendar and
+	// tasks services, in that order.
+	Services(ctx context.Context, p *AccountServicesParams) ([]ServiceSettings, error)
+	// SetService implements account.setService. Turn a service on or off. Turning
+	// one on without a url takes the provider's profile or discovers the server
+	// (well-known URLs, then SRV records) and syncs it; a Google account whose
+	// grant lacks the service's scope waits for account.authorize. Turning one
+	// off stops syncing and keeps what is stored.
+	SetService(ctx context.Context, p *AccountSetServiceParams) (*ServiceSettings, error)
+	// Collections implements account.collections. Address books, calendars and
+	// task lists, by account, then by the server's order.
+	Collections(ctx context.Context, p *AccountCollectionsParams) ([]Collection, error)
+	// SetCollection implements account.setCollection. Show or hide a collection,
+	// or make it the default of its kind for its account.
+	SetCollection(ctx context.Context, p *AccountSetCollectionParams) (*Collection, error)
 }
 
 func registerAccount(r *Router, s AccountService) {
@@ -465,6 +608,34 @@ func registerAccount(r *Router, s AccountService) {
 			return nil, err
 		}
 		return s.Verify(ctx, &p)
+	})
+	r.handle("account.services", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountServicesParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Services(ctx, &p)
+	})
+	r.handle("account.setService", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountSetServiceParams
+		if err := decodeParams(raw, &p, []string{"id", "service", "enabled"}); err != nil {
+			return nil, err
+		}
+		return s.SetService(ctx, &p)
+	})
+	r.handle("account.collections", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountCollectionsParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Collections(ctx, &p)
+	})
+	r.handle("account.setCollection", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountSetCollectionParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.SetCollection(ctx, &p)
 	})
 }
 
@@ -553,7 +724,42 @@ func (x AccountClient) Verify(ctx context.Context, p *AccountVerifyParams) (*Ver
 	return &r, nil
 }
 
-// AccountChanged: An account was created, updated or deleted.
+// Services calls account.services.
+func (x AccountClient) Services(ctx context.Context, p *AccountServicesParams) ([]ServiceSettings, error) {
+	var r []ServiceSettings
+	err := x.c.Call(ctx, "account.services", p, &r)
+	return r, err
+}
+
+// SetService calls account.setService.
+func (x AccountClient) SetService(ctx context.Context, p *AccountSetServiceParams) (*ServiceSettings, error) {
+	var r ServiceSettings
+	err := x.c.Call(ctx, "account.setService", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Collections calls account.collections.
+func (x AccountClient) Collections(ctx context.Context, p *AccountCollectionsParams) ([]Collection, error) {
+	var r []Collection
+	err := x.c.Call(ctx, "account.collections", p, &r)
+	return r, err
+}
+
+// SetCollection calls account.setCollection.
+func (x AccountClient) SetCollection(ctx context.Context, p *AccountSetCollectionParams) (*Collection, error) {
+	var r Collection
+	err := x.c.Call(ctx, "account.setCollection", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// AccountChanged: An account was created, updated or deleted, or its services
+// or collections changed.
 type AccountChanged struct {
 	ID      int64 `json:"id"`
 	Deleted bool  `json:"deleted"`
@@ -606,6 +812,425 @@ func (x AddressClient) Suggest(ctx context.Context, p *AddressSuggestParams) ([]
 	err := x.c.Call(ctx, "address.suggest", p, &r)
 	return r, err
 }
+
+// ---- calendar ----
+
+// PartStat: An attendee's answer to an invitation (iCalendar PARTSTAT).
+type PartStat string
+
+const (
+	// Not answered.
+	PartStatNeedsaction PartStat = "needsaction"
+	PartStatAccepted    PartStat = "accepted"
+	PartStatDeclined    PartStat = "declined"
+	// Maybe.
+	PartStatTentative PartStat = "tentative"
+	PartStatDelegated PartStat = "delegated"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v PartStat) Valid() bool {
+	switch v {
+	case PartStatNeedsaction, PartStatAccepted, PartStatDeclined, PartStatTentative, PartStatDelegated:
+		return true
+	}
+	return false
+}
+
+// EventStatus: An event's STATUS.
+type EventStatus string
+
+const (
+	EventStatusConfirmed EventStatus = "confirmed"
+	EventStatusTentative EventStatus = "tentative"
+	EventStatusCancelled EventStatus = "cancelled"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v EventStatus) Valid() bool {
+	switch v {
+	case EventStatusConfirmed, EventStatusTentative, EventStatusCancelled:
+		return true
+	}
+	return false
+}
+
+// AttendeeRole: An attendee's ROLE.
+type AttendeeRole string
+
+const (
+	AttendeeRoleChair    AttendeeRole = "chair"
+	AttendeeRoleRequired AttendeeRole = "required"
+	AttendeeRoleOptional AttendeeRole = "optional"
+	// Copied for information.
+	AttendeeRoleNone AttendeeRole = "none"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v AttendeeRole) Valid() bool {
+	switch v {
+	case AttendeeRoleChair, AttendeeRoleRequired, AttendeeRoleOptional, AttendeeRoleNone:
+		return true
+	}
+	return false
+}
+
+// ITIPMethod: What an invitation message asks (iTIP METHOD).
+type ITIPMethod string
+
+const (
+	// An invitation, or an update of one.
+	ITIPMethodRequest ITIPMethod = "request"
+	// The organizer cancelled the event or the user's place in it.
+	ITIPMethodCancel ITIPMethod = "cancel"
+	// An attendee answered the user's invitation.
+	ITIPMethodReply ITIPMethod = "reply"
+	// An event to add; no answer expected.
+	ITIPMethodPublish ITIPMethod = "publish"
+	// ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on.
+	ITIPMethodOther ITIPMethod = "other"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ITIPMethod) Valid() bool {
+	switch v {
+	case ITIPMethodRequest, ITIPMethodCancel, ITIPMethodReply, ITIPMethodPublish, ITIPMethodOther:
+		return true
+	}
+	return false
+}
+
+// Occurrence: One occurrence of an event.
+type Occurrence struct {
+	// The single event, the series' master, or the override that replaced this
+	// occurrence.
+	EventID int64 `json:"eventId"`
+	// Which occurrence of a series: its original start as stored; empty for a
+	// single event.
+	RecurrenceID string `json:"recurrenceId"`
+	CalendarID   int64  `json:"calendarId"`
+	AccountID    int64  `json:"accountId"`
+	Summary      string `json:"summary"`
+	Location     string `json:"location"`
+	AllDay       bool   `json:"allDay"`
+	// Timed: the start. All-day: midnight of startDate in the range's time zone.
+	Start time.Time `json:"start"`
+	// Exclusive.
+	End time.Time `json:"end"`
+	// All-day: the first day, YYYY-MM-DD. Empty for timed events.
+	StartDate string `json:"startDate"`
+	// All-day: the day after the last. Empty for timed events.
+	EndDate string      `json:"endDate"`
+	Status  EventStatus `json:"status"`
+	// The user's answer, when invited.
+	Answer *PartStat `json:"answer,omitzero"`
+	// Does not count as busy.
+	Transparent bool `json:"transparent"`
+	// Part of a series.
+	Recurring bool `json:"recurring"`
+}
+
+// Attendee: An organizer or attendee.
+type Attendee struct {
+	// Lowercased.
+	Email  string       `json:"email"`
+	Name   string       `json:"name"`
+	Role   AttendeeRole `json:"role"`
+	Answer PartStat     `json:"answer"`
+	// One of the account's own addresses.
+	IsUser bool `json:"isUser"`
+}
+
+// CalendarEvent: An event in full; for an occurrence of a series, that
+// occurrence's times.
+type CalendarEvent struct {
+	ID           int64  `json:"id"`
+	RecurrenceID string `json:"recurrenceId"`
+	CalendarID   int64  `json:"calendarId"`
+	AccountID    int64  `json:"accountId"`
+	UID          string `json:"uid"`
+	Summary      string `json:"summary"`
+	Location     string `json:"location"`
+	// Plain text.
+	Description string    `json:"description"`
+	AllDay      bool      `json:"allDay"`
+	Start       time.Time `json:"start"`
+	End         time.Time `json:"end"`
+	StartDate   string    `json:"startDate"`
+	EndDate     string    `json:"endDate"`
+	// The IANA zone the event was made in, or empty (UTC, floating or all-day).
+	TimeZone  string `json:"timeZone"`
+	Recurring bool   `json:"recurring"`
+	// The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty
+	// for a single event.
+	Recurrence  string      `json:"recurrence"`
+	Status      EventStatus `json:"status"`
+	Transparent bool        `json:"transparent"`
+	Organizer   *Attendee   `json:"organizer,omitzero"`
+	// Without the organizer.
+	Attendees []Attendee `json:"attendees"`
+	// The user's answer, when invited.
+	Answer *PartStat `json:"answer,omitzero"`
+	// Reminders shown, as minutes before the start (negative: after).
+	Alarms   []int64 `json:"alarms"`
+	ReadOnly bool    `json:"readOnly"`
+}
+
+// Invitation: An iTIP message in mail, matched against the stored events
+// (ADR-0019).
+type Invitation struct {
+	Method ITIPMethod `json:"method"`
+	// The event as the message describes it; id is 0 when it is not stored.
+	Event CalendarEvent `json:"event"`
+	// The stored event with the message's UID, when there is one.
+	EventID *int64 `json:"eventId,omitzero"`
+	// Request and cancel: the organizer. Reply: the attendee who answered.
+	From *Attendee `json:"from,omitzero"`
+	// The user's current answer to the stored event or, before it is stored, to
+	// the message.
+	Answer *PartStat `json:"answer,omitzero"`
+	// A request the user is invited to, not outdated, in an account that can
+	// write.
+	CanRespond bool `json:"canRespond"`
+	// The stored event has a later SEQUENCE than the message.
+	Outdated bool `json:"outdated"`
+	// Busy occurrences overlapping the event's first occurrence.
+	Conflicts []Occurrence `json:"conflicts"`
+	// The occurrences just before and after it on the same day.
+	Adjacent []Occurrence `json:"adjacent"`
+}
+
+// Reminder: An alarm that is due.
+type Reminder struct {
+	// Opaque; names the occurrence and alarm for calendar.snooze and
+	// calendar.dismiss.
+	ID           string    `json:"id"`
+	EventID      int64     `json:"eventId"`
+	RecurrenceID string    `json:"recurrenceId"`
+	CalendarID   int64     `json:"calendarId"`
+	Summary      string    `json:"summary"`
+	Location     string    `json:"location"`
+	AllDay       bool      `json:"allDay"`
+	Start        time.Time `json:"start"`
+	StartDate    string    `json:"startDate"`
+	// When the alarm went off, or the snooze ended.
+	DueAt time.Time `json:"dueAt"`
+}
+
+// CalendarRangeParams holds the params of calendar.range.
+type CalendarRangeParams struct {
+	// The first day, YYYY-MM-DD.
+	From string `json:"from"`
+	// The day after the last; at most 400 days after from.
+	To string `json:"to"`
+	// The IANA zone the days are in. Default: maild's local zone.
+	TimeZone *string `json:"timeZone,omitzero"`
+	// Only these calendars.
+	CalendarIDs []int64 `json:"calendarIds,omitzero"`
+}
+
+// CalendarEventParams holds the params of calendar.event.
+type CalendarEventParams struct {
+	ID           int64   `json:"id"`
+	RecurrenceID *string `json:"recurrenceId,omitzero"`
+}
+
+// CalendarInvitationParams holds the params of calendar.invitation.
+type CalendarInvitationParams struct {
+	MessageID int64 `json:"messageId"`
+}
+
+// CalendarRespondParams holds the params of calendar.respond.
+type CalendarRespondParams struct {
+	MessageID *int64 `json:"messageId,omitzero"`
+	EventID   *int64 `json:"eventId,omitzero"`
+	// Answer one occurrence only.
+	RecurrenceID *string `json:"recurrenceId,omitzero"`
+	// accepted, declined or tentative.
+	Answer PartStat `json:"answer"`
+	// A note for the organizer.
+	Comment *string `json:"comment,omitzero"`
+}
+
+// CalendarRemindersParams holds the params of calendar.reminders.
+type CalendarRemindersParams struct{}
+
+// CalendarSnoozeParams holds the params of calendar.snooze.
+type CalendarSnoozeParams struct {
+	IDs   []string  `json:"ids"`
+	Until time.Time `json:"until"`
+}
+
+// CalendarDismissParams holds the params of calendar.dismiss.
+type CalendarDismissParams struct {
+	IDs []string `json:"ids"`
+}
+
+// CalendarService: Events from the accounts' calendars, their occurrences,
+// invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+type CalendarService interface {
+	// Range implements calendar.range. The occurrences that overlap the days from
+	// to to, in start order, from enabled calendars of accounts with the calendar
+	// service on.
+	Range(ctx context.Context, p *CalendarRangeParams) ([]Occurrence, error)
+	// Event implements calendar.event. An event, or one occurrence of a series.
+	Event(ctx context.Context, p *CalendarEventParams) (*CalendarEvent, error)
+	// Invitation implements calendar.invitation. The invitation in a message's
+	// text/calendar part.
+	Invitation(ctx context.Context, p *CalendarInvitationParams) (*Invitation, error)
+	// Respond implements calendar.respond. Answer an invitation, from its message
+	// or its stored event. maild changes the user's PARTSTAT in the stored event
+	// and lets the server tell the organizer, or sends the organizer an iTIP
+	// REPLY itself when the server does not (ADR-0019). An accepted invitation
+	// not yet stored goes into the account's default calendar.
+	Respond(ctx context.Context, p *CalendarRespondParams) (*CalendarEvent, error)
+	// Reminders implements calendar.reminders. The reminders that are due now and
+	// neither dismissed nor snoozed, oldest first.
+	Reminders(ctx context.Context, p *CalendarRemindersParams) ([]Reminder, error)
+	// Snooze implements calendar.snooze. Show reminders again at until.
+	Snooze(ctx context.Context, p *CalendarSnoozeParams) error
+	// Dismiss implements calendar.dismiss. Stop showing reminders.
+	Dismiss(ctx context.Context, p *CalendarDismissParams) error
+}
+
+func registerCalendar(r *Router, s CalendarService) {
+	r.handle("calendar.range", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarRangeParams
+		if err := decodeParams(raw, &p, []string{"from", "to"}); err != nil {
+			return nil, err
+		}
+		return s.Range(ctx, &p)
+	})
+	r.handle("calendar.event", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarEventParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Event(ctx, &p)
+	})
+	r.handle("calendar.invitation", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarInvitationParams
+		if err := decodeParams(raw, &p, []string{"messageId"}); err != nil {
+			return nil, err
+		}
+		return s.Invitation(ctx, &p)
+	})
+	r.handle("calendar.respond", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarRespondParams
+		if err := decodeParams(raw, &p, []string{"answer"}); err != nil {
+			return nil, err
+		}
+		return s.Respond(ctx, &p)
+	})
+	r.handle("calendar.reminders", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarRemindersParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Reminders(ctx, &p)
+	})
+	r.handle("calendar.snooze", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarSnoozeParams
+		if err := decodeParams(raw, &p, []string{"ids", "until"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Snooze(ctx, &p)
+	})
+	r.handle("calendar.dismiss", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarDismissParams
+		if err := decodeParams(raw, &p, []string{"ids"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Dismiss(ctx, &p)
+	})
+}
+
+// CalendarClient calls the calendar methods; it implements CalendarService.
+type CalendarClient struct{ c *Client }
+
+// Calendar returns the calendar methods.
+func (c *Client) Calendar() CalendarClient { return CalendarClient{c} }
+
+var _ CalendarService = CalendarClient{}
+
+// Range calls calendar.range.
+func (x CalendarClient) Range(ctx context.Context, p *CalendarRangeParams) ([]Occurrence, error) {
+	var r []Occurrence
+	err := x.c.Call(ctx, "calendar.range", p, &r)
+	return r, err
+}
+
+// Event calls calendar.event.
+func (x CalendarClient) Event(ctx context.Context, p *CalendarEventParams) (*CalendarEvent, error) {
+	var r CalendarEvent
+	err := x.c.Call(ctx, "calendar.event", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Invitation calls calendar.invitation.
+func (x CalendarClient) Invitation(ctx context.Context, p *CalendarInvitationParams) (*Invitation, error) {
+	var r Invitation
+	err := x.c.Call(ctx, "calendar.invitation", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Respond calls calendar.respond.
+func (x CalendarClient) Respond(ctx context.Context, p *CalendarRespondParams) (*CalendarEvent, error) {
+	var r CalendarEvent
+	err := x.c.Call(ctx, "calendar.respond", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Reminders calls calendar.reminders.
+func (x CalendarClient) Reminders(ctx context.Context, p *CalendarRemindersParams) ([]Reminder, error) {
+	var r []Reminder
+	err := x.c.Call(ctx, "calendar.reminders", p, &r)
+	return r, err
+}
+
+// Snooze calls calendar.snooze.
+func (x CalendarClient) Snooze(ctx context.Context, p *CalendarSnoozeParams) error {
+	return x.c.Call(ctx, "calendar.snooze", p, nil)
+}
+
+// Dismiss calls calendar.dismiss.
+func (x CalendarClient) Dismiss(ctx context.Context, p *CalendarDismissParams) error {
+	return x.c.Call(ctx, "calendar.dismiss", p, nil)
+}
+
+// CalendarChanged: An account's calendars or events changed; views refetch
+// their ranges.
+type CalendarChanged struct {
+	AccountID int64 `json:"accountId"`
+}
+
+// EventName is the wire name of CalendarChanged.
+func (CalendarChanged) EventName() string { return "calendar.changed" }
+
+// Durable reports whether CalendarChanged is kept in the changes log.
+func (CalendarChanged) Durable() bool { return true }
+
+// CalendarReminders: Reminders became due; the app raises its reminder window
+// with calendar.reminders.
+type CalendarReminders struct {
+	// How many are due now.
+	Count int64 `json:"count"`
+}
+
+// EventName is the wire name of CalendarReminders.
+func (CalendarReminders) EventName() string { return "calendar.reminders" }
+
+// Durable reports whether CalendarReminders is kept in the changes log.
+func (CalendarReminders) Durable() bool { return false }
 
 // ---- draft ----
 
@@ -672,6 +1297,8 @@ type DraftCreateParams struct {
 	AccountID *int64    `json:"accountId,omitzero"`
 	// Required for reply, replyall and forward.
 	SourceID *int64 `json:"sourceId,omitzero"`
+	// A new message's recipients, such as the person a contact card writes to.
+	To []Address `json:"to,omitzero"`
 }
 
 // DraftOpenParams holds the params of draft.open.
@@ -1732,6 +2359,255 @@ func (OutboxChanged) EventName() string { return "outbox.changed" }
 // Durable reports whether OutboxChanged is kept in the changes log.
 func (OutboxChanged) Durable() bool { return true }
 
+// ---- people ----
+
+// PersonSummary: A row of the People list.
+type PersonSummary struct {
+	ID           int64  `json:"id"`
+	DisplayName  string `json:"displayName"`
+	Organization string `json:"organization"`
+	// The first email address of the person's first contact, or empty.
+	Email    string `json:"email"`
+	HasPhoto bool   `json:"hasPhoto"`
+	// The letter the person files under in the list: the sort key's first letter,
+	// uppercased, or # when it is not a letter.
+	Index string `json:"index"`
+}
+
+// LabeledValue: An email address, phone number or URL with its label.
+type LabeledValue struct {
+	// home, work, mobile, other, or the card's own label; may be empty.
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// PostalAddress: A postal address from a vCard's ADR.
+type PostalAddress struct {
+	// home, work, other, or the card's own label; may be empty.
+	Label string `json:"label"`
+	// The street lines, joined by newlines.
+	Street   string `json:"street"`
+	Locality string `json:"locality"`
+	Region   string `json:"region"`
+	Postcode string `json:"postcode"`
+	Country  string `json:"country"`
+}
+
+// Contact: One vCard of a person, from one address book, read from its
+// source.
+type Contact struct {
+	ID           int64           `json:"id"`
+	CollectionID int64           `json:"collectionId"`
+	AccountID    int64           `json:"accountId"`
+	DisplayName  string          `json:"displayName"`
+	GivenName    string          `json:"givenName"`
+	FamilyName   string          `json:"familyName"`
+	Nickname     string          `json:"nickname"`
+	Organization string          `json:"organization"`
+	Title        string          `json:"title"`
+	Emails       []LabeledValue  `json:"emails"`
+	Phones       []LabeledValue  `json:"phones"`
+	Addresses    []PostalAddress `json:"addresses"`
+	URLs         []LabeledValue  `json:"urls"`
+	// YYYY-MM-DD, or --MM-DD without a year; empty when unknown.
+	Birthday string `json:"birthday"`
+	Note     string `json:"note"`
+	ReadOnly bool   `json:"readOnly"`
+}
+
+// Person: A person and every contact that makes them up.
+type Person struct {
+	ID           int64  `json:"id"`
+	DisplayName  string `json:"displayName"`
+	Organization string `json:"organization"`
+	HasPhoto     bool   `json:"hasPhoto"`
+	// In address book order: by account, then collection position.
+	Contacts []Contact `json:"contacts"`
+}
+
+// Photo: A person's photo.
+type Photo struct {
+	// Such as image/jpeg.
+	ContentType string `json:"contentType"`
+	// The image, base64-encoded.
+	Data string `json:"data"`
+}
+
+// ContactCard: What the app shows for an email address in mail.
+type ContactCard struct {
+	// Lowercased.
+	Email string `json:"email"`
+	// The person's name, else the name last seen with the address in mail; may be
+	// empty.
+	Name string `json:"name"`
+	// Absent when no contact has the address.
+	Person *Person `json:"person,omitzero"`
+	// The newest messages from or to the address, at most 5.
+	Recent []MessageSummary `json:"recent"`
+	// The next occurrences with the address as organizer or attendee, within 30
+	// days, at most 5.
+	Upcoming []Occurrence `json:"upcoming"`
+	// No contact has the address and an address book can take one: Add to
+	// Contacts is offered.
+	CanAdd bool `json:"canAdd"`
+}
+
+// PeopleListParams holds the params of people.list.
+type PeopleListParams struct {
+	Query *string `json:"query,omitzero"`
+	// Only people with a contact in this address book.
+	CollectionID *int64 `json:"collectionId,omitzero"`
+}
+
+// PeopleGetParams holds the params of people.get.
+type PeopleGetParams struct {
+	ID int64 `json:"id"`
+}
+
+// PeopleCardParams holds the params of people.card.
+type PeopleCardParams struct {
+	Email string `json:"email"`
+}
+
+// PeoplePhotoParams holds the params of people.photo.
+type PeoplePhotoParams struct {
+	ID int64 `json:"id"`
+}
+
+// PeopleAddParams holds the params of people.add.
+type PeopleAddParams struct {
+	Email string `json:"email"`
+	// Default: the name last seen with the address in mail.
+	Name *string `json:"name,omitzero"`
+	// Default: the default address book of the first account with contacts on.
+	CollectionID *int64 `json:"collectionId,omitzero"`
+}
+
+// PeopleService: Contacts from the accounts' address books, joined into
+// people by email address across address books and accounts
+// (docs/design/pim.md).
+type PeopleService interface {
+	// List implements people.list. People sorted by name. With query, those whose
+	// name, organization or email address has a word starting with it,
+	// case-insensitively.
+	List(ctx context.Context, p *PeopleListParams) ([]PersonSummary, error)
+	// Get implements people.get. One person with their contacts.
+	Get(ctx context.Context, p *PeopleGetParams) (*Person, error)
+	// Card implements people.card. The contact card for an email address, person
+	// or not.
+	Card(ctx context.Context, p *PeopleCardParams) (*ContactCard, error)
+	// Photo implements people.photo. A person's photo, from the first of their
+	// contacts that has one.
+	Photo(ctx context.Context, p *PeoplePhotoParams) (*Photo, error)
+	// Add implements people.add. Add to Contacts: store a new vCard 3.0 with the
+	// name and address in an address book and write it to the server.
+	Add(ctx context.Context, p *PeopleAddParams) (*Person, error)
+}
+
+func registerPeople(r *Router, s PeopleService) {
+	r.handle("people.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("people.get", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleGetParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Get(ctx, &p)
+	})
+	r.handle("people.card", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleCardParams
+		if err := decodeParams(raw, &p, []string{"email"}); err != nil {
+			return nil, err
+		}
+		return s.Card(ctx, &p)
+	})
+	r.handle("people.photo", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeoplePhotoParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Photo(ctx, &p)
+	})
+	r.handle("people.add", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleAddParams
+		if err := decodeParams(raw, &p, []string{"email"}); err != nil {
+			return nil, err
+		}
+		return s.Add(ctx, &p)
+	})
+}
+
+// PeopleClient calls the people methods; it implements PeopleService.
+type PeopleClient struct{ c *Client }
+
+// People returns the people methods.
+func (c *Client) People() PeopleClient { return PeopleClient{c} }
+
+var _ PeopleService = PeopleClient{}
+
+// List calls people.list.
+func (x PeopleClient) List(ctx context.Context, p *PeopleListParams) ([]PersonSummary, error) {
+	var r []PersonSummary
+	err := x.c.Call(ctx, "people.list", p, &r)
+	return r, err
+}
+
+// Get calls people.get.
+func (x PeopleClient) Get(ctx context.Context, p *PeopleGetParams) (*Person, error) {
+	var r Person
+	err := x.c.Call(ctx, "people.get", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Card calls people.card.
+func (x PeopleClient) Card(ctx context.Context, p *PeopleCardParams) (*ContactCard, error) {
+	var r ContactCard
+	err := x.c.Call(ctx, "people.card", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Photo calls people.photo.
+func (x PeopleClient) Photo(ctx context.Context, p *PeoplePhotoParams) (*Photo, error) {
+	var r Photo
+	err := x.c.Call(ctx, "people.photo", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Add calls people.add.
+func (x PeopleClient) Add(ctx context.Context, p *PeopleAddParams) (*Person, error) {
+	var r Person
+	err := x.c.Call(ctx, "people.add", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// PeopleChanged: An account's contacts changed, so people may have.
+type PeopleChanged struct {
+	AccountID int64 `json:"accountId"`
+}
+
+// EventName is the wire name of PeopleChanged.
+func (PeopleChanged) EventName() string { return "people.changed" }
+
+// Durable reports whether PeopleChanged is kept in the changes log.
+func (PeopleChanged) Durable() bool { return true }
+
 // ---- rpc ----
 
 // Hello: Server identity and the negotiated protocol.
@@ -1843,6 +2719,12 @@ type SyncNowParams struct {
 	AccountID int64 `json:"accountId"`
 }
 
+// SyncPimParams holds the params of sync.pim.
+type SyncPimParams struct {
+	// Default: every account.
+	AccountID *int64 `json:"accountId,omitzero"`
+}
+
 // SyncService: Account synchronization state and control.
 type SyncService interface {
 	// Status implements sync.status. The sync state of every account, or of one.
@@ -1850,6 +2732,10 @@ type SyncService interface {
 	// Now implements sync.now. Reconcile every mailbox of the account now instead
 	// of at the next poll.
 	Now(ctx context.Context, p *SyncNowParams) error
+	// Pim implements sync.pim. Poll the contacts, calendar and tasks services now
+	// instead of at the next 5-minute pass. The app calls it when its window
+	// gains focus; maild skips accounts polled in the last minute.
+	Pim(ctx context.Context, p *SyncPimParams) error
 }
 
 func registerSync(r *Router, s SyncService) {
@@ -1866,6 +2752,13 @@ func registerSync(r *Router, s SyncService) {
 			return nil, err
 		}
 		return nil, s.Now(ctx, &p)
+	})
+	r.handle("sync.pim", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SyncPimParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return nil, s.Pim(ctx, &p)
 	})
 }
 
@@ -1889,6 +2782,11 @@ func (x SyncClient) Now(ctx context.Context, p *SyncNowParams) error {
 	return x.c.Call(ctx, "sync.now", p, nil)
 }
 
+// Pim calls sync.pim.
+func (x SyncClient) Pim(ctx context.Context, p *SyncPimParams) error {
+	return x.c.Call(ctx, "sync.pim", p, nil)
+}
+
 // SyncProgress: An account's sync state changed.
 type SyncProgress struct {
 	Status SyncStatus `json:"status"`
@@ -1899,6 +2797,164 @@ func (SyncProgress) EventName() string { return "sync.progress" }
 
 // Durable reports whether SyncProgress is kept in the changes log.
 func (SyncProgress) Durable() bool { return false }
+
+// ---- tasks ----
+
+// Task: A task.
+type Task struct {
+	ID int64 `json:"id"`
+	// Its collection.
+	ListID    int64 `json:"listId"`
+	AccountID int64 `json:"accountId"`
+	// The task this one is a subtask of.
+	ParentID *int64 `json:"parentId,omitzero"`
+	Title    string `json:"title"`
+	Notes    string `json:"notes"`
+	// YYYY-MM-DD, or empty. Google keeps only the date; a CalDAV due time is kept
+	// in the source and not shown.
+	Due         string     `json:"due"`
+	Completed   bool       `json:"completed"`
+	CompletedAt *time.Time `json:"completedAt,omitzero"`
+	// The stored message a task made from mail in Gmail links to.
+	MessageID *int64 `json:"messageId,omitzero"`
+	ReadOnly  bool   `json:"readOnly"`
+}
+
+// TasksListParams holds the params of tasks.list.
+type TasksListParams struct {
+	// Only this list.
+	ListID *int64 `json:"listId,omitzero"`
+	// Include completed tasks. Default false.
+	Completed *bool `json:"completed,omitzero"`
+	// Only tasks due before this day, YYYY-MM-DD, as the To-Do bar asks.
+	DueBefore *string `json:"dueBefore,omitzero"`
+}
+
+// TasksCreateParams holds the params of tasks.create.
+type TasksCreateParams struct {
+	// Default: the default list of the first account with tasks on.
+	ListID *int64  `json:"listId,omitzero"`
+	Title  string  `json:"title"`
+	Notes  *string `json:"notes,omitzero"`
+	// YYYY-MM-DD.
+	Due      *string `json:"due,omitzero"`
+	ParentID *int64  `json:"parentId,omitzero"`
+}
+
+// TasksUpdateParams holds the params of tasks.update.
+type TasksUpdateParams struct {
+	ID    int64   `json:"id"`
+	Title *string `json:"title,omitzero"`
+	Notes *string `json:"notes,omitzero"`
+	// YYYY-MM-DD, or empty to clear.
+	Due       *string `json:"due,omitzero"`
+	Completed *bool   `json:"completed,omitzero"`
+}
+
+// TasksDeleteParams holds the params of tasks.delete.
+type TasksDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// TasksService: Tasks from Google Tasks and from CalDAV task lists
+// (docs/design/pim.md). Flagged mail, which the Tasks module and the To-Do
+// bar show beside them, comes from view.open with flagged set.
+type TasksService interface {
+	// List implements tasks.list. Tasks of enabled lists of accounts with the
+	// tasks service on, list by list in collection order; within a list, by the
+	// server's position, each parent followed by its subtasks.
+	List(ctx context.Context, p *TasksListParams) ([]Task, error)
+	// Create implements tasks.create. Add a task at the top of its list, and
+	// write it to the server.
+	Create(ctx context.Context, p *TasksCreateParams) (*Task, error)
+	// Update implements tasks.update. Change a task; omitted fields keep their
+	// values.
+	Update(ctx context.Context, p *TasksUpdateParams) (*Task, error)
+	// Delete implements tasks.delete. Delete a task and its subtasks.
+	Delete(ctx context.Context, p *TasksDeleteParams) error
+}
+
+func registerTasks(r *Router, s TasksService) {
+	r.handle("tasks.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p TasksListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("tasks.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p TasksCreateParams
+		if err := decodeParams(raw, &p, []string{"title"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("tasks.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p TasksUpdateParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("tasks.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p TasksDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+}
+
+// TasksClient calls the tasks methods; it implements TasksService.
+type TasksClient struct{ c *Client }
+
+// Tasks returns the tasks methods.
+func (c *Client) Tasks() TasksClient { return TasksClient{c} }
+
+var _ TasksService = TasksClient{}
+
+// List calls tasks.list.
+func (x TasksClient) List(ctx context.Context, p *TasksListParams) ([]Task, error) {
+	var r []Task
+	err := x.c.Call(ctx, "tasks.list", p, &r)
+	return r, err
+}
+
+// Create calls tasks.create.
+func (x TasksClient) Create(ctx context.Context, p *TasksCreateParams) (*Task, error) {
+	var r Task
+	err := x.c.Call(ctx, "tasks.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Update calls tasks.update.
+func (x TasksClient) Update(ctx context.Context, p *TasksUpdateParams) (*Task, error) {
+	var r Task
+	err := x.c.Call(ctx, "tasks.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls tasks.delete.
+func (x TasksClient) Delete(ctx context.Context, p *TasksDeleteParams) error {
+	return x.c.Call(ctx, "tasks.delete", p, nil)
+}
+
+// TasksChanged: An account's task lists or tasks changed.
+type TasksChanged struct {
+	AccountID int64 `json:"accountId"`
+}
+
+// EventName is the wire name of TasksChanged.
+func (TasksChanged) EventName() string { return "tasks.changed" }
+
+// Durable reports whether TasksChanged is kept in the changes log.
+func (TasksChanged) Durable() bool { return true }
 
 // ---- thread ----
 
@@ -2092,6 +3148,7 @@ func (ViewDelta) Durable() bool { return false }
 type Services struct {
 	Account  AccountService
 	Address  AddressService
+	Calendar CalendarService
 	Draft    DraftService
 	Events   EventsService
 	Identity IdentityService
@@ -2099,8 +3156,10 @@ type Services struct {
 	Message  MessageService
 	Oauth    OauthService
 	Outbox   OutboxService
+	People   PeopleService
 	RPC      RPCService
 	Sync     SyncService
+	Tasks    TasksService
 	Thread   ThreadService
 	View     ViewService
 }
@@ -2114,6 +3173,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Address is nil")
 	}
 	registerAddress(r, s.Address)
+	if s.Calendar == nil {
+		return errors.New("api: Services.Calendar is nil")
+	}
+	registerCalendar(r, s.Calendar)
 	if s.Draft == nil {
 		return errors.New("api: Services.Draft is nil")
 	}
@@ -2142,6 +3205,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Outbox is nil")
 	}
 	registerOutbox(r, s.Outbox)
+	if s.People == nil {
+		return errors.New("api: Services.People is nil")
+	}
+	registerPeople(r, s.People)
 	if s.RPC == nil {
 		return errors.New("api: Services.RPC is nil")
 	}
@@ -2150,6 +3217,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Sync is nil")
 	}
 	registerSync(r, s.Sync)
+	if s.Tasks == nil {
+		return errors.New("api: Services.Tasks is nil")
+	}
+	registerTasks(r, s.Tasks)
 	if s.Thread == nil {
 		return errors.New("api: Services.Thread is nil")
 	}
@@ -2172,7 +3243,18 @@ var Methods = []string{
 	"account.discover",
 	"account.authorize",
 	"account.verify",
+	"account.services",
+	"account.setService",
+	"account.collections",
+	"account.setCollection",
 	"address.suggest",
+	"calendar.range",
+	"calendar.event",
+	"calendar.invitation",
+	"calendar.respond",
+	"calendar.reminders",
+	"calendar.snooze",
+	"calendar.dismiss",
 	"draft.create",
 	"draft.open",
 	"draft.get",
@@ -2199,9 +3281,19 @@ var Methods = []string{
 	"outbox.list",
 	"outbox.cancel",
 	"outbox.retry",
+	"people.list",
+	"people.get",
+	"people.card",
+	"people.photo",
+	"people.add",
 	"rpc.hello",
 	"sync.status",
 	"sync.now",
+	"sync.pim",
+	"tasks.list",
+	"tasks.create",
+	"tasks.update",
+	"tasks.delete",
 	"thread.messages",
 	"view.open",
 	"view.range",
@@ -2213,6 +3305,18 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 	switch name {
 	case "account.changed":
 		var e AccountChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "calendar.changed":
+		var e CalendarChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "calendar.reminders":
+		var e CalendarReminders
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}
@@ -2247,8 +3351,20 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}
 		return e, nil
+	case "people.changed":
+		var e PeopleChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
 	case "sync.progress":
 		var e SyncProgress
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "tasks.changed":
+		var e TasksChanged
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

@@ -1,0 +1,19 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Lovelace;Ada;;;
+FN:Ada Lovelace
+EMAIL;TYPE=INTERNET;TYPE=HOME:ada@example.com
+EMAIL;TYPE=INTERNET;TYPE=WORK:Ada@Analytical.example
+item1.EMAIL;TYPE=INTERNET:ada@club.example
+item1.X-ABLabel:Club
+TEL;TYPE=CELL:+44 20 7946 0000
+TEL;TYPE=WORK;TYPE=FAX:+44 20 7946 0009
+ORG:Analytical Engines Ltd.
+TITLE:Programmer
+ADR;TYPE=HOME:;;12 St James's Square;London;;SW1Y 4JH;United Kingdom
+BDAY:1815-12-10
+PHOTO:https://lh3.googleusercontent.com/contacts/AbC123
+URL:https://ada.example/
+NOTE:Met at the\nExhibition\, 1851
+UID:2b1f0a9c8e7d6c5b
+END:VCARD

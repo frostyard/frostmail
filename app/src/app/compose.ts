@@ -46,6 +46,12 @@ export async function startDraft(client: Client, kind: DraftKind, sourceId?: num
   await openCompose(d.id, true);
 }
 
+/** composeTo opens a new message to an address (the People module, contact cards). */
+export async function composeTo(client: Client, address: string, name = ""): Promise<void> {
+  const d = await client.draft.create({ kind: "new", to: [{ name, address }] });
+  await openCompose(d.id, true);
+}
+
 /** openDraftMessage opens a message from a Drafts mailbox as a draft. */
 export async function openDraftMessage(client: Client, messageId: number): Promise<void> {
   const d = await client.draft.open({ messageId });

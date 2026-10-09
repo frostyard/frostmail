@@ -20,13 +20,16 @@ executor is Codex since [ADR-0021](../adr/0021-run-task-cards-with-codex.md).
    [TEMPLATE.md](../tasks/TEMPLATE.md), with given files under
    `NNNN-slug/_given/<repo path>` (the underscore keeps `go ./...` out), and
    checks the given tests against a reference solution that is then deleted.
+   Given files are formatted as the gates format them (`gofmt`; `make ui-fmt`
+   for app tests): taskrun formats an app card's files between attempts,
+   and stops the run if that changes a given file.
    Stubs the card replaces may live on main if main stays green.
 2. `make task T=NNNN` (`tools/taskrun run`) requires a clean tree, creates
    branch `task/NNNN`, copies the given files into place, moves the card to
    `doing/` and commits that as `chore(tasks): start T-NNNN …`.
 3. It runs the executor with the card (`EXECUTOR`, `codex` by default):
    `codex exec` in the `workspace-write` sandbox, with Go's build cache and
-   golangci-lint's and mise's caches writable and the network off. Codex
+   golangci-lint's and mise's caches writable and the network on. Codex
    loads `AGENTS.md` itself and runs the Go gates through
    `mise exec -- make …`; it cannot reach the nsl machine, so for a card
    that touches `app/` taskrun runs `make ui-fmt` before checking.

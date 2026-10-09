@@ -112,6 +112,9 @@ screenshots: app-build ## Retake the README's screenshots (docs/images) of the a
 	CGO_ENABLED=0 go build -o build/ ./cmd/maild ./tools/uifixture ./tools/smtpsink
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && env -u WAYLAND_DISPLAY GDK_BACKEND=x11 FROSTMAIL_SCREENSHOTS=docs/images xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts screenshots'
 
+zones: ## Regenerate internal/calendar/zones_gen.go from CLDR's pinned windowsZones.xml (network)
+	go run ./tools/zonesgen
+
 ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
 

@@ -27,6 +27,18 @@ enums:
       - {name: tls, doc: "TLS from the first byte (IMAPS 993, SMTPS 465)."}
       - {name: starttls, doc: "Plain connection upgraded with STARTTLS (143, 587)."}
       - {name: insecure, doc: "No TLS. Only for local test servers."}
+  - name: ServiceKind
+    doc: A service an account syncs besides mail (ADR-0017).
+    values:
+      - {name: contacts, doc: "Address books over CardDAV."}
+      - {name: calendar, doc: "Calendars over CalDAV."}
+      - {name: tasks, doc: "Google Tasks for Google accounts; task lists over CalDAV for others."}
+  - name: CollectionKind
+    doc: What a collection holds.
+    values:
+      - {name: addressbook, doc: "A CardDAV address book."}
+      - {name: calendar, doc: "A CalDAV calendar, holding events, tasks or both."}
+      - {name: tasklist, doc: "A Google Tasks list."}
 types:
   - name: ServerConfig
     doc: Where and how to reach one server.
@@ -73,12 +85,46 @@ types:
       - {name: missingOnServer, type: "[]int", doc: "Local UIDs the server no longer has (at most 20)."}
       - {name: flagDiffs, type: int, doc: "Messages whose flags differ, leaving out those changed since the last pass or waiting for a queued action."}
       - {name: labelDiffs, type: int, doc: "Gmail: messages whose labels differ, with the same exceptions."}
+  - name: ServiceSettings
+    doc: One of an account's services besides mail.
+    fields:
+      - {name: service, type: ServiceKind}
+      - {name: available, type: bool, doc: "The provider offers the service; iCloud's tasks, for one, are out of reach."}
+      - {name: enabled, type: bool}
+      - {name: url, type: string, doc: "Where the service lives: the DAV home set, or the Tasks API. Empty until found."}
+      - {name: signedIn, type: bool, doc: "The account's sign-in covers the service. False for a Google account whose grant lacks the service's scope: account.authorize asks for it."}
+      - {name: lastSyncAt, type: time, optional: true, doc: "The end of the last complete pass."}
+      - {name: error, type: string, optional: true, doc: "Why the last pass failed."}
+  - name: Collection
+    doc: An address book, calendar or task list.
+    fields:
+      - {name: id, type: int}
+      - {name: accountId, type: int}
+      - {name: kind, type: CollectionKind}
+      - {name: name, type: string}
+      - {name: color, type: string, doc: "#rrggbb, or empty for the module's default."}
+      - {name: events, type: bool, doc: "Holds events."}
+      - {name: tasks, type: bool, doc: "Holds tasks: a task list, or a calendar with VTODO."}
+      - {name: readOnly, type: bool, doc: "The server refuses changes, or the account is read-only."}
+      - {name: enabled, type: bool, doc: "Synced and shown."}
+      - {name: isDefault, type: bool, doc: "Where the account's new contacts, events or tasks go."}
+  - name: CollectionCheck
+    doc: How one synced address book, calendar or task list compares with the server.
+    fields:
+      - {name: collectionId, type: int}
+      - {name: name, type: string}
+      - {name: server, type: int, doc: "Objects on the server."}
+      - {name: local, type: int, doc: "Objects stored locally."}
+      - {name: missingLocally, type: "[]string", doc: "Server hrefs with no local object (at most 20)."}
+      - {name: missingOnServer, type: "[]string", doc: "Local hrefs the server does not have (at most 20), leaving out changes waiting to be written."}
+      - {name: etagDiffs, type: int, doc: "Objects whose ETag differs, with the same exception."}
   - name: VerifyReport
     doc: The result of account.verify.
     fields:
       - {name: accountId, type: int}
-      - {name: ok, type: bool, doc: "No folder differs."}
+      - {name: ok, type: bool, doc: "No folder or collection differs."}
       - {name: mailboxes, type: "[]MailboxCheck"}
+      - {name: collections, type: "[]CollectionCheck", doc: "The enabled collections of the services that are on."}
       - {name: checkedAt, type: time}
 methods:
   - name: list
@@ -150,9 +196,43 @@ methods:
       - {name: id, type: int}
     result: VerifyReport
     errors: [notFound, unavailable]
+  - name: services
+    doc: An account's contacts, calendar and tasks services, in that order.
+    params:
+      - {name: id, type: int}
+    result: "[]ServiceSettings"
+    errors: [notFound]
+  - name: setService
+    doc: >-
+      Turn a service on or off. Turning one on without a url takes the
+      provider's profile or discovers the server (well-known URLs, then SRV
+      records) and syncs it; a Google account whose grant lacks the
+      service's scope waits for account.authorize. Turning one off stops
+      syncing and keeps what is stored.
+    params:
+      - {name: id, type: int}
+      - {name: service, type: ServiceKind}
+      - {name: enabled, type: bool}
+      - {name: url, type: string, optional: true, doc: "The server's address, when discovery finds nothing."}
+    result: ServiceSettings
+    errors: [notFound, invalidParams, unavailable]
+  - name: collections
+    doc: Address books, calendars and task lists, by account, then by the server's order.
+    params:
+      - {name: accountId, type: int, optional: true}
+      - {name: kind, type: CollectionKind, optional: true}
+    result: "[]Collection"
+  - name: setCollection
+    doc: Show or hide a collection, or make it the default of its kind for its account.
+    params:
+      - {name: id, type: int}
+      - {name: enabled, type: bool, optional: true}
+      - {name: isDefault, type: bool, optional: true, doc: "Only true: the previous default stops being one."}
+    result: Collection
+    errors: [notFound, invalidParams]
 events:
   - name: changed
-    doc: An account was created, updated or deleted.
+    doc: An account was created, updated or deleted, or its services or collections changed.
     durable: true
     fields:
       - {name: id, type: int}

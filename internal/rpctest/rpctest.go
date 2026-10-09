@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/oauth"
+	"github.com/frostyard/frostmail/internal/pimsync"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
@@ -48,6 +49,9 @@ type Options struct {
 	// Discovery replaces account.discover's network access; zero means the
 	// real one (provider profiles need none).
 	Discovery discover.Deps
+	// PIM, when set, runs contacts, calendar and tasks sync with this
+	// configuration (point HTTP at a davtest server's client).
+	PIM *pimsync.Config
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -59,6 +63,7 @@ type Server struct {
 	Blobs   *blob.Store
 	Views   *view.Manager
 	Sync    *mailsync.Manager // nil unless Options.Sync was set
+	PIM     *pimsync.Manager  // nil unless Options.PIM was set
 	Parts   *render.PartsCache
 	OAuth   *oauth.Manager
 
@@ -104,6 +109,12 @@ func StartWith(t testing.TB, o Options) *Server {
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
 		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery}
+	if o.PIM != nil {
+		cfg := *o.PIM
+		cfg.Tokens = srv.OAuth
+		srv.PIM = pimsync.New(db, srv.Secrets, log, cfg)
+		deps.PIM = srv.PIM
+	}
 	if o.Sync != nil {
 		cfg := *o.Sync
 		if cfg.Parts == nil {
@@ -130,7 +141,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		RPC: rpc, Events: rpc, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
-		Oauth: eng.Oauth(),
+		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -139,6 +150,11 @@ func StartWith(t testing.TB, o Options) *Server {
 	go views.Run(ctx)
 	if srv.Sync != nil {
 		if err := srv.Sync.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if srv.PIM != nil {
+		if err := srv.PIM.Start(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -156,6 +172,9 @@ func StartWith(t testing.TB, o Options) *Server {
 		}
 		if srv.Sync != nil {
 			srv.Sync.Wait()
+		}
+		if srv.PIM != nil {
+			srv.PIM.Wait()
 		}
 		_ = db.Close()
 		_ = os.RemoveAll(dir)

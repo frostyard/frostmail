@@ -58,6 +58,14 @@ export const DiscoverySourceValues: readonly DiscoverySource[] = ["profile", "au
 export type TLSMode = "tls" | "starttls" | "insecure";
 export const TLSModeValues: readonly TLSMode[] = ["tls", "starttls", "insecure"];
 
+/** A service an account syncs besides mail (ADR-0017). */
+export type ServiceKind = "contacts" | "calendar" | "tasks";
+export const ServiceKindValues: readonly ServiceKind[] = ["contacts", "calendar", "tasks"];
+
+/** What a collection holds. */
+export type CollectionKind = "addressbook" | "calendar" | "tasklist";
+export const CollectionKindValues: readonly CollectionKind[] = ["addressbook", "calendar", "tasklist"];
+
 /** Where and how to reach one server. */
 export interface ServerConfig {
   host: string;
@@ -139,12 +147,81 @@ export interface MailboxCheck {
   labelDiffs: number;
 }
 
+/** One of an account's services besides mail. */
+export interface ServiceSettings {
+  service: ServiceKind;
+  /**
+   * The provider offers the service; iCloud's tasks, for one, are out of
+   * reach.
+   */
+  available: boolean;
+  enabled: boolean;
+  /**
+   * Where the service lives: the DAV home set, or the Tasks API. Empty until
+   * found.
+   */
+  url: string;
+  /**
+   * The account's sign-in covers the service. False for a Google account
+   * whose grant lacks the service's scope: account.authorize asks for it.
+   */
+  signedIn: boolean;
+  /** The end of the last complete pass. */
+  lastSyncAt?: string /* RFC 3339 */;
+  /** Why the last pass failed. */
+  error?: string;
+}
+
+/** An address book, calendar or task list. */
+export interface Collection {
+  id: number;
+  accountId: number;
+  kind: CollectionKind;
+  name: string;
+  /** #rrggbb, or empty for the module's default. */
+  color: string;
+  /** Holds events. */
+  events: boolean;
+  /** Holds tasks: a task list, or a calendar with VTODO. */
+  tasks: boolean;
+  /** The server refuses changes, or the account is read-only. */
+  readOnly: boolean;
+  /** Synced and shown. */
+  enabled: boolean;
+  /** Where the account's new contacts, events or tasks go. */
+  isDefault: boolean;
+}
+
+/**
+ * How one synced address book, calendar or task list compares with the
+ * server.
+ */
+export interface CollectionCheck {
+  collectionId: number;
+  name: string;
+  /** Objects on the server. */
+  server: number;
+  /** Objects stored locally. */
+  local: number;
+  /** Server hrefs with no local object (at most 20). */
+  missingLocally: string[];
+  /**
+   * Local hrefs the server does not have (at most 20), leaving out changes
+   * waiting to be written.
+   */
+  missingOnServer: string[];
+  /** Objects whose ETag differs, with the same exception. */
+  etagDiffs: number;
+}
+
 /** The result of account.verify. */
 export interface VerifyReport {
   accountId: number;
-  /** No folder differs. */
+  /** No folder or collection differs. */
   ok: boolean;
   mailboxes: MailboxCheck[];
+  /** The enabled collections of the services that are on. */
+  collections: CollectionCheck[];
   checkedAt: string /* RFC 3339 */;
 }
 
@@ -213,7 +290,38 @@ export interface AccountVerifyParams {
   id: number;
 }
 
-/** An account was created, updated or deleted. */
+/** Params of account.services. */
+export interface AccountServicesParams {
+  id: number;
+}
+
+/** Params of account.setService. */
+export interface AccountSetServiceParams {
+  id: number;
+  service: ServiceKind;
+  enabled: boolean;
+  /** The server's address, when discovery finds nothing. */
+  url?: string;
+}
+
+/** Params of account.collections. */
+export interface AccountCollectionsParams {
+  accountId?: number;
+  kind?: CollectionKind;
+}
+
+/** Params of account.setCollection. */
+export interface AccountSetCollectionParams {
+  id: number;
+  enabled?: boolean;
+  /** Only true: the previous default stops being one. */
+  isDefault?: boolean;
+}
+
+/**
+ * An account was created, updated or deleted, or its services or collections
+ * changed.
+ */
 export interface AccountChanged {
   id: number;
   deleted: boolean;
@@ -257,6 +365,26 @@ export interface AccountClient {
    * Compare the stored mail with the server, changing nothing on either side.
    */
   verify(params: AccountVerifyParams): Promise<VerifyReport>;
+  /** An account's contacts, calendar and tasks services, in that order. */
+  services(params: AccountServicesParams): Promise<ServiceSettings[]>;
+  /**
+   * Turn a service on or off. Turning one on without a url takes the
+   * provider's profile or discovers the server (well-known URLs, then SRV
+   * records) and syncs it; a Google account whose grant lacks the service's
+   * scope waits for account.authorize. Turning one off stops syncing and
+   * keeps what is stored.
+   */
+  setService(params: AccountSetServiceParams): Promise<ServiceSettings>;
+  /**
+   * Address books, calendars and task lists, by account, then by the server's
+   * order.
+   */
+  collections(params?: AccountCollectionsParams): Promise<Collection[]>;
+  /**
+   * Show or hide a collection, or make it the default of its kind for its
+   * account.
+   */
+  setCollection(params: AccountSetCollectionParams): Promise<Collection>;
 }
 
 function accountClient(t: Transport): AccountClient {
@@ -270,6 +398,10 @@ function accountClient(t: Transport): AccountClient {
     discover: (params) => t.call<Discovery>("account.discover", params),
     authorize: (params) => t.call<AuthorizeResult>("account.authorize", params),
     verify: (params) => t.call<VerifyReport>("account.verify", params),
+    services: (params) => t.call<ServiceSettings[]>("account.services", params),
+    setService: (params) => t.call<ServiceSettings>("account.setService", params),
+    collections: (params = {}) => t.call<Collection[]>("account.collections", params),
+    setCollection: (params) => t.call<Collection>("account.setCollection", params),
   };
 }
 
@@ -294,6 +426,266 @@ export interface AddressClient {
 function addressClient(t: Transport): AddressClient {
   return {
     suggest: (params) => t.call<Address[]>("address.suggest", params),
+  };
+}
+
+// ---- calendar ----
+
+/** An attendee's answer to an invitation (iCalendar PARTSTAT). */
+export type PartStat = "needsaction" | "accepted" | "declined" | "tentative" | "delegated";
+export const PartStatValues: readonly PartStat[] = ["needsaction", "accepted", "declined", "tentative", "delegated"];
+
+/** An event's STATUS. */
+export type EventStatus = "confirmed" | "tentative" | "cancelled";
+export const EventStatusValues: readonly EventStatus[] = ["confirmed", "tentative", "cancelled"];
+
+/** An attendee's ROLE. */
+export type AttendeeRole = "chair" | "required" | "optional" | "none";
+export const AttendeeRoleValues: readonly AttendeeRole[] = ["chair", "required", "optional", "none"];
+
+/** What an invitation message asks (iTIP METHOD). */
+export type ITIPMethod = "request" | "cancel" | "reply" | "publish" | "other";
+export const ITIPMethodValues: readonly ITIPMethod[] = ["request", "cancel", "reply", "publish", "other"];
+
+/** One occurrence of an event. */
+export interface Occurrence {
+  /**
+   * The single event, the series' master, or the override that replaced this
+   * occurrence.
+   */
+  eventId: number;
+  /**
+   * Which occurrence of a series: its original start as stored; empty for a
+   * single event.
+   */
+  recurrenceId: string;
+  calendarId: number;
+  accountId: number;
+  summary: string;
+  location: string;
+  allDay: boolean;
+  /**
+   * Timed: the start. All-day: midnight of startDate in the range's time
+   * zone.
+   */
+  start: string /* RFC 3339 */;
+  /** Exclusive. */
+  end: string /* RFC 3339 */;
+  /** All-day: the first day, YYYY-MM-DD. Empty for timed events. */
+  startDate: string;
+  /** All-day: the day after the last. Empty for timed events. */
+  endDate: string;
+  status: EventStatus;
+  /** The user's answer, when invited. */
+  answer?: PartStat;
+  /** Does not count as busy. */
+  transparent: boolean;
+  /** Part of a series. */
+  recurring: boolean;
+}
+
+/** An organizer or attendee. */
+export interface Attendee {
+  /** Lowercased. */
+  email: string;
+  name: string;
+  role: AttendeeRole;
+  answer: PartStat;
+  /** One of the account's own addresses. */
+  isUser: boolean;
+}
+
+/**
+ * An event in full; for an occurrence of a series, that occurrence's times.
+ */
+export interface CalendarEvent {
+  id: number;
+  recurrenceId: string;
+  calendarId: number;
+  accountId: number;
+  uid: string;
+  summary: string;
+  location: string;
+  /** Plain text. */
+  description: string;
+  allDay: boolean;
+  start: string /* RFC 3339 */;
+  end: string /* RFC 3339 */;
+  startDate: string;
+  endDate: string;
+  /**
+   * The IANA zone the event was made in, or empty (UTC, floating or all-day).
+   */
+  timeZone: string;
+  recurring: boolean;
+  /**
+   * The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty
+   * for a single event.
+   */
+  recurrence: string;
+  status: EventStatus;
+  transparent: boolean;
+  organizer?: Attendee;
+  /** Without the organizer. */
+  attendees: Attendee[];
+  /** The user's answer, when invited. */
+  answer?: PartStat;
+  /** Reminders shown, as minutes before the start (negative: after). */
+  alarms: number[];
+  readOnly: boolean;
+}
+
+/** An iTIP message in mail, matched against the stored events (ADR-0019). */
+export interface Invitation {
+  method: ITIPMethod;
+  /** The event as the message describes it; id is 0 when it is not stored. */
+  event: CalendarEvent;
+  /** The stored event with the message's UID, when there is one. */
+  eventId?: number;
+  /** Request and cancel: the organizer. Reply: the attendee who answered. */
+  from?: Attendee;
+  /**
+   * The user's current answer to the stored event or, before it is stored, to
+   * the message.
+   */
+  answer?: PartStat;
+  /**
+   * A request the user is invited to, not outdated, in an account that can
+   * write.
+   */
+  canRespond: boolean;
+  /** The stored event has a later SEQUENCE than the message. */
+  outdated: boolean;
+  /** Busy occurrences overlapping the event's first occurrence. */
+  conflicts: Occurrence[];
+  /** The occurrences just before and after it on the same day. */
+  adjacent: Occurrence[];
+}
+
+/** An alarm that is due. */
+export interface Reminder {
+  /**
+   * Opaque; names the occurrence and alarm for calendar.snooze and
+   * calendar.dismiss.
+   */
+  id: string;
+  eventId: number;
+  recurrenceId: string;
+  calendarId: number;
+  summary: string;
+  location: string;
+  allDay: boolean;
+  start: string /* RFC 3339 */;
+  startDate: string;
+  /** When the alarm went off, or the snooze ended. */
+  dueAt: string /* RFC 3339 */;
+}
+
+/** Params of calendar.range. */
+export interface CalendarRangeParams {
+  /** The first day, YYYY-MM-DD. */
+  from: string;
+  /** The day after the last; at most 400 days after from. */
+  to: string;
+  /** The IANA zone the days are in. Default: maild's local zone. */
+  timeZone?: string;
+  /** Only these calendars. */
+  calendarIds?: number[];
+}
+
+/** Params of calendar.event. */
+export interface CalendarEventParams {
+  id: number;
+  recurrenceId?: string;
+}
+
+/** Params of calendar.invitation. */
+export interface CalendarInvitationParams {
+  messageId: number;
+}
+
+/** Params of calendar.respond. */
+export interface CalendarRespondParams {
+  messageId?: number;
+  eventId?: number;
+  /** Answer one occurrence only. */
+  recurrenceId?: string;
+  /** accepted, declined or tentative. */
+  answer: PartStat;
+  /** A note for the organizer. */
+  comment?: string;
+}
+
+/** Params of calendar.reminders. */
+export type CalendarRemindersParams = Record<string, never>;
+
+/** Params of calendar.snooze. */
+export interface CalendarSnoozeParams {
+  ids: string[];
+  until: string /* RFC 3339 */;
+}
+
+/** Params of calendar.dismiss. */
+export interface CalendarDismissParams {
+  ids: string[];
+}
+
+/** An account's calendars or events changed; views refetch their ranges. */
+export interface CalendarChanged {
+  accountId: number;
+}
+
+/**
+ * Reminders became due; the app raises its reminder window with
+ * calendar.reminders.
+ */
+export interface CalendarReminders {
+  /** How many are due now. */
+  count: number;
+}
+
+/**
+ * Events from the accounts' calendars, their occurrences, invitations and
+ * reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+ */
+export interface CalendarClient {
+  /**
+   * The occurrences that overlap the days from to to, in start order, from
+   * enabled calendars of accounts with the calendar service on.
+   */
+  range(params: CalendarRangeParams): Promise<Occurrence[]>;
+  /** An event, or one occurrence of a series. */
+  event(params: CalendarEventParams): Promise<CalendarEvent>;
+  /** The invitation in a message's text/calendar part. */
+  invitation(params: CalendarInvitationParams): Promise<Invitation>;
+  /**
+   * Answer an invitation, from its message or its stored event. maild changes
+   * the user's PARTSTAT in the stored event and lets the server tell the
+   * organizer, or sends the organizer an iTIP REPLY itself when the server
+   * does not (ADR-0019). An accepted invitation not yet stored goes into the
+   * account's default calendar.
+   */
+  respond(params: CalendarRespondParams): Promise<CalendarEvent>;
+  /**
+   * The reminders that are due now and neither dismissed nor snoozed, oldest
+   * first.
+   */
+  reminders(params?: CalendarRemindersParams): Promise<Reminder[]>;
+  /** Show reminders again at until. */
+  snooze(params: CalendarSnoozeParams): Promise<void>;
+  /** Stop showing reminders. */
+  dismiss(params: CalendarDismissParams): Promise<void>;
+}
+
+function calendarClient(t: Transport): CalendarClient {
+  return {
+    range: (params) => t.call<Occurrence[]>("calendar.range", params),
+    event: (params) => t.call<CalendarEvent>("calendar.event", params),
+    invitation: (params) => t.call<Invitation>("calendar.invitation", params),
+    respond: (params) => t.call<CalendarEvent>("calendar.respond", params),
+    reminders: (params = {}) => t.call<Reminder[]>("calendar.reminders", params),
+    snooze: (params) => t.call<null>("calendar.snooze", params).then(() => undefined),
+    dismiss: (params) => t.call<null>("calendar.dismiss", params).then(() => undefined),
   };
 }
 
@@ -342,6 +734,10 @@ export interface DraftCreateParams {
   accountId?: number;
   /** Required for reply, replyall and forward. */
   sourceId?: number;
+  /**
+   * A new message's recipients, such as the person a contact card writes to.
+   */
+  to?: Address[];
 }
 
 /** Params of draft.open. */
@@ -935,6 +1331,177 @@ function outboxClient(t: Transport): OutboxClient {
   };
 }
 
+// ---- people ----
+
+/** A row of the People list. */
+export interface PersonSummary {
+  id: number;
+  displayName: string;
+  organization: string;
+  /** The first email address of the person's first contact, or empty. */
+  email: string;
+  hasPhoto: boolean;
+  /**
+   * The letter the person files under in the list: the sort key's first
+   * letter, uppercased, or # when it is not a letter.
+   */
+  index: string;
+}
+
+/** An email address, phone number or URL with its label. */
+export interface LabeledValue {
+  /** home, work, mobile, other, or the card's own label; may be empty. */
+  label: string;
+  value: string;
+}
+
+/** A postal address from a vCard's ADR. */
+export interface PostalAddress {
+  /** home, work, other, or the card's own label; may be empty. */
+  label: string;
+  /** The street lines, joined by newlines. */
+  street: string;
+  locality: string;
+  region: string;
+  postcode: string;
+  country: string;
+}
+
+/** One vCard of a person, from one address book, read from its source. */
+export interface Contact {
+  id: number;
+  collectionId: number;
+  accountId: number;
+  displayName: string;
+  givenName: string;
+  familyName: string;
+  nickname: string;
+  organization: string;
+  title: string;
+  emails: LabeledValue[];
+  phones: LabeledValue[];
+  addresses: PostalAddress[];
+  urls: LabeledValue[];
+  /** YYYY-MM-DD, or --MM-DD without a year; empty when unknown. */
+  birthday: string;
+  note: string;
+  readOnly: boolean;
+}
+
+/** A person and every contact that makes them up. */
+export interface Person {
+  id: number;
+  displayName: string;
+  organization: string;
+  hasPhoto: boolean;
+  /** In address book order: by account, then collection position. */
+  contacts: Contact[];
+}
+
+/** A person's photo. */
+export interface Photo {
+  /** Such as image/jpeg. */
+  contentType: string;
+  /** The image, base64-encoded. */
+  data: string;
+}
+
+/** What the app shows for an email address in mail. */
+export interface ContactCard {
+  /** Lowercased. */
+  email: string;
+  /**
+   * The person's name, else the name last seen with the address in mail; may
+   * be empty.
+   */
+  name: string;
+  /** Absent when no contact has the address. */
+  person?: Person;
+  /** The newest messages from or to the address, at most 5. */
+  recent: MessageSummary[];
+  /**
+   * The next occurrences with the address as organizer or attendee, within 30
+   * days, at most 5.
+   */
+  upcoming: Occurrence[];
+  /**
+   * No contact has the address and an address book can take one: Add to
+   * Contacts is offered.
+   */
+  canAdd: boolean;
+}
+
+/** Params of people.list. */
+export interface PeopleListParams {
+  query?: string;
+  /** Only people with a contact in this address book. */
+  collectionId?: number;
+}
+
+/** Params of people.get. */
+export interface PeopleGetParams {
+  id: number;
+}
+
+/** Params of people.card. */
+export interface PeopleCardParams {
+  email: string;
+}
+
+/** Params of people.photo. */
+export interface PeoplePhotoParams {
+  id: number;
+}
+
+/** Params of people.add. */
+export interface PeopleAddParams {
+  email: string;
+  /** Default: the name last seen with the address in mail. */
+  name?: string;
+  /**
+   * Default: the default address book of the first account with contacts on.
+   */
+  collectionId?: number;
+}
+
+/** An account's contacts changed, so people may have. */
+export interface PeopleChanged {
+  accountId: number;
+}
+
+/**
+ * Contacts from the accounts' address books, joined into people by email
+ * address across address books and accounts (docs/design/pim.md).
+ */
+export interface PeopleClient {
+  /**
+   * People sorted by name. With query, those whose name, organization or
+   * email address has a word starting with it, case-insensitively.
+   */
+  list(params?: PeopleListParams): Promise<PersonSummary[]>;
+  /** One person with their contacts. */
+  get(params: PeopleGetParams): Promise<Person>;
+  /** The contact card for an email address, person or not. */
+  card(params: PeopleCardParams): Promise<ContactCard>;
+  /** A person's photo, from the first of their contacts that has one. */
+  photo(params: PeoplePhotoParams): Promise<Photo>;
+  /**
+   * Add to Contacts: store a new vCard 3.0 with the name and address in an
+   * address book and write it to the server.
+   */
+  add(params: PeopleAddParams): Promise<Person>;
+}
+
+function peopleClient(t: Transport): PeopleClient {
+  return {
+    list: (params = {}) => t.call<PersonSummary[]>("people.list", params),
+    get: (params) => t.call<Person>("people.get", params),
+    card: (params) => t.call<ContactCard>("people.card", params),
+    photo: (params) => t.call<Photo>("people.photo", params),
+    add: (params) => t.call<Person>("people.add", params),
+  };
+}
+
 // ---- rpc ----
 
 /** Server identity and the negotiated protocol. */
@@ -1001,6 +1568,12 @@ export interface SyncNowParams {
   accountId: number;
 }
 
+/** Params of sync.pim. */
+export interface SyncPimParams {
+  /** Default: every account. */
+  accountId?: number;
+}
+
 /** An account's sync state changed. */
 export interface SyncProgress {
   status: SyncStatus;
@@ -1014,12 +1587,113 @@ export interface SyncClient {
    * Reconcile every mailbox of the account now instead of at the next poll.
    */
   now(params: SyncNowParams): Promise<void>;
+  /**
+   * Poll the contacts, calendar and tasks services now instead of at the next
+   * 5-minute pass. The app calls it when its window gains focus; maild skips
+   * accounts polled in the last minute.
+   */
+  pim(params?: SyncPimParams): Promise<void>;
 }
 
 function syncClient(t: Transport): SyncClient {
   return {
     status: (params = {}) => t.call<SyncStatus[]>("sync.status", params),
     now: (params) => t.call<null>("sync.now", params).then(() => undefined),
+    pim: (params = {}) => t.call<null>("sync.pim", params).then(() => undefined),
+  };
+}
+
+// ---- tasks ----
+
+/** A task. */
+export interface Task {
+  id: number;
+  /** Its collection. */
+  listId: number;
+  accountId: number;
+  /** The task this one is a subtask of. */
+  parentId?: number;
+  title: string;
+  notes: string;
+  /**
+   * YYYY-MM-DD, or empty. Google keeps only the date; a CalDAV due time is
+   * kept in the source and not shown.
+   */
+  due: string;
+  completed: boolean;
+  completedAt?: string /* RFC 3339 */;
+  /** The stored message a task made from mail in Gmail links to. */
+  messageId?: number;
+  readOnly: boolean;
+}
+
+/** Params of tasks.list. */
+export interface TasksListParams {
+  /** Only this list. */
+  listId?: number;
+  /** Include completed tasks. Default false. */
+  completed?: boolean;
+  /** Only tasks due before this day, YYYY-MM-DD, as the To-Do bar asks. */
+  dueBefore?: string;
+}
+
+/** Params of tasks.create. */
+export interface TasksCreateParams {
+  /** Default: the default list of the first account with tasks on. */
+  listId?: number;
+  title: string;
+  notes?: string;
+  /** YYYY-MM-DD. */
+  due?: string;
+  parentId?: number;
+}
+
+/** Params of tasks.update. */
+export interface TasksUpdateParams {
+  id: number;
+  title?: string;
+  notes?: string;
+  /** YYYY-MM-DD, or empty to clear. */
+  due?: string;
+  completed?: boolean;
+}
+
+/** Params of tasks.delete. */
+export interface TasksDeleteParams {
+  id: number;
+}
+
+/** An account's task lists or tasks changed. */
+export interface TasksChanged {
+  accountId: number;
+}
+
+/**
+ * Tasks from Google Tasks and from CalDAV task lists (docs/design/pim.md).
+ * Flagged mail, which the Tasks module and the To-Do bar show beside them,
+ * comes from view.open with flagged set.
+ */
+export interface TasksClient {
+  /**
+   * Tasks of enabled lists of accounts with the tasks service on, list by
+   * list in collection order; within a list, by the server's position, each
+   * parent followed by its subtasks.
+   */
+  list(params?: TasksListParams): Promise<Task[]>;
+  /** Add a task at the top of its list, and write it to the server. */
+  create(params: TasksCreateParams): Promise<Task>;
+  /** Change a task; omitted fields keep their values. */
+  update(params: TasksUpdateParams): Promise<Task>;
+  /** Delete a task and its subtasks. */
+  delete(params: TasksDeleteParams): Promise<void>;
+}
+
+function tasksClient(t: Transport): TasksClient {
+  return {
+    list: (params = {}) => t.call<Task[]>("tasks.list", params),
+    create: (params) => t.call<Task>("tasks.create", params),
+    update: (params) => t.call<Task>("tasks.update", params),
+    delete: (params) => t.call<null>("tasks.delete", params).then(() => undefined),
   };
 }
 
@@ -1143,12 +1817,16 @@ function viewClient(t: Transport): ViewClient {
 /** A server notification. Durable events carry seq. */
 export type Event =
   | { event: "account.changed"; seq?: number; data: AccountChanged }
+  | { event: "calendar.changed"; seq?: number; data: CalendarChanged }
+  | { event: "calendar.reminders"; seq?: number; data: CalendarReminders }
   | { event: "draft.changed"; seq?: number; data: DraftChanged }
   | { event: "mailbox.changed"; seq?: number; data: MailboxChanged }
   | { event: "message.changed"; seq?: number; data: MessageChanged }
   | { event: "message.removed"; seq?: number; data: MessageRemoved }
   | { event: "outbox.changed"; seq?: number; data: OutboxChanged }
+  | { event: "people.changed"; seq?: number; data: PeopleChanged }
   | { event: "sync.progress"; seq?: number; data: SyncProgress }
+  | { event: "tasks.changed"; seq?: number; data: TasksChanged }
   | { event: "view.delta"; seq?: number; data: ViewDelta }
 ;
 
@@ -1163,7 +1841,18 @@ export const METHODS = [
   "account.discover",
   "account.authorize",
   "account.verify",
+  "account.services",
+  "account.setService",
+  "account.collections",
+  "account.setCollection",
   "address.suggest",
+  "calendar.range",
+  "calendar.event",
+  "calendar.invitation",
+  "calendar.respond",
+  "calendar.reminders",
+  "calendar.snooze",
+  "calendar.dismiss",
   "draft.create",
   "draft.open",
   "draft.get",
@@ -1190,9 +1879,19 @@ export const METHODS = [
   "outbox.list",
   "outbox.cancel",
   "outbox.retry",
+  "people.list",
+  "people.get",
+  "people.card",
+  "people.photo",
+  "people.add",
   "rpc.hello",
   "sync.status",
   "sync.now",
+  "sync.pim",
+  "tasks.list",
+  "tasks.create",
+  "tasks.update",
+  "tasks.delete",
   "thread.messages",
   "view.open",
   "view.range",
@@ -1203,6 +1902,7 @@ export const METHODS = [
 export class Client {
   readonly account: AccountClient;
   readonly address: AddressClient;
+  readonly calendar: CalendarClient;
   readonly draft: DraftClient;
   readonly events: EventsClient;
   readonly identity: IdentityClient;
@@ -1210,14 +1910,17 @@ export class Client {
   readonly message: MessageClient;
   readonly oauth: OauthClient;
   readonly outbox: OutboxClient;
+  readonly people: PeopleClient;
   readonly rpc: RPCClient;
   readonly sync: SyncClient;
+  readonly tasks: TasksClient;
   readonly thread: ThreadClient;
   readonly view: ViewClient;
 
   constructor(readonly transport: Transport) {
     this.account = accountClient(transport);
     this.address = addressClient(transport);
+    this.calendar = calendarClient(transport);
     this.draft = draftClient(transport);
     this.events = eventsClient(transport);
     this.identity = identityClient(transport);
@@ -1225,8 +1928,10 @@ export class Client {
     this.message = messageClient(transport);
     this.oauth = oauthClient(transport);
     this.outbox = outboxClient(transport);
+    this.people = peopleClient(transport);
     this.rpc = rpcClient(transport);
     this.sync = syncClient(transport);
+    this.tasks = tasksClient(transport);
     this.thread = threadClient(transport);
     this.view = viewClient(transport);
   }

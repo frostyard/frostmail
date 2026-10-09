@@ -1,0 +1,112 @@
+domain: people
+doc: >-
+  Contacts from the accounts' address books, joined into people by email
+  address across address books and accounts (docs/design/pim.md).
+types:
+  - name: PersonSummary
+    doc: A row of the People list.
+    fields:
+      - {name: id, type: int}
+      - {name: displayName, type: string}
+      - {name: organization, type: string}
+      - {name: email, type: string, doc: "The first email address of the person's first contact, or empty."}
+      - {name: hasPhoto, type: bool}
+      - {name: index, type: string, doc: "The letter the person files under in the list: the sort key's first letter, uppercased, or # when it is not a letter."}
+  - name: LabeledValue
+    doc: An email address, phone number or URL with its label.
+    fields:
+      - {name: label, type: string, doc: "home, work, mobile, other, or the card's own label; may be empty."}
+      - {name: value, type: string}
+  - name: PostalAddress
+    doc: A postal address from a vCard's ADR.
+    fields:
+      - {name: label, type: string, doc: "home, work, other, or the card's own label; may be empty."}
+      - {name: street, type: string, doc: "The street lines, joined by newlines."}
+      - {name: locality, type: string}
+      - {name: region, type: string}
+      - {name: postcode, type: string}
+      - {name: country, type: string}
+  - name: Contact
+    doc: One vCard of a person, from one address book, read from its source.
+    fields:
+      - {name: id, type: int}
+      - {name: collectionId, type: int}
+      - {name: accountId, type: int}
+      - {name: displayName, type: string}
+      - {name: givenName, type: string}
+      - {name: familyName, type: string}
+      - {name: nickname, type: string}
+      - {name: organization, type: string}
+      - {name: title, type: string}
+      - {name: emails, type: "[]LabeledValue"}
+      - {name: phones, type: "[]LabeledValue"}
+      - {name: addresses, type: "[]PostalAddress"}
+      - {name: urls, type: "[]LabeledValue"}
+      - {name: birthday, type: string, doc: "YYYY-MM-DD, or --MM-DD without a year; empty when unknown."}
+      - {name: note, type: string}
+      - {name: readOnly, type: bool}
+  - name: Person
+    doc: A person and every contact that makes them up.
+    fields:
+      - {name: id, type: int}
+      - {name: displayName, type: string}
+      - {name: organization, type: string}
+      - {name: hasPhoto, type: bool}
+      - {name: contacts, type: "[]Contact", doc: "In address book order: by account, then collection position."}
+  - name: Photo
+    doc: A person's photo.
+    fields:
+      - {name: contentType, type: string, doc: "Such as image/jpeg."}
+      - {name: data, type: string, doc: "The image, base64-encoded."}
+  - name: ContactCard
+    doc: What the app shows for an email address in mail.
+    fields:
+      - {name: email, type: string, doc: "Lowercased."}
+      - {name: name, type: string, doc: "The person's name, else the name last seen with the address in mail; may be empty."}
+      - {name: person, type: Person, optional: true, doc: "Absent when no contact has the address."}
+      - {name: recent, type: "[]MessageSummary", doc: "The newest messages from or to the address, at most 5."}
+      - {name: upcoming, type: "[]Occurrence", doc: "The next occurrences with the address as organizer or attendee, within 30 days, at most 5."}
+      - {name: canAdd, type: bool, doc: "No contact has the address and an address book can take one: Add to Contacts is offered."}
+methods:
+  - name: list
+    doc: >-
+      People sorted by name. With query, those whose name, organization or
+      email address has a word starting with it, case-insensitively.
+    params:
+      - {name: query, type: string, optional: true}
+      - {name: collectionId, type: int, optional: true, doc: "Only people with a contact in this address book."}
+    result: "[]PersonSummary"
+  - name: get
+    doc: One person with their contacts.
+    params:
+      - {name: id, type: int}
+    result: Person
+    errors: [notFound]
+  - name: card
+    doc: The contact card for an email address, person or not.
+    params:
+      - {name: email, type: string}
+    result: ContactCard
+    errors: [invalidParams]
+  - name: photo
+    doc: A person's photo, from the first of their contacts that has one.
+    params:
+      - {name: id, type: int}
+    result: Photo
+    errors: [notFound]
+  - name: add
+    doc: >-
+      Add to Contacts: store a new vCard 3.0 with the name and address in an
+      address book and write it to the server.
+    params:
+      - {name: email, type: string}
+      - {name: name, type: string, optional: true, doc: "Default: the name last seen with the address in mail."}
+      - {name: collectionId, type: int, optional: true, doc: "Default: the default address book of the first account with contacts on."}
+    result: Person
+    errors: [invalidParams, notFound, conflict]
+events:
+  - name: changed
+    doc: An account's contacts changed, so people may have.
+    durable: true
+    fields:
+      - {name: accountId, type: int}

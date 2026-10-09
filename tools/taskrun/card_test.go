@@ -42,6 +42,7 @@ func TestParseCardRejects(t *testing.T) {
 		"escaping path":   {"touch: [internal/mime/subject.go]", "repository-relative"},
 		"given touched":   {"touch: [internal/mime/subject.go]", "both given and touched"},
 		"unknown key":     {"size: S", "not found"},
+		"bad size":        {"size: S", "must be S, M or L"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var src string
@@ -56,6 +57,8 @@ func TestParseCardRejects(t *testing.T) {
 				src = strings.Replace(validCard, tc.edit, "touch: [internal/mime/subject_test.go]", 1)
 			case "unknown key":
 				src = strings.Replace(validCard, tc.edit, "size: S\nowner: me", 1)
+			case "bad size":
+				src = strings.Replace(validCard, tc.edit, "size: XL", 1)
 			}
 			if _, err := ParseCard([]byte(src)); err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("ParseCard error = %v, want %q", err, tc.want)

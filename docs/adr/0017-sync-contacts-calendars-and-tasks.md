@@ -26,7 +26,17 @@ the choice, checked 2026-10-08:
   needs a public webhook, iCloud's goes through Apple's push service.
 - emersion/go-webdav (v0.7.0, the author of go-imap) has CardDAV and CalDAV
   clients and servers. Its CardDAV client has sync-collection, its CalDAV
-  client does not, and neither sends conditional writes (If-Match).
+  client does not, and neither sends conditional writes (If-Match). Every
+  object method parses the object into go-vcard's or go-ical's model, so
+  the source bytes are gone before the caller sees them
+  ([ADR-0018](0018-keep-contacts-events-and-tasks-as-sent.md) keeps them),
+  and its collections carry neither `getctag`, `sync-token` nor a color.
+  Its servers have no sync-collection either, so a test server built on
+  them could not test the loop clients actually run.
+- The protocol Frostmail needs is small: `PROPFIND` at depth 0 and 1 for
+  discovery and collections, the `sync-collection` and `multiget`
+  `REPORT`s, and `GET`, `PUT` and `DELETE` with `If-Match` and
+  `If-None-Match`.
 
 ## Decision
 
@@ -41,12 +51,14 @@ the choice, checked 2026-10-08:
   `_carddavs._tcp`). They sign in as mail does: iCloud's app-specific
   password; Google's OAuth with the calendar, CardDAV and Tasks scopes added
   to the user's client, granted by signing in again.
-- **Library.** `internal/davx` is the only package that imports go-webdav,
-  as `imapx` is for go-imap. go-webdav is forked in `third_party/go-webdav`
-  ([ADR-0004](0004-go-imap-fork.md)'s rules: a small, recorded,
-  upstreamable patch set) to add CalDAV sync-collection and conditional
-  `PUT` and `DELETE` of raw bytes. `internal/gtasks` is a small client for
-  the Tasks REST API.
+- **Library.** `internal/davx` is Frostmail's own WebDAV client for that
+  subset, over `net/http` and `encoding/xml`: it returns objects as bytes
+  with their ETags and writes bytes conditionally. `internal/davtest` is
+  the matching in-process server with memory collections, as `imapxtest`
+  is for IMAP, and Radicale in the test container checks both against a
+  real server. go-webdav is not used. `internal/contentline` reads and
+  patches vCard and iCalendar content lines (ADR-0018); rrule-go expands
+  recurrence. `internal/gtasks` is a small client for the Tasks REST API.
 - **Freshness.** maild polls: every 5 minutes, at once when the app's
   window gains focus or the user asks, and right after its own writes.
   sync-collection tokens keep a poll that finds nothing to one request per
@@ -63,7 +75,9 @@ the choice, checked 2026-10-08:
 - Google's "other contacts" are missing from People until a People API
   adapter is added; seen addresses already cover autocomplete for them.
 - iCloud has no tasks for Frostmail; the user's tasks live in Google Tasks.
-- A second fork to keep (go-webdav), tested the same way as the first.
+- No second fork: the DAV client and test server are about a thousand
+  lines of Frostmail's own, tested against each other, against Radicale
+  and against recordings of Google's and iCloud's servers.
 - The user's Google client needs three more APIs enabled and one more
   consent screen, as for an unverified app today.
 
@@ -77,11 +91,14 @@ the choice, checked 2026-10-08:
   project avoids.
 - **Local-only tasks:** simplest, but not on the user's phone; the user
   chose Google Tasks.
+- **Fork go-webdav** (this ADR's first version): the patches would have
+  replaced its object API with a raw one on both sides and added
+  sync-collection to its servers, which is most of the library and not a
+  small upstreamable set.
 
 ## References
 
 - Shapes: [design/pim.md](../design/pim.md),
   [design/accounts.md](../design/accounts.md)
-- Builds on: [ADR-0004](0004-go-imap-fork.md),
-  [ADR-0011](0011-sign-in-and-credentials.md)
+- Builds on: [ADR-0011](0011-sign-in-and-credentials.md)
 - Plan: [plans/0007-m4.5-people-calendar-tasks.md](../plans/0007-m4.5-people-calendar-tasks.md)

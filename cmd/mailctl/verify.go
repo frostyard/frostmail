@@ -74,6 +74,18 @@ func printReport(w io.Writer, r *api.VerifyReport) {
 		state = "DIFFERS"
 	}
 	fmt.Fprintf(w, "account %d: %s\n", r.AccountID, state)
+	for _, c := range r.Collections {
+		fmt.Fprintf(w, "  %s: %d on the server, %d here\n", c.Name, c.Server, c.Local)
+		if len(c.MissingLocally) > 0 {
+			fmt.Fprintf(w, "    missing here: %s\n", strings.Join(c.MissingLocally, " "))
+		}
+		if len(c.MissingOnServer) > 0 {
+			fmt.Fprintf(w, "    missing on the server: %s\n", strings.Join(c.MissingOnServer, " "))
+		}
+		if c.EtagDiffs > 0 {
+			fmt.Fprintf(w, "    %d changed on one side\n", c.EtagDiffs)
+		}
+	}
 	for _, mb := range r.Mailboxes {
 		fmt.Fprintf(w, "  %s: %d on the server, %d here\n", mb.Path, mb.Server, mb.Local)
 		if len(mb.MissingLocally) > 0 {

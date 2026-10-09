@@ -60,6 +60,9 @@ type Deps struct {
 	Discovery discover.Deps
 	// OAuth signs accounts in; nil makes account.authorize unavailable.
 	OAuth *oauth.Manager
+	// PIM syncs contacts, calendars and tasks; nil turns services on
+	// without discovering them.
+	PIM PIMSyncer
 }
 
 // Engine owns the domain services.

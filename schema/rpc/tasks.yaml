@@ -1,0 +1,63 @@
+domain: tasks
+doc: >-
+  Tasks from Google Tasks and from CalDAV task lists (docs/design/pim.md).
+  Flagged mail, which the Tasks module and the To-Do bar show beside them,
+  comes from view.open with flagged set.
+types:
+  - name: Task
+    doc: A task.
+    fields:
+      - {name: id, type: int}
+      - {name: listId, type: int, doc: "Its collection."}
+      - {name: accountId, type: int}
+      - {name: parentId, type: int, optional: true, doc: "The task this one is a subtask of."}
+      - {name: title, type: string}
+      - {name: notes, type: string}
+      - {name: due, type: string, doc: "YYYY-MM-DD, or empty. Google keeps only the date; a CalDAV due time is kept in the source and not shown."}
+      - {name: completed, type: bool}
+      - {name: completedAt, type: time, optional: true}
+      - {name: messageId, type: int, optional: true, doc: "The stored message a task made from mail in Gmail links to."}
+      - {name: readOnly, type: bool}
+methods:
+  - name: list
+    doc: >-
+      Tasks of enabled lists of accounts with the tasks service on, list by
+      list in collection order; within a list, by the server's position, each
+      parent followed by its subtasks.
+    params:
+      - {name: listId, type: int, optional: true, doc: "Only this list."}
+      - {name: completed, type: bool, optional: true, doc: "Include completed tasks. Default false."}
+      - {name: dueBefore, type: string, optional: true, doc: "Only tasks due before this day, YYYY-MM-DD, as the To-Do bar asks."}
+    result: "[]Task"
+    errors: [notFound]
+  - name: create
+    doc: Add a task at the top of its list, and write it to the server.
+    params:
+      - {name: listId, type: int, optional: true, doc: "Default: the default list of the first account with tasks on."}
+      - {name: title, type: string}
+      - {name: notes, type: string, optional: true}
+      - {name: due, type: string, optional: true, doc: "YYYY-MM-DD."}
+      - {name: parentId, type: int, optional: true}
+    result: Task
+    errors: [invalidParams, notFound, conflict]
+  - name: update
+    doc: Change a task; omitted fields keep their values.
+    params:
+      - {name: id, type: int}
+      - {name: title, type: string, optional: true}
+      - {name: notes, type: string, optional: true}
+      - {name: due, type: string, optional: true, doc: "YYYY-MM-DD, or empty to clear."}
+      - {name: completed, type: bool, optional: true}
+    result: Task
+    errors: [invalidParams, notFound, conflict]
+  - name: delete
+    doc: Delete a task and its subtasks.
+    params:
+      - {name: id, type: int}
+    errors: [notFound, conflict]
+events:
+  - name: changed
+    doc: An account's task lists or tasks changed.
+    durable: true
+    fields:
+      - {name: accountId, type: int}

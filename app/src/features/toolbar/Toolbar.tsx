@@ -10,6 +10,7 @@ import {
   Flag,
   FolderInput,
   Forward,
+  type LucideIcon,
   Mail,
   MailOpen,
   Minus,
@@ -65,6 +66,7 @@ export interface ToolbarSelection {
 
 /** ToolbarProps are the toolbar's inputs. */
 export interface ToolbarProps {
+  mode?: "mail" | "people";
   /** The sidebar's width, 0 while it is hidden. */
   sidebarWidth: number;
   listWidth: number;
@@ -142,10 +144,12 @@ function ToolbarButton(props: ToolbarButtonProps) {
 // The segment over the sidebar: the sidebar toggle and Get Mail. It keeps
 // its buttons, and its width collapses, while the sidebar is hidden.
 function SidebarSegment({
+  mode,
   sidebarWidth,
   syncing,
   onCommand,
 }: {
+  mode: "mail" | "people";
   sidebarWidth: number;
   syncing: boolean;
   onCommand: (cmd: ToolbarCommand) => void;
@@ -163,12 +167,14 @@ function SidebarSegment({
         icon={<PanelLeft size={16} />}
         onClick={() => onCommand({ kind: "toggleSidebar" })}
       />
-      <ToolbarButton
-        label="Get Mail"
-        shortcut="Ctrl+Shift+N"
-        icon={<RefreshCw size={16} className={syncing ? "animate-spin" : undefined} />}
-        onClick={() => onCommand({ kind: "getMail" })}
-      />
+      {mode === "mail" && (
+        <ToolbarButton
+          label="Get Mail"
+          shortcut="Ctrl+Shift+N"
+          icon={<RefreshCw size={16} className={syncing ? "animate-spin" : undefined} />}
+          onClick={() => onCommand({ kind: "getMail" })}
+        />
+      )}
     </div>
   );
 }
@@ -207,64 +213,43 @@ function ListSegment({
   );
 }
 
-// The segment over the reader: the message actions, then the search field
-// and the window controls at the far right.
-function ReaderSegment({
-  selection,
-  canArchive,
-  moveTargets,
-  maximized,
-  search,
-  onCommand,
-  onOpenMenu,
-}: {
+interface MessageActionsProps {
   selection: ToolbarSelection;
   canArchive: boolean;
   moveTargets: MoveTarget[];
-  maximized: boolean;
-  search: ReactNode;
-  onCommand: (cmd: ToolbarCommand) => void;
+  onCommand: (command: ToolbarCommand) => void;
   onOpenMenu: (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => void;
-}) {
+}
+
+interface MessageAction {
+  label: string;
+  shortcut: string;
+  icon: LucideIcon;
+  kind: "delete" | "archive" | "reply" | "replyAll" | "forward";
+}
+
+const MESSAGE_ACTIONS: MessageAction[] = [
+  { label: "Delete", shortcut: "Delete", icon: Trash2, kind: "delete" },
+  { label: "Archive", shortcut: "Ctrl+Alt+A", icon: Archive, kind: "archive" },
+  { label: "Reply", shortcut: "Ctrl+R", icon: Reply, kind: "reply" },
+  { label: "Reply All", shortcut: "Ctrl+Shift+R", icon: ReplyAll, kind: "replyAll" },
+  { label: "Forward", shortcut: "Ctrl+Shift+F", icon: Forward, kind: "forward" },
+];
+
+function MessageActions({ selection, canArchive, moveTargets, onCommand, onOpenMenu }: MessageActionsProps) {
   const none = selection.count === 0;
-  const markLabel = selection.seen ? "Mark as Unread" : "Mark as Read";
   return (
-    <div data-segment="reader" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-2">
-      <ToolbarButton
-        label="Delete"
-        shortcut="Delete"
-        icon={<Trash2 size={16} />}
-        disabled={none}
-        onClick={() => onCommand({ kind: "delete" })}
-      />
-      <ToolbarButton
-        label="Archive"
-        shortcut="Ctrl+Alt+A"
-        icon={<Archive size={16} />}
-        disabled={none || !canArchive}
-        onClick={() => onCommand({ kind: "archive" })}
-      />
-      <ToolbarButton
-        label="Reply"
-        shortcut="Ctrl+R"
-        icon={<Reply size={16} />}
-        disabled={none}
-        onClick={() => onCommand({ kind: "reply" })}
-      />
-      <ToolbarButton
-        label="Reply All"
-        shortcut="Ctrl+Shift+R"
-        icon={<ReplyAll size={16} />}
-        disabled={none}
-        onClick={() => onCommand({ kind: "replyAll" })}
-      />
-      <ToolbarButton
-        label="Forward"
-        shortcut="Ctrl+Shift+F"
-        icon={<Forward size={16} />}
-        disabled={none}
-        onClick={() => onCommand({ kind: "forward" })}
-      />
+    <>
+      {MESSAGE_ACTIONS.map(({ label, shortcut, icon: Icon, kind }) => (
+        <ToolbarButton
+          key={kind}
+          label={label}
+          shortcut={shortcut}
+          icon={<Icon size={16} />}
+          disabled={none || (kind === "archive" && !canArchive)}
+          onClick={() => onCommand({ kind })}
+        />
+      ))}
       <ToolbarButton
         label="Flag"
         shortcut="Ctrl+Shift+L"
@@ -274,7 +259,7 @@ function ReaderSegment({
         onClick={onOpenMenu("flag")}
       />
       <ToolbarButton
-        label={markLabel}
+        label={selection.seen ? "Mark as Unread" : "Mark as Read"}
         shortcut="Ctrl+Shift+U"
         icon={selection.seen ? <Mail size={16} /> : <MailOpen size={16} />}
         disabled={none}
@@ -287,6 +272,42 @@ function ReaderSegment({
         hasMenu
         onClick={onOpenMenu("move")}
       />
+    </>
+  );
+}
+
+// The segment over the reader: the message actions, then the search field
+// and the window controls at the far right.
+function ReaderSegment({
+  mode,
+  selection,
+  canArchive,
+  moveTargets,
+  maximized,
+  search,
+  onCommand,
+  onOpenMenu,
+}: {
+  mode: "mail" | "people";
+  selection: ToolbarSelection;
+  canArchive: boolean;
+  moveTargets: MoveTarget[];
+  maximized: boolean;
+  search: ReactNode;
+  onCommand: (cmd: ToolbarCommand) => void;
+  onOpenMenu: (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <div data-segment="reader" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-2">
+      {mode === "mail" && (
+        <MessageActions
+          selection={selection}
+          canArchive={canArchive}
+          moveTargets={moveTargets}
+          onCommand={onCommand}
+          onOpenMenu={onOpenMenu}
+        />
+      )}
       <div data-tauri-drag-region className="flex-1" />
       {search}
       <ToolbarButton
@@ -303,6 +324,41 @@ function ReaderSegment({
       />
       <ToolbarButton label="Close" icon={<X size={16} />} onClick={() => onCommand({ kind: "close" })} />
     </div>
+  );
+}
+
+function ToolbarSegments({
+  props,
+  onOpenMenu,
+}: {
+  props: ToolbarProps;
+  onOpenMenu: MessageActionsProps["onOpenMenu"];
+}) {
+  return (
+    <>
+      <SidebarSegment
+        mode={props.mode ?? "mail"}
+        sidebarWidth={props.sidebarWidth}
+        syncing={props.syncing}
+        onCommand={props.onCommand}
+      />
+      <ListSegment
+        listWidth={props.listWidth}
+        title={props.title}
+        subtitle={props.subtitle}
+        onCommand={props.onCommand}
+      />
+      <ReaderSegment
+        mode={props.mode ?? "mail"}
+        selection={props.selection}
+        canArchive={props.canArchive}
+        moveTargets={props.moveTargets}
+        maximized={props.maximized}
+        search={props.search}
+        onCommand={props.onCommand}
+        onOpenMenu={onOpenMenu}
+      />
+    </>
   );
 }
 
@@ -327,23 +383,8 @@ export function Toolbar(props: ToolbarProps) {
       data-tauri-drag-region
       className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar"
     >
-      <SidebarSegment sidebarWidth={props.sidebarWidth} syncing={props.syncing} onCommand={props.onCommand} />
-      <ListSegment
-        listWidth={props.listWidth}
-        title={props.title}
-        subtitle={props.subtitle}
-        onCommand={props.onCommand}
-      />
-      <ReaderSegment
-        selection={props.selection}
-        canArchive={props.canArchive}
-        moveTargets={props.moveTargets}
-        maximized={props.maximized}
-        search={props.search}
-        onCommand={props.onCommand}
-        onOpenMenu={openMenu}
-      />
-      {menu ? (
+      <ToolbarSegments props={props} onOpenMenu={openMenu} />
+      {menu && (props.mode ?? "mail") === "mail" ? (
         <ContextMenu
           items={menu.kind === "flag" ? flagItems(props.selection) : moveItems(props.moveTargets)}
           x={menu.x}

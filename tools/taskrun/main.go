@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -174,6 +175,11 @@ func (r *runner) runTask(ctx context.Context, c *Card) error {
 			if err := r.cmd(ctx, "make", "ui-fmt"); err != nil {
 				fmt.Fprintf(r.out, "make ui-fmt: %v\n", err)
 			}
+			// A given file the formatter changes was never formatted: the
+			// executor may not touch it, so no attempt can fix it.
+			if bad, err := r.changedGiven(c); err != nil || len(bad) > 0 {
+				return fmt.Errorf("task %s: given files differ after make ui-fmt (unformatted by the planner, or edited): %v %v", c.ID, bad, err)
+			}
 		}
 		var buf bytes.Buffer
 		accErr := r.accept(ctx, c, io.MultiWriter(r.out, &buf))
@@ -185,10 +191,10 @@ func (r *runner) runTask(ctx context.Context, c *Card) error {
 			}
 			prompt = fmt.Sprintf("`make accept T=%s` passes, but the task does not verify: %v\n"+
 				"Fix the cause (formatting, then `make check` and, for app cards, `make ui-check`); "+
-				"do not edit the given tests.\n\n%s", c.ID, verr, tail(buf.String(), 80))
+				"do not edit the given tests.\n\n%s", c.ID, verr, digest(buf.String()))
 			continue
 		}
-		prompt = fmt.Sprintf("`make accept T=%s` still fails. Fix the cause; do not edit the given tests.\n\n%s", c.ID, tail(buf.String(), 80))
+		prompt = fmt.Sprintf("`make accept T=%s` still fails. Fix the cause; do not edit the given tests.\n\n%s", c.ID, digest(buf.String()))
 	}
 	return fmt.Errorf("task %s: still failing after %d attempts; review branch %s", c.ID, r.attempts, branch(c))
 }
@@ -273,15 +279,12 @@ func (r *runner) verify(ctx context.Context, c *Card) error {
 	if bad := ScopeViolations(c, changed); len(bad) > 0 {
 		problems = append(problems, fmt.Sprintf("changed files outside the card's touch list: %v", bad))
 	}
-	for _, g := range c.Given {
-		want, err := os.ReadFile(filepath.Join(r.root, c.GivenSource(g)))
-		if err != nil {
-			return err
-		}
-		got, err := os.ReadFile(filepath.Join(r.root, g))
-		if err != nil || !bytes.Equal(got, want) {
-			problems = append(problems, fmt.Sprintf("given file %s was modified or removed", g))
-		}
+	changedGiven, err := r.changedGiven(c)
+	if err != nil {
+		return err
+	}
+	for _, g := range changedGiven {
+		problems = append(problems, fmt.Sprintf("given file %s was modified or removed", g))
 	}
 	if err := r.accept(ctx, c, r.out); err != nil {
 		problems = append(problems, err.Error())
@@ -299,6 +302,22 @@ func (r *runner) verify(ctx context.Context, c *Card) error {
 	}
 	fmt.Fprintf(r.out, "T-%s verifies: %d files changed, all in scope\n", c.ID, len(changed))
 	return nil
+}
+
+// changedGiven lists the given files that differ from the card's copies.
+func (r *runner) changedGiven(c *Card) ([]string, error) {
+	var out []string
+	for _, g := range c.Given {
+		want, err := os.ReadFile(filepath.Join(r.root, c.GivenSource(g)))
+		if err != nil {
+			return nil, err
+		}
+		got, err := os.ReadFile(filepath.Join(r.root, g))
+		if err != nil || !bytes.Equal(got, want) {
+			out = append(out, g)
+		}
+	}
+	return out, nil
 }
 
 func (r *runner) finish(ctx context.Context, c *Card) error {
@@ -359,6 +378,37 @@ func firstArg(args []string) string {
 		return ""
 	}
 	return args[0]
+}
+
+// ansi matches terminal color codes, which test runners print.
+var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// failureLine matches the lines of a test run that say what failed.
+var failureLine = regexp.MustCompile(`(?i)(^\s*(--- FAIL|FAIL|×|✗|panic:)|AssertionError|Error:|expected|❯ src/|_test\.go:\d+:|Unable to find|to be|to equal|received)`)
+
+// digest is what an executor needs from a failed run: every line that
+// names a failure, with the two lines after it, then the run's last
+// lines, at most about 200 lines in all. Test runners' DOM dumps and
+// passing tests are left out, so failures are not cut off.
+func digest(s string) string {
+	lines := strings.Split(strings.TrimRight(ansi.ReplaceAllString(s, ""), "\n"), "\n")
+	var out []string
+	keep := 0
+	for _, l := range lines {
+		switch {
+		case failureLine.MatchString(l):
+			out = append(out, l)
+			keep = 2
+		case keep > 0:
+			out = append(out, l)
+			keep--
+		}
+		if len(out) >= 160 {
+			out = append(out, "…")
+			break
+		}
+	}
+	return strings.Join(out, "\n") + "\n\n— last lines —\n" + tail(strings.Join(lines, "\n"), 40)
 }
 
 func tail(s string, lines int) string {

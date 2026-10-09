@@ -15,26 +15,37 @@ at high reasoning), which can take on far larger units of work.
 
 Codex reads `AGENTS.md`, this repository's instruction file, by itself.
 `codex exec` runs non-interactively; its `workspace-write` sandbox lets
-commands write the repository and `/tmp` and keeps the network off. Checked
+commands write the repository and `/tmp`, with the network off unless
+configured on. Checked
 2026-10-08: in that sandbox `go test` works once Go's build cache is
 writable; the shell is a login shell without mise's tools, so the pinned Go
 and golangci-lint come through `mise exec`; and the nsl machine, where the
 app's checks run, cannot be reached even with its state directories
-writable and the network on.
+writable and the network on. Without the network, the sandbox also
+refuses loopback and Unix sockets, so `make check`'s server tests fail in
+it (checked with T-0060, the first card Codex ran).
 
 ## Decision
 
 - **Codex is the executor.** `make task T=NNNN` runs `tools/taskrun` with
   `-executor codex` (the Makefile's `EXECUTOR`): `codex exec` in the
   `workspace-write` sandbox, with Go's build cache and golangci-lint's and
-  mise's caches writable, approvals off, and the model the user's Codex
-  default unless `EXECUTOR_MODEL` names one. A retry resumes the same session
+  mise's caches writable, the network on, approvals off, and the model the
+  user's Codex default unless `EXECUTOR_MODEL` names one. A retry resumes the same session
   (`codex exec resume --last`, run from the repository) with the failure.
   opencode stays available (`EXECUTOR=opencode`).
+- **The network is on.** Without it the sandbox refuses every socket,
+  loopback included, so tests that start an in-process server (httptest,
+  rpctest, davtest) fail inside it; the user chose to give Codex the
+  network for every card rather than per card.
 - **Codex runs the Go gates itself** through `mise exec -- make …`. For a
-  card that touches `app/`, taskrun runs `make ui-fmt`, the acceptance
-  command and `make ui-check` outside the sandbox after each attempt and
-  sends Codex any failure.
+  card that touches `app/`, it runs Biome, tsc and Vitest on the host from
+  the `node_modules` the nsl machine installed (the host's Node from mise;
+  both are Linux x86-64), and taskrun runs `make ui-fmt`, the acceptance
+  command and `make ui-check` in nsl after each attempt and sends Codex a
+  digest of any failure: the lines that name failures, then the run's
+  last lines. (Without host runs, T-0064 spent three attempts on failures
+  it could not see.)
 - **Larger cards.** Cards may be S, M (400 lines in 6 files) or L (1,000
   lines: one package or one feature, such as a module of the app or a sync
   loop with its store queries). A card still has a fixed file list, a

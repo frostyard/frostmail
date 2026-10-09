@@ -1,0 +1,27 @@
+BEGIN:VCARD
+VERSION:3.0
+PRODID:-//Apple Inc.//iOS 18.0//EN
+N:Hopper;Grace;Brewster Murray;Rear Admiral;
+FN:Grace Hopper
+NICKNAME:Amazing Grace
+ORG:United States Navy;Bureau of Ordnance;Computation Project
+TITLE:Computer Scientist
+EMAIL;type=INTERNET;type=WORK;type=pref:grace@navy.example
+item1.EMAIL;type=INTERNET:grace@cobol.example
+item1.X-ABLabel:_$!<Other>!$_
+TEL;type=CELL;type=VOICE;type=pref:(555) 010-0199
+TEL;type=WORK;type=VOICE:(555) 010-0100
+item2.TEL:(555) 010-0111
+item2.X-ABLabel:Lab
+item3.TEL:(555) 010-0112
+item3.X-ABLabel:_$!<WorkFAX>!$_
+item4.ADR;type=WORK;type=pref:;;1 Navy Way\nBuilding 2;Arlington;VA;22202;USA
+item4.X-ABADR:us
+item5.URL;type=pref:https://grace.example
+item5.X-ABLabel:_$!<HomePage>!$_
+BDAY;X-APPLE-OMIT-YEAR=1604:1604-12-09
+PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/
+ yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=
+UID:6F3B9A2E-1C4D-4E5F-8A9B-0C1D2E3F4A5B
+X-ABUID:6F3B9A2E-1C4D-4E5F-8A9B-0C1D2E3F4A5B:ABPerson
+END:VCARD

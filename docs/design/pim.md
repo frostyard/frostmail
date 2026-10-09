@@ -29,19 +29,24 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
 
 ### Services and sync
 
-- **Services.** `accounts` gains a services set (`mail`, `contacts`,
-  `calendar`, `tasks`) and, per service, its endpoint (a principal URL, or
-  Google Tasks). Provider profiles carry Gmail's and iCloud's endpoints;
-  generic accounts use `/.well-known/caldav` and `carddav`, then SRV
-  `_caldavs._tcp` and `_carddavs._tcp`. New services start off; the user
-  turns them on in Settings, which runs discovery.
+- **Services.** `account_services` holds an account's contacts, calendar
+  and tasks services: whether each is on, where its discovery starts (the
+  provider profile's URL, one the user gave, or for other accounts the
+  server of the domain's `_carddavs._tcp` or `_caldavs._tcp` SRV record,
+  then the domain), and the home set discovery found. New services start
+  off; turning one on in Settings discovers it at once with the account's
+  credentials, or, for a Google account whose grant lacks the scope, at
+  the first pass after the user signs in again. Discovery sends
+  credentials only to the start's origin, the provider's domains, or the
+  start's registrable domain (`davx`'s trust rule).
 - **Credentials.** iCloud and generic servers use the account's password
   (iCloud's app-specific one). Google uses the account's OAuth token: the
   authorization URL asks for `mail.google.com` plus the scopes of the
   services turned on (calendar, CardDAV, Tasks), and turning one on asks
   the user to sign in again.
-- **The DAV loop.** Each account's actor runs a DAV loop next to C1, C2 and
-  C3, with its own HTTP client: list the collections under each home set
+- **The DAV loop.** `internal/pimsync` runs one loop per account with a
+  service on, beside mail's actor and independent of its connections, with
+  its own HTTP client (`internal/davx`): list the collections under each home set
   (display name, color, supported components, `getctag`, `sync-token`), then
   per collection a `sync-collection` REPORT from the stored token (all
   objects on the first run), then a `multiget` for the changed hrefs in
@@ -54,10 +59,16 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
 - **When.** Every 5 minutes; at once on `sync.now`, on window focus (the app
   calls `sync.now` with a `pim` hint), and after a write. Read-only accounts
   sync and never write.
-- **Writes.** Every change is a `pending_ops` row (`dav.put`, `dav.delete`,
-  `tasks.patch`, …) holding the patched source and the ETag it expects,
-  replayed like mail's ops: a 412 refetches the object, reapplies the patch
-  and tries once more, then fails the op and keeps the server's version.
+- **Writes.** Every change is a `pim_ops` row (`put`, `delete`,
+  `tasks.insert`, `tasks.patch`, `tasks.delete`) naming the object, whose
+  source is already patched locally, and the ETag the change was made on
+  (`If-None-Match: *` for a creation). Each pass replays the due changes
+  before it reads, and leaves objects with waiting changes alone. A
+  network failure retries after 1, 5, 15 and 60 minutes; a server that
+  refuses the change (412, or another 4xx) fails it, and the server's
+  version stands (a refused creation is removed locally). Re-applying a
+  patch to the server's newer version after a 412 comes with the first
+  patches (Phase 4).
 
 ### Storage
 
@@ -140,8 +151,9 @@ query flagged messages alongside tasks, and completing one clears the flag.
 
 ### Testing
 
-- `internal/davtest`: in-process CalDAV and CardDAV servers from the forked
-  go-webdav with memory backends, as `imapxtest` is for IMAP.
+- `internal/davtest`: an in-process CalDAV and CardDAV server with memory
+  collections, sync tokens, ETags and hooks for other clients' changes, as
+  `imapxtest` is for IMAP; `davx` is tested against it.
 - A fake Tasks server (`httptest`) for `internal/gtasks`.
 - Golden tests for every patch function (ADR-0018): source in, source out.
 - Radicale in the `frostmail-mailtest` container for integration tests

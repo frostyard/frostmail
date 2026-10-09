@@ -22,6 +22,7 @@ import {
 import { RPCError, type Transport } from "../transport";
 import { MockCompose, NOT_HANDLED } from "./compose";
 import { diffIds } from "./diff";
+import { MockPeople, type MockPeopleData } from "./people";
 
 /** MockMessage is a stored message: its summary plus what the reader shows. */
 export interface MockMessage {
@@ -45,6 +46,8 @@ export interface MockData {
   accounts: Account[];
   mailboxes: MockMailbox[];
   messages: MockMessage[];
+  /** Address books and people; none when absent. */
+  pim?: MockPeopleData;
 }
 
 /** MockOptions tune the mock. */
@@ -75,6 +78,7 @@ export class MockTransport implements Transport {
   private readonly closeHandlers = new Set<(reason: string) => void>();
   private closed: string | undefined;
   private readonly compose: MockCompose;
+  private readonly people: MockPeople;
 
   constructor(
     data: MockData,
@@ -102,6 +106,12 @@ export class MockTransport implements Transport {
       },
       () => [...this.messages.values()].flatMap((m) => [m.summary.from, ...m.to, ...m.cc]),
       opts.undoMs,
+    );
+    this.people = new MockPeople(
+      data.pim ?? { collections: [], people: [] },
+      (e) => this.emit(e),
+      () => [...this.messages.values()],
+      () => this.accounts,
     );
   }
 
@@ -303,6 +313,8 @@ export class MockTransport implements Transport {
       default: {
         const r = this.compose.dispatch(method, p);
         if (r !== NOT_HANDLED) return r;
+        const q = this.people.dispatch(method, p);
+        if (q !== NOT_HANDLED) return q;
         throw new RPCError(ErrorCode.methodNotFound, `method ${method} does not exist`);
       }
     }

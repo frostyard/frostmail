@@ -17,6 +17,7 @@ func TestCodexCommand(t *testing.T) {
 		"exec --color never -C /repo",
 		`sandbox_mode="workspace-write"`,
 		`sandbox_workspace_write.writable_roots=["/home/u/.cache/go-build", "/home/u/.cache/mise"]`,
+		"sandbox_workspace_write.network_access=true",
 		`approval_policy="never"`,
 	} {
 		if !strings.Contains(joined, want) {
@@ -58,10 +59,36 @@ func TestGuidance(t *testing.T) {
 	if g := codex.guidance(goCard); !strings.Contains(g, "mise exec -- make accept T=0099") || strings.Contains(g, "nsl") {
 		t.Errorf("Go card guidance = %q", g)
 	}
-	if g := codex.guidance(appCard); !strings.Contains(g, "nsl machine") || !strings.Contains(g, "do not run them") {
+	if g := codex.guidance(appCard); !strings.Contains(g, "nsl machine") || !strings.Contains(g, "do not run them") ||
+		!strings.Contains(g, "pnpm exec vitest run") {
 		t.Errorf("app card guidance = %q", g)
 	}
 	if g := (executor{name: "opencode"}).guidance(appCard); g != "" {
 		t.Errorf("opencode guidance = %q", g)
+	}
+}
+
+func TestDigest(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("\x1b[32m✓\x1b[39m src/ok.test.ts (3 tests)\n")
+	for range 300 {
+		b.WriteString("  <div class=\"dump\">\n")
+	}
+	b.WriteString(" FAIL  src/app/X.test.tsx > X > works\n")
+	b.WriteString("AssertionError: expected 1 to be 2\n")
+	b.WriteString(" ❯ src/app/X.test.tsx:12:3\n")
+	b.WriteString("    12|   expect(a).toBe(2)\n")
+	for range 300 {
+		b.WriteString("  <span>dump</span>\n")
+	}
+	b.WriteString("Tests  1 failed | 3 passed (4)\n")
+	d := digest(b.String())
+	for _, want := range []string{"FAIL  src/app/X.test.tsx", "AssertionError: expected 1 to be 2", "X.test.tsx:12:3", "Tests  1 failed"} {
+		if !strings.Contains(d, want) {
+			t.Errorf("digest lacks %q:\n%s", want, d)
+		}
+	}
+	if strings.Contains(d, "\x1b[") || strings.Count(d, "\n") > 220 {
+		t.Errorf("digest is %d lines or has color codes", strings.Count(d, "\n"))
 	}
 }

@@ -1,0 +1,17 @@
+BEGIN:VCARD
+VERSION:4.0
+PRODID:-//Sabre//Sabre VObject 4.5.4//EN
+UID:urn:uuid:4fbe8971-0bc3-424c-9c26-36c3e1eff6b1
+FN:Alan Turing
+N:Turing;Alan;Mathison;;OBE
+EMAIL;TYPE=work;PREF=1:mailto:alan@bletchley.example
+EMAIL;TYPE=home:alan@home.example
+TEL;VALUE=uri;TYPE="voice,cell":tel:+44-20-7946-0001
+TEL;TYPE=home:+44 20 7946 0002
+ADR;TYPE=home;LABEL="Hollymeade, Wilmslow":;;Adlington Road;Wilmslow;Cheshire;SK9 4AS;UK
+BDAY:--0623
+PHOTO:data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk
+ YPj/HwADBwIAMCbHYQAAAABJRU5ErkJggg==
+KIND:individual
+NOTE:Line one\nLine two
+END:VCARD

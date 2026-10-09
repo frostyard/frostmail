@@ -1,0 +1,176 @@
+domain: calendar
+doc: >-
+  Events from the accounts' calendars, their occurrences, invitations and
+  reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+enums:
+  - name: PartStat
+    doc: An attendee's answer to an invitation (iCalendar PARTSTAT).
+    values:
+      - {name: needsaction, doc: "Not answered."}
+      - {name: accepted}
+      - {name: declined}
+      - {name: tentative, doc: "Maybe."}
+      - {name: delegated}
+  - name: EventStatus
+    doc: An event's STATUS.
+    values:
+      - {name: confirmed}
+      - {name: tentative}
+      - {name: cancelled}
+  - name: AttendeeRole
+    doc: An attendee's ROLE.
+    values:
+      - {name: chair}
+      - {name: required}
+      - {name: optional}
+      - {name: none, doc: "Copied for information."}
+  - name: ITIPMethod
+    doc: What an invitation message asks (iTIP METHOD).
+    values:
+      - {name: request, doc: "An invitation, or an update of one."}
+      - {name: cancel, doc: "The organizer cancelled the event or the user's place in it."}
+      - {name: reply, doc: "An attendee answered the user's invitation."}
+      - {name: publish, doc: "An event to add; no answer expected."}
+      - {name: other, doc: "ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on."}
+types:
+  - name: Occurrence
+    doc: One occurrence of an event.
+    fields:
+      - {name: eventId, type: int, doc: "The single event, the series' master, or the override that replaced this occurrence."}
+      - {name: recurrenceId, type: string, doc: "Which occurrence of a series: its original start as stored; empty for a single event."}
+      - {name: calendarId, type: int}
+      - {name: accountId, type: int}
+      - {name: summary, type: string}
+      - {name: location, type: string}
+      - {name: allDay, type: bool}
+      - {name: start, type: time, doc: "Timed: the start. All-day: midnight of startDate in the range's time zone."}
+      - {name: end, type: time, doc: "Exclusive."}
+      - {name: startDate, type: string, doc: "All-day: the first day, YYYY-MM-DD. Empty for timed events."}
+      - {name: endDate, type: string, doc: "All-day: the day after the last. Empty for timed events."}
+      - {name: status, type: EventStatus}
+      - {name: answer, type: PartStat, optional: true, doc: "The user's answer, when invited."}
+      - {name: transparent, type: bool, doc: "Does not count as busy."}
+      - {name: recurring, type: bool, doc: "Part of a series."}
+  - name: Attendee
+    doc: An organizer or attendee.
+    fields:
+      - {name: email, type: string, doc: "Lowercased."}
+      - {name: name, type: string}
+      - {name: role, type: AttendeeRole}
+      - {name: answer, type: PartStat}
+      - {name: isUser, type: bool, doc: "One of the account's own addresses."}
+  - name: CalendarEvent
+    doc: An event in full; for an occurrence of a series, that occurrence's times.
+    fields:
+      - {name: id, type: int}
+      - {name: recurrenceId, type: string}
+      - {name: calendarId, type: int}
+      - {name: accountId, type: int}
+      - {name: uid, type: string}
+      - {name: summary, type: string}
+      - {name: location, type: string}
+      - {name: description, type: string, doc: "Plain text."}
+      - {name: allDay, type: bool}
+      - {name: start, type: time}
+      - {name: end, type: time}
+      - {name: startDate, type: string}
+      - {name: endDate, type: string}
+      - {name: timeZone, type: string, doc: "The IANA zone the event was made in, or empty (UTC, floating or all-day)."}
+      - {name: recurring, type: bool}
+      - {name: recurrence, type: string, doc: "The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty for a single event."}
+      - {name: status, type: EventStatus}
+      - {name: transparent, type: bool}
+      - {name: organizer, type: Attendee, optional: true}
+      - {name: attendees, type: "[]Attendee", doc: "Without the organizer."}
+      - {name: answer, type: PartStat, optional: true, doc: "The user's answer, when invited."}
+      - {name: alarms, type: "[]int", doc: "Reminders shown, as minutes before the start (negative: after)."}
+      - {name: readOnly, type: bool}
+  - name: Invitation
+    doc: An iTIP message in mail, matched against the stored events (ADR-0019).
+    fields:
+      - {name: method, type: ITIPMethod}
+      - {name: event, type: CalendarEvent, doc: "The event as the message describes it; id is 0 when it is not stored."}
+      - {name: eventId, type: int, optional: true, doc: "The stored event with the message's UID, when there is one."}
+      - {name: from, type: Attendee, optional: true, doc: "Request and cancel: the organizer. Reply: the attendee who answered."}
+      - {name: answer, type: PartStat, optional: true, doc: "The user's current answer to the stored event or, before it is stored, to the message."}
+      - {name: canRespond, type: bool, doc: "A request the user is invited to, not outdated, in an account that can write."}
+      - {name: outdated, type: bool, doc: "The stored event has a later SEQUENCE than the message."}
+      - {name: conflicts, type: "[]Occurrence", doc: "Busy occurrences overlapping the event's first occurrence."}
+      - {name: adjacent, type: "[]Occurrence", doc: "The occurrences just before and after it on the same day."}
+  - name: Reminder
+    doc: An alarm that is due.
+    fields:
+      - {name: id, type: string, doc: "Opaque; names the occurrence and alarm for calendar.snooze and calendar.dismiss."}
+      - {name: eventId, type: int}
+      - {name: recurrenceId, type: string}
+      - {name: calendarId, type: int}
+      - {name: summary, type: string}
+      - {name: location, type: string}
+      - {name: allDay, type: bool}
+      - {name: start, type: time}
+      - {name: startDate, type: string}
+      - {name: dueAt, type: time, doc: "When the alarm went off, or the snooze ended."}
+methods:
+  - name: range
+    doc: >-
+      The occurrences that overlap the days from to to, in start order, from
+      enabled calendars of accounts with the calendar service on.
+    params:
+      - {name: from, type: string, doc: "The first day, YYYY-MM-DD."}
+      - {name: to, type: string, doc: "The day after the last; at most 400 days after from."}
+      - {name: timeZone, type: string, optional: true, doc: "The IANA zone the days are in. Default: maild's local zone."}
+      - {name: calendarIds, type: "[]int", optional: true, doc: "Only these calendars."}
+    result: "[]Occurrence"
+    errors: [invalidParams]
+  - name: event
+    doc: An event, or one occurrence of a series.
+    params:
+      - {name: id, type: int}
+      - {name: recurrenceId, type: string, optional: true}
+    result: CalendarEvent
+    errors: [notFound]
+  - name: invitation
+    doc: The invitation in a message's text/calendar part.
+    params:
+      - {name: messageId, type: int}
+    result: Invitation
+    errors: [notFound, invalidParams]
+  - name: respond
+    doc: >-
+      Answer an invitation, from its message or its stored event. maild
+      changes the user's PARTSTAT in the stored event and lets the server
+      tell the organizer, or sends the organizer an iTIP REPLY itself when
+      the server does not (ADR-0019). An accepted invitation not yet stored
+      goes into the account's default calendar.
+    params:
+      - {name: messageId, type: int, optional: true}
+      - {name: eventId, type: int, optional: true}
+      - {name: recurrenceId, type: string, optional: true, doc: "Answer one occurrence only."}
+      - {name: answer, type: PartStat, doc: "accepted, declined or tentative."}
+      - {name: comment, type: string, optional: true, doc: "A note for the organizer."}
+    result: CalendarEvent
+    errors: [notFound, invalidParams, conflict]
+  - name: reminders
+    doc: The reminders that are due now and neither dismissed nor snoozed, oldest first.
+    result: "[]Reminder"
+  - name: snooze
+    doc: Show reminders again at until.
+    params:
+      - {name: ids, type: "[]string"}
+      - {name: until, type: time}
+    errors: [invalidParams]
+  - name: dismiss
+    doc: Stop showing reminders.
+    params:
+      - {name: ids, type: "[]string"}
+    errors: [invalidParams]
+events:
+  - name: changed
+    doc: An account's calendars or events changed; views refetch their ranges.
+    durable: true
+    fields:
+      - {name: accountId, type: int}
+  - name: reminders
+    doc: Reminders became due; the app raises its reminder window with calendar.reminders.
+    fields:
+      - {name: count, type: int, doc: "How many are due now."}

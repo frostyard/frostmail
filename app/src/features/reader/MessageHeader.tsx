@@ -4,9 +4,10 @@
 // attachments as chips; the banner reports remote content and trackers that
 // were held back and offers to load them.
 import { File } from "lucide-react";
+import { Fragment } from "react";
 
 import { avatarTone, displayName, formatAddressList, formatHeaderDate, formatSize, initials } from "../../lib/format";
-import type { Message, Part } from "../../rpc/gen/api";
+import type { Address, Message, Part } from "../../rpc/gen/api";
 
 // Tailwind only generates a class it finds whole in the source, so the
 // eight avatar tones are listed rather than built from the tone number.
@@ -24,6 +25,62 @@ const AVATAR_CLASSES: Record<number, string> = {
 /** MessageHeaderProps are a header's inputs. */
 export interface MessageHeaderProps {
   message: Message;
+  onAddress?: (address: Address, at: { x: number; y: number }) => void;
+}
+
+function AddressButton({
+  address,
+  onAddress,
+  className,
+}: {
+  address: Address;
+  onAddress: NonNullable<MessageHeaderProps["onAddress"]>;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={address.address}
+      title={address.address}
+      className={className}
+      onClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        onAddress(address, { x: rect.left, y: rect.bottom });
+      }}
+    >
+      {displayName(address)}
+    </button>
+  );
+}
+
+function AddressLine({
+  label,
+  addresses,
+  onAddress,
+}: {
+  label: string;
+  addresses: Address[];
+  onAddress: MessageHeaderProps["onAddress"];
+}) {
+  if (addresses.length === 0) return null;
+  return (
+    <div className="text-reader-meta text-secondary truncate">
+      {`${label}: `}
+      {onAddress ? (
+        <>
+          {addresses.slice(0, 3).map((address, index) => (
+            <Fragment key={`${address.address}:${address.name}`}>
+              {index > 0 && ", "}
+              <AddressButton address={address} onAddress={onAddress} />
+            </Fragment>
+          ))}
+          {addresses.length > 3 && ` & ${addresses.length - 3} more`}
+        </>
+      ) : (
+        formatAddressList(addresses)
+      )}
+    </div>
+  );
 }
 
 /** MessageHeader shows the sender, subject, recipients and date. */
@@ -43,18 +100,22 @@ export function MessageHeader(props: MessageHeaderProps) {
       </div>
       <div className="min-w-0 flex-1 select-text">
         <div className="flex items-baseline gap-2">
-          <span className="text-reader-sender truncate flex-1" title={summary.from.address}>
-            {displayName(summary.from)}
-          </span>
+          {props.onAddress ? (
+            <AddressButton
+              address={summary.from}
+              onAddress={props.onAddress}
+              className="text-reader-sender truncate flex-1 text-left"
+            />
+          ) : (
+            <span className="text-reader-sender truncate flex-1" title={summary.from.address}>
+              {displayName(summary.from)}
+            </span>
+          )}
           <span className="text-reader-meta text-secondary shrink-0">{formatHeaderDate(new Date(summary.date))}</span>
         </div>
         <div className="text-reader-subject">{subject === "" ? "(No Subject)" : subject}</div>
-        {to.length > 0 && (
-          <div className="text-reader-meta text-secondary truncate">{`To: ${formatAddressList(to)}`}</div>
-        )}
-        {cc.length > 0 && (
-          <div className="text-reader-meta text-secondary truncate">{`Cc: ${formatAddressList(cc)}`}</div>
-        )}
+        <AddressLine label="To" addresses={to} onAddress={props.onAddress} />
+        <AddressLine label="Cc" addresses={cc} onAddress={props.onAddress} />
       </div>
     </header>
   );
