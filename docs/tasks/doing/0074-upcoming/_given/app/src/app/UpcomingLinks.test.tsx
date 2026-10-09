@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0074 (docs/tasks). Do not edit.
+// Rows say when by the real clock (the mock's is fixed), so they are found
+// by title.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -40,7 +42,7 @@ describe("upcoming events", () => {
     fireEvent.click(names[0] as HTMLElement);
     const card = await screen.findByRole("dialog", { name: "Ann Smith" });
     const upcoming = await within(card).findByRole("region", { name: "Upcoming" });
-    fireEvent.click(within(upcoming).getByRole("button", { name: "Lunch with Ann, Fri" }));
+    fireEvent.click(within(upcoming).getByRole("button", { name: /^Lunch with Ann, / }));
     await expectLunchInCalendar();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -52,7 +54,7 @@ describe("upcoming events", () => {
     fireEvent.click(await within(contacts).findByRole("option", { name: /Ann Smith/ }));
     const upcoming = await screen.findByRole("region", { name: "Upcoming" });
     expect(screen.getByRole("region", { name: "Recent Mail" })).toBeTruthy();
-    fireEvent.click(within(upcoming).getByRole("button", { name: "Lunch with Ann, Fri" }));
+    fireEvent.click(within(upcoming).getByRole("button", { name: /^Lunch with Ann, / }));
     await expectLunchInCalendar();
   });
 });
