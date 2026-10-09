@@ -243,8 +243,10 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - Golden tests for every patch function (ADR-0018): source in, source out.
 - Radicale in the `frostmail-mailtest` container for integration tests
   (`make engine-it`).
-- Recordings of Google's and iCloud's DAV sessions (`MAILD_DAV_TRACE`),
-  scrubbed into replay scripts as `tools/imaprec` does for IMAP.
+- Recordings of Google's and iCloud's DAV and Google's Tasks sessions
+  (`MAILD_DAV_TRACE`, `internal/httprec`), scrubbed by `tools/davrec` and
+  replayed in `internal/pimsync/replay_test.go` (testing.md, DAV and Tasks
+  recordings).
 
 ## Operational notes
 

@@ -8,6 +8,7 @@
 | IMAP fork | `third_party/go-imap/imapclient/gmail_test.go` (scripted server) | `make test-fork` |
 | IMAP, recorded | `internal/mailsync/replay_test.go`: Gmail and iCloud sessions replayed (below) | `make test` |
 | IMAP, real | `*_integration_test.go` (build tag `integration`) against `frostmail-mailtest` | `make engine-it` |
+| DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | App shell | the M0 spike report (`FROSTMAIL_SPIKE_EXIT=1`) | `make app-run`, or natively from `build/frostmail-app` |
 | Screenshots | `app/e2e/screenshots.e2e.ts`: the built app on `app/e2e/showcase`'s made-up mail (`tools/uifixture -showcase`, maild with `FROSTMAIL_SYNC=off`), written to `docs/images` for the README | `make screenshots` (nsl) |
@@ -90,6 +91,38 @@ sessions recorded from the real servers.
 go run ./tools/imaprec -through T14 -note "Gmail, first sync" \
   -o internal/mailsync/testdata/replay/gmail-first-sync.txt TRACE
 ```
+
+## DAV and Tasks recordings
+
+Google's and iCloud's CardDAV and CalDAV, and the Google Tasks API, have
+quirks `davtest` and Radicale don't imitate, so pimsync is also tested
+against their recorded sessions (plan 0007, Phase 5).
+
+1. **Record.** `MAILD_DAV_TRACE=dir` makes maild record every request
+   pimsync sends and the answer it gets to `dir/dav-<time>.trace` (0700,
+   the file 0600), one JSON exchange per line (`internal/httprec`): the
+   method, URL, headers and body of each. `Authorization`,
+   `Proxy-Authorization`, `Cookie` and `Set-Cookie` values become
+   `[redacted]`, and a binary body is base64. OAuth's token requests use
+   their own client and are never recorded. A trace holds the account's
+   contacts, calendars and tasks and never leaves the machine.
+2. **Scrub.** `tools/davrec` turns a trace into one that can be checked
+   in. Every personal value (names, addresses, phone numbers, postal
+   addresses, notes, event and task text, places, people, UIDs,
+   collection names, and the account's address wherever it appears, URLs
+   included) becomes a fake of the same shape, keyed per run as imaprec's
+   are, and photos become a one-pixel image. It refuses to write a trace
+   in which a replaced value remains, and writes the account's fake
+   address as a `# account` comment for the replay test's account.
+3. **Replay.** `httprec.Serve` answers a client on a loopback port with
+   the first unused exchange for the same method and path (PROPFIND and
+   REPORT bodies must match too; writes' bodies hold timestamps and are
+   not compared), standing in for every host of the session, with the
+   recorded origins in answers rewritten to its own URL. A request the
+   trace lacks fails the test, and so does an exchange never asked for.
+4. **Test.** `internal/pimsync/replay_test.go` replays the traces in
+   `internal/pimsync/testdata/replay/` to a new account and checks the
+   store: collections, contacts, events and their instances, tasks.
 
 ## Planned layers
 
