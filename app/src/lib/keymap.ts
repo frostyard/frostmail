@@ -1,7 +1,7 @@
 // Keyboard shortcuts (docs/specs/ui.md, Keyboard map). A binding matches
 // when the key matches (letters case-insensitively, Space is " ") and all
 // of Ctrl, Alt and Shift match exactly; Meta is never bound. In a text
-// field only Escape, Tab, Shift+Tab, Ctrl+1 and bindings that combine
+// field only Escape, Tab, Shift+Tab, Ctrl+1–4 and bindings that combine
 // Ctrl with Alt or with Shift still apply, so the field keeps arrows,
 // Space, Delete, Backspace, Ctrl+A and Ctrl+F.
 
@@ -24,6 +24,9 @@ export type Command =
   | "escape"
   | "getMail"
   | "allInboxes"
+  | "showCalendar"
+  | "showPeople"
+  | "showTasks"
   | "toggleSidebar"
   | "nextPane"
   | "previousPane"
@@ -71,6 +74,9 @@ const BINDINGS: Binding[] = [
   { key: "f", ctrl: true, alt: false, shift: false, command: "focusSearch" },
   { key: "escape", ctrl: false, alt: false, shift: false, command: "escape" },
   { key: "n", ctrl: true, alt: false, shift: true, command: "getMail" },
+  { key: "2", ctrl: true, alt: false, shift: false, command: "showCalendar" },
+  { key: "3", ctrl: true, alt: false, shift: false, command: "showPeople" },
+  { key: "4", ctrl: true, alt: false, shift: false, command: "showTasks" },
   { key: "1", ctrl: true, alt: false, shift: false, command: "allInboxes" },
   { key: "s", ctrl: true, alt: true, shift: false, command: "toggleSidebar" },
   { key: "tab", ctrl: false, alt: false, shift: false, command: "nextPane" },
@@ -87,7 +93,7 @@ const BINDINGS: Binding[] = [
 
 function allowedInTextField(b: Binding): boolean {
   if (b.key === "escape" || b.key === "tab") return true;
-  if ((b.key === "1" || b.key === ",") && b.ctrl) return true;
+  if (["1", "2", "3", "4", ","].includes(b.key) && b.ctrl) return true;
   return b.ctrl && (b.alt || b.shift);
 }
 
