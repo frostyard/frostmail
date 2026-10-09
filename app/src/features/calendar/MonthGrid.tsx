@@ -51,7 +51,7 @@ function MonthCell({ date, props }: { date: string; props: MonthGridProps }) {
           props.onSelectDate(date);
         }
       }}
-      className={`min-w-0 border-b border-r border-separator p-1 ${date === props.selectedDate ? "bg-selection-inactive" : ""}`}
+      className={`@container min-w-0 border-b border-r border-separator p-1 ${date === props.selectedDate ? "bg-selection-inactive" : ""}`}
     >
       <div className="mb-1 flex justify-end">
         <span
@@ -83,13 +83,13 @@ function MonthCell({ date, props }: { date: string; props: MonthGridProps }) {
             className={`flex h-[18px] w-full items-center gap-1 rounded-[4px] px-1 text-left text-[11px] leading-[14px] ${occurrence.allDay ? "font-semibold" : ""} ${eventClasses(occurrence, active, occurrence.allDay)}`}
             style={eventStyle(occurrence, props.colors)}
           >
+            {!occurrence.allDay && <span className="size-[6px] shrink-0 rounded-full bg-[var(--event-color)]" />}
+            <span className={`min-w-0 flex-1 truncate ${eventTitleClasses(occurrence)}`}>
+              {occurrence.summary || "No Title"}
+            </span>
             {!occurrence.allDay && (
-              <>
-                <span className="size-[6px] shrink-0 rounded-full bg-[var(--event-color)]" />
-                <span className={`shrink-0 ${active ? "text-accent-contrast" : "text-secondary"}`}>{start}</span>
-              </>
+              <span className="hidden shrink-0 text-secondary tabular-nums @[9rem]:inline">{start}</span>
             )}
-            <span className={`truncate ${eventTitleClasses(occurrence)}`}>{occurrence.summary || "No Title"}</span>
           </button>
         );
       })}

@@ -125,7 +125,7 @@ function EventBlock({ block, props }: { block: TimedBlock; props: TimeGridProps 
 export function TimeGrid(props: TimeGridProps) {
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (scroll.current) scroll.current.scrollTop = 7 * 48;
+    if (scroll.current) scroll.current.scrollTop = 7 * 48 - 12;
   }, []);
   const blocks = timedLayout(props.occurrences, props.days, props.timeZone);
   const now = zoned(props.now, props.timeZone);
