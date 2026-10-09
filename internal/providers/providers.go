@@ -46,7 +46,28 @@ type Profile struct {
 	// Domains are the address domains that belong to the provider.
 	Domains []string
 	Quirks  Quirks
+	// DAV is where the provider keeps contacts, calendars and tasks.
+	DAV DAV
 }
+
+// DAV is a provider's contacts, calendar and tasks endpoints (ADR-0017).
+type DAV struct {
+	// Contacts and Calendar are where CardDAV and CalDAV discovery start;
+	// "" when the provider has none (or for generic accounts, which
+	// discover from the address's domain).
+	Contacts string
+	Calendar string
+	// Tasks is "google" for the Google Tasks API, "none" when the provider
+	// has no tasks Frostmail can reach, and "" for task lists over CalDAV.
+	Tasks string
+	// Trusted are the domains, with their subdomains, that discovery may
+	// send credentials to besides the one it started at: a principal or
+	// home set on another host.
+	Trusted []string
+}
+
+// GoogleTasksURL is the Google Tasks API's base URL.
+const GoogleTasksURL = "https://tasks.googleapis.com/tasks/v1/"
 
 var profiles = []Profile{
 	{
@@ -57,6 +78,12 @@ var profiles = []Profile{
 		OAuth:   "google",
 		Domains: []string{"gmail.com", "googlemail.com"},
 		Quirks:  Quirks{Gmail: true, SavesSent: true, NoQResync: true, MaxConnections: 10},
+		DAV: DAV{
+			Contacts: "https://www.googleapis.com/.well-known/carddav",
+			Calendar: "https://apidata.googleusercontent.com/caldav/v2/",
+			Tasks:    "google",
+			Trusted:  []string{"googleapis.com", "googleusercontent.com"},
+		},
 	},
 	{
 		Kind:    api.AccountKindICloud,
@@ -65,6 +92,12 @@ var profiles = []Profile{
 		Auth:    []api.AuthKind{api.AuthKindPassword},
 		Domains: []string{"icloud.com", "me.com", "mac.com"},
 		Quirks:  Quirks{NoQResync: true, SilentEnable: true},
+		DAV: DAV{
+			Contacts: "https://contacts.icloud.com/",
+			Calendar: "https://caldav.icloud.com/",
+			Tasks:    "none",
+			Trusted:  []string{"icloud.com"},
+		},
 	},
 }
 
@@ -96,4 +129,16 @@ func ForAddress(email string) (Profile, bool) {
 		}
 	}
 	return Profile{}, false
+}
+
+// TrustsHost reports whether host (without a port) is one of the profile's
+// DAV domains or a subdomain of one.
+func (p Profile) TrustsHost(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, d := range p.DAV.Trusted {
+		if host == d || strings.HasSuffix(host, "."+d) {
+			return true
+		}
+	}
+	return false
 }

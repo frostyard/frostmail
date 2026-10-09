@@ -233,3 +233,10 @@ func IsUniqueViolation(err error) bool {
 	}
 	return se.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE || se.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
 }
+
+// IsForeignKeyViolation reports whether err is SQLite's foreign key
+// constraint failure: a row names a parent that does not exist.
+func IsForeignKeyViolation(err error) bool {
+	var se *sqlite.Error
+	return errors.As(err, &se) && se.Code() == sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY
+}

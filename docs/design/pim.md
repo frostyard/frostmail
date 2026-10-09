@@ -40,8 +40,9 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   authorization URL asks for `mail.google.com` plus the scopes of the
   services turned on (calendar, CardDAV, Tasks), and turning one on asks
   the user to sign in again.
-- **The DAV loop.** Each account's actor runs a DAV loop next to C1, C2 and
-  C3, with its own HTTP client: list the collections under each home set
+- **The DAV loop.** `internal/pimsync` runs one loop per account with a
+  service on, beside mail's actor and independent of its connections, with
+  its own HTTP client (`internal/davx`): list the collections under each home set
   (display name, color, supported components, `getctag`, `sync-token`), then
   per collection a `sync-collection` REPORT from the stored token (all
   objects on the first run), then a `multiget` for the changed hrefs in
@@ -140,8 +141,9 @@ query flagged messages alongside tasks, and completing one clears the flag.
 
 ### Testing
 
-- `internal/davtest`: in-process CalDAV and CardDAV servers from the forked
-  go-webdav with memory backends, as `imapxtest` is for IMAP.
+- `internal/davtest`: an in-process CalDAV and CardDAV server with memory
+  collections, sync tokens, ETags and hooks for other clients' changes, as
+  `imapxtest` is for IMAP; `davx` is tested against it.
 - A fake Tasks server (`httptest`) for `internal/gtasks`.
 - Golden tests for every patch function (ADR-0018): source in, source out.
 - Radicale in the `frostmail-mailtest` container for integration tests

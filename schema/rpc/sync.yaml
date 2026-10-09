@@ -33,6 +33,14 @@ methods:
     params:
       - {name: accountId, type: int}
     errors: [notFound]
+  - name: pim
+    doc: >-
+      Poll the contacts, calendar and tasks services now instead of at the
+      next 5-minute pass. The app calls it when its window gains focus;
+      maild skips accounts polled in the last minute.
+    params:
+      - {name: accountId, type: int, optional: true, doc: "Default: every account."}
+    errors: [notFound]
 events:
   - name: progress
     doc: An account's sync state changed.
