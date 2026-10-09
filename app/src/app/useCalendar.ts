@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { CalendarSection } from "../features/calendar/CalendarSidebar";
-import { addDays, localeWeekStart, monthGrid, today, viewRange } from "../lib/calendarDates";
+import { addDays, appLocale, localeWeekStart, monthGrid, today, viewRange } from "../lib/calendarDates";
 import { busyDates } from "../lib/eventLayout";
 import type { CalendarEvent, Client, Collection, Event, Occurrence } from "../rpc/gen/api";
 
@@ -16,7 +16,7 @@ export function useCalendarFrame() {
     return () => clearInterval(timer);
   }, []);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const locale = navigator.language;
+  const locale = appLocale(navigator.language);
   const current = today(timeZone, now);
   return { timeZone, locale, weekStart: localeWeekStart(locale), date: selected || current, today: current, now };
 }

@@ -107,3 +107,14 @@ export function localeWeekStart(locale: string): number {
     return 0;
   }
 }
+
+/** appLocale is the tag to format with: language when Intl takes it ("C"
+ *  from a POSIX locale does not), else the runtime's default. */
+export function appLocale(language: string): string {
+  const fallback = Intl.DateTimeFormat().resolvedOptions().locale;
+  try {
+    return Intl.getCanonicalLocales(language)[0] ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
