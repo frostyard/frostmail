@@ -404,6 +404,31 @@ func (d *DB) eventAlarms(ctx context.Context, e *EventRow) error {
 	return rows.Err()
 }
 
+// EventsByUID returns events with uid in accountID's calendars, enabled or
+// not, ordered by ID, without attendees and alarms.
+func (d *DB) EventsByUID(ctx context.Context, accountID int64, uid string) ([]EventRow, error) {
+	query := "SELECT " + eventColumns + eventJoins + " WHERE col.kind = 'calendar' AND col.account_id = ? AND e.uid = ? ORDER BY e.id"
+	rows, err := d.db.QueryContext(ctx, query, accountID, uid)
+	if err != nil {
+		return nil, fmt.Errorf("events by uid: %w", err)
+	}
+	defer rows.Close()
+	out := []EventRow{}
+	for rows.Next() {
+		var e EventRow
+		var start, end string
+		if err := rows.Scan(eventScan(&e, &start, &end)...); err != nil {
+			return nil, fmt.Errorf("read event by uid: %w", err)
+		}
+		e.Start, e.End, err = parseEventTimes(start, end, e.AllDay)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 // Events returns events without their attendees and alarms, ordered by object and event ID.
 func (d *DB) Events(ctx context.Context, f EventsFilter) ([]EventRow, error) {
 	query := "SELECT " + eventColumns + eventJoins + " WHERE col.kind = 'calendar'"
