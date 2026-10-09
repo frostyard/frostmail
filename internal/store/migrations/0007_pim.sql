@@ -2,13 +2,18 @@
 -- Sources are stored as the server sent them (objects.raw); every other
 -- table below objects is an index rebuilt from them.
 
+-- The OAuth scopes the account's grant covers, space-separated, from the
+-- token response; services whose scope is missing wait for a new sign-in.
+ALTER TABLE accounts ADD COLUMN granted_scopes TEXT NOT NULL DEFAULT '';
+
 -- The services an account syncs besides mail. A row exists once the user
 -- has turned a service on; enabled = 0 stops syncing and keeps the data.
 CREATE TABLE account_services (
   account_id   INTEGER NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
   service      TEXT NOT NULL CHECK (service IN ('contacts', 'calendar', 'tasks')),
   enabled      INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-  url          TEXT NOT NULL, -- the DAV home set, or the Tasks API's base URL
+  url          TEXT NOT NULL, -- where discovery starts (a profile's, the user's or SRV's URL), or the Tasks API's base URL
+  home         TEXT NOT NULL DEFAULT '', -- the DAV home set discovery found from url; '' until it has
   last_sync_at TEXT,          -- the end of the last complete pass
   last_error   TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (account_id, service)

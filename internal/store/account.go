@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -24,6 +25,9 @@ type Account struct {
 	Notify      bool // new inbox mail shows a desktop notification
 	SyncDays    int  // keep the messages of the last SyncDays days; 0 keeps all (ADR-0016)
 	NeedsReauth bool // the server or OAuth provider refused the stored credential
+	// GrantedScopes are the OAuth scopes the account's grant covers,
+	// space-separated; "" for password accounts.
+	GrantedScopes string
 }
 
 // ServerConfig is one server's connection settings.
@@ -46,7 +50,8 @@ type AccountUpdate struct {
 
 const accountColumns = `SELECT id, kind, email, display_name, auth,
 	imap_host, imap_port, imap_tls, imap_username,
-	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days, needs_reauth
+	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days, needs_reauth,
+	granted_scopes
 	FROM accounts`
 
 func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
@@ -55,7 +60,7 @@ func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
 	err := row.Scan(&a.ID, &a.Kind, &a.Email, &a.DisplayName, &a.Auth,
 		&a.IMAP.Host, &a.IMAP.Port, &a.IMAP.TLS, &a.IMAP.Username,
 		&a.SMTP.Host, &a.SMTP.Port, &a.SMTP.TLS, &a.SMTP.Username,
-		&createdAt, &a.ReadOnly, &a.Notify, &a.SyncDays, &a.NeedsReauth)
+		&createdAt, &a.ReadOnly, &a.Notify, &a.SyncDays, &a.NeedsReauth, &a.GrantedScopes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
@@ -231,4 +236,27 @@ func (t *Tx) SetNeedsReauth(ctx context.Context, id int64, needs bool) error {
 		return nil
 	}
 	return t.Emit(ctx, api.AccountChanged{ID: id})
+}
+
+// SetGrantedScopes records the scopes a new OAuth grant covers and
+// announces the change.
+func (t *Tx) SetGrantedScopes(ctx context.Context, id int64, scopes string) error {
+	res, err := t.ExecContext(ctx, `UPDATE accounts SET granted_scopes = ? WHERE id = ?`, scopes, id)
+	if err != nil {
+		return fmt.Errorf("set granted scopes: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return t.Emit(ctx, api.AccountChanged{ID: id})
+}
+
+// HasScope reports whether the account's grant covers scope.
+func (a Account) HasScope(scope string) bool {
+	for s := range strings.FieldsSeq(a.GrantedScopes) {
+		if s == scope {
+			return true
+		}
+	}
+	return false
 }

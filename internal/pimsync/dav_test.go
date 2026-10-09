@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davtest"
@@ -397,8 +398,9 @@ func TestCollectionChanges(t *testing.T) {
 	}
 }
 
-// TestPendingLeftAlone: an object with a change waiting to be written is
-// neither overwritten nor deleted by a pass.
+// TestPendingLeftAlone: an object with a change waiting to be written (not
+// yet due, so the pass does not replay it) is neither overwritten nor
+// deleted by a pass.
 func TestPendingLeftAlone(t *testing.T) {
 	e := newEnv(t, davtest.Options{}, api.ServiceKindContacts)
 	book := e.dav.AddressBook("default", "Contacts")
@@ -411,7 +413,7 @@ func TestPendingLeftAlone(t *testing.T) {
 		o, _ := e.db.ObjectByHref(ctx, col.ID, book+n+".vcf")
 		if err := e.db.Tx(ctx, func(tx *store.Tx) error {
 			_, err := tx.QueuePIMOp(ctx, store.PIMOp{AccountID: e.acct.ID, CollectionID: col.ID, ObjectID: &o.ID,
-				Kind: "put", Href: o.Href, IfMatch: o.ETag})
+				Kind: "put", Href: o.Href, IfMatch: o.ETag, NextTryAt: time.Now().Add(time.Hour)})
 			return err
 		}); err != nil {
 			t.Fatal(err)

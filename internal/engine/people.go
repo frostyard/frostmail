@@ -3,6 +3,7 @@ package engine
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -201,7 +202,104 @@ func (p people) Photo(ctx context.Context, params *api.PeoplePhotoParams) (*api.
 	return &api.Photo{ContentType: typ, Data: base64.StdEncoding.EncodeToString(data)}, nil
 }
 
-// Add reserves contact creation for the planned write path.
-func (p people) Add(context.Context, *api.PeopleAddParams) (*api.Person, error) {
-	return nil, notBuilt("people.add")
+// Add stores a new vCard 3.0 for an address in an address book, as a
+// change for sync to write with If-None-Match: * (docs/design/pim.md,
+// People in mail), and returns its person.
+func (p people) Add(ctx context.Context, params *api.PeopleAddParams) (*api.Person, error) {
+	email := strings.ToLower(strings.TrimSpace(params.Email))
+	if !strings.Contains(email, "@") || strings.ContainsAny(email, " \t\r\n") {
+		return nil, api.InvalidParams("%q is not an email address", params.Email)
+	}
+	if _, err := p.DB.PersonByEmail(ctx, email); err == nil {
+		return nil, api.Conflict("a contact for %s already exists", email)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return nil, err
+	}
+	book, err := p.addressBookFor(ctx, params.CollectionID)
+	if err != nil {
+		return nil, err
+	}
+	name := ""
+	if params.Name != nil {
+		name = strings.TrimSpace(*params.Name)
+	} else if name, err = p.DB.SeenName(ctx, email); err != nil {
+		return nil, err
+	}
+	uid, err := newUUID()
+	if err != nil {
+		return nil, err
+	}
+	raw := vcardx.New(uid, name, email)
+	href := book.Href + uid + ".vcf"
+	err = p.DB.Tx(ctx, func(tx *store.Tx) error {
+		id, err := tx.PutObject(ctx, store.Object{CollectionID: book.ID, Href: href, Kind: store.ObjectVCard, UID: uid, Raw: raw})
+		if err != nil {
+			return err
+		}
+		if err := tx.IndexContact(ctx, id, contactIndex(raw)); err != nil {
+			return err
+		}
+		if err := tx.RelinkPeople(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.QueuePIMOp(ctx, store.PIMOp{AccountID: book.AccountID, CollectionID: book.ID, ObjectID: &id,
+			Kind: "put", Href: href}); err != nil {
+			return err
+		}
+		return tx.Emit(ctx, api.PeopleChanged{AccountID: book.AccountID})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if p.PIM != nil {
+		p.PIM.Kick(book.AccountID)
+	}
+	row, err := p.DB.PersonByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	return p.fullPerson(ctx, row)
+}
+
+// addressBookFor is where a new contact goes: the address book named, which
+// must take one, or the first writable one.
+func (p people) addressBookFor(ctx context.Context, id *int64) (store.Collection, error) {
+	books, err := p.DB.WritableAddressBooks(ctx)
+	if err != nil {
+		return store.Collection{}, err
+	}
+	for _, b := range books {
+		if id == nil || b.ID == *id {
+			return b, nil
+		}
+	}
+	if id != nil {
+		return store.Collection{}, api.NotFound("no writable address book %d", *id)
+	}
+	return store.Collection{}, api.NotFound("no address book can take a contact; turn contacts on in Settings")
+}
+
+// contactIndex indexes a vCard Frostmail built.
+func contactIndex(raw []byte) store.ContactIndex {
+	card, err := vcardx.Parse(raw)
+	if err != nil {
+		return store.ContactIndex{}
+	}
+	c := store.ContactIndex{DisplayName: card.DisplayName(), SortKey: card.SortKey(),
+		GivenName: card.GivenName, FamilyName: card.FamilyName}
+	for _, e := range card.Emails {
+		c.Emails = append(c.Emails, store.ContactEmail{Email: e.Value, Label: e.Label})
+	}
+	return c
+}
+
+// newUUID is a random (version 4) UUID, for a new object's UID and href.
+func newUUID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("new uid: %w", err)
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }

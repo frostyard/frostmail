@@ -15,17 +15,20 @@ type Service struct {
 	AccountID  int64
 	Service    api.ServiceKind
 	Enabled    bool
-	URL        string     // the DAV home set, or the Tasks API's base URL
+	URL        string     // where discovery starts, or the Tasks API's base URL
+	Home       string     // the DAV home set found from URL; "" until discovered
 	LastSyncAt *time.Time // the end of the last complete pass
 	LastError  string
 }
 
 // SetService stores whether an account's service is on and where it
-// lives; a new URL forgets the last pass. It emits api.AccountChanged.
+// lives; a new URL forgets the home set and the last pass. It emits
+// api.AccountChanged.
 func (t *Tx) SetService(ctx context.Context, accountID int64, service api.ServiceKind, enabled bool, url string) error {
 	_, err := t.ExecContext(ctx, `INSERT INTO account_services (account_id, service, enabled, url)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT (account_id, service) DO UPDATE SET enabled = excluded.enabled, url = excluded.url,
+			home = CASE WHEN url = excluded.url THEN home ELSE '' END,
 			last_sync_at = CASE WHEN url = excluded.url THEN last_sync_at END,
 			last_error = CASE WHEN url = excluded.url THEN last_error ELSE '' END`,
 		accountID, service, enabled, url)
@@ -70,7 +73,7 @@ func (t *Tx) ServiceSynced(ctx context.Context, accountID int64, service api.Ser
 // Services returns an account's services rows, contacts, calendar, tasks;
 // a service never turned on has none. accountID 0 returns every account's.
 func (d *DB) Services(ctx context.Context, accountID int64) ([]Service, error) {
-	rows, err := d.db.QueryContext(ctx, `SELECT account_id, service, enabled, url, last_sync_at, last_error
+	rows, err := d.db.QueryContext(ctx, `SELECT account_id, service, enabled, url, home, last_sync_at, last_error
 		FROM account_services WHERE ? = 0 OR account_id = ?
 		ORDER BY account_id, CASE service WHEN 'contacts' THEN 0 WHEN 'calendar' THEN 1 ELSE 2 END`,
 		accountID, accountID)
@@ -84,7 +87,7 @@ func (d *DB) Services(ctx context.Context, accountID int64) ([]Service, error) {
 			s    Service
 			last sql.NullString
 		)
-		if err := rows.Scan(&s.AccountID, &s.Service, &s.Enabled, &s.URL, &last, &s.LastError); err != nil {
+		if err := rows.Scan(&s.AccountID, &s.Service, &s.Enabled, &s.URL, &s.Home, &last, &s.LastError); err != nil {
 			return nil, fmt.Errorf("services: %w", err)
 		}
 		if last.Valid {
@@ -97,4 +100,18 @@ func (d *DB) Services(ctx context.Context, accountID int64) ([]Service, error) {
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// SetServiceHome records the home set discovery found for a service, or
+// clears it ("") so the next pass discovers again.
+func (t *Tx) SetServiceHome(ctx context.Context, accountID int64, service api.ServiceKind, home string) error {
+	res, err := t.ExecContext(ctx, `UPDATE account_services SET home = ? WHERE account_id = ? AND service = ?`,
+		home, accountID, service)
+	if err != nil {
+		return fmt.Errorf("set service home: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

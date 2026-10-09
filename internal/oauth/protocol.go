@@ -65,6 +65,7 @@ type tokenReply struct {
 	Access      string `json:"access_token"`
 	Refresh     string `json:"refresh_token"`
 	ExpiresIn   int64  `json:"expires_in"`
+	Scope       string `json:"scope"`
 	Code        string `json:"error"`
 	Description string `json:"error_description"`
 }
@@ -91,7 +92,7 @@ func ParseToken(body []byte, status int, now time.Time) (Token, error) {
 	if reply.ExpiresIn < 0 {
 		return Token{}, errors.New("oauth: token response has a negative expiry")
 	}
-	tok := Token{Access: reply.Access, Refresh: reply.Refresh}
+	tok := Token{Access: reply.Access, Refresh: reply.Refresh, Scope: reply.Scope}
 	if reply.ExpiresIn > 0 {
 		tok.Expiry = now.Add(time.Duration(reply.ExpiresIn) * time.Second)
 	}

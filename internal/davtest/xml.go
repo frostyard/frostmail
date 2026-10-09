@@ -173,7 +173,8 @@ func (s *Server) propfind(w http.ResponseWriter, r *http.Request, body []byte) {
 		}
 		rs = append(rs, answer(path, have, names, all))
 	case path == ContactsHome || path == CalendarsHome:
-		rs = append(rs, answer(path, props{dav("resourcetype"): "<d:collection/>"}, names, all))
+		home := props{dav("resourcetype"): "<d:collection/>", dav("current-user-principal"): hrefXML(PrincipalPath)}
+		rs = append(rs, answer(path, home, names, all))
 		if depth1 {
 			for _, p := range slices.Sorted(maps.Keys(s.colls)) {
 				if c := s.colls[p]; c.calendar == (path == CalendarsHome) {
@@ -201,9 +202,10 @@ func (s *Server) propfind(w http.ResponseWriter, r *http.Request, body []byte) {
 
 func (s *Server) collectionProps(c *collection) props {
 	p := props{
-		dav("displayname"):  escape(c.name),
-		cs("getctag"):       c.ctag(),
-		dav("resourcetype"): "<d:collection/><cr:addressbook/>",
+		dav("current-user-principal"): hrefXML(PrincipalPath),
+		dav("displayname"):            escape(c.name),
+		cs("getctag"):                 c.ctag(),
+		dav("resourcetype"):           "<d:collection/><cr:addressbook/>",
 	}
 	privs := "<d:privilege><d:read/></d:privilege>"
 	if !c.readOnly {

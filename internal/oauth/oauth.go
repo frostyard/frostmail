@@ -22,11 +22,19 @@ var Google = Endpoint{
 	Scopes:   []string{"https://mail.google.com/"},
 }
 
+// The Google scopes of the services besides mail (ADR-0017).
+const (
+	GoogleContactsScope = "https://www.googleapis.com/auth/carddav"
+	GoogleCalendarScope = "https://www.googleapis.com/auth/calendar"
+	GoogleTasksScope    = "https://www.googleapis.com/auth/tasks"
+)
+
 // Token is what a token endpoint grants.
 type Token struct {
 	Access  string
 	Refresh string    // empty when the response carries none (refreshes)
 	Expiry  time.Time // zero when the response gives no lifetime
+	Scope   string    // the scopes granted, space-separated; "" when the response does not say
 }
 
 // TokenError is a token endpoint's error response (RFC 6749 §5.2).

@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -139,6 +140,10 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 	if err != nil {
 		return "", err
 	}
+	scopes, err := m.scopes(ctx, c)
+	if err != nil {
+		return "", err
+	}
 	verifier, err := NewVerifier(m.rand())
 	if err != nil {
 		return "", err
@@ -169,7 +174,7 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 	m.flows[accountID] = cancel
 	m.mu.Unlock()
 
-	f := &flow{m: m, c: c, state: state, verifier: verifier, redirect: redirect, done: make(chan struct{})}
+	f := &flow{m: m, c: c, state: state, verifier: verifier, redirect: redirect, scopes: scopes, done: make(chan struct{})}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	go func() {
@@ -185,7 +190,41 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 		}
 		cancel()
 	}()
-	return AuthURL(c.endpoint, c.clientID, redirect, state, Challenge(verifier), c.acct.Email), nil
+	e := c.endpoint
+	e.Scopes = scopes
+	return AuthURL(e, c.clientID, redirect, state, Challenge(verifier), c.acct.Email), nil
+}
+
+// scopes are what a sign-in asks for: the endpoint's (mail), and for a
+// Google account the scopes of its services that are on (ADR-0017).
+func (m *Manager) scopes(ctx context.Context, c creds) ([]string, error) {
+	out := slices.Clone(c.endpoint.Scopes)
+	if providers.ForKind(c.acct.Kind).OAuth != "google" {
+		return out, nil
+	}
+	services, err := m.DB.Services(ctx, c.acct.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range services {
+		if scope := GoogleScope(s.Service); s.Enabled && scope != "" {
+			out = append(out, scope)
+		}
+	}
+	return out, nil
+}
+
+// GoogleScope is the Google scope a service needs.
+func GoogleScope(service api.ServiceKind) string {
+	switch service {
+	case api.ServiceKindContacts:
+		return GoogleContactsScope
+	case api.ServiceKindCalendar:
+		return GoogleCalendarScope
+	case api.ServiceKindTasks:
+		return GoogleTasksScope
+	}
+	return ""
 }
 
 // flow is one sign-in waiting for the browser.
@@ -193,6 +232,7 @@ type flow struct {
 	m                         *Manager
 	c                         creds
 	state, verifier, redirect string
+	scopes                    []string // what the sign-in asked for
 	once                      sync.Once
 	done                      chan struct{}
 }
@@ -253,11 +293,15 @@ func (f *flow) finish(ctx context.Context, code string) error {
 		return err
 	}
 	m.remember(c.acct.ID, tok)
+	granted := tok.Scope
+	if granted == "" { // the provider granted what was asked
+		granted = strings.Join(f.scopes, " ")
+	}
 	err = m.DB.Tx(ctx, func(tx *store.Tx) error {
 		if err := tx.SetNeedsReauth(ctx, c.acct.ID, false); err != nil {
 			return err
 		}
-		return tx.Emit(ctx, api.AccountChanged{ID: c.acct.ID})
+		return tx.SetGrantedScopes(ctx, c.acct.ID, granted)
 	})
 	if err != nil {
 		return err

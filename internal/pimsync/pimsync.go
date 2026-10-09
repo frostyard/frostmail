@@ -12,14 +12,17 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
 	"github.com/frostyard/frostmail/internal/oauth"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
+	"golang.org/x/net/publicsuffix"
 )
 
 // Config tunes sync. Zero fields take the defaults in brackets.
@@ -174,6 +177,10 @@ func (m *Manager) Pass(ctx context.Context, accountID int64) error {
 	}
 	p := &pass{m: m, acct: acct}
 	var first error
+	if err := p.replay(ctx, services); err != nil {
+		m.log.Warn("pim changes not written", "account", accountID, "err", err)
+		first = err
+	}
 	for _, s := range services {
 		if !s.Enabled || s.URL == "" {
 			continue
@@ -254,15 +261,18 @@ func (p *pass) service(ctx context.Context, s store.Service) error {
 }
 
 func (p *pass) serviceOnce(ctx context.Context, s store.Service) error {
+	if err := p.scope(s.Service); err != nil {
+		return err
+	}
 	switch s.Service {
 	case api.ServiceKindContacts:
-		c, err := p.client(s.URL)
+		c, err := p.home(ctx, s, davx.AddressBooks)
 		if err != nil {
 			return err
 		}
 		return p.syncDAV(ctx, c, davx.AddressBooks, func(davx.Collection) bool { return true })
 	case api.ServiceKindCalendar:
-		c, err := p.client(s.URL)
+		c, err := p.home(ctx, s, davx.Calendars)
 		if err != nil {
 			return err
 		}
@@ -273,6 +283,39 @@ func (p *pass) serviceOnce(ctx context.Context, s store.Service) error {
 		return nil // Google Tasks and CalDAV task lists: M4.5 Phase 4
 	}
 	return fmt.Errorf("pimsync: unknown service %q", s.Service)
+}
+
+// errScope means a Google account's grant lacks a service's scope: the user
+// signs in again (account.authorize asks for it).
+var errScope = errors.New("sign in to Google again to let Frostmail reach this service")
+
+// scope checks that an OAuth account's grant covers the service.
+func (p *pass) scope(service api.ServiceKind) error {
+	if p.acct.Auth != api.AuthKindOAuth2 {
+		return nil
+	}
+	if want := oauth.GoogleScope(service); providers.ForKind(p.acct.Kind).OAuth == "google" && !p.acct.HasScope(want) {
+		return errScope
+	}
+	return nil
+}
+
+// home returns a client for the service's home set, discovering it from
+// the service's URL and storing it the first time.
+func (p *pass) home(ctx context.Context, s store.Service, kind davx.Kind) (*davx.Client, error) {
+	home := s.Home
+	if home == "" {
+		var err error
+		if home, err = p.m.discover(ctx, p, s.URL, kind); err != nil {
+			return nil, fmt.Errorf("discover the %s home: %w", kind, err)
+		}
+		if err := p.m.db.Tx(ctx, func(tx *store.Tx) error {
+			return tx.SetServiceHome(ctx, p.acct.ID, s.Service, home)
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return p.client(home)
 }
 
 func hasComponent(c davx.Collection, name string) bool {
@@ -287,12 +330,58 @@ func hasComponent(c davx.Collection, name string) bool {
 // client returns a DAV client for a home set with the account's
 // credentials.
 func (p *pass) client(home string) (*davx.Client, error) {
-	return davx.New(home, davx.Options{
+	return davx.New(home, p.options(home))
+}
+
+func (p *pass) options(start string) davx.Options {
+	return davx.Options{
 		Authorization: p.authorization,
 		HTTP:          p.m.cfg.HTTP,
 		AllowHTTP:     p.m.cfg.AllowHTTP,
 		UserAgent:     p.m.cfg.UserAgent,
-	})
+		Trusted:       trusted(p.acct, start),
+	}
+}
+
+// trusted is the credential rule of discovery (ADR-0017): the provider's
+// own domains, or for other accounts the registrable domain discovery
+// started at, such as caldav.example.com from example.com.
+func trusted(acct store.Account, start string) func(*url.URL) bool {
+	profile := providers.ForKind(acct.Kind)
+	base := ""
+	if u, err := url.Parse(start); err == nil {
+		base, _ = publicsuffix.EffectiveTLDPlusOne(u.Hostname())
+	}
+	return func(u *url.URL) bool {
+		if profile.TrustsHost(u.Hostname()) {
+			return true
+		}
+		site, err := publicsuffix.EffectiveTLDPlusOne(u.Hostname())
+		return err == nil && base != "" && site == base
+	}
+}
+
+func (m *Manager) discover(ctx context.Context, p *pass, start string, kind davx.Kind) (string, error) {
+	return davx.Discover(ctx, start, kind, p.options(start))
+}
+
+// Discover finds the home set of a service for an account from start (a
+// provider's URL, the user's, or one SRV records gave), signing in as the
+// account does. maild calls it when a service is turned on.
+func (m *Manager) Discover(ctx context.Context, accountID int64, service api.ServiceKind, start string) (string, error) {
+	acct, err := m.db.GetAccount(ctx, accountID)
+	if err != nil {
+		return "", err
+	}
+	p := &pass{m: m, acct: acct}
+	if err := p.scope(service); err != nil {
+		return "", err
+	}
+	kind := davx.AddressBooks
+	if service != api.ServiceKindContacts {
+		kind = davx.Calendars
+	}
+	return m.discover(ctx, p, start, kind)
 }
 
 // errSignIn means an OAuth account has no usable grant: sign in again.
