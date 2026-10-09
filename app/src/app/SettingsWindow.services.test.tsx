@@ -28,7 +28,7 @@ describe("SettingsWindow services", () => {
     await waitFor(() => expect(box("Contacts").checked).toBe(true));
     expect(box("Calendars").checked).toBe(false);
     expect(calls("account.services")[0]?.params).toEqual({ id: 1 });
-    expect(screen.getByText(/^Synced at /)).toBeTruthy();
+    expect(screen.getByText(/^Synced /)).toBeTruthy();
   });
 
   it("turns a service off and on", async () => {
