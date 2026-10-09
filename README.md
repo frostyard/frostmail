@@ -1,5 +1,7 @@
 # Frostmail
 
+[![CI](https://github.com/frostyard/frostmail/actions/workflows/ci.yml/badge.svg)](https://github.com/frostyard/frostmail/actions/workflows/ci.yml)
+
 A Linux mail client that works like Apple Mail.app, without looking like a
 GNOME or KDE app. Pre-release: it syncs, reads, searches and sends generic
 IMAP, Gmail and iCloud accounts, and is in its daily-driver trial

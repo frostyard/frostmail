@@ -180,6 +180,22 @@ func TestAuthorizeSignsIn(t *testing.T) {
 	}
 }
 
+// The browser gets the whole page that says the sign-in worked: the
+// listener closes after the response, not while it is being written.
+func TestAuthorizeAnswersBeforeClosing(t *testing.T) {
+	e := newEnv(t)
+	for range 25 {
+		authURL, err := e.m.Authorize(t.Context(), e.acct)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status, body := e.browse(t, authURL, "the-code", ""); status != http.StatusOK || !strings.Contains(body, "signed in") {
+			t.Fatalf("return: %d %s", status, body)
+		}
+		<-e.signedIn
+	}
+}
+
 func TestAuthorizeRefused(t *testing.T) {
 	e := newEnv(t)
 	authURL, err := e.m.Authorize(t.Context(), e.acct)

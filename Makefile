@@ -15,6 +15,7 @@ GO_VERSION := $(strip $(shell sed -n 's/^go \([0-9.]*\)$$/\1/p' go.mod))
 GO_FILES = $(shell git ls-files --cached --others --exclude-standard '*.go' | grep -v -e '^third_party/' -e '^docs/tasks/' | while read -r f; do [ -e "$$f" ] && echo "$$f"; done)
 
 # The app toolchain runs in the nsl machine (docs/adr/0006-development-environment.md).
+# CI, whose runner has the toolchain, runs the same targets with IN_NSL='sh -c'.
 NSL_MACHINE ?= frostmail
 IN_NSL := nsl run -m $(NSL_MACHINE) sh -lc
 # The executor model for task cards: an opencode provider/model.
