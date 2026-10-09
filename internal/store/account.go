@@ -127,6 +127,20 @@ func (t *Tx) AccountReadOnly(ctx context.Context, id int64) (bool, error) {
 	return ro, nil
 }
 
+// AccountSyncDays returns an account's sync window (ADR-0016); a missing
+// account is ErrNotFound.
+func (t *Tx) AccountSyncDays(ctx context.Context, id int64) (int, error) {
+	var days int
+	err := t.QueryRowContext(ctx, `SELECT sync_days FROM accounts WHERE id = ?`, id).Scan(&days)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("account %d: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("account %d: %w", id, err)
+	}
+	return days, nil
+}
+
 // GetAccount returns one account, or ErrNotFound.
 func (d *DB) GetAccount(ctx context.Context, id int64) (Account, error) {
 	return scanAccount(d.db.QueryRowContext(ctx, accountColumns+` WHERE id = ?`, id))
