@@ -106,6 +106,9 @@ func buildShowcase(ctx context.Context, db *store.DB, blobs *blob.Store, out, di
 		if err := secrets.NewFile(filepath.Join(out, "secrets.json")).Set(ctx, secrets.AccountPassword(id), "showcase"); err != nil {
 			return err
 		}
+		if err := addShowcaseContacts(ctx, db, id, a.email, now); err != nil {
+			return err
+		}
 		b := &builder{db: db, blobs: blobs, accountID: id}
 		for _, path := range slices.Sorted(maps.Keys(boxes)) {
 			msgs := boxes[path]

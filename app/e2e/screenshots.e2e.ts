@@ -59,6 +59,26 @@ async function open(s: Session, row: string, body: string): Promise<void> {
   );
 }
 
+/** people shows the People module with the person named selected. */
+async function people(s: Session, name: string): Promise<void> {
+  await s.click(await s.find('[role="toolbar"][aria-label="Modules"] button[aria-label="People"]'));
+  const rows = '[role="listbox"][aria-label="Contacts"] [role="option"]';
+  await s.waitFor("the people list", async () => (await s.findAll(rows)).length >= 5);
+  for (const r of await s.findAll(rows)) {
+    if ((await s.text(r)).includes(name)) {
+      await s.click(r);
+      break;
+    }
+  }
+  await s.waitFor(`${name}'s card`, () =>
+    s.execute<boolean>(
+      `const h = document.querySelector("h2");
+       return !!h && h.textContent === arguments[0] && document.body.innerText.includes("RECENT MAIL");`,
+      name,
+    ),
+  );
+}
+
 /** newWindow waits for a window not in known, switches to it and waits for selector. */
 async function newWindow(s: Session, known: string[], selector: string): Promise<string> {
   const handle = await s.waitFor("a new window", async () => (await s.windows()).find((h) => !known.includes(h)));
@@ -109,5 +129,13 @@ describe.skipIf(!out)("README screenshots", () => {
     const s = await start("shots-dark", { GTK_THEME: "Adwaita:dark" });
     await open(s, "Aurora launch checklist", "no errors");
     await save(s, "main-dark.png");
+    await people(s, "Maria Lopez");
+    await save(s, "people-dark.png");
+  });
+
+  it("shows People in light", async () => {
+    const s = await start("shots-people");
+    await people(s, "Maria Lopez");
+    await save(s, "people.png");
   });
 });
