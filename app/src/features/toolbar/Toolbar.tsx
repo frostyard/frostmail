@@ -17,6 +17,8 @@ import {
   MailOpen,
   Minus,
   PanelLeft,
+  PanelRight,
+  Plus,
   RefreshCw,
   Reply,
   ReplyAll,
@@ -34,6 +36,9 @@ import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ToolbarCommand is what a toolbar control asks for. */
 export type ToolbarCommand =
+  | { kind: "newTask" }
+  | { kind: "toggleCompleted" }
+  | { kind: "toggleTodoBar" }
   | { kind: "today" }
   | { kind: "previousPeriod" }
   | { kind: "nextPeriod" }
@@ -78,10 +83,19 @@ export interface ToolbarCalendar {
   paneWidth: number;
 }
 
+/** ToolbarTasks describes the task source and detail pane. */
+export interface ToolbarTasks {
+  title: string;
+  showCompleted: boolean | null;
+  paneWidth: number;
+}
+
 /** ToolbarProps are the toolbar's inputs. */
 export interface ToolbarProps {
-  mode?: "mail" | "people" | "calendar";
+  mode?: "mail" | "people" | "calendar" | "tasks";
   calendar?: ToolbarCalendar;
+  tasks?: ToolbarTasks;
+  todoBar?: boolean;
   /** The sidebar's width, 0 while it is hidden. */
   sidebarWidth: number;
   listWidth: number;
@@ -137,6 +151,7 @@ interface ToolbarButtonProps {
   icon: ReactNode;
   disabled?: boolean;
   hasMenu?: boolean;
+  pressed?: boolean;
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -146,6 +161,7 @@ function ToolbarButton(props: ToolbarButtonProps) {
     <button
       type="button"
       aria-label={label}
+      aria-pressed={props.pressed}
       title={shortcut ? `${label} (${shortcut})` : label}
       aria-haspopup={hasMenu ? "menu" : undefined}
       disabled={disabled}
@@ -165,7 +181,7 @@ function SidebarSegment({
   syncing,
   onCommand,
 }: {
-  mode: "mail" | "people" | "calendar";
+  mode: "mail" | "people" | "calendar" | "tasks";
   sidebarWidth: number;
   syncing: boolean;
   onCommand: (cmd: ToolbarCommand) => void;
@@ -304,9 +320,11 @@ function ReaderSegment({
   onCommand,
   onOpenMenu,
   paneWidth,
+  todoBar,
 }: {
   paneWidth?: number;
-  mode: "mail" | "people" | "calendar";
+  todoBar?: boolean;
+  mode: "mail" | "people" | "calendar" | "tasks";
   selection: ToolbarSelection;
   canArchive: boolean;
   moveTargets: MoveTarget[];
@@ -315,12 +333,13 @@ function ReaderSegment({
   onCommand: (cmd: ToolbarCommand) => void;
   onOpenMenu: (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const fixedPane = mode === "calendar" || mode === "tasks";
   return (
     <div
-      data-segment={mode === "calendar" ? "pane" : "reader"}
+      data-segment={fixedPane ? "pane" : "reader"}
       data-tauri-drag-region
-      className={`flex h-full min-w-0 items-center gap-1 px-2 ${mode === "calendar" ? "shrink-0" : "flex-1"}`}
-      style={mode === "calendar" ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
+      className={`flex h-full min-w-0 items-center gap-1 px-2 ${fixedPane ? "shrink-0" : "flex-1"}`}
+      style={fixedPane ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
     >
       {mode === "mail" && (
         <MessageActions
@@ -332,7 +351,15 @@ function ReaderSegment({
         />
       )}
       <div data-tauri-drag-region className="flex-1" />
-      {mode !== "calendar" && search}
+      {mode === "mail" && (
+        <ToolbarButton
+          label="To-Do Bar"
+          icon={<PanelRight size={16} />}
+          pressed={todoBar ?? false}
+          onClick={() => onCommand({ kind: "toggleTodoBar" })}
+        />
+      )}
+      {!fixedPane && search}
       <ToolbarButton
         label="Settings"
         icon={<Settings size={16} />}
@@ -401,6 +428,32 @@ function CalendarSegment({
   );
 }
 
+function TasksSegment({ tasks, onCommand }: { tasks: ToolbarTasks; onCommand: ToolbarProps["onCommand"] }) {
+  return (
+    <div data-segment="tasks" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
+      <ToolbarButton
+        label="New Task"
+        shortcut="Ctrl+N"
+        icon={<Plus size={16} />}
+        onClick={() => onCommand({ kind: "newTask" })}
+      />
+      <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">
+        {tasks.title}
+      </span>
+      {tasks.showCompleted !== null && (
+        <button
+          type="button"
+          aria-pressed={tasks.showCompleted}
+          className="h-7 shrink-0 rounded-md px-[10px] text-[13px] hover:bg-selection-inactive"
+          onClick={() => onCommand({ kind: "toggleCompleted" })}
+        >
+          Show Completed
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ToolbarSegments({
   props,
   onOpenMenu,
@@ -421,6 +474,11 @@ function ToolbarSegments({
           calendar={props.calendar ?? { view: "week", title: props.title, paneWidth: 320 }}
           onCommand={props.onCommand}
         />
+      ) : props.mode === "tasks" ? (
+        <TasksSegment
+          tasks={props.tasks ?? { title: props.title, showCompleted: null, paneWidth: 320 }}
+          onCommand={props.onCommand}
+        />
       ) : (
         <ListSegment
           listWidth={props.listWidth}
@@ -430,7 +488,8 @@ function ToolbarSegments({
         />
       )}
       <ReaderSegment
-        paneWidth={props.calendar?.paneWidth}
+        paneWidth={props.mode === "tasks" ? props.tasks?.paneWidth : props.calendar?.paneWidth}
+        todoBar={props.todoBar}
         mode={props.mode ?? "mail"}
         selection={props.selection}
         canArchive={props.canArchive}
