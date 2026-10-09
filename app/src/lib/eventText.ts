@@ -192,3 +192,18 @@ export function upcomingWhen(o: Occurrence, timeZone: string, locale: string, no
     date > current && date <= addDays(current, 6) ? { weekday: "short" } : { month: "short", day: "numeric" };
   return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(new Date(date));
 }
+
+/**
+ * nextOccurrences keeps the occurrences that have not ended by now and are
+ * not cancelled, in their order, at most limit: the To-Do bar's Upcoming.
+ * An all-day occurrence ends at midnight of its endDate in timeZone. Task
+ * T-0091 builds it.
+ */
+export function nextOccurrences(
+  _occurrences: Occurrence[],
+  _now: Date,
+  _timeZone: string,
+  _limit: number,
+): Occurrence[] {
+  throw new Error("Task T-0091 builds it");
+}

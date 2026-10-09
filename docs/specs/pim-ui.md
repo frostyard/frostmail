@@ -489,7 +489,7 @@ in Mail.app's panes, with Outlook's keys.
   high): **Due**, a date input named "Due" that commits on change, and
   when there is a date a 14px `X` button named "Clear Due Date";
   **List**, the list's name, " · " and the account's email
-  `--text-tertiary`; **Completed**, when it is, the date and time
+  `--text-tertiary` on one line, truncated, the whole in its tooltip; **Completed**, when it is, the date and time
   (medium date, short time, in the app's zone); **From mail**, for a
   task made from a message, an **Open Message** text button in
   `--accent` that shows the message in Mail.
@@ -512,7 +512,8 @@ segment fills the list's width and the right segment the pane's.
 
 - Over the sidebar: the sidebar toggle.
 - Over the list: **New Task** (`Plus`, "New Task (Ctrl+N)"), which
-  focuses the New Task field, the source's name 15/20 600, and at the
+  focuses the New Task field (disabled in Flagged Mail and a read-only
+  list), the source's name 15/20 600, and at the
   right **Show Completed**, a 28-high text button with `aria-pressed`,
   shown for a list and All Tasks.
 - Over the pane: Settings and the window controls.
@@ -576,8 +577,8 @@ next in the calendar, and what is due.
 - **Small month:** `MiniMonth` with its busy days; clicking a day shows
   Calendar on that date, the view kept.
 - **Upcoming:** a heading 11/14 600 `--text-secondary` (12px padding,
-  16px above), then `UpcomingList` with the occurrences not yet ended
-  from now to the end of the seventh day, at most 5, else "No Upcoming
+  16px above), then `UpcomingList` with the occurrences not yet ended and
+  not cancelled from now to the end of the seventh day, at most 5, else "No Upcoming
   Events" 12/16 `--text-tertiary`. Clicking one opens it in Calendar.
 - **Tasks:** a heading, a New Task field (32 high, into the default
   list), then up to 10 open tasks due within seven days or earlier, by
