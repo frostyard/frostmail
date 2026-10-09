@@ -20,7 +20,7 @@ import {
   type ViewQuery,
 } from "../gen/api";
 import { RPCError, type Transport } from "../transport";
-import type { MockCalendarData } from "./calendar";
+import { MockCalendar, type MockCalendarData } from "./calendar";
 import { MockCompose, NOT_HANDLED } from "./compose";
 import { diffIds } from "./diff";
 import { MockPeople, type MockPeopleData } from "./people";
@@ -82,6 +82,7 @@ export class MockTransport implements Transport {
   private closed: string | undefined;
   private readonly compose: MockCompose;
   private readonly people: MockPeople;
+  private readonly calendar: MockCalendar;
 
   constructor(
     data: MockData,
@@ -110,11 +111,18 @@ export class MockTransport implements Transport {
       () => [...this.messages.values()].flatMap((m) => [m.summary.from, ...m.to, ...m.cc]),
       opts.undoMs,
     );
+    const pim = data.pim ?? { collections: [], people: [] };
+    this.calendar = new MockCalendar(
+      data.calendar ?? { events: [], now: new Date().toISOString() },
+      pim.collections,
+      (e) => this.emit(e),
+    );
     this.people = new MockPeople(
-      data.pim ?? { collections: [], people: [] },
+      pim,
       (e) => this.emit(e),
       () => [...this.messages.values()],
       () => this.accounts,
+      (email) => this.calendar.upcoming(email),
     );
   }
 
@@ -316,6 +324,8 @@ export class MockTransport implements Transport {
       default: {
         const r = this.compose.dispatch(method, p);
         if (r !== NOT_HANDLED) return r;
+        const calendar = this.calendar.dispatch(method, p);
+        if (calendar !== NOT_HANDLED) return calendar;
         const q = this.people.dispatch(method, p);
         if (q !== NOT_HANDLED) return q;
         throw new RPCError(ErrorCode.methodNotFound, `method ${method} does not exist`);

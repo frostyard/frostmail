@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import type { OccurrenceKey } from "../features/calendar/TimeGrid";
+import type { CalendarView } from "../lib/calendarDates";
 import type { Module } from "../lib/modules";
 import type { Account, Mailbox, MailboxRole, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
 
@@ -41,6 +43,10 @@ export type Pane = "sidebar" | "list" | "reader";
 /** UIState is the window's own state. */
 export interface UIState {
   module: Module;
+  calendarView: CalendarView;
+  calendarDate: string;
+  calendarSelected: OccurrenceKey | null;
+  calendarFocus: Pane;
   peopleBook: "all" | number;
   peopleSelected: number | null;
   peopleSearch: string;
@@ -66,6 +72,10 @@ export interface UIState {
 
 /** UIActions change UIState. */
 export interface UIActions {
+  setCalendarView: (view: CalendarView) => void;
+  setCalendarDate: (date: string) => void;
+  selectOccurrence: (key: OccurrenceKey | null, date?: string) => void;
+  setCalendarFocus: (pane: Pane) => void;
   setModule: (module: Module) => void;
   setPeopleBook: (peopleBook: "all" | number) => void;
   selectPerson: (peopleSelected: number | null) => void;
@@ -86,6 +96,10 @@ export interface UIActions {
 
 const initialUI: UIState = {
   module: "mail",
+  calendarView: "week",
+  calendarDate: "",
+  calendarSelected: null,
+  calendarFocus: "list",
   peopleBook: "all",
   peopleSelected: null,
   peopleSearch: "",
@@ -109,6 +123,11 @@ export const useUI = create<UIState & UIActions>()(
   persist(
     (set) => ({
       ...initialUI,
+      setCalendarView: (calendarView) => set({ calendarView }),
+      setCalendarDate: (calendarDate) => set({ calendarDate }),
+      selectOccurrence: (calendarSelected, date) =>
+        set({ calendarSelected, ...(date === undefined ? {} : { calendarDate: date }) }),
+      setCalendarFocus: (calendarFocus) => set({ calendarFocus }),
       setModule: (module) => set({ module }),
       setPeopleBook: (peopleBook) => set({ peopleBook }),
       selectPerson: (peopleSelected) => set({ peopleSelected }),

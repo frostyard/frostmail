@@ -122,8 +122,10 @@ describe("MockTransport calendar", () => {
     const ann = await c.people.card({ email: "ann.smith@northwind.test" });
     expect(summaries(ann.upcoming)).toEqual(["Lunch with Ann"]);
     const bob = await c.people.card({ email: "bob.okafor@acme.test" });
-    expect(summaries(bob.upcoming)).toEqual(["Standup", "Standup", "Standup", "Standup", "Standup"]);
-    expect(Date.parse(bob.upcoming[0]?.start ?? "")).toBe(Date.parse("2026-10-09T09:00:00Z"));
+    // The weekly sync (Bob attends) is later today; the standups follow.
+    expect(summaries(bob.upcoming)).toEqual(["Weekly sync", "Standup", "Standup", "Standup", "Standup"]);
+    expect(Date.parse(bob.upcoming[0]?.start ?? "")).toBe(Date.parse("2026-10-08T15:00:00Z"));
+    expect(Date.parse(bob.upcoming[1]?.start ?? "")).toBe(Date.parse("2026-10-09T09:00:00Z"));
     expect((await c.people.card({ email: "nobody@example.test" })).upcoming).toEqual([]);
   });
 });
