@@ -72,8 +72,8 @@ func (c *Card) validate() error {
 	if c.Title == "" || c.Acceptance == "" {
 		errs = append(errs, errors.New("title and acceptance are required"))
 	}
-	if !slices.Contains([]string{"S", "M"}, c.Size) {
-		errs = append(errs, fmt.Errorf("size %q must be S or M", c.Size))
+	if !slices.Contains([]string{"S", "M", "L"}, c.Size) {
+		errs = append(errs, fmt.Errorf("size %q must be S, M or L (ADR-0021)", c.Size))
 	}
 	if len(c.Touch) == 0 {
 		errs = append(errs, errors.New("touch must list at least one file"))
