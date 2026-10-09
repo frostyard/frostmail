@@ -38,6 +38,9 @@ func newRootCmd() *cobra.Command {
 		newOutboxCmd(opts),
 		newOAuthCmd(opts),
 		newVerifyCmd(opts),
+		newPeopleCmd(opts),
+		newCalCmd(opts),
+		newTasksCmd(opts),
 	)
 	return root
 }
