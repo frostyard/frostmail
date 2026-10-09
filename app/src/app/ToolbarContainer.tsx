@@ -24,7 +24,11 @@ import { openSettings } from "./settings";
 import { useCalendarFrame } from "./useCalendar";
 import { type PeopleData, personEmail, writeToPerson } from "./usePeople";
 
+import type { TasksData } from "./useTasks";
+
 interface ToolbarContainerProps {
+  tasks?: TasksData;
+  onNewTask?: () => void;
   people?: PeopleData;
   model: ViewModel | null;
   onDelete: (ids: number[]) => void;
@@ -137,6 +141,15 @@ function useToolbarCommand(props: ToolbarContainerProps) {
     (command: ToolbarCommand) => {
       if (windowCommand(command)) return;
       const ui = useUI.getState();
+      if (command.kind === "toggleTodoBar") {
+        ui.toggleTodoBar();
+        return;
+      }
+      if (ui.module === "tasks") {
+        if (command.kind === "newTask") props.onNewTask?.();
+        else if (command.kind === "toggleCompleted") ui.toggleShowCompleted();
+        return;
+      }
       if (ui.module === "calendar") {
         if (command.kind === "today") ui.setCalendarDate(frame.today);
         else if (command.kind === "calendarView") ui.setCalendarView(command.view);
@@ -223,7 +236,17 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
   const onCommand = useToolbarCommand(props);
   return (
     <Toolbar
-      mode={ui.module === "calendar" ? "calendar" : ui.module === "people" ? "people" : "mail"}
+      mode={ui.module}
+      tasks={
+        ui.module === "tasks"
+          ? {
+              title: props.tasks?.title ?? "",
+              showCompleted: ui.tasksSource === "today" || ui.tasksSource === "flagged" ? null : ui.tasksShowCompleted,
+              paneWidth: 320,
+            }
+          : undefined
+      }
+      todoBar={ui.module === "mail" ? ui.todoBar : undefined}
       calendar={
         ui.module === "calendar"
           ? {
