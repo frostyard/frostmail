@@ -71,7 +71,11 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   refuses the change (412, or another 4xx) fails it, and the server's
   version stands (a refused creation is removed locally). Re-applying a
   patch to the server's newer version after a 412 comes with the first
-  patches (Phase 4).
+  patches (Phase 4). A server may store a new object under a name of its
+  own and answer 201 with a `Location` (Google's CalDAV names it from its
+  UID, which for an accepted invitation is the organizer's): the local
+  object moves there, or gives way to the copy a pass already brought,
+  and without an ETag in the answer it is read back from there.
 
 ### Storage
 

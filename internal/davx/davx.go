@@ -247,24 +247,42 @@ func (c *Client) Get(ctx context.Context, href string) (Object, error) {
 	return Object{Href: href, ETag: resp.Header.Get("ETag"), Data: body}, nil
 }
 
+// Written is what a PUT left on the server.
+type Written struct {
+	// Href is where the object is: the href written, or for a new object
+	// a server named itself (Google's CalDAV names it from its UID), the
+	// Location it answered with.
+	Href string
+	// ETag is the new ETag, or "" when the server sent none (the caller
+	// then fetches the object).
+	ETag string
+}
+
 // Put writes an object. ifMatch is the ETag the change was made on; an
 // empty ifMatch creates the object and fails with ErrPrecondition if one
-// exists. It returns the new ETag, or "" when the server sends none (the
-// caller then fetches the object).
-func (c *Client) Put(ctx context.Context, href string, data []byte, kind Kind, ifMatch string) (string, error) {
+// exists.
+func (c *Client) Put(ctx context.Context, href string, data []byte, kind Kind, ifMatch string) (Written, error) {
 	u, err := c.resolve(href)
 	if err != nil {
-		return "", err
+		return Written{}, err
 	}
 	r := request{method: http.MethodPut, url: u, body: data, ctype: kind.ContentType(), headers: conditional(ifMatch)}
 	resp, body, err := c.do(ctx, r)
 	if err != nil {
-		return "", err
+		return Written{}, err
 	}
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return "", statusError(r, resp, body)
+		return Written{}, statusError(r, resp, body)
 	}
-	return resp.Header.Get("ETag"), nil
+	w := Written{Href: href, ETag: resp.Header.Get("ETag")}
+	if loc := resp.Header.Get("Location"); loc != "" && resp.StatusCode == http.StatusCreated {
+		if at, err := u.Parse(loc); err == nil {
+			if path, ok := hrefPath(c.base, at.String()); ok && !samePath(path, href) {
+				w.Href = path
+			}
+		}
+	}
+	return w, nil
 }
 
 // Delete removes an object if it still has the ETag ifMatch (any ETag when
