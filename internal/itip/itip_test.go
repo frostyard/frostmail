@@ -87,7 +87,7 @@ func checkLines(t *testing.T, out []byte, eol string) {
 
 func TestFromMessage(t *testing.T) {
 	for _, tc := range []struct{ eml, ics string }{
-		{"invite.eml", "google-request.ics"},     // text/calendar wins over an attachment
+		{"invite.eml", "google-request.ics"},      // text/calendar wins over an attachment
 		{"attachment.eml", "outlook-request.ics"}, // application/ics
 		{"octet.eml", "series.ics"},               // a part named .ics
 	} {
