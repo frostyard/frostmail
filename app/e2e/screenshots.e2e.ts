@@ -26,6 +26,17 @@ async function start(prefix: string, env: Record<string, string> = {}): Promise<
   app = await launch(dir, fixture(dir, 0, { showcase: SHOWCASE }), { FROSTMAIL_SYNC: "off", ...env });
   const s = app.session;
   await s.waitFor("message rows", async () => (await s.findAll('[role="option"]')).length >= 10, 30_000);
+  // WebKit keeps localStorage across launches: start each shot from the
+  // default layout (no To-Do bar), not the last shot's.
+  await s.execute(`localStorage.removeItem("frostmail.ui"); location.reload();`);
+  await s.waitFor(
+    "message rows after a reload",
+    () =>
+      s.execute<boolean>(
+        `return document.querySelectorAll('[role="option"]').length >= 10 && !document.querySelector("aside");`,
+      ),
+    30_000,
+  );
   return s;
 }
 
@@ -120,19 +131,21 @@ async function tasks(s: Session, source: string, select: string): Promise<void> 
   );
 }
 
-/** todoBar shows Mail with the To-Do bar beside the reader. */
+/** todoBar shows Mail with the To-Do bar beside the reader: it turns the
+ *  persisted setting on and reloads, rather than racing the toolbar's
+ *  rebuild for a click. */
 async function todoBar(s: Session): Promise<void> {
-  await s.click(await s.find('[role="toolbar"][aria-label="Modules"] button[aria-label="Mail"]'));
-  // The toolbar is rebuilt for Mail; click its button once it is there.
-  await s.waitFor("Mail's toolbar", () =>
-    s.execute<boolean>(
-      `return !!document.querySelector('button[aria-label="To-Do Bar"]') &&
-         document.querySelectorAll('[role="option"]').length >= 10;`,
-    ),
+  await s.execute(
+    `const v = JSON.parse(localStorage.getItem("frostmail.ui") || '{"state":{},"version":0}');
+     v.state.todoBar = true;
+     localStorage.setItem("frostmail.ui", JSON.stringify(v));
+     location.reload();`,
   );
-  await s.click(await s.find('button[aria-label="To-Do Bar"]'));
-  await s.waitFor("the To-Do bar's tasks", () =>
-    s.execute<boolean>(`return document.querySelectorAll('aside[aria-label="To-Do Bar"] li').length >= 3;`),
+  await s.waitFor("Mail with the To-Do bar's tasks", () =>
+    s.execute<boolean>(
+      `return document.querySelectorAll('[role="option"]').length >= 10 &&
+         document.querySelectorAll('aside[aria-label="To-Do Bar"] li').length >= 3;`,
+    ),
   );
 }
 

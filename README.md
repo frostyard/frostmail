@@ -20,6 +20,7 @@ HTML itinerary in the reader](docs/images/main.png)
 | ![Replying in a compose window](docs/images/compose.png) | ![Account settings](docs/images/settings.png) |
 | ![People: a contact with recent mail and upcoming events](docs/images/people.png) | ![The Calendar's week with an event's details](docs/images/calendar.png) |
 | ![Tasks: lists, a subtask, due dates and the task pane](docs/images/tasks.png) | ![Mail with the To-Do bar: the month, what is next and what is due](docs/images/todo-bar.png) |
+| ![An invitation answered from the reader](docs/images/invitation.png) | ![The Calendar's month](docs/images/calendar-month.png) |
 
 <sub>The screenshots show made-up mail (`app/e2e/showcase`) in the real
 app; `make screenshots` retakes them.</sub>
