@@ -2367,6 +2367,9 @@ type PersonSummary struct {
 	// The first email address of the person's first contact, or empty.
 	Email    string `json:"email"`
 	HasPhoto bool   `json:"hasPhoto"`
+	// The letter the person files under in the list: the sort key's first letter,
+	// uppercased, or # when it is not a letter.
+	Index string `json:"index"`
 }
 
 // LabeledValue: An email address, phone number or URL with its label.
@@ -2450,6 +2453,8 @@ type ContactCard struct {
 // PeopleListParams holds the params of people.list.
 type PeopleListParams struct {
 	Query *string `json:"query,omitzero"`
+	// Only people with a contact in this address book.
+	CollectionID *int64 `json:"collectionId,omitzero"`
 }
 
 // PeopleGetParams holds the params of people.get.

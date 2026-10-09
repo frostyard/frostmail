@@ -60,6 +60,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Compose UI](specs/compose-ui.md): the compose window, undo toast and outbox
 - [Search language](specs/search.md): what the search field accepts
 - [Settings UI](specs/settings-ui.md): accounts, signatures and the Google client
+- [People, calendar and tasks UI](specs/pim-ui.md): the module bar, the People module, the contact card (M4.5)
 
 ### Plans
 

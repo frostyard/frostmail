@@ -11,6 +11,7 @@ types:
       - {name: organization, type: string}
       - {name: email, type: string, doc: "The first email address of the person's first contact, or empty."}
       - {name: hasPhoto, type: bool}
+      - {name: index, type: string, doc: "The letter the person files under in the list: the sort key's first letter, uppercased, or # when it is not a letter."}
   - name: LabeledValue
     doc: An email address, phone number or URL with its label.
     fields:
@@ -73,6 +74,7 @@ methods:
       email address has a word starting with it, case-insensitively.
     params:
       - {name: query, type: string, optional: true}
+      - {name: collectionId, type: int, optional: true, doc: "Only people with a contact in this address book."}
     result: "[]PersonSummary"
   - name: get
     doc: One person with their contacts.

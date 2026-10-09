@@ -1285,6 +1285,7 @@ People sorted by name. With query, those whose name, organization or email addre
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `query` | `string` (optional) |  |
+| `collectionId` | `int` (optional) | Only people with a contact in this address book. |
 
 Result: `[]PersonSummary`.
 
@@ -1353,6 +1354,7 @@ A row of the People list.
 | `organization` | `string` |  |
 | `email` | `string` | The first email address of the person's first contact, or empty. |
 | `hasPhoto` | `bool` |  |
+| `index` | `string` | The letter the person files under in the list: the sort key's first letter, uppercased, or # when it is not a letter. |
 
 ### Type `LabeledValue`
 

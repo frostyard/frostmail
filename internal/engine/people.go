@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/store"
@@ -19,7 +21,8 @@ func (e *Engine) People() api.PeopleService { return people{e.d} }
 
 type people struct{ Deps }
 
-// List returns matching people in store sort order.
+// List returns matching people in store sort order, only those with a
+// contact in the address book when one is named.
 func (p people) List(ctx context.Context, params *api.PeopleListParams) ([]api.PersonSummary, error) {
 	query := ""
 	if params.Query != nil {
@@ -29,11 +32,31 @@ func (p people) List(ctx context.Context, params *api.PeopleListParams) ([]api.P
 	if err != nil {
 		return nil, err
 	}
+	var in map[int64]bool
+	if params.CollectionID != nil {
+		if in, err = p.DB.ContactsIn(ctx, *params.CollectionID); err != nil {
+			return nil, err
+		}
+	}
 	out := make([]api.PersonSummary, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, api.PersonSummary{ID: r.ID, DisplayName: r.DisplayName, Organization: r.Organization, Email: r.Email, HasPhoto: r.HasPhoto})
+		if in != nil && !slices.ContainsFunc(r.ContactIDs, func(id int64) bool { return in[id] }) {
+			continue
+		}
+		out = append(out, api.PersonSummary{ID: r.ID, DisplayName: r.DisplayName, Organization: r.Organization,
+			Email: r.Email, HasPhoto: r.HasPhoto, Index: indexLetter(r.SortKey)})
 	}
 	return out, nil
+}
+
+// indexLetter is the letter a sort key files under in the People list: its
+// first letter uppercased, or "#" when it does not start with a letter.
+func indexLetter(sortKey string) string {
+	r, _ := utf8.DecodeRuneInString(sortKey)
+	if !unicode.IsLetter(r) {
+		return "#"
+	}
+	return string(unicode.ToUpper(r))
 }
 
 // Get returns a person and their parseable source contacts in address book order.

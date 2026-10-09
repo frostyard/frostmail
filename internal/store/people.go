@@ -343,3 +343,22 @@ func (d *DB) WritableAddressBooks(ctx context.Context) ([]Collection, error) {
 	}
 	return out, rows.Err()
 }
+
+// ContactsIn returns the object IDs of a collection's contacts.
+func (d *DB) ContactsIn(ctx context.Context, collectionID int64) (map[int64]bool, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT c.object_id FROM contacts c
+ JOIN objects o ON o.id = c.object_id WHERE o.collection_id = ?`, collectionID)
+	if err != nil {
+		return nil, fmt.Errorf("contacts in collection: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("contacts in collection: %w", err)
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}

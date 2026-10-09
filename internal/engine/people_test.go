@@ -119,7 +119,8 @@ func TestPeopleListAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := api.PersonSummary{ID: ps.ada, DisplayName: "Ada Lovelace", Organization: "Engines", Email: "ada@example.com", HasPhoto: true}
+	want := api.PersonSummary{ID: ps.ada, DisplayName: "Ada Lovelace", Organization: "Engines", Email: "ada@example.com",
+		HasPhoto: true, Index: "L"}
 	if len(list) != 1 || list[0] != want {
 		t.Fatalf("people.list = %+v, want [%+v]", list, want)
 	}
@@ -128,6 +129,12 @@ func TestPeopleListAndGet(t *testing.T) {
 	}
 	if hit, _ := ps.c.People().List(ctx, &api.PeopleListParams{Query: ptr("love")}); len(hit) != 1 {
 		t.Errorf("people.list love = %+v", hit)
+	}
+	if in, _ := ps.c.People().List(ctx, &api.PeopleListParams{CollectionID: ptr(ps.sharedBook)}); len(in) != 1 {
+		t.Errorf("people.list in the shared book = %+v", in)
+	}
+	if in, _ := ps.c.People().List(ctx, &api.PeopleListParams{CollectionID: ptr(int64(9999))}); len(in) != 0 {
+		t.Errorf("people.list in an unknown book = %+v", in)
 	}
 
 	p, err := ps.c.People().Get(ctx, &api.PeopleGetParams{ID: ps.ada})

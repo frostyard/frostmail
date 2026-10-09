@@ -1337,6 +1337,11 @@ export interface PersonSummary {
   /** The first email address of the person's first contact, or empty. */
   email: string;
   hasPhoto: boolean;
+  /**
+   * The letter the person files under in the list: the sort key's first
+   * letter, uppercased, or # when it is not a letter.
+   */
+  index: string;
 }
 
 /** An email address, phone number or URL with its label. */
@@ -1425,6 +1430,8 @@ export interface ContactCard {
 /** Params of people.list. */
 export interface PeopleListParams {
   query?: string;
+  /** Only people with a contact in this address book. */
+  collectionId?: number;
 }
 
 /** Params of people.get. */
