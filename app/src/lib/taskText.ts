@@ -1,6 +1,7 @@
 // Due text, sources and the task list's lines (docs/specs/pim-ui.md, Tasks
-// module and To-Do bar). Task T-0083 builds it.
+// module and To-Do bar).
 import type { Task } from "../rpc/gen/api";
+import { addDays } from "./calendarDates";
 
 /** TasksSource is what the task list shows: a smart list or a list's ID. */
 export type TasksSource = "today" | "all" | "flagged" | number;
@@ -22,13 +23,21 @@ export interface SourceOptions {
  * dueText names a due date from today: "Today", "Tomorrow", "Yesterday",
  * "Fri, Oct 9" in today's year, else "Oct 9, 2027"; "" for no date.
  */
-export function dueText(_due: string, _today: string, _locale: string): string {
-  throw new Error("Task T-0083 builds it");
+export function dueText(due: string, today: string, locale: string): string {
+  if (!due) return "";
+  if (due === today) return "Today";
+  if (due === addDays(today, 1)) return "Tomorrow";
+  if (due === addDays(today, -1)) return "Yesterday";
+  const options: Intl.DateTimeFormatOptions =
+    due.slice(0, 4) === today.slice(0, 4)
+      ? { weekday: "short", month: "short", day: "numeric" }
+      : { month: "short", day: "numeric", year: "numeric" };
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(new Date(due));
 }
 
 /** isOverdue tells whether an open task was due before today. */
-export function isOverdue(_task: Pick<Task, "due" | "completed">, _today: string): boolean {
-  throw new Error("Task T-0083 builds it");
+export function isOverdue(task: Pick<Task, "due" | "completed">, today: string): boolean {
+  return !task.completed && task.due !== "" && task.due < today;
 }
 
 /**
@@ -37,13 +46,18 @@ export function isOverdue(_task: Pick<Task, "due" | "completed">, _today: string
  * own; Flagged Mail has none. Completed tasks stay out unless ticked here,
  * or Show Completed is on for a list or All Tasks.
  */
-export function sourceTasks(_all: readonly Task[], _source: TasksSource, _opts: SourceOptions): Task[] {
-  throw new Error("Task T-0083 builds it");
+export function sourceTasks(all: readonly Task[], source: TasksSource, opts: SourceOptions): Task[] {
+  if (source === "flagged") return [];
+  return all.filter((task) => {
+    const belongs =
+      source === "all" || (source === "today" ? task.due !== "" && task.due <= opts.today : task.listId === source);
+    return belongs && (!task.completed || opts.ticked.has(task.id) || (opts.showCompleted && source !== "today"));
+  });
 }
 
 /** openCount counts a source's open tasks; Flagged Mail's is 0 here. */
-export function openCount(_all: readonly Task[], _source: TasksSource, _today: string): number {
-  throw new Error("Task T-0083 builds it");
+export function openCount(all: readonly Task[], source: TasksSource, today: string): number {
+  return sourceTasks(all, source, { today, showCompleted: false, ticked: new Set() }).length;
 }
 
 /**
@@ -51,14 +65,28 @@ export function openCount(_all: readonly Task[], _source: TasksSource, _today: s
  * its parent is shown before it, else at 0. With names (list ID to name),
  * a header comes before each list's first task.
  */
-export function taskLines(_tasks: readonly Task[], _names?: ReadonlyMap<number, string>): TaskLine[] {
-  throw new Error("Task T-0083 builds it");
+export function taskLines(tasks: readonly Task[], names?: ReadonlyMap<number, string>): TaskLine[] {
+  const lines: TaskLine[] = [];
+  const seen = new Set<number>();
+  let previous: number | undefined;
+  for (const task of tasks) {
+    if (names && task.listId !== previous)
+      lines.push({ kind: "header", listId: task.listId, name: names.get(task.listId) ?? "" });
+    lines.push({ kind: "task", task, level: task.parentId !== undefined && seen.has(task.parentId) ? 1 : 0 });
+    seen.add(task.id);
+    previous = task.listId;
+  }
+  return lines;
 }
 
 /**
  * dueSoon is the To-Do bar's tasks: open ones due within seven days of
  * today or earlier, by due date and then their order, at most limit.
  */
-export function dueSoon(_all: readonly Task[], _today: string, _limit: number): Task[] {
-  throw new Error("Task T-0083 builds it");
+export function dueSoon(all: readonly Task[], today: string, limit: number): Task[] {
+  const end = addDays(today, 7);
+  return all
+    .filter((task) => !task.completed && task.due !== "" && task.due <= end)
+    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0))
+    .slice(0, Math.max(0, limit));
 }
