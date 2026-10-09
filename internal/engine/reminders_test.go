@@ -23,7 +23,9 @@ func TestReminderAPI(t *testing.T) {
 	if err != nil || len(due) != 2 {
 		t.Fatalf("due = %+v, %v", due, err)
 	}
-	if err := e.srv.DB.Tx(ctx, func(tx *store.Tx) error { return tx.FireReminders(ctx, due, time.Date(2026, 10, 9, 13, 0, 0, 0, time.UTC)) }); err != nil {
+	if err := e.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		return tx.FireReminders(ctx, due, time.Date(2026, 10, 9, 13, 0, 0, 0, time.UTC))
+	}); err != nil {
 		t.Fatal(err)
 	}
 
