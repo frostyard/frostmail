@@ -289,20 +289,26 @@ func (p *pass) serviceOnce(ctx context.Context, s store.Service) error {
 		if err != nil {
 			return err
 		}
-		return p.syncDAV(ctx, c, davx.AddressBooks, func(davx.Collection) bool { return true })
+		return p.syncDAV(ctx, c, davx.AddressBooks, api.CollectionKindAddressbook, func(davx.Collection) bool { return true })
 	case api.ServiceKindCalendar:
 		c, err := p.home(ctx, s, davx.Calendars)
 		if err != nil {
 			return err
 		}
-		return p.syncDAV(ctx, c, davx.Calendars, func(col davx.Collection) bool {
+		return p.syncDAV(ctx, c, davx.Calendars, api.CollectionKindCalendar, func(col davx.Collection) bool {
 			return len(col.Components) == 0 || hasComponent(col, "VEVENT")
 		})
 	case api.ServiceKindTasks:
 		if providers.ForKind(p.acct.Kind).DAV.Tasks == "google" {
 			return p.syncGoogleTasks(ctx, s)
 		}
-		return nil // CalDAV task lists are a later card.
+		c, err := p.home(ctx, s, davx.Calendars)
+		if err != nil {
+			return err
+		}
+		return p.syncDAV(ctx, c, davx.Calendars, api.CollectionKindTasklist, func(col davx.Collection) bool {
+			return hasComponent(col, "VTODO")
+		})
 	}
 	return fmt.Errorf("pimsync: unknown service %q", s.Service)
 }

@@ -46,8 +46,11 @@ func (p *pass) replayOne(ctx context.Context, op store.PIMOp, services []store.S
 		return p.replayGoogleTask(ctx, op, col, services)
 	}
 	kind, service := davx.AddressBooks, api.ServiceKindContacts
-	if col.Kind == api.CollectionKindCalendar {
+	switch col.Kind {
+	case api.CollectionKindCalendar:
 		kind, service = davx.Calendars, api.ServiceKindCalendar
+	case api.CollectionKindTasklist:
+		kind, service = davx.Calendars, api.ServiceKindTasks
 	}
 	svc, ok := enabledService(services, service)
 	if !ok || p.scope(service) != nil {
@@ -107,7 +110,7 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 	}
 	return p.done(ctx, op, func(tx *store.Tx) error {
 		if fetched != nil {
-			if err := p.indexDAV(ctx, tx, kind, col.ID, *fetched); err != nil {
+			if err := p.indexDAV(ctx, tx, col, *fetched); err != nil {
 				return err
 			}
 			if kind == davx.AddressBooks {

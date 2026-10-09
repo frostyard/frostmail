@@ -5,17 +5,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/contentline"
 	"github.com/frostyard/frostmail/internal/davx"
 	"github.com/frostyard/frostmail/internal/store"
 	"github.com/frostyard/frostmail/internal/vcardx"
 )
 
-// indexDAV stores the original source and its derived contact or calendar metadata.
-func (p *pass) indexDAV(ctx context.Context, tx *store.Tx, kind davx.Kind, collectionID int64, remote davx.Object) error {
-	o := store.Object{CollectionID: collectionID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data}
-	if kind == davx.Calendars {
+// indexDAV stores the original source and indexes it according to its collection.
+func (p *pass) indexDAV(ctx context.Context, tx *store.Tx, col store.Collection, remote davx.Object) error {
+	o := store.Object{CollectionID: col.ID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data}
+	switch col.Kind {
+	case api.CollectionKindCalendar:
 		return p.indexCalendar(ctx, tx, o)
+	case api.CollectionKindTasklist:
+		return p.indexTodo(ctx, tx, o)
 	}
 	o.Kind = store.ObjectVCard
 	card, err := vcardx.Parse(o.Raw)
@@ -69,4 +74,30 @@ func calendarMetadata(o *store.Object) {
 			return
 		}
 	}
+}
+
+// indexTodo keeps every source and indexes only a task list's valid VTODOs.
+func (p *pass) indexTodo(ctx context.Context, tx *store.Tx, o store.Object) error {
+	calendarMetadata(&o)
+	var todo calendar.Todo
+	if o.Kind == store.ObjectVTodo {
+		var err error
+		todo, err = calendar.ParseTodo(o.Raw, calendar.Options{Local: p.m.cfg.Local})
+		if err != nil {
+			o.Kind, o.ParseError = store.ObjectOther, err.Error()
+		}
+	}
+	id, err := tx.PutObject(ctx, o)
+	if err != nil {
+		return fmt.Errorf("store task object: %w", err)
+	}
+	if o.Kind != store.ObjectVTodo {
+		return tx.RemoveTask(ctx, id)
+	}
+	row := store.TaskRow{UID: todo.UID, ParentUID: todo.ParentUID, Title: todo.Summary,
+		Notes: todo.Description, Due: todo.Due, Completed: todo.Completed, Position: todo.SortOrder}
+	if !todo.CompletedAt.IsZero() {
+		row.CompletedAt = &todo.CompletedAt
+	}
+	return tx.IndexTask(ctx, id, row)
 }
