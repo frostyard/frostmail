@@ -4,6 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
+import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
   AttachmentStrip,
@@ -12,8 +13,10 @@ import {
   RemoteBanner,
 } from "../features/reader/MessageHeader";
 import { PlainText } from "../features/reader/PlainText";
-import type { Address, Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
+import { zoned } from "../lib/calendarDates";
+import type { Address, Invitation, Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
 import { ContactCardContainer } from "./ContactCardContainer";
+import { useCalendarFrame } from "./useCalendar";
 
 /** MAX_CONVERSATION is how many messages the reader shows before "Show earlier". */
 export const MAX_CONVERSATION = 20;
@@ -145,6 +148,9 @@ function ConversationMessage({
   const [error, setError] = useState<string | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
   const id = summary.id;
+  const part = message ? invitationPart(message.parts) : undefined;
+  const { invitation, busy, onAnswer } = useInvitation(id, part !== undefined);
+  const { timeZone, locale } = useCalendarFrame();
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +185,24 @@ function ConversationMessage({
   return (
     <article aria-label={summary.subject} className="pb-2">
       {message && <MessageHeader message={message} onAddress={onAddress} />}
+      {invitation && (
+        <InvitationCard
+          invitation={invitation}
+          timeZone={timeZone}
+          locale={locale}
+          busy={busy}
+          onAnswer={onAnswer}
+          onShowInCalendar={() => {
+            const ui = useUI.getState();
+            const e = invitation.event;
+            ui.selectOccurrence(
+              invitation.eventId ? { eventId: invitation.eventId, recurrenceId: "" } : null,
+              e.allDay ? e.startDate : zoned(e.start, timeZone).date,
+            );
+            ui.setModule("calendar");
+          }}
+        />
+      )}
       {rendering && (
         <RemoteBanner
           remote={rendering.remote}
@@ -194,7 +218,63 @@ function ConversationMessage({
         ) : (
           <PlainText text={rendering.text} onOpenLink={openLink} />
         ))}
-      {message && <AttachmentStrip parts={message.parts} onOpen={openPart} />}
+      {message && (
+        <AttachmentStrip
+          parts={invitation ? message.parts.filter((p) => p !== part) : message.parts}
+          onOpen={openPart}
+        />
+      )}
     </article>
   );
+}
+
+function useInvitation(messageId: number, active: boolean) {
+  const client = useClient();
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [busy, setBusy] = useState(false);
+  const refresh = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!active) return;
+    let stopped = false;
+    let request = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = () => {
+      const version = ++request;
+      void client.calendar.invitation({ messageId }).then(
+        (inv) => {
+          if (!stopped && request === version) setInvitation(inv);
+        },
+        () => {
+          if (!stopped && request === version) setInvitation(null);
+        },
+      );
+    };
+    const soon = () => {
+      clearTimeout(timer);
+      timer = setTimeout(load, 100);
+    };
+    refresh.current = soon;
+    load();
+    const off = client.transport.onEvent((event) => {
+      if (event.event === "calendar.changed") soon();
+    });
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      off();
+      refresh.current = () => {};
+    };
+  }, [client, messageId, active]);
+  const onAnswer = (answer: Answer) => {
+    if (busy) return;
+    setBusy(true);
+    void client.calendar
+      .respond({ messageId, answer })
+      .catch((err: unknown) => console.warn("answer invitation", err))
+      .finally(() => {
+        setBusy(false);
+        refresh.current();
+      });
+  };
+  return { invitation: active ? invitation : null, busy, onAnswer };
 }

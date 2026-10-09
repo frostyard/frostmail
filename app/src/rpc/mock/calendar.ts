@@ -2,7 +2,15 @@
 // occurrences, as maild answers calendar.range and calendar.event
 // (docs/specs/pim-ui.md; internal/engine/calendar.go).
 import { addDays, dayStart } from "../../lib/calendarDates";
-import { type CalendarEvent, type Collection, ErrorCode, type Event, type Occurrence, type Reminder } from "../gen/api";
+import {
+  type CalendarEvent,
+  type Collection,
+  ErrorCode,
+  type Event,
+  type Invitation,
+  type Occurrence,
+  type Reminder,
+} from "../gen/api";
 import { RPCError } from "../transport";
 import { NOT_HANDLED } from "./compose";
 
@@ -26,10 +34,17 @@ export interface MockReminder {
   dismissed?: boolean;
 }
 
+/** MockInvitation links an invitation message to its stored event. */
+export interface MockInvitation {
+  messageId: number;
+  eventId: number;
+}
+
 /** MockCalendarData is the events the mock serves; their calendars are
  *  collections in MockPeopleData. */
 export interface MockCalendarData {
   events: MockEvent[];
+  invitations?: MockInvitation[];
   /** Fired reminders; none when absent. */
   reminders?: MockReminder[];
   /** The clock contact cards' upcoming occurrences count from. */
@@ -88,6 +103,10 @@ export class MockCalendar {
   /** dispatch answers supported methods or returns NOT_HANDLED. */
   dispatch(method: string, params: Params): unknown {
     switch (method) {
+      case "calendar.invitation":
+        return this.invitation(Number(params.messageId));
+      case "calendar.respond":
+        return this.respond(params);
       case "calendar.range":
         return this.range(params);
       case "calendar.event":
@@ -102,6 +121,60 @@ export class MockCalendar {
       default:
         return NOT_HANDLED;
     }
+  }
+
+  private invitationEvent(messageId: number): number {
+    const invitation = this.data.invitations?.find((inv) => inv.messageId === messageId);
+    if (!invitation) throw new RPCError(ErrorCode.notFound, "message has no invitation");
+    return invitation.eventId;
+  }
+
+  private invitation(messageId: number): Invitation {
+    const eventId = this.invitationEvent(messageId);
+    const event = this.event(eventId, "");
+    const day = event.allDay ? event.startDate : event.start.slice(0, 10);
+    const others = this.data.events
+      .filter((mock) => mock.event.id !== eventId)
+      .flatMap((mock) => occurrences(mock, "UTC"))
+      .filter((o) => !o.allDay && o.start.slice(0, 10) === day);
+    const start = Date.parse(event.start),
+      end = Date.parse(event.end);
+    const before = others
+      .filter((o) => Date.parse(o.end) <= start)
+      .sort((a, b) => Date.parse(b.end) - Date.parse(a.end))[0];
+    const after = others
+      .filter((o) => Date.parse(o.start) >= end)
+      .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))[0];
+    return {
+      method: "request",
+      event: { ...event, id: 0 },
+      eventId,
+      ...(event.organizer ? { from: event.organizer } : {}),
+      ...(event.answer === undefined ? {} : { answer: event.answer }),
+      canRespond: !event.readOnly,
+      outdated: false,
+      conflicts: others.filter(
+        (o) => !o.transparent && o.answer !== "declined" && Date.parse(o.start) < end && Date.parse(o.end) > start,
+      ),
+      adjacent: [...(before ? [before] : []), ...(after ? [after] : [])],
+    };
+  }
+
+  private respond(p: Params): CalendarEvent {
+    const answer = p.answer;
+    if (
+      (answer !== "accepted" && answer !== "declined" && answer !== "tentative") ||
+      (p.messageId === undefined && p.eventId === undefined)
+    ) {
+      throw new RPCError(ErrorCode.invalidParams, "answer and an invitation ID are required");
+    }
+    const id = p.messageId === undefined ? Number(p.eventId) : this.invitationEvent(Number(p.messageId));
+    const mock = this.data.events.find((e) => e.event.id === id);
+    if (!mock) throw new RPCError(ErrorCode.notFound, "event does not exist");
+    mock.event.answer = answer;
+    for (const attendee of mock.event.attendees) if (attendee.isUser) attendee.answer = answer;
+    this.emit({ event: "calendar.changed", data: { accountId: mock.event.accountId } });
+    return this.event(id, "");
   }
 
   private reminders(): Reminder[] {
