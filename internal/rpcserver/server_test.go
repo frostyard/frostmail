@@ -146,3 +146,44 @@ func TestRepeatedHello(t *testing.T) {
 		t.Fatalf("repeated hello: %v", err)
 	}
 }
+
+// TestAttended: the app is attending while one of its connections that
+// subscribed to events is open; other clients do not count.
+func TestAttended(t *testing.T) {
+	changes := make(chan bool, 4)
+	srv := rpctest.StartWith(t, rpctest.Options{OnAttended: func(a bool) { changes <- a }})
+	hello := func(client string) *rawConn {
+		r := dialRaw(t, srv.Socket)
+		r.send(`{"jsonrpc":"2.0","id":1,"method":"rpc.hello","params":{"protocol":1,"client":"` + client + `"}}`)
+		if got := r.recv(); !strings.Contains(got, `"result"`) {
+			t.Fatalf("hello = %s", got)
+		}
+		return r
+	}
+	subscribe := func(r *rawConn) {
+		r.send(`{"jsonrpc":"2.0","id":2,"method":"events.subscribe","params":{}}`)
+		if got := r.recv(); !strings.Contains(got, `"result"`) {
+			t.Fatalf("subscribe = %s", got)
+		}
+	}
+	cli := hello("mailctl dev")
+	subscribe(cli)
+	app := hello(rpcserver.AppClient + " 0.1.0")
+	if srv.RPC.Attended() {
+		t.Error("attended before the app subscribed")
+	}
+	subscribe(app)
+	if got := <-changes; !got || !srv.RPC.Attended() {
+		t.Errorf("after the app subscribed: change %v, attended %v", got, srv.RPC.Attended())
+	}
+	_ = app.nc.Close()
+	select {
+	case got := <-changes:
+		if got || srv.RPC.Attended() {
+			t.Errorf("after the app left: change %v, attended %v", got, srv.RPC.Attended())
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no change when the app left")
+	}
+	_ = cli
+}

@@ -33,11 +33,16 @@ type Desktop struct {
 	mu     sync.Mutex
 	groups map[int64]uint32 // account → its last group note, which the next replaces
 	opens  map[uint32]int64 // notification → the message it opens
+
+	reminders     map[uint32]string // notification → its reminder
+	reminderNotes map[string]uint32 // reminder → its notification
+	onReminder    func(id, action string)
 }
 
 // NewDesktop sends over conn and watches it for clicks until ctx ends.
 func NewDesktop(ctx context.Context, conn *dbus.Conn, log *slog.Logger, open func(messageID int64)) (*Desktop, error) {
-	d := &Desktop{conn: conn, log: log, open: open, groups: map[int64]uint32{}, opens: map[uint32]int64{}}
+	d := &Desktop{conn: conn, log: log, open: open, groups: map[int64]uint32{}, opens: map[uint32]int64{},
+		reminders: map[uint32]string{}, reminderNotes: map[string]uint32{}}
 	for _, member := range []string{"ActionInvoked", "NotificationClosed"} {
 		if err := conn.AddMatchSignalContext(ctx, dbus.WithMatchSender(busName), dbus.WithMatchObjectPath(busPath),
 			dbus.WithMatchInterface(busIface), dbus.WithMatchMember(member)); err != nil {
@@ -130,13 +135,17 @@ func (d *Desktop) handle(s *dbus.Signal) {
 	if !ok {
 		return
 	}
+	action, _ := s.Body[1].(string)
+	if d.reminderAction(id, action, s.Name == busIface+".NotificationClosed") {
+		return
+	}
 	d.mu.Lock()
 	msg, known := d.opens[id]
 	if s.Name == busIface+".NotificationClosed" {
 		delete(d.opens, id)
 	}
 	d.mu.Unlock()
-	if action, _ := s.Body[1].(string); s.Name == busIface+".ActionInvoked" && action == "default" && known {
+	if s.Name == busIface+".ActionInvoked" && action == "default" && known {
 		d.log.Debug("notification clicked", "message", msg)
 		d.open(msg)
 	}

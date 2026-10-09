@@ -278,6 +278,13 @@ func (c calendarService) Reminders(ctx context.Context, _ *api.CalendarReminders
 	return out, nil
 }
 
+// ReminderID is the calendar.reminders id of a reminder's key, for maild's
+// scheduler to find the reminders it fired.
+func ReminderID(key store.AlarmKey) string {
+	id, _ := reminderID(key) // a key always encodes
+	return id
+}
+
 func reminderID(key store.AlarmKey) (string, error) {
 	data, err := json.Marshal([4]any{key.CollectionID, key.UID, key.RecurrenceID, store.FormatTime(key.TriggerAt)})
 	if err != nil {
