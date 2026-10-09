@@ -1,5 +1,5 @@
 // The modular main window, shared pane resizing and keyboard dispatch.
-import { type RefObject, useCallback, useEffect, useRef } from "react";
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { useClient } from "../data/session";
 import { type Pane, useMail, useUI } from "../data/stores";
@@ -16,6 +16,7 @@ import { UndoToasts } from "./OutboxContainer";
 import { watchOpenRequests } from "./openMessage";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
+import { watchOccurrenceRequests, watchReminders } from "./reminders";
 import { SidebarContainer } from "./SidebarContainer";
 import { Splitter } from "./Splitter";
 import { openSettings } from "./settings";
@@ -166,7 +167,11 @@ function calendarCommand(command: Command, frame: CalendarData, handles: WindowH
 function useWindowEvents(handles: WindowHandles, model: ViewModel | null, people: PeopleData, calendar: CalendarData) {
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
-  useEffect(() => {
+  useEffect(() => watchReminders(client), [client]);
+  useLayoutEffect(() => watchOccurrenceRequests(), []);
+  // Install input handlers at commit: the visible window must already be
+  // ready for keys and occurrence requests before passive data effects run.
+  useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const ui = useUI.getState();
       const field = inTextField(event.target);
