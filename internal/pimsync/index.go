@@ -12,14 +12,10 @@ import (
 )
 
 // indexDAV stores the original source and its derived contact or calendar metadata.
-func indexDAV(ctx context.Context, tx *store.Tx, kind davx.Kind, collectionID int64, remote davx.Object) error {
+func (p *pass) indexDAV(ctx context.Context, tx *store.Tx, kind davx.Kind, collectionID int64, remote davx.Object) error {
 	o := store.Object{CollectionID: collectionID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data}
 	if kind == davx.Calendars {
-		calendarMetadata(&o)
-		if _, err := tx.PutObject(ctx, o); err != nil {
-			return fmt.Errorf("store calendar object: %w", err)
-		}
-		return nil
+		return p.indexCalendar(ctx, tx, o)
 	}
 	o.Kind = store.ObjectVCard
 	card, err := vcardx.Parse(o.Raw)
