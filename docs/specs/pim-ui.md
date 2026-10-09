@@ -334,7 +334,7 @@ later event editor window (ADR-0020), and answering invitations is Phase
   ("Accepted", "Declined", "Maybe", "Not answered"; only when invited).
   Rows without a value are left out.
 - **People:** "Organizer", then "Invitees" (11/14 600 `--text-secondary`
-  headings), a 32-high row per person: a 24px avatar (initials on the
+  headings), a 36-high row per person: a 28px avatar (initials on the
   address's tone), the name or else the address 13/16, " (you)" when it is
   the user, " (optional)" `--text-tertiary` for optional ones, and the
   answer at the right: a 14px `Check` in `--flag-4` (accepted), `X` in
