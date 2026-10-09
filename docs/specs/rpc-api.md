@@ -1394,7 +1394,7 @@ One vCard of a person, from one address book, read from its source.
 | `nickname` | `string` |  |
 | `organization` | `string` |  |
 | `title` | `string` |  |
-| `emails` | `[]LabeledValue` |  |
+| `emails` | `[]LabeledValue` | Each address once, compared trimmed and without case, though the vCard may give it twice. |
 | `phones` | `[]LabeledValue` |  |
 | `addresses` | `[]PostalAddress` |  |
 | `urls` | `[]LabeledValue` |  |

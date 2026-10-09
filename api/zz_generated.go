@@ -2399,19 +2399,21 @@ type PostalAddress struct {
 // Contact: One vCard of a person, from one address book, read from its
 // source.
 type Contact struct {
-	ID           int64           `json:"id"`
-	CollectionID int64           `json:"collectionId"`
-	AccountID    int64           `json:"accountId"`
-	DisplayName  string          `json:"displayName"`
-	GivenName    string          `json:"givenName"`
-	FamilyName   string          `json:"familyName"`
-	Nickname     string          `json:"nickname"`
-	Organization string          `json:"organization"`
-	Title        string          `json:"title"`
-	Emails       []LabeledValue  `json:"emails"`
-	Phones       []LabeledValue  `json:"phones"`
-	Addresses    []PostalAddress `json:"addresses"`
-	URLs         []LabeledValue  `json:"urls"`
+	ID           int64  `json:"id"`
+	CollectionID int64  `json:"collectionId"`
+	AccountID    int64  `json:"accountId"`
+	DisplayName  string `json:"displayName"`
+	GivenName    string `json:"givenName"`
+	FamilyName   string `json:"familyName"`
+	Nickname     string `json:"nickname"`
+	Organization string `json:"organization"`
+	Title        string `json:"title"`
+	// Each address once, compared trimmed and without case, though the vCard may
+	// give it twice.
+	Emails    []LabeledValue  `json:"emails"`
+	Phones    []LabeledValue  `json:"phones"`
+	Addresses []PostalAddress `json:"addresses"`
+	URLs      []LabeledValue  `json:"urls"`
 	// YYYY-MM-DD, or --MM-DD without a year; empty when unknown.
 	Birthday string `json:"birthday"`
 	Note     string `json:"note"`

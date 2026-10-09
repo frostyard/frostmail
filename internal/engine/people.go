@@ -130,7 +130,7 @@ func contactFromCard(card *vcardx.Card) api.Contact {
 	c := api.Contact{
 		DisplayName: card.DisplayName(), GivenName: card.GivenName, FamilyName: card.FamilyName,
 		Nickname: card.Nickname, Organization: card.Organization, Title: card.Title,
-		Emails: labeledValues(card.Emails), Phones: labeledValues(card.Phones), URLs: labeledValues(card.URLs),
+		Emails: uniqueEmails(card.Emails), Phones: labeledValues(card.Phones), URLs: labeledValues(card.URLs),
 		Addresses: make([]api.PostalAddress, 0, len(card.Addresses)), Birthday: card.Birthday, Note: card.Note,
 	}
 	for _, a := range card.Addresses {
@@ -144,6 +144,27 @@ func labeledValues(values []vcardx.Labeled) []api.LabeledValue {
 	out := make([]api.LabeledValue, 0, len(values))
 	for _, v := range values {
 		out = append(out, api.LabeledValue{Label: v.Label, Value: v.Value})
+	}
+	return out
+}
+
+// uniqueEmails is a card's addresses with each once, compared trimmed and
+// without case: the first stays, taking a later duplicate's label when it
+// has none. Google can give one address twice (item1.EMAIL;TYPE=PREF and
+// item2.EMAIL); only the card shows it once, so the vCard keeps both lines.
+func uniqueEmails(emails []vcardx.Labeled) []api.LabeledValue {
+	out := make([]api.LabeledValue, 0, len(emails))
+	at := make(map[string]int, len(emails))
+	for _, e := range emails {
+		key := strings.ToLower(strings.TrimSpace(e.Value))
+		if i, ok := at[key]; ok {
+			if out[i].Label == "" {
+				out[i].Label = e.Label
+			}
+			continue
+		}
+		at[key] = len(out)
+		out = append(out, api.LabeledValue{Label: e.Label, Value: e.Value})
 	}
 	return out
 }
