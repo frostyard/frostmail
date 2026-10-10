@@ -104,9 +104,9 @@ func (c calendarService) invitationOccurrences(ctx context.Context, out *api.Inv
 	if err != nil {
 		return err
 	}
-	own := make(map[int64]bool, len(stored))
-	for _, e := range stored {
-		own[e.ID] = true
+	own, err := c.invitationOwnEvents(ctx, out.Event.UID, stored)
+	if err != nil {
+		return err
 	}
 	var before, after *api.Occurrence
 	for _, o := range occ {
@@ -132,4 +132,26 @@ func (c calendarService) invitationOccurrences(ctx context.Context, out *api.Inv
 		}
 	}
 	return nil
+}
+
+// invitationOwnEvents includes copies and recurrence exceptions in every account.
+func (c calendarService) invitationOwnEvents(ctx context.Context, uid string, stored []store.EventRow) (map[int64]bool, error) {
+	own := make(map[int64]bool, len(stored))
+	for _, e := range stored {
+		own[e.ID] = true
+	}
+	accounts, err := c.DB.ListAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, account := range accounts {
+		events, err := c.DB.EventsByUID(ctx, account.ID, uid)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range events {
+			own[e.ID] = true
+		}
+	}
+	return own, nil
 }
