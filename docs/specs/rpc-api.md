@@ -1728,7 +1728,7 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `mailboxId` | `int` (optional) |  |
 | `text` | `string` (optional) | Full-text search terms. |
 | `unread` | `bool` (optional) | true: unread only; false: read only. A row that stops matching only because it was read or unread while the view is open stays until the view is reopened, so a message read in an Unread list does not vanish under the pointer. |
-| `flagged` | `bool` (optional) | true: flagged only; false: unflagged only. Rows whose flag changes while the view is open stay, as for unread. |
+| `flagged` | `bool` (optional) | true: flagged only; false: unflagged only. Unlike unread, a row whose flag changes leaves at once: flagging is deliberate, and the Tasks module's Flagged Mail completes a message by unflagging it. |
 | `hasAttachments` | `bool` (optional) | true: only messages with attachments; false: only those without. |
 | `role` | `MailboxRole` (optional) | Messages in mailboxes with this role in any account, such as every inbox. |
 | `threads` | `bool` (optional) | One row per thread: its newest message that matches. |
