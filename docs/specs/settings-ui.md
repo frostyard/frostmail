@@ -289,6 +289,11 @@ interface ServicesSectionProps {
 - With no available service, only a `p` (`text-[12px] leading-4
   text-secondary`): `This account has no contacts, calendars or tasks
   Frostmail can reach.`
+- **Reasons:** for each service that is not available and has a `reason`
+  (iCloud's tasks: Apple Reminders is out of reach), in service order, a
+  `p` (`mt-2 text-[12px] leading-4 text-secondary`) with the reason: after
+  the rows and the sign-in prompt, or after the paragraph above when no
+  service is available.
 
 ### Behavior (container)
 

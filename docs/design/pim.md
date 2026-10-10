@@ -215,6 +215,14 @@ query flagged messages alongside tasks, and completing one clears the flag.
   in Gmail carries a link to its thread, which Frostmail opens by
   `X-GM-THRID`.
 - CalDAV tasks (VTODO) on servers that have them, in the same table.
+- iCloud has none Frostmail can reach (ADR-0017): since iOS 13 Reminders
+  keeps its lists where only Apple's apps reach them. iCloud's CalDAV
+  still lists the lists left from before the upgrade, frozen and named
+  with "⚠️"; a reminder made today never appears in them (probed
+  read-only on the user's account, 2026-10-10: the lists' `getctag`
+  stayed the same across a new reminder). The provider profile says so
+  (`DAV.NoTasks`), `account.services` returns it as the tasks service's
+  `reason`, and Settings shows it under the account's services.
 - Create, edit, complete and delete are in scope from the start: a task
   list that cannot be ticked is not one.
 - **Google lists and tasks.** A task list is a `tasklist` collection (its

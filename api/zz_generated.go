@@ -355,6 +355,9 @@ type ServiceSettings struct {
 	LastSyncAt *time.Time `json:"lastSyncAt,omitzero"`
 	// Why the last pass failed.
 	Error *string `json:"error,omitzero"`
+	// Why the service is not available, for the user to read; absent when it is,
+	// or when no reason is known.
+	Reason *string `json:"reason,omitzero"`
 }
 
 // Collection: An address book, calendar or task list.

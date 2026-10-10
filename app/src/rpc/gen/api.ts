@@ -170,6 +170,11 @@ export interface ServiceSettings {
   lastSyncAt?: string /* RFC 3339 */;
   /** Why the last pass failed. */
   error?: string;
+  /**
+   * Why the service is not available, for the user to read; absent when it
+   * is, or when no reason is known.
+   */
+  reason?: string;
 }
 
 /** An address book, calendar or task list. */

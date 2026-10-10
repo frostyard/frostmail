@@ -65,6 +65,9 @@ func serviceSignedIn(acct store.Account, s api.ServiceKind) bool {
 
 func toAPIService(acct store.Account, kind api.ServiceKind, row *store.Service) api.ServiceSettings {
 	out := api.ServiceSettings{Service: kind, Available: serviceAvailable(acct, kind), SignedIn: serviceSignedIn(acct, kind)}
+	if dav := providers.ForKind(acct.Kind).DAV; !out.Available && kind == api.ServiceKindTasks && dav.NoTasks != "" {
+		out.Reason = &dav.NoTasks
+	}
 	if row != nil {
 		out.Enabled, out.URL, out.LastSyncAt = row.Enabled, row.URL, row.LastSyncAt
 		if row.LastError != "" {
