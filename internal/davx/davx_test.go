@@ -344,3 +344,20 @@ func TestPutRelocated(t *testing.T) {
 		t.Errorf("update = %+v, %v", w, err)
 	}
 }
+
+// TestDefaultCalendar: the scheduling inbox names the user's default
+// calendar; a server without one names none.
+func TestDefaultCalendar(t *testing.T) {
+	s := davtest.New(t, davtest.Options{ScheduleDefault: davtest.CalendarsHome + "home/"})
+	s.Calendar("work", "Work", "")
+	home := s.Calendar("home", "Home", "")
+	got, err := client(t, s, davtest.CalendarsHome).DefaultCalendar(t.Context())
+	if err != nil || got != home {
+		t.Errorf("default = %q, %v; want %q", got, err, home)
+	}
+	plain := davtest.New(t, davtest.Options{})
+	plain.Calendar("work", "Work", "")
+	if got, err := client(t, plain, davtest.CalendarsHome).DefaultCalendar(t.Context()); err != nil || got != "" {
+		t.Errorf("without an inbox = %q, %v", got, err)
+	}
+}

@@ -266,6 +266,15 @@ later event editor window (ADR-0020), and answering invitations is Phase
   `checkbox` (`aria-checked` = `enabled`) named by the calendar; clicking
   it or Space toggles it (`account.setCollection` with `enabled`: hidden
   calendars are neither synced nor shown).
+- **Default calendar:** a row's context menu (right-click, or the Menu key
+  or Shift+F10 on the focused row) is a `ContextMenu` with one checkable
+  item, `Use as Default Calendar`: checked for the account's default
+  calendar (`isDefault`), disabled for it and for a read-only calendar.
+  Choosing it calls `account.setCollection` with `isDefault: true`; the
+  account's invitations are accepted into it from then on
+  ([design/pim.md](../design/pim.md), Invitations: a default the user did
+  not choose follows the server's). Without `onMakeDefault` there is no
+  menu.
 - The module bar follows.
 
 ### Day and week views (`TimeGrid`)

@@ -320,3 +320,62 @@ func contactEqual(a, b ContactIndex) bool {
 		a.FamilyName == b.FamilyName && a.Organization == b.Organization && slices.Equal(a.Emails, b.Emails) &&
 		slices.Equal(a.Photo, b.Photo) && a.PhotoType == b.PhotoType
 }
+
+func TestUseServerDefault(t *testing.T) {
+	d, _ := openTest(t)
+	ctx := t.Context()
+	a := insertAccount(t, d, sampleAccount("one@mailtest.test"))
+	replaceCols(t, d, a.ID, api.CollectionKindCalendar,
+		RemoteCollection{Href: "/maint/", Name: "Maintenance"}, RemoteCollection{Href: "/cal/", Name: "Calendar"},
+		RemoteCollection{Href: "/ro/", Name: "Holidays", ReadOnly: true})
+	defaultHref := func() string {
+		t.Helper()
+		cols, err := d.Collections(ctx, CollectionFilter{AccountID: a.ID, Kind: api.CollectionKindCalendar})
+		if err != nil {
+			t.Fatal(err)
+		}
+		href := ""
+		for _, c := range cols {
+			if c.IsDefault {
+				if href != "" {
+					t.Fatalf("two defaults: %+v", cols)
+				}
+				href = c.Href
+			}
+		}
+		return href
+	}
+	use := func(href string) bool {
+		t.Helper()
+		var changed bool
+		if err := d.Tx(ctx, func(tx *Tx) error {
+			var err error
+			changed, err = tx.UseServerDefault(ctx, a.ID, api.CollectionKindCalendar, href)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return changed
+	}
+	if got := defaultHref(); got != "/maint/" {
+		t.Fatalf("the first listed is the default: %q", got)
+	}
+	if !use("/cal/") || defaultHref() != "/cal/" {
+		t.Errorf("the server's default = %q", defaultHref())
+	}
+	for _, href := range []string{"/cal/", "/ro/", "/missing/"} {
+		if use(href) || defaultHref() != "/cal/" {
+			t.Errorf("use %s: default %q", href, defaultHref())
+		}
+	}
+	cols, _ := d.Collections(ctx, CollectionFilter{AccountID: a.ID, Kind: api.CollectionKindCalendar})
+	if err := d.Tx(ctx, func(tx *Tx) error {
+		_, err := tx.UpdateCollection(ctx, cols[0].ID, nil, true)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if use("/cal/") || defaultHref() != cols[0].Href {
+		t.Errorf("the user's choice gave way: %q", defaultHref())
+	}
+}

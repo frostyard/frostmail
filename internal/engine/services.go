@@ -31,6 +31,9 @@ type PIMSyncer interface {
 	Discover(ctx context.Context, accountID int64, service api.ServiceKind, start string) (string, error)
 	// Verify compares the account's synced collections with the servers.
 	Verify(ctx context.Context, accountID int64) ([]api.CollectionCheck, error)
+	// UseServerDefaultCalendar makes the calendar the server names as the
+	// user's default the account's default, unless the user chose one.
+	UseServerDefaultCalendar(ctx context.Context, accountID int64) error
 }
 
 // serviceOrder is account.services' order.

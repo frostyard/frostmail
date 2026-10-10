@@ -174,7 +174,12 @@ query flagged messages alongside tasks, and completing one clears the flag.
     was read with. A message older than the copy (`SEQUENCE`) is refused.
   - **Only the message:** an accepted or tentative invitation goes into the
     account's default calendar (the invitation without `METHOD`, a `put`
-    that creates it); a declined one is not stored.
+    that creates it); a declined one is not stored. A default the user did
+    not choose (Calendar's "Use as Default Calendar", `default_chosen`)
+    first follows the one the server names (RFC 6638's
+    `schedule-default-calendar-URL` on the scheduling inbox), asked for
+    then, with a 10 s limit; before, the first calendar listed was the
+    default, which on iCloud can be a shared one.
   - **The reply** (ADR-0022): a stored copy on a provider that schedules
     (`providers.DAV.Schedules`: Google, iCloud) is answered by its `put`
     alone, unless the copy carries `SCHEDULE-AGENT=CLIENT` on `ORGANIZER`;

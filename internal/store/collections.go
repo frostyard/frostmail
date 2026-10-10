@@ -206,7 +206,8 @@ func (t *Tx) UpdateCollection(ctx context.Context, id int64, enabled *bool, make
 		}
 	}
 	if makeDefault {
-		if _, err := t.ExecContext(ctx, "UPDATE collections SET is_default = (id = ?) WHERE account_id = ? AND kind = ?", id, c.AccountID, c.Kind); err != nil {
+		if _, err := t.ExecContext(ctx, "UPDATE collections SET is_default = (id = ?), default_chosen = (id = ?) WHERE account_id = ? AND kind = ?",
+			id, id, c.AccountID, c.Kind); err != nil {
 			return Collection{}, fmt.Errorf("update collection default: %w", err)
 		}
 		c.IsDefault = true
@@ -215,6 +216,24 @@ func (t *Tx) UpdateCollection(ctx context.Context, id int64, enabled *bool, make
 		return Collection{}, err
 	}
 	return c, nil
+}
+
+// UseServerDefault makes the writable collection at href the default of
+// its kind for the account, as the server names it, unless the user chose
+// one (UpdateCollection). It reports whether the default changed, and
+// emits AccountChanged when it did.
+func (t *Tx) UseServerDefault(ctx context.Context, accountID int64, kind api.CollectionKind, href string) (bool, error) {
+	res, err := t.ExecContext(ctx, `UPDATE collections SET is_default = (href = ?) WHERE account_id = ? AND kind = ?
+ AND EXISTS (SELECT 1 FROM collections WHERE account_id = ? AND kind = ? AND href = ? AND read_only = 0 AND is_default = 0)
+ AND NOT EXISTS (SELECT 1 FROM collections WHERE account_id = ? AND kind = ? AND default_chosen = 1)`,
+		href, accountID, kind, accountID, kind, href, accountID, kind)
+	if err != nil {
+		return false, fmt.Errorf("use the server's default: %w", err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		return false, err
+	}
+	return true, t.Emit(ctx, api.AccountChanged{ID: accountID})
 }
 
 // collectionChanged is the change event of a collection's domain.

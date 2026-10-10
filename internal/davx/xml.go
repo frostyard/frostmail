@@ -63,6 +63,8 @@ type prop struct {
 	Principal       *hrefs        `xml:"DAV: current-user-principal"`
 	CalendarHome    *hrefs        `xml:"urn:ietf:params:xml:ns:caldav calendar-home-set"`
 	AddressHome     *hrefs        `xml:"urn:ietf:params:xml:ns:carddav addressbook-home-set"`
+	ScheduleInbox   *hrefs        `xml:"urn:ietf:params:xml:ns:caldav schedule-inbox-URL"`
+	ScheduleDefault *hrefs        `xml:"urn:ietf:params:xml:ns:caldav schedule-default-calendar-URL"`
 	Color           *string       `xml:"http://apple.com/ns/ical/ calendar-color"`
 	CalDescription  *string       `xml:"urn:ietf:params:xml:ns:caldav calendar-description"`
 	CardDescription *string       `xml:"urn:ietf:params:xml:ns:carddav addressbook-description"`
@@ -161,6 +163,8 @@ func (r *response) found() prop {
 		merge(&out.Principal, p.Principal)
 		merge(&out.CalendarHome, p.CalendarHome)
 		merge(&out.AddressHome, p.AddressHome)
+		merge(&out.ScheduleInbox, p.ScheduleInbox)
+		merge(&out.ScheduleDefault, p.ScheduleDefault)
 		merge(&out.Color, p.Color)
 		merge(&out.CalDescription, p.CalDescription)
 		merge(&out.CardDescription, p.CardDescription)
