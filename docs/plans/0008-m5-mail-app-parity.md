@@ -12,7 +12,8 @@ scope; Gmail's categories get a spike.
 
 ## Decisions for M5
 
-Phase 1 records these as ADRs before the designs they shape change.
+Phase 1 records these as ADRs 0023–0026 before the designs they shape
+change; the user's choices of 2026-10-10 are recorded as they were made.
 
 - **One condition language for smart mailboxes and rules** (ADR-0023).
   Both store the same structure: conditions joined by any or all, each a
@@ -31,7 +32,9 @@ Phase 1 records these as ADRs before the designs they shape change.
   restart neither skips nor repeats a rule. Rules act while the app is
   closed, since maild is a user service. They are maild's, on this machine:
   no Sieve, no Gmail filters, no iCloud sync. A read-only account's mail
-  runs no rule that writes.
+  runs no rule that writes. Rules do not send: reply, forward and redirect
+  actions wait until after M5 (the user, 2026-10-10), since they would send
+  mail with nobody looking.
 - **maild keeps the clock** (ADR-0025). Send Later is an outbox row due at
   the chosen time, built when it goes so its `Date` is right, listed in a
   Send Later mailbox and editable until then. Remind Me stores a time on
@@ -46,6 +49,12 @@ Phase 1 records these as ADRs before the designs they shape change.
   addresses; adding a person adds each of their addresses. Notifications
   take Mail.app's scopes: Inbox only (today's behavior and the default),
   VIPs, Contacts, All Mailboxes, or a smart mailbox.
+- **Unsubscribe with one click** ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md),
+  the user's choice): after a confirmation, maild sends the RFC 8058
+  `POST` to the sender's server when the provider's DKIM verdict passes,
+  with nothing of the user's in the request and never to an address on the
+  user's network; otherwise it mails the `mailto:` address or the app opens
+  the page.
 - **The trial stays safe.** M5's migrations are additive. Nothing new acts
   on mail until the user makes it (a rule, a reminder, a scheduled send, a
   block), the Undo Send delay stays 10 seconds, and notifications stay
@@ -136,10 +145,9 @@ Phase 1 records these as ADRs before the designs they shape change.
 
 - Planner: mailbox create, rename and delete as ops (labels on Gmail);
   Erase Deleted Items and Erase Junk Mail (permanent, so confirmed);
-  redirect and forward as attachment (what is sent); unsubscribe (mailto
-  through the outbox; RFC 8058 one-click as maild's first request to a
-  sender's server, see Open questions); undo as the inverse op; mute,
-  block, role overrides, favorites and sort.
+  redirect and forward as attachment (what is sent); unsubscribe (ADR-0027:
+  the one-click client with its address rule, mailto through the outbox);
+  undo as the inverse op; mute, block, role overrides, favorites and sort.
 - Cards, grouped: the sidebar's context menu and mailbox operations; drag
   and drop; sorting and the conversations toggle; the reader's raw source,
   all headers, Print and Save As; the unsubscribe banner; mute and block;
@@ -171,20 +179,12 @@ good: redirect, unsubscribe, rule actions and erasing.
 
 ## Later / ideas
 
-- Rule actions that send (P-704), if the open question says so.
+- Rule actions that send (P-704).
 - Smart mailbox folders, On My Mac, Follow Up, classic layout: the
   checklist's Later rows, each with its reason.
 
 ## Open questions
 
-- **Rule actions that send (reply, forward, redirect):** in M5 or later?
-  They send mail with nobody looking, which risks loops between
-  auto-replies and leaks to a forwarding address. Recommended: later.
-  Decided by Phase 4.
-- **One-click unsubscribe:** RFC 8058 has maild POST to a URL a sender
-  chose, its first request to a sender's server. Allow it with a
-  confirmation, or offer only the mailto form? Decided by Phase 6, in an
-  ADR.
 - **Categories:** Phase 7.
 
 ## References

@@ -72,7 +72,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
 | P-304 | Raw Source, All Headers | Same, from the blob store | M5·6 | |
-| P-305 | Unsubscribe banner (List-Unsubscribe) | Mailto through the outbox, or RFC 8058 one-click POST by maild, after a confirmation | M5·6 | |
+| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | M5·6 | |
 | P-306 | Remind Me banner and clock | Same | M5·5 | |
 | P-307 | Print | Same | M5·6 | |
 | P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print | M5·6 | |
@@ -132,7 +132,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild on new inbox mail | M5·4 | |
 | P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions | M5·4 | |
 | P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | M5·4 | |
-| P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking (plan 0008, Open questions) |
+| P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking; the user's choice (plan 0008) |
 | P-705 | Set Color, Play Sound, Bounce Icon | | Later | Cosmetic |
 | P-706 | Run AppleScript | | Out | macOS only; a command action would be a new trust boundary |
 | P-707 | Rules shared through iCloud Drive | | Out | Rules, VIPs and smart mailboxes are maild's, on this machine |

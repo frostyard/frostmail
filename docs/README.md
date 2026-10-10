@@ -38,6 +38,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0020 — One window for mail, calendar, people and tasks](adr/0020-one-window-for-mail-calendar-people-and-tasks.md)
 - [0021 — Run task cards with Codex](adr/0021-run-task-cards-with-codex.md)
 - [0022 — Mail the reply the server will not send](adr/0022-mail-the-reply-the-server-will-not-send.md)
+- [0027 — Unsubscribe with one click through the sender's server](adr/0027-unsubscribe-with-one-click.md)
 
 ### Design
 
