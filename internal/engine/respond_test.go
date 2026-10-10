@@ -122,7 +122,9 @@ func TestRespondPatchesTheStoredCopy(t *testing.T) {
 	}
 	e.pass(t)
 	got := e.serverCopy(t, "launch@example.com")
-	want := strings.Replace(stored, "ATTENDEE;PARTSTAT=ACCEPTED;CN=User:mailto:user@dav.test", "ATTENDEE;PARTSTAT=DECLINED;CN=User:mailto:user@dav.test", 1)
+	// A copy answered by mail leaves scheduling to the client (ADR-0022).
+	want := strings.NewReplacer("ATTENDEE;PARTSTAT=ACCEPTED;CN=User:mailto:user@dav.test", "ATTENDEE;PARTSTAT=DECLINED;CN=User:mailto:user@dav.test",
+		"ORGANIZER;CN=Maria Lopez:mailto:maria@example.com", agentOrganizer).Replace(stored)
 	if got != want {
 		t.Errorf("the server's copy =\n%s\nwant\n%s", got, want)
 	}

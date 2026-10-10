@@ -61,10 +61,13 @@ type DAV struct {
 	// has no tasks Frostmail can reach, and "" for task lists over CalDAV.
 	Tasks string
 	// Schedules is a CalDAV server that tells an organizer of the user's
-	// answer itself when the attendee's copy changes (RFC 6638), so maild
-	// mails no iTIP reply of its own (ADR-0019; verified per provider in
-	// M4.5's Phase 5).
+	// answer itself when a copy its scheduling delivered changes (RFC
+	// 6638), so maild mails no iTIP reply of its own (ADR-0022).
 	Schedules bool
+	// SchedulesCopies is a server that also tells the organizer about a
+	// copy a client creates from an emailed invitation: Google does
+	// (verified 2026-10-09), iCloud does not.
+	SchedulesCopies bool
 	// Trusted are the domains, with their subdomains, that discovery may
 	// send credentials to besides the one it started at: a principal or
 	// home set on another host.
@@ -84,11 +87,12 @@ var profiles = []Profile{
 		Domains: []string{"gmail.com", "googlemail.com"},
 		Quirks:  Quirks{Gmail: true, SavesSent: true, NoQResync: true, MaxConnections: 10},
 		DAV: DAV{
-			Contacts:  "https://www.googleapis.com/.well-known/carddav",
-			Calendar:  "https://apidata.googleusercontent.com/caldav/v2/",
-			Tasks:     "google",
-			Schedules: true,
-			Trusted:   []string{"googleapis.com", "googleusercontent.com"},
+			Contacts:        "https://www.googleapis.com/.well-known/carddav",
+			Calendar:        "https://apidata.googleusercontent.com/caldav/v2/",
+			Tasks:           "google",
+			Schedules:       true,
+			SchedulesCopies: true,
+			Trusted:         []string{"googleapis.com", "googleusercontent.com"},
 		},
 	},
 	{
