@@ -130,6 +130,11 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
                     .setCollection({ id, enabled })
                     .catch((err: unknown) => console.warn("calendar visibility", err));
                 }}
+                onMakeDefault={(id) => {
+                  void client.account
+                    .setCollection({ id, isDefault: true })
+                    .catch((err: unknown) => console.warn("calendar default", err));
+                }}
               />
             </div>
             <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />

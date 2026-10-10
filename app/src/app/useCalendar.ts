@@ -91,6 +91,7 @@ function useCalendars(client: Client, active: boolean) {
             name: calendar.name,
             color: calendar.color,
             enabled: calendar.enabled,
+            isDefault: calendar.isDefault,
             readOnly: calendar.readOnly || account.readOnly,
           })),
       }))

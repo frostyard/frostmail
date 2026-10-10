@@ -1,6 +1,8 @@
 // The small month and account calendars.
 import { Lock } from "lucide-react";
+import { useRef, useState } from "react";
 import { calendarColor } from "../../lib/eventText";
+import { ContextMenu } from "../menu/ContextMenu";
 import type { MiniMonthProps } from "./MiniMonth";
 import { MiniMonth } from "./MiniMonth";
 
@@ -28,12 +30,28 @@ export interface CalendarSection {
 export interface CalendarSidebarProps extends MiniMonthProps {
   sections: CalendarSection[];
   onToggle: (id: number, enabled: boolean) => void;
-  /** Makes a calendar its account's default. Task T-0099 builds the menu. */
+  /** Makes a calendar its account's default. */
   onMakeDefault?: (id: number) => void;
 }
 
 /** CalendarSidebar shows the small month and the calendars to show. */
-export function CalendarSidebar({ sections, onToggle, ...month }: CalendarSidebarProps) {
+export function CalendarSidebar({ sections, onToggle, onMakeDefault, ...month }: CalendarSidebarProps) {
+  const opening = useRef(0);
+  const [menu, setMenu] = useState<{
+    calendar: CalendarRow;
+    x: number;
+    y: number;
+    anchor: HTMLButtonElement;
+    opening: number;
+  } | null>(null);
+  const openMenu = (calendar: CalendarRow, anchor: HTMLButtonElement, x: number, y: number) => {
+    opening.current += 1;
+    setMenu({ calendar, anchor, x, y, opening: opening.current });
+  };
+  const closeMenu = () => {
+    menu?.anchor.focus();
+    setMenu(null);
+  };
   return (
     <div className="bg-sidebar">
       <MiniMonth {...month} />
@@ -52,6 +70,19 @@ export function CalendarSidebar({ sections, onToggle, ...month }: CalendarSideba
                 role="checkbox"
                 aria-checked={calendar.enabled}
                 onClick={() => onToggle(calendar.id, !calendar.enabled)}
+                onContextMenu={(event) => {
+                  if (!onMakeDefault) return;
+                  event.preventDefault();
+                  openMenu(calendar, event.currentTarget, event.clientX, event.clientY);
+                }}
+                onKeyDown={(event) => {
+                  if (!onMakeDefault || !(event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)))
+                    return;
+                  event.preventDefault();
+                  const anchor = event.currentTarget;
+                  const rect = anchor.getBoundingClientRect();
+                  openMenu(calendar, anchor, rect.left, rect.bottom);
+                }}
                 className="flex h-7 w-full items-center gap-2 pl-3 pr-2 text-left text-[13px] leading-4"
               >
                 <span
@@ -68,6 +99,24 @@ export function CalendarSidebar({ sections, onToggle, ...month }: CalendarSideba
             ))}
           </fieldset>
         ))}
+      {menu && onMakeDefault && (
+        <ContextMenu
+          key={menu.opening}
+          x={menu.x}
+          y={menu.y}
+          items={[
+            {
+              kind: "item",
+              id: "default",
+              label: "Use as Default Calendar",
+              checked: menu.calendar.isDefault === true,
+              disabled: menu.calendar.isDefault === true || menu.calendar.readOnly,
+            },
+          ]}
+          onSelect={() => onMakeDefault(menu.calendar.id)}
+          onClose={closeMenu}
+        />
+      )}
     </div>
   );
 }
