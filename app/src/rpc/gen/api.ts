@@ -1182,6 +1182,12 @@ export interface MessageMoveParams {
   fromMailboxId?: number;
 }
 
+/** Params of message.copy. */
+export interface MessageCopyParams {
+  ids: number[];
+  mailboxId: number;
+}
+
 /** Params of message.delete. */
 export interface MessageDeleteParams {
   ids: number[];
@@ -1229,6 +1235,14 @@ export interface MessageClient {
   /** Move messages to another mailbox of the same account. */
   move(params: MessageMoveParams): Promise<void>;
   /**
+   * Copy messages to another mailbox of their account. On Gmail the copy is
+   * the destination label, added at once; only labels can be copied into.
+   * Elsewhere the server makes a new message, which appears in the
+   * destination once the server has it (on the next replay while online).
+   * Messages already in the destination are skipped.
+   */
+  copy(params: MessageCopyParams): Promise<void>;
+  /**
    * Move messages to the account's Trash; messages already in Trash are
    * deleted from the server.
    */
@@ -1244,6 +1258,7 @@ function messageClient(t: Transport): MessageClient {
     part: (params) => t.call<PartFile>("message.part", params),
     setFlags: (params) => t.call<null>("message.setFlags", params).then(() => undefined),
     move: (params) => t.call<null>("message.move", params).then(() => undefined),
+    copy: (params) => t.call<null>("message.copy", params).then(() => undefined),
     delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
   };
 }
@@ -1777,8 +1792,20 @@ export interface ViewQuery {
   mailboxId?: number;
   /** Full-text search terms. */
   text?: string;
+  /**
+   * true: unread only; false: read only. A row that stops matching only
+   * because it was read or unread while the view is open stays until the view
+   * is reopened, so a message read in an Unread list does not vanish under
+   * the pointer.
+   */
   unread?: boolean;
+  /**
+   * true: flagged only; false: unflagged only. Rows whose flag changes while
+   * the view is open stay, as for unread.
+   */
   flagged?: boolean;
+  /** true: only messages with attachments; false: only those without. */
+  hasAttachments?: boolean;
   /**
    * Messages in mailboxes with this role in any account, such as every inbox.
    */
@@ -1915,6 +1942,7 @@ export const METHODS = [
   "message.part",
   "message.setFlags",
   "message.move",
+  "message.copy",
   "message.delete",
   "oauth.setClient",
   "oauth.getClient",

@@ -152,7 +152,34 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Dates:** today, the short time ("9:41 AM" in the locale); yesterday,
   "Yesterday"; within the last 6 days, the weekday ("Tuesday"); otherwise the
   locale's short date ("10/3/26").
-- **Empty:** "No Messages" centered, 15/400 `--text-secondary`.
+- **Empty:** "No Messages" centered, 15/400 `--text-secondary`. With a
+  filter (below) it names the filter: "No Unread Messages", "No Flagged
+  Messages", "No Messages with Attachments", with a "Show All" button
+  (12/16 `--accent`, no background) under it that sets the filter to All.
+- **Filter bar** (M4.5): a 32-high strip at the top of the list column,
+  `--bg-window` with a 1px `--separator` bottom, 12px side padding, a
+  `toolbar` named "Filter messages" holding four buttons 22 high, 4px apart,
+  rounded 6, 8px horizontal padding, 12/16: All, Unread, Flagged,
+  Attachments. The chosen one (`aria-pressed`) is `--text-primary` on
+  `--selection-inactive`; the others `--text-secondary` with no background,
+  `--text-primary` on hover. The filter narrows whatever the list shows,
+  the source or a search, through the view query (`unread`, `flagged`,
+  `hasAttachments`); All is no filter. It lasts until changed (not across
+  restarts), is the same for every source, and changing it clears the
+  selection. A row read or unflagged while the filter shows it stays until
+  the filter or the source changes (maild keeps it: `ViewQuery.unread`).
+- **Row actions** (M4.5): while the pointer is over a row of a writable
+  account, line 1's paperclip and date give way to three 22 × 18 buttons,
+  rounded 4, each a 14px Lucide icon in `--text-secondary`
+  (`--accent-contrast` on a selected row in a focused list), with a
+  `--selection-inactive` hover background (`--accent-contrast` at 20% on
+  such a selected row): Flag (`flag`; filled and named "Unflag" when the
+  message is flagged), Archive (`archive`; only when the account has an
+  archive destination, as for the menu) and Delete (`trash-2`). They act on
+  that row's message alone, as Toggle Flag, Archive and Delete do, without
+  selecting it or changing the selection, and the pointer press does not
+  move focus. They are not in the tab order (the keys do the same); each
+  has its name as tooltip with the shortcut ("Archive (Ctrl+Alt+A)").
 
 ### Reader
 
@@ -204,11 +231,22 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   bar under the toolbar (28 high) offers "All Mailboxes" (default) and the
   current mailbox. Escape in the field clears the search and returns to the
   previous source.
-- **Context menu** on list rows (right click or the Menu key): Mark as
-  Read / Mark as Unread; Flag ▸ the 7 colors and Clear Flag; Move to ▸ the
-  account's selectable mailboxes; Archive (when the account has an archive
-  mailbox); Delete. The menu acts on the selection when the clicked row is
-  part of it, otherwise on the clicked row alone.
+- **Context menu** on list rows (right click or the Menu key), in this
+  order, with separators between the groups:
+  - Reply, Reply All, Forward (on the last message of the menu's set).
+  - Archive (only when the account has an archive destination), Delete,
+    and Mark as Spam, which moves to the account's junk mailbox; when every
+    message is already there it reads Not Spam and moves them to the
+    inbox. Disabled without a junk mailbox (or an inbox, for Not Spam).
+  - Move to ▸ and Copy to ▸, each the account's mailboxes except those
+    holding the first message (Copy to on a Gmail account: only labels, and
+    not Starred), by path; disabled when empty.
+  - Flag or Unflag (as Toggle Flag), Flag Color ▸ the 7 colors (the first
+    message's checked) and Clear Flag, then Mark as Read or Mark as Unread.
+
+  Every item but Reply, Reply All and Forward is disabled when the
+  account is read-only. The menu acts on the selection when the clicked
+  row is part of it, otherwise on the clicked row alone, which it selects.
 - **Focus:** Tab and Shift+Tab move between sidebar, list and reader. The
   focused pane shows its selection in `--accent`.
 
@@ -225,6 +263,7 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 | Ctrl+Alt+A | archive selection | anywhere |
 | Ctrl+Shift+U | toggle read | anywhere with a selection |
 | Ctrl+Shift+L | toggle flag (red when setting) | anywhere with a selection |
+| Ctrl+Shift+J | mark as spam, or not spam in the junk mailbox | anywhere with a selection |
 | Ctrl+Alt+F, Ctrl+F | focus the search field | anywhere |
 | Escape | clear search, close a menu | search field, menus |
 | Ctrl+Shift+N | get new mail | anywhere |
@@ -237,8 +276,7 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 | Ctrl+Shift+F | forward the selection | anywhere |
 | Ctrl+, | open the settings window ([settings-ui.md](settings-ui.md)) | anywhere |
 
-Ctrl+Shift+J is reserved for junk (M4). The compose window's own keys are in
-[compose-ui.md](compose-ui.md).
+The compose window's own keys are in [compose-ui.md](compose-ui.md).
 
 ## Rules
 

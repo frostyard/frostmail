@@ -150,15 +150,26 @@ func (m *Manager) recompute(ctx context.Context) {
 	m.mu.Lock()
 	dirty := m.dirty
 	m.dirty = map[int64]bool{}
-	var todo []*view
+	type job struct {
+		v *view
+		f store.ViewFilter
+	}
+	var todo []job
 	for _, v := range m.views {
 		if dirty[0] || v.filter.AccountID == 0 || dirty[v.filter.AccountID] {
-			todo = append(todo, v)
+			f := v.filter
+			if f.Unread != nil || f.Flagged != nil {
+				// Rows read or unflagged while the view is open stay
+				// (api.ViewQuery); deleted and moved ones still leave.
+				f.Keep = v.ids
+			}
+			todo = append(todo, job{v, f})
 		}
 	}
 	m.mu.Unlock()
-	for _, v := range todo {
-		ids, err := m.db.ViewIDs(ctx, v.filter)
+	for _, j := range todo {
+		v := j.v
+		ids, err := m.db.ViewIDs(ctx, j.f)
 		if err != nil {
 			m.log.Warn("recompute view", "view", v.id, "err", err)
 			continue

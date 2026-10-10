@@ -19,6 +19,9 @@ type ViewFilter struct {
 	Flagged   *bool
 	Role      string // a mailbox role (api.MailboxRole), in any account
 	Threads   bool   // one row per thread: its newest matching message
+	// Keep lists messages that match even when Unread or Flagged does not:
+	// the rows of an open view, which stay when they are read or unflagged.
+	Keep []int64
 
 	// A search (docs/specs/search.md), as internal/search parses it.
 	Match         string    // FTS5 expression every message must match
@@ -41,6 +44,7 @@ const viewOrder = `m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DES
 // mailboxes appears once. Match and Exclude are FTS5 expressions over
 // messages_fts; dates bound the arrival (internal) date. Role, and any of
 // Roles, keep only messages in a mailbox of that role, in any account.
+// Keep's messages pass the Unread and Flagged conditions but every other.
 // Threads keeps one row per thread: its newest message among those that
 // match every other condition, a message with no thread being its own
 // thread. The result keeps the view's order.
@@ -55,13 +59,24 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 		conds = append(conds, `EXISTS (SELECT 1 FROM message_mailbox mm WHERE mm.message_id = m.id AND mm.mailbox_id = ?)`)
 		args = append(args, f.MailboxID)
 	}
+	var flags []string
 	if f.Unread != nil {
-		conds = append(conds, "m.seen = ?")
+		flags = append(flags, "m.seen = ?")
 		args = append(args, bit(!*f.Unread))
 	}
 	if f.Flagged != nil {
-		conds = append(conds, "m.flagged = ?")
+		flags = append(flags, "m.flagged = ?")
 		args = append(args, bit(*f.Flagged))
+	}
+	if len(flags) > 0 && len(f.Keep) > 0 {
+		keep, err := json.Marshal(f.Keep)
+		if err != nil {
+			return nil, fmt.Errorf("view ids: %w", err)
+		}
+		conds = append(conds, "("+strings.Join(flags, " AND ")+" OR m.id IN (SELECT value FROM json_each(?)))")
+		args = append(args, string(keep))
+	} else {
+		conds = append(conds, flags...)
 	}
 	if f.Match != "" {
 		conds = append(conds, "m.id IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)")

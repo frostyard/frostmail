@@ -30,6 +30,7 @@ type conn interface {
 	StoreLabels(ctx context.Context, uids []uint32, add, remove []string) error
 	StoreFlags(ctx context.Context, uids []uint32, add, remove []string) error
 	Move(ctx context.Context, uids []uint32, dest string) (map[uint32]uint32, error)
+	Copy(ctx context.Context, uids []uint32, dest string) (map[uint32]uint32, error)
 	Expunge(ctx context.Context, uids []uint32) error
 	Append(ctx context.Context, mailbox string, raw []byte, flags []string) (uint32, error)
 }

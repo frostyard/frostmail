@@ -21,6 +21,7 @@ import (
 const (
 	opFlags   = "flags"
 	opMove    = "move"
+	opCopy    = "copy" // a moveOp whose messages stay where they are
 	opExpunge = "expunge"
 )
 
@@ -252,6 +253,73 @@ func moveFolders(ctx context.Context, tx *store.Tx, acct int64, mems []store.Mem
 		}
 	}
 	return emitChanged(ctx, tx, acct, moved)
+}
+
+// Copy copies messages to mailbox to, which must belong to their account.
+// On Gmail it adds the label to messages in All Mail at once (only labels
+// can be copied into); elsewhere it queues a COPY and changes nothing
+// locally: the copies are new messages the destination's sync fetches
+// after the replay. Messages already in to are skipped.
+func (m *Manager) Copy(ctx context.Context, ids []int64, to int64) error {
+	var acct int64
+	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+		mems, err := tx.Memberships(ctx, ids)
+		if err != nil {
+			return err
+		}
+		for _, mem := range mems {
+			if acct == 0 {
+				acct = mem.AccountID
+			}
+			if mem.AccountID != acct {
+				return fmt.Errorf("messages from more than one account: %w", ErrInvalid)
+			}
+		}
+		if acct == 0 {
+			return nil
+		}
+		if err := refuseReadOnly(ctx, tx, acct); err != nil {
+			return err
+		}
+		if !ownsMailbox(ctx, tx, acct, to) {
+			return fmt.Errorf("mailbox %d is not in account %d: %w", to, acct, ErrInvalid)
+		}
+		gmail, err := tx.GmailAccount(ctx, acct)
+		if err != nil {
+			return err
+		}
+		if gmail {
+			return m.gmailCopy(ctx, tx, acct, mems, to)
+		}
+		return copyFolders(ctx, tx, acct, mems, to)
+	})
+	if err == nil && acct != 0 {
+		m.kick(acct)
+	}
+	return err
+}
+
+// copyFolders is Copy where each message is in one mailbox: one COPY per
+// source mailbox.
+func copyFolders(ctx context.Context, tx *store.Tx, acct int64, mems []store.Membership, to int64) error {
+	ops := map[int64]*moveOp{} // by source mailbox
+	for _, mem := range mems {
+		if mem.MailboxID == to || mem.UID == 0 {
+			continue // already there, or a move is still pending
+		}
+		op := ops[mem.MailboxID]
+		if op == nil {
+			op = &moveOp{From: mem.MailboxID, To: to}
+			ops[mem.MailboxID] = op
+		}
+		op.Items = append(op.Items, moveItem{Message: mem.MessageID, UID: mem.UID})
+	}
+	for _, op := range ops {
+		if _, err := tx.QueueOp(ctx, acct, opCopy, op, op.messages()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Delete moves messages to their account's Trash, or expunges those already
@@ -541,6 +609,35 @@ func (a *actor) replayOne(ctx context.Context, cmd conn, op store.Op) error {
 			// deleted again.
 			return tx.Emit(ctx, api.MessageChanged{AccountID: a.acct.ID, IDs: itemIDs(p.Items)})
 		})
+	case opCopy:
+		var p moveOp
+		if err := json.Unmarshal(op.Payload, &p); err != nil {
+			return err
+		}
+		from, err := a.mailbox(ctx, p.From)
+		if err != nil {
+			return err
+		}
+		to, err := a.mailbox(ctx, p.To)
+		if err != nil {
+			return err
+		}
+		if _, err := cmd.Select(ctx, from.Path); err != nil {
+			return err
+		}
+		uids := make([]uint32, len(p.Items))
+		for i, it := range p.Items {
+			uids[i] = it.UID
+		}
+		if _, err := cmd.Copy(ctx, uids, to.Path); err != nil {
+			return err
+		}
+		// The copies are new messages; the destination's sync fetches them.
+		if a.copiedTo == nil {
+			a.copiedTo = map[int64]bool{}
+		}
+		a.copiedTo[to.ID] = true
+		return nil
 	case opExpunge:
 		var p expungeOp
 		if err := json.Unmarshal(op.Payload, &p); err != nil {
@@ -625,6 +722,8 @@ func (a *actor) undo(ctx context.Context, op store.Op, reason string) error {
 			return tx.Emit(ctx, api.OutboxChanged{ID: p.Outbox, AccountID: a.acct.ID, State: api.OutboxStateSent})
 		case opRemoveCopy:
 			return nil // the copy stays; the next pass shows it
+		case opCopy:
+			return nil // nothing changed locally
 		default: // flags: the next pass refetches every flag
 			rows, err := tx.QueryContext(ctx, `SELECT id FROM mailboxes WHERE account_id = ?`, a.acct.ID)
 			if err != nil {

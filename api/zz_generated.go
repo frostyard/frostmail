@@ -1990,6 +1990,12 @@ type MessageMoveParams struct {
 	FromMailboxID *int64 `json:"fromMailboxId,omitzero"`
 }
 
+// MessageCopyParams holds the params of message.copy.
+type MessageCopyParams struct {
+	IDs       []int64 `json:"ids"`
+	MailboxID int64   `json:"mailboxId"`
+}
+
 // MessageDeleteParams holds the params of message.delete.
 type MessageDeleteParams struct {
 	IDs []int64 `json:"ids"`
@@ -2019,6 +2025,12 @@ type MessageService interface {
 	// Move implements message.move. Move messages to another mailbox of the same
 	// account.
 	Move(ctx context.Context, p *MessageMoveParams) error
+	// Copy implements message.copy. Copy messages to another mailbox of their
+	// account. On Gmail the copy is the destination label, added at once; only
+	// labels can be copied into. Elsewhere the server makes a new message, which
+	// appears in the destination once the server has it (on the next replay while
+	// online). Messages already in the destination are skipped.
+	Copy(ctx context.Context, p *MessageCopyParams) error
 	// Delete implements message.delete. Move messages to the account's Trash;
 	// messages already in Trash are deleted from the server.
 	Delete(ctx context.Context, p *MessageDeleteParams) error
@@ -2073,6 +2085,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return nil, s.Move(ctx, &p)
+	})
+	r.handle("message.copy", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageCopyParams
+		if err := decodeParams(raw, &p, []string{"ids", "mailboxId"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Copy(ctx, &p)
 	})
 	r.handle("message.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageDeleteParams
@@ -2146,6 +2165,11 @@ func (x MessageClient) SetFlags(ctx context.Context, p *MessageSetFlagsParams) e
 // Move calls message.move.
 func (x MessageClient) Move(ctx context.Context, p *MessageMoveParams) error {
 	return x.c.Call(ctx, "message.move", p, nil)
+}
+
+// Copy calls message.copy.
+func (x MessageClient) Copy(ctx context.Context, p *MessageCopyParams) error {
+	return x.c.Call(ctx, "message.copy", p, nil)
 }
 
 // Delete calls message.delete.
@@ -3082,9 +3106,17 @@ type ViewQuery struct {
 	AccountID *int64 `json:"accountId,omitzero"`
 	MailboxID *int64 `json:"mailboxId,omitzero"`
 	// Full-text search terms.
-	Text    *string `json:"text,omitzero"`
-	Unread  *bool   `json:"unread,omitzero"`
-	Flagged *bool   `json:"flagged,omitzero"`
+	Text *string `json:"text,omitzero"`
+	// true: unread only; false: read only. A row that stops matching only because
+	// it was read or unread while the view is open stays until the view is
+	// reopened, so a message read in an Unread list does not vanish under the
+	// pointer.
+	Unread *bool `json:"unread,omitzero"`
+	// true: flagged only; false: unflagged only. Rows whose flag changes while
+	// the view is open stay, as for unread.
+	Flagged *bool `json:"flagged,omitzero"`
+	// true: only messages with attachments; false: only those without.
+	HasAttachments *bool `json:"hasAttachments,omitzero"`
 	// Messages in mailboxes with this role in any account, such as every inbox.
 	Role *MailboxRole `json:"role,omitzero"`
 	// One row per thread: its newest message that matches.
@@ -3336,6 +3368,7 @@ var Methods = []string{
 	"message.part",
 	"message.setFlags",
 	"message.move",
+	"message.copy",
 	"message.delete",
 	"oauth.setClient",
 	"oauth.getClient",

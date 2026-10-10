@@ -277,6 +277,12 @@ func (g *gmailModel) Move(_ context.Context, uids []uint32, dest string) (map[ui
 	return out, nil
 }
 
+// Copy is never sent to Gmail: copying adds a label (gmailCopy).
+func (g *gmailModel) Copy(_ context.Context, uids []uint32, dest string) (map[uint32]uint32, error) {
+	g.log = append(g.log, fmt.Sprintf("COPY %v %s", uids, dest))
+	return nil, fmt.Errorf("copy %s to %s: not modeled", g.selected, dest)
+}
+
 func (g *gmailModel) SearchMessageID(_ context.Context, msgid string) ([]uint32, error) {
 	var out []uint32
 	for _, m := range g.in(g.selected) {
@@ -1082,5 +1088,38 @@ func TestMustSearch(t *testing.T) {
 	a.acct.SyncDays = 0
 	if !a.mustSearch(true, st, sel, 3, last) || a.mustSearch(true, st, sel, 5, last.Add(48*time.Hour)) {
 		t.Error("without a window, a pass must search when the counts differ, and only then")
+	}
+}
+
+func TestGmailCopyAddsTheLabel(t *testing.T) {
+	e := newGmailEnv(t)
+	g := e.g
+	g.add(gAll, "A", 0, `\Inbox`)
+	g.add(gAll, "B", 0, "Work")
+	g.add(gSpam, "Junk", 0)
+	e.pass()
+	a, b, junk := e.id("A"), e.id("B"), e.id("Junk")
+	e.drain()
+
+	// A gains Work and keeps INBOX; B is already there; Junk is in no label.
+	if err := e.a.m.Copy(t.Context(), []int64{a, b, junk}, e.mbs["Work"]); err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "INBOX at once", e.subjects("INBOX"), []string{"A"})
+	eq(t, "Work at once", e.subjects("Work"), []string{"A", "B"})
+	eq(t, "Spam at once", e.subjects(gSpam), []string{"Junk"})
+	eq(t, "mailboxes announced", e.changedMailboxes(e.drain()), []string{"Work"})
+	eq(t, "replay", e.replay(), []string{"SELECT " + gAll, `STORE [1] +labels [Work] -labels []`})
+	eq(t, "A's labels", sorted(g.find("A").labels), []string{"Work", `\Inbox`})
+	e.pass()
+	eq(t, "Work after", e.subjects("Work"), []string{"A", "B"})
+
+	for _, to := range []string{gSpam, gTrash, gAll, "[Gmail]/Starred"} {
+		if err := e.a.m.Copy(t.Context(), []int64{a}, e.mbs[to]); !errors.Is(err, ErrInvalid) {
+			t.Errorf("copy into %s = %v, want ErrInvalid", to, err)
+		}
+	}
+	if n := e.count(`SELECT COUNT(*) FROM pending_ops`); n != 0 {
+		t.Errorf("%d operations left", n)
 	}
 }

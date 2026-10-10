@@ -18,7 +18,7 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 		return nil, api.Unavailable("views are not running")
 	}
 	q := p.Query
-	f := store.ViewFilter{Unread: q.Unread, Flagged: q.Flagged}
+	f := store.ViewFilter{Unread: q.Unread, Flagged: q.Flagged, HasAttachment: q.HasAttachments}
 	if q.AccountID != nil {
 		f.AccountID = *q.AccountID
 	}
@@ -100,7 +100,8 @@ func (s syncService) Now(ctx context.Context, p *api.SyncNowParams) error {
 }
 
 // applySearch adds a parsed search (docs/specs/search.md) to a view's
-// filter. is:unread and is:flagged apply when the query has not set them.
+// filter. is:unread, is:flagged and has:attachment apply when the query has
+// not set them.
 func applySearch(f *store.ViewFilter, q search.Query) {
 	f.Match, f.Exclude = q.Match(), q.Exclude()
 	if f.Unread == nil {
@@ -109,7 +110,10 @@ func applySearch(f *store.ViewFilter, q search.Query) {
 	if f.Flagged == nil {
 		f.Flagged = q.Flagged
 	}
-	f.HasAttachment, f.After, f.Before = q.HasAttachment, q.After, q.Before
+	if f.HasAttachment == nil {
+		f.HasAttachment = q.HasAttachment
+	}
+	f.After, f.Before = q.After, q.Before
 	for _, r := range q.Roles {
 		f.Roles = append(f.Roles, string(r))
 	}

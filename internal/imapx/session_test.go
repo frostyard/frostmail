@@ -188,6 +188,16 @@ func TestSessionFlagsAndRaw(t *testing.T) {
 	if _, err := s.Move(ctx, []uint32{1}, "Archive"); err == nil {
 		t.Fatal("Move without MOVE or UIDPLUS succeeded")
 	}
+	// COPY needs no extension; the memory server reports COPYUID anyway.
+	if uids, err := s.Copy(ctx, []uint32{1, 2}, "Archive"); err != nil || uids[1] != 1 || uids[2] != 2 {
+		t.Fatalf("Copy = %v, %v", uids, err)
+	}
+	if st, err := s.Status(ctx, "Archive"); err != nil || st.Messages != 2 {
+		t.Fatalf("Archive after the copy = %+v, %v", st, err)
+	}
+	if st, err := s.Status(ctx, "INBOX"); err != nil || st.Messages != 5 {
+		t.Fatalf("INBOX after the copy = %+v, %v", st, err)
+	}
 }
 
 func TestSessionStatusAndIdleWake(t *testing.T) {

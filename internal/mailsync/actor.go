@@ -39,6 +39,9 @@ type actor struct {
 	// fresh collects messages new to a folder synced before, for the
 	// next announcement; only the IMAP loop touches it.
 	fresh []int64
+	// copiedTo holds the mailboxes replayed copies went to, for syncCopies;
+	// only the IMAP loop touches it.
+	copiedTo map[int64]bool
 
 	mu     sync.Mutex
 	status api.SyncStatus
@@ -265,6 +268,11 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			if err := a.replay(ctx, cmd); err != nil {
 				return true, err
 			}
+			if synced, err := a.syncCopies(ctx, cmd); err != nil {
+				return true, err
+			} else if synced {
+				a.settled(ctx)
+			}
 		case <-a.drafts:
 			saveAt = a.nextDraftSave(ctx, false)
 		case <-saveAt:
@@ -275,6 +283,28 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 			a.settled(ctx)
 		}
 	}
+}
+
+// syncCopies brings the mailboxes replayed copies went to up to date, so
+// the copies show without waiting for the next poll. It reports whether
+// it synced any.
+func (a *actor) syncCopies(ctx context.Context, cmd *imapx.Session) (bool, error) {
+	synced := false
+	for id := range a.copiedTo {
+		delete(a.copiedTo, id)
+		mb, err := a.mailbox(ctx, id)
+		if errors.Is(err, store.ErrNotFound) {
+			continue // gone since; the next full pass relists
+		}
+		if err != nil {
+			return synced, err
+		}
+		if err := a.refresh(ctx, cmd, mb); err != nil {
+			return synced, err
+		}
+		synced = true
+	}
+	return synced, nil
 }
 
 // settled announces the new mail of the work just done and goes idle.

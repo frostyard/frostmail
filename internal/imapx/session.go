@@ -804,6 +804,29 @@ func (s *Session) Move(ctx context.Context, uids []uint32, dest string) (map[uin
 	return out, nil
 }
 
+// Copy copies messages of the selected mailbox to dest by UID and returns
+// each source UID's new UID when the server reports COPYUID (UIDPLUS).
+func (s *Session) Copy(ctx context.Context, uids []uint32, dest string) (map[uint32]uint32, error) {
+	if s.readOnly {
+		return nil, ErrReadOnly
+	}
+	var d *imap.CopyData
+	err := s.run(ctx, func() error {
+		var err error
+		d, err = s.c.Copy(uidSet(uids), dest).Wait()
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("copy to %s: %w", dest, err)
+	}
+	out := map[uint32]uint32{}
+	a, b := expand(d.SourceUIDs), expand(d.DestUIDs)
+	for i := range min(len(a), len(b)) {
+		out[a[i]] = b[i]
+	}
+	return out, nil
+}
+
 func expand(set imap.UIDSet) []uint32 {
 	var out []uint32
 	for _, r := range set {
