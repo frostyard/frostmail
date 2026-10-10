@@ -1,8 +1,8 @@
 // MockTransport: an in-memory maild for component tests and for running the
 // UI in a browser (VITE_MOCK=1). It implements the methods the app uses with
 // maild's semantics: views keep ID snapshots and send view.delta after
-// changes (an unread or flagged view keeps rows whose flags change), flag,
-// move and copy calls emit message.changed and mailbox.changed.
+// changes (an unread view keeps rows that are read), flag, move and copy
+// calls emit message.changed and mailbox.changed.
 import {
   type Account,
   type AccountCreateParams,
@@ -498,8 +498,8 @@ export class MockTransport implements Transport {
     });
   }
 
-  /** viewIds lists a query's rows; keep's pass the unread and flagged
-   *  conditions (rows of the open view, as maild keeps them). */
+  /** viewIds lists a query's rows; keep's pass the unread condition (rows
+   *  of the open view, as maild keeps them). */
   private viewIds(q: ViewQuery, keep: ReadonlySet<number> = new Set()): number[] {
     const role = (mailboxId: number) => this.mailboxes.find((mb) => mb.id === mailboxId)?.role;
     const text = q.text?.trim().toLowerCase() ?? "";
@@ -510,9 +510,8 @@ export class MockTransport implements Transport {
           (q.accountId === undefined || s.accountId === q.accountId) &&
           (q.mailboxId === undefined || s.mailboxIds.includes(q.mailboxId)) &&
           (q.role === undefined || s.mailboxIds.some((mb) => role(mb) === q.role)) &&
-          (keep.has(s.id) ||
-            ((q.unread === undefined || s.flags.seen !== q.unread) &&
-              (q.flagged === undefined || s.flags.flagged === q.flagged))) &&
+          (q.unread === undefined || s.flags.seen !== q.unread || keep.has(s.id)) &&
+          (q.flagged === undefined || s.flags.flagged === q.flagged) &&
           (q.hasAttachments === undefined || s.hasAttachments === q.hasAttachments) &&
           (text === "" ||
             text
@@ -534,8 +533,7 @@ export class MockTransport implements Transport {
 
   private refreshViews(): void {
     for (const [id, view] of this.views) {
-      const flagged = view.query.unread !== undefined || view.query.flagged !== undefined;
-      const next = this.viewIds(view.query, flagged ? new Set(view.ids) : undefined);
+      const next = this.viewIds(view.query, view.query.unread === undefined ? undefined : new Set(view.ids));
       const ops = diffIds(view.ids, next);
       view.ids = next;
       if (ops.length > 0) this.emit({ event: "view.delta", data: { id, count: next.length, ops } });
