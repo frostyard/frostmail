@@ -22,11 +22,21 @@ export interface ServicesSectionProps {
 export function ServicesSection(props: ServicesSectionProps) {
   const heading = useId();
   const available = props.services.filter((service) => service.available);
+  const reasons = props.services
+    .filter((service) => !service.available && service.reason)
+    .map((service) => (
+      <p key={service.service} className="mt-2 text-[12px] leading-4 text-secondary">
+        {service.reason}
+      </p>
+    ));
   if (available.length === 0) {
     return (
-      <p className="text-[12px] leading-4 text-secondary">
-        This account has no contacts, calendars or tasks Frostmail can reach.
-      </p>
+      <>
+        <p className="text-[12px] leading-4 text-secondary">
+          This account has no contacts, calendars or tasks Frostmail can reach.
+        </p>
+        {reasons}
+      </>
     );
   }
   const waiting = available
@@ -49,6 +59,7 @@ export function ServicesSection(props: ServicesSectionProps) {
           </button>
         </div>
       )}
+      {reasons}
     </section>
   );
 }

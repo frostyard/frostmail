@@ -130,6 +130,10 @@ export class MockPeople {
       (service): ServiceSettings => ({
         service,
         available: account.kind !== "microsoft" && !(account.kind === "icloud" && service === "tasks"),
+        reason:
+          account.kind === "icloud" && service === "tasks"
+            ? "Apple Reminders can't be reached by apps outside Apple's (since iOS 13)."
+            : undefined,
         enabled: false,
         url: "",
         signedIn: !google,
