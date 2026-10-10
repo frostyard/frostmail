@@ -38,6 +38,10 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0020 — One window for mail, calendar, people and tasks](adr/0020-one-window-for-mail-calendar-people-and-tasks.md)
 - [0021 — Run task cards with Codex](adr/0021-run-task-cards-with-codex.md)
 - [0022 — Mail the reply the server will not send](adr/0022-mail-the-reply-the-server-will-not-send.md)
+- [0023 — One condition language for smart mailboxes and rules](adr/0023-one-condition-language-for-smart-mailboxes-and-rules.md)
+- [0024 — Rules run in maild on new mail](adr/0024-rules-run-in-maild-on-new-mail.md)
+- [0025 — maild keeps Send Later, Remind Me and Undo Send](adr/0025-maild-keeps-send-later-remind-me-and-undo-send.md)
+- [0026 — Preferences live in maild](adr/0026-preferences-live-in-maild.md)
 - [0027 — Unsubscribe with one click through the sender's server](adr/0027-unsubscribe-with-one-click.md)
 
 ### Design
@@ -51,6 +55,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Accounts, sign-in and providers](design/accounts.md)
 - [Running on the desktop](design/desktop.md)
 - [Contacts, calendars and tasks](design/pim.md)
+- [Organizing mail](design/organize.md): conditions, smart mailboxes, rules, VIPs, flags, Remind Me (M5)
 - [Testing](design/testing.md)
 - [Agent workflow](design/agent-workflow.md)
 

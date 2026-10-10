@@ -19,9 +19,9 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   Both store the same structure: conditions joined by any or all, each a
   field, an operator and a value, as in Mail.app's editors (From contains,
   Date Received in the last N days, Sender is a VIP, Flag color is,
-  Account is, Mailbox is). `internal/search` compiles it to the SQL it
-  already builds for the search language, so a search can be saved as a
-  smart mailbox. A smart mailbox opens as a view like any mailbox, so its
+  Account is, Mailbox is). The store compiles it to SQL beside the search
+  language's, and `internal/search` turns a search into conditions, so a
+  search can be saved as a smart mailbox. A smart mailbox opens as a view like any mailbox, so its
   list and count stay live; a rule runs the same SQL over the messages it
   is given.
 - **Rules run in maild** (ADR-0024): on new mail in an inbox, after it is
@@ -36,8 +36,8 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   actions wait until after M5 (the user, 2026-10-10), since they would send
   mail with nobody looking.
 - **maild keeps the clock** (ADR-0025). Send Later is an outbox row due at
-  the chosen time, built when it goes so its `Date` is right, listed in a
-  Send Later mailbox and editable until then. Remind Me stores a time on
+  the chosen time, built with that time as its `Date` (rebuilt when
+  rescheduled), listed in a Send Later mailbox and editable until then. Remind Me stores a time on
   the message; when it comes, maild brings the message back to the top of
   its account's inbox (moving it back if it left) and notifies. Undo Send's
   delay becomes a setting: off, 10, 20 or 30 seconds. What falls due while
@@ -65,22 +65,30 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 - This plan and [specs/parity.md](../specs/parity.md), with a test named
   for every Have row.
-- ADRs 0023–0026; `design/organize.md` (conditions, smart mailboxes,
-  rules, VIPs, flags, favorites, mute and block); additions to
-  [design/send.md](../design/send.md) (Send Later, the Undo Send setting,
-  redirect, unsubscribe), [design/sync.md](../design/sync.md) (mailbox
-  operations, Remind Me's return) and
-  [design/desktop.md](../design/desktop.md) (the notification scope).
-- UI specs: [specs/ui.md](../specs/ui.md) (the sidebar's Flagged colors,
-  VIPs and Smart Mailboxes, sorting, the reader's banners, menus and keys),
-  [specs/settings-ui.md](../specs/settings-ui.md) (a General pane and a
-  Rules pane), and `specs/organize-ui.md` (the condition editor the smart
-  mailbox sheet and the rule editor share).
-- IDL and `make gen`: `settings.get` and `set`, `vip.*`, `smartMailbox.*`,
-  `rule.*` with `rule.apply`, `mailbox.create`, `rename`, `delete`,
-  `message.remind`, `draft.send {sendAt}`, `outbox.reschedule`;
-  `ViewQuery` gains `smartMailboxId`, `flagColor`, `vip` and `sort`; their
-  events. Migration 0011.
+- ADRs 0023–0026; [design/organize.md](../design/organize.md)
+  (conditions, smart mailboxes, rules, VIPs, flags, settings, the
+  notification scope, Remind Me); additions to
+  [design/send.md](../design/send.md) (Send Later, the Undo Send setting),
+  [design/desktop.md](../design/desktop.md) and
+  [design/storage.md](../design/storage.md). Phase 6's mechanisms (mute,
+  block, favorites, sort, mailbox operations, redirect, unsubscribe) are
+  designed when it starts.
+- UI specs for Phases 2–5: [specs/ui.md](../specs/ui.md) (the sidebar's
+  Flagged colors, VIPs, Smart Mailboxes and Remind Me; the VIP star; the
+  Remind Me banner and menus), [specs/compose-ui.md](../specs/compose-ui.md)
+  (Send Later), [specs/settings-ui.md](../specs/settings-ui.md) (a General
+  pane and a Rules pane), and [specs/organize-ui.md](../specs/organize-ui.md)
+  (the condition editor the smart mailbox sheet and the rule editor
+  share).
+- IDL and `make gen` for Phases 2–5: `settings.get` and `set`, `vip.*`,
+  `smartMailbox.*`, `rule.*` with `rule.apply`, `message.remind`,
+  `draft.send {sendAt}`, `outbox.reschedule`; `ViewQuery` gains
+  `conditions` and `smartMailboxId`; their events. Migration 0011, engine
+  stubs. Phase 6's contracts come with Phase 6.
+- The condition compiler (`store.CompileConditions`: every field and
+  operator, any and all, Trash and Sent left out unless asked) and
+  `search.ToConditions`, with tests, since Phases 2 to 4 all build on
+  them.
 - New accounts writable by default (P-952): the add-account form's
   Read-only box starts clear.
 - **Done when:** `make check` and `make ui-check` are green, the ADRs and
@@ -88,8 +96,8 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 ## Phase 2 — Flags, VIPs and the notification scope
 
-- Planner: the settings and VIP stores, `ViewQuery.flagColor` and `vip`,
-  and the scope in `announce.go` (what notifies).
+- Planner: the settings and VIP stores, the conditions Flagged's colors
+  and VIPs need, and the scope in `announce.go` (what notifies).
 - Cards: Flagged with a row per color and real counts; VIPs in the app
   (the star in the list and the reader, the VIPs section, adding from the
   header and the contact card); the General pane (notification scope,
@@ -102,9 +110,8 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 ## Phase 3 — Smart mailboxes
 
-- Planner: the condition compiler in `internal/search` (every condition,
-  any and all, Trash and Sent left out unless asked) with given tests,
-  `ViewQuery.smartMailboxId` and counts.
+- Planner: `ViewQuery.smartMailboxId`, recomputing views with conditions
+  when what they depend on changes, and counts.
 - Cards: the smart mailbox store and `smartMailbox.*`; the condition
   editor; smart mailboxes in the sidebar with their sheet and Save from the
   search field; the filter bar's To: Me, Cc: Me and VIPs (P-205).
@@ -127,7 +134,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 ## Phase 5 — Send Later, Remind Me and Undo Send
 
-- Planner: `draft.send {sendAt}` building at send time,
+- Planner: `draft.send {sendAt}` building with the chosen `Date`,
   `outbox.reschedule`, the Remind Me store and its timer (as
   `internal/reminders` keeps alarms), the return to the inbox, the delay
   setting.
@@ -161,8 +168,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 - **Done when:** an ADR decides whether Frostmail shows categories and
   how, and P-901 is Have, Later or Out accordingly.
 
-Phases 2 to 7 overlap; Phase 3's compiler comes before Phase 4's rules and
-the condition-based rows of Phases 2 and 3.
+Phases 2 to 7 overlap once Phase 1's compiler is in.
 
 ## Exit
 
