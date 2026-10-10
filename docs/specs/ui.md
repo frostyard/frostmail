@@ -166,8 +166,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   the source or a search, through the view query (`unread`, `flagged`,
   `hasAttachments`); All is no filter. It lasts until changed (not across
   restarts), is the same for every source, and changing it clears the
-  selection. A row read or unflagged while the filter shows it stays until
-  the filter or the source changes (maild keeps it: `ViewQuery.unread`).
+  selection. A row read while the Unread filter shows it stays until the
+  filter or the source changes (maild keeps it: `ViewQuery.unread`); an
+  unflagged row leaves the Flagged filter at once.
 - **Row actions** (M4.5): while the pointer is over a row of a writable
   account, line 1's paperclip and date give way to three 22 × 18 buttons,
   rounded 4, each a 14px Lucide icon in `--text-secondary`

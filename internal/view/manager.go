@@ -158,9 +158,9 @@ func (m *Manager) recompute(ctx context.Context) {
 	for _, v := range m.views {
 		if dirty[0] || v.filter.AccountID == 0 || dirty[v.filter.AccountID] {
 			f := v.filter
-			if f.Unread != nil || f.Flagged != nil {
-				// Rows read or unflagged while the view is open stay
-				// (api.ViewQuery); deleted and moved ones still leave.
+			if f.Unread != nil {
+				// Rows read while the view is open stay (api.ViewQuery);
+				// deleted, moved and unflagged ones still leave.
 				f.Keep = v.ids
 			}
 			todo = append(todo, job{v, f})

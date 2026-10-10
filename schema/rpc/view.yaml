@@ -16,7 +16,7 @@ types:
       - {name: mailboxId, type: int, optional: true}
       - {name: text, type: string, optional: true, doc: "Full-text search terms."}
       - {name: unread, type: bool, optional: true, doc: "true: unread only; false: read only. A row that stops matching only because it was read or unread while the view is open stays until the view is reopened, so a message read in an Unread list does not vanish under the pointer."}
-      - {name: flagged, type: bool, optional: true, doc: "true: flagged only; false: unflagged only. Rows whose flag changes while the view is open stay, as for unread."}
+      - {name: flagged, type: bool, optional: true, doc: "true: flagged only; false: unflagged only. Unlike unread, a row whose flag changes leaves at once: flagging is deliberate, and the Tasks module's Flagged Mail completes a message by unflagging it."}
       - {name: hasAttachments, type: bool, optional: true, doc: "true: only messages with attachments; false: only those without."}
       - {name: role, type: MailboxRole, optional: true, doc: "Messages in mailboxes with this role in any account, such as every inbox."}
       - {name: threads, type: bool, optional: true, doc: "One row per thread: its newest message that matches."}
