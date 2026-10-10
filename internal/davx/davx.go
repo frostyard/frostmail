@@ -153,7 +153,22 @@ func (c *Client) resolve(href string) (*url.URL, error) {
 }
 
 func sameOrigin(a, b *url.URL) bool {
-	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Host, b.Host)
+	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Hostname(), b.Hostname()) && port(a) == port(b)
+}
+
+// port is u's port, or its scheme's default: iCloud writes :443 in some
+// hrefs and not in others.
+func port(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return "443"
+	case "http":
+		return "80"
+	}
+	return ""
 }
 
 // request is one HTTP exchange.

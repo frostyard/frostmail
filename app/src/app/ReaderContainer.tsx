@@ -265,13 +265,18 @@ function useInvitation(messageId: number, active: boolean) {
       refresh.current = () => {};
     };
   }, [client, messageId, active]);
+  // A ref, not busy: two clicks before the card re-renders (a double
+  // click) must still send one answer.
+  const answering = useRef(false);
   const onAnswer = (answer: Answer) => {
-    if (busy) return;
+    if (answering.current) return;
+    answering.current = true;
     setBusy(true);
     void client.calendar
       .respond({ messageId, answer })
       .catch((err: unknown) => console.warn("answer invitation", err))
       .finally(() => {
+        answering.current = false;
         setBusy(false);
         refresh.current();
       });

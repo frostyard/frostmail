@@ -65,6 +65,11 @@ func (c calendarService) Respond(ctx context.Context, p *api.CalendarRespondPara
 	if r.organizer.Email == "" || slices.Contains(r.emails, r.organizer.Email) {
 		return nil, api.Conflict("the user organizes this event")
 	}
+	if r.stored != nil && r.comment == "" && r.stored.PartStat == r.answer {
+		// The copy has this answer already (a second click, or a repeated
+		// Accept): nothing to write or tell the organizer.
+		return c.answeredStored(ctx, r)
+	}
 	dav := providers.ForKind(r.acct.Kind).DAV
 	var id int64
 	var mail bool
@@ -88,6 +93,15 @@ func (c calendarService) Respond(ctx context.Context, p *api.CalendarRespondPara
 		return c.answered(r)
 	}
 	ev := &api.CalendarEventParams{ID: id}
+	if r.key != "" {
+		ev.RecurrenceID = &r.key
+	}
+	return c.Event(ctx, ev)
+}
+
+// answeredStored returns the stored copy as it is.
+func (c calendarService) answeredStored(ctx context.Context, r response) (*api.CalendarEvent, error) {
+	ev := &api.CalendarEventParams{ID: r.stored.ID}
 	if r.key != "" {
 		ev.RecurrenceID = &r.key
 	}

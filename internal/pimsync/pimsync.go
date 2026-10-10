@@ -192,21 +192,33 @@ func (m *Manager) UseServerDefaultCalendar(ctx context.Context, accountID int64)
 		return err
 	}
 	href, err := c.DefaultCalendar(ctx)
-	if err != nil || href == "" {
+	if err != nil {
 		return err
+	}
+	if href == "" {
+		m.log.Info("the server names no default calendar", "account", accountID)
+		return nil
 	}
 	cols, err := m.db.Collections(ctx, store.CollectionFilter{AccountID: accountID, Kind: api.CollectionKindCalendar})
 	if err != nil {
 		return err
 	}
 	for _, col := range cols {
-		if samePath(col.Href, href) {
-			return m.db.Tx(ctx, func(tx *store.Tx) error {
-				_, err := tx.UseServerDefault(ctx, accountID, api.CollectionKindCalendar, col.Href)
-				return err
-			})
+		if !samePath(col.Href, href) {
+			continue
 		}
+		var changed bool
+		err := m.db.Tx(ctx, func(tx *store.Tx) error {
+			var err error
+			changed, err = tx.UseServerDefault(ctx, accountID, api.CollectionKindCalendar, col.Href)
+			return err
+		})
+		if err == nil {
+			m.log.Info("the server's default calendar", "account", accountID, "calendar", col.Name, "changed", changed)
+		}
+		return err
 	}
+	m.log.Info("the server's default calendar is not synced here", "account", accountID, "href", href)
 	return nil
 }
 
