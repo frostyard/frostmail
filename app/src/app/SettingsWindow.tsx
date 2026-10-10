@@ -389,7 +389,18 @@ function SignaturesPane() {
       await client.identity.update({ id, ...change });
       await load();
     });
-  return <IdentityEditor accounts={accounts} identities={identities} busy={busy} error={error} onSave={save} />;
+  // Task T-0098 wires adding and removing addresses.
+  return (
+    <IdentityEditor
+      accounts={accounts}
+      identities={identities}
+      busy={busy}
+      error={error}
+      onSave={save}
+      onAdd={() => {}}
+      onRemove={() => {}}
+    />
+  );
 }
 
 function SignInPane() {

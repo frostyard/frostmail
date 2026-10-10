@@ -341,6 +341,8 @@ interface IdentityEditorProps {
   busy: boolean;
   error: string | null;
   onSave: (id: number, change: IdentityChange) => void;
+  onAdd: (accountId: number, email: string, name: string) => void; // name "" takes the account's
+  onRemove: (id: number) => void;
 }
 ```
 
@@ -355,8 +357,34 @@ interface IdentityEditorProps {
   selected) with the name, or the email when the trimmed name is empty
   (`truncate text-[13px] leading-[18px] font-semibold`), then the email
   (`truncate text-[12px] leading-4 text-secondary`).
+- The list sits in a column `div` (`flex shrink-0 flex-col`; the `ul`
+  keeps its classes and adds `flex-1`) with, below it, a bar (`flex h-8
+  w-[220px] shrink-0 items-center gap-1 border-t border-r
+  border-separator bg-sidebar px-2`) of icon buttons styled as
+  `AccountList`'s: `aria-label="Add Address"` (`Plus`), which opens the add form,
+  disabled while it is open or while `busy`; and `aria-label="Remove
+  Address"` (`Minus`), calling `onRemove(id)` for the selected identity,
+  disabled while `busy`, while the add form is open, or when the selected
+  identity `isDefault` (an account's own address stays).
 - The first identity in list order starts selected; clicking another
-  selects it.
+  selects it and closes the add form. When an identity that was not in
+  `identities` when Add was pressed, with the email added (ignoring case),
+  appears, it becomes selected and the add form closes; an error leaves
+  the form open.
+- **Add form** (in place of the identity form while open): the same
+  `form` and grid, an `h2` (`mb-4 text-[15px] leading-5 font-semibold`)
+  "Add Address", then `Account:` (`identity-new-account`, a `select` of
+  the accounts shown in the list, by email, starting at the selected
+  identity's account), `Email Address:` (`identity-new-email`, `input
+  type="email"`), `Full Name:` (`identity-new-name`, placeholder the
+  chosen account's default identity's name). Under them a `p`
+  (`col-start-2 text-[12px] leading-4 text-secondary`): "An address your
+  provider delivers to this account, such as an alias or your own
+  domain. Frostmail sends from it and answers invitations to it." Then
+  the alert, then buttons as `AccountForm`'s: "Cancel" (closes the form)
+  and an "Add" submit button, disabled while `busy` or while the trimmed
+  email does not match `^[^@\s]+@[^@\s]+$`. Submitting calls
+  `onAdd(accountId, email.trim(), name.trim())`.
 - **Form:** a `form` (`flex flex-1 flex-col px-6 py-5`) for the selected
   identity, in the grid of `AccountForm`: `Name:` (`identity-name`),
   `Email:` (a `span`, `text-[13px] leading-[18px]`, with the email; not
@@ -377,6 +405,13 @@ interface IdentityEditorProps {
 - With no identity, the pane shows only a `p` (`px-6 py-5 text-[13px]
   leading-[18px] text-secondary`): "Add an account to edit its
   signature."
+
+- **Container:** the pane loads `identity.list` and reloads it after each
+  change. Add calls `identity.create({accountId, email, name})`, leaving
+  out `name` when it is empty. Remove asks "Remove <email>? Drafts from
+  it will be sent from <the account's email>." (the app's dialog, or
+  `window.confirm` in a browser) and calls `identity.delete` when
+  confirmed. maild's errors show in the alert.
 
 ### Signature text
 

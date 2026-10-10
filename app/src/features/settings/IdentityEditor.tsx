@@ -21,6 +21,10 @@ export interface IdentityEditorProps {
   busy: boolean;
   error: string | null;
   onSave: (id: number, change: IdentityChange) => void;
+  /** Adds an address to an account; name "" takes the account's. Task T-0098 wires it. */
+  onAdd: (accountId: number, email: string, name: string) => void;
+  /** Removes an added address. Task T-0098 wires it. */
+  onRemove: (id: number) => void;
 }
 
 /** IdentityEditor lists identities and edits the selected one. */

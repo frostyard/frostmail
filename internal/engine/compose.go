@@ -837,6 +837,16 @@ func (i identities) Update(ctx context.Context, p *api.IdentityUpdateParams) (*a
 	return &r, nil
 }
 
+// Create adds an address to an account. Task T-0096 builds it.
+func (i identities) Create(context.Context, *api.IdentityCreateParams) (*api.Identity, error) {
+	return nil, errors.New("identity.create: task T-0096 builds it")
+}
+
+// Delete removes an added address. Task T-0096 builds it.
+func (i identities) Delete(context.Context, *api.IdentityDeleteParams) error {
+	return errors.New("identity.delete: task T-0096 builds it")
+}
+
 func toAPIDraft(d store.Draft) api.Draft {
 	out := api.Draft{
 		ID:        d.ID,
