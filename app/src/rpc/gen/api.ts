@@ -789,6 +789,11 @@ export interface DraftDeleteParams {
 /** Params of draft.send. */
 export interface DraftSendParams {
   id: number;
+  /**
+   * Send Later: a time past the undo delay queues the message scheduled, with
+   * this time as its Date; an earlier one sends it after the undo delay.
+   */
+  sendAt?: string /* RFC 3339 */;
 }
 
 /** A draft was created, changed or deleted. */
@@ -833,8 +838,9 @@ export interface DraftClient {
   /** Discard a draft, and its server copy. */
   delete(params: DraftDeleteParams): Promise<void>;
   /**
-   * Queue a draft for sending after the undo delay. Fails with invalidParams
-   * when it has no recipients, an address does not parse, or it is too large.
+   * Queue a draft for sending after the undo delay, or at sendAt (Send
+   * Later). Fails with invalidParams when it has no recipients, an address
+   * does not parse, or it is too large.
    */
   send(params: DraftSendParams): Promise<OutboxItem>;
 }
@@ -1059,6 +1065,8 @@ export interface MessageSummary {
   size: number;
   /** Messages in the thread across every mailbox; 1 for a message alone. */
   threadCount: number;
+  /** When a pending Remind Me reminder brings the message back. */
+  remindAt?: string /* RFC 3339 */;
 }
 
 /** One MIME part. */
@@ -1193,6 +1201,13 @@ export interface MessageDeleteParams {
   ids: number[];
 }
 
+/** Params of message.remind. */
+export interface MessageRemindParams {
+  ids: number[];
+  /** In the future. */
+  at?: string /* RFC 3339 */;
+}
+
 /** Messages were added or changed (flags, mailbox, fetched body). */
 export interface MessageChanged {
   accountId: number;
@@ -1247,6 +1262,12 @@ export interface MessageClient {
    * deleted from the server.
    */
   delete(params: MessageDeleteParams): Promise<void>;
+  /**
+   * Remind Me: at a time, bring messages back to the top of their account's
+   * inbox and notify (ADR-0025). Without at, clear their reminders. Conflict
+   * for a read-only account's messages.
+   */
+  remind(params: MessageRemindParams): Promise<void>;
 }
 
 function messageClient(t: Transport): MessageClient {
@@ -1260,6 +1281,7 @@ function messageClient(t: Transport): MessageClient {
     move: (params) => t.call<null>("message.move", params).then(() => undefined),
     copy: (params) => t.call<null>("message.copy", params).then(() => undefined),
     delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
+    remind: (params) => t.call<null>("message.remind", params).then(() => undefined),
   };
 }
 
@@ -1329,6 +1351,8 @@ export interface OutboxItem {
   state: OutboxState;
   /** When a queued message goes out. */
   sendAt?: string /* RFC 3339 */;
+  /** Send Later: queued for a chosen time rather than in its undo window. */
+  scheduled: boolean;
   attempts: number;
   /** The last error, when there was one. */
   error?: string;
@@ -1347,6 +1371,12 @@ export interface OutboxCancelParams {
 /** Params of outbox.retry. */
 export interface OutboxRetryParams {
   id: number;
+}
+
+/** Params of outbox.reschedule. */
+export interface OutboxRescheduleParams {
+  id: number;
+  sendAt: string /* RFC 3339 */;
 }
 
 /** An outbox message changed state. */
@@ -1372,6 +1402,12 @@ export interface OutboxClient {
   cancel(params: OutboxCancelParams): Promise<Draft>;
   /** Queue a failed message again, now. */
   retry(params: OutboxRetryParams): Promise<void>;
+  /**
+   * Give a scheduled message a new time and rebuild it with that time as its
+   * Date; a time within the undo delay sends it after the undo delay.
+   * Conflict unless the message is queued and scheduled.
+   */
+  reschedule(params: OutboxRescheduleParams): Promise<OutboxItem>;
 }
 
 function outboxClient(t: Transport): OutboxClient {
@@ -1379,6 +1415,7 @@ function outboxClient(t: Transport): OutboxClient {
     list: (params = {}) => t.call<OutboxItem[]>("outbox.list", params),
     cancel: (params) => t.call<Draft>("outbox.cancel", params),
     retry: (params) => t.call<null>("outbox.retry", params).then(() => undefined),
+    reschedule: (params) => t.call<OutboxItem>("outbox.reschedule", params),
   };
 }
 
@@ -1593,6 +1630,257 @@ function rpcClient(t: Transport): RPCClient {
   };
 }
 
+// ---- rule ----
+
+/** What a rule does to a message that meets its conditions. */
+export type RuleActionKind = "move" | "copy" | "read" | "flag" | "delete" | "notify" | "stop";
+export const RuleActionKindValues: readonly RuleActionKind[] = ["move", "copy", "read", "flag", "delete", "notify", "stop"];
+
+/** One action. */
+export interface RuleAction {
+  kind: RuleActionKind;
+  /** For move and copy. */
+  mailboxId?: number;
+  /** For flag: 1-7. */
+  color?: number;
+}
+
+/** One rule. */
+export interface Rule {
+  id: number;
+  name: string;
+  /** Rules run in position order, from 0. */
+  position: number;
+  enabled: boolean;
+  conditions: Conditions;
+  /**
+   * Run in order: flags and read marks, then copies, then the move or delete.
+   */
+  actions: RuleAction[];
+  /** Why an action cannot run, such as a mailbox that is gone. */
+  problem?: string;
+}
+
+/** What apply did. */
+export interface RuleApplied {
+  /** Messages that met at least one rule's conditions. */
+  matched: number;
+}
+
+/** Params of rule.list. */
+export type RuleListParams = Record<string, never>;
+
+/** Params of rule.create. */
+export interface RuleCreateParams {
+  name: string;
+  conditions: Conditions;
+  actions: RuleAction[];
+  /** Default true. */
+  enabled?: boolean;
+}
+
+/** Params of rule.update. */
+export interface RuleUpdateParams {
+  id: number;
+  name?: string;
+  conditions?: Conditions;
+  actions?: RuleAction[];
+  enabled?: boolean;
+}
+
+/** Params of rule.delete. */
+export interface RuleDeleteParams {
+  id: number;
+}
+
+/** Params of rule.move. */
+export interface RuleMoveParams {
+  id: number;
+  position: number;
+}
+
+/** Params of rule.apply. */
+export interface RuleApplyParams {
+  ids: number[];
+}
+
+/** A rule was created, changed, moved or deleted. */
+export interface RuleChanged {
+  id: number;
+  deleted: boolean;
+}
+
+/**
+ * Rules that act on new inbox mail in maild, before it notifies, and on
+ * chosen messages with apply (ADR-0024, docs/design/organize.md).
+ */
+export interface RuleClient {
+  /** Every rule, in order. */
+  list(params?: RuleListParams): Promise<Rule[]>;
+  /** Add a rule at the end of the list. */
+  create(params: RuleCreateParams): Promise<Rule>;
+  /** Change the fields given. */
+  update(params: RuleUpdateParams): Promise<Rule>;
+  /** Remove a rule. */
+  delete(params: RuleDeleteParams): Promise<void>;
+  /** Put a rule at a position, moving the others along. */
+  move(params: RuleMoveParams): Promise<void>;
+  /**
+   * Run the enabled rules, in order, on these messages now; conflict when one
+   * is in a read-only account.
+   */
+  apply(params: RuleApplyParams): Promise<RuleApplied>;
+}
+
+function ruleClient(t: Transport): RuleClient {
+  return {
+    list: (params = {}) => t.call<Rule[]>("rule.list", params),
+    create: (params) => t.call<Rule>("rule.create", params),
+    update: (params) => t.call<Rule>("rule.update", params),
+    delete: (params) => t.call<null>("rule.delete", params).then(() => undefined),
+    move: (params) => t.call<null>("rule.move", params).then(() => undefined),
+    apply: (params) => t.call<RuleApplied>("rule.apply", params),
+  };
+}
+
+// ---- settings ----
+
+/** Which new mail notifies, after each account's own notify switch. */
+export type NotifyScope = "inbox" | "vips" | "contacts" | "all" | "smart";
+export const NotifyScopeValues: readonly NotifyScope[] = ["inbox", "vips", "contacts", "all", "smart"];
+
+/** Every preference, with its current value. */
+export interface Settings {
+  /** Seconds a sent message waits in the outbox: 0, 10, 20 or 30. */
+  undoDelay: number;
+  notifyScope: NotifyScope;
+  /** The smart mailbox, when notifyScope is smart. */
+  notifySmartId?: number;
+  /**
+   * Seven names, for flag colors 1-7; an empty name is the color's own (Red
+   * ... Gray).
+   */
+  flagNames: string[];
+}
+
+/** Params of settings.get. */
+export type SettingsGetParams = Record<string, never>;
+
+/** Params of settings.set. */
+export interface SettingsSetParams {
+  /** 0, 10, 20 or 30. */
+  undoDelay?: number;
+  notifyScope?: NotifyScope;
+  /** Required with notifyScope smart. */
+  notifySmartId?: number;
+  /** Seven names, each at most 40 characters. */
+  flagNames?: string[];
+}
+
+/** A preference changed. */
+export type SettingsChanged = Record<string, never>;
+
+/**
+ * Preferences maild keeps for every account, so they hold with the app closed
+ * and look the same from mailctl (ADR-0026, docs/design/organize.md).
+ */
+export interface SettingsClient {
+  /** The current preferences. */
+  get(params?: SettingsGetParams): Promise<Settings>;
+  /** Change the preferences given; the others stay. Returns them all. */
+  set(params?: SettingsSetParams): Promise<Settings>;
+}
+
+function settingsClient(t: Transport): SettingsClient {
+  return {
+    get: (params = {}) => t.call<Settings>("settings.get", params),
+    set: (params = {}) => t.call<Settings>("settings.set", params),
+  };
+}
+
+// ---- smart ----
+
+/** One smart mailbox. */
+export interface SmartMailbox {
+  id: number;
+  name: string;
+  /** Its place in the sidebar, from 0. */
+  position: number;
+  conditions: Conditions;
+  /** Also list messages that are only in Trash. */
+  includeTrash: boolean;
+  /** Also list messages that are only in Sent. */
+  includeSent: boolean;
+  /** Unread messages it lists. */
+  unread: number;
+}
+
+/** Params of smart.list. */
+export type SmartListParams = Record<string, never>;
+
+/** Params of smart.create. */
+export interface SmartCreateParams {
+  name: string;
+  conditions: Conditions;
+  includeTrash?: boolean;
+  includeSent?: boolean;
+}
+
+/** Params of smart.update. */
+export interface SmartUpdateParams {
+  id: number;
+  name?: string;
+  conditions?: Conditions;
+  includeTrash?: boolean;
+  includeSent?: boolean;
+}
+
+/** Params of smart.delete. */
+export interface SmartDeleteParams {
+  id: number;
+}
+
+/** Params of smart.move. */
+export interface SmartMoveParams {
+  id: number;
+  position: number;
+}
+
+/** A smart mailbox was created, changed, moved or deleted. */
+export interface SmartChanged {
+  id: number;
+  deleted: boolean;
+}
+
+/**
+ * Smart mailboxes: saved conditions listed as a mailbox, across accounts
+ * (ADR-0023, docs/design/organize.md).
+ */
+export interface SmartClient {
+  /** Every smart mailbox, in sidebar order. */
+  list(params?: SmartListParams): Promise<SmartMailbox[]>;
+  /** Add a smart mailbox at the end of the list. */
+  create(params: SmartCreateParams): Promise<SmartMailbox>;
+  /** Change the fields given. */
+  update(params: SmartUpdateParams): Promise<SmartMailbox>;
+  /**
+   * Remove a smart mailbox; a notification scope that named it becomes inbox.
+   */
+  delete(params: SmartDeleteParams): Promise<void>;
+  /** Put a smart mailbox at a position, moving the others along. */
+  move(params: SmartMoveParams): Promise<void>;
+}
+
+function smartClient(t: Transport): SmartClient {
+  return {
+    list: (params = {}) => t.call<SmartMailbox[]>("smart.list", params),
+    create: (params) => t.call<SmartMailbox>("smart.create", params),
+    update: (params) => t.call<SmartMailbox>("smart.update", params),
+    delete: (params) => t.call<null>("smart.delete", params).then(() => undefined),
+    move: (params) => t.call<null>("smart.move", params).then(() => undefined),
+  };
+}
+
 // ---- sync ----
 
 /** What an account's sync is doing. */
@@ -1783,6 +2071,38 @@ function threadClient(t: Transport): ThreadClient {
 export type ViewOpKind = "insert" | "remove";
 export const ViewOpKindValues: readonly ViewOpKind[] = ["insert", "remove"];
 
+/** How a list of conditions combines (docs/design/organize.md). */
+export type ConditionMatch = "all" | "any";
+export const ConditionMatchValues: readonly ConditionMatch[] = ["all", "any"];
+
+/**
+ * What a condition looks at; docs/design/organize.md lists the ops and values
+ * each takes.
+ */
+export type ConditionField = "from" | "to" | "cc" | "recipient" | "tome" | "ccme" | "subject" | "content" | "filename" | "listid" | "account" | "mailbox" | "role" | "received" | "sent" | "unread" | "flagged" | "attachments" | "color" | "vip" | "contact" | "reminder";
+export const ConditionFieldValues: readonly ConditionField[] = ["from", "to", "cc", "recipient", "tome", "ccme", "subject", "content", "filename", "listid", "account", "mailbox", "role", "received", "sent", "unread", "flagged", "attachments", "color", "vip", "contact", "reminder"];
+
+/**
+ * How a condition compares; which fields take which ops is in
+ * docs/design/organize.md.
+ */
+export type ConditionOp = "contains" | "notcontains" | "is" | "isnot" | "begins" | "ends" | "anyof" | "today" | "yesterday" | "thisweek" | "thismonth" | "thisyear" | "within" | "notwithin" | "on" | "since" | "before";
+export const ConditionOpValues: readonly ConditionOp[] = ["contains", "notcontains", "is", "isnot", "begins", "ends", "anyof", "today", "yesterday", "thisweek", "thismonth", "thisyear", "within", "notwithin", "on", "since", "before"];
+
+/** One condition, as Mail.app's editors show it. */
+export interface Condition {
+  field: ConditionField;
+  op: ConditionOp;
+  /** Empty for ops that take none. */
+  value: string;
+}
+
+/** Conditions, combined by match. An empty list matches every message. */
+export interface Conditions {
+  match: ConditionMatch;
+  conditions: Condition[];
+}
+
 /**
  * Which messages a view lists, newest first. Every field that is set must
  * match.
@@ -1813,6 +2133,12 @@ export interface ViewQuery {
   role?: MailboxRole;
   /** One row per thread: its newest message that matches. */
   threads?: boolean;
+  /** Conditions every listed message also meets. */
+  conditions?: Conditions;
+  /**
+   * The messages of a smart mailbox, which the view follows as it is edited.
+   */
+  smartMailboxId?: number;
 }
 
 /** An open view. */
@@ -1882,6 +2208,63 @@ function viewClient(t: Transport): ViewClient {
   };
 }
 
+// ---- vip ----
+
+/** One VIP address. */
+export interface Vip {
+  /** Lowercased. */
+  address: string;
+  /**
+   * The name to show: the person's in People, else the last one seen, else
+   * empty.
+   */
+  name: string;
+  /** The person in People with this address, when there is one. */
+  personId?: number;
+}
+
+/** Params of vip.list. */
+export type VipListParams = Record<string, never>;
+
+/** Params of vip.add. */
+export interface VipAddParams {
+  addresses?: string[];
+  personId?: number;
+}
+
+/** Params of vip.remove. */
+export interface VipRemoveParams {
+  addresses?: string[];
+  personId?: number;
+}
+
+/** VIPs were added or removed. */
+export type VipChanged = Record<string, never>;
+
+/**
+ * VIP senders: addresses whose mail gets a star, a mailbox of its own, and
+ * can be the only mail that notifies (docs/design/organize.md).
+ */
+export interface VipClient {
+  /** Every VIP, by name, then address. */
+  list(params?: VipListParams): Promise<Vip[]>;
+  /**
+   * Make addresses VIPs, or every address of a person. Addresses already VIPs
+   * stay as they are.
+   */
+  add(params?: VipAddParams): Promise<Vip[]>;
+  /** Stop addresses being VIPs, or every address of a person. */
+  remove(params?: VipRemoveParams): Promise<void>;
+}
+
+function vipClient(t: Transport): VipClient {
+  return {
+    list: (params = {}) => t.call<Vip[]>("vip.list", params),
+    add: (params = {}) => t.call<Vip[]>("vip.add", params),
+    remove: (params = {}) => t.call<null>("vip.remove", params).then(() => undefined),
+  };
+}
+
 /** A server notification. Durable events carry seq. */
 export type Event =
   | { event: "account.changed"; seq?: number; data: AccountChanged }
@@ -1893,9 +2276,13 @@ export type Event =
   | { event: "message.removed"; seq?: number; data: MessageRemoved }
   | { event: "outbox.changed"; seq?: number; data: OutboxChanged }
   | { event: "people.changed"; seq?: number; data: PeopleChanged }
+  | { event: "rule.changed"; seq?: number; data: RuleChanged }
+  | { event: "settings.changed"; seq?: number; data: SettingsChanged }
+  | { event: "smart.changed"; seq?: number; data: SmartChanged }
   | { event: "sync.progress"; seq?: number; data: SyncProgress }
   | { event: "tasks.changed"; seq?: number; data: TasksChanged }
   | { event: "view.delta"; seq?: number; data: ViewDelta }
+  | { event: "vip.changed"; seq?: number; data: VipChanged }
 ;
 
 /** Every method's wire name, in schema order. */
@@ -1945,17 +2332,32 @@ export const METHODS = [
   "message.move",
   "message.copy",
   "message.delete",
+  "message.remind",
   "oauth.setClient",
   "oauth.getClient",
   "outbox.list",
   "outbox.cancel",
   "outbox.retry",
+  "outbox.reschedule",
   "people.list",
   "people.get",
   "people.card",
   "people.photo",
   "people.add",
   "rpc.hello",
+  "rule.list",
+  "rule.create",
+  "rule.update",
+  "rule.delete",
+  "rule.move",
+  "rule.apply",
+  "settings.get",
+  "settings.set",
+  "smart.list",
+  "smart.create",
+  "smart.update",
+  "smart.delete",
+  "smart.move",
   "sync.status",
   "sync.now",
   "sync.pim",
@@ -1967,6 +2369,9 @@ export const METHODS = [
   "view.open",
   "view.range",
   "view.close",
+  "vip.list",
+  "vip.add",
+  "vip.remove",
 ] as const;
 
 /** The typed maild API over a Transport. */
@@ -1983,10 +2388,14 @@ export class Client {
   readonly outbox: OutboxClient;
   readonly people: PeopleClient;
   readonly rpc: RPCClient;
+  readonly rule: RuleClient;
+  readonly settings: SettingsClient;
+  readonly smart: SmartClient;
   readonly sync: SyncClient;
   readonly tasks: TasksClient;
   readonly thread: ThreadClient;
   readonly view: ViewClient;
+  readonly vip: VipClient;
 
   constructor(readonly transport: Transport) {
     this.account = accountClient(transport);
@@ -2001,9 +2410,13 @@ export class Client {
     this.outbox = outboxClient(transport);
     this.people = peopleClient(transport);
     this.rpc = rpcClient(transport);
+    this.rule = ruleClient(transport);
+    this.settings = settingsClient(transport);
+    this.smart = smartClient(transport);
     this.sync = syncClient(transport);
     this.tasks = tasksClient(transport);
     this.thread = threadClient(transport);
     this.view = viewClient(transport);
+    this.vip = vipClient(transport);
   }
 }

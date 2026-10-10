@@ -118,7 +118,7 @@ const SERVER: Record<"imap" | "smtp", ServerConfig> = {
   smtp: { host: "", port: 465, tls: "tls", username: "" },
 };
 
-/** emptyAccount is a new account's form: read-only by default during M4's trial. */
+/** emptyAccount is a new account's form: writable, since M5 (parity P-952). */
 function emptyAccount(): AccountFormValue {
   return {
     kind: "imap",
@@ -127,7 +127,7 @@ function emptyAccount(): AccountFormValue {
     auth: "password",
     imap: { ...SERVER.imap },
     smtp: { ...SERVER.smtp },
-    readOnly: true,
+    readOnly: false,
     notify: true,
     password: "",
     services: [],

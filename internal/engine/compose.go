@@ -913,7 +913,7 @@ func toAPIAttachment(a store.DraftAttachment) api.DraftAttachment {
 func toAPIOutbox(o store.OutboxItem) api.OutboxItem {
 	out := api.OutboxItem{
 		ID: o.ID, AccountID: o.AccountID, Subject: o.Subject, To: toAPIAddresses(o.To),
-		State: api.OutboxState(o.State), Attempts: int64(o.Attempts),
+		State: api.OutboxState(o.State), Attempts: int64(o.Attempts), Scheduled: o.Scheduled,
 	}
 	if o.DraftID != 0 {
 		out.DraftID = &o.DraftID

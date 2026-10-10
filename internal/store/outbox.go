@@ -23,20 +23,22 @@ type OutboxItem struct {
 	To         []Address
 	Attempts   int
 	LastError  string
+	Scheduled  bool // Send Later: due at a chosen time, not in its undo window
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
 
 // outboxCols are the outbox columns scanOutbox reads, in order.
 const outboxCols = `id, account_id, draft_id, state, send_at, blob_id, msgid_hdr, from_addr,
-	rcpt_json, subject, to_json, attempts, last_error, created_at, updated_at`
+	rcpt_json, subject, to_json, attempts, last_error, scheduled, created_at, updated_at`
 
 // outboxSelect is the base SELECT for a full outbox row.
 const outboxSelect = `SELECT ` + outboxCols + ` FROM outbox`
 
 // QueueOutbox inserts a queued message with state queued, attempts 0 and an
 // empty last_error; created_at and updated_at are the transaction clock.
-// o.ID, State, Attempts, LastError and the times are ignored. It returns
+// o.ID, State, Attempts, LastError and the times are ignored; Scheduled
+// marks a Send Later row. It returns
 // the row as GetOutbox reads it, with the new ID.
 func (t *Tx) QueueOutbox(ctx context.Context, o OutboxItem) (OutboxItem, error) {
 	if o.Recipients == nil {
@@ -56,10 +58,10 @@ func (t *Tx) QueueOutbox(ctx context.Context, o OutboxItem) (OutboxItem, error) 
 	now := FormatTime(t.Now())
 	var id int64
 	err = t.QueryRowContext(ctx, `INSERT INTO outbox (account_id, draft_id, state, send_at, blob_id,
-		msgid_hdr, from_addr, rcpt_json, subject, to_json, attempts, last_error, created_at, updated_at)
-		VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?) RETURNING id`,
+		msgid_hdr, from_addr, rcpt_json, subject, to_json, attempts, last_error, scheduled, created_at, updated_at)
+		VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?, 0, '', ?, ?, ?) RETURNING id`,
 		o.AccountID, nullInt64(o.DraftID), FormatTime(o.SendAt), o.BlobID, o.MessageID, o.From,
-		string(rcpt), o.Subject, string(to), now, now).Scan(&id)
+		string(rcpt), o.Subject, string(to), bit(o.Scheduled), now, now).Scan(&id)
 	if err != nil {
 		return OutboxItem{}, fmt.Errorf("queue outbox: %w", err)
 	}
@@ -239,7 +241,7 @@ func scanOutbox(row rowScanner) (OutboxItem, error) {
 	)
 	if err := row.Scan(&o.ID, &o.AccountID, &draftID, &o.State, &sendAt, &o.BlobID,
 		&o.MessageID, &o.From, &rcptJSON, &o.Subject, &toJSON, &o.Attempts, &o.LastError,
-		&createdAt, &updatedAt); err != nil {
+		&o.Scheduled, &createdAt, &updatedAt); err != nil {
 		return OutboxItem{}, err
 	}
 	o.DraftID = draftID.Int64

@@ -44,6 +44,7 @@ function item(over: Partial<OutboxItem>): OutboxItem {
     to: [{ name: "Ann", address: "ann@x.test" }],
     state: "queued",
     sendAt: "2026-10-07T12:00:10Z",
+    scheduled: false,
     attempts: 0,
     ...over,
   };

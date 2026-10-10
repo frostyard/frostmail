@@ -737,11 +737,12 @@ Errors: `notFound`.
 
 ### `draft.send`
 
-Queue a draft for sending after the undo delay. Fails with invalidParams when it has no recipients, an address does not parse, or it is too large.
+Queue a draft for sending after the undo delay, or at sendAt (Send Later). Fails with invalidParams when it has no recipients, an address does not parse, or it is too large.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | `int` |  |
+| `sendAt` | `time` (optional) | Send Later: a time past the undo delay queues the message scheduled, with this time as its Date; an earlier one sends it after the undo delay. |
 
 Result: `OutboxItem`.
 Errors: `notFound`, `invalidParams`.
@@ -1058,6 +1059,18 @@ Move messages to the account's Trash; messages already in Trash are deleted from
 Result: none (`null`).
 Errors: `notFound`.
 
+### `message.remind`
+
+Remind Me: at a time, bring messages back to the top of their account's inbox and notify (ADR-0025). Without at, clear their reminders. Conflict for a read-only account's messages.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+| `at` | `time` (optional) | In the future. |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`, `conflict`.
+
 ### Event `message.changed` (durable)
 
 Messages were added or changed (flags, mailbox, fetched body).
@@ -1116,6 +1129,7 @@ A row of a message list.
 | `hasAttachments` | `bool` |  |
 | `size` | `int` | Size in bytes on the server. |
 | `threadCount` | `int` | Messages in the thread across every mailbox; 1 for a message alone. |
+| `remindAt` | `time` (optional) | When a pending Remind Me reminder brings the message back. |
 
 ### Type `Part`
 
@@ -1273,6 +1287,18 @@ Queue a failed message again, now.
 Result: none (`null`).
 Errors: `notFound`, `conflict`.
 
+### `outbox.reschedule`
+
+Give a scheduled message a new time and rebuild it with that time as its Date; a time within the undo delay sends it after the undo delay. Conflict unless the message is queued and scheduled.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `sendAt` | `time` |  |
+
+Result: `OutboxItem`.
+Errors: `notFound`, `conflict`, `invalidParams`.
+
 ### Event `outbox.changed` (durable)
 
 An outbox message changed state.
@@ -1297,6 +1323,7 @@ One message on its way out.
 | `to` | `[]Address` |  |
 | `state` | `OutboxState` |  |
 | `sendAt` | `time` (optional) | When a queued message goes out. |
+| `scheduled` | `bool` | Send Later: queued for a chosen time rather than in its undo window. |
 | `attempts` | `int` |  |
 | `error` | `string` (optional) | The last error, when there was one. |
 
@@ -1498,6 +1525,278 @@ Server identity and the negotiated protocol.
 | `protocol` | `int` | Protocol major version the server speaks. |
 | `server` | `string` | Server name and version, for logs. |
 
+## rule
+
+Rules that act on new inbox mail in maild, before it notifies, and on chosen messages with apply (ADR-0024, docs/design/organize.md).
+
+### `rule.list`
+
+Every rule, in order.
+
+No params.
+
+Result: `[]Rule`.
+
+### `rule.create`
+
+Add a rule at the end of the list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | `string` |  |
+| `conditions` | `Conditions` |  |
+| `actions` | `[]RuleAction` |  |
+| `enabled` | `bool` (optional) | Default true. |
+
+Result: `Rule`.
+Errors: `invalidParams`, `notFound`.
+
+### `rule.update`
+
+Change the fields given.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` (optional) |  |
+| `conditions` | `Conditions` (optional) |  |
+| `actions` | `[]RuleAction` (optional) |  |
+| `enabled` | `bool` (optional) |  |
+
+Result: `Rule`.
+Errors: `invalidParams`, `notFound`.
+
+### `rule.delete`
+
+Remove a rule.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### `rule.move`
+
+Put a rule at a position, moving the others along.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `position` | `int` |  |
+
+Result: none (`null`).
+Errors: `invalidParams`, `notFound`.
+
+### `rule.apply`
+
+Run the enabled rules, in order, on these messages now; conflict when one is in a read-only account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+
+Result: `RuleApplied`.
+Errors: `notFound`, `conflict`.
+
+### Event `rule.changed` (durable)
+
+A rule was created, changed, moved or deleted.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `deleted` | `bool` |  |
+
+### Type `RuleAction`
+
+One action.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `RuleActionKind` |  |
+| `mailboxId` | `int` (optional) | For move and copy. |
+| `color` | `int` (optional) | For flag: 1-7. |
+
+### Type `Rule`
+
+One rule.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` |  |
+| `position` | `int` | Rules run in position order, from 0. |
+| `enabled` | `bool` |  |
+| `conditions` | `Conditions` |  |
+| `actions` | `[]RuleAction` | Run in order: flags and read marks, then copies, then the move or delete. |
+| `problem` | `string` (optional) | Why an action cannot run, such as a mailbox that is gone. |
+
+### Type `RuleApplied`
+
+What apply did.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `matched` | `int` | Messages that met at least one rule's conditions. |
+
+### Enum `RuleActionKind`
+
+What a rule does to a message that meets its conditions.
+
+| Value | Meaning |
+| --- | --- |
+| `move` | Move to mailboxId (messages of that mailbox's account only). |
+| `copy` | Copy to mailboxId (messages of that mailbox's account only). |
+| `read` | Mark as read. |
+| `flag` | Flag with color (1-7). |
+| `delete` | Move to Trash, as message.delete. |
+| `notify` | Notify, whatever the notification scope. |
+| `stop` | Stop evaluating rules for this message. |
+
+## settings
+
+Preferences maild keeps for every account, so they hold with the app closed and look the same from mailctl (ADR-0026, docs/design/organize.md).
+
+### `settings.get`
+
+The current preferences.
+
+No params.
+
+Result: `Settings`.
+
+### `settings.set`
+
+Change the preferences given; the others stay. Returns them all.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `undoDelay` | `int` (optional) | 0, 10, 20 or 30. |
+| `notifyScope` | `NotifyScope` (optional) |  |
+| `notifySmartId` | `int` (optional) | Required with notifyScope smart. |
+| `flagNames` | `[]string` (optional) | Seven names, each at most 40 characters. |
+
+Result: `Settings`.
+Errors: `invalidParams`, `notFound`.
+
+### Event `settings.changed` (durable)
+
+A preference changed.
+
+No fields.
+
+### Type `Settings`
+
+Every preference, with its current value.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `undoDelay` | `int` | Seconds a sent message waits in the outbox: 0, 10, 20 or 30. |
+| `notifyScope` | `NotifyScope` |  |
+| `notifySmartId` | `int` (optional) | The smart mailbox, when notifyScope is smart. |
+| `flagNames` | `[]string` | Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray). |
+
+### Enum `NotifyScope`
+
+Which new mail notifies, after each account's own notify switch.
+
+| Value | Meaning |
+| --- | --- |
+| `inbox` | New mail in an inbox (the default). |
+| `vips` | New mail in an inbox from a VIP. |
+| `contacts` | New mail in an inbox from an address in People. |
+| `all` | New mail in any mailbox but Junk, Trash and Sent. |
+| `smart` | New mail that a smart mailbox lists (notifySmartId). |
+
+## smart
+
+Smart mailboxes: saved conditions listed as a mailbox, across accounts (ADR-0023, docs/design/organize.md).
+
+### `smart.list`
+
+Every smart mailbox, in sidebar order.
+
+No params.
+
+Result: `[]SmartMailbox`.
+
+### `smart.create`
+
+Add a smart mailbox at the end of the list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | `string` |  |
+| `conditions` | `Conditions` |  |
+| `includeTrash` | `bool` (optional) |  |
+| `includeSent` | `bool` (optional) |  |
+
+Result: `SmartMailbox`.
+Errors: `invalidParams`.
+
+### `smart.update`
+
+Change the fields given.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` (optional) |  |
+| `conditions` | `Conditions` (optional) |  |
+| `includeTrash` | `bool` (optional) |  |
+| `includeSent` | `bool` (optional) |  |
+
+Result: `SmartMailbox`.
+Errors: `invalidParams`, `notFound`.
+
+### `smart.delete`
+
+Remove a smart mailbox; a notification scope that named it becomes inbox.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### `smart.move`
+
+Put a smart mailbox at a position, moving the others along.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `position` | `int` |  |
+
+Result: none (`null`).
+Errors: `invalidParams`, `notFound`.
+
+### Event `smart.changed` (durable)
+
+A smart mailbox was created, changed, moved or deleted.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `deleted` | `bool` |  |
+
+### Type `SmartMailbox`
+
+One smart mailbox.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` |  |
+| `position` | `int` | Its place in the sidebar, from 0. |
+| `conditions` | `Conditions` |  |
+| `includeTrash` | `bool` | Also list messages that are only in Trash. |
+| `includeSent` | `bool` | Also list messages that are only in Sent. |
+| `unread` | `int` | Unread messages it lists. |
+
 ## sync
 
 Account synchronization state and control.
@@ -1682,7 +1981,7 @@ Open a view; deltas follow on this connection without events.subscribe.
 | `query` | `ViewQuery` |  |
 
 Result: `ViewInfo`.
-Errors: `invalidParams`.
+Errors: `invalidParams`, `notFound`.
 
 ### `view.range`
 
@@ -1718,6 +2017,25 @@ A view's rows changed. Rows a client holds are moved by the ops; fetch inserted 
 | `count` | `int` | The row count after the ops. |
 | `ops` | `[]ViewOp` |  |
 
+### Type `Condition`
+
+One condition, as Mail.app's editors show it.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `field` | `ConditionField` |  |
+| `op` | `ConditionOp` |  |
+| `value` | `string` | Empty for ops that take none. |
+
+### Type `Conditions`
+
+Conditions, combined by match. An empty list matches every message.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `match` | `ConditionMatch` |  |
+| `conditions` | `[]Condition` |  |
+
 ### Type `ViewQuery`
 
 Which messages a view lists, newest first. Every field that is set must match.
@@ -1732,6 +2050,8 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `hasAttachments` | `bool` (optional) | true: only messages with attachments; false: only those without. |
 | `role` | `MailboxRole` (optional) | Messages in mailboxes with this role in any account, such as every inbox. |
 | `threads` | `bool` (optional) | One row per thread: its newest message that matches. |
+| `conditions` | `Conditions` (optional) | Conditions every listed message also meets. |
+| `smartMailboxId` | `int` (optional) | The messages of a smart mailbox, which the view follows as it is edited. |
 
 ### Type `ViewInfo`
 
@@ -1760,3 +2080,117 @@ How a delta changes a view.
 | --- | --- |
 | `insert` | count rows were inserted at index at. |
 | `remove` | count rows starting at index at were removed. |
+
+### Enum `ConditionMatch`
+
+How a list of conditions combines (docs/design/organize.md).
+
+| Value | Meaning |
+| --- | --- |
+| `all` | Every condition must hold. |
+| `any` | At least one condition must hold. |
+
+### Enum `ConditionField`
+
+What a condition looks at; docs/design/organize.md lists the ops and values each takes.
+
+| Value | Meaning |
+| --- | --- |
+| `from` | The sender. |
+| `to` | An address or name in To. |
+| `cc` | An address or name in Cc. |
+| `recipient` | Any recipient, To or Cc, by the words of the search index. |
+| `tome` | One of the account's own addresses is in To. |
+| `ccme` | One of the account's own addresses is in Cc. |
+| `subject` |  |
+| `content` | Anything the search index holds: subject, addresses, body and attachment names. |
+| `filename` | An attachment's file name. |
+| `listid` | The List-Id header. |
+| `account` | Account IDs. |
+| `mailbox` | Mailbox IDs. |
+| `role` | Mailbox roles, in any account. |
+| `received` | The arrival date. |
+| `sent` | The Date header. |
+| `unread` |  |
+| `flagged` |  |
+| `attachments` | Has attachments. |
+| `color` | The flag color, 1-7. |
+| `vip` | The sender is a VIP. |
+| `contact` | The sender is in People. |
+| `reminder` | A Remind Me reminder is pending. |
+
+### Enum `ConditionOp`
+
+How a condition compares; which fields take which ops is in docs/design/organize.md.
+
+| Value | Meaning |
+| --- | --- |
+| `contains` | Every word of the value, as prefixes; a quoted value is a phrase. |
+| `notcontains` | Not contains; also true when the field is empty. |
+| `is` | Equal, ignoring case; true or false for yes-or-no fields. |
+| `isnot` | Not equal; also true when the field is empty. |
+| `begins` |  |
+| `ends` |  |
+| `anyof` | One of a comma-separated list of IDs, roles or colors. |
+| `today` |  |
+| `yesterday` |  |
+| `thisweek` | Since Monday. |
+| `thismonth` |  |
+| `thisyear` |  |
+| `within` | Since the start of the day N units ago; the value is N and d, w, m or y, such as 7d. |
+| `notwithin` |  |
+| `on` | That day, YYYY-MM-DD. |
+| `since` | From that day, YYYY-MM-DD. |
+| `before` | Before that day, YYYY-MM-DD. |
+
+## vip
+
+VIP senders: addresses whose mail gets a star, a mailbox of its own, and can be the only mail that notifies (docs/design/organize.md).
+
+### `vip.list`
+
+Every VIP, by name, then address.
+
+No params.
+
+Result: `[]Vip`.
+
+### `vip.add`
+
+Make addresses VIPs, or every address of a person. Addresses already VIPs stay as they are.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `addresses` | `[]string` (optional) |  |
+| `personId` | `int` (optional) |  |
+
+Result: `[]Vip`.
+Errors: `invalidParams`, `notFound`.
+
+### `vip.remove`
+
+Stop addresses being VIPs, or every address of a person.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `addresses` | `[]string` (optional) |  |
+| `personId` | `int` (optional) |  |
+
+Result: none (`null`).
+Errors: `invalidParams`, `notFound`.
+
+### Event `vip.changed` (durable)
+
+VIPs were added or removed.
+
+No fields.
+
+### Type `Vip`
+
+One VIP address.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `address` | `string` | Lowercased. |
+| `name` | `string` | The name to show: the person's in People, else the last one seen, else empty. |
+| `personId` | `int` (optional) | The person in People with this address, when there is one. |

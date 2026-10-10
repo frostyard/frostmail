@@ -158,7 +158,7 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-951 | Accounts, servers, sign-in | Same, with discovery and Google sign-in | Have | `SettingsWindow.add.test.tsx`, `AccountForm.test.tsx` |
-| P-952 | New accounts are writable | Read-only by default "until M5" | M5·1 | |
+| P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` |
 | P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |
 | P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |
 | P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts |

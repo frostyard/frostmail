@@ -156,6 +156,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
+		Settings: eng.Settings(), Vip: eng.Vips(), Smart: eng.Smart(), Rule: eng.Rules(),
 	})
 	if err != nil {
 		t.Fatal(err)

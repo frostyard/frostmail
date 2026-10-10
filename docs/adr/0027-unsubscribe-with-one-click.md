@@ -28,8 +28,8 @@ offering only the `mailto:` form.
 
 ## Decision
 
-- **Which way.** maild works out a message's unsubscribe method from its
-  stored headers:
+- **Which way.** maild works out a message's unsubscribe method from the
+  stored message's headers:
   1. **One-click:** an `https:` URI in `List-Unsubscribe`, the header
      `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, and `dkim=pass`
      in the message's first `Authentication-Results`. maild sends an HTTPS
@@ -72,9 +72,10 @@ offering only the `mailto:` form.
 - A forged message without the provider's `dkim=pass` gets the `mailto:`
   or web-page method, never the `POST`. Accounts whose server adds no
   `Authentication-Results` never get one-click.
-- maild must store `List-Unsubscribe-Post`, which it does not fetch today
-  (Phase 1's migration and `imapx`'s header list). For mail stored before
-  that, it reads the header from the stored message.
+- maild reads `List-Unsubscribe-Post` from the stored message, which the
+  reader has fetched by the time it shows the banner. It is not added to
+  the headers every sync fetches, which would change every pass's `FETCH`
+  and the recorded replays.
 
 ## Alternatives considered
 

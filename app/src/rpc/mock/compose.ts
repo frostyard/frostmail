@@ -269,6 +269,7 @@ export class MockCompose {
       subject: d.content.subject,
       to: d.content.to,
       state: "queued",
+      scheduled: false,
       attempts: 0,
     };
     this.outbox.set(o.id, o);

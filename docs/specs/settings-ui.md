@@ -298,8 +298,7 @@ interface ServicesSectionProps {
 ### Behavior (container)
 
 - **Add:** + selects "New Account" with an empty form (kind `imap`, auth
-  `password`, TLS defaults, notify on, and read-only on until M5, as
-  [accounts.md](../design/accounts.md#read-only-accounts) says). Find Settings calls
+  `password`, TLS defaults, notify on, read-only off; parity P-952). Find Settings calls
   `account.discover` and fills kind, the first auth kind, and the servers
   it found; a found username left empty becomes the email. Add Account
   calls `account.create`; then for password auth `account.setPassword`

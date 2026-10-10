@@ -94,10 +94,12 @@ methods:
     errors: [notFound]
   - name: send
     doc: >-
-      Queue a draft for sending after the undo delay. Fails with invalidParams
-      when it has no recipients, an address does not parse, or it is too large.
+      Queue a draft for sending after the undo delay, or at sendAt (Send
+      Later). Fails with invalidParams when it has no recipients, an address
+      does not parse, or it is too large.
     params:
       - {name: id, type: int}
+      - {name: sendAt, type: time, optional: true, doc: "Send Later: a time past the undo delay queues the message scheduled, with this time as its Date; an earlier one sends it after the undo delay."}
     result: OutboxItem
     errors: [notFound, invalidParams]
 events:

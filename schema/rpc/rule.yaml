@@ -1,0 +1,83 @@
+domain: rule
+doc: >-
+  Rules that act on new inbox mail in maild, before it notifies, and on
+  chosen messages with apply (ADR-0024, docs/design/organize.md).
+enums:
+  - name: RuleActionKind
+    doc: What a rule does to a message that meets its conditions.
+    values:
+      - {name: move, doc: "Move to mailboxId (messages of that mailbox's account only)."}
+      - {name: copy, doc: "Copy to mailboxId (messages of that mailbox's account only)."}
+      - {name: read, doc: "Mark as read."}
+      - {name: flag, doc: "Flag with color (1-7)."}
+      - {name: delete, doc: "Move to Trash, as message.delete."}
+      - {name: notify, doc: "Notify, whatever the notification scope."}
+      - {name: stop, doc: "Stop evaluating rules for this message."}
+types:
+  - name: RuleAction
+    doc: One action.
+    fields:
+      - {name: kind, type: RuleActionKind}
+      - {name: mailboxId, type: int, optional: true, doc: "For move and copy."}
+      - {name: color, type: int, optional: true, doc: "For flag: 1-7."}
+  - name: Rule
+    doc: One rule.
+    fields:
+      - {name: id, type: int}
+      - {name: name, type: string}
+      - {name: position, type: int, doc: "Rules run in position order, from 0."}
+      - {name: enabled, type: bool}
+      - {name: conditions, type: Conditions}
+      - {name: actions, type: "[]RuleAction", doc: "Run in order: flags and read marks, then copies, then the move or delete."}
+      - {name: problem, type: string, optional: true, doc: "Why an action cannot run, such as a mailbox that is gone."}
+  - name: RuleApplied
+    doc: What apply did.
+    fields:
+      - {name: matched, type: int, doc: "Messages that met at least one rule's conditions."}
+methods:
+  - name: list
+    doc: Every rule, in order.
+    result: "[]Rule"
+  - name: create
+    doc: Add a rule at the end of the list.
+    params:
+      - {name: name, type: string}
+      - {name: conditions, type: Conditions}
+      - {name: actions, type: "[]RuleAction"}
+      - {name: enabled, type: bool, optional: true, doc: "Default true."}
+    result: Rule
+    errors: [invalidParams, notFound]
+  - name: update
+    doc: Change the fields given.
+    params:
+      - {name: id, type: int}
+      - {name: name, type: string, optional: true}
+      - {name: conditions, type: Conditions, optional: true}
+      - {name: actions, type: "[]RuleAction", optional: true}
+      - {name: enabled, type: bool, optional: true}
+    result: Rule
+    errors: [invalidParams, notFound]
+  - name: delete
+    doc: Remove a rule.
+    params:
+      - {name: id, type: int}
+    errors: [notFound]
+  - name: move
+    doc: Put a rule at a position, moving the others along.
+    params:
+      - {name: id, type: int}
+      - {name: position, type: int}
+    errors: [invalidParams, notFound]
+  - name: apply
+    doc: Run the enabled rules, in order, on these messages now; conflict when one is in a read-only account.
+    params:
+      - {name: ids, type: "[]int"}
+    result: RuleApplied
+    errors: [notFound, conflict]
+events:
+  - name: changed
+    doc: A rule was created, changed, moved or deleted.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: deleted, type: bool}

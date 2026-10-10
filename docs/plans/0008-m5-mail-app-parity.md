@@ -81,7 +81,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   (the condition editor the smart mailbox sheet and the rule editor
   share).
 - IDL and `make gen` for Phases 2–5: `settings.get` and `set`, `vip.*`,
-  `smartMailbox.*`, `rule.*` with `rule.apply`, `message.remind`,
+  `smart.*`, `rule.*` with `rule.apply`, `message.remind`,
   `draft.send {sendAt}`, `outbox.reschedule`; `ViewQuery` gains
   `conditions` and `smartMailboxId`; their events. Migration 0011, engine
   stubs. Phase 6's contracts come with Phase 6.
@@ -112,7 +112,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 - Planner: `ViewQuery.smartMailboxId`, recomputing views with conditions
   when what they depend on changes, and counts.
-- Cards: the smart mailbox store and `smartMailbox.*`; the condition
+- Cards: the smart mailbox store and `smart.*`; the condition
   editor; smart mailboxes in the sidebar with their sheet and Save from the
   search field; the filter bar's To: Me, Cc: Me and VIPs (P-205).
 - **Done when:** smart mailboxes over several accounts, with any and all

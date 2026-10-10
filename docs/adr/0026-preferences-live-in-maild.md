@@ -30,7 +30,7 @@ through iCloud.
   a key and value table with typed accessors, and every change emits
   `settings.changed`.
 - **Lists have their own tables and methods,** each with an event:
-  `vip.*`, `smartMailbox.*`, `rule.*`, favorites, blocked senders and
+  `vip.*`, `smart.*`, `rule.*`, favorites, blocked senders and
   muted conversations.
 - **VIPs are addresses,** lowercased. Adding a person from People or a
   contact card adds each of their addresses; the VIPs mailbox shows one

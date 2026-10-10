@@ -5,7 +5,7 @@ Living document. Rationale: [ADR-0023](../adr/0023-one-condition-language-for-sm
 [ADR-0025](../adr/0025-maild-keeps-send-later-remind-me-and-undo-send.md),
 [ADR-0026](../adr/0026-preferences-live-in-maild.md).
 Contracts: [specs/rpc-api.md](../specs/rpc-api.md) (`settings.*`, `vip.*`,
-`smartMailbox.*`, `rule.*`, `message.remind`),
+`smart.*`, `rule.*`, `message.remind`),
 [specs/organize-ui.md](../specs/organize-ui.md),
 [specs/parity.md](../specs/parity.md).
 
@@ -34,35 +34,38 @@ into one predicate over `messages m` each time a view or rule needs it
 
 ### Fields and operators
 
+Field and operator names are single lowercase words, as the IDL's enums
+require.
+
 | Field | Ops | Value | SQL |
 | --- | --- | --- | --- |
-| `from` | `contains`, `doesNotContain` | words | FTS `from_text` |
-| `from` | `is`, `beginsWith`, `endsWith` | text | `from_addr` or `from_name`, case-insensitive |
-| `to`, `cc` | `contains`, `is`, `beginsWith`, `endsWith` | text | any address or name in `to_json` or `cc_json` |
-| `anyRecipient` | `contains`, `doesNotContain` | words | FTS `to_text` (To and Cc) |
-| `toMe`, `ccMe` | `is` | `true`, `false` | an address of the account's identities in `to_json` or `cc_json` |
-| `subject` | `contains`, `doesNotContain` | words | FTS `subject` |
-| `subject` | `is`, `beginsWith`, `endsWith` | text | `subject`, case-insensitive |
-| `content` | `contains`, `doesNotContain` | words | FTS, every column |
-| `attachmentName` | `contains`, `doesNotContain` | words | FTS `attachment_names` |
-| `listId` | `contains`, `is` | text | `list_id` |
-| `account` | `is`, `isNot`, `isAnyOf` | account IDs | `m.account_id` |
-| `mailbox` | `is`, `isNot`, `isAnyOf` | mailbox IDs | a membership |
-| `role` | `is`, `isNot`, `isAnyOf` | mailbox roles | a membership in a mailbox of the role |
-| `dateReceived`, `dateSent` | `today`, `yesterday`, `thisWeek`, `thisMonth`, `thisYear` | none | the arrival date (`internal_date`) or the `Date` header |
-| `dateReceived`, `dateSent` | `inLast`, `notInLast` | `N` and `d`, `w`, `m` or `y` | since the start of the day N days (weeks, 30-day months, 365-day years) ago |
-| `dateReceived`, `dateSent` | `on`, `since`, `before` | `YYYY-MM-DD` | that day; from that day; before that day |
-| `unread`, `flagged`, `hasAttachments` | `is` | `true`, `false` | `seen`, `flagged`, `has_attachments` |
-| `flagColor` | `is`, `isNot`, `isAnyOf` | 1–7 | flagged with that color |
-| `senderIsVip` | `is` | `true`, `false` | `from_addr` in `vips` |
-| `senderInContacts` | `is` | `true`, `false` | `from_addr` in `contact_emails` |
-| `hasReminder` | `is` | `true`, `false` | a row in `message_reminders` |
+| `from` | `contains`, `notcontains` | words | FTS `from_text` |
+| `from` | `is`, `begins`, `ends` | text | `from_addr` or `from_name`, case-insensitive |
+| `to`, `cc` | `contains`, `is`, `begins`, `ends` | text | any address or name in `to_json` or `cc_json` |
+| `recipient` | `contains`, `notcontains` | words | FTS `to_text` (To and Cc) |
+| `tome`, `ccme` | `is` | `true`, `false` | an address of the account's identities in `to_json` or `cc_json` |
+| `subject` | `contains`, `notcontains` | words | FTS `subject` |
+| `subject` | `is`, `begins`, `ends` | text | `subject`, case-insensitive |
+| `content` | `contains`, `notcontains` | words | FTS, every column |
+| `filename` | `contains`, `notcontains` | words | FTS `attachment_names` |
+| `listid` | `contains`, `is` | text | `list_id` |
+| `account` | `is`, `isnot`, `anyof` | account IDs | `m.account_id` |
+| `mailbox` | `is`, `isnot`, `anyof` | mailbox IDs | a membership |
+| `role` | `is`, `isnot`, `anyof` | mailbox roles | a membership in a mailbox of the role |
+| `received`, `sent` | `today`, `yesterday`, `thisweek`, `thismonth`, `thisyear` | none | the arrival date (`internal_date`) or the `Date` header |
+| `received`, `sent` | `within`, `notwithin` | `N` and `d`, `w`, `m` or `y` (`7d`) | since the start of the day N days (weeks, 30-day months, 365-day years) ago |
+| `received`, `sent` | `on`, `since`, `before` | `YYYY-MM-DD` | that day; from that day; before that day |
+| `unread`, `flagged`, `attachments` | `is` | `true`, `false` | `seen`, `flagged`, `has_attachments` |
+| `color` | `is`, `isnot`, `anyof` | 1–7 | flagged with that color |
+| `vip` | `is` | `true`, `false` | `from_addr` in `vips` |
+| `contact` | `is` | `true`, `false` | `from_addr` in `contact_emails` |
+| `reminder` | `is` | `true`, `false` | a row in `message_reminders` |
 
 - "Words" are as in the search language: each word a prefix match, all of
   them required, and a value in double quotes a phrase.
-- `isAnyOf` takes IDs, roles or colors separated by commas.
+- `anyof` takes IDs, roles or colors separated by commas.
 - Weeks start on Monday. "This month" and "this year" are calendar ones.
-- `isNot` and `doesNotContain` include messages with no value at all (no
+- `isnot` and `notcontains` include messages with no value at all (no
   Cc, no attachment names).
 - A condition naming an account or mailbox that no longer exists matches
   nothing.
@@ -72,11 +75,11 @@ into one predicate over `messages m` each time a view or rule needs it
 `search.ToConditions(q)` turns a parsed search into conditions with
 `match: all`, exactly: a bare word or phrase is `content contains`;
 `from:`, `subject:` and `filename:` are their fields' `contains`; `to:`
-and `cc:` are `anyRecipient contains`; a negated term is `doesNotContain`;
-`is:` and `has:` are `unread`, `flagged` and `hasAttachments`; `in:` roles
-are one `role isAnyOf`; `after:`, `before:` and `on:` are `dateReceived
+and `cc:` are `recipient contains`; a negated term is `notcontains`;
+`is:` and `has:` are `unread`, `flagged` and `attachments`; `in:` roles
+are one `role anyof`; `after:`, `before:` and `on:` are `received
 since`, `before` and `on`; `newer_than:` and `older_than:` are
-`dateReceived inLast` and `notInLast`. A search scoped to one mailbox adds
+`received within` and `notwithin`. A search scoped to one mailbox adds
 `mailbox is`. The smart mailbox it saves includes Trash and Sent, as the
 search does.
 
@@ -90,17 +93,17 @@ the view manager recomputes every view with conditions when VIPs, people,
 smart mailboxes or settings change, and at local midnight.
 
 The sidebar's built-in sources are conditions too: Flagged's color rows
-are `flagColor is N`, VIPs is `senderIsVip is true`, one VIP is `from is
+are `color is N`, VIPs is `vip is true`, one VIP is `from is
 <address>` (each of a person's addresses, `any`), and Remind Me is
-`hasReminder is true`.
+`reminder is true`.
 
 ## Smart mailboxes
 
 `smart_mailboxes (id, name, position, conditions_json, include_trash,
-include_sent)`. `smartMailbox.list`, `create`, `update`, `delete` and
-`move` (position); `smartMailbox.changed`. Unless a smart mailbox includes
+include_sent)`. `smart.list`, `create`, `update`, `delete` and
+`move` (position); `smart.changed`. Unless a smart mailbox includes
 them, messages whose only mailboxes are Trash or Sent (by role) are left
-out. Its unread count is the view's, counted by `smartMailbox.list`.
+out. Its unread count is the view's, counted by `smart.list`.
 
 ## VIPs
 
@@ -124,8 +127,8 @@ by `settings.get` and `settings.set`; `settings.changed` after a change.
 | Setting | Values | Default |
 | --- | --- | --- |
 | `undoDelay` | 0, 10, 20, 30 (seconds) | 10 |
-| `notifyScope` | `inbox`, `vips`, `contacts`, `all`, `smartMailbox` | `inbox` |
-| `notifySmartMailboxId` | a smart mailbox, with `notifyScope: smartMailbox` | none |
+| `notifyScope` | `inbox`, `vips`, `contacts`, `all`, `smart` | `inbox` |
+| `notifySmartId` | a smart mailbox, with `notifyScope: smart` | none |
 | `flagNames` | seven strings | empty (Red … Gray) |
 
 ## Notifications
@@ -140,7 +143,7 @@ not only the inbox. Then `announceNew` keeps:
    - `vips`: in the inbox, from a VIP.
    - `contacts`: in the inbox, from an address in People.
    - `all`: in any mailbox but Junk, Trash and Sent.
-   - `smartMailbox`: matching the smart mailbox, in any mailbox.
+   - `smart`: matching the smart mailbox, in any mailbox.
 4. Plus the messages a rule's Send Notification named, whatever the scope.
 
 A smart mailbox deleted while it is the scope makes the scope `inbox`.
@@ -150,7 +153,7 @@ A smart mailbox deleted while it is the scope makes the scope `inbox`.
 `rules (id, position, name, enabled, conditions_json, actions_json)`.
 `rule.list`, `create`, `update`, `delete`, `move`, `apply`;
 `rule.changed`. Actions are
-`{kind: move | copy | markRead | flag | delete | notify | stop, mailboxId,
+`{kind: move | copy | read | flag | delete | notify | stop, mailboxId,
 color}`.
 
 - **Waiting mail.** `messages.rules_waiting` is set, in the inserting
