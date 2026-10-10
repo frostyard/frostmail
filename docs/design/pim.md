@@ -4,7 +4,7 @@ Status: designed for [M4.5](../plans/0007-m4.5-people-calendar-tasks.md);
 nothing here is built yet. Rationale:
 [ADR-0017](../adr/0017-sync-contacts-calendars-and-tasks.md) (protocols),
 [ADR-0018](../adr/0018-keep-contacts-events-and-tasks-as-sent.md) (storage),
-[ADR-0019](../adr/0019-answer-invitations-through-the-server.md)
+[ADR-0022](../adr/0022-mail-the-reply-the-server-will-not-send.md)
 (invitations), [ADR-0020](../adr/0020-one-window-for-mail-calendar-people-and-tasks.md)
 (one window). Contracts: `schema/rpc/{people,calendar,tasks}.yaml` and
 `specs/pim-ui.md`, written in Phase 1.
@@ -161,7 +161,7 @@ query flagged messages alongside tasks, and completing one clears the flag.
   events, and writes answers: the iTIP `REPLY` (RFC 5546) and the
   `PARTSTAT` patch of a stored copy (ADR-0018).
 - `calendar.invitation {messageId}` resolves the message's `UID` against
-  the account's events (ADR-0019) and returns the card: the event as the
+  the account's events (ADR-0022) and returns the card: the event as the
   message has it, the stored copy's ID, the user's answer (the stored
   copy's when there is one), whether the user can answer (a request to
   them, not older than the stored copy, in a writable account and
@@ -175,12 +175,17 @@ query flagged messages alongside tasks, and completing one clears the flag.
   - **Only the message:** an accepted or tentative invitation goes into the
     account's default calendar (the invitation without `METHOD`, a `put`
     that creates it); a declined one is not stored.
-  - **The reply:** unless the account's provider schedules
-    (`providers.DAV.Schedules`: Google and iCloud, to verify in Phase 5),
-    maild mails the organizer the `REPLY` (`text/calendar;
+  - **The reply** (ADR-0022): a stored copy on a provider that schedules
+    (`providers.DAV.Schedules`: Google, iCloud) is answered by its `put`
+    alone, unless the copy carries `SCHEDULE-AGENT=CLIENT` on `ORGANIZER`;
+    a new copy is answered by its `put` alone only where the provider also
+    schedules for copies a client creates (`SchedulesCopies`: Google). In
+    every other case maild mails the organizer the `REPLY` (`text/calendar;
     method=REPLY`, "Accepted: <summary>") through the outbox with the undo
-    delay. A declined or unstored answer is always mailed. Undo cancels
-    the mail; the calendar keeps the answer.
+    delay, and the copy it writes gets `SCHEDULE-AGENT=CLIENT` on
+    `ORGANIZER` so the server sends no second one. A declined or unstored
+    answer is always mailed. The `REPLY` carries no `SCHEDULE-*`
+    parameters. Undo cancels the mail; the calendar keeps the answer.
   - One occurrence of a series is answered only when the series has a
     VEVENT for it (an override); otherwise `invalidParams`.
   - Read-only accounts and calendars, cancellations and replies are

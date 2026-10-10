@@ -41,12 +41,14 @@ type response struct {
 	organizer calendar.Attendee
 }
 
-// Respond answers an invitation (ADR-0019, docs/design/pim.md,
+// Respond answers an invitation (ADR-0022, docs/design/pim.md,
 // Invitations). The user's PARTSTAT changes in the stored event, whose put
 // is queued; an accepted or tentative invitation not yet stored goes into
-// the account's default calendar. Unless the account's server schedules,
-// maild also mails the organizer an iTIP REPLY through the outbox, with
-// the undo delay.
+// the account's default calendar. Unless the server tells the organizer
+// (a copy its scheduling delivered, or a new copy on a provider that
+// schedules those too), maild mails the organizer an iTIP REPLY through
+// the outbox, with the undo delay, and the copy it writes leaves
+// scheduling to the client.
 func (c calendarService) Respond(ctx context.Context, p *api.CalendarRespondParams) (*api.CalendarEvent, error) {
 	switch p.Answer {
 	case api.PartStatAccepted, api.PartStatDeclined, api.PartStatTentative:
@@ -63,11 +65,14 @@ func (c calendarService) Respond(ctx context.Context, p *api.CalendarRespondPara
 	if r.organizer.Email == "" || slices.Contains(r.emails, r.organizer.Email) {
 		return nil, api.Conflict("the user organizes this event")
 	}
-	mail := !providers.ForKind(r.acct.Kind).DAV.Schedules
+	dav := providers.ForKind(r.acct.Kind).DAV
 	var id int64
+	var mail bool
 	if r.stored != nil {
+		mail = !dav.Schedules || itip.ClientScheduled(r.src)
 		id, err = c.answerStored(ctx, &r, mail)
 	} else {
+		mail = !dav.Schedules || !dav.SchedulesCopies
 		id, err = c.answerMessage(ctx, &r, &mail)
 	}
 	if err != nil {
@@ -208,7 +213,8 @@ func (c calendarService) byMessage(ctx context.Context, r *response, id int64) e
 }
 
 // answerStored patches the stored copy, queues its put and, when mail is
-// set, the reply. It returns the event's ID.
+// set, the reply, the copy then leaving scheduling to the client. It
+// returns the event's ID.
 func (c calendarService) answerStored(ctx context.Context, r *response, mail bool) (int64, error) {
 	raw, err := itip.SetPartStat(r.src, r.key, r.attendee, r.answer)
 	if err != nil {
@@ -217,6 +223,11 @@ func (c calendarService) answerStored(ctx context.Context, r *response, mail boo
 	reply, err := c.replyMail(ctx, r, raw, mail)
 	if err != nil {
 		return 0, err
+	}
+	if mail {
+		if raw, err = itip.ScheduleByClient(raw); err != nil {
+			return 0, err
+		}
 	}
 	obj := r.obj
 	obj.Raw = raw
@@ -231,7 +242,8 @@ func (c calendarService) answerStored(ctx context.Context, r *response, mail boo
 
 // answerMessage stores an accepted or tentative invitation in the default
 // calendar, queuing its creation, and mails the reply when mail is set or
-// nothing was stored. It returns the stored event's ID, or 0.
+// nothing was stored; a copy answered by mail leaves scheduling to the
+// client. It returns the stored event's ID, or 0.
 func (c calendarService) answerMessage(ctx context.Context, r *response, mail *bool) (int64, error) {
 	raw, err := itip.SetPartStat(r.src, r.key, r.attendee, r.answer)
 	if err != nil {
@@ -251,6 +263,11 @@ func (c calendarService) answerMessage(ctx context.Context, r *response, mail *b
 	if keep {
 		if raw, err = itip.ForCalendar(raw); err != nil {
 			return 0, err
+		}
+		if *mail {
+			if raw, err = itip.ScheduleByClient(raw); err != nil {
+				return 0, err
+			}
 		}
 		uid, err := newUUID()
 		if err != nil {
