@@ -3,7 +3,7 @@
 // two-line preview, and the unread dot and the flag in the 24px gutter. The
 // list container owns focus, selection and virtualization; the row only
 // reports what the pointer did to it.
-import { Flag, Paperclip } from "lucide-react";
+import { Archive, Flag, Paperclip, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { flagName } from "../../lib/flags";
@@ -15,6 +15,9 @@ export const ROW_HEIGHT = 84;
 
 /** SelectMode says how a click changes the selection. */
 export type SelectMode = "replace" | "toggle" | "range";
+
+/** RowAction is a command on a row's message alone. */
+export type RowAction = "flag" | "archive" | "delete";
 
 /** MessageRowProps are a row's inputs. */
 export interface MessageRowProps {
@@ -28,6 +31,8 @@ export interface MessageRowProps {
   now: Date;
   onSelect: (id: number, mode: SelectMode) => void;
   onContextMenu: (id: number, x: number, y: number) => void;
+  onAction?: (id: number, action: RowAction) => void;
+  canArchive?: boolean;
 }
 
 // Tailwind only generates a class it finds whole in the source, so the seven
@@ -57,13 +62,18 @@ function clickMode(event: MouseEvent<HTMLDivElement>): SelectMode {
 
 /** MessageRow renders one message summary as a fixed-height list row. */
 export function MessageRow(props: MessageRowProps) {
-  const { message, selected, focused, showThreadCount, now, onSelect, onContextMenu } = props;
+  const { message, selected, focused, showThreadCount, now, onSelect, onContextMenu, onAction, canArchive } = props;
   // A selected row in a focused list is accent with accent-contrast content;
   // in an unfocused list it is gray. Every secondary, tertiary and accent
   // part inside takes the contrast color with it.
   const contrast = selected && focused;
   const secondary = contrast ? "text-accent-contrast" : "text-secondary";
   const subject = message.subject.trim();
+  const actions = [
+    { action: "flag", label: message.flags.flagged ? "Unflag" : "Flag", shortcut: "Ctrl+Shift+L", Icon: Flag },
+    { action: "archive", label: "Archive", shortcut: "Ctrl+Alt+A", Icon: Archive },
+    { action: "delete", label: "Delete", shortcut: "Delete", Icon: Trash2 },
+  ] as const;
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: the list's listbox owns keyboard navigation; the row only reports the pointer.
@@ -73,7 +83,7 @@ export function MessageRow(props: MessageRowProps) {
       aria-selected={selected}
       data-message-id={message.id}
       className={joinClasses(
-        "relative h-[84px] pt-2 pb-2 pl-6 pr-3",
+        "group relative h-[84px] pt-2 pb-2 pl-6 pr-3",
         contrast && "bg-accent text-accent-contrast",
         selected && !contrast && "bg-selection-inactive",
       )}
@@ -87,12 +97,44 @@ export function MessageRow(props: MessageRowProps) {
 
       <div className="flex items-center gap-1">
         <span className="text-list-sender truncate flex-1">{displayName(message.from)}</span>
-        {message.hasAttachments && (
-          <Paperclip size={12} aria-label="Has attachments" className={joinClasses("shrink-0", secondary)} />
-        )}
-        <span className={joinClasses("text-list-date tabular-nums shrink-0", secondary)}>
-          {formatListDate(new Date(message.date), now)}
+        <span className={joinClasses("flex shrink-0 items-center gap-1", onAction && "group-hover:hidden")}>
+          {message.hasAttachments && (
+            <Paperclip size={12} aria-label="Has attachments" className={joinClasses("shrink-0", secondary)} />
+          )}
+          <span className={joinClasses("text-list-date tabular-nums shrink-0", secondary)}>
+            {formatListDate(new Date(message.date), now)}
+          </span>
         </span>
+        {onAction && (
+          // biome-ignore lint/a11y/useSemanticElements: a fieldset's border and legend do not belong in a list row.
+          <span role="group" aria-label="Message actions" className="hidden shrink-0 items-center group-hover:flex">
+            {actions
+              .filter(({ action }) => action !== "archive" || canArchive)
+              .map(({ action, label, shortcut, Icon }) => (
+                <button
+                  key={action}
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={label}
+                  title={`${label} (${shortcut})`}
+                  className={joinClasses(
+                    "flex h-[18px] w-[22px] items-center justify-center rounded border-0 bg-transparent p-0",
+                    contrast
+                      ? "text-accent-contrast hover:bg-accent-contrast/20"
+                      : "text-secondary hover:bg-selection-inactive",
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAction(message.id, action);
+                  }}
+                >
+                  <Icon size={14} className={action === "flag" && message.flags.flagged ? "fill-current" : undefined} />
+                </button>
+              ))}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-1">

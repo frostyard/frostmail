@@ -5,12 +5,13 @@ import { useClient } from "../data/session";
 import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
 import type { ViewModel } from "../data/view";
+import { FilterBar } from "../features/list/FilterBar";
 import { ScopeBar } from "../features/search/SearchField";
 import { addDays, step } from "../lib/calendarDates";
 import { type Command, commandFor } from "../lib/keymap";
 import type { Client } from "../rpc/gen/api";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
-import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead } from "./commands";
+import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
 import { watchOpenRequests } from "./openMessage";
@@ -100,6 +101,9 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
       break;
     case "archive":
       void moveMessages(client, ids, archiveMailbox(model, ids, mailboxes), ui.source, mailboxes);
+      break;
+    case "junk":
+      void toggleSpam(client, model, ids, ui.source, mailboxes);
       break;
     case "pageDown":
     case "pageUp":
@@ -300,8 +304,11 @@ function MailPanes(props: {
           <Splitter label="Resize sidebar" onResize={props.widths.resizeSidebar} onEnd={props.widths.endDrag} />
         </>
       )}
-      <div className="h-full shrink-0" style={{ width: ui.listWidth }}>
-        <ListContainer ref={props.handles.list} model={props.model} onDelete={props.onDelete} />
+      <div className="flex h-full shrink-0 flex-col" style={{ width: ui.listWidth }}>
+        <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
+        <div className="min-h-0 flex-1">
+          <ListContainer ref={props.handles.list} model={props.model} onDelete={props.onDelete} />
+        </div>
       </div>
       <Splitter label="Resize message list" onResize={props.widths.resizeList} onEnd={props.widths.endDrag} />
       <div className="h-full min-w-0 flex-1">

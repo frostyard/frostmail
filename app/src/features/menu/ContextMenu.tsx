@@ -116,9 +116,14 @@ export function ContextMenu(props: ContextMenuProps) {
       const anchor = rowEls.current[i - 1]?.[anchorIndex];
       const sub = menuEls.current[i];
       if (!anchor || !sub) continue;
+      // Beside its row, flipped to the parent's left when the window ends
+      // first, and moved up so its last items stay in the window.
       const rect = anchor.getBoundingClientRect();
-      sub.style.left = `${Math.round(rect.right)}px`;
-      sub.style.top = `${Math.round(rect.top)}px`;
+      const parent = menuEls.current[i - 1]?.getBoundingClientRect();
+      const maxLeft = window.innerWidth - sub.offsetWidth - EDGE_GAP;
+      const left = rect.right > maxLeft && parent ? parent.left - sub.offsetWidth : rect.right;
+      sub.style.left = `${Math.round(clamp(left, maxLeft))}px`;
+      sub.style.top = `${Math.round(clamp(rect.top, window.innerHeight - sub.offsetHeight - EDGE_GAP))}px`;
     }
   }, [levels]);
 
@@ -291,7 +296,7 @@ export function ContextMenu(props: ContextMenuProps) {
         }}
         role="menu"
         tabIndex={depth === 0 ? -1 : undefined}
-        className="min-w-[180px] rounded-md border border-separator bg-window py-1 shadow-lg outline-none"
+        className="z-50 min-w-[180px] rounded-md border border-separator bg-window py-1 shadow-lg outline-none"
         style={style}
         onKeyDown={depth === 0 ? handleKeyDown : undefined}
       >
