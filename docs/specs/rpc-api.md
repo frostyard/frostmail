@@ -855,6 +855,30 @@ Change an identity's name, Reply-To or signature.
 Result: `Identity`.
 Errors: `notFound`, `invalidParams`.
 
+### `identity.create`
+
+Add an address the account also sends and receives as, such as an alias or a custom domain the provider delivers to it. Invitations to it can be answered from the account. account.changed follows.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `email` | `string` |  |
+| `name` | `string` (optional) | Default: the name of the account's default identity. |
+
+Result: `Identity`.
+Errors: `notFound`, `invalidParams`, `conflict`.
+
+### `identity.delete`
+
+Remove an address added with identity.create; drafts that used it move to the account's default identity. account.changed follows.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
 ### Type `Identity`
 
 One From address of an account.

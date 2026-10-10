@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"github.com/frostyard/frostmail/api"
 )
 
 // Identity is an address an account sends as, with its signature.
@@ -79,6 +81,61 @@ func (t *Tx) UpdateIdentity(ctx context.Context, id int64, u IdentityUpdate) (Id
 		return Identity{}, fmt.Errorf("update identity %d: %w", id, err)
 	}
 	return cur, nil
+}
+
+// AddIdentity adds an address an account also sends and receives as (an
+// alias), not its default, and returns it as stored. It wraps ErrNotFound
+// for an unknown account and ErrConflict for an address the account
+// already has, compared without case. account.changed follows.
+func (t *Tx) AddIdentity(ctx context.Context, accountID int64, name, email string) (Identity, error) {
+	var n int
+	if err := t.QueryRowContext(ctx, `SELECT count(*) FROM accounts WHERE id = ?`, accountID).Scan(&n); err != nil {
+		return Identity{}, fmt.Errorf("add identity: %w", err)
+	}
+	if n == 0 {
+		return Identity{}, fmt.Errorf("account %d: %w", accountID, ErrNotFound)
+	}
+	if err := t.QueryRowContext(ctx, `SELECT count(*) FROM identities WHERE account_id = ? AND lower(email) = lower(?)`,
+		accountID, email).Scan(&n); err != nil {
+		return Identity{}, fmt.Errorf("add identity: %w", err)
+	}
+	if n > 0 {
+		return Identity{}, fmt.Errorf("identity %s of account %d: %w", email, accountID, ErrConflict)
+	}
+	res, err := t.ExecContext(ctx, `INSERT INTO identities (account_id, name, email) VALUES (?, ?, ?)`, accountID, name, email)
+	if err != nil {
+		return Identity{}, fmt.Errorf("add identity: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return Identity{}, fmt.Errorf("add identity: %w", err)
+	}
+	if err := t.Emit(ctx, api.AccountChanged{ID: accountID}); err != nil {
+		return Identity{}, err
+	}
+	return getIdentity(ctx, t, id)
+}
+
+// DeleteIdentity removes an identity that is not its account's default;
+// the drafts that used it move to the default. It wraps ErrNotFound, and
+// ErrConflict for a default identity. account.changed follows.
+func (t *Tx) DeleteIdentity(ctx context.Context, id int64) error {
+	cur, err := getIdentity(ctx, t, id)
+	if err != nil {
+		return err
+	}
+	if cur.IsDefault {
+		return fmt.Errorf("identity %d is its account's default: %w", id, ErrConflict)
+	}
+	if _, err := t.ExecContext(ctx, `UPDATE drafts SET content_json = json_set(content_json, '$.identityId',
+ (SELECT id FROM identities WHERE account_id = ? AND is_default = 1))
+ WHERE account_id = ? AND json_extract(content_json, '$.identityId') = ?`, cur.AccountID, cur.AccountID, id); err != nil {
+		return fmt.Errorf("move drafts from identity %d: %w", id, err)
+	}
+	if _, err := t.ExecContext(ctx, `DELETE FROM identities WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete identity %d: %w", id, err)
+	}
+	return t.Emit(ctx, api.AccountChanged{ID: cur.AccountID})
 }
 
 func getIdentity(ctx context.Context, q querier, id int64) (Identity, error) {

@@ -26,3 +26,21 @@ methods:
       - {name: signatureHtml, type: string, optional: true}
     result: Identity
     errors: [notFound, invalidParams]
+  - name: create
+    doc: >-
+      Add an address the account also sends and receives as, such as an
+      alias or a custom domain the provider delivers to it. Invitations to
+      it can be answered from the account. account.changed follows.
+    params:
+      - {name: accountId, type: int}
+      - {name: email, type: string}
+      - {name: name, type: string, optional: true, doc: "Default: the name of the account's default identity."}
+    result: Identity
+    errors: [notFound, invalidParams, conflict]
+  - name: delete
+    doc: >-
+      Remove an address added with identity.create; drafts that used it
+      move to the account's default identity. account.changed follows.
+    params:
+      - {name: id, type: int}
+    errors: [notFound, conflict]

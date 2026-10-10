@@ -389,7 +389,36 @@ function SignaturesPane() {
       await client.identity.update({ id, ...change });
       await load();
     });
-  return <IdentityEditor accounts={accounts} identities={identities} busy={busy} error={error} onSave={save} />;
+  const add = (accountId: number, email: string, name: string) =>
+    void run(async () => {
+      await client.identity.create({ accountId, email, ...(name === "" ? {} : { name }) });
+      await load();
+    });
+  const remove = (id: number) => {
+    const identity = identities.find((i) => i.id === id);
+    const account = accounts.find((a) => a.id === identity?.accountId);
+    if (!identity || !account) return;
+    void run(async () => {
+      const text = `Remove ${identity.email}? Drafts from it will be sent from ${account.email}.`;
+      const confirmed = isTauri()
+        ? await ask(text, { title: "Remove Address?", kind: "warning", okLabel: "Remove" })
+        : window.confirm(text);
+      if (!confirmed) return;
+      await client.identity.delete({ id });
+      await load();
+    });
+  };
+  return (
+    <IdentityEditor
+      accounts={accounts}
+      identities={identities}
+      busy={busy}
+      error={error}
+      onSave={save}
+      onAdd={add}
+      onRemove={remove}
+    />
+  );
 }
 
 function SignInPane() {

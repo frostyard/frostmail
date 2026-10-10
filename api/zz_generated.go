@@ -1623,6 +1623,19 @@ type IdentityUpdateParams struct {
 	SignatureHTML *string `json:"signatureHtml,omitzero"`
 }
 
+// IdentityCreateParams holds the params of identity.create.
+type IdentityCreateParams struct {
+	AccountID int64  `json:"accountId"`
+	Email     string `json:"email"`
+	// Default: the name of the account's default identity.
+	Name *string `json:"name,omitzero"`
+}
+
+// IdentityDeleteParams holds the params of identity.delete.
+type IdentityDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
 // IdentityService: The addresses an account sends as, with their signatures.
 type IdentityService interface {
 	// List implements identity.list. Identities, default first per account.
@@ -1630,6 +1643,15 @@ type IdentityService interface {
 	// Update implements identity.update. Change an identity's name, Reply-To or
 	// signature.
 	Update(ctx context.Context, p *IdentityUpdateParams) (*Identity, error)
+	// Create implements identity.create. Add an address the account also sends
+	// and receives as, such as an alias or a custom domain the provider delivers
+	// to it. Invitations to it can be answered from the account. account.changed
+	// follows.
+	Create(ctx context.Context, p *IdentityCreateParams) (*Identity, error)
+	// Delete implements identity.delete. Remove an address added with
+	// identity.create; drafts that used it move to the account's default
+	// identity. account.changed follows.
+	Delete(ctx context.Context, p *IdentityDeleteParams) error
 }
 
 func registerIdentity(r *Router, s IdentityService) {
@@ -1646,6 +1668,20 @@ func registerIdentity(r *Router, s IdentityService) {
 			return nil, err
 		}
 		return s.Update(ctx, &p)
+	})
+	r.handle("identity.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p IdentityCreateParams
+		if err := decodeParams(raw, &p, []string{"accountId", "email"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("identity.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p IdentityDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
 	})
 }
 
@@ -1672,6 +1708,21 @@ func (x IdentityClient) Update(ctx context.Context, p *IdentityUpdateParams) (*I
 		return nil, err
 	}
 	return &r, nil
+}
+
+// Create calls identity.create.
+func (x IdentityClient) Create(ctx context.Context, p *IdentityCreateParams) (*Identity, error) {
+	var r Identity
+	err := x.c.Call(ctx, "identity.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls identity.delete.
+func (x IdentityClient) Delete(ctx context.Context, p *IdentityDeleteParams) error {
+	return x.c.Call(ctx, "identity.delete", p, nil)
 }
 
 // ---- mailbox ----
@@ -3272,6 +3323,8 @@ var Methods = []string{
 	"events.subscribe",
 	"identity.list",
 	"identity.update",
+	"identity.create",
+	"identity.delete",
 	"mailbox.list",
 	"message.get",
 	"message.body",

@@ -47,6 +47,7 @@ export class MockCompose {
   private readonly outbox = new Map<number, OutboxItem>();
   private readonly timers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly identityList: Identity[];
+  private nextIdentity: number;
   private nextDraft = 1;
   private nextOutbox = 1;
   private nextAttachment = 1;
@@ -59,6 +60,7 @@ export class MockCompose {
     /** How long sent mail waits; the real default is 10 s. */
     readonly undoMs = 10_000,
   ) {
+    this.nextIdentity = Math.max(0, ...accounts.map((a) => a.id)) + 1;
     this.identityList = accounts.map((a) => ({
       id: a.id,
       accountId: a.id,
@@ -146,6 +148,38 @@ export class MockCompose {
       }
       case "identity.list":
         return this.identityList.filter((i) => typeof p.accountId !== "number" || i.accountId === p.accountId);
+      case "identity.create": {
+        const accountId = num(p.accountId);
+        if (!this.accounts.some((a) => a.id === accountId)) throw notFound(`account ${accountId}`);
+        const email = String(p.email);
+        if (this.identityList.some((i) => i.accountId === accountId && i.email.toLowerCase() === email.toLowerCase())) {
+          throw new RPCError(ErrorCode.conflict, `${email} is already an address of account ${accountId}`);
+        }
+        const identity: Identity = {
+          id: this.nextIdentity++,
+          accountId,
+          email,
+          name:
+            typeof p.name === "string"
+              ? p.name
+              : (this.identityList.find((i) => i.accountId === accountId && i.isDefault)?.name ?? ""),
+          replyTo: "",
+          signatureHtml: "",
+          isDefault: false,
+        };
+        this.identityList.push(identity);
+        this.emit({ event: "account.changed", data: { id: accountId, deleted: false } });
+        return { ...identity };
+      }
+      case "identity.delete": {
+        const index = this.identityList.findIndex((i) => i.id === p.id);
+        const identity = this.identityList[index];
+        if (!identity) throw notFound(`identity ${String(p.id)}`);
+        if (identity.isDefault) throw new RPCError(ErrorCode.conflict, "cannot remove the default identity");
+        this.identityList.splice(index, 1);
+        this.emit({ event: "account.changed", data: { id: identity.accountId, deleted: false } });
+        return null;
+      }
       case "identity.update": {
         const i = this.identityList.find((x) => x.id === p.id);
         if (!i) throw notFound(`identity ${String(p.id)}`);

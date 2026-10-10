@@ -916,18 +916,44 @@ export interface IdentityUpdateParams {
   signatureHtml?: string;
 }
 
+/** Params of identity.create. */
+export interface IdentityCreateParams {
+  accountId: number;
+  email: string;
+  /** Default: the name of the account's default identity. */
+  name?: string;
+}
+
+/** Params of identity.delete. */
+export interface IdentityDeleteParams {
+  id: number;
+}
+
 /** The addresses an account sends as, with their signatures. */
 export interface IdentityClient {
   /** Identities, default first per account. */
   list(params?: IdentityListParams): Promise<Identity[]>;
   /** Change an identity's name, Reply-To or signature. */
   update(params: IdentityUpdateParams): Promise<Identity>;
+  /**
+   * Add an address the account also sends and receives as, such as an alias
+   * or a custom domain the provider delivers to it. Invitations to it can be
+   * answered from the account. account.changed follows.
+   */
+  create(params: IdentityCreateParams): Promise<Identity>;
+  /**
+   * Remove an address added with identity.create; drafts that used it move to
+   * the account's default identity. account.changed follows.
+   */
+  delete(params: IdentityDeleteParams): Promise<void>;
 }
 
 function identityClient(t: Transport): IdentityClient {
   return {
     list: (params = {}) => t.call<Identity[]>("identity.list", params),
     update: (params) => t.call<Identity>("identity.update", params),
+    create: (params) => t.call<Identity>("identity.create", params),
+    delete: (params) => t.call<null>("identity.delete", params).then(() => undefined),
   };
 }
 
@@ -1874,6 +1900,8 @@ export const METHODS = [
   "events.subscribe",
   "identity.list",
   "identity.update",
+  "identity.create",
+  "identity.delete",
   "mailbox.list",
   "message.get",
   "message.body",

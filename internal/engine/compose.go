@@ -837,6 +837,50 @@ func (i identities) Update(ctx context.Context, p *api.IdentityUpdateParams) (*a
 	return &r, nil
 }
 
+// Create adds a non-default address, using the account's default name when omitted.
+func (i identities) Create(ctx context.Context, p *api.IdentityCreateParams) (*api.Identity, error) {
+	email := strings.TrimSpace(p.Email)
+	if !compose.ValidAddress(compose.Address{Addr: email}) {
+		return nil, api.InvalidParams("%q is not a valid address", email)
+	}
+	if p.Name != nil && strings.ContainsAny(*p.Name, "\r\n") {
+		return nil, api.InvalidParams("the name contains a line break")
+	}
+	var name string
+	if p.Name != nil {
+		name = *p.Name
+	} else {
+		def, err := i.DB.DefaultIdentity(ctx, p.AccountID)
+		if err != nil {
+			return nil, apiError(err, fmt.Sprintf("account %d", p.AccountID))
+		}
+		name = def.Name
+	}
+	var out store.Identity
+	err := i.DB.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = tx.AddIdentity(ctx, p.AccountID, name, email)
+		return err
+	})
+	if errors.Is(err, store.ErrConflict) {
+		return nil, api.Conflict("%s is already an address of account %d", email, p.AccountID)
+	}
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("account %d", p.AccountID))
+	}
+	r := toAPIIdentity(out)
+	return &r, nil
+}
+
+// Delete removes a non-default address and moves its drafts to the default identity.
+func (i identities) Delete(ctx context.Context, p *api.IdentityDeleteParams) error {
+	err := i.DB.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteIdentity(ctx, p.ID) })
+	if errors.Is(err, store.ErrConflict) {
+		return api.Conflict("identity %d is its account's own address", p.ID)
+	}
+	return apiError(err, fmt.Sprintf("identity %d", p.ID))
+}
+
 func toAPIDraft(d store.Draft) api.Draft {
 	out := api.Draft{
 		ID:        d.ID,
