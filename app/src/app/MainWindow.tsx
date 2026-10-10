@@ -10,7 +10,7 @@ import { addDays, step } from "../lib/calendarDates";
 import { type Command, commandFor } from "../lib/keymap";
 import type { Client } from "../rpc/gen/api";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
-import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead } from "./commands";
+import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
 import { watchOpenRequests } from "./openMessage";
@@ -100,6 +100,9 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
       break;
     case "archive":
       void moveMessages(client, ids, archiveMailbox(model, ids, mailboxes), ui.source, mailboxes);
+      break;
+    case "junk":
+      void toggleSpam(client, model, ids, ui.source, mailboxes);
       break;
     case "pageDown":
     case "pageUp":

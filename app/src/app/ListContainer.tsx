@@ -13,12 +13,18 @@ import type { Command } from "../lib/keymap";
 import {
   archiveMailbox,
   compose,
+  copyMessages,
+  copyTargets,
   moveMessages,
+  moveTargets,
   rangeIds,
   selectedSummaries,
   setFlagColor,
+  spamTarget,
   step,
+  toggleFlag,
   toggleRead,
+  toggleSpam,
 } from "./commands";
 import { openDraftMessage } from "./compose";
 
@@ -53,6 +59,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
   function ListContainer({ model, onDelete }, ref) {
     const client = useClient();
     const mailboxes = useMail((s) => s.mailboxes);
+    const accounts = useMail((s) => s.accounts);
     const { selected, anchor, focus, conversations, source, select, setFocus } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
@@ -207,17 +214,60 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       const rows = selectedSummaries(model, menu.ids);
       const allSeen = rows.length > 0 && rows.every((r) => r.flags.seen);
       const accountId = rows[0]?.accountId;
-      const targets = mailboxes.filter((mb) => mb.accountId === accountId && !rows[0]?.mailboxIds.includes(mb.id));
+      const readOnly = accounts.find((account) => account.id === accountId)?.readOnly === true;
+      const targets = moveTargets(rows[0], mailboxes);
+      const copies = copyTargets(rows[0], mailboxes);
+      const spam = spamTarget(model, menu.ids, mailboxes);
       const items: MenuItem[] = [
         { kind: "item", id: "reply", label: "Reply", shortcut: "Ctrl+R" },
         { kind: "item", id: "replyAll", label: "Reply All", shortcut: "Ctrl+Shift+R" },
         { kind: "item", id: "forward", label: "Forward", shortcut: "Ctrl+Shift+F" },
         { kind: "separator" },
-        { kind: "item", id: "read", label: allSeen ? "Mark as Unread" : "Mark as Read", shortcut: "Ctrl+Shift+U" },
+      ];
+      if (archiveMailbox(model, menu.ids, mailboxes)) {
+        items.push({ kind: "item", id: "archive", label: "Archive", shortcut: "Ctrl+Alt+A", disabled: readOnly });
+      }
+      items.push(
+        { kind: "item", id: "delete", label: "Delete", shortcut: "Delete", disabled: readOnly },
+        {
+          kind: "item",
+          id: "spam",
+          label: spam.notSpam ? "Not Spam" : "Mark as Spam",
+          shortcut: "Ctrl+Shift+J",
+          disabled: readOnly || !spam.to,
+        },
+        { kind: "separator" },
         {
           kind: "submenu",
-          id: "flag",
-          label: "Flag",
+          id: "move",
+          label: "Move to",
+          disabled: readOnly || targets.length === 0,
+          items: targets.map(
+            (mb): MenuItem => ({ kind: "item", id: `move:${mb.id}`, label: mb.path, disabled: readOnly }),
+          ),
+        },
+        {
+          kind: "submenu",
+          id: "copy",
+          label: "Copy to",
+          disabled: readOnly || copies.length === 0,
+          items: copies.map(
+            (mb): MenuItem => ({ kind: "item", id: `copy:${mb.id}`, label: mb.path, disabled: readOnly }),
+          ),
+        },
+        { kind: "separator" },
+        {
+          kind: "item",
+          id: "toggleFlag",
+          label: rows[0]?.flags.flagged ? "Unflag" : "Flag",
+          shortcut: "Ctrl+Shift+L",
+          disabled: readOnly,
+        },
+        {
+          kind: "submenu",
+          id: "flagColor",
+          label: "Flag Color",
+          disabled: readOnly,
           items: [
             ...FLAG_NAMES.map(
               (name, i): MenuItem => ({
@@ -225,27 +275,28 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                 id: `flag:${i + 1}`,
                 label: name,
                 checked: rows[0]?.flags.flagColor === i + 1,
+                disabled: readOnly,
               }),
             ),
             { kind: "separator" },
-            { kind: "item", id: "flag:0", label: "Clear Flag", disabled: !rows.some((r) => r.flags.flagged) },
+            {
+              kind: "item",
+              id: "flag:0",
+              label: "Clear Flag",
+              disabled: readOnly || !rows.some((r) => r.flags.flagged),
+            },
           ],
         },
         {
-          kind: "submenu",
-          id: "move",
-          label: "Move to",
-          disabled: targets.length === 0,
-          items: targets.map((mb): MenuItem => ({ kind: "item", id: `move:${mb.id}`, label: mb.path })),
+          kind: "item",
+          id: "read",
+          label: allSeen ? "Mark as Unread" : "Mark as Read",
+          shortcut: "Ctrl+Shift+U",
+          disabled: readOnly,
         },
-        { kind: "separator" },
-      ];
-      if (archiveMailbox(model, menu.ids, mailboxes)) {
-        items.push({ kind: "item", id: "archive", label: "Archive", shortcut: "Ctrl+Alt+A" });
-      }
-      items.push({ kind: "item", id: "delete", label: "Delete", shortcut: "Delete" });
+      );
       return items;
-    }, [menu, model, mailboxes]);
+    }, [menu, model, mailboxes, accounts]);
 
     const onMenuSelect = useCallback(
       (id: string) => {
@@ -254,6 +305,8 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         if (id === "reply" || id === "replyAll" || id === "forward") {
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
         } else if (id === "read") void toggleRead(client, model, ids);
+        else if (id === "spam") void toggleSpam(client, model, ids, source, mailboxes);
+        else if (id === "toggleFlag") void toggleFlag(client, model, ids);
         else if (id === "delete") onDelete(ids);
         else if (id === "archive")
           void moveMessages(client, ids, archiveMailbox(model, ids, mailboxes), source, mailboxes);
@@ -261,6 +314,9 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         else if (id.startsWith("move:")) {
           const to = mailboxes.find((mb) => mb.id === Number(id.slice(5)));
           void moveMessages(client, ids, to, source, mailboxes);
+        } else if (id.startsWith("copy:")) {
+          const to = mailboxes.find((mb) => mb.id === Number(id.slice(5)));
+          void copyMessages(client, ids, to);
         }
       },
       [menu, client, model, mailboxes, onDelete, source],
