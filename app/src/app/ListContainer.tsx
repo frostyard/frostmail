@@ -34,6 +34,20 @@ interface Menu {
   ids: number[];
 }
 
+// A list not laid out yet (or in a test DOM) measures 0 high: assume 800 so
+// the first rows render, as People's list does.
+const observeListRect: NonNullable<
+  Parameters<typeof useVirtualizer<HTMLDivElement, HTMLDivElement>>[0]["observeElementRect"]
+> = (instance, callback) => {
+  const element = instance.scrollElement;
+  const measure = () => callback({ width: element?.clientWidth ?? 0, height: element?.clientHeight || 800 });
+  measure();
+  if (!element) return;
+  const observer = new ResizeObserver(measure);
+  observer.observe(element);
+  return () => observer.disconnect();
+};
+
 /** ListContainer shows the list's view model. */
 export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; onDelete: (ids: number[]) => void }>(
   function ListContainer({ model, onDelete }, ref) {
@@ -55,6 +69,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       count,
       getScrollElement: () => scroller.current,
       estimateSize: () => ROW_HEIGHT,
+      observeElementRect: observeListRect,
       overscan: 8,
     });
     const items = virtualizer.getVirtualItems();

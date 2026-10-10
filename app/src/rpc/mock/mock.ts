@@ -1,7 +1,8 @@
 // MockTransport: an in-memory maild for component tests and for running the
 // UI in a browser (VITE_MOCK=1). It implements the methods the app uses with
 // maild's semantics: views keep ID snapshots and send view.delta after
-// changes, flag and move calls emit message.changed and mailbox.changed.
+// changes (an unread or flagged view keeps rows whose flags change), flag,
+// move and copy calls emit message.changed and mailbox.changed.
 import {
   type Account,
   type AccountCreateParams,
@@ -336,6 +337,9 @@ export class MockTransport implements Transport {
       case "message.move":
         this.move(ids(p.ids), num(p.mailboxId));
         return null;
+      case "message.copy":
+        this.copy(ids(p.ids), num(p.mailboxId));
+        return null;
       case "message.delete":
         this.delete(ids(p.ids));
         return null;
@@ -439,6 +443,24 @@ export class MockTransport implements Transport {
     this.mailboxesChanged(from);
   }
 
+  /** copy files a new message in the mailbox for each one not there yet,
+   *  as a folder server does (maild's Gmail labels are not modeled). */
+  private copy(list: number[], mailboxId: number): void {
+    const target = this.mailboxes.find((mb) => mb.id === mailboxId);
+    if (!target) throw new RPCError(ErrorCode.invalidParams, `mailbox ${mailboxId} does not exist`);
+    let next = Math.max(0, ...this.messages.keys()) + 1;
+    const copies: MockMessage[] = [];
+    for (const id of list) {
+      const m = this.find(id);
+      if (m.summary.accountId !== target.accountId) {
+        throw new RPCError(ErrorCode.invalidParams, `mailbox ${mailboxId} is not in account ${m.summary.accountId}`);
+      }
+      if (m.summary.mailboxIds.includes(mailboxId)) continue;
+      copies.push({ ...m, summary: { ...m.summary, id: next++, mailboxIds: [mailboxId] } });
+    }
+    if (copies.length > 0) this.add(copies);
+  }
+
   private delete(list: number[]): void {
     const expunge: number[] = [];
     for (const id of list) {
@@ -476,7 +498,9 @@ export class MockTransport implements Transport {
     });
   }
 
-  private viewIds(q: ViewQuery): number[] {
+  /** viewIds lists a query's rows; keep's pass the unread and flagged
+   *  conditions (rows of the open view, as maild keeps them). */
+  private viewIds(q: ViewQuery, keep: ReadonlySet<number> = new Set()): number[] {
     const role = (mailboxId: number) => this.mailboxes.find((mb) => mb.id === mailboxId)?.role;
     const text = q.text?.trim().toLowerCase() ?? "";
     let rows = [...this.messages.values()]
@@ -486,8 +510,10 @@ export class MockTransport implements Transport {
           (q.accountId === undefined || s.accountId === q.accountId) &&
           (q.mailboxId === undefined || s.mailboxIds.includes(q.mailboxId)) &&
           (q.role === undefined || s.mailboxIds.some((mb) => role(mb) === q.role)) &&
-          (q.unread === undefined || s.flags.seen !== q.unread) &&
-          (q.flagged === undefined || s.flags.flagged === q.flagged) &&
+          (keep.has(s.id) ||
+            ((q.unread === undefined || s.flags.seen !== q.unread) &&
+              (q.flagged === undefined || s.flags.flagged === q.flagged))) &&
+          (q.hasAttachments === undefined || s.hasAttachments === q.hasAttachments) &&
           (text === "" ||
             text
               .split(/\s+/)
@@ -508,7 +534,8 @@ export class MockTransport implements Transport {
 
   private refreshViews(): void {
     for (const [id, view] of this.views) {
-      const next = this.viewIds(view.query);
+      const flagged = view.query.unread !== undefined || view.query.flagged !== undefined;
+      const next = this.viewIds(view.query, flagged ? new Set(view.ids) : undefined);
       const ops = diffIds(view.ids, next);
       view.ids = next;
       if (ops.length > 0) this.emit({ event: "view.delta", data: { id, count: next.length, ops } });
