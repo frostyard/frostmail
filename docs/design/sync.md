@@ -127,7 +127,9 @@ The decision and every operation's mapping are in
   on All Mail UIDs); moves into or out of Spam and Trash queue a `move` op.
   Out of Spam or Trash into a label, the MOVE's UIDs belong to the label
   folder and are dropped: the All Mail copy arrives with the next pass.
-  Starred follows `\Flagged` locally at once. Like flags, server labels do
+  `message.copy` into a label adds it (a `labels` op); only labels take
+  copies, and only messages in All Mail are copied. Starred follows
+  `\Flagged` locally at once, so it takes no copies. Like flags, server labels do
   not overwrite a message a queued op covers; a refused op makes the next
   pass refetch the source's flags and labels.
 
@@ -142,7 +144,11 @@ that has a `Re:` prefix and no references, within 7 days.
 
 M1 implements flags (`\Seen`, `\Flagged`, `\Answered`, Mail.app color bits),
 moves, and deletes (to Trash; expunge when already in Trash or when the
-account has no Trash). A refused op (a NO from the server) is marked failed
+account has no Trash). Copies (M4.5, the list's Copy to) queue a `copy` op
+and change nothing locally: on a folder server each copy is a new message,
+so after the replay's `UID COPY` the actor reconciles the destination at
+once and the copies arrive as messages of their own (a copy older than the
+account's sync window is not fetched, like any message there). A refused op (a NO from the server) is marked failed
 and its local change undone: moves return to the source mailbox, and flag
 and expunge failures clear the mailbox's stored modseq so the next pass
 refetches every flag.

@@ -33,6 +33,7 @@ type Syncer interface {
 	FetchBody(ctx context.Context, messageID int64) (string, error)
 	SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error
 	Move(ctx context.Context, ids []int64, from, to int64) error
+	Copy(ctx context.Context, ids []int64, to int64) error
 	Delete(ctx context.Context, ids []int64) error
 	// Verify compares an account's synced folders with the server.
 	Verify(ctx context.Context, accountID int64) ([]mailsync.Check, error)

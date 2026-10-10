@@ -1035,6 +1035,18 @@ Move messages to another mailbox of the same account.
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.
 
+### `message.copy`
+
+Copy messages to another mailbox of their account. On Gmail the copy is the destination label, added at once; only labels can be copied into. Elsewhere the server makes a new message, which appears in the destination once the server has it (on the next replay while online). Messages already in the destination are skipped.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+| `mailboxId` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`.
+
 ### `message.delete`
 
 Move messages to the account's Trash; messages already in Trash are deleted from the server.
@@ -1715,8 +1727,9 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `accountId` | `int` (optional) |  |
 | `mailboxId` | `int` (optional) |  |
 | `text` | `string` (optional) | Full-text search terms. |
-| `unread` | `bool` (optional) |  |
-| `flagged` | `bool` (optional) |  |
+| `unread` | `bool` (optional) | true: unread only; false: read only. A row that stops matching only because it was read or unread while the view is open stays until the view is reopened, so a message read in an Unread list does not vanish under the pointer. |
+| `flagged` | `bool` (optional) | true: flagged only; false: unflagged only. Rows whose flag changes while the view is open stay, as for unread. |
+| `hasAttachments` | `bool` (optional) | true: only messages with attachments; false: only those without. |
 | `role` | `MailboxRole` (optional) | Messages in mailboxes with this role in any account, such as every inbox. |
 | `threads` | `bool` (optional) | One row per thread: its newest message that matches. |
 

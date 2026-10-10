@@ -45,8 +45,10 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
   through the `engine.Syncer` interface.
 - **view.Manager** keeps each open view's ordered ID snapshot, recomputes it
   (debounced 50 ms) after commits that touch its account, and sends the owning
-  connection a `view.delta` computed by `view.Diff`. Request handlers reach
-  their connection through `api.ConnFrom(ctx)`.
+  connection a `view.delta` computed by `view.Diff`. A view filtered by
+  unread or flagged keeps its rows through flag changes (`ViewFilter.Keep`),
+  so a message read in an Unread list stays until the view is reopened.
+  Request handlers reach their connection through `api.ConnFrom(ctx)`.
 - **The app** keeps all mail logic out of Rust: `bridge.rs` moves lines and
   `transport.ts` matches responses to calls. The `mailpart://` scheme serves
   decoded parts from maild's cache so large data never travels as JSON

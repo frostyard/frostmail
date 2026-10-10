@@ -182,4 +182,20 @@ func TestDovecotMoveAndDelete(t *testing.T) {
 	if _, err := h.c.Message().Get(ctx, &api.MessageGetParams{ID: msgs[1]}); err == nil {
 		t.Fatal("expunged message still exists locally")
 	}
+
+	// Copy the last one to Archive: it stays in INBOX, and the copy arrives
+	// in Archive as a message of its own.
+	if err := h.c.Message().Copy(ctx, &api.MessageCopyParams{IDs: msgs[2:], MailboxID: ids[api.MailboxRoleArchive]}); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 5*time.Second, "the copy on the server", func() bool {
+		st, err := other.Status(ctx, "Archive")
+		return err == nil && st.Messages == 2
+	})
+	waitUntil(t, 5*time.Second, "the copy in Archive", func() bool {
+		return len(h.subjects(ids[api.MailboxRoleArchive])) == 2
+	})
+	if got := inboxIDs(); !slices.Equal(got, msgs[2:]) {
+		t.Fatalf("INBOX after the copy = %v, want %v", got, msgs[2:])
+	}
 }

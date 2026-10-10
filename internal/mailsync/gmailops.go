@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -136,6 +137,67 @@ func (m *Manager) gmailMove(ctx context.Context, tx *store.Tx, acct int64, mems 
 		}
 	}
 	return emitChanged(ctx, tx, acct, changed)
+}
+
+// gmailCopy is Copy on a Gmail account, inside Copy's transaction, with the
+// destination's account already checked: it adds the destination label to
+// messages in All Mail. Spam, Trash and All Mail itself are not labels,
+// Gmail files a message in a label only from All Mail, and Starred
+// follows \Flagged.
+func (m *Manager) gmailCopy(ctx context.Context, tx *store.Tx, acct int64, mems []store.Membership, to int64) error {
+	mailboxes, err := tx.ListMailboxes(ctx, acct)
+	if err != nil {
+		return err
+	}
+	dest := byID(mailboxes, to)
+	if dest == nil || !dest.Label {
+		return fmt.Errorf("mailbox %d is not a Gmail label: %w", to, ErrInvalid)
+	}
+	if dest.Role == api.MailboxRoleFlagged {
+		return fmt.Errorf("starred follows the flag; flag the messages instead: %w", ErrInvalid)
+	}
+	names, err := tx.GmailLabelNames(ctx, acct)
+	if err != nil {
+		return err
+	}
+	labelOps := map[string]*labelsOp{}
+	touched := map[int64]bool{}
+	var changed []int64
+	for _, ms := range byMessage(mems) {
+		inAll, have := false, false
+		for _, mem := range ms {
+			inAll = inAll || mem.Role == api.MailboxRoleAll && mem.UID != 0
+			have = have || mem.MailboxID == to
+		}
+		if !inAll || have {
+			continue // in Spam or Trash, a move pending, or already labeled
+		}
+		id := ms[0].MessageID
+		if err := m.editLabels(ctx, tx, labelOps, names, id, []int64{to}, nil, touched); err != nil {
+			return err
+		}
+		changed = append(changed, id)
+	}
+	for _, op := range labelOps {
+		if _, err := tx.QueueOp(ctx, acct, opLabels, op, op.Messages); err != nil {
+			return err
+		}
+	}
+	for mb := range touched {
+		if err := tx.Emit(ctx, api.MailboxChanged{ID: mb, AccountID: acct}); err != nil {
+			return err
+		}
+	}
+	return emitChanged(ctx, tx, acct, changed)
+}
+
+func byID(mbs []store.Mailbox, id int64) *store.Mailbox {
+	for i := range mbs {
+		if mbs[i].ID == id {
+			return &mbs[i]
+		}
+	}
+	return nil
 }
 
 // editLabels changes a message's labels locally and adds it to the queued

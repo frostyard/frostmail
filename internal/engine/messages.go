@@ -130,6 +130,13 @@ func (m messages) Move(ctx context.Context, p *api.MessageMoveParams) error {
 	return opError(m.Sync.Move(ctx, p.IDs, from, p.MailboxID))
 }
 
+func (m messages) Copy(ctx context.Context, p *api.MessageCopyParams) error {
+	if m.Sync == nil {
+		return api.Unavailable("sync is not running")
+	}
+	return opError(m.Sync.Copy(ctx, p.IDs, p.MailboxID))
+}
+
 func (m messages) Delete(ctx context.Context, p *api.MessageDeleteParams) error {
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")
