@@ -88,3 +88,26 @@ func TestRespondThroughICloudsOwnCopy(t *testing.T) {
 		t.Errorf("the server's copy:\n%s", copyOf)
 	}
 }
+
+// TestRespondTwiceAnswersOnce: a second Accept, as from a double click,
+// finds the copy the first created and changes nothing: one reply. A note,
+// or another answer, is still sent.
+func TestRespondTwiceAnswersOnce(t *testing.T) {
+	e := newInviteEnv(t)
+	e.asKind(t, api.AccountKindICloud)
+	id := e.mail(t, request("REQUEST", 1, userLine))
+	first := e.respond(t, &api.CalendarRespondParams{MessageID: &id, Answer: api.PartStatAccepted})
+	again := e.respond(t, &api.CalendarRespondParams{MessageID: &id, Answer: api.PartStatAccepted})
+	if again.ID != first.ID || again.Answer == nil || *again.Answer != api.PartStatAccepted {
+		t.Errorf("again = %+v, first %+v", again, first)
+	}
+	if items, _ := e.outbox(t); len(items) != 1 {
+		t.Fatalf("replies = %d, want 1", len(items))
+	}
+	e.respond(t, &api.CalendarRespondParams{MessageID: &id, Answer: api.PartStatAccepted, Comment: ptr("See you there")})
+	e.respond(t, &api.CalendarRespondParams{MessageID: &id, Answer: api.PartStatTentative})
+	if items, cals := e.outbox(t); len(items) != 3 || !strings.Contains(cals[1], "See you there") ||
+		!strings.Contains(cals[2], "PARTSTAT=TENTATIVE") {
+		t.Errorf("replies = %d %q", len(items), cals)
+	}
+}
