@@ -1,6 +1,6 @@
 # 0019 — Answer invitations through the server's scheduling, else by mail
 
-- **Status:** Accepted
+- **Status:** Superseded by [0022](0022-mail-the-reply-the-server-will-not-send.md)
 - **Date:** 2026-10-08
 
 ## Context

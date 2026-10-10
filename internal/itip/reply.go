@@ -40,12 +40,19 @@ func Reply(src []byte, recurrenceID, attendee, answer, comment string, now time.
 	writeReplyZones(&out, src, cal, event)
 	out.WriteString(contentline.Prop{Name: "BEGIN", Value: "VEVENT"}.Encode("\r\n"))
 	for _, name := range []string{"UID", "RECURRENCE-ID", "SEQUENCE", "DTSTART", "DTEND", "DURATION", "SUMMARY", "ORGANIZER"} {
-		if p := event.Prop(name); p != nil {
-			out.WriteString(copiedProperty(src, *p))
+		p := event.Prop(name)
+		if p == nil {
+			continue
 		}
+		if clean, changed := withoutSchedule(*p); changed {
+			out.WriteString(clean.Encode("\r\n"))
+			continue
+		}
+		out.WriteString(copiedProperty(src, *p))
 	}
 	out.WriteString(contentline.Prop{Name: "DTSTAMP", Value: now.UTC().Format("20060102T150405Z")}.Encode("\r\n"))
-	out.WriteString(person.Encode("\r\n"))
+	clean, _ := withoutSchedule(*person)
+	out.WriteString(clean.Encode("\r\n"))
 	if comment != "" {
 		out.WriteString(contentline.Prop{Name: "COMMENT", Value: contentline.EscapeText(comment)}.Encode("\r\n"))
 	}
