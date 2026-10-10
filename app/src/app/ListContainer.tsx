@@ -6,18 +6,20 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
-import { MessageRow, ROW_HEIGHT, type SelectMode } from "../features/list/MessageRow";
+import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES } from "../lib/flags";
 import type { Command } from "../lib/keymap";
 import {
   archiveMailbox,
+  archiveOf,
   compose,
   moveMessages,
   rangeIds,
   selectedSummaries,
   setFlagColor,
   step,
+  toggleFlag,
   toggleRead,
 } from "./commands";
 import { openDraftMessage } from "./compose";
@@ -53,6 +55,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
   function ListContainer({ model, onDelete }, ref) {
     const client = useClient();
     const mailboxes = useMail((s) => s.mailboxes);
+    const accounts = useMail((s) => s.accounts);
     const { selected, anchor, focus, conversations, source, select, setFocus } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
@@ -266,6 +269,16 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       [menu, client, model, mailboxes, onDelete, source],
     );
 
+    const onRowAction = useCallback(
+      (id: number, action: RowAction) => {
+        if (action === "flag") void toggleFlag(client, model, [id]);
+        else if (action === "archive")
+          void moveMessages(client, [id], archiveMailbox(model, [id], mailboxes), source, mailboxes);
+        else onDelete([id]);
+      },
+      [client, model, mailboxes, source, onDelete],
+    );
+
     const focused = focus === "list";
     return (
       <div
@@ -304,6 +317,10 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                       now={now}
                       onSelect={onSelect}
                       onContextMenu={openMenu}
+                      onAction={
+                        accounts.find((account) => account.id === row.accountId)?.readOnly ? undefined : onRowAction
+                      }
+                      canArchive={archiveOf(row.accountId, mailboxes) !== undefined}
                     />
                   ) : (
                     <div style={{ height: ROW_HEIGHT }} />
