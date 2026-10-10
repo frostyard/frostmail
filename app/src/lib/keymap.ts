@@ -26,6 +26,7 @@ export type Command =
   | "pageUp"
   | "delete"
   | "archive"
+  | "junk"
   | "toggleRead"
   | "toggleFlag"
   | "focusSearch"
@@ -85,6 +86,7 @@ const BINDINGS: Binding[] = [
   { key: "delete", ctrl: false, alt: false, shift: false, command: "delete" },
   { key: "backspace", ctrl: false, alt: false, shift: false, command: "delete" },
   { key: "a", ctrl: true, alt: true, shift: false, command: "archive" },
+  { key: "j", ctrl: true, alt: false, shift: true, command: "junk" },
   { key: "u", ctrl: true, alt: false, shift: true, command: "toggleRead" },
   { key: "l", ctrl: true, alt: false, shift: true, command: "toggleFlag" },
   { key: "f", ctrl: true, alt: true, shift: false, command: "focusSearch" },

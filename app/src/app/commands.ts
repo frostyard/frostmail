@@ -2,7 +2,7 @@
 // toolbar and context menus (docs/specs/ui.md, Behavior).
 import type { Source } from "../data/stores";
 import type { ViewModel } from "../data/view";
-import type { Client, Mailbox } from "../rpc/gen/api";
+import type { Client, Mailbox, MessageSummary } from "../rpc/gen/api";
 import { startDraft } from "./compose";
 
 /** selectedSummaries returns the loaded summaries of the selected IDs. */
@@ -51,6 +51,58 @@ export function archiveOf(accountId: number, mailboxes: Mailbox[]): Mailbox | un
   const archive = own.find((mb) => mb.role === "archive");
   if (archive || !own.some((mb) => mb.label)) return archive;
   return own.find((mb) => mb.role === "all");
+}
+
+/** junkOf finds the account's junk mailbox. */
+export function junkOf(accountId: number, mailboxes: Mailbox[]): Mailbox | undefined {
+  return mailboxes.find((mb) => mb.accountId === accountId && mb.role === "junk");
+}
+
+/** SpamTarget describes whether the selection leaves junk and its destination. */
+export interface SpamTarget {
+  notSpam: boolean;
+  to: Mailbox | undefined;
+}
+
+/** spamTarget chooses junk, or the inbox when every loaded row is in junk. */
+export function spamTarget(model: ViewModel | null, ids: number[], mailboxes: Mailbox[]): SpamTarget {
+  const rows = selectedSummaries(model, ids);
+  const first = rows[0];
+  if (!first) return { notSpam: false, to: undefined };
+  const junk = junkOf(first.accountId, mailboxes);
+  const notSpam = junk !== undefined && rows.every((row) => row.mailboxIds.includes(junk.id));
+  const to = notSpam ? mailboxes.find((mb) => mb.accountId === first.accountId && mb.role === "inbox") : junk;
+  return { notSpam, to };
+}
+
+/** toggleSpam moves the selection into junk or back into the inbox. */
+export async function toggleSpam(
+  client: Client,
+  model: ViewModel | null,
+  ids: number[],
+  source: Source,
+  mailboxes: Mailbox[],
+): Promise<void> {
+  await moveMessages(client, ids, spamTarget(model, ids, mailboxes).to, source, mailboxes);
+}
+
+/** moveTargets lists the message's account's mailboxes that do not hold it. */
+export function moveTargets(message: MessageSummary | undefined, mailboxes: Mailbox[]): Mailbox[] {
+  if (!message) return [];
+  return mailboxes.filter((mb) => mb.accountId === message.accountId && !message.mailboxIds.includes(mb.id));
+}
+
+/** copyTargets limits Gmail destinations to labels other than Starred. */
+export function copyTargets(message: MessageSummary | undefined, mailboxes: Mailbox[]): Mailbox[] {
+  const targets = moveTargets(message, mailboxes);
+  const labels = mailboxes.some((mb) => mb.accountId === message?.accountId && mb.label);
+  return labels ? targets.filter((mb) => mb.label && mb.role !== "flagged") : targets;
+}
+
+/** copyMessages copies the selection to a mailbox. */
+export async function copyMessages(client: Client, ids: number[], to: Mailbox | undefined): Promise<void> {
+  if (!to || ids.length === 0) return;
+  await client.message.copy({ ids, mailboxId: to.id });
 }
 
 /**
