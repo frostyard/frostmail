@@ -6,6 +6,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
+import { emptyText } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type SelectMode } from "../features/list/MessageRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES } from "../lib/flags";
@@ -53,7 +54,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
   function ListContainer({ model, onDelete }, ref) {
     const client = useClient();
     const mailboxes = useMail((s) => s.mailboxes);
-    const { selected, anchor, focus, conversations, source, select, setFocus } = useUI();
+    const { selected, anchor, focus, conversations, source, listFilter, select, setFocus, setListFilter } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
     const [now, setNow] = useState(() => new Date());
@@ -283,7 +284,18 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
             <span className="text-[12px]">{model.error}</span>
           </div>
         ) : model?.ready && count === 0 ? (
-          <div className="flex h-full items-center justify-center text-empty text-secondary">No Messages</div>
+          <div className="flex h-full flex-col items-center justify-center gap-1 text-empty text-secondary">
+            <span>{emptyText(listFilter)}</span>
+            {listFilter !== "all" && (
+              <button
+                type="button"
+                className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
+                onClick={() => setListFilter("all")}
+              >
+                Show All
+              </button>
+            )}
+          </div>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {items.map((v) => {

@@ -282,8 +282,9 @@ export function useListQuery() {
   const search = useUI((state) => state.search);
   const searchScope = useUI((state) => state.searchScope);
   const conversations = useUI((state) => state.conversations);
+  const listFilter = useUI((state) => state.listFilter);
   return useMemo(
-    () => listQuery({ source, search, searchScope, conversations }),
-    [source, search, searchScope, conversations],
+    () => listQuery({ source, search, searchScope, conversations, listFilter }),
+    [source, search, searchScope, conversations, listFilter],
   );
 }

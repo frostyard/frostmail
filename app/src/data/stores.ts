@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { OccurrenceKey } from "../features/calendar/TimeGrid";
+import type { ListFilter } from "../features/list/FilterBar";
 import type { CalendarView } from "../lib/calendarDates";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
@@ -65,6 +66,7 @@ export interface UIState {
   searchDraft: string;
   /** "all" or "source": where a search looks. */
   searchScope: "all" | "source";
+  listFilter: ListFilter;
   /** Selected message IDs; the first is the one the reader shows. */
   selected: number[];
   /** The row a Shift-click or Shift-arrow extends from. */
@@ -99,6 +101,7 @@ export interface UIActions {
   commitSearch: (text: string) => void;
   clearSearch: () => void;
   setSearchScope: (scope: "all" | "source") => void;
+  setListFilter: (filter: ListFilter) => void;
   select: (ids: number[], anchor?: number | null) => void;
   setFocus: (p: Pane) => void;
   toggleSidebar: () => void;
@@ -125,6 +128,7 @@ const initialUI: UIState = {
   search: "",
   searchDraft: "",
   searchScope: "all",
+  listFilter: "all",
   selected: [],
   anchor: null,
   focus: "list",
@@ -161,6 +165,7 @@ export const useUI = create<UIState & UIActions>()(
       commitSearch: (search) => set({ search, selected: [], anchor: null }),
       clearSearch: () => set({ search: "", searchDraft: "", selected: [], anchor: null }),
       setSearchScope: (searchScope) => set({ searchScope, selected: [], anchor: null }),
+      setListFilter: (listFilter) => set({ listFilter, selected: [], anchor: null }),
       select: (selected, anchor) => set((s) => ({ selected, anchor: anchor === undefined ? s.anchor : anchor })),
       setFocus: (focus) => set({ focus }),
       toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
@@ -223,9 +228,20 @@ export function sourceQuery(s: Source, conversations: boolean): ViewQuery {
 }
 
 /** listQuery is the view query the list shows for the UI state. */
-export function listQuery(ui: Pick<UIState, "source" | "search" | "searchScope" | "conversations">): ViewQuery {
-  const base = sourceQuery(ui.source, ui.conversations);
+export function listQuery(
+  ui: Pick<UIState, "source" | "search" | "searchScope" | "conversations"> & Partial<Pick<UIState, "listFilter">>,
+): ViewQuery {
+  const filter: ViewQuery =
+    ui.listFilter === "unread"
+      ? { unread: true }
+      : ui.listFilter === "flagged"
+        ? { flagged: true }
+        : ui.listFilter === "attachments"
+          ? { hasAttachments: true }
+          : {};
+  const base = { ...sourceQuery(ui.source, ui.conversations), ...filter };
   if (ui.search === "") return base;
-  if (ui.searchScope === "all") return ui.conversations ? { text: ui.search, threads: true } : { text: ui.search };
+  if (ui.searchScope === "all")
+    return ui.conversations ? { text: ui.search, threads: true, ...filter } : { text: ui.search, ...filter };
   return { ...base, text: ui.search };
 }
