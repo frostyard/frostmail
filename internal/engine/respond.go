@@ -316,8 +316,18 @@ func answerError(err error) error {
 }
 
 // defaultCalendar is the account's default calendar that can be written,
-// else its first.
+// else its first. A default the user did not choose first follows the one
+// the server names, asked for here, where it matters; a server that does
+// not answer in time leaves it as it was.
 func (c calendarService) defaultCalendar(ctx context.Context, accountID int64) (store.Collection, bool, error) {
+	if c.PIM != nil {
+		ask, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := c.PIM.UseServerDefaultCalendar(ask, accountID)
+		cancel()
+		if err != nil && c.Log != nil {
+			c.Log.Warn("the server's default calendar is unknown", "account", accountID, "err", err)
+		}
+	}
 	cols, err := c.DB.Collections(ctx, store.CollectionFilter{AccountID: accountID, Kind: api.CollectionKindCalendar, EnabledOnly: true})
 	if err != nil {
 		return store.Collection{}, false, err

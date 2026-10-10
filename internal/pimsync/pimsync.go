@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -166,6 +167,58 @@ func (m *Manager) Poll(accountID int64, force bool) {
 
 // Kick tells an account's loop that changes are queued (pim_ops).
 func (m *Manager) Kick(accountID int64) { m.Poll(accountID, true) }
+
+// UseServerDefaultCalendar asks the account's calendar server for the
+// user's default calendar (RFC 6638's schedule-default-calendar-URL) and
+// makes it the default of the account's calendars, unless the user chose
+// one. A server that names none, or names one not synced here, changes
+// nothing.
+func (m *Manager) UseServerDefaultCalendar(ctx context.Context, accountID int64) error {
+	acct, err := m.db.GetAccount(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	services, err := m.db.Services(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	s, ok := enabledService(services, api.ServiceKindCalendar)
+	if !ok || s.Home == "" {
+		return nil
+	}
+	p := &pass{m: m, acct: acct}
+	c, err := p.client(s.Home)
+	if err != nil {
+		return err
+	}
+	href, err := c.DefaultCalendar(ctx)
+	if err != nil || href == "" {
+		return err
+	}
+	cols, err := m.db.Collections(ctx, store.CollectionFilter{AccountID: accountID, Kind: api.CollectionKindCalendar})
+	if err != nil {
+		return err
+	}
+	for _, col := range cols {
+		if samePath(col.Href, href) {
+			return m.db.Tx(ctx, func(tx *store.Tx) error {
+				_, err := tx.UseServerDefault(ctx, accountID, api.CollectionKindCalendar, col.Href)
+				return err
+			})
+		}
+	}
+	return nil
+}
+
+// samePath compares two hrefs as decoded paths, ignoring a trailing slash.
+func samePath(a, b string) bool {
+	da, err1 := url.PathUnescape(a)
+	db, err2 := url.PathUnescape(b)
+	if err1 != nil || err2 != nil {
+		da, db = a, b
+	}
+	return strings.TrimSuffix(da, "/") == strings.TrimSuffix(db, "/")
+}
 
 // Pass runs one pass of an account's services now and returns the first
 // error; passes of one account never overlap. The loops call it; tests

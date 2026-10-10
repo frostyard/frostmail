@@ -32,6 +32,8 @@ const (
 	PrincipalPath = "/dav/principals/user/"
 	ContactsHome  = "/dav/user/contacts/"
 	CalendarsHome = "/dav/user/calendars/"
+	// InboxPath is the scheduling inbox, named with ScheduleDefault.
+	InboxPath = "/dav/user/inbox/"
 )
 
 // Options tune the server.
@@ -51,6 +53,9 @@ type Options struct {
 	CDATA bool
 	// NoETagOnPut leaves the ETag header out of PUT responses.
 	NoETagOnPut bool
+	// ScheduleDefault is the decoded path of the user's default calendar,
+	// named by the scheduling inbox (RFC 6638 §9.2); "" names no inbox.
+	ScheduleDefault string
 	// RelocateCreates stores a new object at a name of the server's
 	// choosing, from its UID, and answers 201 with a Location and no ETag,
 	// as Google's CalDAV does.

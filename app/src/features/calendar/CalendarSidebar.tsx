@@ -13,6 +13,8 @@ export interface CalendarRow {
   /** Shown (and synced). */
   enabled: boolean;
   readOnly: boolean;
+  /** The account's default calendar, where invitations are accepted. */
+  isDefault?: boolean;
 }
 
 /** CalendarSection is an account and its calendars. */
@@ -26,6 +28,8 @@ export interface CalendarSection {
 export interface CalendarSidebarProps extends MiniMonthProps {
   sections: CalendarSection[];
   onToggle: (id: number, enabled: boolean) => void;
+  /** Makes a calendar its account's default. Task T-0099 builds the menu. */
+  onMakeDefault?: (id: number) => void;
 }
 
 /** CalendarSidebar shows the small month and the calendars to show. */

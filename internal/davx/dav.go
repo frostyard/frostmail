@@ -275,6 +275,41 @@ type Delta struct {
 	More bool
 }
 
+// DefaultCalendar asks the server for the user's default calendar (RFC
+// 6638 §9.2): from the calendar home this client is for, its principal,
+// the principal's scheduling inbox, and the inbox's
+// schedule-default-calendar-URL. It returns that calendar's path, or ""
+// when the server names none or names one on another origin.
+func (c *Client) DefaultCalendar(ctx context.Context) (string, error) {
+	href := c.base.EscapedPath()
+	for _, step := range []struct {
+		name string
+		pick func(prop) *hrefs
+	}{
+		{"d:current-user-principal", func(p prop) *hrefs { return p.Principal }},
+		{"c:schedule-inbox-URL", func(p prop) *hrefs { return p.ScheduleInbox }},
+		{"c:schedule-default-calendar-URL", func(p prop) *hrefs { return p.ScheduleDefault }},
+	} {
+		ms, err := c.multistatus(ctx, "PROPFIND", href, "0", propfind(step.name))
+		if err != nil {
+			return "", fmt.Errorf("default calendar: %w", err)
+		}
+		next := ""
+		for _, r := range ms.Responses {
+			if h := step.pick(r.found()); h != nil && len(h.Hrefs) > 0 {
+				next = h.Hrefs[0]
+				break
+			}
+		}
+		path, ok := hrefPath(c.base, next)
+		if next == "" || !ok {
+			return "", nil
+		}
+		href = path
+	}
+	return href, nil
+}
+
 // Sync asks a collection what changed since token (sync-collection, RFC
 // 6578); an empty token lists every object. A token the server no longer
 // accepts gives ErrInvalidToken.

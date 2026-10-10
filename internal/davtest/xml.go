@@ -170,8 +170,14 @@ func (s *Server) propfind(w http.ResponseWriter, r *http.Request, body []byte) {
 			have[caldav("calendar-home-set")] = hrefXML(CalendarsHome)
 			have[carddav("addressbook-home-set")] = hrefXML(ContactsHome)
 			have[dav("resourcetype")] = "<d:principal/>"
+			if s.opts.ScheduleDefault != "" {
+				have[caldav("schedule-inbox-URL")] = hrefXML(InboxPath)
+			}
 		}
 		rs = append(rs, answer(path, have, names, all))
+	case path == InboxPath && s.opts.ScheduleDefault != "":
+		rs = append(rs, answer(path, props{dav("resourcetype"): "<d:collection/>",
+			caldav("schedule-default-calendar-URL"): hrefXML(s.opts.ScheduleDefault)}, names, all))
 	case path == ContactsHome || path == CalendarsHome:
 		home := props{dav("resourcetype"): "<d:collection/>", dav("current-user-principal"): hrefXML(PrincipalPath)}
 		rs = append(rs, answer(path, home, names, all))
