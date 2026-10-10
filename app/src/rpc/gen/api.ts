@@ -1800,8 +1800,9 @@ export interface ViewQuery {
    */
   unread?: boolean;
   /**
-   * true: flagged only; false: unflagged only. Rows whose flag changes while
-   * the view is open stay, as for unread.
+   * true: flagged only; false: unflagged only. Unlike unread, a row whose
+   * flag changes leaves at once: flagging is deliberate, and the Tasks
+   * module's Flagged Mail completes a message by unflagging it.
    */
   flagged?: boolean;
   /** true: only messages with attachments; false: only those without. */

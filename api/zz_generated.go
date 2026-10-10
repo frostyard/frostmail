@@ -3112,8 +3112,9 @@ type ViewQuery struct {
 	// reopened, so a message read in an Unread list does not vanish under the
 	// pointer.
 	Unread *bool `json:"unread,omitzero"`
-	// true: flagged only; false: unflagged only. Rows whose flag changes while
-	// the view is open stay, as for unread.
+	// true: flagged only; false: unflagged only. Unlike unread, a row whose flag
+	// changes leaves at once: flagging is deliberate, and the Tasks module's
+	// Flagged Mail completes a message by unflagging it.
 	Flagged *bool `json:"flagged,omitzero"`
 	// true: only messages with attachments; false: only those without.
 	HasAttachments *bool `json:"hasAttachments,omitzero"`
