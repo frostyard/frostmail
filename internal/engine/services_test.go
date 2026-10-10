@@ -111,6 +111,10 @@ func TestServicesByProvider(t *testing.T) {
 	if !list[0].Available || !list[1].Available || list[2].Available {
 		t.Errorf("iCloud services = %+v", list)
 	}
+	// Settings says why iCloud has no tasks; the services it has need no reason.
+	if list[2].Reason == nil || !strings.Contains(*list[2].Reason, "Apple Reminders") || list[0].Reason != nil || list[1].Reason != nil {
+		t.Errorf("iCloud reasons = %v, %v, %v", list[0].Reason, list[1].Reason, list[2].Reason)
+	}
 	if _, err := c.Account().SetService(ctx, &api.AccountSetServiceParams{ID: icloud.ID, Service: api.ServiceKindTasks, Enabled: true}); code(err) != api.CodeInvalidParams {
 		t.Errorf("iCloud tasks = %v", err)
 	}
@@ -134,7 +138,7 @@ func TestServicesByProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if list, _ := c.Account().Services(ctx, &api.AccountServicesParams{ID: ms.ID}); list[0].Available || list[1].Available {
+	if list, _ := c.Account().Services(ctx, &api.AccountServicesParams{ID: ms.ID}); list[0].Available || list[1].Available || list[2].Reason != nil {
 		t.Errorf("Microsoft services = %+v", list)
 	}
 }

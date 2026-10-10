@@ -95,6 +95,7 @@ types:
       - {name: signedIn, type: bool, doc: "The account's sign-in covers the service. False for a Google account whose grant lacks the service's scope: account.authorize asks for it."}
       - {name: lastSyncAt, type: time, optional: true, doc: "The end of the last complete pass."}
       - {name: error, type: string, optional: true, doc: "Why the last pass failed."}
+      - {name: reason, type: string, optional: true, doc: "Why the service is not available, for the user to read; absent when it is, or when no reason is known."}
   - name: Collection
     doc: An address book, calendar or task list.
     fields:

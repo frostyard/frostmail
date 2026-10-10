@@ -60,6 +60,8 @@ type DAV struct {
 	// Tasks is "google" for the Google Tasks API, "none" when the provider
 	// has no tasks Frostmail can reach, and "" for task lists over CalDAV.
 	Tasks string
+	// NoTasks says why Tasks is "none", for Settings to show.
+	NoTasks string
 	// Schedules is a CalDAV server that tells an organizer of the user's
 	// answer itself when a copy its scheduling delivered changes (RFC
 	// 6638), so maild mails no iTIP reply of its own (ADR-0022).
@@ -103,9 +105,15 @@ var profiles = []Profile{
 		Domains: []string{"icloud.com", "me.com", "mac.com"},
 		Quirks:  Quirks{NoQResync: true, SilentEnable: true},
 		DAV: DAV{
-			Contacts:  "https://contacts.icloud.com/",
-			Calendar:  "https://caldav.icloud.com/",
+			Contacts: "https://contacts.icloud.com/",
+			Calendar: "https://caldav.icloud.com/",
+			// Since iOS 13 and macOS 10.15 (2019), Reminders keeps its lists
+			// where only Apple's apps reach them. CalDAV still lists the lists
+			// left from before, frozen and named with "⚠️": a reminder made
+			// today never appears there (probed on the user's account,
+			// 2026-10-10).
 			Tasks:     "none",
+			NoTasks:   "Apple Reminders can't be reached by apps outside Apple's (since iOS 13).",
 			Schedules: true,
 			Trusted:   []string{"icloud.com"},
 		},

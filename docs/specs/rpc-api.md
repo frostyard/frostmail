@@ -271,6 +271,7 @@ One of an account's services besides mail.
 | `signedIn` | `bool` | The account's sign-in covers the service. False for a Google account whose grant lacks the service's scope: account.authorize asks for it. |
 | `lastSyncAt` | `time` (optional) | The end of the last complete pass. |
 | `error` | `string` (optional) | Why the last pass failed. |
+| `reason` | `string` (optional) | Why the service is not available, for the user to read; absent when it is, or when no reason is known. |
 
 ### Type `Collection`
 
