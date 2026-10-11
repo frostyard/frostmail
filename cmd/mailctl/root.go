@@ -41,6 +41,7 @@ func newRootCmd() *cobra.Command {
 		newPeopleCmd(opts),
 		newCalCmd(opts),
 		newTasksCmd(opts),
+		newRulesCmd(opts),
 	)
 	return root
 }
