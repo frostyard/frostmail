@@ -3,7 +3,7 @@
 // two-line preview, and the unread dot and the flag in the 24px gutter. The
 // list container owns focus, selection and virtualization; the row only
 // reports what the pointer did to it.
-import { Archive, Flag, Paperclip, Trash2 } from "lucide-react";
+import { Archive, Flag, Paperclip, Star, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { flagName } from "../../lib/flags";
@@ -22,6 +22,7 @@ export type RowAction = "flag" | "archive" | "delete";
 /** MessageRowProps are a row's inputs. */
 export interface MessageRowProps {
   message: MessageSummary;
+  vip?: boolean;
   selected: boolean;
   /** The list has keyboard focus: selected rows use the accent color. */
   focused: boolean;
@@ -96,6 +97,9 @@ export function MessageRow(props: MessageRowProps) {
       {!selected && <div className="absolute bottom-0 left-6 right-0 h-px bg-separator" />}
 
       <div className="flex items-center gap-1">
+        {props.vip && (
+          <Star size={10} role="img" aria-label="VIP" className={joinClasses("shrink-0 fill-current", secondary)} />
+        )}
         <span className="text-list-sender truncate flex-1">{displayName(message.from)}</span>
         <span className={joinClasses("flex shrink-0 items-center gap-1", onAction && "group-hover:hidden")}>
           {message.hasAttachments && (
