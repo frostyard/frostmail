@@ -48,11 +48,19 @@ func NewManager(db *store.DB, log *slog.Logger) *Manager {
 // Run recomputes dirty views until ctx ends.
 func (m *Manager) Run(ctx context.Context) {
 	for {
+		midnight := time.NewTimer(untilMidnight(time.Now()))
 		select {
 		case <-ctx.Done():
+			midnight.Stop()
 			return
 		case <-m.kick:
+		case <-midnight.C:
+			// Conditions' relative dates ("today") move with the day.
+			m.mu.Lock()
+			m.dirty[0] = true
+			m.mu.Unlock()
 		}
+		midnight.Stop()
 		select {
 		case <-ctx.Done():
 			return
@@ -135,6 +143,9 @@ func (m *Manager) OnCommit(evs []api.EventEnvelope) {
 			if e.Deleted {
 				m.dirty[0], changed = true, true
 			}
+		case api.VipChanged, api.PeopleChanged, api.SettingsChanged:
+			// Conditions on VIPs and People (ADR-0023) may list other messages.
+			m.dirty[0], changed = true, true
 		}
 	}
 	m.mu.Unlock()
@@ -189,4 +200,10 @@ func (m *Manager) recompute(ctx context.Context) {
 			m.log.Debug("view delta not sent", "view", v.id, "err", err)
 		}
 	}
+}
+
+// untilMidnight is the time from t to the next local midnight.
+func untilMidnight(t time.Time) time.Duration {
+	next := time.Date(t.Year(), t.Month(), t.Day()+1, 0, 0, 0, 0, t.Location())
+	return next.Sub(t)
 }

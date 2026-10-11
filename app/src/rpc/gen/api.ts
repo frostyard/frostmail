@@ -2147,6 +2147,12 @@ export interface ViewInfo {
   count: number;
 }
 
+/** How many messages a query lists. */
+export interface ViewCount {
+  total: number;
+  unread: number;
+}
+
 /** One step of a delta; apply a delta's ops in order. */
 export interface ViewOp {
   op: ViewOpKind;
@@ -2157,6 +2163,12 @@ export interface ViewOp {
 /** Params of view.open. */
 export interface ViewOpenParams {
   query: ViewQuery;
+}
+
+/** Params of view.count. */
+export interface ViewCountParams {
+  /** At most 100. */
+  queries: ViewQuery[];
 }
 
 /** Params of view.range. */
@@ -2192,6 +2204,12 @@ export interface ViewClient {
    */
   open(params: ViewOpenParams): Promise<ViewInfo>;
   /**
+   * Count what each query lists, without opening views: the sidebar's Flagged
+   * colors, VIPs and other built-in sources. Messages, not threads; a query's
+   * threads field is ignored.
+   */
+  count(params: ViewCountParams): Promise<ViewCount[]>;
+  /**
    * The rows from start up to, not including, end; end is capped at the
    * view's count.
    */
@@ -2203,6 +2221,7 @@ export interface ViewClient {
 function viewClient(t: Transport): ViewClient {
   return {
     open: (params) => t.call<ViewInfo>("view.open", params),
+    count: (params) => t.call<ViewCount[]>("view.count", params),
     range: (params) => t.call<MessageSummary[]>("view.range", params),
     close: (params) => t.call<null>("view.close", params).then(() => undefined),
   };
@@ -2367,6 +2386,7 @@ export const METHODS = [
   "tasks.delete",
   "thread.messages",
   "view.open",
+  "view.count",
   "view.range",
   "view.close",
   "vip.list",

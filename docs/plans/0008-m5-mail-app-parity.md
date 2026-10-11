@@ -82,9 +82,9 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   share).
 - IDL and `make gen` for Phases 2–5: `settings.get` and `set`, `vip.*`,
   `smart.*`, `rule.*` with `rule.apply`, `message.remind`,
-  `draft.send {sendAt}`, `outbox.reschedule`; `ViewQuery` gains
-  `conditions` and `smartMailboxId`; their events. Migration 0011, engine
-  stubs. Phase 6's contracts come with Phase 6.
+  `draft.send {sendAt}`, `outbox.reschedule`, `view.count`; `ViewQuery`
+  gains `conditions` and `smartMailboxId`; their events. Migration 0011,
+  engine stubs. Phase 6's contracts come with Phase 6.
 - The condition compiler (`store.CompileConditions`: every field and
   operator, any and all, Trash and Sent left out unless asked) and
   `search.ToConditions`, with tests, since Phases 2 to 4 all build on
@@ -96,17 +96,18 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 ## Phase 2 — Flags, VIPs and the notification scope
 
-- Planner: the settings and VIP stores, the conditions Flagged's colors
-  and VIPs need, and the scope in `announce.go` (what notifies).
+- Planner (done with Phase 1, so the cards meet a working maild): the
+  settings and VIP stores and services, `view.count`, the scope in
+  `announce.go` (what notifies), and the Undo Send delay as a setting.
 - Cards: Flagged with a row per color and real counts; VIPs in the app
   (the star in the list and the reader, the VIPs section, adding from the
   header and the contact card); the General pane (notification scope,
-  flag names).
+  Undo Send, flag names).
 - **Done when:** Flagged shows a row per color in use with its count, and
   a color set by another client on the Dovecot account lists under its
   row; renamed flags label the sidebar and menus; mail from a VIP shows
   the star, lists under VIPs and is the only mail that notifies under the
-  VIPs scope.
+  VIPs scope; Undo Send's Off sends at once and 30 seconds waits 30.
 
 ## Phase 3 — Smart mailboxes
 
@@ -132,21 +133,19 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   notify; Apply Rules does the same to stored mail; a read-only account's
   mail is untouched.
 
-## Phase 5 — Send Later, Remind Me and Undo Send
+## Phase 5 — Send Later and Remind Me
 
 - Planner: `draft.send {sendAt}` building with the chosen `Date`,
   `outbox.reschedule`, the Remind Me store and its timer (as
-  `internal/reminders` keeps alarms), the return to the inbox, the delay
-  setting.
+  `internal/reminders` keeps alarms), the return to the inbox, and views
+  ordered by `list_date`.
 - Cards: Send Later (the Send menu's times, the Send Later mailbox, edit
   and cancel; scheduled rows are not undo toasts); Remind Me (the menu, the
-  reader's banner, the clock in the row); the Undo Send setting in the
-  General pane.
+  reader's banner, the clock in the row).
 - **Done when:** a message scheduled for a time goes out then with the app
   closed, with that time as its `Date`, and at maild's next start when it
   was stopped; a reminded message is back at the top of the inbox at its
-  time, from the archive too, and notifies; Off sends at once and 30
-  seconds waits 30.
+  time, from the archive too, and notifies.
 
 ## Phase 6 — The rest of the checklist
 

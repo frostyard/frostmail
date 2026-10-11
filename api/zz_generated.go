@@ -3836,6 +3836,12 @@ type ViewInfo struct {
 	Count int64 `json:"count"`
 }
 
+// ViewCount: How many messages a query lists.
+type ViewCount struct {
+	Total  int64 `json:"total"`
+	Unread int64 `json:"unread"`
+}
+
 // ViewOp: One step of a delta; apply a delta's ops in order.
 type ViewOp struct {
 	Op    ViewOpKind `json:"op"`
@@ -3846,6 +3852,12 @@ type ViewOp struct {
 // ViewOpenParams holds the params of view.open.
 type ViewOpenParams struct {
 	Query ViewQuery `json:"query"`
+}
+
+// ViewCountParams holds the params of view.count.
+type ViewCountParams struct {
+	// At most 100.
+	Queries []ViewQuery `json:"queries"`
 }
 
 // ViewRangeParams holds the params of view.range.
@@ -3866,6 +3878,10 @@ type ViewService interface {
 	// Open implements view.open. Open a view; deltas follow on this connection
 	// without events.subscribe.
 	Open(ctx context.Context, p *ViewOpenParams) (*ViewInfo, error)
+	// Count implements view.count. Count what each query lists, without opening
+	// views: the sidebar's Flagged colors, VIPs and other built-in sources.
+	// Messages, not threads; a query's threads field is ignored.
+	Count(ctx context.Context, p *ViewCountParams) ([]ViewCount, error)
 	// Range implements view.range. The rows from start up to, not including, end;
 	// end is capped at the view's count.
 	Range(ctx context.Context, p *ViewRangeParams) ([]MessageSummary, error)
@@ -3880,6 +3896,13 @@ func registerView(r *Router, s ViewService) {
 			return nil, err
 		}
 		return s.Open(ctx, &p)
+	})
+	r.handle("view.count", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ViewCountParams
+		if err := decodeParams(raw, &p, []string{"queries"}); err != nil {
+			return nil, err
+		}
+		return s.Count(ctx, &p)
 	})
 	r.handle("view.range", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p ViewRangeParams
@@ -3913,6 +3936,13 @@ func (x ViewClient) Open(ctx context.Context, p *ViewOpenParams) (*ViewInfo, err
 		return nil, err
 	}
 	return &r, nil
+}
+
+// Count calls view.count.
+func (x ViewClient) Count(ctx context.Context, p *ViewCountParams) ([]ViewCount, error) {
+	var r []ViewCount
+	err := x.c.Call(ctx, "view.count", p, &r)
+	return r, err
 }
 
 // Range calls view.range.
@@ -4233,6 +4263,7 @@ var Methods = []string{
 	"tasks.delete",
 	"thread.messages",
 	"view.open",
+	"view.count",
 	"view.range",
 	"view.close",
 	"vip.list",

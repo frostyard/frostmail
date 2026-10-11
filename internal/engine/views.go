@@ -17,7 +17,41 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 	if v.Views == nil {
 		return nil, api.Unavailable("views are not running")
 	}
-	q := p.Query
+	f, err := filterOf(p.Query)
+	if err != nil {
+		return nil, err
+	}
+	id, count, err := v.Views.Open(ctx, api.ConnFrom(ctx), f)
+	if err != nil {
+		return nil, err
+	}
+	return &api.ViewInfo{ID: id, Count: int64(count)}, nil
+}
+
+// maxCounts bounds one view.count.
+const maxCounts = 100
+
+func (v views) Count(ctx context.Context, p *api.ViewCountParams) ([]api.ViewCount, error) {
+	if len(p.Queries) > maxCounts {
+		return nil, api.InvalidParams("at most %d queries", maxCounts)
+	}
+	out := make([]api.ViewCount, 0, len(p.Queries))
+	for _, q := range p.Queries {
+		f, err := filterOf(q)
+		if err != nil {
+			return nil, err
+		}
+		total, unread, err := v.DB.CountView(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, api.ViewCount{Total: int64(total), Unread: int64(unread)})
+	}
+	return out, nil
+}
+
+// filterOf is the store filter of a view query.
+func filterOf(q api.ViewQuery) (store.ViewFilter, error) {
 	f := store.ViewFilter{Unread: q.Unread, Flagged: q.Flagged, HasAttachment: q.HasAttachments}
 	if q.AccountID != nil {
 		f.AccountID = *q.AccountID
@@ -36,18 +70,14 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 	}
 	if q.Conditions != nil {
 		if err := store.CheckConditions(*q.Conditions); err != nil {
-			return nil, api.InvalidParams("%v", err)
+			return f, api.InvalidParams("%v", err)
 		}
 		f.Conditions = q.Conditions
 	}
 	if q.SmartMailboxID != nil {
-		return nil, notYet(3)
+		return f, notYet(3)
 	}
-	id, count, err := v.Views.Open(ctx, api.ConnFrom(ctx), f)
-	if err != nil {
-		return nil, err
-	}
-	return &api.ViewInfo{ID: id, Count: int64(count)}, nil
+	return f, nil
 }
 
 func (v views) Range(ctx context.Context, p *api.ViewRangeParams) ([]api.MessageSummary, error) {

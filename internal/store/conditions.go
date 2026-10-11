@@ -1,6 +1,8 @@
 package store
 
 import (
+	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
@@ -182,7 +184,9 @@ func compileCondition(c api.Condition, now time.Time, loc *time.Location) (strin
 	case api.ConditionFieldVip:
 		return yesNo(op, v, `EXISTS (SELECT 1 FROM vips v WHERE v.address = lower(m.from_addr))`)
 	case api.ConditionFieldContact:
-		return yesNo(op, v, `EXISTS (SELECT 1 FROM contact_emails ce WHERE ce.email = lower(m.from_addr))`)
+		// Contacts in People: those of disabled books or services have no person.
+		return yesNo(op, v, `EXISTS (SELECT 1 FROM contact_emails ce JOIN contacts c ON c.object_id = ce.contact_id`+
+			` WHERE ce.email = lower(m.from_addr) AND c.person_id IS NOT NULL)`)
 	case api.ConditionFieldReminder:
 		return yesNo(op, v, `EXISTS (SELECT 1 FROM message_reminders r WHERE r.message_id = m.id)`)
 	}
@@ -413,4 +417,35 @@ func dateMatch(column string, op api.ConditionOp, v string, now time.Time, loc *
 		}
 	}
 	return "", nil, fmt.Errorf("a date does not take %s", op)
+}
+
+// MatchingIDs returns those of ids, ascending, that c matches as of the
+// store's clock in loc: rules over waiting mail, the notification scope.
+func (d *DB) MatchingIDs(ctx context.Context, c api.Conditions, ids []int64, loc *time.Location) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	p, err := CompileConditions(c, d.Now(), loc)
+	if err != nil {
+		return nil, err
+	}
+	in, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("matching ids: %w", err)
+	}
+	rows, err := d.db.QueryContext(ctx, `SELECT m.id FROM messages m WHERE m.id IN (SELECT value FROM json_each(?)) AND `+
+		p.SQL+` ORDER BY m.id`, append([]any{string(in)}, p.Args...)...)
+	if err != nil {
+		return nil, fmt.Errorf("matching ids: %w", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("matching ids: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }

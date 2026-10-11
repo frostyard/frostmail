@@ -88,6 +88,11 @@ types:
     fields:
       - {name: id, type: int}
       - {name: count, type: int}
+  - name: ViewCount
+    doc: How many messages a query lists.
+    fields:
+      - {name: total, type: int}
+      - {name: unread, type: int}
   - name: ViewOp
     doc: One step of a delta; apply a delta's ops in order.
     fields:
@@ -100,6 +105,15 @@ methods:
     params:
       - {name: query, type: ViewQuery}
     result: ViewInfo
+    errors: [invalidParams, notFound]
+  - name: count
+    doc: >-
+      Count what each query lists, without opening views: the sidebar's
+      Flagged colors, VIPs and other built-in sources. Messages, not
+      threads; a query's threads field is ignored.
+    params:
+      - {name: queries, type: "[]ViewQuery", doc: "At most 100."}
+    result: "[]ViewCount"
     errors: [invalidParams, notFound]
   - name: range
     doc: The rows from start up to, not including, end; end is capped at the view's count.

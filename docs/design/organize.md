@@ -92,6 +92,11 @@ next recompute. Besides the commits that touch an account's messages,
 the view manager recomputes every view with conditions when VIPs, people,
 smart mailboxes or settings change, and at local midnight.
 
+`view.count {queries}` counts what each query lists, messages and unread
+ones, without opening views (`store.CountView`); the sidebar counts its
+built-in sources with it. `store.MatchingIDs` runs conditions over given
+messages, for rules and the notification scope.
+
 The sidebar's built-in sources are conditions too: Flagged's color rows
 are `color is N`, VIPs is `vip is true`, one VIP is `from is
 <address>` (each of a person's addresses, `any`), and Remind Me is

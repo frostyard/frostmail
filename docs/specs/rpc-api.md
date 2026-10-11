@@ -1983,6 +1983,17 @@ Open a view; deltas follow on this connection without events.subscribe.
 Result: `ViewInfo`.
 Errors: `invalidParams`, `notFound`.
 
+### `view.count`
+
+Count what each query lists, without opening views: the sidebar's Flagged colors, VIPs and other built-in sources. Messages, not threads; a query's threads field is ignored.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `queries` | `[]ViewQuery` | At most 100. |
+
+Result: `[]ViewCount`.
+Errors: `invalidParams`, `notFound`.
+
 ### `view.range`
 
 The rows from start up to, not including, end; end is capped at the view's count.
@@ -2061,6 +2072,15 @@ An open view.
 | --- | --- | --- |
 | `id` | `int` |  |
 | `count` | `int` |  |
+
+### Type `ViewCount`
+
+How many messages a query lists.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `total` | `int` |  |
+| `unread` | `int` |  |
 
 ### Type `ViewOp`
 

@@ -54,7 +54,8 @@ type Deps struct {
 	Blobs   *blob.Store
 	Views   *view.Manager
 	Render  *render.Renderer
-	// UndoDelay is how long draft.send holds a message [DefaultUndoDelay].
+	// UndoDelay, when set, overrides the undoDelay setting
+	// (FROSTMAIL_UNDO_DELAY, tests).
 	UndoDelay time.Duration
 	// Discovery is how account.discover reaches the network; zero means
 	// the real HTTPS and DNS.

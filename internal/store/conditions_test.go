@@ -95,10 +95,18 @@ func newConditionsFixture(t *testing.T) conditionsFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := d.Tx(ctx, func(tx *Tx) error {
+		return tx.SetService(ctx, f.acct, api.ServiceKindContacts, true, "https://dav.test/")
+	}); err != nil {
+		t.Fatal(err)
+	}
 	col := replaceCols(t, d, f.acct, api.CollectionKindAddressbook, RemoteCollection{Href: "/ab/", Name: "Book"})[0].ID
 	obj := putObject(t, d, Object{CollectionID: col, Href: "/ab/carol.vcf", Kind: ObjectVCard, Raw: []byte("C")})
 	if err := d.Tx(ctx, func(tx *Tx) error {
-		return tx.IndexContact(ctx, obj, ContactIndex{DisplayName: "Carol", Emails: []ContactEmail{{Email: "carol@y.test"}}})
+		if err := tx.IndexContact(ctx, obj, ContactIndex{DisplayName: "Carol", Emails: []ContactEmail{{Email: "carol@y.test"}}}); err != nil {
+			return err
+		}
+		return tx.RelinkPeople(ctx)
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -312,5 +320,20 @@ func TestViewIDsWithConditions(t *testing.T) {
 	got, err = f.d.ViewIDs(t.Context(), ViewFilter{MailboxID: f.trash, Conditions: &c})
 	if err != nil || !slices.Equal(got, []int64{f.old}) {
 		t.Errorf("ViewIDs(Trash, flagged) = %v, %v; want [old]", got, err)
+	}
+}
+
+// TestCountView: a view filter's messages and unread ones, conditions
+// included.
+func TestCountView(t *testing.T) {
+	f := newConditionsFixture(t)
+	c := one("flagged", "is", "true")
+	total, unread, err := f.d.CountView(t.Context(), ViewFilter{Conditions: &c})
+	if err != nil || total != 2 || unread != 1 {
+		t.Errorf("CountView(flagged) = %d, %d, %v; want 2, 1", total, unread, err)
+	}
+	total, unread, err = f.d.CountView(t.Context(), ViewFilter{MailboxID: f.sent})
+	if err != nil || total != 1 || unread != 0 {
+		t.Errorf("CountView(Sent) = %d, %d, %v; want 1, 0", total, unread, err)
 	}
 }

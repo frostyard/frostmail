@@ -31,8 +31,18 @@ import (
 // SMTP server's own limit is not known.
 const AttachmentLimit = 25_000_000
 
-// DefaultUndoDelay is how long a sent message waits in the outbox.
-const DefaultUndoDelay = 10 * time.Second
+// undoDelay is how long a sent message waits in the outbox: the undoDelay
+// setting, unless Deps.UndoDelay overrides it.
+func (d Deps) undoDelay(ctx context.Context) (time.Duration, error) {
+	if d.UndoDelay != 0 {
+		return d.UndoDelay, nil
+	}
+	s, err := d.DB.Settings(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(s.UndoDelay) * time.Second, nil
+}
 
 type drafts struct{ Deps }
 
@@ -613,9 +623,9 @@ func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxIt
 	if err != nil {
 		return nil, err
 	}
-	delay := d.UndoDelay
-	if delay == 0 {
-		delay = DefaultUndoDelay
+	delay, err := d.undoDelay(ctx)
+	if err != nil {
+		return nil, err
 	}
 	var item store.OutboxItem
 	err = d.DB.Tx(ctx, func(tx *store.Tx) error {
