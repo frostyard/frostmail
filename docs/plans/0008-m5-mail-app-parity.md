@@ -177,7 +177,18 @@ Phases 2 to 7 overlap once Phase 1's compiler is in.
 
 ## Cards (Codex, [ADR-0021](../adr/0021-run-task-cards-with-codex.md))
 
-Numbered from T-0104 as each phase's cards are written. The planner keeps
+Each phase's cards are written as it starts, from T-0104. Each has a
+fixed file list, a contract and given tests checked against a reference
+solution, and runs with `make task T=NNNN`.
+
+| Card | Size | Phase | What |
+| --- | --- | --- | --- |
+| T-0104 | L | 2 | VIPs and Flagged's colors in the sidebar, with their counts; the new sources' titles |
+| T-0105 | M | 2 | the VIP star in the list and the reader; Add to VIPs on the contact card |
+| T-0106 | M | 2 | the settings window's General pane; the flags' names in the menus |
+
+Phase 2's cards share `ListContainer.tsx` and `ToolbarContainer.tsx`:
+run them in order, each merged before the next starts. The planner keeps
 what ADR-0021 reserves, and in M5 also the condition compiler, rule
 evaluation, the Remind Me timer and everything that sends or deletes for
 good: redirect, unsubscribe, rule actions and erasing.
