@@ -96,7 +96,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | M5·6 | |
 | P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same | M5·5 | |
 | P-413 | Follow Up: sent mail with no reply after three days returns | | Later | A suggestion heuristic; after Remind Me |
-| P-414 | Apply Rules to the selection | Same | M5·4 | |
+| P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` |
 | P-415 | Move to the predicted mailbox | | Out | On-device learning |
 
 ## Writing and sending
@@ -127,9 +127,9 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
-| P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild on new inbox mail | M5·4 | |
-| P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions | M5·4 | |
-| P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | M5·4 | |
+| P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild once on new inbox mail before it notifies | Have | `TestRulesActOnNewInboxMail`, `TestRulesRunOnce`, `TestDovecotRules`, `TestGmailRulesMoveToALabel`, `RulesPane.test.tsx`, `SettingsWindow.rules.test.tsx` |
+| P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions; junk is Mailbox Type is Junk; no Previous Recipients list | Have | `TestCompileEveryCondition`, `RuleSheet.test.tsx` |
+| P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | Have | `TestRulesActOnNewInboxMail`, `TestDovecotRules`, `ActionEditor.test.tsx`, `TestRules` |
 | P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking; the user's choice (plan 0008) |
 | P-705 | Set Color, Play Sound, Bounce Icon | | Later | Cosmetic |
 | P-706 | Run AppleScript | | Out | macOS only; a command action would be a new trust boundary |

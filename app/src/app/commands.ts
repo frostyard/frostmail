@@ -36,6 +36,12 @@ export async function setFlagColor(client: Client, ids: number[], color: number)
   await client.message.setFlags({ ids, changes: { flagColor: color } });
 }
 
+/** applyRules runs the enabled rules on the messages now. */
+export async function applyRules(client: Client, ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  await client.rule.apply({ ids });
+}
+
 /** archiveMailbox is where Archive moves the messages (see archiveOf). */
 export function archiveMailbox(model: ViewModel | null, ids: number[], mailboxes: Mailbox[]): Mailbox | undefined {
   const first = selectedSummaries(model, ids)[0];

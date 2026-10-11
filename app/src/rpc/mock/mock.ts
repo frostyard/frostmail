@@ -20,6 +20,7 @@ import {
   type MessageSummary,
   type Part,
   type Rendering,
+  type RuleApplied,
   type SyncStatus,
   type ViewCount,
   type ViewQuery,
@@ -151,6 +152,7 @@ export class MockTransport implements Transport {
     );
     this.organize.unread = (id) =>
       this.viewIds({ smartMailboxId: id }).filter((m) => !this.messages.get(m)?.summary.flags.seen).length;
+    this.organize.mailboxExists = (id) => this.mailboxes.some((mb) => mb.id === id);
   }
 
   call<T>(method: string, params: unknown): Promise<T> {
@@ -361,6 +363,8 @@ export class MockTransport implements Transport {
       case "message.delete":
         this.delete(ids(p.ids));
         return null;
+      case "rule.apply":
+        return this.applyRules(ids(p.ids));
       case "thread.messages":
         return this.thread(num(p.id));
       case "view.open":
@@ -496,6 +500,52 @@ export class MockTransport implements Transport {
       else this.move([id], trash.id);
     }
     if (expunge.length > 0) this.remove(expunge);
+  }
+
+  /** applyRules runs the enabled rules on messages, as maild's rule.apply:
+   *  each rule sees the messages as they were, Stop ends a message's run,
+   *  and the actions go read marks and flags, copies, then the move or
+   *  delete; moves and copies stay within the message's account. */
+  private applyRules(list: number[]): RuleApplied {
+    const rows = list.map((id) => this.find(id).summary);
+    const readOnly = rows.find((s) => this.account(s.accountId).readOnly);
+    if (readOnly) throw new RPCError(ErrorCode.conflict, `account ${readOnly.accountId} is read-only`);
+    interface Plan {
+      read: boolean;
+      color: number;
+      copies: number[];
+      move?: number;
+      del: boolean;
+    }
+    const plans = new Map<number, Plan>();
+    let live = rows;
+    for (const rule of this.organize.ruleList()) {
+      if (!rule.enabled) continue;
+      const matched = live.filter((s) => this.matches(s, rule.conditions));
+      for (const s of matched) {
+        const plan = plans.get(s.id) ?? { read: false, color: 0, copies: [], del: false };
+        plans.set(s.id, plan);
+        for (const a of rule.actions) {
+          if (a.kind === "read") plan.read = true;
+          else if (a.kind === "flag" && a.color !== undefined) plan.color = a.color;
+          else if (a.kind === "copy" && a.mailboxId !== undefined && !plan.copies.includes(a.mailboxId))
+            plan.copies.push(a.mailboxId);
+          else if (a.kind === "move" && a.mailboxId !== undefined) plan.move = a.mailboxId;
+          else if (a.kind === "delete") plan.del = true;
+        }
+      }
+      if (rule.actions.some((a) => a.kind === "stop")) live = live.filter((s) => !matched.includes(s));
+    }
+    const sameAccount = (id: number, mailboxId: number) =>
+      this.mailboxes.find((mb) => mb.id === mailboxId)?.accountId === this.messages.get(id)?.summary.accountId;
+    for (const [id, plan] of plans) {
+      if (plan.read) this.setFlags([id], { seen: true });
+      if (plan.color !== 0) this.setFlags([id], { flagColor: plan.color });
+      for (const mb of plan.copies) if (sameAccount(id, mb)) this.copy([id], mb);
+      if (plan.del) this.delete([id]);
+      else if (plan.move !== undefined && sameAccount(id, plan.move)) this.move([id], plan.move);
+    }
+    return { matched: plans.size };
   }
 
   private syncNow(accountId: number): void {

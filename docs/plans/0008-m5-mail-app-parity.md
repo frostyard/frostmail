@@ -139,10 +139,16 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   does; `TestNotifySmartScope` notifies for a smart mailbox. The
   checklist's P-105, P-205, P-602 and P-803 name their tests.
 
-## Phase 4 — Rules
+## Phase 4 — Rules — done
 
-- Planner: evaluation in `mailsync` (after insert, before announce, once
-  per message), actions as ops, read-only accounts, `rule.apply`.
+- Planner (done before the cards): evaluation in `mailsync` (after
+  insert, before announce, once per message, through
+  `messages.rules_waiting`), actions as ops through the transaction-level
+  forms of the message actions, read-only accounts, `rule.*` with
+  `rule.apply`. Two sync fixes came with it: queued ops replay before
+  every pass, and a flags op keeps the UIDs it was queued for, so a read
+  mark followed by a move (a rule's, or a user's offline) reaches the
+  server.
 - Cards: the Rules pane (the list in order, the editor over the condition
   editor); Apply Rules in the menus; `mailctl rules`.
 - **Done when:** on the Dovecot account and the throwaway Gmail account,
@@ -150,6 +156,17 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   says exactly once, a restart in the middle included, and before it would
   notify; Apply Rules does the same to stored mail; a read-only account's
   mail is untouched.
+- **Evidence (2026-10-10):** T-0111 to T-0114 each verified on Codex's
+  first attempt. `TestRulesActOnNewInboxMail` files, marks and flags new
+  inbox mail before the announcement, with Stop and Send Notification,
+  and the read mark reaches the server with the move;
+  `TestRulesRunOnce` shows a rule acting once, a waiting message honored
+  after a restart, and a read-only account's mail never waiting;
+  `TestApplyRules` and `TestRulesApplyCommand` apply rules to stored mail.
+  `TestDovecotRules` does both against Dovecot, the server's flags
+  checked; `TestGmailRulesMoveToALabel` files to a label on the Gmail
+  fake. Not yet run against the throwaway Gmail account itself. The
+  checklist's P-414 and P-701 to P-703 name their tests.
 
 ## Phase 5 — Send Later and Remind Me
 

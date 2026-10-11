@@ -13,6 +13,7 @@ import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
 import { isVip, vipSet } from "../lib/vips";
 import {
+  applyRules,
   archiveMailbox,
   archiveOf,
   compose,
@@ -63,6 +64,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const client = useClient();
     const mailboxes = useMail((s) => s.mailboxes);
     const accounts = useMail((s) => s.accounts);
+    const rules = useMail((s) => s.rules);
     const flagNames = useMail((s) => s.settings?.flagNames);
     const vips = useMail((s) => s.vips);
     const vipAddresses = useMemo(() => vipSet(vips), [vips]);
@@ -301,8 +303,11 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           disabled: readOnly,
         },
       );
+      if (rules.some((rule) => rule.enabled)) {
+        items.push({ kind: "separator" }, { kind: "item", id: "applyRules", label: "Apply Rules", disabled: readOnly });
+      }
       return items;
-    }, [menu, model, mailboxes, accounts, flagNames]);
+    }, [menu, model, mailboxes, accounts, flagNames, rules]);
 
     const onMenuSelect = useCallback(
       (id: string) => {
@@ -310,6 +315,8 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         const ids = menu.ids;
         if (id === "reply" || id === "replyAll" || id === "forward") {
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
+        } else if (id === "applyRules") {
+          void applyRules(client, ids).catch((err: unknown) => console.warn("apply rules", err));
         } else if (id === "read") void toggleRead(client, model, ids);
         else if (id === "spam") void toggleSpam(client, model, ids, source, mailboxes);
         else if (id === "toggleFlag") void toggleFlag(client, model, ids);

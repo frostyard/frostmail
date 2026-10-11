@@ -1,14 +1,15 @@
 // The settings window (docs/specs/settings-ui.md): the pane tabs and the
-// containers that connect the General, Accounts, Signatures and Sign-In panes to
-// maild.
+// containers that connect the General, Accounts, Signatures, Rules and Sign-In
+// panes to maild.
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { AtSign, KeyRound, PenLine, Settings2, X } from "lucide-react";
+import { AtSign, KeyRound, ListFilter, PenLine, Settings2, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
 import { useMail } from "../data/stores";
+import { newRuleDraft, type RuleDraft, RuleSheet } from "../features/organize/RuleSheet";
 import {
   AccountForm,
   type AccountFormValue,
@@ -19,12 +20,14 @@ import { AccountList } from "../features/settings/AccountList";
 import { GeneralPane } from "../features/settings/GeneralPane";
 import { type IdentityChange, IdentityEditor } from "../features/settings/IdentityEditor";
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
+import { RulesPane } from "../features/settings/RulesPane";
 import { ServicesSection } from "../features/settings/ServicesSection";
 import type {
   Account,
   Client,
   Identity,
   OAuthClient,
+  Rule,
   ServerConfig,
   ServiceKind,
   ServiceSettings,
@@ -34,12 +37,13 @@ import { ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 import { openInBrowser } from "./settings";
 
-type Pane = "general" | "accounts" | "signatures" | "signin";
+type Pane = "general" | "accounts" | "signatures" | "rules" | "signin";
 
 const TABS: { pane: Pane; label: string; icon: ReactNode }[] = [
   { pane: "general", label: "General", icon: <Settings2 size={18} /> },
   { pane: "accounts", label: "Accounts", icon: <AtSign size={18} /> },
   { pane: "signatures", label: "Signatures", icon: <PenLine size={18} /> },
+  { pane: "rules", label: "Rules", icon: <ListFilter size={18} /> },
   { pane: "signin", label: "Sign-In", icon: <KeyRound size={18} /> },
 ];
 
@@ -89,6 +93,7 @@ export function SettingsWindow() {
         {pane === "general" && <GeneralPaneContainer />}
         {pane === "accounts" && <AccountsPane />}
         {pane === "signatures" && <SignaturesPane />}
+        {pane === "rules" && <RulesPaneContainer />}
         {pane === "signin" && <SignInPane />}
       </div>
     </div>
@@ -113,6 +118,111 @@ function GeneralPaneContainer() {
     }
   };
   return <GeneralPane settings={settings} smarts={smarts} error={error} onChange={(params) => void change(params)} />;
+}
+
+type RuleSheetState = { id?: number; initial: RuleDraft };
+
+function RuleSheetContainer({
+  state,
+  onClose,
+  onSaved,
+}: {
+  state: RuleSheetState;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const client = useClient();
+  const { accounts, mailboxes, settings } = useMail();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const date = new Date();
+  const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const save = async ({ name, conditions, actions }: RuleDraft) => {
+    if (busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      if (state.id === undefined) await client.rule.create({ name, conditions, actions });
+      else await client.rule.update({ id: state.id, name, conditions, actions });
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <RuleSheet
+      title={state.id === undefined ? "New Rule" : "Edit Rule"}
+      initial={state.initial}
+      accounts={accounts}
+      mailboxes={mailboxes}
+      flagNames={settings?.flagNames}
+      today={today}
+      busy={busy}
+      error={error}
+      onSave={(draft) => void save(draft)}
+      onCancel={onClose}
+    />
+  );
+}
+
+function RulesPaneContainer() {
+  const client = useClient();
+  const rules = useMail((s) => s.rules);
+  const [error, setError] = useState<string>();
+  const [sheet, setSheet] = useState<RuleSheetState | null>(null);
+  const change = async (request: () => Promise<unknown>) => {
+    try {
+      const result = await request();
+      if (result !== false) setError(undefined);
+    } catch (err) {
+      setError(message(err));
+    }
+  };
+  const duplicate = (rule: Rule) =>
+    change(async () => {
+      const copy = await client.rule.create({
+        name: `${rule.name} Copy`,
+        conditions: rule.conditions,
+        actions: rule.actions,
+        enabled: rule.enabled,
+      });
+      await client.rule.move({ id: copy.id, position: rule.position + 1 });
+    });
+  const remove = (rule: Rule) =>
+    change(async () => {
+      const text = `Remove the rule "${rule.name}"?`;
+      const confirmed = isTauri()
+        ? await ask(text, { title: "Remove Rule?", kind: "warning", okLabel: "Remove" })
+        : window.confirm(text);
+      if (!confirmed) return false;
+      await client.rule.delete({ id: rule.id });
+    });
+  return (
+    <>
+      <RulesPane
+        rules={rules}
+        error={error}
+        onToggle={(rule, enabled) => void change(() => client.rule.update({ id: rule.id, enabled }))}
+        onAdd={() => setSheet({ initial: newRuleDraft(rules.length + 1) })}
+        onEdit={(rule) =>
+          setSheet({ id: rule.id, initial: { name: rule.name, conditions: rule.conditions, actions: rule.actions } })
+        }
+        onDuplicate={(rule) => void duplicate(rule)}
+        onRemove={(rule) => void remove(rule)}
+        onMove={(rule, position) => void change(() => client.rule.move({ id: rule.id, position }))}
+      />
+      {sheet && (
+        <RuleSheetContainer
+          state={sheet}
+          onSaved={() => setError(undefined)}
+          onClose={() => setSheet((current) => (current === sheet ? null : current))}
+        />
+      )}
+    </>
+  );
 }
 
 /** useRequest runs one request at a time and keeps its error. */

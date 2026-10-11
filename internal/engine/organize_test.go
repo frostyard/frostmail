@@ -8,6 +8,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
 // TestViewConditions: view.open narrows by conditions (ADR-0023), and
@@ -230,5 +231,104 @@ func TestSmartMailboxes(t *testing.T) {
 	}
 	if s, _ := c.Settings().Get(ctx, &api.SettingsGetParams{}); s == nil || s.NotifyScope != api.NotifyScopeInbox {
 		t.Errorf("after deleting the scope's smart mailbox = %+v", s)
+	}
+}
+
+func TestRules(t *testing.T) {
+	srv := rpctest.Start(t)
+	c := srv.Dial(t)
+	conversation(t, srv, c)
+	ctx := t.Context()
+	mbs, err := srv.DB.ListMailboxes(ctx, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inbox, archive store.Mailbox
+	for _, mb := range mbs {
+		switch mb.Path {
+		case "INBOX":
+			inbox = mb
+		case "Archive":
+			archive = mb
+		}
+	}
+	from := api.Conditions{Match: api.ConditionMatchAll, Conditions: []api.Condition{
+		{Field: api.ConditionFieldFrom, Op: api.ConditionOpContains, Value: "ann"}}}
+	move := api.RuleAction{Kind: api.RuleActionKindMove, MailboxID: &archive.ID}
+	read := api.RuleAction{Kind: api.RuleActionKindRead}
+
+	ann, err := c.Rule().Create(ctx, &api.RuleCreateParams{Name: " Ann ", Conditions: from, Actions: []api.RuleAction{read, move}})
+	if err != nil || ann.Name != "Ann" || ann.Position != 0 || !ann.Enabled || ann.Problem != nil || len(ann.Actions) != 2 {
+		t.Fatalf("create = %+v, %v", ann, err)
+	}
+	off, err := c.Rule().Create(ctx, &api.RuleCreateParams{Name: "Off", Conditions: from, Actions: []api.RuleAction{read}, Enabled: ptr(false)})
+	if err != nil || off.Position != 1 || off.Enabled {
+		t.Fatalf("second = %+v, %v", off, err)
+	}
+	for name, want := range map[string]struct {
+		p    api.RuleCreateParams
+		code api.ErrorCode
+	}{
+		"no name":         {api.RuleCreateParams{Name: " ", Conditions: from, Actions: []api.RuleAction{read}}, api.CodeInvalidParams},
+		"bad conditions":  {api.RuleCreateParams{Name: "X", Conditions: api.Conditions{Match: api.ConditionMatchAll, Conditions: []api.Condition{{Field: api.ConditionFieldRole, Op: api.ConditionOpIs, Value: "nowhere"}}}, Actions: []api.RuleAction{read}}, api.CodeInvalidParams},
+		"no actions":      {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{}}, api.CodeInvalidParams},
+		"unknown kind":    {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: "forward"}}}, api.CodeInvalidParams},
+		"move nowhere":    {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: api.RuleActionKindMove}}}, api.CodeInvalidParams},
+		"unknown mailbox": {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: api.RuleActionKindCopy, MailboxID: ptr(int64(9999))}}}, api.CodeNotFound},
+		"read a mailbox":  {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: api.RuleActionKindRead, MailboxID: &inbox.ID}}}, api.CodeInvalidParams},
+		"flag no color":   {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: api.RuleActionKindFlag}}}, api.CodeInvalidParams},
+		"flag color 8":    {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: api.RuleActionKindFlag, Color: ptr(int64(8))}}}, api.CodeInvalidParams},
+		"stop a color":    {api.RuleCreateParams{Name: "X", Conditions: from, Actions: []api.RuleAction{{Kind: api.RuleActionKindStop, Color: ptr(int64(1))}}}, api.CodeInvalidParams},
+	} {
+		if _, err := c.Rule().Create(ctx, &want.p); code(err) != want.code {
+			t.Errorf("%s: %v, want %s", name, err, want.code)
+		}
+	}
+
+	if err := c.Rule().Move(ctx, &api.RuleMoveParams{ID: off.ID, Position: 0}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := c.Rule().List(ctx, &api.RuleListParams{})
+	if err != nil || len(list) != 2 || list[0].ID != off.ID || list[1].ID != ann.ID || list[1].Position != 1 {
+		t.Errorf("after the move = %+v, %v", list, err)
+	}
+	if err := c.Rule().Move(ctx, &api.RuleMoveParams{ID: off.ID, Position: -1}); code(err) != api.CodeInvalidParams {
+		t.Errorf("a negative position: %v", err)
+	}
+
+	// The Archive mailbox goes: the rule says so, and can still be renamed
+	// and turned off, but not given actions that name it.
+	if err := srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.ReplaceMailboxes(ctx, inbox.AccountID, []store.ServerMailbox{{Path: "INBOX", Role: api.MailboxRoleInbox, Selectable: true}})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.Rule().Update(ctx, &api.RuleUpdateParams{ID: ann.ID, Name: ptr("Ann's"), Enabled: ptr(false)})
+	if err != nil || got.Name != "Ann's" || got.Enabled || got.Problem == nil || !strings.Contains(*got.Problem, "action 2") {
+		t.Errorf("update of a rule whose mailbox is gone = %+v, %v", got, err)
+	}
+	if _, err := c.Rule().Update(ctx, &api.RuleUpdateParams{ID: ann.ID, Actions: []api.RuleAction{move}}); code(err) != api.CodeNotFound {
+		t.Errorf("actions naming a gone mailbox: %v", err)
+	}
+	if got, err := c.Rule().Update(ctx, &api.RuleUpdateParams{ID: ann.ID, Actions: []api.RuleAction{read}}); err != nil || got.Problem != nil {
+		t.Errorf("fixed actions = %+v, %v", got, err)
+	}
+	if _, err := c.Rule().Update(ctx, &api.RuleUpdateParams{ID: 9999, Enabled: ptr(true)}); code(err) != api.CodeNotFound {
+		t.Errorf("update of an unknown rule: %v", err)
+	}
+
+	if err := c.Rule().Delete(ctx, &api.RuleDeleteParams{ID: off.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := c.Rule().List(ctx, &api.RuleListParams{}); len(list) != 1 || list[0].ID != ann.ID || list[0].Position != 0 {
+		t.Errorf("after the delete = %+v", list)
+	}
+	if err := c.Rule().Delete(ctx, &api.RuleDeleteParams{ID: off.ID}); code(err) != api.CodeNotFound {
+		t.Errorf("delete twice: %v", err)
+	}
+	// Without sync, nothing can apply rules.
+	if _, err := c.Rule().Apply(ctx, &api.RuleApplyParams{IDs: []int64{1}}); code(err) != api.CodeUnavailable {
+		t.Errorf("apply without sync: %v", err)
 	}
 }

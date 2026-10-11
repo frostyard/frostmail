@@ -4,6 +4,8 @@ import type {
   Event,
   MessageSummary,
   PersonSummary,
+  Rule,
+  RuleApplied,
   Settings,
   SmartMailbox,
   ViewCount,
@@ -11,7 +13,7 @@ import type {
   Vip,
 } from "../gen/api";
 import { ErrorCode } from "../gen/api";
-import { mockData } from "./fixture";
+import { FIXTURE, mockData } from "./fixture";
 import { MockTransport } from "./mock";
 
 function setup() {
@@ -174,5 +176,82 @@ describe("MockTransport To Me and Cc Me", () => {
     });
     expect(view.count).toBe(data.messages.filter((m) => m.to.some((a) => me.has(a.address.toLowerCase()))).length);
     expect(view.count).toBeGreaterThan(0);
+  });
+});
+
+describe("MockTransport rules", () => {
+  const fromAnn = { match: "all", conditions: [{ field: "from", op: "is", value: "ann.smith@northwind.test" }] };
+
+  it("keeps them in order and refuses what maild refuses", async () => {
+    const { mock, events } = setup();
+    const a = await mock.call<Rule>("rule.create", {
+      name: " Ann ",
+      conditions: fromAnn,
+      actions: [{ kind: "move", mailboxId: FIXTURE.receipts }],
+    });
+    const b = await mock.call<Rule>("rule.create", {
+      name: "Off",
+      conditions: fromAnn,
+      actions: [{ kind: "read" }],
+      enabled: false,
+    });
+    expect([a.name, a.position, a.enabled, b.position, b.enabled]).toEqual(["Ann", 0, true, 1, false]);
+    expect(events.at(-1)).toEqual({ event: "rule.changed", data: { id: b.id, deleted: false } });
+
+    await mock.call("rule.move", { id: b.id, position: 0 });
+    expect((await mock.call<Rule[]>("rule.list", {})).map((r) => r.name)).toEqual(["Off", "Ann"]);
+    const renamed = await mock.call<Rule>("rule.update", { id: b.id, name: "On", enabled: true });
+    expect([renamed.name, renamed.enabled]).toEqual(["On", true]);
+
+    for (const [params, code] of [
+      [{ name: " ", conditions: fromAnn, actions: [{ kind: "read" }] }, ErrorCode.invalidParams],
+      [{ name: "X", conditions: fromAnn, actions: [] }, ErrorCode.invalidParams],
+      [{ name: "X", conditions: fromAnn, actions: [{ kind: "move" }] }, ErrorCode.invalidParams],
+      [{ name: "X", conditions: fromAnn, actions: [{ kind: "copy", mailboxId: 999 }] }, ErrorCode.notFound],
+      [{ name: "X", conditions: fromAnn, actions: [{ kind: "flag", color: 8 }] }, ErrorCode.invalidParams],
+      [{ name: "X", conditions: fromAnn, actions: [{ kind: "read", color: 1 }] }, ErrorCode.invalidParams],
+    ] as const) {
+      await expect(mock.call("rule.create", params)).rejects.toMatchObject({ code });
+    }
+    await mock.call("rule.delete", { id: b.id });
+    expect(await mock.call<Rule[]>("rule.list", {})).toMatchObject([{ id: a.id, position: 0 }]);
+    await expect(mock.call("rule.delete", { id: b.id })).rejects.toMatchObject({ code: ErrorCode.notFound });
+  });
+
+  it("applies the enabled rules in order, Stop ending a message's run", async () => {
+    const { data, mock } = setup();
+    const ann = data.messages.filter((m) => m.summary.from.address === "ann.smith@northwind.test");
+    const other = data.messages.find((m) => m.summary.from.address !== "ann.smith@northwind.test");
+    expect(ann.length).toBeGreaterThan(0);
+    const all = { match: "all", conditions: [] };
+    await mock.call("rule.create", {
+      name: "Ann",
+      conditions: fromAnn,
+      actions: [{ kind: "read" }, { kind: "move", mailboxId: FIXTURE.receipts }, { kind: "stop" }],
+    });
+    await mock.call("rule.create", { name: "Off", conditions: all, actions: [{ kind: "delete" }], enabled: false });
+    await mock.call("rule.create", { name: "Everything", conditions: all, actions: [{ kind: "flag", color: 4 }] });
+    const ids = [...ann.map((m) => m.summary.id), other?.summary.id ?? 0];
+    expect(await mock.call<RuleApplied>("rule.apply", { ids })).toEqual({ matched: ids.length });
+
+    const after = await mock.call<MessageSummary[]>("message.summaries", { ids });
+    after.slice(0, -1).forEach((s, i) => {
+      // Stop kept Everything's flag off Ann's mail.
+      expect([s.mailboxIds, s.flags.seen, s.flags.flagColor]).toEqual([
+        [FIXTURE.receipts],
+        true,
+        ann[i]?.summary.flags.flagColor,
+      ]);
+    });
+    expect(after.at(-1)?.flags.flagColor).toBe(4);
+    await expect(mock.call("rule.apply", { ids: [99999] })).rejects.toMatchObject({ code: ErrorCode.notFound });
+  });
+
+  it("refuses a read-only account's mail", async () => {
+    const { data, mock } = setup();
+    await mock.call("account.update", { id: FIXTURE.accountId, readOnly: true });
+    await expect(mock.call("rule.apply", { ids: [data.messages[0]?.summary.id] })).rejects.toMatchObject({
+      code: ErrorCode.conflict,
+    });
   });
 });

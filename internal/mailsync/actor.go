@@ -39,6 +39,9 @@ type actor struct {
 	// fresh collects messages new to a folder synced before, for the
 	// next announcement; only the IMAP loop touches it.
 	fresh []int64
+	// ruleNotify holds the messages a rule's Send Notification named, for
+	// the next announcement; only the IMAP loop touches it.
+	ruleNotify []int64
 	// copiedTo holds the mailboxes replayed copies went to, for syncCopies;
 	// only the IMAP loop touches it.
 	copiedTo map[int64]bool
@@ -247,11 +250,20 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 		case err := <-idleErr:
 			return true, fmt.Errorf("idle connection: %w", err)
 		case <-dirty:
+			// Queued ops replay before every pass: a source mailbox
+			// reconciled before its move replays would take the moved
+			// message back as new mail.
+			if err := a.replay(ctx, cmd); err != nil {
+				return true, err
+			}
 			if err := a.refresh(ctx, cmd, *watched); err != nil {
 				return true, err
 			}
 			a.settled(ctx)
 		case <-poll.C:
+			if err := a.replay(ctx, cmd); err != nil {
+				return true, err
+			}
 			if err := a.pollPass(ctx, cmd, mailboxes, watched); err != nil {
 				return true, err
 			}
@@ -307,8 +319,10 @@ func (a *actor) syncCopies(ctx context.Context, cmd *imapx.Session) (bool, error
 	return synced, nil
 }
 
-// settled announces the new mail of the work just done and goes idle.
+// settled runs the rules on the new inbox mail of the work just done,
+// announces the new mail, and goes idle.
 func (a *actor) settled(ctx context.Context) {
+	a.runRules(ctx)
 	a.announceNew(ctx)
 	a.idlePhase()
 }
