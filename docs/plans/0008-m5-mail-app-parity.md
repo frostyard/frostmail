@@ -195,7 +195,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   sender and the reminder scheduler are maild's. The checklist's P-306,
   P-412 and P-506 name their tests.
 
-## Phase 6 — The rest of the checklist
+## Phase 6 — The rest of the checklist — done
 
 - Planner: mailbox create, rename and delete as ops (labels on Gmail);
   Erase Deleted Items and Erase Junk Mail (permanent, so confirmed);
@@ -224,6 +224,12 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   first attempt. P-305, P-402 and P-403 are Have; the one-click `POST` is
   tested against a local HTTPS server, which the address rule refuses
   unless the test allows it.
+- **6d, mute, block, undo and shortcuts (2026-10-11):** ADR-0028; mutes
+  on conversations, blocked senders and `blockAction` in maild, with
+  muted and blocked mail kept from notifying and blocked mail sent to
+  the Trash before the rules (planner), then T-0127 to T-0131, each
+  verified on Codex's first attempt. P-406, P-410, P-411 and P-956 are
+  Have, and with them every M5·6 row.
 
 ## Phase 7 — Categories spike
 
