@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0045 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0045 and T-0116 (docs/tasks). Do not edit.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,7 +36,16 @@ describe("ComposeToolbar", () => {
   it("has its buttons in order with tooltips", () => {
     toolbar();
     const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
-    expect(names).toEqual(["Send", "Attach Files", "Show Format Bar", "Delete Draft", "Minimize", "Maximize", "Close"]);
+    expect(names).toEqual([
+      "Send",
+      "Send Later",
+      "Attach Files",
+      "Show Format Bar",
+      "Delete Draft",
+      "Minimize",
+      "Maximize",
+      "Close",
+    ]);
     expect(button("Send").getAttribute("title")).toBe("Send (Ctrl+Enter)");
     expect(button("Attach Files").getAttribute("title")).toBe("Attach Files (Ctrl+Shift+A)");
     expect(button("Show Format Bar").getAttribute("title")).toBe("Show Format Bar");

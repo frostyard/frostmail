@@ -5,6 +5,7 @@
 
 import {
   Bold,
+  ChevronDown,
   Copy,
   Italic,
   Link,
@@ -22,10 +23,21 @@ import {
   Underline,
   X,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+
+import type { LaterChoice } from "../../lib/later";
+import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ComposeCommand is what a compose toolbar control asks for. */
-export type ComposeCommand = "send" | "attach" | "toggleFormatBar" | "delete" | "minimize" | "toggleMaximize" | "close";
+export type ComposeCommand =
+  | "send"
+  | "sendLater"
+  | "attach"
+  | "toggleFormatBar"
+  | "delete"
+  | "minimize"
+  | "toggleMaximize"
+  | "close";
 
 /** ComposeToolbarProps are the compose toolbar's inputs. */
 export interface ComposeToolbarProps {
@@ -35,6 +47,8 @@ export interface ComposeToolbarProps {
   canSend: boolean;
   formatBarShown: boolean;
   maximized: boolean;
+  laterChoices?: LaterChoice[];
+  onSendAt?: (at: Date) => void;
   onCommand: (command: ComposeCommand) => void;
 }
 
@@ -74,6 +88,50 @@ function ComposeButton(props: ComposeButtonProps) {
   );
 }
 
+function SendLaterButton(props: ComposeToolbarProps) {
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const choices = props.laterChoices ?? [];
+  const items: MenuItem[] = choices.map((choice, index) => ({
+    kind: "item",
+    id: String(index),
+    label: choice.label,
+  }));
+  items.push({ kind: "separator" }, { kind: "item", id: "sendLater", label: "Send Later…" });
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Send Later"
+        title="Send Later"
+        aria-haspopup="menu"
+        disabled={!props.canSend}
+        className="flex h-7 w-4 items-center justify-center rounded-md text-accent hover:bg-selection-inactive disabled:opacity-40"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          setMenu({ x: rect.left, y: rect.bottom });
+        }}
+      >
+        <ChevronDown size={12} />
+      </button>
+      {menu && (
+        <ContextMenu
+          items={items}
+          x={menu.x}
+          y={menu.y}
+          onSelect={(id) => {
+            if (id === "sendLater") props.onCommand("sendLater");
+            else {
+              const choice = choices[Number(id)];
+              if (choice) props.onSendAt?.(choice.at);
+            }
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
+    </>
+  );
+}
+
 /** ComposeToolbar is the compose window's title bar: Send, the draft's
  * title in the drag region, its actions and the window controls. */
 export function ComposeToolbar(props: ComposeToolbarProps) {
@@ -94,6 +152,7 @@ export function ComposeToolbar(props: ComposeToolbarProps) {
         disabled={!props.canSend}
         onCommand={props.onCommand}
       />
+      <SendLaterButton {...props} />
       <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-toolbar-title">
         {title}
       </span>
