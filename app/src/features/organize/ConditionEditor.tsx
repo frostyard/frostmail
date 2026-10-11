@@ -11,6 +11,8 @@ export interface ConditionEditorProps {
   mailboxes: Mailbox[];
   flagNames?: readonly string[];
   today: string;
+  lead?: string;
+  trail?: string;
 }
 
 type ChoiceContext = Pick<ConditionEditorProps, "accounts" | "mailboxes" | "flagNames">;
@@ -124,7 +126,16 @@ function ConditionValue({
   );
 }
 
-export function ConditionEditor({ value, onChange, accounts, mailboxes, flagNames, today }: ConditionEditorProps) {
+export function ConditionEditor({
+  value,
+  onChange,
+  accounts,
+  mailboxes,
+  flagNames,
+  today,
+  lead = "Contains messages that match",
+  trail = "of the following conditions:",
+}: ConditionEditorProps) {
   const context = { accounts, mailboxes, today };
   const update = (index: number, condition: Condition) =>
     onChange({
@@ -136,7 +147,7 @@ export function ConditionEditor({ value, onChange, accounts, mailboxes, flagName
   return (
     <div className="space-y-2 text-[13px] leading-[18px]">
       <div className="flex flex-wrap items-center gap-1">
-        Contains messages that match
+        {lead}
         <select
           className={FIELD}
           aria-label="Match"
@@ -146,7 +157,7 @@ export function ConditionEditor({ value, onChange, accounts, mailboxes, flagName
           <option value="all">all</option>
           <option value="any">any</option>
         </select>
-        of the following conditions:
+        {trail}
       </div>
       {value.conditions.map((condition, index) => {
         const name = `Condition ${index + 1}`;
