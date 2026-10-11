@@ -1769,7 +1769,7 @@ Every preference, with its current value.
 | `notifyScope` | `NotifyScope` |  |
 | `notifySmartId` | `int` (optional) | The smart mailbox, when notifyScope is smart. |
 | `flagNames` | `[]string` | Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray). |
-| `favorites` | `[]int` | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. |
+| `favorites` | `[]int` (optional) | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none. |
 
 ### Enum `NotifyScope`
 

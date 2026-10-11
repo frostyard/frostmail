@@ -37,7 +37,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` |
 | P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |
 | P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | M5·6 | |
-| P-108 | Drag messages to a mailbox (Alt: copy) | Same | M5·6 | |
+| P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | M5·6 | |
 | P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account | M5·6 | |
 | P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | M5·6 | |
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |

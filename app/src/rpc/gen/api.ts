@@ -1841,9 +1841,9 @@ export interface Settings {
   flagNames: string[];
   /**
    * Mailboxes added to the sidebar's Favorites, in order; mailboxes since
-   * deleted are left out.
+   * deleted are left out. Absent when there are none.
    */
-  favorites: number[];
+  favorites?: number[];
 }
 
 /** Params of settings.get. */

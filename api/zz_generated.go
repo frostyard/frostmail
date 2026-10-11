@@ -3227,8 +3227,8 @@ type Settings struct {
 	// Gray).
 	FlagNames []string `json:"flagNames"`
 	// Mailboxes added to the sidebar's Favorites, in order; mailboxes since
-	// deleted are left out.
-	Favorites []int64 `json:"favorites"`
+	// deleted are left out. Absent when there are none.
+	Favorites []int64 `json:"favorites,omitzero"`
 }
 
 // SettingsGetParams holds the params of settings.get.
