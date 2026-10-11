@@ -1002,6 +1002,44 @@ export interface MailboxListParams {
   accountId?: number;
 }
 
+/** Params of mailbox.create. */
+export interface MailboxCreateParams {
+  accountId: number;
+  /** 1-100 characters, without the account's hierarchy delimiter. */
+  name: string;
+  /** A mailbox of the same account. */
+  parentId?: number;
+}
+
+/** Params of mailbox.rename. */
+export interface MailboxRenameParams {
+  id: number;
+  name: string;
+}
+
+/** Params of mailbox.move. */
+export interface MailboxMoveParams {
+  id: number;
+  parentId?: number;
+}
+
+/** Params of mailbox.delete. */
+export interface MailboxDeleteParams {
+  id: number;
+}
+
+/** Params of mailbox.setRole. */
+export interface MailboxSetRoleParams {
+  id: number;
+  /** drafts, sent, junk, trash or archive. */
+  role: MailboxRole;
+}
+
+/** Params of mailbox.erase. */
+export interface MailboxEraseParams {
+  id: number;
+}
+
 /** A mailbox was created, renamed, deleted, or its counts changed. */
 export interface MailboxChanged {
   id: number;
@@ -1013,11 +1051,51 @@ export interface MailboxChanged {
 export interface MailboxClient {
   /** Mailboxes ordered by account, role, then path. */
   list(params?: MailboxListParams): Promise<Mailbox[]>;
+  /**
+   * Make a mailbox (a label on Gmail), at the top level or inside parentId,
+   * at once here and on the server when online. Conflict when the name is
+   * taken or the account is read-only.
+   */
+  create(params: MailboxCreateParams): Promise<Mailbox>;
+  /**
+   * Give a mailbox a new name in the same place; the mailboxes inside it
+   * follow. Conflict for a mailbox with a role, while the account has changes
+   * waiting to reach the server, or when the name is taken.
+   */
+  rename(params: MailboxRenameParams): Promise<Mailbox>;
+  /**
+   * Put a mailbox inside parentId, or at the top level without it; the
+   * mailboxes inside it follow. Conflict as rename, and for a parent inside
+   * the mailbox itself.
+   */
+  move(params: MailboxMoveParams): Promise<Mailbox>;
+  /**
+   * Delete a mailbox, the mailboxes inside it, and their messages (on Gmail,
+   * the labels; the messages stay in All Mail). Conflict as rename.
+   */
+  delete(params: MailboxDeleteParams): Promise<void>;
+  /**
+   * Use This Mailbox For: make a mailbox the account's drafts, sent, junk,
+   * trash or archive mailbox, in place of the one the server names. Conflict
+   * on Gmail, whose mailboxes keep their roles.
+   */
+  setRole(params: MailboxSetRoleParams): Promise<Mailbox>;
+  /**
+   * Erase Deleted Items or Erase Junk Mail: delete every message in a trash
+   * or junk mailbox for good. Returns how many.
+   */
+  erase(params: MailboxEraseParams): Promise<number>;
 }
 
 function mailboxClient(t: Transport): MailboxClient {
   return {
     list: (params = {}) => t.call<Mailbox[]>("mailbox.list", params),
+    create: (params) => t.call<Mailbox>("mailbox.create", params),
+    rename: (params) => t.call<Mailbox>("mailbox.rename", params),
+    move: (params) => t.call<Mailbox>("mailbox.move", params),
+    delete: (params) => t.call<null>("mailbox.delete", params).then(() => undefined),
+    setRole: (params) => t.call<Mailbox>("mailbox.setRole", params),
+    erase: (params) => t.call<number>("mailbox.erase", params),
   };
 }
 
@@ -1761,6 +1839,11 @@ export interface Settings {
    * ... Gray).
    */
   flagNames: string[];
+  /**
+   * Mailboxes added to the sidebar's Favorites, in order; mailboxes since
+   * deleted are left out.
+   */
+  favorites: number[];
 }
 
 /** Params of settings.get. */
@@ -1775,6 +1858,8 @@ export interface SettingsSetParams {
   notifySmartId?: number;
   /** Seven names, each at most 40 characters. */
   flagNames?: string[];
+  /** Mailbox IDs, at most 50, without repeats. */
+  favorites?: number[];
 }
 
 /** A preference changed. */
@@ -2362,6 +2447,12 @@ export const METHODS = [
   "identity.create",
   "identity.delete",
   "mailbox.list",
+  "mailbox.create",
+  "mailbox.rename",
+  "mailbox.move",
+  "mailbox.delete",
+  "mailbox.setRole",
+  "mailbox.erase",
   "message.get",
   "message.body",
   "message.summaries",

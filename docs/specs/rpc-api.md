@@ -909,6 +909,77 @@ Mailboxes ordered by account, role, then path.
 
 Result: `[]Mailbox`.
 
+### `mailbox.create`
+
+Make a mailbox (a label on Gmail), at the top level or inside parentId, at once here and on the server when online. Conflict when the name is taken or the account is read-only.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `name` | `string` | 1-100 characters, without the account's hierarchy delimiter. |
+| `parentId` | `int` (optional) | A mailbox of the same account. |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.rename`
+
+Give a mailbox a new name in the same place; the mailboxes inside it follow. Conflict for a mailbox with a role, while the account has changes waiting to reach the server, or when the name is taken.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` |  |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.move`
+
+Put a mailbox inside parentId, or at the top level without it; the mailboxes inside it follow. Conflict as rename, and for a parent inside the mailbox itself.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `parentId` | `int` (optional) |  |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.delete`
+
+Delete a mailbox, the mailboxes inside it, and their messages (on Gmail, the labels; the messages stay in All Mail). Conflict as rename.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
+### `mailbox.setRole`
+
+Use This Mailbox For: make a mailbox the account's drafts, sent, junk, trash or archive mailbox, in place of the one the server names. Conflict on Gmail, whose mailboxes keep their roles.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `role` | `MailboxRole` | drafts, sent, junk, trash or archive. |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.erase`
+
+Erase Deleted Items or Erase Junk Mail: delete every message in a trash or junk mailbox for good. Returns how many.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `int`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
 ### Event `mailbox.changed` (durable)
 
 A mailbox was created, renamed, deleted, or its counts changed.
@@ -1677,6 +1748,7 @@ Change the preferences given; the others stay. Returns them all.
 | `notifyScope` | `NotifyScope` (optional) |  |
 | `notifySmartId` | `int` (optional) | Required with notifyScope smart. |
 | `flagNames` | `[]string` (optional) | Seven names, each at most 40 characters. |
+| `favorites` | `[]int` (optional) | Mailbox IDs, at most 50, without repeats. |
 
 Result: `Settings`.
 Errors: `invalidParams`, `notFound`.
@@ -1697,6 +1769,7 @@ Every preference, with its current value.
 | `notifyScope` | `NotifyScope` |  |
 | `notifySmartId` | `int` (optional) | The smart mailbox, when notifyScope is smart. |
 | `flagNames` | `[]string` | Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray). |
+| `favorites` | `[]int` | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. |
 
 ### Enum `NotifyScope`
 

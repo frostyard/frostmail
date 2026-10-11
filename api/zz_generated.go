@@ -1787,12 +1787,74 @@ type MailboxListParams struct {
 	AccountID *int64 `json:"accountId,omitzero"`
 }
 
+// MailboxCreateParams holds the params of mailbox.create.
+type MailboxCreateParams struct {
+	AccountID int64 `json:"accountId"`
+	// 1-100 characters, without the account's hierarchy delimiter.
+	Name string `json:"name"`
+	// A mailbox of the same account.
+	ParentID *int64 `json:"parentId,omitzero"`
+}
+
+// MailboxRenameParams holds the params of mailbox.rename.
+type MailboxRenameParams struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// MailboxMoveParams holds the params of mailbox.move.
+type MailboxMoveParams struct {
+	ID       int64  `json:"id"`
+	ParentID *int64 `json:"parentId,omitzero"`
+}
+
+// MailboxDeleteParams holds the params of mailbox.delete.
+type MailboxDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// MailboxSetRoleParams holds the params of mailbox.setRole.
+type MailboxSetRoleParams struct {
+	ID int64 `json:"id"`
+	// drafts, sent, junk, trash or archive.
+	Role MailboxRole `json:"role"`
+}
+
+// MailboxEraseParams holds the params of mailbox.erase.
+type MailboxEraseParams struct {
+	ID int64 `json:"id"`
+}
+
 // MailboxService: Mailboxes (IMAP folders, and Gmail labels shown as
 // folders).
 type MailboxService interface {
 	// List implements mailbox.list. Mailboxes ordered by account, role, then
 	// path.
 	List(ctx context.Context, p *MailboxListParams) ([]Mailbox, error)
+	// Create implements mailbox.create. Make a mailbox (a label on Gmail), at the
+	// top level or inside parentId, at once here and on the server when online.
+	// Conflict when the name is taken or the account is read-only.
+	Create(ctx context.Context, p *MailboxCreateParams) (*Mailbox, error)
+	// Rename implements mailbox.rename. Give a mailbox a new name in the same
+	// place; the mailboxes inside it follow. Conflict for a mailbox with a role,
+	// while the account has changes waiting to reach the server, or when the name
+	// is taken.
+	Rename(ctx context.Context, p *MailboxRenameParams) (*Mailbox, error)
+	// Move implements mailbox.move. Put a mailbox inside parentId, or at the top
+	// level without it; the mailboxes inside it follow. Conflict as rename, and
+	// for a parent inside the mailbox itself.
+	Move(ctx context.Context, p *MailboxMoveParams) (*Mailbox, error)
+	// Delete implements mailbox.delete. Delete a mailbox, the mailboxes inside
+	// it, and their messages (on Gmail, the labels; the messages stay in All
+	// Mail). Conflict as rename.
+	Delete(ctx context.Context, p *MailboxDeleteParams) error
+	// SetRole implements mailbox.setRole. Use This Mailbox For: make a mailbox
+	// the account's drafts, sent, junk, trash or archive mailbox, in place of the
+	// one the server names. Conflict on Gmail, whose mailboxes keep their roles.
+	SetRole(ctx context.Context, p *MailboxSetRoleParams) (*Mailbox, error)
+	// Erase implements mailbox.erase. Erase Deleted Items or Erase Junk Mail:
+	// delete every message in a trash or junk mailbox for good. Returns how many.
+	Erase(ctx context.Context, p *MailboxEraseParams) (int64, error)
 }
 
 func registerMailbox(r *Router, s MailboxService) {
@@ -1802,6 +1864,48 @@ func registerMailbox(r *Router, s MailboxService) {
 			return nil, err
 		}
 		return s.List(ctx, &p)
+	})
+	r.handle("mailbox.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxCreateParams
+		if err := decodeParams(raw, &p, []string{"accountId", "name"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("mailbox.rename", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxRenameParams
+		if err := decodeParams(raw, &p, []string{"id", "name"}); err != nil {
+			return nil, err
+		}
+		return s.Rename(ctx, &p)
+	})
+	r.handle("mailbox.move", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxMoveParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Move(ctx, &p)
+	})
+	r.handle("mailbox.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("mailbox.setRole", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxSetRoleParams
+		if err := decodeParams(raw, &p, []string{"id", "role"}); err != nil {
+			return nil, err
+		}
+		return s.SetRole(ctx, &p)
+	})
+	r.handle("mailbox.erase", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxEraseParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Erase(ctx, &p)
 	})
 }
 
@@ -1817,6 +1921,58 @@ var _ MailboxService = MailboxClient{}
 func (x MailboxClient) List(ctx context.Context, p *MailboxListParams) ([]Mailbox, error) {
 	var r []Mailbox
 	err := x.c.Call(ctx, "mailbox.list", p, &r)
+	return r, err
+}
+
+// Create calls mailbox.create.
+func (x MailboxClient) Create(ctx context.Context, p *MailboxCreateParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Rename calls mailbox.rename.
+func (x MailboxClient) Rename(ctx context.Context, p *MailboxRenameParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.rename", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Move calls mailbox.move.
+func (x MailboxClient) Move(ctx context.Context, p *MailboxMoveParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.move", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls mailbox.delete.
+func (x MailboxClient) Delete(ctx context.Context, p *MailboxDeleteParams) error {
+	return x.c.Call(ctx, "mailbox.delete", p, nil)
+}
+
+// SetRole calls mailbox.setRole.
+func (x MailboxClient) SetRole(ctx context.Context, p *MailboxSetRoleParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.setRole", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Erase calls mailbox.erase.
+func (x MailboxClient) Erase(ctx context.Context, p *MailboxEraseParams) (int64, error) {
+	var r int64
+	err := x.c.Call(ctx, "mailbox.erase", p, &r)
 	return r, err
 }
 
@@ -3070,6 +3226,9 @@ type Settings struct {
 	// Seven names, for flag colors 1-7; an empty name is the color's own (Red ...
 	// Gray).
 	FlagNames []string `json:"flagNames"`
+	// Mailboxes added to the sidebar's Favorites, in order; mailboxes since
+	// deleted are left out.
+	Favorites []int64 `json:"favorites"`
 }
 
 // SettingsGetParams holds the params of settings.get.
@@ -3084,6 +3243,8 @@ type SettingsSetParams struct {
 	NotifySmartID *int64 `json:"notifySmartId,omitzero"`
 	// Seven names, each at most 40 characters.
 	FlagNames []string `json:"flagNames,omitzero"`
+	// Mailbox IDs, at most 50, without repeats.
+	Favorites []int64 `json:"favorites,omitzero"`
 }
 
 // SettingsService: Preferences maild keeps for every account, so they hold
@@ -4251,6 +4412,12 @@ var Methods = []string{
 	"identity.create",
 	"identity.delete",
 	"mailbox.list",
+	"mailbox.create",
+	"mailbox.rename",
+	"mailbox.move",
+	"mailbox.delete",
+	"mailbox.setRole",
+	"mailbox.erase",
 	"message.get",
 	"message.body",
 	"message.summaries",

@@ -19,6 +19,7 @@ types:
       - {name: notifyScope, type: NotifyScope}
       - {name: notifySmartId, type: int, optional: true, doc: "The smart mailbox, when notifyScope is smart."}
       - {name: flagNames, type: "[]string", doc: "Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray)."}
+      - {name: favorites, type: "[]int", doc: "Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out."}
 methods:
   - name: get
     doc: The current preferences.
@@ -30,6 +31,7 @@ methods:
       - {name: notifyScope, type: NotifyScope, optional: true}
       - {name: notifySmartId, type: int, optional: true, doc: "Required with notifyScope smart."}
       - {name: flagNames, type: "[]string", optional: true, doc: "Seven names, each at most 40 characters."}
+      - {name: favorites, type: "[]int", optional: true, doc: "Mailbox IDs, at most 50, without repeats."}
     result: Settings
     errors: [invalidParams, notFound]
 events:

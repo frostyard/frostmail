@@ -38,6 +38,13 @@ type Syncer interface {
 	// ApplyRules runs the enabled rules on messages now (rule.apply) and
 	// returns how many met a rule's conditions.
 	ApplyRules(ctx context.Context, ids []int64) (int, error)
+	// Mailbox operations (docs/design/organize.md, Mailboxes).
+	CreateMailbox(ctx context.Context, accountID int64, name string, parentID *int64) (store.Mailbox, error)
+	RenameMailbox(ctx context.Context, id int64, name string) (store.Mailbox, error)
+	MoveMailbox(ctx context.Context, id int64, parentID *int64) (store.Mailbox, error)
+	DeleteMailbox(ctx context.Context, id int64) error
+	SetMailboxRole(ctx context.Context, id int64, role api.MailboxRole) (store.Mailbox, error)
+	EraseMailbox(ctx context.Context, id int64) (int, error)
 	// Verify compares an account's synced folders with the server.
 	Verify(ctx context.Context, accountID int64) ([]mailsync.Check, error)
 	// Kick, OutboxChanged and DraftsChanged wake an account's IMAP actor
@@ -80,7 +87,7 @@ func New(d Deps) *Engine { return &Engine{d: d} }
 func (e *Engine) Accounts() api.AccountService { return accounts{e.d} }
 
 // Mailboxes implements the mailbox domain.
-func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.d.DB} }
+func (e *Engine) Mailboxes() api.MailboxService { return mailboxes{e.d} }
 
 // Messages implements the message domain.
 func (e *Engine) Messages() api.MessageService { return messages{e.d} }
@@ -347,23 +354,79 @@ func toStoreServer(s api.ServerConfig) store.ServerConfig {
 	return store.ServerConfig{Host: s.Host, Port: int(s.Port), TLS: s.TLS, Username: s.Username}
 }
 
-type mailboxes struct{ db *store.DB }
+type mailboxes struct{ Deps }
 
 func (m mailboxes) List(ctx context.Context, p *api.MailboxListParams) ([]api.Mailbox, error) {
 	var accountID int64
 	if p.AccountID != nil {
 		accountID = *p.AccountID
 	}
-	list, err := m.db.ListMailboxes(ctx, accountID)
+	list, err := m.DB.ListMailboxes(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]api.Mailbox, 0, len(list))
 	for _, mb := range list {
-		out = append(out, api.Mailbox{
-			ID: mb.ID, AccountID: mb.AccountID, Path: mb.Path, Name: mb.Name,
-			Delimiter: mb.Delimiter, Role: mb.Role, Total: mb.Total, Unread: mb.Unread, Label: mb.Label,
-		})
+		out = append(out, toAPIMailbox(mb))
 	}
 	return out, nil
+}
+
+func toAPIMailbox(mb store.Mailbox) api.Mailbox {
+	return api.Mailbox{
+		ID: mb.ID, AccountID: mb.AccountID, Path: mb.Path, Name: mb.Name,
+		Delimiter: mb.Delimiter, Role: mb.Role, Total: mb.Total, Unread: mb.Unread, Label: mb.Label,
+	}
+}
+
+// mailboxResult is a mailbox operation's answer.
+func mailboxResult(mb store.Mailbox, err error) (*api.Mailbox, error) {
+	if err != nil {
+		return nil, opError(err)
+	}
+	out := toAPIMailbox(mb)
+	return &out, nil
+}
+
+func (m mailboxes) Create(ctx context.Context, p *api.MailboxCreateParams) (*api.Mailbox, error) {
+	if m.Sync == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	return mailboxResult(m.Sync.CreateMailbox(ctx, p.AccountID, p.Name, p.ParentID))
+}
+
+func (m mailboxes) Rename(ctx context.Context, p *api.MailboxRenameParams) (*api.Mailbox, error) {
+	if m.Sync == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	return mailboxResult(m.Sync.RenameMailbox(ctx, p.ID, p.Name))
+}
+
+func (m mailboxes) Move(ctx context.Context, p *api.MailboxMoveParams) (*api.Mailbox, error) {
+	if m.Sync == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	return mailboxResult(m.Sync.MoveMailbox(ctx, p.ID, p.ParentID))
+}
+
+func (m mailboxes) Delete(ctx context.Context, p *api.MailboxDeleteParams) error {
+	if m.Sync == nil {
+		return api.Unavailable("sync is not running")
+	}
+	return opError(m.Sync.DeleteMailbox(ctx, p.ID))
+}
+
+func (m mailboxes) SetRole(ctx context.Context, p *api.MailboxSetRoleParams) (*api.Mailbox, error) {
+	if m.Sync == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	return mailboxResult(m.Sync.SetMailboxRole(ctx, p.ID, p.Role))
+}
+
+func (m mailboxes) Erase(ctx context.Context, p *api.MailboxEraseParams) (int64, error) {
+	if m.Sync == nil {
+		return 0, api.Unavailable("sync is not running")
+	}
+	n, err := m.Sync.EraseMailbox(ctx, p.ID)
+	return int64(n), opError(err)
 }
