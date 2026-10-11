@@ -207,6 +207,12 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   all headers, Print and Save As; the unsubscribe banner; mute and block;
   undo; contact photos in the list; favorites; the remaining shortcuts.
 - **Done when:** every M5·6 row of the checklist is Have with its test.
+- **6a, mailboxes (2026-10-11):** maild's mailbox operations, role
+  choices, erase and favorites (planner), then T-0119 to T-0121, each
+  verified on Codex's first attempt. `TestMailboxOperations` and
+  `TestDovecotMailboxes` reach the server, a nested rename and delete on
+  Dovecot included; `TestMigration12KeepsQueuedOps` keeps a schema-11
+  database's queued ops. P-102 and P-107 to P-110 are Have.
 
 ## Phase 7 — Categories spike
 

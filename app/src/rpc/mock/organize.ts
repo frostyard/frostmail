@@ -67,7 +67,7 @@ export class MockOrganize {
   dispatch(method: string, p: Params): unknown {
     switch (method) {
       case "settings.get":
-        return structuredClone(this.settings);
+        return this.shown(this.settings);
       case "settings.set":
         return this.set(p);
       case "vip.list":
@@ -268,9 +268,27 @@ export class MockOrganize {
       next.flagNames = names.map((n) => String(n).trim());
       if (next.flagNames.some((n) => [...n].length > 40)) throw invalid("a flag name is longer than 40 characters");
     }
+    if (p.favorites !== undefined) {
+      const favorites = (p.favorites as number[]).map(Number);
+      if (favorites.length > 50 || new Set(favorites).size !== favorites.length)
+        throw invalid("favorites must be at most 50 mailboxes, without repeats");
+      const gone = favorites.find((id) => !this.mailboxExists(id));
+      if (gone !== undefined) throw new RPCError(ErrorCode.notFound, `mailbox ${gone} does not exist`);
+      next.favorites = favorites;
+    }
     this.settings = next;
     this.emit({ event: "settings.changed", data: {} });
-    return structuredClone(next);
+    return this.shown(next);
+  }
+
+  /** shown is the settings as maild gives them: deleted favorites left
+   *  out, and none at all absent. */
+  private shown(s: Settings): Settings {
+    const out = structuredClone(s);
+    const favorites = (out.favorites ?? []).filter((id) => this.mailboxExists(id));
+    if (favorites.length > 0) out.favorites = favorites;
+    else delete out.favorites;
+    return out;
   }
 
   private addresses(p: Params): string[] {

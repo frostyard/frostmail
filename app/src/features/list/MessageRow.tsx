@@ -4,7 +4,7 @@
 // list container owns focus, selection and virtualization; the row only
 // reports what the pointer did to it.
 import { AlarmClock, Archive, Flag, Paperclip, Star, Trash2 } from "lucide-react";
-import type { MouseEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 
 import { appLocale } from "../../lib/calendarDates";
 import { flagName } from "../../lib/flags";
@@ -35,6 +35,7 @@ export interface MessageRowProps {
   onSelect: (id: number, mode: SelectMode) => void;
   onContextMenu: (id: number, x: number, y: number) => void;
   onAction?: (id: number, action: RowAction) => void;
+  onDragStart?: (id: number, event: DragEvent<HTMLDivElement>) => void;
   canArchive?: boolean;
 }
 
@@ -88,6 +89,8 @@ export function MessageRow(props: MessageRowProps) {
       tabIndex={-1}
       aria-selected={selected}
       data-message-id={message.id}
+      draggable={props.onDragStart !== undefined}
+      onDragStart={(event) => props.onDragStart?.(message.id, event)}
       className={joinClasses(
         "group relative h-[84px] pt-2 pb-2 pl-6 pr-3",
         contrast && "bg-accent text-accent-contrast",

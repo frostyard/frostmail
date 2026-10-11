@@ -153,7 +153,7 @@ func opError(err error) error {
 		return api.NotFound("%v", err)
 	case errors.Is(err, mailsync.ErrInvalid):
 		return api.InvalidParams("%v", err)
-	case errors.Is(err, mailsync.ErrReadOnly):
+	case errors.Is(err, mailsync.ErrReadOnly), errors.Is(err, mailsync.ErrConflict):
 		return api.Conflict("%v", err)
 	}
 	return err

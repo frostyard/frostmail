@@ -297,6 +297,14 @@ func (g *gmailModel) Append(context.Context, string, []byte, []string) (uint32, 
 	return 0, errors.New("append: not modeled")
 }
 
+func (g *gmailModel) Create(context.Context, string) error { return errors.New("create: not modeled") }
+
+func (g *gmailModel) Rename(context.Context, string, string) error {
+	return errors.New("rename: not modeled")
+}
+
+func (g *gmailModel) Delete(context.Context, string) error { return errors.New("delete: not modeled") }
+
 func (g *gmailModel) Expunge(_ context.Context, uids []uint32) error {
 	g.log = append(g.log, fmt.Sprintf("EXPUNGE %v", uids))
 	if g.selected != gTrash {
