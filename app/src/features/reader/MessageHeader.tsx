@@ -209,3 +209,28 @@ export function RemoteBanner(props: RemoteBannerProps) {
     </div>
   );
 }
+
+/** ReminderBanner offers to change or clear a pending reminder. */
+export function ReminderBanner(props: { when: string; disabled?: boolean; onChange: () => void; onClear: () => void }) {
+  return (
+    <div role="status" className="flex items-center gap-2 bg-banner px-5 py-2 text-[12px]">
+      <span>{`Remind Me: ${props.when}`}</span>
+      <button
+        type="button"
+        className="ml-auto h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2"
+        disabled={props.disabled}
+        onClick={props.onChange}
+      >
+        Change…
+      </button>
+      <button
+        type="button"
+        className="h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2"
+        disabled={props.disabled}
+        onClick={props.onClear}
+      >
+        Clear
+      </button>
+    </div>
+  );
+}

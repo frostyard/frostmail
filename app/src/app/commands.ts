@@ -42,6 +42,12 @@ export async function applyRules(client: Client, ids: number[]): Promise<void> {
   await client.rule.apply({ ids });
 }
 
+/** remindMessages sets a reminder, or clears it when no time is supplied. */
+export async function remindMessages(client: Client, ids: number[], at?: Date): Promise<void> {
+  if (ids.length === 0) return;
+  await client.message.remind(at ? { ids, at: at.toISOString() } : { ids });
+}
+
 /** archiveMailbox is where Archive moves the messages (see archiveOf). */
 export function archiveMailbox(model: ViewModel | null, ids: number[], mailboxes: Mailbox[]): Mailbox | undefined {
   const first = selectedSummaries(model, ids)[0];

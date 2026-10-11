@@ -6,11 +6,13 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
+import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyText } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
+import { remindChoices } from "../lib/later";
 import { isVip, vipSet } from "../lib/vips";
 import {
   applyRules,
@@ -22,6 +24,7 @@ import {
   moveMessages,
   moveTargets,
   rangeIds,
+  remindMessages,
   selectedSummaries,
   setFlagColor,
   spamTarget,
@@ -71,6 +74,9 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const { selected, anchor, focus, conversations, source, listFilter, select, setFocus, setListFilter } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
+    const [reminderSheet, setReminderSheet] = useState<{ ids: number[]; initial: Date } | null>(null);
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const reminderChoices = useMemo(() => (menu ? remindChoices(new Date(), timeZone) : []), [menu, timeZone]);
     const [now, setNow] = useState(() => new Date());
     const lastIndex = useRef(0);
     const count = model?.count ?? 0;
@@ -302,12 +308,33 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           shortcut: "Ctrl+Shift+U",
           disabled: readOnly,
         },
+        {
+          kind: "submenu",
+          id: "remind",
+          label: "Remind Me",
+          disabled: readOnly,
+          items: [
+            ...reminderChoices.map(
+              (choice, index): MenuItem => ({
+                kind: "item",
+                id: `remind:${index}`,
+                label: choice.label,
+                disabled: readOnly,
+              }),
+            ),
+            { kind: "separator" },
+            { kind: "item", id: "remindLater", label: "Remind Me Later…", disabled: readOnly },
+            ...(rows.some((row) => row.remindAt)
+              ? [{ kind: "item", id: "remindClear", label: "Clear Reminder", disabled: readOnly } as MenuItem]
+              : []),
+          ],
+        },
       );
       if (rules.some((rule) => rule.enabled)) {
         items.push({ kind: "separator" }, { kind: "item", id: "applyRules", label: "Apply Rules", disabled: readOnly });
       }
       return items;
-    }, [menu, model, mailboxes, accounts, flagNames, rules]);
+    }, [menu, model, mailboxes, accounts, flagNames, rules, reminderChoices]);
 
     const onMenuSelect = useCallback(
       (id: string) => {
@@ -317,6 +344,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
         } else if (id === "applyRules") {
           void applyRules(client, ids).catch((err: unknown) => console.warn("apply rules", err));
+        } else if (id === "remindLater") {
+          const initial = reminderChoices.at(-1)?.at;
+          if (initial) setReminderSheet({ ids, initial });
+        } else if (id === "remindClear" || id.startsWith("remind:")) {
+          const at = id === "remindClear" ? undefined : reminderChoices[Number(id.slice(7))]?.at;
+          void remindMessages(client, ids, at).catch((err: unknown) => console.warn("remind messages", err));
         } else if (id === "read") void toggleRead(client, model, ids);
         else if (id === "spam") void toggleSpam(client, model, ids, source, mailboxes);
         else if (id === "toggleFlag") void toggleFlag(client, model, ids);
@@ -332,7 +365,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           void copyMessages(client, ids, to);
         }
       },
-      [menu, client, model, mailboxes, onDelete, source],
+      [menu, client, model, mailboxes, onDelete, source, reminderChoices],
     );
 
     const onRowAction = useCallback(
@@ -407,6 +440,21 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
               );
             })}
           </div>
+        )}
+        {reminderSheet && (
+          <TimeSheet
+            title="Remind Me"
+            initial={reminderSheet.initial}
+            now={now}
+            timeZone={timeZone}
+            onCancel={() => setReminderSheet(null)}
+            onChoose={(at) => {
+              void remindMessages(client, reminderSheet.ids, at).catch((err: unknown) =>
+                console.warn("remind messages", err),
+              );
+              setReminderSheet(null);
+            }}
+          />
         )}
         {menu && (
           <ContextMenu
