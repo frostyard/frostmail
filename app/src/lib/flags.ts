@@ -7,3 +7,9 @@ export const FLAG_NAMES = ["Red", "Orange", "Yellow", "Green", "Blue", "Purple",
 export function flagName(color: number): string {
   return FLAG_NAMES[color - 1] ?? "";
 }
+
+/** flagLabel is a flag color's name as the user named it (Settings.flagNames,
+ *  names[color - 1]), else the color's own name (docs/specs/ui.md). */
+export function flagLabel(color: number, names?: readonly string[]): string {
+  return names?.[color - 1]?.trim() || flagName(color);
+}
