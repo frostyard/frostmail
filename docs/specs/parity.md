@@ -31,15 +31,15 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`, `mailboxTree.test.ts` (unified mailboxes) |
-| P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | M5·6 | |
+| P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | Have | `TestMailboxRolesAndErase`, `Favorites.test.tsx`, `mailboxTree.favorites.test.ts` |
 | P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color in use, counted | Have | `mailboxTree.sources.test.ts`, `SidebarSources.test.tsx` |
 | P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` |
 | P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` |
 | P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |
-| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | M5·6 | |
-| P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | M5·6 | |
-| P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account | M5·6 | |
-| P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | M5·6 | |
+| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | Have | `TestMailboxOperations`, `TestDovecotMailboxes`, `TestMailboxChangesWaitForQueuedOps`, `Mailboxes.test.tsx` |
+| P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | Have | `DragDrop.test.tsx`, `Sidebar.drop.test.tsx` |
+| P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account; not on Gmail | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
+| P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
 | P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
 | P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry) |
