@@ -20,6 +20,7 @@ import type {
   SmartMailbox,
   SyncStatus,
   ViewQuery,
+  ViewSort,
   Vip,
 } from "../rpc/gen/api";
 
@@ -109,6 +110,9 @@ export interface UIState {
   sidebarWidth: number;
   listWidth: number;
   conversations: boolean;
+  sort: ViewSort;
+  ascending: boolean;
+  contactPhotos: boolean;
 }
 
 /** UIActions change UIState. */
@@ -137,6 +141,10 @@ export interface UIActions {
   clearSearch: () => void;
   setSearchScope: (scope: "all" | "source") => void;
   setListFilter: (filter: ListFilter) => void;
+  setSort: (sort: ViewSort) => void;
+  setAscending: (ascending: boolean) => void;
+  setConversations: (conversations: boolean) => void;
+  setContactPhotos: (contactPhotos: boolean) => void;
   select: (ids: number[], anchor?: number | null) => void;
   setFocus: (p: Pane) => void;
   toggleSidebar: () => void;
@@ -172,6 +180,9 @@ const initialUI: UIState = {
   sidebarWidth: 220,
   listWidth: 360,
   conversations: true,
+  sort: "date",
+  ascending: false,
+  contactPhotos: false,
 };
 
 /** useUI is the window's UI store; layout preferences persist. */
@@ -204,6 +215,10 @@ export const useUI = create<UIState & UIActions>()(
       clearSearch: () => set({ search: "", searchDraft: "", selected: [], anchor: null }),
       setSearchScope: (searchScope) => set({ searchScope, selected: [], anchor: null }),
       setListFilter: (listFilter) => set({ listFilter, selected: [], anchor: null }),
+      setSort: (sort) => set({ sort, ascending: sort === "from" || sort === "to" || sort === "subject" }),
+      setAscending: (ascending) => set({ ascending }),
+      setConversations: (conversations) => set({ conversations }),
+      setContactPhotos: (contactPhotos) => set({ contactPhotos }),
       select: (selected, anchor) => set((s) => ({ selected, anchor: anchor === undefined ? s.anchor : anchor })),
       setFocus: (focus) => set({ focus }),
       toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
@@ -217,6 +232,9 @@ export const useUI = create<UIState & UIActions>()(
         sidebarWidth: s.sidebarWidth,
         listWidth: s.listWidth,
         conversations: s.conversations,
+        sort: s.sort,
+        ascending: s.ascending,
+        contactPhotos: s.contactPhotos,
         todoBar: s.todoBar,
       }),
     },
@@ -315,9 +333,13 @@ function filterQuery(filter: ListFilter = "all"): ViewQuery {
 
 /** listQuery is the view query the list shows for the UI state. */
 export function listQuery(
-  ui: Pick<UIState, "source" | "search" | "searchScope" | "conversations"> & Partial<Pick<UIState, "listFilter">>,
+  ui: Pick<UIState, "source" | "search" | "searchScope" | "conversations"> &
+    Partial<Pick<UIState, "listFilter" | "sort" | "ascending">>,
 ): ViewQuery {
-  const filter = filterQuery(ui.listFilter);
+  const sort = ui.sort ?? "date";
+  const order: ViewQuery =
+    sort === "date" && !ui.ascending ? {} : { sort, ...(ui.ascending ? { ascending: true } : {}) };
+  const filter = { ...filterQuery(ui.listFilter), ...order };
   const base = { ...sourceQuery(ui.source, ui.conversations), ...filter };
   if (ui.search === "") return base;
   if (ui.searchScope === "all")
