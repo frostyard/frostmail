@@ -236,7 +236,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   photo (`people.senders` for the rows' senders, then `people.photo`,
   kept for the session), else the reader header's initials on its tone.
 - **Line 1:** sender (display name, else address) 13/600 truncated; at the
-  right a 12px paperclip when `hasAttachments`, a 12px `alarm-clock` in
+  right a 12px `bell-off` in `--text-secondary` when the conversation is
+  muted (M5, `muted`; `role="img"` named "Muted", also its tooltip), a
+  12px paperclip when `hasAttachments`, a 12px `alarm-clock` in
   `--text-secondary` when the message has a pending reminder (M5,
   `remindAt`; `role="img"` named "Reminder " and the time as `whenText`
   says it, also its tooltip), then the date 12/400 `--text-secondary`. When the sender's address is a VIP (M5), a 10px
@@ -315,6 +317,12 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (the time sheet titled "Remind Me", starting at the reminder's time; OK
   calls `message.remind {ids: [id], at}`) and Clear (`message.remind
   {ids: [id]}`), disabled on a read-only account.
+- **Blocked banner** (M5, P-411, [ADR-0028](../adr/0028-mute-and-block-in-maild-undo-in-the-app.md);
+  after the reminder banner, drawn as the remote content banner is): when
+  the sender's address is blocked (the window's blocked list:
+  `block.list`, again on `block.changed`; addresses compared
+  lowercased), "This message is from a blocked sender." and at the right
+  an Unblock button, `block.remove {addresses: [address]}`.
 - **Unsubscribe banner** (M5, P-305, [ADR-0027](../adr/0027-unsubscribe-with-one-click.md);
   after the reminder banner, drawn as the remote content banner is): for a
   message whose `listUnsubscribe` is not empty, `message.unsubscribeInfo
@@ -416,13 +424,17 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     so is the toolbar's Flag menu. A flag glyph's accessible name keeps the
     color's own name ("Flagged Red").
   - Remind Me ▸ (M5), at the end of the Flag group, after Mark as Read or
-    Mark as Unread: the reminder choices (`remindChoices`: Remind Me in 1
+    Mark as Unread, and Mute (below): the reminder choices (`remindChoices`: Remind Me in 1
     Hour; Remind Me Tonight, at 9:00 PM, before then; Remind Me
     Tomorrow, at 8:00 AM), a separator, Remind Me Later… (the time sheet
     titled "Remind Me", starting tomorrow at 8:00 AM), and, when a message
     of the menu's set has a pending reminder, Clear Reminder. Each calls
     `message.remind` on the menu's messages, with the time or, for Clear
     Reminder, without.
+  - Mute (M5, P-410), between Mark as Read or Mark as Unread and Remind
+    Me ▸: `message.mute {ids, muted: true}` on the menu's messages; it
+    reads Unmute, and sends `muted: false`, when every message of the
+    menu's set is muted. A muted conversation's new mail never notifies.
   - Apply Rules (M5), only when a rule is enabled: `rule.apply` on the
     menu's messages, which runs the enabled rules on them now, wherever
     they are. It has no shortcut: Mail.app's Option-Command-L would be
@@ -441,6 +453,26 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   under the field (`role="alert"`, 12/16) and stays. The message then
   waits in the outbox with the undo delay, as a send does. Escape
   cancels.
+- **Undo** (M5, P-406, ADR-0028): Ctrl+Z takes back the newest of the
+  main window's last 20 moves, deletes, archives, spam moves, and flag,
+  flag color and read changes, made from the list, its menus and row
+  actions, the toolbar, drag and drop or the keyboard. Opening a message,
+  which marks it read, and copies are not undone; the list is gone when
+  the window closes.
+  - **Remembering a move or delete:** `message.summaries` of the messages
+    before and after it. For each message still there afterwards, the
+    mailboxes it left and the ones it entered. Taking it back: with one
+    entered, `message.move {mailboxId: the first it left, fromMailboxId:
+    the one entered}`, then `message.copy` to any other it left; with
+    none entered (a Gmail archive), `message.copy` to each it left. A
+    message gone afterwards (deleted from the Trash) cannot come back.
+  - **Remembering a flag change:** `message.summaries` before it. Taking
+    it back: `message.setFlags` with each message's earlier `seen`, or
+    earlier `flagColor` (0 when it was not flagged), for what the change
+    set.
+  - Calls with the same method and params but the messages are made once,
+    with the messages together. An action that changed nothing is not
+    remembered, and Ctrl+Z with nothing to undo does nothing.
 - **Focus:** Tab and Shift+Tab move between sidebar, list and reader. The
   focused pane shows its selection in `--accent`.
 
@@ -494,6 +526,11 @@ after now, and gives the chosen instant.
 | Ctrl+R / Ctrl+Shift+R | reply / reply all to the selection | Ctrl+R: not in a text field |
 | Ctrl+Shift+F | forward the selection | anywhere |
 | Ctrl+, | open the settings window ([settings-ui.md](settings-ui.md)) | anywhere |
+| Ctrl+Z | undo the newest move, delete or flag change (M5) | anywhere but a text field |
+| Ctrl+Shift+E | Redirect… the selection's last message (M5) | anywhere with a selection, writable account |
+| Ctrl+P | print the message shown (M5) | anywhere with one message selected |
+| Ctrl+Alt+U | Raw Source… of the message selected (M5) | anywhere with one message selected |
+| Ctrl+Shift+H | show or hide all headers of the message selected (M5) | anywhere with one message selected |
 
 The compose window's own keys are in [compose-ui.md](compose-ui.md).
 
