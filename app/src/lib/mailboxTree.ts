@@ -23,7 +23,7 @@ export type SidebarIcon =
 
 /** SidebarItem is one row of a sidebar section. */
 export interface SidebarItem {
-  /** "all-inboxes", "role:<role>", "flagged", "mailbox:<id>", or "path:<accountId>:<path>" for a parent not in the list. */
+  /** "all-inboxes", "role:<role>", "flagged", "favorite:<id>", "mailbox:<id>", or "path:<accountId>:<path>" for a parent not in the list. */
   key: string;
   label: string;
   icon: SidebarIcon;
@@ -32,7 +32,7 @@ export interface SidebarItem {
   unread: number;
   /** False for parents that are not in the mailbox list. */
   selectable: boolean;
-  /** The mailbox's ID; absent for Favorites rows and synthesized parents. */
+  /** The mailbox's ID; absent for built-in sources and synthesized parents. */
   mailboxId?: number;
   /** The flag color, only for Flagged's color rows. */
   flagColor?: number;
@@ -65,8 +65,9 @@ export interface SidebarCounts {
   colors: ViewCount[];
 }
 
-/** SidebarExtras supplies VIPs, custom flag names and their counts. */
+/** SidebarExtras supplies VIPs, custom flag names, favorites and their counts. */
 export interface SidebarExtras {
+  favorites?: Mailbox[];
   vips?: Vip[];
   flagNames?: readonly string[];
   counts?: SidebarCounts;
@@ -278,6 +279,15 @@ export function buildSidebar(accounts: Account[], mailboxes: Mailbox[], extras: 
       { key: "all-inboxes", label: "All Inboxes", icon: "inbox", depth: 0, unread: allInboxes, selectable: true },
       ...unifiedRows(mailboxes),
       ...extraRows(extras),
+      ...(extras.favorites ?? []).map((mailbox) => ({
+        key: `favorite:${mailbox.id}`,
+        label: mailbox.name,
+        icon: ROLE_ICON[mailbox.role],
+        depth: 0,
+        unread: mailbox.unread,
+        selectable: true,
+        mailboxId: mailbox.id,
+      })),
     ],
   };
   const sections: SidebarSection[] = accounts.map((a) => ({
