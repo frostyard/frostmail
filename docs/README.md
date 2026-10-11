@@ -43,6 +43,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0025 — maild keeps Send Later, Remind Me and Undo Send](adr/0025-maild-keeps-send-later-remind-me-and-undo-send.md)
 - [0026 — Preferences live in maild](adr/0026-preferences-live-in-maild.md)
 - [0027 — Unsubscribe with one click through the sender's server](adr/0027-unsubscribe-with-one-click.md)
+- [0028 — Mute and block are maild's; Undo is the app's](adr/0028-mute-and-block-in-maild-undo-in-the-app.md)
 
 ### Design
 
