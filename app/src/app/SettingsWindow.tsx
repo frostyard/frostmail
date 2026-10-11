@@ -108,6 +108,7 @@ function GeneralPaneContainer() {
   const client = useClient();
   const settings = useMail((s) => s.settings);
   const smarts = useMail((s) => s.smarts);
+  const blocked = useMail((s) => s.blocked);
   const [error, setError] = useState<string>();
   const change = async (params: SettingsSetParams) => {
     try {
@@ -117,7 +118,24 @@ function GeneralPaneContainer() {
       setError(message(err));
     }
   };
-  return <GeneralPane settings={settings} smarts={smarts} error={error} onChange={(params) => void change(params)} />;
+  const unblock = async (address: string) => {
+    try {
+      await client.block.remove({ addresses: [address] });
+      setError(undefined);
+    } catch (err) {
+      setError(message(err));
+    }
+  };
+  return (
+    <GeneralPane
+      settings={settings}
+      smarts={smarts}
+      blocked={blocked}
+      error={error}
+      onChange={(params) => void change(params)}
+      onUnblock={(address) => void unblock(address)}
+    />
+  );
 }
 
 type RuleSheetState = { id?: number; initial: RuleDraft };
