@@ -34,6 +34,15 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 	if q.Threads != nil {
 		f.Threads = *q.Threads
 	}
+	if q.Conditions != nil {
+		if err := store.CheckConditions(*q.Conditions); err != nil {
+			return nil, api.InvalidParams("%v", err)
+		}
+		f.Conditions = q.Conditions
+	}
+	if q.SmartMailboxID != nil {
+		return nil, notYet(3)
+	}
 	id, count, err := v.Views.Open(ctx, api.ConnFrom(ctx), f)
 	if err != nil {
 		return nil, err

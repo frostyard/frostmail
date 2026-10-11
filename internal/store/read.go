@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/frostyard/frostmail/api"
 )
 
 // ViewFilter selects the messages of a view (api.ViewQuery). Zero fields do
@@ -29,6 +31,10 @@ type ViewFilter struct {
 	HasAttachment *bool     // has:attachment
 	After, Before time.Time // arrival in [After, Before)
 	Roles         []string  // in: any of these mailbox roles
+
+	// Conditions (ADR-0023), compiled each time the view is computed so
+	// relative dates move along; checked with CheckConditions first.
+	Conditions *api.Conditions
 }
 
 // viewOrder is the order every view lists messages in: newest first by
@@ -103,6 +109,14 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 		for _, r := range roles {
 			args = append(args, r)
 		}
+	}
+	if f.Conditions != nil {
+		p, err := CompileConditions(*f.Conditions, d.Now(), time.Local)
+		if err != nil {
+			return nil, fmt.Errorf("view ids: %w", err)
+		}
+		conds = append(conds, p.SQL)
+		args = append(args, p.Args...)
 	}
 	where := strings.Join(conds, " AND ")
 	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + viewOrder
