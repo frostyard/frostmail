@@ -7,7 +7,7 @@ import { ContextMenu } from "../features/menu/ContextMenu";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
 import { buildSidebar, vipGroups } from "../lib/mailboxTree";
-import { OutboxSection } from "./OutboxContainer";
+import { OutboxSection, SendLaterSection } from "./OutboxContainer";
 import { useSidebarCounts } from "./useSidebarCounts";
 import { useSmartCounts } from "./useSmartCounts";
 
@@ -59,6 +59,7 @@ export function SidebarContainer() {
       </div>
       <div className="max-h-[40%] shrink-0 overflow-y-auto">
         <OutboxSection />
+        <SendLaterSection />
       </div>
       {menu && (
         <ContextMenu

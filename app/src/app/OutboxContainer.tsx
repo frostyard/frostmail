@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 
 import { useClient } from "../data/session";
 import { useMail } from "../data/stores";
-import { OutboxStatus, UndoToast } from "../features/outbox/Outbox";
+import { TimeSheet } from "../features/later/TimeSheet";
+import { isSendLater, OutboxStatus, SendLaterStatus, UndoToast } from "../features/outbox/Outbox";
+import { appLocale } from "../lib/calendarDates";
 import type { Client, OutboxItem } from "../rpc/gen/api";
 import { openCompose } from "./compose";
 
@@ -23,7 +25,7 @@ function useNow(intervalMs: number, active: boolean): Date {
 
 /** secondsLeft is how long a queued message still waits, rounded up. */
 function secondsLeft(item: OutboxItem, now: Date): number {
-  if (item.state !== "queued" || item.attempts > 0 || item.sendAt === undefined) return 0;
+  if (item.scheduled || item.state !== "queued" || item.attempts > 0 || item.sendAt === undefined) return 0;
   return Math.ceil((Date.parse(item.sendAt) - now.getTime()) / 1000);
 }
 
@@ -37,7 +39,7 @@ async function undo(client: Client, id: number): Promise<void> {
 export function UndoToasts() {
   const client = useClient();
   const outbox = useMail((s) => s.outbox);
-  const waiting = outbox.some((i) => i.state === "queued" && i.attempts === 0);
+  const waiting = outbox.some((i) => !i.scheduled && i.state === "queued" && i.attempts === 0);
   const now = useNow(250, waiting);
   const toasts = outbox
     .map((item) => ({ item, left: secondsLeft(item, now) }))
@@ -56,6 +58,48 @@ export function UndoToasts() {
         </div>
       ))}
     </div>
+  );
+}
+
+/** SendLaterSection connects scheduled messages and the time sheet to the outbox. */
+export function SendLaterSection() {
+  const client = useClient();
+  const outbox = useMail((s) => s.outbox);
+  const [changing, setChanging] = useState<OutboxItem | null>(null);
+  const now = useNow(30_000, outbox.some(isSendLater));
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const locale = appLocale(navigator.language);
+  const reschedule = (item: OutboxItem, at: Date) => {
+    void client.outbox
+      .reschedule({ id: item.id, sendAt: at.toISOString() })
+      .catch((err: unknown) => console.warn("reschedule", err));
+  };
+  return (
+    <>
+      <SendLaterStatus
+        items={outbox}
+        now={now}
+        timeZone={timeZone}
+        locale={locale}
+        onEdit={(item) => void undo(client, item.id).catch((err: unknown) => console.warn("edit", err))}
+        onSendNow={(item) => reschedule(item, new Date())}
+        onChangeTime={setChanging}
+      />
+      {changing && (
+        <TimeSheet
+          key={changing.id}
+          title="Send Later"
+          initial={new Date(changing.sendAt ?? now.toISOString())}
+          now={now}
+          timeZone={timeZone}
+          onChoose={(at) => {
+            reschedule(changing, at);
+            setChanging(null);
+          }}
+          onCancel={() => setChanging(null)}
+        />
+      )}
+    </>
   );
 }
 
