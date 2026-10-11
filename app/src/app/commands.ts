@@ -171,7 +171,7 @@ export function rangeIds(model: ViewModel, a: number, b: number): number[] {
 }
 
 /** ComposeAction starts a draft from the main window. */
-export type ComposeAction = "compose" | "reply" | "replyAll" | "forward";
+export type ComposeAction = "compose" | "reply" | "replyAll" | "forward" | "forwardAttachment";
 
 /**
  * compose opens a new message, or a reply, reply all or forward of the last
@@ -185,6 +185,13 @@ export async function compose(client: Client, action: ComposeAction, ids: number
   }
   const source = ids[ids.length - 1];
   if (source === undefined) return;
-  const kind = action === "reply" ? "reply" : action === "replyAll" ? "replyall" : "forward";
+  const kind =
+    action === "reply"
+      ? "reply"
+      : action === "replyAll"
+        ? "replyall"
+        : action === "forwardAttachment"
+          ? "attached"
+          : "forward";
   await startDraft(client, kind, source);
 }
