@@ -15,6 +15,7 @@ import {
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
+import { RedirectSheet } from "../features/compose/RedirectSheet";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyText } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
@@ -153,6 +154,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
+    const [redirectSheet, setRedirectSheet] = useState<{ id: number; subject: string } | null>(null);
     const [reminderSheet, setReminderSheet] = useState<{ ids: number[]; initial: Date } | null>(null);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const reminderChoices = useMemo(() => (menu ? remindChoices(new Date(), timeZone) : []), [menu, timeZone]);
@@ -333,6 +335,8 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         { kind: "item", id: "reply", label: "Reply", shortcut: "Ctrl+R" },
         { kind: "item", id: "replyAll", label: "Reply All", shortcut: "Ctrl+Shift+R" },
         { kind: "item", id: "forward", label: "Forward", shortcut: "Ctrl+Shift+F" },
+        { kind: "item", id: "forwardAttachment", label: "Forward as Attachment" },
+        { kind: "item", id: "redirect", label: "Redirect…", disabled: readOnly },
         { kind: "separator" },
       ];
       if (archiveMailbox(model, menu.ids, mailboxes)) {
@@ -437,8 +441,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       (id: string) => {
         if (!menu) return;
         const ids = menu.ids;
-        if (id === "reply" || id === "replyAll" || id === "forward") {
+        if (id === "reply" || id === "replyAll" || id === "forward" || id === "forwardAttachment") {
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
+        } else if (id === "redirect") {
+          const lastId = ids.at(-1);
+          const row = lastId === undefined ? undefined : model?.row(model.indexOf(lastId));
+          if (row) setRedirectSheet({ id: row.id, subject: row.subject });
         } else if (id === "applyRules") {
           void applyRules(client, ids).catch((err: unknown) => console.warn("apply rules", err));
         } else if (id === "remindLater") {
@@ -539,6 +547,17 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
               );
             })}
           </div>
+        )}
+        {redirectSheet && (
+          <RedirectSheet
+            subject={redirectSheet.subject}
+            suggest={(prefix) => client.address.suggest({ prefix, limit: 8 })}
+            onCancel={() => setRedirectSheet(null)}
+            onRedirect={async (to) => {
+              await client.message.redirect({ id: redirectSheet.id, to });
+              setRedirectSheet(null);
+            }}
+          />
         )}
         {reminderSheet && (
           <TimeSheet
