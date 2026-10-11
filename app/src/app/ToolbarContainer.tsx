@@ -300,8 +300,10 @@ export function useListQuery() {
   const searchScope = useUI((state) => state.searchScope);
   const conversations = useUI((state) => state.conversations);
   const listFilter = useUI((state) => state.listFilter);
+  const sort = useUI((state) => state.sort);
+  const ascending = useUI((state) => state.ascending);
   return useMemo(
-    () => listQuery({ source, search, searchScope, conversations, listFilter }),
-    [source, search, searchScope, conversations, listFilter],
+    () => listQuery({ source, search, searchScope, conversations, listFilter, sort, ascending }),
+    [source, search, searchScope, conversations, listFilter, sort, ascending],
   );
 }

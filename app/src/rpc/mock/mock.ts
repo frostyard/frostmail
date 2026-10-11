@@ -16,14 +16,18 @@ import {
   type FlagChanges,
   type Flags,
   type Mailbox,
+  type MailboxRole,
   type Message,
   type MessageSummary,
   type Part,
   type Rendering,
   type RuleApplied,
   type SyncStatus,
+  type Unsubscribe,
+  type UnsubscribeMethod,
   type ViewCount,
   type ViewQuery,
+  type ViewSort,
 } from "../gen/api";
 import { RPCError, type Transport } from "../transport";
 import { MockCalendar, type MockCalendarData } from "./calendar";
@@ -45,6 +49,8 @@ export interface MockMessage {
   /** Remote images left out until render is called with remote. */
   remote: number;
   trackers: number;
+  /** How the message can be left, for mail from a list; done is the mock's own. */
+  unsubscribe?: Omit<Unsubscribe, "done">;
 }
 
 /** MockMailbox is a mailbox without counts; the mock computes them. */
@@ -95,6 +101,10 @@ export class MockTransport implements Transport {
   private readonly calendar: MockCalendar;
   private readonly tasks: MockTasks;
   private readonly organize: MockOrganize;
+  /** Lists unsubscribed from, by name. */
+  private readonly unsubscribed = new Set<string>();
+  /** One-click requests fail while this is set, as a sender's server can. */
+  oneClickFails = false;
 
   constructor(
     data: MockData,
@@ -329,6 +339,28 @@ export class MockTransport implements Transport {
         this.emit({ event: "account.changed", data: { id: a.id, deleted: true } });
         return null;
       }
+      case "mailbox.create":
+        return this.createMailbox(num(p.accountId), String(p.name ?? ""), opt(p.parentId));
+      case "mailbox.rename": {
+        const mb = this.mailboxOr404(num(p.id));
+        const name = this.mailboxName(String(p.name ?? ""), mb.delimiter);
+        const at = mb.path.lastIndexOf(mb.delimiter);
+        return this.relocate(mb, (mb.delimiter !== "" && at >= 0 ? mb.path.slice(0, at + 1) : "") + name);
+      }
+      case "mailbox.move": {
+        const mb = this.mailboxOr404(num(p.id));
+        const parent = opt(p.parentId) === undefined ? undefined : this.mailboxOr404(num(p.parentId));
+        if (parent && (parent.id === mb.id || parent.path.startsWith(mb.path + mb.delimiter)))
+          throw new RPCError(ErrorCode.conflict, "a mailbox cannot go inside itself");
+        return this.relocate(mb, parent ? parent.path + mb.delimiter + mb.name : mb.name);
+      }
+      case "mailbox.delete":
+        this.deleteMailbox(this.mailboxOr404(num(p.id)));
+        return null;
+      case "mailbox.setRole":
+        return this.setRole(this.mailboxOr404(num(p.id)), p.role as MailboxRole);
+      case "mailbox.erase":
+        return this.erase(this.mailboxOr404(num(p.id)));
       case "mailbox.list":
         return this.mailboxList(typeof p.accountId === "number" ? p.accountId : undefined);
       case "sync.status":
@@ -347,6 +379,44 @@ export class MockTransport implements Transport {
           const m = this.messages.get(id);
           return m ? [m.summary] : [];
         });
+      case "message.unsubscribeInfo": {
+        const m = this.find(num(p.id));
+        const u = m.unsubscribe ?? { methods: [], list: m.summary.from.name || m.summary.from.address };
+        return { ...structuredClone(u), done: this.unsubscribed.has(u.list) };
+      }
+      case "message.unsubscribe": {
+        const m = this.find(num(p.id));
+        const method = p.method as UnsubscribeMethod;
+        if (!m.unsubscribe?.methods.includes(method))
+          throw new RPCError(ErrorCode.invalidParams, `message ${m.summary.id} does not offer "${String(method)}"`);
+        if (method === "mail" && this.account(m.summary.accountId).readOnly)
+          throw new RPCError(ErrorCode.conflict, `account ${m.summary.accountId} is read-only`);
+        if (method === "oneclick" && this.oneClickFails)
+          throw new RPCError(
+            ErrorCode.unavailable,
+            `unsubscribe: ${m.unsubscribe.host} answered 500 Internal Server Error`,
+          );
+        this.unsubscribed.add(m.unsubscribe.list);
+        return method === "web" ? { url: m.unsubscribe.url } : {};
+      }
+      case "message.source": {
+        const m = this.find(num(p.id));
+        const s = m.summary;
+        const headers = [
+          `From: ${s.from.name ? `${s.from.name} <${s.from.address}>` : s.from.address}`,
+          `To: ${m.to.map((a) => a.address).join(", ")}`,
+          `Subject: ${s.subject}`,
+          `Date: ${new Date(s.date).toUTCString()}`,
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=utf-8",
+        ].join("\r\n");
+        return { headers, text: `${headers}\r\n\r\n${m.text}`, truncated: false };
+      }
+      case "message.save":
+        this.find(num(p.id));
+        if (!String(p.path ?? "").startsWith("/"))
+          throw new RPCError(ErrorCode.invalidParams, `"${String(p.path)}" is not an absolute path`);
+        return null;
       case "message.render":
         return this.render(num(p.id), p.remote === true);
       case "message.part":
@@ -431,7 +501,11 @@ export class MockTransport implements Transport {
       inReplyTo: "",
       references: [],
       listId: "",
-      listUnsubscribe: "",
+      listUnsubscribe: m.unsubscribe
+        ? [m.unsubscribe.address && `<mailto:${m.unsubscribe.address}>`, m.unsubscribe.url && `<${m.unsubscribe.url}>`]
+            .filter(Boolean)
+            .join(", ")
+        : "",
       parts: m.parts,
       bodyFetched: true,
     };
@@ -512,6 +586,132 @@ export class MockTransport implements Transport {
       else this.move([id], trash.id);
     }
     if (expunge.length > 0) this.remove(expunge);
+  }
+
+  // Mailbox operations, as maild's (docs/design/organize.md, Mailboxes);
+  // the mock has no server, so nothing waits.
+
+  private mailboxOr404(id: number): MockMailbox {
+    const mb = this.mailboxes.find((m) => m.id === id);
+    if (!mb) throw notFound(`mailbox ${id} does not exist`);
+    return mb;
+  }
+
+  private writableAccount(id: number): void {
+    if (this.account(id).readOnly) throw new RPCError(ErrorCode.conflict, `account ${id} is read-only`);
+  }
+
+  private mailboxName(raw: string, delim: string): string {
+    const name = raw.trim();
+    if (name === "" || [...name].length > 100)
+      throw new RPCError(ErrorCode.invalidParams, "a mailbox's name must be 1 to 100 characters");
+    if (delim !== "" && name.includes(delim))
+      throw new RPCError(ErrorCode.invalidParams, `a mailbox's name cannot hold "${delim}"`);
+    return name;
+  }
+
+  private taken(accountId: number, path: string): boolean {
+    return (
+      path.toLowerCase() === "inbox" || this.mailboxes.some((mb) => mb.accountId === accountId && mb.path === path)
+    );
+  }
+
+  private createMailbox(accountId: number, raw: string, parentId: number | undefined): Mailbox {
+    this.writableAccount(accountId);
+    const parent = parentId === undefined ? undefined : this.mailboxOr404(parentId);
+    if (parent && parent.accountId !== accountId)
+      throw new RPCError(ErrorCode.invalidParams, `mailbox ${parent.id} is not in account ${accountId}`);
+    const delim = parent?.delimiter || this.mailboxes.find((mb) => mb.accountId === accountId)?.delimiter || "/";
+    const name = this.mailboxName(raw, delim);
+    const path = parent ? parent.path + delim + name : name;
+    if (this.taken(accountId, path)) throw new RPCError(ErrorCode.conflict, `a mailbox "${path}" already exists`);
+    const label = this.mailboxes.some((mb) => mb.accountId === accountId && mb.label);
+    const mb: MockMailbox = {
+      id: Math.max(0, ...this.mailboxes.map((m) => m.id)) + 1,
+      accountId,
+      path,
+      name,
+      delimiter: delim,
+      role: "none",
+      label,
+    };
+    this.mailboxes.push(mb);
+    this.emit({ event: "mailbox.changed", data: { id: mb.id, accountId, deleted: false } });
+    return this.mailboxList(accountId).find((m) => m.id === mb.id) as Mailbox;
+  }
+
+  private fixedMailbox(mb: MockMailbox): void {
+    if (mb.role !== "none" || mb.path.startsWith("[Gmail]"))
+      throw new RPCError(ErrorCode.conflict, `mailbox "${mb.path}" is one of the account's own`);
+  }
+
+  private relocate(mb: MockMailbox, path: string): Mailbox {
+    this.writableAccount(mb.accountId);
+    this.fixedMailbox(mb);
+    if (path !== mb.path) {
+      if (this.taken(mb.accountId, path)) throw new RPCError(ErrorCode.conflict, `a mailbox "${path}" already exists`);
+      const old = mb.path;
+      for (const o of this.mailboxes) {
+        if (o.accountId !== mb.accountId || (o !== mb && !o.path.startsWith(old + o.delimiter))) continue;
+        o.path = path + o.path.slice(old.length);
+        o.name = o.path.split(o.delimiter).pop() ?? o.path;
+        this.emit({ event: "mailbox.changed", data: { id: o.id, accountId: o.accountId, deleted: false } });
+      }
+    }
+    return this.mailboxList(mb.accountId).find((m) => m.id === mb.id) as Mailbox;
+  }
+
+  private deleteMailbox(mb: MockMailbox): void {
+    this.writableAccount(mb.accountId);
+    this.fixedMailbox(mb);
+    const gone = this.mailboxes.filter(
+      (o) => o.accountId === mb.accountId && (o === mb || o.path.startsWith(mb.path + mb.delimiter)),
+    );
+    const ids = new Set(gone.map((o) => o.id));
+    const orphans: number[] = [];
+    const left: number[] = [];
+    for (const m of this.messages.values()) {
+      if (!m.summary.mailboxIds.some((id) => ids.has(id))) continue;
+      const rest = m.summary.mailboxIds.filter((id) => !ids.has(id));
+      if (rest.length === 0) orphans.push(m.summary.id);
+      else {
+        m.summary = { ...m.summary, mailboxIds: rest };
+        left.push(m.summary.id);
+      }
+    }
+    for (let i = this.mailboxes.length - 1; i >= 0; i--) {
+      if (ids.has(this.mailboxes[i]?.id ?? -1)) this.mailboxes.splice(i, 1);
+    }
+    if (orphans.length > 0) this.remove(orphans);
+    if (left.length > 0) this.changed(left.map((id) => this.find(id).summary));
+    for (const id of ids) this.emit({ event: "mailbox.changed", data: { id, accountId: mb.accountId, deleted: true } });
+  }
+
+  private setRole(mb: MockMailbox, role: MailboxRole): Mailbox {
+    if (!["drafts", "sent", "junk", "trash", "archive"].includes(role))
+      throw new RPCError(ErrorCode.invalidParams, `"${role}" is not a role a mailbox can be used for`);
+    this.writableAccount(mb.accountId);
+    if (mb.label || mb.role === "inbox") throw new RPCError(ErrorCode.conflict, "this mailbox keeps its role");
+    for (const o of this.mailboxes) {
+      if (o.accountId === mb.accountId && o.role === role && o !== mb) {
+        o.role = "none";
+        this.emit({ event: "mailbox.changed", data: { id: o.id, accountId: o.accountId, deleted: false } });
+      }
+    }
+    mb.role = role;
+    this.emit({ event: "mailbox.changed", data: { id: mb.id, accountId: mb.accountId, deleted: false } });
+    return this.mailboxList(mb.accountId).find((m) => m.id === mb.id) as Mailbox;
+  }
+
+  private erase(mb: MockMailbox): number {
+    if (mb.role !== "trash" && mb.role !== "junk")
+      throw new RPCError(ErrorCode.invalidParams, "only a trash or junk mailbox is erased");
+    this.writableAccount(mb.accountId);
+    const gone = [...this.messages.values()]
+      .filter((m) => m.summary.mailboxIds.includes(mb.id))
+      .map((m) => m.summary.id);
+    if (gone.length > 0) this.remove(gone);
+    return gone.length;
   }
 
   /** remind sets or, without at, clears Remind Me reminders, as maild's
@@ -647,7 +847,40 @@ export class MockTransport implements Transport {
         return true;
       });
     }
+    if (q.sort !== undefined && (q.sort !== "date" || q.ascending === true)) {
+      const key = (s: MessageSummary): string | number => this.sortKey(s, q.sort ?? "date");
+      const dir = q.ascending === true ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        const ka = key(a);
+        const kb = key(b);
+        return (ka < kb ? -1 : ka > kb ? 1 : 0) * dir || newestFirst(a, b);
+      });
+    }
     return rows.map((s) => s.id);
+  }
+
+  /** sortKey is a message's key for a ViewSort, as maild's. */
+  private sortKey(s: MessageSummary, sort: ViewSort): string | number {
+    switch (sort) {
+      case "from":
+        return (s.from.name || s.from.address).toLowerCase();
+      case "to": {
+        const to = this.messages.get(s.id)?.to[0];
+        return (to?.name || to?.address || "").toLowerCase();
+      }
+      case "subject":
+        return s.subject.replace(/^((re|fwd?)\s*:\s*)+/i, "").toLowerCase();
+      case "size":
+        return s.size;
+      case "flags":
+        return (s.flags.flagged ? 8 : 0) + s.flags.flagColor;
+      case "unread":
+        return s.flags.seen ? 0 : 1;
+      case "attachments":
+        return s.hasAttachments ? 1 : 0;
+      default:
+        return s.date;
+    }
   }
 
   /** matches evaluates conditions (docs/design/organize.md) for the fields
@@ -785,6 +1018,10 @@ function notFound(message: string): RPCError {
 function num(v: unknown): number {
   if (typeof v !== "number") throw new RPCError(ErrorCode.invalidParams, "expected a number");
   return v;
+}
+
+function opt(v: unknown): number | undefined {
+  return v === undefined || v === null ? undefined : num(v);
 }
 
 function ids(v: unknown): number[] {

@@ -97,6 +97,14 @@ export class MockPeople {
         return this.person(Number(p.id));
       case "people.card":
         return this.card(String(p.email ?? ""));
+      case "people.senders": {
+        const addresses = ((p.addresses ?? []) as string[]).map((a) => String(a).trim().toLowerCase());
+        if (addresses.length > 500) throw new RPCError(ErrorCode.invalidParams, "at most 500 addresses");
+        return [...new Set(addresses)].sort().flatMap((address) => {
+          const person = this.byEmail(address);
+          return person && this.data.photos?.[person.id] ? [{ address, personId: person.id }] : [];
+        });
+      }
       case "people.photo": {
         const photo = this.data.photos?.[Number(p.id)];
         if (!photo) throw new RPCError(ErrorCode.notFound, `person photo ${Number(p.id)} does not exist`);

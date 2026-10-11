@@ -31,15 +31,15 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`, `mailboxTree.test.ts` (unified mailboxes) |
-| P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | M5·6 | |
+| P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | Have | `TestMailboxRolesAndErase`, `Favorites.test.tsx`, `mailboxTree.favorites.test.ts` |
 | P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color in use, counted | Have | `mailboxTree.sources.test.ts`, `SidebarSources.test.tsx` |
 | P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` |
 | P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` |
 | P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |
-| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | M5·6 | |
-| P-108 | Drag messages to a mailbox (Alt: copy) | Same | M5·6 | |
-| P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account | M5·6 | |
-| P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | M5·6 | |
+| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | Have | `TestMailboxOperations`, `TestDovecotMailboxes`, `TestMailboxChangesWaitForQueuedOps`, `Mailboxes.test.tsx` |
+| P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | Have | `DragDrop.test.tsx`, `Sidebar.drop.test.tsx` |
+| P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account; not on Gmail | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
+| P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
 | P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
 | P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry) |
@@ -49,14 +49,14 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-201 | Organize by Conversation, with a count | Conversation mode, with a badge | Have | `TestViewRoleAndThreads`, `MessageRow.test.tsx` |
-| P-202 | Turn conversations on and off | A View toggle (the state exists, unset) | M5·6 | |
-| P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | M5·6 | |
+| P-202 | Turn conversations on and off | The Sort menu's Conversations | Have | `SortMenu.test.tsx`, `SortList.test.tsx` |
+| P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | Have | `TestViewSort`, `SortList.test.tsx`, `stores.sort.test.ts` |
 | P-204 | Filter: Unread, Flagged, Attachments | The filter bar | Have | `FilterBar.test.tsx`, `ListFilter.test.tsx` |
 | P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | Have | `FilterBar.more.test.tsx`, `stores.filter.more.test.ts`, `ListFilter.more.test.tsx` |
 | P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` |
 | P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` |
 | P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` |
-| P-209 | Contact photos in the list | People photos, never fetched | M5·6 | |
+| P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` |
 | P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |
 | P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |
 | P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |
@@ -69,11 +69,11 @@ tasks are not Mail's and are not listed; their parity is
 | P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` |
 | P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
-| P-304 | Raw Source, All Headers | Same, from the blob store | M5·6 | |
-| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | M5·6 | |
+| P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` |
+| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestPublicRefusesInsideAddresses`, `Unsubscribe.test.tsx` |
 | P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
-| P-307 | Print | Same | M5·6 | |
-| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print | M5·6 | |
+| P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
+| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
 | P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
 | P-310 | Collapse and expand messages in a conversation | | Later | Quotes already collapse (`PlainText.test.tsx`) |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
@@ -84,8 +84,8 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` |
-| P-402 | Redirect | A resend with the original headers, as maild sends | M5·6 | |
-| P-403 | Forward as Attachment | Same | M5·6 | |
+| P-402 | Redirect | A resend with the original headers, as maild sends | Have | `TestRedirect`, `Redirect.test.tsx` |
+| P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` |
 | P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` |
 | P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` |
 | P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | M5·6 | |

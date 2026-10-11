@@ -5,6 +5,9 @@ import type { ViewModel } from "../data/view";
 import type { Client, Mailbox, MessageSummary } from "../rpc/gen/api";
 import { startDraft } from "./compose";
 
+/** DRAG_TYPE identifies messages dragged from the list to a mailbox. */
+export const DRAG_TYPE = "application/x-frostmail-messages";
+
 /** selectedSummaries returns the loaded summaries of the selected IDs. */
 export function selectedSummaries(model: ViewModel | null, ids: number[]) {
   if (!model) return [];
@@ -168,7 +171,7 @@ export function rangeIds(model: ViewModel, a: number, b: number): number[] {
 }
 
 /** ComposeAction starts a draft from the main window. */
-export type ComposeAction = "compose" | "reply" | "replyAll" | "forward";
+export type ComposeAction = "compose" | "reply" | "replyAll" | "forward" | "forwardAttachment";
 
 /**
  * compose opens a new message, or a reply, reply all or forward of the last
@@ -182,6 +185,13 @@ export async function compose(client: Client, action: ComposeAction, ids: number
   }
   const source = ids[ids.length - 1];
   if (source === undefined) return;
-  const kind = action === "reply" ? "reply" : action === "replyAll" ? "replyall" : "forward";
+  const kind =
+    action === "reply"
+      ? "reply"
+      : action === "replyAll"
+        ? "replyall"
+        : action === "forwardAttachment"
+          ? "attached"
+          : "forward";
   await startDraft(client, kind, source);
 }

@@ -1,10 +1,12 @@
 // The reader: the selected message's conversation (docs/design/app.md, Reader).
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import { TimeSheet } from "../features/later/TimeSheet";
+import { ContextMenu } from "../features/menu/ContextMenu";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
@@ -15,10 +17,22 @@ import {
   RemoteBanner,
 } from "../features/reader/MessageHeader";
 import { PlainText } from "../features/reader/PlainText";
+import { RawSourceSheet } from "../features/reader/RawSourceSheet";
+import { UnsubscribeBanner } from "../features/reader/UnsubscribeBanner";
 import { zoned } from "../lib/calendarDates";
 import { whenText } from "../lib/later";
 import { isVip, vipSet } from "../lib/vips";
-import type { Address, Invitation, Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
+import type {
+  Address,
+  Invitation,
+  Message,
+  MessageSource,
+  MessageSummary,
+  Part,
+  Rendering,
+  Unsubscribe,
+  UnsubscribeResult,
+} from "../rpc/gen/api";
 import { ContactCardContainer } from "./ContactCardContainer";
 import { remindMessages } from "./commands";
 import { useCalendarFrame } from "./useCalendar";
@@ -59,6 +73,7 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
       // biome-ignore lint/a11y/noNoninteractiveTabindex: the reader is a focusable, scrollable pane.
       tabIndex={0}
       aria-label="Message"
+      data-print-area
       onFocus={() => setFocus("reader")}
       className="h-full overflow-y-auto bg-window outline-none"
     >
@@ -156,10 +171,14 @@ function ConversationMessage({
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [currentSummary, setCurrentSummary] = useState(summary);
   const [reminderSheet, setReminderSheet] = useState<Date | null>(null);
+  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
+  const [headers, setHeaders] = useState<string | null>(null);
+  const [source, setSource] = useState<MessageSource | null>(null);
   const readOnly = useMail((s) => s.accounts.find((account) => account.id === summary.accountId)?.readOnly === true);
   const id = summary.id;
   const part = message ? invitationPart(message.parts) : undefined;
   const { invitation, busy, onAnswer } = useInvitation(id, part !== undefined);
+  const unsubscribe = useUnsubscribe(id, !!message?.listUnsubscribe, readOnly);
   const { timeZone, locale, now } = useCalendarFrame();
 
   useEffect(() => {
@@ -215,15 +234,59 @@ function ConversationMessage({
     [client, id],
   );
 
+  const moreAction = async (action: string) => {
+    if (action === "headers") {
+      if (headers !== null) setHeaders(null);
+      else setHeaders((await client.message.source({ id })).headers);
+    } else if (action === "source") {
+      setSource(await client.message.source({ id }));
+    } else if (action === "save" && isTauri()) {
+      const subject = (summary.subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
+      const path = await save({
+        title: "Save Message",
+        defaultPath: `${subject}.eml`,
+        filters: [{ name: "Email Message", extensions: ["eml"] }],
+      });
+      if (path !== null) await client.message.save({ id, path });
+    } else if (action === "print") {
+      window.print();
+    }
+  };
+
   return (
     <article aria-label={summary.subject} className="pb-2">
       {message && (
         <MessageHeader
           message={message}
           onAddress={onAddress}
+          onMore={setMore}
           vip={isVip(message.summary.from.address, vipAddresses)}
         />
       )}
+      {more && (
+        <ContextMenu
+          {...more}
+          items={[
+            { kind: "item", id: "headers", label: headers === null ? "Show All Headers" : "Hide All Headers" },
+            { kind: "item", id: "source", label: "Raw Source…" },
+            { kind: "separator" },
+            { kind: "item", id: "save", label: "Save As…" },
+            { kind: "item", id: "print", label: "Print…" },
+          ]}
+          onSelect={(action) => {
+            void moreAction(action).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+          }}
+          onClose={() => setMore(null)}
+        />
+      )}
+      {headers !== null && (
+        <section aria-label="All Headers" className="px-4 pb-4">
+          <pre className="whitespace-pre-wrap break-words select-text font-mono text-[11px] leading-4 text-secondary">
+            {headers}
+          </pre>
+        </section>
+      )}
+      {source && <RawSourceSheet text={source.text} truncated={source.truncated} onClose={() => setSource(null)} />}
       {currentSummary.remindAt && (
         <ReminderBanner
           when={whenText(new Date(currentSummary.remindAt), now, timeZone, locale)}
@@ -246,6 +309,15 @@ function ConversationMessage({
               void remindMessages(client, [id], at).catch((err: unknown) => console.warn("change reminder", err));
             setReminderSheet(null);
           }}
+        />
+      )}
+      {unsubscribe.info && (
+        <UnsubscribeBanner
+          info={unsubscribe.info}
+          method={unsubscribe.method}
+          busy={unsubscribe.busy}
+          failed={unsubscribe.failed}
+          onUnsubscribe={unsubscribe.onUnsubscribe}
         />
       )}
       {invitation && (
@@ -289,6 +361,57 @@ function ConversationMessage({
       )}
     </article>
   );
+}
+
+function useUnsubscribe(id: number, active: boolean, readOnly: boolean) {
+  const client = useClient();
+  const [info, setInfo] = useState<Unsubscribe | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const running = useRef(false);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    void client.message.unsubscribeInfo({ id }).then(
+      (result) => {
+        if (!cancelled) setInfo(result);
+      },
+      (err: unknown) => console.warn("load unsubscribe info", err),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [client, id, active]);
+  const methods = info?.methods.filter((method) => method !== "mail" || !readOnly) ?? [];
+  const onUnsubscribe = () => {
+    if (running.current || methods.length === 0) return;
+    running.current = true;
+    setBusy(true);
+    setFailed(false);
+    void (async () => {
+      for (const method of methods) {
+        let result: UnsubscribeResult;
+        try {
+          result = await client.message.unsubscribe({ id, method });
+        } catch (err: unknown) {
+          console.warn("unsubscribe", err);
+          continue;
+        }
+        if (result.url) openLink(result.url);
+        try {
+          setInfo(await client.message.unsubscribeInfo({ id }));
+        } catch (err: unknown) {
+          console.warn("refresh unsubscribe info", err);
+        }
+        return;
+      }
+      setFailed(true);
+    })().finally(() => {
+      running.current = false;
+      setBusy(false);
+    });
+  };
+  return { info: active ? info : null, method: methods[0], busy, failed, onUnsubscribe };
 }
 
 function useInvitation(messageId: number, active: boolean) {

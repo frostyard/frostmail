@@ -1,11 +1,21 @@
 // The message list: a virtualized view with selection, keyboard commands
 // and the row context menu (docs/specs/ui.md, Message list and Behavior).
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  type DragEvent,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
+import { RedirectSheet } from "../features/compose/RedirectSheet";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyText } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
@@ -14,6 +24,7 @@ import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
 import { remindChoices } from "../lib/later";
 import { isVip, vipSet } from "../lib/vips";
+import type { Client } from "../rpc/gen/api";
 import {
   applyRules,
   archiveMailbox,
@@ -21,6 +32,7 @@ import {
   compose,
   copyMessages,
   copyTargets,
+  DRAG_TYPE,
   moveMessages,
   moveTargets,
   rangeIds,
@@ -47,6 +59,63 @@ interface Menu {
   ids: number[];
 }
 
+// Cache by session client so switching modules (which unmounts the list)
+// keeps both completed lookups and in-flight requests for this window.
+const contactPhotoCaches = new WeakMap<
+  Client,
+  { senders: Map<string, Promise<string | null>>; people: Map<number, Promise<string | null>> }
+>();
+
+function useContactPhotos(client: Client, enabled: boolean, addresses: string[]) {
+  const [photos, setPhotos] = useState(new Map<string, string | null>());
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    let cache = contactPhotoCaches.get(client);
+    if (!cache) {
+      cache = { senders: new Map(), people: new Map() };
+      contactPhotoCaches.set(client, cache);
+    }
+    const { senders, people } = cache;
+    const missing = addresses.filter((address) => !senders.has(address));
+    for (let start = 0; start < missing.length; start += 500) {
+      const batch = missing.slice(start, start + 500);
+      const lookup = client.people.senders({ addresses: batch }).catch(() => []);
+      for (const address of batch) {
+        senders.set(
+          address,
+          lookup.then((matches) => {
+            const person = matches.find((match) => match.address === address);
+            if (!person) return null;
+            let photo = people.get(person.personId);
+            if (!photo) {
+              photo = client.people
+                .photo({ id: person.personId })
+                .then((result) => `data:${result.contentType};base64,${result.data}`)
+                .catch(() => null);
+              people.set(person.personId, photo);
+            }
+            return photo;
+          }),
+        );
+      }
+    }
+    for (const address of addresses) {
+      void senders.get(address)?.then((photo) => {
+        if (active)
+          setPhotos((previous) => {
+            if (previous.has(address) && previous.get(address) === photo) return previous;
+            return new Map(previous).set(address, photo);
+          });
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [client, enabled, addresses]);
+  return photos;
+}
+
 // A list not laid out yet (or in a test DOM) measures 0 high: assume 800 so
 // the first rows render, as People's list does.
 const observeListRect: NonNullable<
@@ -71,9 +140,21 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const flagNames = useMail((s) => s.settings?.flagNames);
     const vips = useMail((s) => s.vips);
     const vipAddresses = useMemo(() => vipSet(vips), [vips]);
-    const { selected, anchor, focus, conversations, source, listFilter, select, setFocus, setListFilter } = useUI();
+    const {
+      selected,
+      anchor,
+      focus,
+      conversations,
+      contactPhotos,
+      source,
+      listFilter,
+      select,
+      setFocus,
+      setListFilter,
+    } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
+    const [redirectSheet, setRedirectSheet] = useState<{ id: number; subject: string } | null>(null);
     const [reminderSheet, setReminderSheet] = useState<{ ids: number[]; initial: Date } | null>(null);
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const reminderChoices = useMemo(() => (menu ? remindChoices(new Date(), timeZone) : []), [menu, timeZone]);
@@ -103,6 +184,16 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     // Keep the selection on its rows; if they all vanished (deleted, moved
     // out), select the row that took their place.
     const version = model?.getVersion() ?? 0;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: version changes when loaded rows change.
+    const senderAddresses = useMemo(() => {
+      const addresses = new Set<string>();
+      for (let index = first; index <= last; index++) {
+        const row = model?.row(index);
+        if (row) addresses.add(row.from.address.toLowerCase());
+      }
+      return [...addresses];
+    }, [model, version, first, last]);
+    const photos = useContactPhotos(client, contactPhotos, senderAddresses);
     // biome-ignore lint/correctness/useExhaustiveDependencies: version re-runs this after every view change.
     useEffect(() => {
       if (!model || selected.length === 0) return;
@@ -151,6 +242,14 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       },
       [model, selected, anchor, select, setFocus],
     );
+
+    const onDragStart = (id: number, event: DragEvent<HTMLDivElement>) => {
+      const ids = selected.includes(id) ? selected : [id];
+      const first = selectedSummaries(model, ids)[0];
+      if (!first) return;
+      event.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ accountId: first.accountId, ids }));
+      event.dataTransfer.effectAllowed = "copyMove";
+    };
 
     // A message in a Drafts mailbox opens in a compose window.
     const openIfDraft = useCallback(
@@ -236,6 +335,8 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         { kind: "item", id: "reply", label: "Reply", shortcut: "Ctrl+R" },
         { kind: "item", id: "replyAll", label: "Reply All", shortcut: "Ctrl+Shift+R" },
         { kind: "item", id: "forward", label: "Forward", shortcut: "Ctrl+Shift+F" },
+        { kind: "item", id: "forwardAttachment", label: "Forward as Attachment" },
+        { kind: "item", id: "redirect", label: "Redirect…", disabled: readOnly },
         { kind: "separator" },
       ];
       if (archiveMailbox(model, menu.ids, mailboxes)) {
@@ -340,8 +441,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       (id: string) => {
         if (!menu) return;
         const ids = menu.ids;
-        if (id === "reply" || id === "replyAll" || id === "forward") {
+        if (id === "reply" || id === "replyAll" || id === "forward" || id === "forwardAttachment") {
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
+        } else if (id === "redirect") {
+          const lastId = ids.at(-1);
+          const row = lastId === undefined ? undefined : model?.row(model.indexOf(lastId));
+          if (row) setRedirectSheet({ id: row.id, subject: row.subject });
         } else if (id === "applyRules") {
           void applyRules(client, ids).catch((err: unknown) => console.warn("apply rules", err));
         } else if (id === "remindLater") {
@@ -421,6 +526,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                   {row ? (
                     <MessageRow
                       message={row}
+                      photo={contactPhotos ? (photos.get(row.from.address.toLowerCase()) ?? null) : undefined}
                       vip={isVip(row.from.address, vipAddresses)}
                       selected={selected.includes(row.id)}
                       focused={focused}
@@ -428,6 +534,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                       now={now}
                       onSelect={onSelect}
                       onContextMenu={openMenu}
+                      onDragStart={onDragStart}
                       onAction={
                         accounts.find((account) => account.id === row.accountId)?.readOnly ? undefined : onRowAction
                       }
@@ -440,6 +547,17 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
               );
             })}
           </div>
+        )}
+        {redirectSheet && (
+          <RedirectSheet
+            subject={redirectSheet.subject}
+            suggest={(prefix) => client.address.suggest({ prefix, limit: 8 })}
+            onCancel={() => setRedirectSheet(null)}
+            onRedirect={async (to) => {
+              await client.message.redirect({ id: redirectSheet.id, to });
+              setRedirectSheet(null);
+            }}
+          />
         )}
         {reminderSheet && (
           <TimeSheet

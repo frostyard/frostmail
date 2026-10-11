@@ -699,8 +699,8 @@ function calendarClient(t: Transport): CalendarClient {
 // ---- draft ----
 
 /** How a new draft starts. */
-export type DraftKind = "new" | "reply" | "replyall" | "forward";
-export const DraftKindValues: readonly DraftKind[] = ["new", "reply", "replyall", "forward"];
+export type DraftKind = "new" | "reply" | "replyall" | "forward" | "attached";
+export const DraftKindValues: readonly DraftKind[] = ["new", "reply", "replyall", "forward", "attached"];
 
 /** A file attached to a draft, stored by maild. */
 export interface DraftAttachment {
@@ -1002,6 +1002,44 @@ export interface MailboxListParams {
   accountId?: number;
 }
 
+/** Params of mailbox.create. */
+export interface MailboxCreateParams {
+  accountId: number;
+  /** 1-100 characters, without the account's hierarchy delimiter. */
+  name: string;
+  /** A mailbox of the same account. */
+  parentId?: number;
+}
+
+/** Params of mailbox.rename. */
+export interface MailboxRenameParams {
+  id: number;
+  name: string;
+}
+
+/** Params of mailbox.move. */
+export interface MailboxMoveParams {
+  id: number;
+  parentId?: number;
+}
+
+/** Params of mailbox.delete. */
+export interface MailboxDeleteParams {
+  id: number;
+}
+
+/** Params of mailbox.setRole. */
+export interface MailboxSetRoleParams {
+  id: number;
+  /** drafts, sent, junk, trash or archive. */
+  role: MailboxRole;
+}
+
+/** Params of mailbox.erase. */
+export interface MailboxEraseParams {
+  id: number;
+}
+
 /** A mailbox was created, renamed, deleted, or its counts changed. */
 export interface MailboxChanged {
   id: number;
@@ -1013,15 +1051,59 @@ export interface MailboxChanged {
 export interface MailboxClient {
   /** Mailboxes ordered by account, role, then path. */
   list(params?: MailboxListParams): Promise<Mailbox[]>;
+  /**
+   * Make a mailbox (a label on Gmail), at the top level or inside parentId,
+   * at once here and on the server when online. Conflict when the name is
+   * taken or the account is read-only.
+   */
+  create(params: MailboxCreateParams): Promise<Mailbox>;
+  /**
+   * Give a mailbox a new name in the same place; the mailboxes inside it
+   * follow. Conflict for a mailbox with a role, while the account has changes
+   * waiting to reach the server, or when the name is taken.
+   */
+  rename(params: MailboxRenameParams): Promise<Mailbox>;
+  /**
+   * Put a mailbox inside parentId, or at the top level without it; the
+   * mailboxes inside it follow. Conflict as rename, and for a parent inside
+   * the mailbox itself.
+   */
+  move(params: MailboxMoveParams): Promise<Mailbox>;
+  /**
+   * Delete a mailbox, the mailboxes inside it, and their messages (on Gmail,
+   * the labels; the messages stay in All Mail). Conflict as rename.
+   */
+  delete(params: MailboxDeleteParams): Promise<void>;
+  /**
+   * Use This Mailbox For: make a mailbox the account's drafts, sent, junk,
+   * trash or archive mailbox, in place of the one the server names. Conflict
+   * on Gmail, whose mailboxes keep their roles.
+   */
+  setRole(params: MailboxSetRoleParams): Promise<Mailbox>;
+  /**
+   * Erase Deleted Items or Erase Junk Mail: delete every message in a trash
+   * or junk mailbox for good. Returns how many.
+   */
+  erase(params: MailboxEraseParams): Promise<number>;
 }
 
 function mailboxClient(t: Transport): MailboxClient {
   return {
     list: (params = {}) => t.call<Mailbox[]>("mailbox.list", params),
+    create: (params) => t.call<Mailbox>("mailbox.create", params),
+    rename: (params) => t.call<Mailbox>("mailbox.rename", params),
+    move: (params) => t.call<Mailbox>("mailbox.move", params),
+    delete: (params) => t.call<null>("mailbox.delete", params).then(() => undefined),
+    setRole: (params) => t.call<Mailbox>("mailbox.setRole", params),
+    erase: (params) => t.call<number>("mailbox.erase", params),
   };
 }
 
 // ---- message ----
+
+/** How a list message can be left (ADR-0027), best first. */
+export type UnsubscribeMethod = "oneclick" | "mail" | "web";
+export const UnsubscribeMethodValues: readonly UnsubscribeMethod[] = ["oneclick", "mail", "web"];
 
 /** One mailbox address. */
 export interface Address {
@@ -1082,6 +1164,41 @@ export interface Part {
   contentId: string;
   /** Encoded size in bytes. */
   size: number;
+}
+
+/** How a list message can be left, and whether it was. */
+export interface Unsubscribe {
+  /** Best first; empty for a message from no list. */
+  methods: UnsubscribeMethod[];
+  /**
+   * The list's name: List-Id's phrase, else its ID, else the sender's name or
+   * address.
+   */
+  list: string;
+  /** Where oneclick's request goes. */
+  host?: string;
+  /** Where mail goes. */
+  address?: string;
+  /** The page web opens. */
+  url?: string;
+  /** The user unsubscribed from this list (or from this message) before. */
+  done: boolean;
+}
+
+/** What unsubscribe did. */
+export interface UnsubscribeResult {
+  /** For web: the page for the app to open. */
+  url?: string;
+}
+
+/** A message as the server holds it. */
+export interface MessageSource {
+  /** The header section, up to the blank line. */
+  headers: string;
+  /** The whole message, at most 2 MB of it. */
+  text: string;
+  /** The message is longer than text. */
+  truncated: boolean;
 }
 
 /** Everything about a message except its body. */
@@ -1201,6 +1318,36 @@ export interface MessageDeleteParams {
   ids: number[];
 }
 
+/** Params of message.source. */
+export interface MessageSourceParams {
+  id: number;
+}
+
+/** Params of message.save. */
+export interface MessageSaveParams {
+  id: number;
+  /** An absolute path the user chose. */
+  path: string;
+}
+
+/** Params of message.unsubscribeInfo. */
+export interface MessageUnsubscribeInfoParams {
+  id: number;
+}
+
+/** Params of message.unsubscribe. */
+export interface MessageUnsubscribeParams {
+  id: number;
+  method: UnsubscribeMethod;
+}
+
+/** Params of message.redirect. */
+export interface MessageRedirectParams {
+  id: number;
+  /** At least one. */
+  to: Address[];
+}
+
 /** Params of message.remind. */
 export interface MessageRemindParams {
   ids: number[];
@@ -1263,6 +1410,36 @@ export interface MessageClient {
    */
   delete(params: MessageDeleteParams): Promise<void>;
   /**
+   * Raw Source and All Headers: the message as the server holds it, fetched
+   * first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+   */
+  source(params: MessageSourceParams): Promise<MessageSource>;
+  /**
+   * Save As: write the message as the server holds it (an .eml file) to path,
+   * replacing a file there. invalidParams for a relative path.
+   */
+  save(params: MessageSaveParams): Promise<void>;
+  /**
+   * How a list message can be left, from its stored headers (the body is
+   * fetched first when it is not stored).
+   */
+  unsubscribeInfo(params: MessageUnsubscribeInfoParams): Promise<Unsubscribe>;
+  /**
+   * Unsubscribe by one of the message's methods, after the user confirmed:
+   * oneclick sends the POST (unavailable with why when it fails), mail queues
+   * the message from the account's address, web returns the page to open. The
+   * list is remembered. invalidParams for a method the message does not
+   * offer; conflict for a read-only account.
+   */
+  unsubscribe(params: MessageUnsubscribeParams): Promise<UnsubscribeResult>;
+  /**
+   * Redirect: send the message as it is to other people, with Resent-From,
+   * Resent-To, Resent-Date and Resent-Message-ID added, from the account's
+   * address, through the outbox (the undo delay applies). Conflict for a
+   * read-only account.
+   */
+  redirect(params: MessageRedirectParams): Promise<OutboxItem>;
+  /**
    * Remind Me: at a time, bring messages back to the top of their account's
    * inbox and notify (ADR-0025). Without at, clear their reminders. Conflict
    * for a read-only account's messages.
@@ -1281,6 +1458,11 @@ function messageClient(t: Transport): MessageClient {
     move: (params) => t.call<null>("message.move", params).then(() => undefined),
     copy: (params) => t.call<null>("message.copy", params).then(() => undefined),
     delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
+    source: (params) => t.call<MessageSource>("message.source", params),
+    save: (params) => t.call<null>("message.save", params).then(() => undefined),
+    unsubscribeInfo: (params) => t.call<Unsubscribe>("message.unsubscribeInfo", params),
+    unsubscribe: (params) => t.call<UnsubscribeResult>("message.unsubscribe", params),
+    redirect: (params) => t.call<OutboxItem>("message.redirect", params),
     remind: (params) => t.call<null>("message.remind", params).then(() => undefined),
   };
 }
@@ -1498,6 +1680,13 @@ export interface Photo {
   data: string;
 }
 
+/** An address whose person has a photo (people.photo). */
+export interface SenderPhoto {
+  /** Lowercased. */
+  address: string;
+  personId: number;
+}
+
 /** What the app shows for an email address in mail. */
 export interface ContactCard {
   /** Lowercased. */
@@ -1545,6 +1734,12 @@ export interface PeoplePhotoParams {
   id: number;
 }
 
+/** Params of people.senders. */
+export interface PeopleSendersParams {
+  /** At most 500. */
+  addresses: string[];
+}
+
 /** Params of people.add. */
 export interface PeopleAddParams {
   email: string;
@@ -1578,6 +1773,11 @@ export interface PeopleClient {
   /** A person's photo, from the first of their contacts that has one. */
   photo(params: PeoplePhotoParams): Promise<Photo>;
   /**
+   * Which of these addresses belong to a person with a photo, for contact
+   * photos in the message list. Addresses without one are left out.
+   */
+  senders(params: PeopleSendersParams): Promise<SenderPhoto[]>;
+  /**
    * Add to Contacts: store a new vCard 3.0 with the name and address in an
    * address book and write it to the server.
    */
@@ -1590,6 +1790,7 @@ function peopleClient(t: Transport): PeopleClient {
     get: (params) => t.call<Person>("people.get", params),
     card: (params) => t.call<ContactCard>("people.card", params),
     photo: (params) => t.call<Photo>("people.photo", params),
+    senders: (params) => t.call<SenderPhoto[]>("people.senders", params),
     add: (params) => t.call<Person>("people.add", params),
   };
 }
@@ -1761,6 +1962,11 @@ export interface Settings {
    * ... Gray).
    */
   flagNames: string[];
+  /**
+   * Mailboxes added to the sidebar's Favorites, in order; mailboxes since
+   * deleted are left out. Absent when there are none.
+   */
+  favorites?: number[];
 }
 
 /** Params of settings.get. */
@@ -1775,6 +1981,8 @@ export interface SettingsSetParams {
   notifySmartId?: number;
   /** Seven names, each at most 40 characters. */
   flagNames?: string[];
+  /** Mailbox IDs, at most 50, without repeats. */
+  favorites?: number[];
 }
 
 /** A preference changed. */
@@ -2086,6 +2294,10 @@ function threadClient(t: Transport): ThreadClient {
 export type ViewOpKind = "insert" | "remove";
 export const ViewOpKindValues: readonly ViewOpKind[] = ["insert", "remove"];
 
+/** What a view's rows are ordered by. */
+export type ViewSort = "date" | "from" | "to" | "subject" | "size" | "flags" | "unread" | "attachments";
+export const ViewSortValues: readonly ViewSort[] = ["date", "from", "to", "subject", "size", "flags", "unread", "attachments"];
+
 /** How a list of conditions combines (docs/design/organize.md). */
 export type ConditionMatch = "all" | "any";
 export const ConditionMatchValues: readonly ConditionMatch[] = ["all", "any"];
@@ -2119,8 +2331,8 @@ export interface Conditions {
 }
 
 /**
- * Which messages a view lists, newest first. Every field that is set must
- * match.
+ * Which messages a view lists, newest first unless sort says otherwise. Every
+ * field that is set must match.
  */
 export interface ViewQuery {
   accountId?: number;
@@ -2159,6 +2371,16 @@ export interface ViewQuery {
    * source's own.
    */
   filter?: Conditions;
+  /**
+   * The order; date by default. With threads, threads are ordered by their
+   * row's message.
+   */
+  sort?: ViewSort;
+  /**
+   * Lowest first: oldest, A to Z, smallest, and unflagged, read or without
+   * attachments before the others. Descending by default.
+   */
+  ascending?: boolean;
 }
 
 /** An open view. */
@@ -2362,6 +2584,12 @@ export const METHODS = [
   "identity.create",
   "identity.delete",
   "mailbox.list",
+  "mailbox.create",
+  "mailbox.rename",
+  "mailbox.move",
+  "mailbox.delete",
+  "mailbox.setRole",
+  "mailbox.erase",
   "message.get",
   "message.body",
   "message.summaries",
@@ -2371,6 +2599,11 @@ export const METHODS = [
   "message.move",
   "message.copy",
   "message.delete",
+  "message.source",
+  "message.save",
+  "message.unsubscribeInfo",
+  "message.unsubscribe",
+  "message.redirect",
   "message.remind",
   "oauth.setClient",
   "oauth.getClient",
@@ -2382,6 +2615,7 @@ export const METHODS = [
   "people.get",
   "people.card",
   "people.photo",
+  "people.senders",
   "people.add",
   "rpc.hello",
   "rule.list",

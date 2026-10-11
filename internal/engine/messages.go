@@ -1,10 +1,14 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -45,6 +49,46 @@ func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body
 		return nil, err
 	}
 	return &api.Body{Text: text, HasHTML: hasHTML}, nil
+}
+
+// maxSource bounds the text message.source returns.
+const maxSource = 2 << 20
+
+// Source implements message.source: the raw message, for Raw Source and
+// All Headers.
+func (m messages) Source(ctx context.Context, p *api.MessageSourceParams) (*api.MessageSource, error) {
+	raw, err := m.raw(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	head := raw
+	if i := bytes.Index(raw, []byte("\r\n\r\n")); i >= 0 {
+		head = raw[:i]
+	} else if i := bytes.Index(raw, []byte("\n\n")); i >= 0 {
+		head = raw[:i]
+	}
+	out := &api.MessageSource{Headers: strings.ToValidUTF8(string(head), "\uFFFD")}
+	if len(raw) > maxSource {
+		raw, out.Truncated = raw[:maxSource], true
+	}
+	out.Text = strings.ToValidUTF8(string(raw), "\uFFFD")
+	return out, nil
+}
+
+// Save implements message.save: the raw message written to a file the user
+// chose (Save As).
+func (m messages) Save(ctx context.Context, p *api.MessageSaveParams) error {
+	if !filepath.IsAbs(p.Path) {
+		return api.InvalidParams("%q is not an absolute path", p.Path)
+	}
+	raw, err := m.raw(ctx, p.ID)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(p.Path, raw, 0o600); err != nil {
+		return api.InvalidParams("save message %d: %v", p.ID, err)
+	}
+	return nil
 }
 
 // storedBody is the blob of a message's stored body, or "" when there is
@@ -153,7 +197,7 @@ func opError(err error) error {
 		return api.NotFound("%v", err)
 	case errors.Is(err, mailsync.ErrInvalid):
 		return api.InvalidParams("%v", err)
-	case errors.Is(err, mailsync.ErrReadOnly):
+	case errors.Is(err, mailsync.ErrReadOnly), errors.Is(err, mailsync.ErrConflict):
 		return api.Conflict("%v", err)
 	}
 	return err

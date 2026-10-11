@@ -805,6 +805,7 @@ How a new draft starts.
 | `reply` | A reply to the source's sender. |
 | `replyall` | A reply to the sender and every other recipient but the account's own addresses. |
 | `forward` | The source as quoted text with its attachments. |
+| `attached` | Forward as Attachment: the source attached whole, as an .eml file. The draft is then a forward. |
 
 ## events
 
@@ -908,6 +909,77 @@ Mailboxes ordered by account, role, then path.
 | `accountId` | `int` (optional) | Limit to one account. Omit for all accounts. |
 
 Result: `[]Mailbox`.
+
+### `mailbox.create`
+
+Make a mailbox (a label on Gmail), at the top level or inside parentId, at once here and on the server when online. Conflict when the name is taken or the account is read-only.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `name` | `string` | 1-100 characters, without the account's hierarchy delimiter. |
+| `parentId` | `int` (optional) | A mailbox of the same account. |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.rename`
+
+Give a mailbox a new name in the same place; the mailboxes inside it follow. Conflict for a mailbox with a role, while the account has changes waiting to reach the server, or when the name is taken.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` |  |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.move`
+
+Put a mailbox inside parentId, or at the top level without it; the mailboxes inside it follow. Conflict as rename, and for a parent inside the mailbox itself.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `parentId` | `int` (optional) |  |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.delete`
+
+Delete a mailbox, the mailboxes inside it, and their messages (on Gmail, the labels; the messages stay in All Mail). Conflict as rename.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
+### `mailbox.setRole`
+
+Use This Mailbox For: make a mailbox the account's drafts, sent, junk, trash or archive mailbox, in place of the one the server names. Conflict on Gmail, whose mailboxes keep their roles.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `role` | `MailboxRole` | drafts, sent, junk, trash or archive. |
+
+Result: `Mailbox`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `mailbox.erase`
+
+Erase Deleted Items or Erase Junk Mail: delete every message in a trash or junk mailbox for good. Returns how many.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `int`.
+Errors: `invalidParams`, `notFound`, `conflict`.
 
 ### Event `mailbox.changed` (durable)
 
@@ -1059,6 +1131,64 @@ Move messages to the account's Trash; messages already in Trash are deleted from
 Result: none (`null`).
 Errors: `notFound`.
 
+### `message.source`
+
+Raw Source and All Headers: the message as the server holds it, fetched first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `MessageSource`.
+Errors: `notFound`, `unavailable`.
+
+### `message.save`
+
+Save As: write the message as the server holds it (an .eml file) to path, replacing a file there. invalidParams for a relative path.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `path` | `string` | An absolute path the user chose. |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`, `unavailable`.
+
+### `message.unsubscribeInfo`
+
+How a list message can be left, from its stored headers (the body is fetched first when it is not stored).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Unsubscribe`.
+Errors: `notFound`, `unavailable`.
+
+### `message.unsubscribe`
+
+Unsubscribe by one of the message's methods, after the user confirmed: oneclick sends the POST (unavailable with why when it fails), mail queues the message from the account's address, web returns the page to open. The list is remembered. invalidParams for a method the message does not offer; conflict for a read-only account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `method` | `UnsubscribeMethod` |  |
+
+Result: `UnsubscribeResult`.
+Errors: `notFound`, `invalidParams`, `conflict`, `unavailable`.
+
+### `message.redirect`
+
+Redirect: send the message as it is to other people, with Resent-From, Resent-To, Resent-Date and Resent-Message-ID added, from the account's address, through the outbox (the undo delay applies). Conflict for a read-only account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `to` | `[]Address` | At least one. |
+
+Result: `OutboxItem`.
+Errors: `notFound`, `invalidParams`, `conflict`, `unavailable`.
+
 ### `message.remind`
 
 Remind Me: at a time, bring messages back to the top of their account's inbox and notify (ADR-0025). Without at, clear their reminders. Conflict for a read-only account's messages.
@@ -1144,6 +1274,37 @@ One MIME part.
 | `contentId` | `string` | Without angle brackets. |
 | `size` | `int` | Encoded size in bytes. |
 
+### Type `Unsubscribe`
+
+How a list message can be left, and whether it was.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `methods` | `[]UnsubscribeMethod` | Best first; empty for a message from no list. |
+| `list` | `string` | The list's name: List-Id's phrase, else its ID, else the sender's name or address. |
+| `host` | `string` (optional) | Where oneclick's request goes. |
+| `address` | `string` (optional) | Where mail goes. |
+| `url` | `string` (optional) | The page web opens. |
+| `done` | `bool` | The user unsubscribed from this list (or from this message) before. |
+
+### Type `UnsubscribeResult`
+
+What unsubscribe did.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `url` | `string` (optional) | For web: the page for the app to open. |
+
+### Type `MessageSource`
+
+A message as the server holds it.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `headers` | `string` | The header section, up to the blank line. |
+| `text` | `string` | The whole message, at most 2 MB of it. |
+| `truncated` | `bool` | The message is longer than text. |
+
 ### Type `Message`
 
 Everything about a message except its body.
@@ -1203,6 +1364,16 @@ Flags to set or clear; omitted fields keep their values.
 | `flagged` | `bool` (optional) |  |
 | `answered` | `bool` (optional) |  |
 | `flagColor` | `int` (optional) |  |
+
+### Enum `UnsubscribeMethod`
+
+How a list message can be left (ADR-0027), best first.
+
+| Value | Meaning |
+| --- | --- |
+| `oneclick` | An HTTPS POST that maild sends (RFC 8058), for a sender the provider's DKIM vouches for. |
+| `mail` | A message to the list's mailto: address, through the outbox. |
+| `web` | The list's https: page, which the app opens in the browser. |
 
 ## oauth
 
@@ -1387,6 +1558,17 @@ A person's photo, from the first of their contacts that has one.
 Result: `Photo`.
 Errors: `notFound`.
 
+### `people.senders`
+
+Which of these addresses belong to a person with a photo, for contact photos in the message list. Addresses without one are left out.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `addresses` | `[]string` | At most 500. |
+
+Result: `[]SenderPhoto`.
+Errors: `invalidParams`.
+
 ### `people.add`
 
 Add to Contacts: store a new vCard 3.0 with the name and address in an address book and write it to the server.
@@ -1486,6 +1668,15 @@ A person's photo.
 | --- | --- | --- |
 | `contentType` | `string` | Such as image/jpeg. |
 | `data` | `string` | The image, base64-encoded. |
+
+### Type `SenderPhoto`
+
+An address whose person has a photo (people.photo).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `address` | `string` | Lowercased. |
+| `personId` | `int` |  |
 
 ### Type `ContactCard`
 
@@ -1677,6 +1868,7 @@ Change the preferences given; the others stay. Returns them all.
 | `notifyScope` | `NotifyScope` (optional) |  |
 | `notifySmartId` | `int` (optional) | Required with notifyScope smart. |
 | `flagNames` | `[]string` (optional) | Seven names, each at most 40 characters. |
+| `favorites` | `[]int` (optional) | Mailbox IDs, at most 50, without repeats. |
 
 Result: `Settings`.
 Errors: `invalidParams`, `notFound`.
@@ -1697,6 +1889,7 @@ Every preference, with its current value.
 | `notifyScope` | `NotifyScope` |  |
 | `notifySmartId` | `int` (optional) | The smart mailbox, when notifyScope is smart. |
 | `flagNames` | `[]string` | Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray). |
+| `favorites` | `[]int` (optional) | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none. |
 
 ### Enum `NotifyScope`
 
@@ -2061,7 +2254,7 @@ Conditions, combined by match. An empty list matches every message.
 
 ### Type `ViewQuery`
 
-Which messages a view lists, newest first. Every field that is set must match.
+Which messages a view lists, newest first unless sort says otherwise. Every field that is set must match.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -2076,6 +2269,8 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `conditions` | `Conditions` (optional) | Conditions every listed message also meets. |
 | `smartMailboxId` | `int` (optional) | The messages of a smart mailbox, which the view follows as it is edited. |
 | `filter` | `Conditions` (optional) | More conditions, which must also hold: the filter bar's, beside a source's own. |
+| `sort` | `ViewSort` (optional) | The order; date by default. With threads, threads are ordered by their row's message. |
+| `ascending` | `bool` (optional) | Lowest first: oldest, A to Z, smallest, and unflagged, read or without attachments before the others. Descending by default. |
 
 ### Type `ViewInfo`
 
@@ -2113,6 +2308,21 @@ How a delta changes a view.
 | --- | --- |
 | `insert` | count rows were inserted at index at. |
 | `remove` | count rows starting at index at were removed. |
+
+### Enum `ViewSort`
+
+What a view's rows are ordered by.
+
+| Value | Meaning |
+| --- | --- |
+| `date` | The list date: arrival, or when a Remind Me reminder fired (the default). |
+| `from` | The sender's name, else address. |
+| `to` | The first recipient's name, else address. |
+| `subject` | The subject without Re: and Fwd:. |
+| `size` |  |
+| `flags` | Flagged, by color. |
+| `unread` |  |
+| `attachments` | Has attachments. |
 
 ### Enum `ConditionMatch`
 

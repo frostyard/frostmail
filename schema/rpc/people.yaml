@@ -58,6 +58,11 @@ types:
     fields:
       - {name: contentType, type: string, doc: "Such as image/jpeg."}
       - {name: data, type: string, doc: "The image, base64-encoded."}
+  - name: SenderPhoto
+    doc: An address whose person has a photo (people.photo).
+    fields:
+      - {name: address, type: string, doc: "Lowercased."}
+      - {name: personId, type: int}
   - name: ContactCard
     doc: What the app shows for an email address in mail.
     fields:
@@ -94,6 +99,14 @@ methods:
       - {name: id, type: int}
     result: Photo
     errors: [notFound]
+  - name: senders
+    doc: >-
+      Which of these addresses belong to a person with a photo, for contact
+      photos in the message list. Addresses without one are left out.
+    params:
+      - {name: addresses, type: "[]string", doc: "At most 500."}
+    result: "[]SenderPhoto"
+    errors: [invalidParams]
   - name: add
     doc: >-
       Add to Contacts: store a new vCard 3.0 with the name and address in an
