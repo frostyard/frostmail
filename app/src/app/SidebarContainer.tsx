@@ -11,6 +11,7 @@ import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
 import { buildSidebar, vipGroups } from "../lib/mailboxTree";
 import type { Mailbox, MailboxRole } from "../rpc/gen/api";
+import { copyMessages, DRAG_TYPE, moveMessages } from "./commands";
 import { OutboxSection, SendLaterSection } from "./OutboxContainer";
 import { useSidebarCounts } from "./useSidebarCounts";
 import { useSmartCounts } from "./useSmartCounts";
@@ -182,6 +183,33 @@ export function SidebarContainer() {
     }
   };
   const { source, search, searchScope, focus, setSource, setFocus, module, setModule } = useUI();
+  const onDrop = (key: string, data: string, copy: boolean) => {
+    const target = sourceFromKey(key);
+    if (target?.kind !== "mailbox") return;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("accountId" in payload) ||
+      typeof payload.accountId !== "number" ||
+      !("ids" in payload) ||
+      !Array.isArray(payload.ids) ||
+      !payload.ids.every((id: unknown) => typeof id === "number" && Number.isSafeInteger(id) && id > 0)
+    )
+      return;
+    const to = mailboxes.find((m) => m.id === target.mailboxId && m.accountId === payload.accountId);
+    const account = accounts.find((a) => a.id === payload.accountId);
+    if (!to || !account || account.readOnly) return;
+    const command = copy
+      ? copyMessages(client, payload.ids, to)
+      : moveMessages(client, payload.ids, to, source, mailboxes);
+    void command.catch((err: unknown) => console.warn("drop messages", err));
+  };
   const counts = useSidebarCounts(vipGroups(vips));
   const smartCounts = useSmartCounts(smarts);
   const sections = useMemo(
@@ -217,6 +245,9 @@ export function SidebarContainer() {
           selectedKey={selectedKey}
           focused={focus === "sidebar"}
           sync={indicators}
+          dragType={DRAG_TYPE}
+          canDrop={(key) => /^(mailbox|favorite):\d+$/.test(key)}
+          onDrop={onDrop}
           onAdd={(key) => {
             if (key === "smart") useUI.getState().openSmartSheet({ mode: "new" });
             else {

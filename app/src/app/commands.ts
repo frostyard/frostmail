@@ -5,6 +5,9 @@ import type { ViewModel } from "../data/view";
 import type { Client, Mailbox, MessageSummary } from "../rpc/gen/api";
 import { startDraft } from "./compose";
 
+/** DRAG_TYPE identifies messages dragged from the list to a mailbox. */
+export const DRAG_TYPE = "application/x-frostmail-messages";
+
 /** selectedSummaries returns the loaded summaries of the selected IDs. */
 export function selectedSummaries(model: ViewModel | null, ids: number[]) {
   if (!model) return [];

@@ -21,7 +21,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
-import { type KeyboardEvent, type MouseEvent, useState } from "react";
+import { type DragEvent, type KeyboardEvent, type MouseEvent, useState } from "react";
 
 import type { SidebarIcon, SidebarItem, SidebarSection } from "../../lib/mailboxTree";
 
@@ -43,6 +43,9 @@ export interface SidebarProps {
   onSelect: (key: string) => void;
   onAdd?: (sectionKey: string) => void;
   onContextMenu?: (key: string, x: number, y: number) => void;
+  canDrop?: (key: string) => boolean;
+  onDrop?: (key: string, data: string, copy: boolean) => void;
+  dragType?: string;
 }
 
 const ICONS: Record<SidebarIcon, LucideIcon> = {
@@ -102,13 +105,24 @@ function SyncDot({ indicator }: { indicator: SyncIndicator | undefined }) {
   return null;
 }
 
-function Row({ item, selected, focused }: { item: SidebarItem; selected: boolean; focused: boolean }) {
+function Row({
+  item,
+  selected,
+  focused,
+  dropTarget,
+}: {
+  item: SidebarItem;
+  selected: boolean;
+  focused: boolean;
+  dropTarget: boolean;
+}) {
   const contrast = selected && focused;
   const Icon = ICONS[item.icon];
   const iconColor = item.flagColor === undefined ? "text-accent" : (FLAG_CLASSES[item.flagColor] ?? "text-accent");
   const classes = [
     "mx-2 flex h-7 items-center gap-2 rounded-md pr-1",
     selected ? (focused ? "bg-accent text-accent-contrast" : "bg-selection-sidebar") : "",
+    dropTarget && !selected ? "bg-selection-inactive" : "",
     item.selectable ? "" : "text-secondary",
   ]
     .filter(Boolean)
@@ -139,6 +153,14 @@ function Row({ item, selected, focused }: { item: SidebarItem; selected: boolean
  * sections, with the selection, the sync state and arrow-key navigation. */
 export function Sidebar(props: SidebarProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+
+  const dropKey = (event: DragEvent<HTMLDivElement>) => {
+    const key = (event.target as Element).closest("[data-key]")?.getAttribute("data-key");
+    return key && props.canDrop?.(key) && props.dragType && event.dataTransfer.types.includes(props.dragType)
+      ? key
+      : null;
+  };
 
   const toggle = (key: string) => {
     setCollapsed((previous) => {
@@ -197,6 +219,29 @@ export function Sidebar(props: SidebarProps) {
       }}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onDragOver={(event) => {
+        const key = dropKey(event);
+        setDropTarget(key);
+        if (!key) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = event.altKey === true || event.ctrlKey === true ? "copy" : "move";
+      }}
+      onDragLeave={(event) => {
+        const row = (event.target as Element).closest("[data-key]");
+        if (event.relatedTarget instanceof Node && row?.contains(event.relatedTarget)) return;
+        setDropTarget(null);
+      }}
+      onDrop={(event) => {
+        setDropTarget(null);
+        const key = dropKey(event);
+        if (!key || !props.dragType) return;
+        event.preventDefault();
+        props.onDrop?.(
+          key,
+          event.dataTransfer.getData(props.dragType),
+          event.altKey === true || event.ctrlKey === true,
+        );
+      }}
     >
       {props.sections.map((section) => {
         const open = !collapsed.has(section.key);
@@ -231,7 +276,13 @@ export function Sidebar(props: SidebarProps) {
               // biome-ignore lint/a11y/useSemanticElements: a tree's rows are grouped by role="group"; a fieldset would not belong in a tree.
               <div role="group">
                 {section.items.map((item) => (
-                  <Row key={item.key} item={item} selected={item.key === props.selectedKey} focused={props.focused} />
+                  <Row
+                    key={item.key}
+                    item={item}
+                    selected={item.key === props.selectedKey}
+                    focused={props.focused}
+                    dropTarget={item.key === dropTarget}
+                  />
                 ))}
               </div>
             )}
