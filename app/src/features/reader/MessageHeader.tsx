@@ -11,7 +11,7 @@ import type { Address, Message, Part } from "../../rpc/gen/api";
 
 // Tailwind only generates a class it finds whole in the source, so the
 // eight avatar tones are listed rather than built from the tone number.
-const AVATAR_CLASSES: Record<number, string> = {
+export const AVATAR_CLASSES: Record<number, string> = {
   0: "bg-avatar-0",
   1: "bg-avatar-1",
   2: "bg-avatar-2",
