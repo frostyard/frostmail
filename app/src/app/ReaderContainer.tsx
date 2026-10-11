@@ -11,6 +11,7 @@ import { type Answer, InvitationCard, invitationPart } from "../features/reader/
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
   AttachmentStrip,
+  BlockedBanner,
   MessageHeader,
   type MessageHeaderProps,
   ReminderBanner,
@@ -170,6 +171,8 @@ function ConversationMessage({
   const [error, setError] = useState<string | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [currentSummary, setCurrentSummary] = useState(summary);
+  const senderAddress = currentSummary.from.address;
+  const blocked = useMail((s) => s.blocked.some((sender) => sender.address === senderAddress.toLowerCase()));
   const [reminderSheet, setReminderSheet] = useState<Date | null>(null);
   const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const [headers, setHeaders] = useState<string | null>(null);
@@ -308,6 +311,15 @@ function ConversationMessage({
             if (!readOnly)
               void remindMessages(client, [id], at).catch((err: unknown) => console.warn("change reminder", err));
             setReminderSheet(null);
+          }}
+        />
+      )}
+      {blocked && (
+        <BlockedBanner
+          onUnblock={() => {
+            void client.block
+              .remove({ addresses: [senderAddress] })
+              .catch((err: unknown) => console.warn("unblock sender", err));
           }}
         />
       )}

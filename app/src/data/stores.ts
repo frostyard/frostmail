@@ -12,6 +12,7 @@ import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
 import type {
   Account,
+  BlockedSender,
   Mailbox,
   MailboxRole,
   OutboxItem,
@@ -37,6 +38,8 @@ export interface MailState {
   outbox: OutboxItem[];
   /** VIP addresses (vip.list), in its order. */
   vips: Vip[];
+  /** Blocked addresses (block.list). */
+  blocked: BlockedSender[];
   /** maild's preferences (settings.get); null until loaded. */
   settings: Settings | null;
   /** Smart mailboxes (smart.list), in sidebar order. */
@@ -53,6 +56,7 @@ export const useMail = create<MailState>(() => ({
   sync: {},
   outbox: [],
   vips: [],
+  blocked: [],
   settings: null,
   smarts: [],
   rules: [],
