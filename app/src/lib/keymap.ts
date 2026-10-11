@@ -46,6 +46,10 @@ export type Command =
   | "reply"
   | "replyAll"
   | "forward"
+  | "redirect"
+  | "print"
+  | "rawSource"
+  | "allHeaders"
   | "settings";
 
 /** KeyInput is the part of a KeyboardEvent the keymap reads. */
@@ -109,6 +113,10 @@ const BINDINGS: Binding[] = [
   { key: "r", ctrl: true, alt: false, shift: false, command: "reply" },
   { key: "r", ctrl: true, alt: false, shift: true, command: "replyAll" },
   { key: "f", ctrl: true, alt: false, shift: true, command: "forward" },
+  { key: "e", ctrl: true, alt: false, shift: true, command: "redirect" },
+  { key: "p", ctrl: true, alt: false, shift: false, command: "print" },
+  { key: "u", ctrl: true, alt: true, shift: false, command: "rawSource" },
+  { key: "h", ctrl: true, alt: false, shift: true, command: "allHeaders" },
   { key: ",", ctrl: true, alt: false, shift: false, command: "settings" },
 ];
 

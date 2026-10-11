@@ -308,6 +308,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
               if (id !== undefined) openIfDraft(id);
               return true;
             }
+            case "redirect": {
+              const row = current >= 0 ? model.row(current) : undefined;
+              if (!row || accounts.find((account) => account.id === row.accountId)?.readOnly) return false;
+              setRedirectSheet({ id: row.id, subject: row.subject });
+              return true;
+            }
             case "contextMenu": {
               const id = selected[0];
               const rect = scroller.current?.getBoundingClientRect();
@@ -319,7 +325,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           }
         },
       }),
-      [model, selected, selectIndex, select, onDelete, openMenu, openIfDraft],
+      [model, selected, selectIndex, select, onDelete, openMenu, openIfDraft, accounts],
     );
 
     const menuItems = useMemo((): MenuItem[] => {
@@ -337,7 +343,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         { kind: "item", id: "replyAll", label: "Reply All", shortcut: "Ctrl+Shift+R" },
         { kind: "item", id: "forward", label: "Forward", shortcut: "Ctrl+Shift+F" },
         { kind: "item", id: "forwardAttachment", label: "Forward as Attachment" },
-        { kind: "item", id: "redirect", label: "Redirect…", disabled: readOnly },
+        { kind: "item", id: "redirect", label: "Redirect…", shortcut: "Ctrl+Shift+E", disabled: readOnly },
         { kind: "separator" },
       ];
       if (archiveMailbox(model, menu.ids, mailboxes)) {
