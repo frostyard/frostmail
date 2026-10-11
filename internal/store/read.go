@@ -301,6 +301,7 @@ type MessageDetail struct {
 	References      []string
 	ListID          string
 	ListUnsubscribe string
+	AuthResults     string // the first Authentication-Results header
 	Parts           []Part
 	BlobID          string // the raw message in the blob store; "" until fetched
 }
@@ -504,10 +505,10 @@ func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
 	)
 	r := d.db.QueryRowContext(ctx, `SELECT `+summaryCols+`,
 		to_json, cc_json, reply_to_json, msgid_hdr, in_reply_to, refs_json,
-		list_id, list_unsubscribe, blob_sha
+		list_id, list_unsubscribe, auth_results, blob_sha
 		FROM messages WHERE id = ?`, id)
 	s, err := scanSummary(r, &toJSON, &ccJSON, &replyJSON, &m.MessageID, &m.InReplyTo,
-		&refsJSON, &m.ListID, &m.ListUnsubscribe, &blobSHA)
+		&refsJSON, &m.ListID, &m.ListUnsubscribe, &m.AuthResults, &blobSHA)
 	if errors.Is(err, sql.ErrNoRows) {
 		return MessageDetail{}, ErrNotFound
 	}

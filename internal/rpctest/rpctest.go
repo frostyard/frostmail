@@ -55,6 +55,9 @@ type Options struct {
 	// Now, when set, is the clock for stored timestamps and for PIM's
 	// instances window (unless PIM sets its own).
 	Now func() time.Time
+	// Unsubscriber, when set, sends one-click unsubscribe requests
+	// (engine.Deps.Unsubscriber); tests pass a fake.
+	Unsubscriber engine.Unsubscriber
 	// OnAttended learns when the app connects and leaves
 	// (rpcserver.Options.OnAttended).
 	OnAttended func(attended bool)
@@ -118,7 +121,8 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
-		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery}
+		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery,
+		Unsubscriber: o.Unsubscriber}
 	if o.PIM != nil {
 		cfg := *o.PIM
 		cfg.Tokens = srv.OAuth

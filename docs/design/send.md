@@ -52,6 +52,15 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
 - **Forward:** no recipients; subject gets `Fwd: `; the body starts with a
   header block (From, Date, Subject, To) and the source's text; the source's
   attachments are attached again.
+- **Forward as Attachment** (draft kind `attached`): as a forward, but the
+  body is only the signature and the source is attached whole, as
+  `<subject>.eml` (`message/rfc822`, sent as `application/octet-stream`
+  with the rest); the draft is stored as a forward.
+- **Redirect** (`message.redirect {id, to}`): the source as it is, with
+  `Resent-From` (the account's default identity), `Resent-To`,
+  `Resent-Date` and `Resent-Message-ID` above its header (RFC 5322
+  3.6.6), queued in the outbox to the new recipients only; the undo delay
+  applies and the Sent copy is filed as for any send.
 - **Quoting:** replies quote the source's HTML (or its text, escaped and with
   line breaks) inside `<blockquote type="cite">` after an attribution line
   "On <date>, <name> wrote:". The quoted HTML is the sanitized rendering, so
@@ -169,8 +178,29 @@ case-insensitively, ranked by `count` and then `last_seen`.
 ## Unsubscribing
 
 [ADR-0027](../adr/0027-unsubscribe-with-one-click.md) decides the methods
-and limits; Phase 6 of [plan 0008](../plans/0008-m5-mail-app-parity.md)
-designs the mechanism here.
+and limits.
+
+- **Which methods** (`internal/unsubscribe.Parse`): the stored
+  `List-Unsubscribe` gives an `https:` URI and a `mailto:` address;
+  one-click needs the stored message's `List-Unsubscribe-Post:
+  List-Unsubscribe=One-Click` and `dkim=pass` in the stored first
+  `Authentication-Results`. `message.unsubscribeInfo {id}` returns the
+  methods best first (oneclick, mail, web), the list's name (List-Id's
+  phrase, else its ID, else the sender), where each goes, and whether the
+  user left the list before.
+- **One-click** (`unsubscribe.Poster`): an `http.Client` with no cookie
+  jar, no proxy, no redirects, 10 seconds, `User-Agent: Frostmail`; its
+  dialer checks each address it is about to connect to, after DNS, and
+  refuses loopback, private, link-local, multicast, unspecified, shared
+  (RFC 6598) and reserved ranges, IPv4-mapped included. A 2xx is success;
+  anything else is `unavailable` with why, and nothing is remembered.
+- **Mail:** a message from the account's default identity to the
+  `mailto:` address, with its subject (else "unsubscribe") and body,
+  queued in the outbox.
+- **Web:** `message.unsubscribe` returns the URL; the app opens it as it
+  opens links.
+- **Remembered:** `unsubscribes (key, at)`, keyed `list:<List-Id>`, else
+  `message:<id>`; later mail from the list reports `done`.
 
 ## Operational notes
 

@@ -699,8 +699,8 @@ function calendarClient(t: Transport): CalendarClient {
 // ---- draft ----
 
 /** How a new draft starts. */
-export type DraftKind = "new" | "reply" | "replyall" | "forward";
-export const DraftKindValues: readonly DraftKind[] = ["new", "reply", "replyall", "forward"];
+export type DraftKind = "new" | "reply" | "replyall" | "forward" | "attached";
+export const DraftKindValues: readonly DraftKind[] = ["new", "reply", "replyall", "forward", "attached"];
 
 /** A file attached to a draft, stored by maild. */
 export interface DraftAttachment {
@@ -1101,6 +1101,10 @@ function mailboxClient(t: Transport): MailboxClient {
 
 // ---- message ----
 
+/** How a list message can be left (ADR-0027), best first. */
+export type UnsubscribeMethod = "oneclick" | "mail" | "web";
+export const UnsubscribeMethodValues: readonly UnsubscribeMethod[] = ["oneclick", "mail", "web"];
+
 /** One mailbox address. */
 export interface Address {
   /** Display name; may be empty. */
@@ -1160,6 +1164,31 @@ export interface Part {
   contentId: string;
   /** Encoded size in bytes. */
   size: number;
+}
+
+/** How a list message can be left, and whether it was. */
+export interface Unsubscribe {
+  /** Best first; empty for a message from no list. */
+  methods: UnsubscribeMethod[];
+  /**
+   * The list's name: List-Id's phrase, else its ID, else the sender's name or
+   * address.
+   */
+  list: string;
+  /** Where oneclick's request goes. */
+  host?: string;
+  /** Where mail goes. */
+  address?: string;
+  /** The page web opens. */
+  url?: string;
+  /** The user unsubscribed from this list (or from this message) before. */
+  done: boolean;
+}
+
+/** What unsubscribe did. */
+export interface UnsubscribeResult {
+  /** For web: the page for the app to open. */
+  url?: string;
 }
 
 /** A message as the server holds it. */
@@ -1301,6 +1330,24 @@ export interface MessageSaveParams {
   path: string;
 }
 
+/** Params of message.unsubscribeInfo. */
+export interface MessageUnsubscribeInfoParams {
+  id: number;
+}
+
+/** Params of message.unsubscribe. */
+export interface MessageUnsubscribeParams {
+  id: number;
+  method: UnsubscribeMethod;
+}
+
+/** Params of message.redirect. */
+export interface MessageRedirectParams {
+  id: number;
+  /** At least one. */
+  to: Address[];
+}
+
 /** Params of message.remind. */
 export interface MessageRemindParams {
   ids: number[];
@@ -1373,6 +1420,26 @@ export interface MessageClient {
    */
   save(params: MessageSaveParams): Promise<void>;
   /**
+   * How a list message can be left, from its stored headers (the body is
+   * fetched first when it is not stored).
+   */
+  unsubscribeInfo(params: MessageUnsubscribeInfoParams): Promise<Unsubscribe>;
+  /**
+   * Unsubscribe by one of the message's methods, after the user confirmed:
+   * oneclick sends the POST (unavailable with why when it fails), mail queues
+   * the message from the account's address, web returns the page to open. The
+   * list is remembered. invalidParams for a method the message does not
+   * offer; conflict for a read-only account.
+   */
+  unsubscribe(params: MessageUnsubscribeParams): Promise<UnsubscribeResult>;
+  /**
+   * Redirect: send the message as it is to other people, with Resent-From,
+   * Resent-To, Resent-Date and Resent-Message-ID added, from the account's
+   * address, through the outbox (the undo delay applies). Conflict for a
+   * read-only account.
+   */
+  redirect(params: MessageRedirectParams): Promise<OutboxItem>;
+  /**
    * Remind Me: at a time, bring messages back to the top of their account's
    * inbox and notify (ADR-0025). Without at, clear their reminders. Conflict
    * for a read-only account's messages.
@@ -1393,6 +1460,9 @@ function messageClient(t: Transport): MessageClient {
     delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
     source: (params) => t.call<MessageSource>("message.source", params),
     save: (params) => t.call<null>("message.save", params).then(() => undefined),
+    unsubscribeInfo: (params) => t.call<Unsubscribe>("message.unsubscribeInfo", params),
+    unsubscribe: (params) => t.call<UnsubscribeResult>("message.unsubscribe", params),
+    redirect: (params) => t.call<OutboxItem>("message.redirect", params),
     remind: (params) => t.call<null>("message.remind", params).then(() => undefined),
   };
 }
@@ -2531,6 +2601,9 @@ export const METHODS = [
   "message.delete",
   "message.source",
   "message.save",
+  "message.unsubscribeInfo",
+  "message.unsubscribe",
+  "message.redirect",
   "message.remind",
   "oauth.setClient",
   "oauth.getClient",
