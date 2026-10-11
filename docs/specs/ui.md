@@ -315,6 +315,28 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (the time sheet titled "Remind Me", starting at the reminder's time; OK
   calls `message.remind {ids: [id], at}`) and Clear (`message.remind
   {ids: [id]}`), disabled on a read-only account.
+- **Unsubscribe banner** (M5, P-305, [ADR-0027](../adr/0027-unsubscribe-with-one-click.md);
+  after the reminder banner, drawn as the remote content banner is): for a
+  message whose `listUnsubscribe` is not empty, `message.unsubscribeInfo
+  {id}`. When it offers a method, "This message is from the mailing list
+  <list>." and at the right an Unsubscribe button; when `done`, "You
+  unsubscribed from <list>." and no button. No banner when it offers
+  nothing and is not done.
+  - The methods are tried best first, as maild orders them; on a
+    read-only account mail is left out, and with nothing left the button
+    is disabled.
+  - Unsubscribe asks first: a dialog (the time sheet's frame) titled
+    "Unsubscribe from <list>?" saying what the first method does
+    (oneclick: "Frostmail will ask <host> to take you off the list.";
+    mail: "Frostmail will send a message to <address> asking to take you
+    off the list."; web: "The list's page on <host of url> will open in
+    your browser."), with Cancel and Unsubscribe, which has focus;
+    Escape cancels.
+  - Then `message.unsubscribe {id, method}` for each method in turn
+    until one succeeds; a web result's `url` opens as links do. The
+    button reads "Unsubscribing…", disabled, meanwhile. Afterwards,
+    `message.unsubscribeInfo` again. When every method fails, the
+    banner's text ends with " Couldn't unsubscribe." until the next try.
 - **More Actions** (M5, P-304, P-307, P-308): at the right of each
   message's header, a 28px button named "More Actions" (Lucide
   `ellipsis`, 16px, `--text-secondary`) opening a menu: Show All Headers
@@ -377,7 +399,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   source.
 - **Context menu** on list rows (right click or the Menu key), in this
   order, with separators between the groups:
-  - Reply, Reply All, Forward (on the last message of the menu's set).
+  - Reply, Reply All, Forward, Forward as Attachment and Redirect… (M5,
+    P-402, P-403), on the last message of the menu's set. Forward as
+    Attachment opens a draft of kind `attached` as Forward opens its
+    draft. Redirect… opens the Redirect sheet (below).
   - Archive (only when the account has an archive destination), Delete,
     and Mark as Spam, which moves to the account's junk mailbox; when every
     message is already there it reads Not Spam and moves them to the
@@ -403,9 +428,19 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     they are. It has no shortcut: Mail.app's Option-Command-L would be
     Ctrl+Alt+L, which locks the screen on most Linux desktops.
 
-  Every item but Reply, Reply All and Forward is disabled when the
-  account is read-only. The menu acts on the selection when the clicked
+  Every item but Reply, Reply All, Forward and Forward as Attachment is
+  disabled when the account is read-only. The menu acts on the selection when the clicked
   row is part of it, otherwise on the clicked row alone, which it selects.
+- **Redirect sheet** (M5, P-403): a dialog (the time sheet's frame, 420
+  wide) titled "Redirect", the message's subject under the title (12/16
+  `--text-secondary`, "(no subject)" when blank), a To recipient field as
+  compose's (suggestions from `address.suggest`; it has focus), and
+  Cancel and Redirect. Redirect is disabled until there is at least one
+  address and every address is valid, and while it is sending; it calls
+  `message.redirect {id, to}` and closes, or shows the error's message
+  under the field (`role="alert"`, 12/16) and stays. The message then
+  waits in the outbox with the undo delay, as a send does. Escape
+  cancels.
 - **Focus:** Tab and Shift+Tab move between sidebar, list and reader. The
   focused pane shows its selection in `--accent`.
 
