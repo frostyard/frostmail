@@ -9,8 +9,9 @@ import type { ViewModel } from "../data/view";
 import { SearchField } from "../features/search/SearchField";
 import { type MoveTarget, Toolbar, type ToolbarCommand } from "../features/toolbar/Toolbar";
 import { step, viewTitle } from "../lib/calendarDates";
+import { flagLabel } from "../lib/flags";
 import { formatCount } from "../lib/format";
-import { buildSidebar } from "../lib/mailboxTree";
+import { buildSidebar, vipGroups } from "../lib/mailboxTree";
 import {
   archiveMailbox,
   compose,
@@ -50,7 +51,7 @@ function useMaximized() {
 
 function mailTitle(model: ViewModel | null) {
   const ui = useUI.getState();
-  const { accounts, mailboxes } = useMail.getState();
+  const { accounts, mailboxes, vips, settings } = useMail.getState();
   const searching = ui.search !== "";
   const count = model?.ready ? model.count : null;
   if (searching) {
@@ -70,6 +71,15 @@ function mailTitle(model: ViewModel | null) {
   }
   if (src.kind === "flagged")
     return { title: "Flagged", subtitle: count === null ? "" : `${formatCount(count)} messages` };
+  if (src.kind === "vips" || src.kind === "vip" || src.kind === "flagColor") {
+    const title =
+      src.kind === "vips"
+        ? "VIPs"
+        : src.kind === "flagColor"
+          ? flagLabel(src.color, settings?.flagNames)
+          : (vipGroups(vips).find((group) => group.key === src.key)?.label ?? "");
+    return { title, subtitle: count === null ? "" : `${formatCount(count)} messages` };
+  }
   const mb = mailboxes.find((m) => m.id === src.mailboxId);
   const label = buildSidebar(accounts, mailboxes)
     .flatMap((s) => s.items)

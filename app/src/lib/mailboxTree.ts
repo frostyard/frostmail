@@ -3,10 +3,22 @@
 // account: role mailboxes at depth 0 in role order, then folders by label,
 // nested by the hierarchy delimiter. A folder whose parent mailbox is not in
 // the list gets a synthesized, non-selectable parent row.
-import type { Account, Mailbox, MailboxRole } from "../rpc/gen/api";
+import type { Account, Mailbox, MailboxRole, ViewCount, Vip } from "../rpc/gen/api";
+
+import { flagLabel } from "./flags";
 
 /** SidebarIcon names a Lucide icon for a sidebar row. */
-export type SidebarIcon = "inbox" | "file" | "send" | "shield-alert" | "trash-2" | "archive" | "flag" | "folder";
+export type SidebarIcon =
+  | "inbox"
+  | "file"
+  | "send"
+  | "shield-alert"
+  | "trash-2"
+  | "archive"
+  | "flag"
+  | "folder"
+  | "star"
+  | "user";
 
 /** SidebarItem is one row of a sidebar section. */
 export interface SidebarItem {
@@ -21,6 +33,88 @@ export interface SidebarItem {
   selectable: boolean;
   /** The mailbox's ID; absent for Favorites rows and synthesized parents. */
   mailboxId?: number;
+  /** The flag color, only for Flagged's color rows. */
+  flagColor?: number;
+}
+
+/** VipGroup is one person or standalone VIP address in list order. */
+export interface VipGroup {
+  key: string;
+  label: string;
+  addresses: string[];
+}
+
+/** vipGroups groups a person's addresses, retaining the first VIP's label. */
+export function vipGroups(vips: Vip[]): VipGroup[] {
+  const groups = new Map<string, VipGroup>();
+  for (const vip of vips) {
+    const identity = vip.personId === undefined ? `address:${vip.address}` : `person:${vip.personId}`;
+    const group = groups.get(identity);
+    if (group) group.addresses.push(vip.address);
+    else groups.set(identity, { key: `vip:${vip.address}`, label: vip.name || vip.address, addresses: [vip.address] });
+  }
+  return [...groups.values()];
+}
+
+/** SidebarCounts holds message counts for Favorites' built-in sources. */
+export interface SidebarCounts {
+  vips: ViewCount;
+  vip: Record<string, ViewCount>;
+  flagged: ViewCount;
+  colors: ViewCount[];
+}
+
+/** SidebarExtras supplies VIPs, custom flag names and their counts. */
+export interface SidebarExtras {
+  vips?: Vip[];
+  flagNames?: readonly string[];
+  counts?: SidebarCounts;
+}
+
+function extraRows({ vips = [], flagNames, counts }: SidebarExtras): SidebarItem[] {
+  const rows: SidebarItem[] = [];
+  if (vips.length > 0) {
+    rows.push({
+      key: "vips",
+      label: "VIPs",
+      icon: "star",
+      depth: 0,
+      unread: counts?.vips.unread ?? 0,
+      selectable: true,
+    });
+    for (const group of vipGroups(vips)) {
+      rows.push({
+        key: group.key,
+        label: group.label,
+        icon: "user",
+        depth: 1,
+        unread: counts?.vip[group.key]?.unread ?? 0,
+        selectable: true,
+      });
+    }
+  }
+  rows.push({
+    key: "flagged",
+    label: "Flagged",
+    icon: "flag",
+    depth: 0,
+    unread: counts?.flagged.total ?? 0,
+    selectable: true,
+  });
+  for (let color = 1; color <= 7; color++) {
+    const total = counts?.colors[color - 1]?.total ?? 0;
+    if (total > 0)
+      rows.push({
+        key: `flag:${color}`,
+        label: flagLabel(color, flagNames),
+        icon: "flag",
+        depth: 1,
+        unread: total,
+        selectable: true,
+        flagColor: color,
+      });
+  }
+  return rows;
 }
 
 /** SidebarSection is "Favorites" or one account. */
@@ -171,7 +265,7 @@ function unifiedRows(mailboxes: Mailbox[]): SidebarItem[] {
 }
 
 /** buildSidebar builds the sidebar from accounts and their mailboxes. */
-export function buildSidebar(accounts: Account[], mailboxes: Mailbox[]): SidebarSection[] {
+export function buildSidebar(accounts: Account[], mailboxes: Mailbox[], extras: SidebarExtras = {}): SidebarSection[] {
   const allInboxes = mailboxes.filter((m) => m.role === "inbox").reduce((sum, m) => sum + m.unread, 0);
   const favorites: SidebarSection = {
     key: "favorites",
@@ -179,7 +273,7 @@ export function buildSidebar(accounts: Account[], mailboxes: Mailbox[]): Sidebar
     items: [
       { key: "all-inboxes", label: "All Inboxes", icon: "inbox", depth: 0, unread: allInboxes, selectable: true },
       ...unifiedRows(mailboxes),
-      { key: "flagged", label: "Flagged", icon: "flag", depth: 0, unread: 0, selectable: true },
+      ...extraRows(extras),
     ],
   };
   const sections: SidebarSection[] = accounts.map((a) => ({

@@ -8,7 +8,9 @@ import type { ViewModel } from "../data/view";
 import { FilterBar } from "../features/list/FilterBar";
 import { ScopeBar } from "../features/search/SearchField";
 import { addDays, step } from "../lib/calendarDates";
+import { flagLabel } from "../lib/flags";
 import { type Command, commandFor } from "../lib/keymap";
+import { vipGroups } from "../lib/mailboxTree";
 import type { Client } from "../rpc/gen/api";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
@@ -265,14 +267,20 @@ function usePaneWidths() {
 
 function MailScope() {
   const ui = useUI();
-  const mailboxes = useMail((state) => state.mailboxes);
+  const { mailboxes, vips, settings } = useMail();
   const source = ui.source;
   const label =
     source.kind === "mailbox"
       ? (mailboxes.find((mailbox) => mailbox.id === source.mailboxId)?.name ?? "Mailbox")
       : source.kind === "allInboxes"
         ? "All Inboxes"
-        : "Flagged";
+        : source.kind === "vips"
+          ? "VIPs"
+          : source.kind === "vip"
+            ? (vipGroups(vips).find((group) => group.key === source.key)?.label ?? "")
+            : source.kind === "flagColor"
+              ? flagLabel(source.color, settings?.flagNames)
+              : "Flagged";
   if (ui.search === "") return null;
   return (
     <ScopeBar

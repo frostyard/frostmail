@@ -4,14 +4,19 @@ import { useMemo } from "react";
 import { sourceFromKey, sourceKey, useMail, useUI } from "../data/stores";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
-import { buildSidebar } from "../lib/mailboxTree";
+import { buildSidebar, vipGroups } from "../lib/mailboxTree";
 import { OutboxSection } from "./OutboxContainer";
+import { useSidebarCounts } from "./useSidebarCounts";
 
 /** SidebarContainer connects Sidebar to the stores. */
 export function SidebarContainer() {
-  const { accounts, mailboxes, sync } = useMail();
+  const { accounts, mailboxes, sync, vips, settings } = useMail();
   const { source, search, searchScope, focus, setSource, setFocus, module, setModule } = useUI();
-  const sections = useMemo(() => buildSidebar(accounts, mailboxes), [accounts, mailboxes]);
+  const counts = useSidebarCounts(vipGroups(vips));
+  const sections = useMemo(
+    () => buildSidebar(accounts, mailboxes, { vips, flagNames: settings?.flagNames, counts }),
+    [accounts, mailboxes, vips, settings, counts],
+  );
   const indicators = useMemo(() => {
     const out: Record<number, SyncIndicator> = {};
     for (const s of Object.values(sync)) {
@@ -34,7 +39,7 @@ export function SidebarContainer() {
           focused={focus === "sidebar"}
           sync={indicators}
           onSelect={(key) => {
-            const s = sourceFromKey(key);
+            const s = sourceFromKey(key, vips);
             if (s) setSource(s);
           }}
         />
