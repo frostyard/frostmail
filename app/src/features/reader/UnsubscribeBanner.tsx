@@ -109,5 +109,13 @@ function UnsubscribeDialog(props: {
 function methodSentence(info: Unsubscribe, method: UnsubscribeMethod): string {
   if (method === "oneclick") return `Frostmail will ask ${info.host} to take you off the list.`;
   if (method === "mail") return `Frostmail will send a message to ${info.address} asking to take you off the list.`;
-  return `The list's page on ${new URL(info.url ?? "").host} will open in your browser.`;
+  return `The list's page on ${hostOf(info.url)} will open in your browser.`;
+}
+
+function hostOf(url: string | undefined): string {
+  try {
+    return new URL(url ?? "").host;
+  } catch {
+    return url ?? "";
+  }
 }
