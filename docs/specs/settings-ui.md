@@ -36,8 +36,8 @@ this spec adds no tokens.
   over its 11/13 label, `--text-secondary`; the open pane's tab is
   `--selection-inactive` filled with `--text-primary` and
   `aria-pressed="true"`. Tabs: General (`Settings2`, M5), Accounts
-  (`AtSign`), Signatures (`PenLine`), Sign-In (`KeyRound`). The window
-  opens on Accounts.
+  (`AtSign`), Signatures (`PenLine`), Rules (`ListFilter`, M5), Sign-In
+  (`KeyRound`). The window opens on Accounts.
 - The pane fills the rest of the window.
 
 ## Shared pieces
@@ -79,6 +79,66 @@ container calls maild.
   `settings.set {flagNames}` with all seven, trimmed.
 - An error from maild shows in an `ALERT` under the rows, until the next
   change succeeds.
+
+## Rules pane
+
+Maild's rules ([organize.md](../design/organize.md#rules)), from the mail
+store's `rules` (`rule.list`, reloaded on `rule.changed`), in the order
+they run. `app/src/features/settings/RulesPane.tsx` is presentational and
+keeps which rule is selected; the window's container calls maild and opens
+the rule sheet ([organize-ui.md](organize-ui.md#the-rule-sheet)).
+
+```
+ ┌──────────────────────────────────────────────────────────────┐
+ │ ☑ Receipts                                                   │
+ │ ☐ Newsletters                                             ⚠  │
+ │ ☑ From Ann                                                   │
+ └──────────────────────────────────────────────────────────────┘
+ [Add Rule] [Edit] [Duplicate] [Remove]         [↑ Move Up] [↓ Move Down]
+ maild's error, if any
+```
+
+- 24px padding. The list is a `ul` named "Rules", 1px `--separator`
+  border, rounded 6, filling the pane's height above the buttons and
+  scrolling. A row (`li`, 28 high, 8px side padding) holds a checkbox
+  named "Enable <name>", checked when the rule is enabled; a `button`
+  filling the row with the rule's name, left-aligned, 13/18,
+  `--text-secondary` when the rule is off, `aria-pressed="true"` and
+  `--selection-inactive` behind the row when selected; and, when the rule
+  has a `problem`, a 14px `TriangleAlert` in `--text-secondary`, a
+  `role="img"` named by the problem, with the problem as its tooltip.
+  With no rules, the list holds one row, "No Rules", in
+  `--text-secondary`, centered.
+- Clicking a name selects the rule; double-clicking it edits it. The
+  checkbox turns the rule on or off without selecting it.
+- Under the list, 8px apart: Add Rule, Edit, Duplicate and Remove
+  (`BUTTON`; all but Add Rule disabled without a selection), and at the
+  right Move Up and Move Down (`BUTTON`, a 14px `ArrowUp` or `ArrowDown`
+  before the label), disabled without a selection and at the top or the
+  bottom of the list.
+- When the selected rule is gone from `rules`, nothing is selected.
+- An error from maild shows in an `ALERT` under the buttons, until the
+  next change succeeds.
+
+### Behavior (container)
+
+- **Add Rule** opens the rule sheet titled "New Rule" with
+  `newRuleDraft(rules.length + 1)`; OK calls `rule.create {name,
+  conditions, actions}`. **Edit** (or a double-click) opens it titled
+  "Edit Rule" with the rule; OK calls `rule.update {id, name, conditions,
+  actions}`. The sheet closes when the call succeeds and shows maild's
+  error when it fails.
+- **The checkbox** calls `rule.update {id, enabled}`.
+- **Duplicate** calls `rule.create` with the rule's conditions, actions
+  and enabled and the name "<name> Copy", then `rule.move` to just after
+  the original.
+- **Remove** asks first, as removing an account does (title "Remove
+  Rule?", the text `Remove the rule "<name>"?`, OK labeled Remove;
+  `window.confirm` outside Tauri), then calls `rule.delete`.
+- **Move Up** and **Move Down** call `rule.move {id, position}` with the
+  position one less or one more.
+- The sheet's mailboxes, accounts and flag names come from the mail
+  store; `today` is the local date.
 
 ## Accounts pane
 

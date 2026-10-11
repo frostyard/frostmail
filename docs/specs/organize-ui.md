@@ -1,9 +1,9 @@
-# Spec: the condition editor and the smart mailbox sheet (M5)
+# Spec: the condition editor, the smart mailbox sheet and the rule sheet (M5)
 
 The look and behavior of the editors built on maild's conditions
 ([organize.md](../design/organize.md#conditions)): the condition editor,
-which the smart mailbox sheet and (in Phase 4) the rule editor share, and
-the smart mailbox sheet. Tokens, type and button styles are those of the
+which the smart mailbox sheet and the rule sheet share, the smart mailbox
+sheet, the action editor and the rule sheet. Tokens, type and button styles are those of the
 reader UI ([ui.md](ui.md)); fields use the settings window's classes
 (`app/src/features/settings/labels.ts`).
 
@@ -84,8 +84,11 @@ a whole new `Conditions`.
 
 ### Behavior
 
-- Above the rows, "Contains messages that match" a `select` named "Match",
-  all or any, "of the following conditions:".
+- Above the rows, the lead text, a `select` named "Match", all or any, and
+  the trailing text. The lead and trailing text are props, `lead` and
+  `trail`, by default "Contains messages that match" and "of the following
+  conditions:"; the rule sheet passes "If" and "of the following
+  conditions are met:".
 - Each row: the field `select` (named "Condition N field"), the operator
   `select` ("Condition N operator", hidden for yes-or-no fields, whose
   operator is always `is`), the value controls (named "Condition N value",
@@ -137,8 +140,93 @@ window, to make or edit a smart mailbox.
   closes and a new smart mailbox becomes the list's source. Cancel and
   Escape close it unchanged.
 
+## The action editor
+
+`app/src/lib/rules.ts` holds what the editor knows about actions;
+`app/src/features/organize/ActionEditor.tsx` draws it. Like the condition
+editor it is controlled: it shows a `RuleAction[]` and reports every change
+as a whole new array.
+
+```
+ Perform the following actions:
+ [Move Message      ▾] to mailbox: [Receipts           ▾]  ⊖ ⊕
+ [Mark as Read      ▾]                                      ⊖ ⊕
+ [Mark as Flagged   ▾] [Orange ▾]                           ⊖ ⊕
+```
+
+### Actions, in menu order
+
+| Kind | Label | Takes |
+| --- | --- | --- |
+| `move` | Move Message | a mailbox |
+| `copy` | Copy Message | a mailbox |
+| `read` | Mark as Read | |
+| `flag` | Mark as Flagged | a color |
+| `delete` | Delete Message | |
+| `notify` | Send Notification | |
+| `stop` | Stop Evaluating Rules | |
+
+### Behavior
+
+- "Perform the following actions:" above the rows.
+- Each row: the kind `select` (named "Action N"), then what the kind takes,
+  then Remove (`circle-minus`, "Remove action N") and Add (`circle-plus`,
+  "Add action after N"), 22px icon buttons as in the condition editor.
+  N counts from 1.
+  - **A mailbox:** "to mailbox:" and a `select` ("Action N mailbox") of
+    each account's mailboxes in an `optgroup` labeled with the account's
+    email, each labeled by its path, valued by its ID. Without a
+    `mailboxId`, it shows a first, disabled option "No Mailbox Selected"
+    (value `""`). With a `mailboxId` not among the mailboxes (deleted
+    since), it shows a first, disabled option "Missing Mailbox" valued
+    with that ID.
+  - **A color:** a `select` ("Action N color") of the seven colors labeled
+    with the flags' names (`flagLabel`), valued 1–7.
+- Choosing a kind: Move and Copy keep the row's mailbox when it was a Move
+  or Copy, else have none; Mark as Flagged starts red (1); the rest take
+  nothing.
+- Add inserts, after its row, a Move Message with no mailbox. Remove
+  deletes its row; it is disabled when there is one row.
+- `actionsComplete(actions, mailboxes)` in `lib/rules.ts` is true when
+  there is at least one action and every Move and Copy names a mailbox
+  among `mailboxes`; the rule sheet's OK waits for it.
+
+## The rule sheet
+
+`app/src/features/organize/RuleSheet.tsx`: a modal sheet over the settings
+window, to make or edit a rule.
+
+```
+┌ Edit Rule ─────────────────────────────────────────────────────┐
+│ Description: [Receipts                                       ] │
+│ If [any ▾] of the following conditions are met:                │
+│ [Subject ▾] [contains ▾] [receipt                ]  ⊖ ⊕        │
+│ Perform the following actions:                                 │
+│ [Move Message ▾] to mailbox: [Receipts ▾]           ⊖ ⊕        │
+│ [Mark as Read ▾]                                    ⊖ ⊕        │
+│ maild's error, if any                                          │
+│                                            [Cancel] [  OK  ]   │
+└────────────────────────────────────────────────────────────────┘
+```
+
+- The smart mailbox sheet's frame (a `role="dialog"` `div`,
+  `aria-modal`, named by its `h2` title "New Rule" or "Edit Rule", the
+  backdrop, focus on the first input when it opens and back where it was
+  when it closes, Tab kept inside, Escape cancels), 640 wide.
+- "Description:", a text input (at most 100 characters); the condition
+  editor with "If" and "of the following conditions are met:"; the action
+  editor; an `ALERT` with maild's error; Cancel (`BUTTON`) and OK
+  (`PRIMARY_BUTTON`). OK is disabled while the description is blank, the
+  actions are not complete, or a save is under way, and saves the
+  description trimmed.
+- `RuleDraft` is `{name, conditions, actions}`. `newRuleDraft(n)` starts a
+  new rule named "Rule n", matching any of one `from contains ""`
+  condition, with one Move Message and no mailbox, as Mail.app does.
+
 ## References
 
-- Rationale: [ADR-0023](../adr/0023-one-condition-language-for-smart-mailboxes-and-rules.md)
+- Rationale: [ADR-0023](../adr/0023-one-condition-language-for-smart-mailboxes-and-rules.md),
+  [ADR-0024](../adr/0024-rules-run-in-maild-on-new-mail.md)
 - Context: [design/organize.md](../design/organize.md),
-  [specs/ui.md](ui.md) (the sidebar's Smart Mailboxes, the search Save)
+  [specs/ui.md](ui.md) (the sidebar's Smart Mailboxes, the search Save),
+  [specs/settings-ui.md](settings-ui.md) (the Rules pane)

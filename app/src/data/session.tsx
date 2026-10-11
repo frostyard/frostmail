@@ -85,6 +85,14 @@ async function reload(c: Client): Promise<void> {
   loadVips(c);
   loadSettings(c);
   loadSmarts(c);
+  loadRules(c);
+}
+
+function loadRules(c: Client): void {
+  void c.rule
+    .list()
+    .then((rules) => useMail.setState({ rules }))
+    .catch(() => {});
 }
 
 function loadSmarts(c: Client): void {
@@ -146,6 +154,9 @@ function wire(c: Client): () => void {
         break;
       case "smart.changed":
         loadSmarts(c);
+        break;
+      case "rule.changed":
+        loadRules(c);
         break;
       case "sync.progress":
         useMail.setState((s) => ({ sync: { ...s.sync, [e.data.status.accountId]: e.data.status } }));

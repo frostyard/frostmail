@@ -15,6 +15,7 @@ import type {
   Mailbox,
   MailboxRole,
   OutboxItem,
+  Rule,
   Settings,
   SmartMailbox,
   SyncStatus,
@@ -39,6 +40,8 @@ export interface MailState {
   settings: Settings | null;
   /** Smart mailboxes (smart.list), in sidebar order. */
   smarts: SmartMailbox[];
+  /** Rules (rule.list), in the order they run. */
+  rules: Rule[];
 }
 
 /** useMail is the store of maild data. */
@@ -51,6 +54,7 @@ export const useMail = create<MailState>(() => ({
   vips: [],
   settings: null,
   smarts: [],
+  rules: [],
 }));
 
 /** Source is what the sidebar selected. */

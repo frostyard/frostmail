@@ -1,10 +1,13 @@
-// The settings and VIP domains of MockTransport, as maild keeps them
-// (docs/design/organize.md; internal/engine/organize.go).
+// The settings, VIP, smart mailbox and rule domains of MockTransport, as
+// maild keeps them (docs/design/organize.md; internal/engine/organize.go).
+// rule.apply is MockTransport's, which holds the messages.
 import {
   type Conditions,
   ErrorCode,
   type Event,
   type NotifyScope,
+  type Rule,
+  type RuleAction,
   type Settings,
   type SmartMailbox,
   type Vip,
@@ -19,6 +22,8 @@ export type MockPersonEmails = (personId: number) => { name: string; emails: str
 
 const SCOPES: readonly NotifyScope[] = ["inbox", "vips", "contacts", "all", "smart"];
 
+const KINDS: readonly RuleAction["kind"][] = ["move", "copy", "read", "flag", "delete", "notify", "stop"];
+
 const invalid = (message: string) => new RPCError(ErrorCode.invalidParams, message);
 
 /** MockOrganize keeps settings and VIPs. */
@@ -31,6 +36,11 @@ export class MockOrganize {
   private nextSmart = 1;
   /** unread counts a smart mailbox's unread messages (MockTransport's views). */
   unread: (id: number) => number = () => 0;
+  /** Rules in position order. */
+  private rules: Rule[] = [];
+  private nextRule = 1;
+  /** mailboxExists reports whether a mailbox exists (MockTransport's). */
+  mailboxExists: (id: number) => boolean = () => true;
 
   constructor(
     private readonly emit: (e: Event) => void,
@@ -42,6 +52,11 @@ export class MockOrganize {
   /** smart is a smart mailbox, for views of it. */
   smart(id: number): SmartMailbox | undefined {
     return this.smarts.find((s) => s.id === id);
+  }
+
+  /** ruleList is every rule, in the order they run. */
+  ruleList(): Rule[] {
+    return structuredClone(this.rules);
   }
 
   /** isVip reports whether an address is a VIP. */
@@ -117,6 +132,54 @@ export class MockOrganize {
         this.emit({ event: "smart.changed", data: { id: s.id, deleted: false } });
         return null;
       }
+      case "rule.list":
+        return this.rules.map((r) => this.checked(r));
+      case "rule.create": {
+        const r: Rule = {
+          id: this.nextRule++,
+          name: ruleName(p.name),
+          position: this.rules.length,
+          enabled: p.enabled !== false,
+          conditions: p.conditions as Conditions,
+          actions: this.actions(p.actions),
+        };
+        this.rules.push(r);
+        this.emit({ event: "rule.changed", data: { id: r.id, deleted: false } });
+        return this.checked(r);
+      }
+      case "rule.update": {
+        const r = this.ruleOr404(Number(p.id));
+        // Only what changes is checked, as maild does.
+        const name = p.name !== undefined ? ruleName(p.name) : r.name;
+        const actions = p.actions !== undefined ? this.actions(p.actions) : r.actions;
+        r.name = name;
+        r.actions = actions;
+        if (p.conditions !== undefined) r.conditions = p.conditions as Conditions;
+        if (p.enabled !== undefined) r.enabled = p.enabled === true;
+        this.emit({ event: "rule.changed", data: { id: r.id, deleted: false } });
+        return this.checked(r);
+      }
+      case "rule.delete": {
+        const r = this.ruleOr404(Number(p.id));
+        this.rules = this.rules.filter((x) => x !== r);
+        this.rules.forEach((x, i) => {
+          x.position = i;
+        });
+        this.emit({ event: "rule.changed", data: { id: r.id, deleted: true } });
+        return null;
+      }
+      case "rule.move": {
+        const r = this.ruleOr404(Number(p.id));
+        if (Number(p.position) < 0) throw invalid("position must not be negative");
+        const rest = this.rules.filter((x) => x !== r);
+        rest.splice(Math.min(Number(p.position), rest.length), 0, r);
+        this.rules = rest;
+        this.rules.forEach((x, i) => {
+          x.position = i;
+        });
+        this.emit({ event: "rule.changed", data: { id: r.id, deleted: false } });
+        return null;
+      }
       case "smart.fromSearch": {
         // A rough stand-in for maild's search.ToConditions: each word of the
         // text is "content contains" it.
@@ -139,6 +202,40 @@ export class MockOrganize {
     const s = this.smart(id);
     if (!s) throw new RPCError(ErrorCode.notFound, `smart mailbox ${id} does not exist`);
     return s;
+  }
+
+  private ruleOr404(id: number): Rule {
+    const r = this.rules.find((x) => x.id === id);
+    if (!r) throw new RPCError(ErrorCode.notFound, `rule ${id} does not exist`);
+    return r;
+  }
+
+  /** checked is a rule with the problem of an action whose mailbox is gone. */
+  private checked(r: Rule): Rule {
+    const out = structuredClone(r);
+    delete out.problem;
+    const gone = r.actions.findIndex((a) => a.mailboxId !== undefined && !this.mailboxExists(a.mailboxId));
+    if (gone >= 0) out.problem = `action ${gone + 1}: mailbox ${r.actions[gone]?.mailboxId} is gone`;
+    return out;
+  }
+
+  /** actions checks a rule's actions as maild's checkActions does. */
+  private actions(raw: unknown): RuleAction[] {
+    const actions = (Array.isArray(raw) ? raw : []) as RuleAction[];
+    if (actions.length === 0 || actions.length > 20) throw invalid("a rule needs 1 to 20 actions");
+    actions.forEach((a, i) => {
+      const n = i + 1;
+      if (!KINDS.includes(a.kind)) throw invalid(`action ${n}: "${String(a.kind)}" is not an action`);
+      const needsMailbox = a.kind === "move" || a.kind === "copy";
+      if (needsMailbox && a.mailboxId === undefined) throw invalid(`action ${n}: ${a.kind} needs a mailboxId`);
+      if (needsMailbox && a.mailboxId !== undefined && !this.mailboxExists(a.mailboxId))
+        throw new RPCError(ErrorCode.notFound, `action ${n}: mailbox ${a.mailboxId} does not exist`);
+      if (!needsMailbox && a.mailboxId !== undefined) throw invalid(`action ${n}: ${a.kind} takes no mailboxId`);
+      if (a.kind === "flag" && (a.color === undefined || a.color < 1 || a.color > 7))
+        throw invalid(`action ${n}: flag needs a color 1-7`);
+      if (a.kind !== "flag" && a.color !== undefined) throw invalid(`action ${n}: ${a.kind} takes no color`);
+    });
+    return structuredClone(actions);
   }
 
   private counted(s: SmartMailbox): SmartMailbox {
@@ -197,6 +294,12 @@ export class MockOrganize {
       })
       .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()) || a.address.localeCompare(b.address));
   }
+}
+
+function ruleName(raw: unknown): string {
+  const name = String(raw ?? "").trim();
+  if (name === "" || [...name].length > 100) throw invalid("a rule's name must be 1 to 100 characters");
+  return name;
 }
 
 function smartName(raw: unknown): string {

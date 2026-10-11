@@ -290,6 +290,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     The colors are labeled with the flag names, as the sidebar's are (M5);
     so is the toolbar's Flag menu. A flag glyph's accessible name keeps the
     color's own name ("Flagged Red").
+  - Apply Rules (M5), only when a rule is enabled: `rule.apply` on the
+    menu's messages, which runs the enabled rules on them now, wherever
+    they are. It has no shortcut: Mail.app's Option-Command-L would be
+    Ctrl+Alt+L, which locks the screen on most Linux desktops.
 
   Every item but Reply, Reply All and Forward is disabled when the
   account is read-only. The menu acts on the selection when the clicked
