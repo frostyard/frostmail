@@ -3,11 +3,13 @@
 // two-line preview, and the unread dot and the flag in the 24px gutter. The
 // list container owns focus, selection and virtualization; the row only
 // reports what the pointer did to it.
-import { Archive, Flag, Paperclip, Star, Trash2 } from "lucide-react";
+import { AlarmClock, Archive, Flag, Paperclip, Star, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
+import { appLocale } from "../../lib/calendarDates";
 import { flagName } from "../../lib/flags";
 import { displayName, formatListDate } from "../../lib/format";
+import { whenText } from "../../lib/later";
 import type { MessageSummary } from "../../rpc/gen/api";
 
 /** ROW_HEIGHT is the fixed height of a list row in pixels. */
@@ -70,6 +72,9 @@ export function MessageRow(props: MessageRowProps) {
   const contrast = selected && focused;
   const secondary = contrast ? "text-accent-contrast" : "text-secondary";
   const subject = message.subject.trim();
+  const reminder = message.remindAt
+    ? `Reminder ${whenText(new Date(message.remindAt), now, Intl.DateTimeFormat().resolvedOptions().timeZone, appLocale(navigator.language))}`
+    : undefined;
   const actions = [
     { action: "flag", label: message.flags.flagged ? "Unflag" : "Flag", shortcut: "Ctrl+Shift+L", Icon: Flag },
     { action: "archive", label: "Archive", shortcut: "Ctrl+Alt+A", Icon: Archive },
@@ -104,6 +109,11 @@ export function MessageRow(props: MessageRowProps) {
         <span className={joinClasses("flex shrink-0 items-center gap-1", onAction && "group-hover:hidden")}>
           {message.hasAttachments && (
             <Paperclip size={12} aria-label="Has attachments" className={joinClasses("shrink-0", secondary)} />
+          )}
+          {reminder && (
+            <span role="img" aria-label={reminder} title={reminder} className={joinClasses("shrink-0", secondary)}>
+              <AlarmClock size={12} aria-hidden="true" />
+            </span>
           )}
           <span className={joinClasses("text-list-date tabular-nums shrink-0", secondary)}>
             {formatListDate(new Date(message.date), now)}

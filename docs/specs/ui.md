@@ -139,6 +139,15 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   Menu key) on one opens a menu: Edit Smart Mailbox… (the sheet, filled)
   and Delete Smart Mailbox (`smart.delete`; the source becomes All Inboxes
   when it was that one). Its title is its name.
+- **Send Later** (M5, [compose-ui.md](compose-ui.md#send-later)): after
+  the Outbox section, a section of the same look, titled "Send Later",
+  shown while some outbox message is `scheduled` and queued. A row per
+  such message, soonest first: the subject, "To: " and the recipients,
+  "Sends " and the time (`whenText`), then the actions Edit
+  (`outbox.cancel`, then the draft opens in its compose window), Send Now
+  (`outbox.reschedule {id, sendAt: now}`) and Change Time… (the time sheet
+  titled "Send Later", starting at its time; OK calls
+  `outbox.reschedule`). The Outbox section leaves these messages out.
 - **Counts of built-in sources:** one `view.count` for VIPs, each VIP row,
   Flagged, colors 1–7 and each smart mailbox, when the window connects and
   300 ms after the last `mailbox.changed`, `vip.changed`,
@@ -166,8 +175,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   left and 12 on the right; a 1px `--separator` at the bottom inset 24 from
   the left.
 - **Line 1:** sender (display name, else address) 13/600 truncated; at the
-  right a 12px paperclip when `hasAttachments`, then the date 12/400
-  `--text-secondary`. When the sender's address is a VIP (M5), a 10px
+  right a 12px paperclip when `hasAttachments`, a 12px `alarm-clock` in
+  `--text-secondary` when the message has a pending reminder (M5,
+  `remindAt`; `role="img"` named "Reminder " and the time as `whenText`
+  says it, also its tooltip), then the date 12/400 `--text-secondary`. When the sender's address is a VIP (M5), a 10px
   filled `star` in `--text-secondary` (`--accent-contrast` on a selected
   row in a focused list) comes before the name, 4px from it, named "VIP".
 - **Line 2:** subject 13/400 truncated ("(No Subject)" in
@@ -236,6 +247,13 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   9:41 AM"); line 2 the subject (13/600); then "To:" and, when present,
   "Cc:" lines (12/400 `--text-secondary`, names, else addresses, comma
   separated, truncated with "& N more" after 3).
+- **Reminder banner** (M5, between header and the remote content banner,
+  `--bg-banner`, 12/400, `role="status"`, as that banner is drawn): when
+  the message has a pending reminder, "Remind Me: " and the time
+  (`whenText`), then at the right two of that banner's buttons, Change…
+  (the time sheet titled "Remind Me", starting at the reminder's time; OK
+  calls `message.remind {ids: [id], at}`) and Clear (`message.remind
+  {ids: [id]}`), disabled on a read-only account.
 - **Remote content banner** (between header and body, `--bg-banner`, 12/400):
   "This message contains remote content." with a "Load Remote Content"
   button; when trackers were blocked, " N trackers blocked." follows. Hidden
@@ -290,6 +308,14 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     The colors are labeled with the flag names, as the sidebar's are (M5);
     so is the toolbar's Flag menu. A flag glyph's accessible name keeps the
     color's own name ("Flagged Red").
+  - Remind Me ▸ (M5), at the end of the Flag group, after Mark as Read or
+    Mark as Unread: the reminder choices (`remindChoices`: Remind Me in 1
+    Hour; Remind Me Tonight, at 9:00 PM, before then; Remind Me
+    Tomorrow, at 8:00 AM), a separator, Remind Me Later… (the time sheet
+    titled "Remind Me", starting tomorrow at 8:00 AM), and, when a message
+    of the menu's set has a pending reminder, Clear Reminder. Each calls
+    `message.remind` on the menu's messages, with the time or, for Clear
+    Reminder, without.
   - Apply Rules (M5), only when a rule is enabled: `rule.apply` on the
     menu's messages, which runs the enabled rules on them now, wherever
     they are. It has no shortcut: Mail.app's Option-Command-L would be
@@ -300,6 +326,31 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   row is part of it, otherwise on the clicked row alone, which it selects.
 - **Focus:** Tab and Shift+Tab move between sidebar, list and reader. The
   focused pane shows its selection in `--accent`.
+
+### Times (M5)
+
+`app/src/lib/later.ts` says and chooses the times of Send Later and
+Remind Me, in the user's time zone and locale:
+
+- `whenText(at, now, timeZone, locale)`: "Today at 9:00 PM", "Tomorrow at
+  8:00 AM", else the short weekday, month and day ("Mon, Oct 12 at 8:00
+  AM"), with the year when it is not this year ("Mon, Jan 4, 2027 at 8:00
+  AM"). The time is `hour: "numeric", minute: "2-digit"`.
+- `atLocal(date, hour, minute, timeZone)`: the instant of a local
+  `YYYY-MM-DD` at a wall-clock time.
+- `sendChoices(now, timeZone, locale)`: "Send <9:00 PM> Tonight" (today at
+  21:00) while it is before 21:00, and "Send <8:00 AM> Tomorrow"
+  (tomorrow at 8:00), the times written as `whenText` writes them.
+- `remindChoices(now, timeZone)`: "Remind Me in 1 Hour" (now plus an
+  hour), "Remind Me Tonight" (today at 21:00) while it is before 21:00,
+  and "Remind Me Tomorrow" (tomorrow at 8:00).
+
+**The time sheet** (`app/src/features/later/TimeSheet.tsx`) asks for a
+time: the smart mailbox sheet's frame ([organize-ui.md](organize-ui.md)),
+360 wide, titled by its caller, with a date input named "Date" and a time
+input named "Time" (the local date and time in the zone of the starting
+time), then Cancel and OK. OK is disabled while the chosen time is not
+after now, and gives the chosen instant.
 
 ### Keyboard map
 

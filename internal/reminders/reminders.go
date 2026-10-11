@@ -1,6 +1,7 @@
 // Package reminders fires calendar reminders when their alarms come due
 // (docs/design/pim.md, Reminders): it records them as fired, tells the app,
-// and, while the app is away, shows desktop notifications.
+// and, while the app is away, shows desktop notifications. Each minute it
+// also has maild fire the messages' Remind Me reminders (ADR-0025).
 package reminders
 
 import (
@@ -36,6 +37,9 @@ type Config struct {
 	Attended func() bool
 	// Notifier shows reminders while the app is away; nil shows none.
 	Notifier Notifier
+	// Messages fires the Remind Me reminders of messages due by now
+	// (mailsync.Manager.FireReminders); nil fires none.
+	Messages func(ctx context.Context, now time.Time) error
 	Now      func() time.Time
 	Local    *time.Location
 	Log      *slog.Logger
@@ -96,6 +100,12 @@ func (s *Scheduler) Run(ctx context.Context) {
 // Run calls it; tests call it with their clock.
 func (s *Scheduler) Check(ctx context.Context) error {
 	now := s.cfg.Now()
+	if s.cfg.Messages != nil {
+		// Apart from the calendar's, so neither holds the other up.
+		if err := s.cfg.Messages(ctx, now); err != nil && ctx.Err() == nil {
+			s.cfg.Log.Warn("message reminders not fired", "err", err)
+		}
+	}
 	since := s.last
 	if since.IsZero() {
 		var err error

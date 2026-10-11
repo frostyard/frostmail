@@ -65,9 +65,11 @@ Every sync of a mailbox, initial or incremental, is one reconcile pass
    moved, above), ESEARCH `UID SEARCH RETURN (ALL) ALL`, or `SINCE` the
    window's first day (plain `UID SEARCH` without ESEARCH), gives the server
    set S; L is the local set.
-4. **New:** fetch headers for S \ L, newest first, in chunks of 500. Each
-   chunk is one transaction: insert (idempotent on `(mailbox, uid)`), thread,
-   index, emit `message.changed`.
+4. **New:** fetch headers for S \ L, newest first, in chunks of 500,
+   leaving out the UIDs that queued moves are taking out of the mailbox:
+   the store has moved those already and the server will when the moves
+   replay. Each chunk is one transaction: insert (idempotent on
+   `(mailbox, uid)`), thread, index, emit `message.changed`.
 5. **Gone:** delete L \ S in one transaction and emit `message.removed`.
 6. **Flags:** with CONDSTORE, `UID FETCH <L ∩ S> (FLAGS MODSEQ)
    (CHANGEDSINCE stored)`; without it, fetch FLAGS for the local window and
@@ -154,9 +156,12 @@ and expunge failures clear the mailbox's stored modseq so the next pass
 refetches every flag.
 
 One transaction: optimistic change, a `pending_ops` row, a
-`pending_op_messages` row per message it covers, and a durable event.
-Replay resolves (mailbox, UIDVALIDITY, UID) at replay time; flags go as
-`+FLAGS`/`-FLAGS` deltas. Until the op is replayed or fails, a reconcile
+`pending_op_messages` row per message it covers, and a durable event. Ops
+replay in order, before every pass. A move, copy or expunge names the
+UIDs its messages had when it was queued; so does a flags op, which looks
+up at replay only the messages that had no UID then (their own move still
+pending), so flags set before a move reach the server before it and travel
+with the message. Flags go as `+FLAGS`/`-FLAGS` deltas. Until the op is replayed or fails, a reconcile
 pass leaves the flags of its messages alone (`store.UpdateFlags`), since
 flags fetched before the replay are older than the user's change; the
 replay's STORE then bumps the server's modseq, so the next pass fetches the

@@ -404,6 +404,10 @@ func (m *Manager) deleteTx(ctx context.Context, tx *store.Tx, ids []int64) ([]in
 		if err != nil {
 			return err
 		}
+		// Deleting a message drops its Remind Me reminder (ADR-0025).
+		if _, err := tx.ClearMessageReminders(ctx, ids); err != nil {
+			return err
+		}
 		var hidden []int64
 		for _, mem := range mems {
 			if err := refuseReadOnly(ctx, tx, mem.AccountID); err != nil {

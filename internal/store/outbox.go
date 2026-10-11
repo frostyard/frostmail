@@ -156,6 +156,16 @@ func (t *Tx) RequeueOutbox(ctx context.Context, id int64, sendAt time.Time) erro
 		FormatTime(sendAt), FormatTime(t.Now()), id)
 }
 
+// RescheduleOutbox gives a queued message a new time, Send Later or not,
+// and the message rebuilt for it, only if it is queued. A missing message
+// is an error wrapping ErrNotFound; a message in another state, one
+// wrapping ErrConflict.
+func (t *Tx) RescheduleOutbox(ctx context.Context, id int64, sendAt time.Time, scheduled bool, blobID string) error {
+	return casOutbox(ctx, t, id,
+		`UPDATE outbox SET send_at = ?, scheduled = ?, blob_id = ?, updated_at = ? WHERE id = ? AND state = 'queued'`,
+		FormatTime(sendAt), bit(scheduled), blobID, FormatTime(t.Now()), id)
+}
+
 // CancelOutbox returns a queued message as it was and deletes it. A
 // missing message is an error wrapping ErrNotFound; a message in another
 // state, one wrapping ErrConflict.

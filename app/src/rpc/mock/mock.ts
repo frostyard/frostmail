@@ -365,6 +365,9 @@ export class MockTransport implements Transport {
         return null;
       case "rule.apply":
         return this.applyRules(ids(p.ids));
+      case "message.remind":
+        this.remind(ids(p.ids), typeof p.at === "string" ? p.at : undefined);
+        return null;
       case "thread.messages":
         return this.thread(num(p.id));
       case "view.open":
@@ -492,6 +495,15 @@ export class MockTransport implements Transport {
   }
 
   private delete(list: number[]): void {
+    // Deleting a message drops its reminder, as in maild.
+    for (const id of list) {
+      const m = this.messages.get(id);
+      if (m?.summary.remindAt !== undefined) {
+        const summary = { ...m.summary };
+        delete summary.remindAt;
+        m.summary = summary;
+      }
+    }
     const expunge: number[] = [];
     for (const id of list) {
       const m = this.find(id);
@@ -500,6 +512,22 @@ export class MockTransport implements Transport {
       else this.move([id], trash.id);
     }
     if (expunge.length > 0) this.remove(expunge);
+  }
+
+  /** remind sets or, without at, clears Remind Me reminders, as maild's
+   *  message.remind; the mock never fires them. */
+  private remind(list: number[], at: string | undefined): void {
+    if (at !== undefined && !(Date.parse(at) > Date.now()))
+      throw new RPCError(ErrorCode.invalidParams, "a reminder's time must be in the future");
+    const rows = list.map((id) => this.find(id).summary);
+    const readOnly = rows.find((s) => this.account(s.accountId).readOnly);
+    if (readOnly) throw new RPCError(ErrorCode.conflict, `account ${readOnly.accountId} is read-only`);
+    this.update(list, (m) => {
+      const summary = { ...m.summary };
+      if (at === undefined) delete summary.remindAt;
+      else summary.remindAt = at;
+      m.summary = summary;
+    });
   }
 
   /** applyRules runs the enabled rules on messages, as maild's rule.apply:

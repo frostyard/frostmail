@@ -4,19 +4,23 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
+import { TimeSheet } from "../features/later/TimeSheet";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
   AttachmentStrip,
   MessageHeader,
   type MessageHeaderProps,
+  ReminderBanner,
   RemoteBanner,
 } from "../features/reader/MessageHeader";
 import { PlainText } from "../features/reader/PlainText";
 import { zoned } from "../lib/calendarDates";
+import { whenText } from "../lib/later";
 import { isVip, vipSet } from "../lib/vips";
 import type { Address, Invitation, Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
 import { ContactCardContainer } from "./ContactCardContainer";
+import { remindMessages } from "./commands";
 import { useCalendarFrame } from "./useCalendar";
 
 /** MAX_CONVERSATION is how many messages the reader shows before "Show earlier". */
@@ -150,10 +154,36 @@ function ConversationMessage({
   const [rendering, setRendering] = useState<Rendering | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
+  const [currentSummary, setCurrentSummary] = useState(summary);
+  const [reminderSheet, setReminderSheet] = useState<Date | null>(null);
+  const readOnly = useMail((s) => s.accounts.find((account) => account.id === summary.accountId)?.readOnly === true);
   const id = summary.id;
   const part = message ? invitationPart(message.parts) : undefined;
   const { invitation, busy, onAnswer } = useInvitation(id, part !== undefined);
-  const { timeZone, locale } = useCalendarFrame();
+  const { timeZone, locale, now } = useCalendarFrame();
+
+  useEffect(() => {
+    let stopped = false;
+    let request = 0;
+    const refresh = () => {
+      const version = ++request;
+      void client.message
+        .summaries({ ids: [id] })
+        .then((rows) => {
+          const row = rows[0];
+          if (!stopped && request === version && row) setCurrentSummary(row);
+        })
+        .catch((err: unknown) => console.warn("refresh message summary", err));
+    };
+    const off = client.transport.onEvent((event) => {
+      if (event.event === "message.changed" && event.data.ids.includes(id)) refresh();
+    });
+    refresh();
+    return () => {
+      stopped = true;
+      off();
+    };
+  }, [client, id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,6 +222,30 @@ function ConversationMessage({
           message={message}
           onAddress={onAddress}
           vip={isVip(message.summary.from.address, vipAddresses)}
+        />
+      )}
+      {currentSummary.remindAt && (
+        <ReminderBanner
+          when={whenText(new Date(currentSummary.remindAt), now, timeZone, locale)}
+          disabled={readOnly}
+          onChange={() => setReminderSheet(new Date(currentSummary.remindAt ?? ""))}
+          onClear={() => {
+            void remindMessages(client, [id]).catch((err: unknown) => console.warn("clear reminder", err));
+          }}
+        />
+      )}
+      {reminderSheet && (
+        <TimeSheet
+          title="Remind Me"
+          initial={reminderSheet}
+          now={now}
+          timeZone={timeZone}
+          onCancel={() => setReminderSheet(null)}
+          onChoose={(at) => {
+            if (!readOnly)
+              void remindMessages(client, [id], at).catch((err: unknown) => console.warn("change reminder", err));
+            setReminderSheet(null);
+          }}
         />
       )}
       {invitation && (

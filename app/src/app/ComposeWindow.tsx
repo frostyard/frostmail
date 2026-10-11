@@ -12,7 +12,10 @@ import { useClient } from "../data/session";
 import { ComposeAttachments, type PendingAttachment } from "../features/compose/ComposeAttachments";
 import { ComposeHeader } from "../features/compose/ComposeHeader";
 import { type ComposeCommand, ComposeToolbar, FormatBar, type FormatCommand } from "../features/compose/ComposeToolbar";
+import { TimeSheet } from "../features/later/TimeSheet";
 import { isValidAddress } from "../lib/addressParse";
+import { appLocale } from "../lib/calendarDates";
+import { sendChoices } from "../lib/later";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
 import {
   activeFormats,
@@ -87,6 +90,9 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const [error, setError] = useState("");
   const [linkUrl, setLinkUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sendLater, setSendLater] = useState<Date | null>(null);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const laterChoices = sendChoices(new Date(), timeZone, appLocale(navigator.language));
 
   // The content as last edited, the save timer, and whether maild is behind.
   const latest = useRef(content);
@@ -206,19 +212,22 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     attachPaths(Array.isArray(picked) ? picked : [picked]);
   }, [attachPaths]);
 
-  const send = useCallback(async () => {
-    if (!canSend) return;
-    setBusy(true);
-    setError("");
-    try {
-      await flush();
-      await client.draft.send({ id });
-      closeWindow();
-    } catch (err) {
-      setError(message(err));
-      setBusy(false);
-    }
-  }, [canSend, flush, client, id]);
+  const send = useCallback(
+    async (at?: Date) => {
+      if (!canSend) return;
+      setBusy(true);
+      setError("");
+      try {
+        await flush();
+        await client.draft.send(at ? { id, sendAt: at.toISOString() } : { id });
+        closeWindow();
+      } catch (err) {
+        setError(message(err));
+        setBusy(false);
+      }
+    },
+    [canSend, flush, client, id],
+  );
 
   const isEmpty = useCallback(
     () =>
@@ -262,6 +271,11 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         case "send":
           void send();
           break;
+        case "sendLater": {
+          const tomorrow = sendChoices(new Date(), timeZone, appLocale(navigator.language)).at(-1);
+          if (canSend && tomorrow) setSendLater(tomorrow.at);
+          break;
+        }
         case "attach":
           void pickFiles();
           break;
@@ -282,7 +296,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
           break;
       }
     },
-    [send, pickFiles, discard, close],
+    [send, pickFiles, discard, close, canSend, timeZone],
   );
 
   const onFormat = useCallback(
@@ -322,8 +336,23 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         canSend={canSend}
         formatBarShown={formatBar}
         maximized={maximized}
+        laterChoices={laterChoices}
+        onSendAt={(at) => void send(at)}
         onCommand={onCommand}
       />
+      {sendLater && (
+        <TimeSheet
+          title="Send Later"
+          initial={sendLater}
+          now={new Date()}
+          timeZone={timeZone}
+          onChoose={(at) => {
+            setSendLater(null);
+            void send(at);
+          }}
+          onCancel={() => setSendLater(null)}
+        />
+      )}
       <ComposeHeader
         content={content}
         identities={identities}
