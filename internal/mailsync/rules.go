@@ -186,10 +186,39 @@ func (m *Manager) applyPlans(ctx context.Context, tx *store.Tx, plans map[int64]
 	return slices.Sorted(maps.Keys(accounts)), nil
 }
 
+// blockedToTrash takes the waiting mail from blocked senders out of the
+// rule run and plans its delete, when the blockAction setting is trash and
+// the account has a Trash (ADR-0028). It returns those plans and the rest
+// of waiting.
+func (a *actor) blockedToTrash(ctx context.Context, waiting []int64) (map[int64]*rulePlan, []int64, error) {
+	settings, err := a.m.db.Settings(ctx)
+	if err != nil || settings.BlockAction != string(api.BlockActionTrash) {
+		return nil, waiting, err
+	}
+	mailboxes, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
+	if err != nil {
+		return nil, waiting, err
+	}
+	if !slices.ContainsFunc(mailboxes, func(mb store.Mailbox) bool { return mb.Role == api.MailboxRoleTrash }) {
+		return nil, waiting, nil // nowhere to move it; it stays, marked
+	}
+	blocked, err := a.m.db.BlockedAmong(ctx, waiting)
+	if err != nil || len(blocked) == 0 {
+		return nil, waiting, err
+	}
+	plans := map[int64]*rulePlan{}
+	for _, id := range blocked {
+		plans[id] = &rulePlan{delete: true}
+	}
+	return plans, slices.DeleteFunc(slices.Clone(waiting), func(id int64) bool { return plans[id] != nil }), nil
+}
+
 // runRules applies the rules to the account's waiting mail (ADR-0024) and
-// remembers the messages a rule asked to announce. The transaction that
-// acts also clears the waiting marks; when it fails, the marks are cleared
-// on their own, so one bad message cannot hold the rules forever.
+// remembers the messages a rule asked to announce. Mail from a blocked
+// sender goes to the Trash first, when the settings say so, and no rule
+// sees it. The transaction that acts also clears the waiting marks; when
+// it fails, the marks are cleared on their own, so one bad message cannot
+// hold the rules forever.
 func (a *actor) runRules(ctx context.Context) {
 	waiting, err := a.m.db.RulesWaiting(ctx, a.acct.ID)
 	if err != nil || len(waiting) == 0 {
@@ -198,11 +227,19 @@ func (a *actor) runRules(ctx context.Context) {
 		}
 		return
 	}
-	plans, err := a.m.planRules(ctx, waiting)
+	blocked, rest, err := a.blockedToTrash(ctx, waiting)
+	if err != nil {
+		a.m.log.Warn("blocked mail", "account", a.acct.ID, "err", err)
+	}
+	plans, err := a.m.planRules(ctx, rest)
 	if err != nil {
 		a.m.log.Warn("rules", "account", a.acct.ID, "err", err)
 		plans = nil
 	}
+	if plans == nil {
+		plans = map[int64]*rulePlan{}
+	}
+	maps.Copy(plans, blocked)
 	var accounts []int64
 	err = a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error

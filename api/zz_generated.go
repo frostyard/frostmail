@@ -818,6 +818,106 @@ func (x AddressClient) Suggest(ctx context.Context, p *AddressSuggestParams) ([]
 	return r, err
 }
 
+// ---- block ----
+
+// BlockedSender: One blocked address.
+type BlockedSender struct {
+	// Lowercased.
+	Address string `json:"address"`
+	// The name last seen with the address in mail, else empty.
+	Name string `json:"name"`
+	// When it was blocked.
+	At time.Time `json:"at"`
+}
+
+// BlockListParams holds the params of block.list.
+type BlockListParams struct{}
+
+// BlockAddParams holds the params of block.add.
+type BlockAddParams struct {
+	// At least one.
+	Addresses []string `json:"addresses"`
+}
+
+// BlockRemoveParams holds the params of block.remove.
+type BlockRemoveParams struct {
+	// At least one.
+	Addresses []string `json:"addresses"`
+}
+
+// BlockService: Blocked senders (ADR-0028): their mail never notifies, and is
+// marked as blocked or moved to the Trash as it arrives (the blockAction
+// setting).
+type BlockService interface {
+	// List implements block.list. Every blocked sender, by address.
+	List(ctx context.Context, p *BlockListParams) ([]BlockedSender, error)
+	// Add implements block.add. Block addresses. Addresses already blocked stay
+	// as they are.
+	Add(ctx context.Context, p *BlockAddParams) ([]BlockedSender, error)
+	// Remove implements block.remove. Unblock addresses.
+	Remove(ctx context.Context, p *BlockRemoveParams) error
+}
+
+func registerBlock(r *Router, s BlockService) {
+	r.handle("block.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p BlockListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("block.add", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p BlockAddParams
+		if err := decodeParams(raw, &p, []string{"addresses"}); err != nil {
+			return nil, err
+		}
+		return s.Add(ctx, &p)
+	})
+	r.handle("block.remove", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p BlockRemoveParams
+		if err := decodeParams(raw, &p, []string{"addresses"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Remove(ctx, &p)
+	})
+}
+
+// BlockClient calls the block methods; it implements BlockService.
+type BlockClient struct{ c *Client }
+
+// Block returns the block methods.
+func (c *Client) Block() BlockClient { return BlockClient{c} }
+
+var _ BlockService = BlockClient{}
+
+// List calls block.list.
+func (x BlockClient) List(ctx context.Context, p *BlockListParams) ([]BlockedSender, error) {
+	var r []BlockedSender
+	err := x.c.Call(ctx, "block.list", p, &r)
+	return r, err
+}
+
+// Add calls block.add.
+func (x BlockClient) Add(ctx context.Context, p *BlockAddParams) ([]BlockedSender, error) {
+	var r []BlockedSender
+	err := x.c.Call(ctx, "block.add", p, &r)
+	return r, err
+}
+
+// Remove calls block.remove.
+func (x BlockClient) Remove(ctx context.Context, p *BlockRemoveParams) error {
+	return x.c.Call(ctx, "block.remove", p, nil)
+}
+
+// BlockChanged: Senders were blocked or unblocked.
+type BlockChanged struct{}
+
+// EventName is the wire name of BlockChanged.
+func (BlockChanged) EventName() string { return "block.changed" }
+
+// Durable reports whether BlockChanged is kept in the changes log.
+func (BlockChanged) Durable() bool { return true }
+
 // ---- calendar ----
 
 // PartStat: An attendee's answer to an invitation (iCalendar PARTSTAT).
@@ -2057,6 +2157,8 @@ type MessageSummary struct {
 	ThreadCount int64 `json:"threadCount"`
 	// When a pending Remind Me reminder brings the message back.
 	RemindAt *time.Time `json:"remindAt,omitzero"`
+	// Present and true when the message's conversation is muted (ADR-0028).
+	Muted *bool `json:"muted,omitzero"`
 }
 
 // Part: One MIME part.
@@ -2250,6 +2352,13 @@ type MessageRedirectParams struct {
 	To []Address `json:"to"`
 }
 
+// MessageMuteParams holds the params of message.mute.
+type MessageMuteParams struct {
+	// At least one.
+	IDs   []int64 `json:"ids"`
+	Muted bool    `json:"muted"`
+}
+
 // MessageRemindParams holds the params of message.remind.
 type MessageRemindParams struct {
 	IDs []int64 `json:"ids"`
@@ -2314,6 +2423,10 @@ type MessageService interface {
 	// Resent-Message-ID added, from the account's address, through the outbox
 	// (the undo delay applies). Conflict for a read-only account.
 	Redirect(ctx context.Context, p *MessageRedirectParams) (*OutboxItem, error)
+	// Mute implements message.mute. Mute or unmute the conversations of messages
+	// (ADR-0028): a muted conversation's new mail never notifies. Emits
+	// message.changed for every message of the conversations.
+	Mute(ctx context.Context, p *MessageMuteParams) error
 	// Remind implements message.remind. Remind Me: at a time, bring messages back
 	// to the top of their account's inbox and notify (ADR-0025). Without at,
 	// clear their reminders. Conflict for a read-only account's messages.
@@ -2418,6 +2531,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return s.Redirect(ctx, &p)
+	})
+	r.handle("message.mute", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageMuteParams
+		if err := decodeParams(raw, &p, []string{"ids", "muted"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Mute(ctx, &p)
 	})
 	r.handle("message.remind", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRemindParams
@@ -2546,6 +2666,11 @@ func (x MessageClient) Redirect(ctx context.Context, p *MessageRedirectParams) (
 		return nil, err
 	}
 	return &r, nil
+}
+
+// Mute calls message.mute.
+func (x MessageClient) Mute(ctx context.Context, p *MessageMuteParams) error {
+	return x.c.Call(ctx, "message.mute", p, nil)
 }
 
 // Remind calls message.remind.
@@ -3439,6 +3564,25 @@ func (v NotifyScope) Valid() bool {
 	return false
 }
 
+// BlockAction: What happens to new mail from a blocked sender (ADR-0028).
+type BlockAction string
+
+const (
+	// It stays where it arrives, marked as blocked (the default).
+	BlockActionMark BlockAction = "mark"
+	// New inbox mail moves to the Trash as it arrives.
+	BlockActionTrash BlockAction = "trash"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v BlockAction) Valid() bool {
+	switch v {
+	case BlockActionMark, BlockActionTrash:
+		return true
+	}
+	return false
+}
+
 // Settings: Every preference, with its current value.
 type Settings struct {
 	// Seconds a sent message waits in the outbox: 0, 10, 20 or 30.
@@ -3452,6 +3596,8 @@ type Settings struct {
 	// Mailboxes added to the sidebar's Favorites, in order; mailboxes since
 	// deleted are left out. Absent when there are none.
 	Favorites []int64 `json:"favorites,omitzero"`
+	// mark when absent.
+	BlockAction *BlockAction `json:"blockAction,omitzero"`
 }
 
 // SettingsGetParams holds the params of settings.get.
@@ -3467,7 +3613,8 @@ type SettingsSetParams struct {
 	// Seven names, each at most 40 characters.
 	FlagNames []string `json:"flagNames,omitzero"`
 	// Mailbox IDs, at most 50, without repeats.
-	Favorites []int64 `json:"favorites,omitzero"`
+	Favorites   []int64      `json:"favorites,omitzero"`
+	BlockAction *BlockAction `json:"blockAction,omitzero"`
 }
 
 // SettingsService: Preferences maild keeps for every account, so they hold
@@ -4528,6 +4675,7 @@ func (VipChanged) Durable() bool { return true }
 type Services struct {
 	Account  AccountService
 	Address  AddressService
+	Block    BlockService
 	Calendar CalendarService
 	Draft    DraftService
 	Events   EventsService
@@ -4557,6 +4705,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Address is nil")
 	}
 	registerAddress(r, s.Address)
+	if s.Block == nil {
+		return errors.New("api: Services.Block is nil")
+	}
+	registerBlock(r, s.Block)
 	if s.Calendar == nil {
 		return errors.New("api: Services.Calendar is nil")
 	}
@@ -4648,6 +4800,9 @@ var Methods = []string{
 	"account.collections",
 	"account.setCollection",
 	"address.suggest",
+	"block.list",
+	"block.add",
+	"block.remove",
 	"calendar.range",
 	"calendar.event",
 	"calendar.invitation",
@@ -4690,6 +4845,7 @@ var Methods = []string{
 	"message.unsubscribeInfo",
 	"message.unsubscribe",
 	"message.redirect",
+	"message.mute",
 	"message.remind",
 	"oauth.setClient",
 	"oauth.getClient",
@@ -4740,6 +4896,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 	switch name {
 	case "account.changed":
 		var e AccountChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "block.changed":
+		var e BlockChanged
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

@@ -393,6 +393,56 @@ Addresses whose address, or any word of whose name, starts with prefix (case-ins
 
 Result: `[]Address`.
 
+## block
+
+Blocked senders (ADR-0028): their mail never notifies, and is marked as blocked or moved to the Trash as it arrives (the blockAction setting).
+
+### `block.list`
+
+Every blocked sender, by address.
+
+No params.
+
+Result: `[]BlockedSender`.
+
+### `block.add`
+
+Block addresses. Addresses already blocked stay as they are.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `addresses` | `[]string` | At least one. |
+
+Result: `[]BlockedSender`.
+Errors: `invalidParams`.
+
+### `block.remove`
+
+Unblock addresses.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `addresses` | `[]string` | At least one. |
+
+Result: none (`null`).
+Errors: `invalidParams`.
+
+### Event `block.changed` (durable)
+
+Senders were blocked or unblocked.
+
+No fields.
+
+### Type `BlockedSender`
+
+One blocked address.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `address` | `string` | Lowercased. |
+| `name` | `string` | The name last seen with the address in mail, else empty. |
+| `at` | `time` | When it was blocked. |
+
 ## calendar
 
 Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019).
@@ -1189,6 +1239,18 @@ Redirect: send the message as it is to other people, with Resent-From, Resent-To
 Result: `OutboxItem`.
 Errors: `notFound`, `invalidParams`, `conflict`, `unavailable`.
 
+### `message.mute`
+
+Mute or unmute the conversations of messages (ADR-0028): a muted conversation's new mail never notifies. Emits message.changed for every message of the conversations.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` | At least one. |
+| `muted` | `bool` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`.
+
 ### `message.remind`
 
 Remind Me: at a time, bring messages back to the top of their account's inbox and notify (ADR-0025). Without at, clear their reminders. Conflict for a read-only account's messages.
@@ -1260,6 +1322,7 @@ A row of a message list.
 | `size` | `int` | Size in bytes on the server. |
 | `threadCount` | `int` | Messages in the thread across every mailbox; 1 for a message alone. |
 | `remindAt` | `time` (optional) | When a pending Remind Me reminder brings the message back. |
+| `muted` | `bool` (optional) | Present and true when the message's conversation is muted (ADR-0028). |
 
 ### Type `Part`
 
@@ -1869,6 +1932,7 @@ Change the preferences given; the others stay. Returns them all.
 | `notifySmartId` | `int` (optional) | Required with notifyScope smart. |
 | `flagNames` | `[]string` (optional) | Seven names, each at most 40 characters. |
 | `favorites` | `[]int` (optional) | Mailbox IDs, at most 50, without repeats. |
+| `blockAction` | `BlockAction` (optional) |  |
 
 Result: `Settings`.
 Errors: `invalidParams`, `notFound`.
@@ -1890,6 +1954,7 @@ Every preference, with its current value.
 | `notifySmartId` | `int` (optional) | The smart mailbox, when notifyScope is smart. |
 | `flagNames` | `[]string` | Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray). |
 | `favorites` | `[]int` (optional) | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none. |
+| `blockAction` | `BlockAction` (optional) | mark when absent. |
 
 ### Enum `NotifyScope`
 
@@ -1902,6 +1967,15 @@ Which new mail notifies, after each account's own notify switch.
 | `contacts` | New mail in an inbox from an address in People. |
 | `all` | New mail in any mailbox but Junk, Trash and Sent. |
 | `smart` | New mail that a smart mailbox lists (notifySmartId). |
+
+### Enum `BlockAction`
+
+What happens to new mail from a blocked sender (ADR-0028).
+
+| Value | Meaning |
+| --- | --- |
+| `mark` | It stays where it arrives, marked as blocked (the default). |
+| `trash` | New inbox mail moves to the Trash as it arrives. |
 
 ## smart
 

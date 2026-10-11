@@ -14,13 +14,22 @@ import (
 // announcement that the notification scope takes (docs/design/organize.md,
 // Notifications; docs/design/desktop.md). Accounts with notifications off,
 // and read-only accounts, announce nothing; neither does a folder's first
-// sync, which never collects.
+// sync, which never collects. Mail of a muted conversation or from a
+// blocked sender never notifies (ADR-0028), whatever a rule says.
 func (a *actor) announceNew(ctx context.Context) {
 	ids, ruled := a.fresh, a.ruleNotify
 	a.fresh, a.ruleNotify = nil, nil
 	if len(ids)+len(ruled) == 0 || a.m.cfg.Announce == nil || !a.acct.Notify || a.acct.ReadOnly {
 		return
 	}
+	quiet, err := a.quiet(ctx, append(slices.Clone(ids), ruled...))
+	if err != nil {
+		a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
+		return
+	}
+	isQuiet := func(id int64) bool { return quiet[id] }
+	ids = slices.DeleteFunc(ids, isQuiet)
+	ruled = slices.DeleteFunc(ruled, isQuiet)
 	mail, err := a.inScope(ctx, ids)
 	if err != nil {
 		a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
@@ -113,6 +122,29 @@ func (a *actor) inScope(ctx context.Context, ids []int64) ([]notify.Mail, error)
 		mail = append(mail, notify.Mail{ID: r.ID, FromName: r.From.Name, FromAddr: r.From.Addr, Subject: r.Subject, Preview: r.Preview})
 	}
 	return mail, nil
+}
+
+// quiet returns which of ids never notify: those of a muted conversation
+// and those from a blocked sender.
+func (a *actor) quiet(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	rows, err := a.m.db.Summaries(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]bool{}
+	for _, r := range rows {
+		if r.Muted {
+			out[r.ID] = true
+		}
+	}
+	blocked, err := a.m.db.BlockedAmong(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range blocked {
+		out[id] = true
+	}
+	return out, nil
 }
 
 func summaryIDs(rows []store.Summary) []int64 {

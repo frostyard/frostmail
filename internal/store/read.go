@@ -288,6 +288,7 @@ type Summary struct {
 	Size           int64
 	ThreadCount    int64     // messages in the thread; 1 for a message alone
 	RemindAt       time.Time // a pending Remind Me reminder; zero for none
+	Muted          bool      // the conversation is muted (ADR-0028)
 }
 
 // MessageDetail is everything about a message except its body.
@@ -314,16 +315,18 @@ type Location struct {
 	UID         uint32
 }
 
-// summaryCols are the columns scanSummary reads, in order. The last two
+// summaryCols are the columns scanSummary reads, in order. The last three
 // are the message's thread size, at least 1 (the thread's msg_count, or 1
-// when the message has no thread or the count has not caught up), and its
-// pending reminder's time or NULL. It is written against the unaliased
-// messages table, as every query using it does.
+// when the message has no thread or the count has not caught up), its
+// pending reminder's time or NULL, and whether its thread is muted. It is
+// written against the unaliased messages table, as every query using it
+// does.
 const summaryCols = `id, account_id, thread_id, subject, from_name, from_addr,
 	date_hdr, internal_date, preview, has_attachments, size,
 	seen, flagged, answered, forwarded, draft, deleted, flag_color, keywords_json,
 	MAX(1, COALESCE((SELECT t.msg_count FROM threads t WHERE t.id = messages.thread_id), 1)),
-	(SELECT r.remind_at FROM message_reminders r WHERE r.message_id = messages.id)`
+	(SELECT r.remind_at FROM message_reminders r WHERE r.message_id = messages.id),
+	COALESCE((SELECT t.muted FROM threads t WHERE t.id = messages.thread_id), 0)`
 
 // rowScanner is satisfied by *sql.Rows and *sql.Row.
 type rowScanner interface {
@@ -346,7 +349,7 @@ func scanSummary(row rowScanner, extra ...any) (Summary, error) {
 	dest := append([]any{&s.ID, &s.AccountID, &threadID, &s.Subject, &s.From.Name, &s.From.Addr,
 		&dateHdr, &internal, &s.Preview, &s.HasAttachments, &s.Size,
 		&s.Flags.Seen, &s.Flags.Flagged, &s.Flags.Answered, &s.Flags.Forwarded,
-		&s.Flags.Draft, &s.Flags.Deleted, &s.Flags.Color, &keywords, &s.ThreadCount, &remindAt}, extra...)
+		&s.Flags.Draft, &s.Flags.Deleted, &s.Flags.Color, &keywords, &s.ThreadCount, &remindAt, &s.Muted}, extra...)
 	if err := row.Scan(dest...); err != nil {
 		return Summary{}, err
 	}

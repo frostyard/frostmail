@@ -40,6 +40,7 @@ types:
       - {name: size, type: int, doc: "Size in bytes on the server."}
       - {name: threadCount, type: int, doc: "Messages in the thread across every mailbox; 1 for a message alone."}
       - {name: remindAt, type: time, optional: true, doc: "When a pending Remind Me reminder brings the message back."}
+      - {name: muted, type: bool, optional: true, doc: "Present and true when the message's conversation is muted (ADR-0028)."}
   - name: Part
     doc: One MIME part.
     fields:
@@ -220,6 +221,15 @@ methods:
       - {name: to, type: "[]Address", doc: "At least one."}
     result: OutboxItem
     errors: [notFound, invalidParams, conflict, unavailable]
+  - name: mute
+    doc: >-
+      Mute or unmute the conversations of messages (ADR-0028): a muted
+      conversation's new mail never notifies. Emits message.changed for
+      every message of the conversations.
+    params:
+      - {name: ids, type: "[]int", doc: "At least one."}
+      - {name: muted, type: bool}
+    errors: [notFound, invalidParams]
   - name: remind
     doc: >-
       Remind Me: at a time, bring messages back to the top of their
