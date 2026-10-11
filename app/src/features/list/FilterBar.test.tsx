@@ -1,11 +1,11 @@
-// CONTRACT TEST for task card T-0101 (docs/tasks). Do not edit.
+// CONTRACT TEST for task card T-0101, revised by T-0109 (docs/tasks). Do not edit.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { emptyText, FilterBar, LIST_FILTERS, type ListFilter } from "./FilterBar";
 
 describe("FilterBar", () => {
-  it("offers All, Unread, Flagged and Attachments in a 32px strip", () => {
+  it("offers All, Unread, Flagged, Attachments and More in a 32px strip", () => {
     render(<FilterBar filter="all" onChange={vi.fn()} />);
     const bar = screen.getByRole("toolbar", { name: "Filter messages" });
     expect(bar.className).toContain("h-[32px]");
@@ -16,7 +16,7 @@ describe("FilterBar", () => {
       within(bar)
         .getAllByRole("button")
         .map((b) => b.textContent),
-    ).toEqual(["All", "Unread", "Flagged", "Attachments"]);
+    ).toEqual(["All", "Unread", "Flagged", "Attachments", "More"]);
     expect(LIST_FILTERS.map((f) => f.key)).toEqual(["all", "unread", "flagged", "attachments"]);
   });
 
