@@ -102,6 +102,7 @@ function message(err: unknown): string {
 function GeneralPaneContainer() {
   const client = useClient();
   const settings = useMail((s) => s.settings);
+  const smarts = useMail((s) => s.smarts);
   const [error, setError] = useState<string>();
   const change = async (params: SettingsSetParams) => {
     try {
@@ -111,7 +112,7 @@ function GeneralPaneContainer() {
       setError(message(err));
     }
   };
-  return <GeneralPane settings={settings} error={error} onChange={(params) => void change(params)} />;
+  return <GeneralPane settings={settings} smarts={smarts} error={error} onChange={(params) => void change(params)} />;
 }
 
 /** useRequest runs one request at a time and keeps its error. */
