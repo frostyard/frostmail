@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { Event, MessageSummary, PersonSummary, Settings, ViewCount, ViewInfo, Vip } from "../gen/api";
+import type {
+  Event,
+  MessageSummary,
+  PersonSummary,
+  Settings,
+  SmartMailbox,
+  ViewCount,
+  ViewInfo,
+  Vip,
+} from "../gen/api";
 import { ErrorCode } from "../gen/api";
 import { mockData } from "./fixture";
 import { MockTransport } from "./mock";
@@ -113,5 +122,45 @@ describe("MockTransport conditions and counts", () => {
       unread: flagged.filter((m) => !m.summary.flags.seen).length,
     });
     expect(counts[1]?.total).toBe(data.messages.length);
+  });
+});
+
+describe("MockTransport smart mailboxes", () => {
+  it("keeps them in order, lists their messages and follows their edits", async () => {
+    const { data, mock } = setup();
+    const flagged = { match: "all", conditions: [{ field: "flagged", op: "is", value: "true" }] };
+    const a = await mock.call<SmartMailbox>("smart.create", { name: " Flagged ", conditions: flagged });
+    const b = await mock.call<SmartMailbox>("smart.create", { name: "Ann", conditions: flagged, includeTrash: true });
+    expect([a.name, a.position, b.position, b.includeTrash]).toEqual(["Flagged", 0, 1, true]);
+    const want = data.messages.filter((m) => m.summary.flags.flagged);
+    const view = await mock.call<ViewInfo>("view.open", { query: { smartMailboxId: a.id } });
+    expect(view.count).toBe(want.length);
+    expect((await mock.call<SmartMailbox[]>("smart.list", {}))[0]?.unread).toBe(
+      want.filter((m) => !m.summary.flags.seen).length,
+    );
+
+    await mock.call("smart.update", {
+      id: a.id,
+      conditions: { match: "all", conditions: [{ field: "from", op: "is", value: "ann.smith@northwind.test" }] },
+    });
+    const fromAnn = data.messages.filter((m) => m.summary.from.address === "ann.smith@northwind.test");
+    expect((await rows(mock, view)).map((r) => r.id).sort()).toEqual(fromAnn.map((m) => m.summary.id).sort());
+
+    await mock.call("smart.move", { id: b.id, position: 0 });
+    expect((await mock.call<SmartMailbox[]>("smart.list", {})).map((s) => s.name)).toEqual(["Ann", "Flagged"]);
+    await mock.call("settings.set", { notifyScope: "smart", notifySmartId: b.id });
+    await mock.call("smart.delete", { id: b.id });
+    expect((await mock.call<Settings>("settings.get", {})).notifyScope).toBe("inbox");
+    await expect(mock.call("view.open", { query: { smartMailboxId: b.id } })).rejects.toMatchObject({
+      code: ErrorCode.notFound,
+    });
+  });
+
+  it("narrows a view by its filter", async () => {
+    const { data, mock } = setup();
+    const view = await mock.call<ViewInfo>("view.open", {
+      query: { flagged: true, filter: { match: "all", conditions: [{ field: "unread", op: "is", value: "true" }] } },
+    });
+    expect(view.count).toBe(data.messages.filter((m) => m.summary.flags.flagged && !m.summary.flags.seen).length);
   });
 });

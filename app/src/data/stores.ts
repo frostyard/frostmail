@@ -9,7 +9,17 @@ import type { CalendarView } from "../lib/calendarDates";
 import { vipGroups } from "../lib/mailboxTree";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
-import type { Account, Mailbox, MailboxRole, OutboxItem, Settings, SyncStatus, ViewQuery, Vip } from "../rpc/gen/api";
+import type {
+  Account,
+  Mailbox,
+  MailboxRole,
+  OutboxItem,
+  Settings,
+  SmartMailbox,
+  SyncStatus,
+  ViewQuery,
+  Vip,
+} from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
 export type Connection = { state: "connecting" } | { state: "ready" } | { state: "lost"; reason: string };
@@ -26,6 +36,8 @@ export interface MailState {
   vips: Vip[];
   /** maild's preferences (settings.get); null until loaded. */
   settings: Settings | null;
+  /** Smart mailboxes (smart.list), in sidebar order. */
+  smarts: SmartMailbox[];
 }
 
 /** useMail is the store of maild data. */
@@ -37,6 +49,7 @@ export const useMail = create<MailState>(() => ({
   outbox: [],
   vips: [],
   settings: null,
+  smarts: [],
 }));
 
 /** Source is what the sidebar selected. */

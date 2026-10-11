@@ -141,7 +141,7 @@ export class MockTransport implements Transport {
     this.organize = new MockOrganize(
       (e) => {
         this.emit(e);
-        if (e.event === "vip.changed") this.refreshViews();
+        if (e.event === "vip.changed" || e.event === "smart.changed") this.refreshViews();
       },
       (id) => this.people.emailsOf(id),
       (address) => this.people.personOf(address),
@@ -149,6 +149,8 @@ export class MockTransport implements Transport {
         [...this.messages.values()].find((m) => m.summary.from.address.toLowerCase() === address)?.summary.from.name ??
         "",
     );
+    this.organize.unread = (id) =>
+      this.viewIds({ smartMailboxId: id }).filter((m) => !this.messages.get(m)?.summary.flags.seen).length;
   }
 
   call<T>(method: string, params: unknown): Promise<T> {
@@ -505,7 +507,19 @@ export class MockTransport implements Transport {
     setTimeout(() => this.emit(status("idle")), this.opts.latency ?? 0);
   }
 
+  /** inSmart: a smart mailbox lists its conditions' messages, leaving out
+   *  those in Trash or Sent unless it includes them. */
+  private inSmart(s: MessageSummary, id: number): boolean {
+    const smart = this.organize.smart(id);
+    if (!smart || !this.matches(s, smart.conditions)) return false;
+    const roles = s.mailboxIds.map((mb) => this.mailboxes.find((x) => x.id === mb)?.role);
+    if (!smart.includeTrash && roles.includes("trash")) return false;
+    return smart.includeSent || !roles.includes("sent");
+  }
+
   private openView(query: ViewQuery) {
+    if (query.smartMailboxId !== undefined && !this.organize.smart(query.smartMailboxId))
+      throw notFound(`smart mailbox ${query.smartMailboxId} does not exist`);
     const id = this.nextView++;
     const view = { query, ids: this.viewIds(query) };
     this.views.set(id, view);
@@ -538,6 +552,8 @@ export class MockTransport implements Transport {
           (q.flagged === undefined || s.flags.flagged === q.flagged) &&
           (q.hasAttachments === undefined || s.hasAttachments === q.hasAttachments) &&
           (q.conditions === undefined || this.matches(s, q.conditions)) &&
+          (q.filter === undefined || this.matches(s, q.filter)) &&
+          (q.smartMailboxId === undefined || this.inSmart(s, q.smartMailboxId)) &&
           (text === "" ||
             text
               .split(/\s+/)
@@ -590,6 +606,8 @@ export class MockTransport implements Transport {
           return text(s.from.name, s.from.address);
         case "subject":
           return text(s.subject);
+        case "content":
+          return text(`${s.subject} ${s.from.name} ${s.from.address} ${s.preview}`);
         case "color":
           return s.flags.flagged ? among(s.flags.flagColor, list) : cond.op === "isnot";
         case "vip":

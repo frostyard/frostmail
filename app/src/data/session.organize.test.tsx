@@ -10,7 +10,7 @@ import { Session } from "./session";
 import { useMail } from "./stores";
 
 beforeEach(() => {
-  useMail.setState({ vips: [], settings: null });
+  useMail.setState({ vips: [], settings: null, smarts: [] });
 });
 
 describe("the mail store's preferences", () => {
@@ -29,5 +29,7 @@ describe("the mail store's preferences", () => {
     await waitFor(() => expect(useMail.getState().vips.map((v) => v.address)).toEqual(["kofi.okafor@acme.test"]));
     await mock.call("settings.set", { undoDelay: 0, notifyScope: "vips" });
     await waitFor(() => expect(useMail.getState().settings).toMatchObject({ undoDelay: 0, notifyScope: "vips" }));
+    await mock.call("smart.create", { name: "Unread", conditions: { match: "all", conditions: [] } });
+    await waitFor(() => expect(useMail.getState().smarts.map((s) => s.name)).toEqual(["Unread"]));
   });
 });
