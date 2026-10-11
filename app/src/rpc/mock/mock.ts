@@ -438,6 +438,9 @@ export class MockTransport implements Transport {
       case "message.remind":
         this.remind(ids(p.ids), typeof p.at === "string" ? p.at : undefined);
         return null;
+      case "message.mute":
+        this.mute(ids(p.ids), p.muted === true);
+        return null;
       case "thread.messages":
         return this.thread(num(p.id));
       case "view.open":
@@ -726,6 +729,20 @@ export class MockTransport implements Transport {
       const summary = { ...m.summary };
       if (at === undefined) delete summary.remindAt;
       else summary.remindAt = at;
+      m.summary = summary;
+    });
+  }
+
+  /** mute mutes or unmutes the conversations of messages, as maild's
+   *  message.mute: every message of them says so. */
+  private mute(list: number[], muted: boolean): void {
+    if (list.length === 0) throw new RPCError(ErrorCode.invalidParams, "mute needs at least one message");
+    const threads = new Set(list.map((id) => this.find(id).summary.threadId));
+    const members = [...this.messages.values()].filter((m) => threads.has(m.summary.threadId)).map((m) => m.summary.id);
+    this.update(members, (m) => {
+      const summary = { ...m.summary };
+      if (muted) summary.muted = true;
+      else delete summary.muted;
       m.summary = summary;
     });
   }
