@@ -34,7 +34,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | M5·6 | |
 | P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color in use, counted | Have | `mailboxTree.sources.test.ts`, `SidebarSources.test.tsx` |
 | P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` |
-| P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | M5·3 | |
+| P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` |
 | P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |
 | P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | M5·6 | |
 | P-108 | Drag messages to a mailbox (Alt: copy) | Same | M5·6 | |
@@ -52,7 +52,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-202 | Turn conversations on and off | A View toggle (the state exists, unset) | M5·6 | |
 | P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | M5·6 | |
 | P-204 | Filter: Unread, Flagged, Attachments | The filter bar | Have | `FilterBar.test.tsx`, `ListFilter.test.tsx` |
-| P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | M5·3 | |
+| P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | Have | `FilterBar.more.test.tsx`, `stores.filter.more.test.ts`, `ListFilter.more.test.tsx` |
 | P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` |
 | P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` |
 | P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` |
@@ -119,7 +119,7 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-601 | Search all mailboxes or the current one | The search language and scope bar | Have | `TestViewSearchLanguage`, `TestParseTerms`, `SearchField.test.tsx` |
-| P-602 | Save a search as a smart mailbox | Same | M5·3 | |
+| P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` |
 | P-603 | Search suggestions as tokens (People, Subjects) | | Later | The language covers the operators |
 | P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window |
 
@@ -141,7 +141,7 @@ tasks are not Mail's and are not listed; their parity is
 | --- | --- | --- | --- | --- |
 | P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` |
 | P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` |
-| P-803 | Notify for a smart mailbox | The scope may be one | M5·3 | |
+| P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` |
 | P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` |
 | P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |
 

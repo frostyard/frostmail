@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/frostyard/frostmail/api"
@@ -158,3 +159,43 @@ func TestSmartMailboxViews(t *testing.T) {
 }
 
 func ptrTo[T any](v T) *T { return &v }
+
+// TestSmartMailboxAcrossAccounts: a smart mailbox lists matching mail of
+// every account, and its any/all conditions can name one.
+func TestSmartMailboxAcrossAccounts(t *testing.T) {
+	f := newConditionsFixture(t)
+	ctx := t.Context()
+	other := insertAccount(t, f.d, sampleAccount("two@mailtest.test")).ID
+	var second int64
+	if err := f.d.Tx(ctx, func(tx *Tx) error {
+		mbs, err := tx.ReplaceMailboxes(ctx, other, []ServerMailbox{{Path: "INBOX", Role: api.MailboxRoleInbox, Selectable: true}})
+		if err != nil {
+			return err
+		}
+		ids, err := tx.InsertHeaders(ctx, other, mbs[0].ID, []MessageHeader{{UID: 1, InternalDate: testNow, MessageID: "two@x",
+			Subject: "Flagged elsewhere", From: Address{Addr: "dan@z.test"}, Flags: Flags{Flagged: true, Color: 2}}})
+		if err != nil {
+			return err
+		}
+		second = ids[0]
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	flagged := createSmart(t, f.d, SmartMailbox{Name: "Flagged", Conditions: one("flagged", "is", "true"), IncludeTrash: true})
+	got, err := f.d.ViewIDs(ctx, ViewFilter{SmartMailboxID: flagged.ID})
+	slices.Sort(got)
+	if err != nil || !slices.Equal(got, []int64{f.lunch, f.old, second}) {
+		t.Errorf("Flagged across accounts = %v, %v; want lunch, old and the second account's", got, err)
+	}
+	either := createSmart(t, f.d, SmartMailbox{Name: "Either", Conditions: api.Conditions{Match: api.ConditionMatchAny,
+		Conditions: []api.Condition{
+			{Field: "account", Op: "is", Value: strconv.FormatInt(other, 10)},
+			{Field: "unread", Op: "is", Value: "true"},
+		}}})
+	got, err = f.d.ViewIDs(ctx, ViewFilter{SmartMailboxID: either.ID})
+	slices.Sort(got)
+	if err != nil || !slices.Equal(got, []int64{f.lunch, second}) {
+		t.Errorf("the second account or unread = %v, %v; want lunch and the second account's", got, err)
+	}
+}

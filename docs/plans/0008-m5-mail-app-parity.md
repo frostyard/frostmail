@@ -116,7 +116,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   condition (`TestCompileEveryCondition`), not yet by one run against
   Dovecot.
 
-## Phase 3 — Smart mailboxes
+## Phase 3 — Smart mailboxes — done
 
 - Planner (done before the cards): the smart mailbox store and `smart.*`
   with `smart.fromSearch`, `ViewQuery.smartMailboxId` and `filter` (so a
@@ -129,6 +129,15 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   conditions, list exactly the messages their given tests name and stay
   live as mail arrives and changes; one saved from a search lists what the
   search does; a smart mailbox can be the notification scope.
+- **Evidence (2026-10-11):** T-0107 to T-0110 each verified on Codex's
+  first attempt. `TestSmartMailboxViews` and
+  `TestSmartMailboxAcrossAccounts` list exactly the named messages, any
+  and all, over two accounts, Trash and Sent left out unless included;
+  `TestSmartMailboxes` shows a view following an edit (views of smart
+  mailboxes recompute on every account's commits, like All Inboxes);
+  `TestSearchAsConditions` shows a saved search listing what the search
+  does; `TestNotifySmartScope` notifies for a smart mailbox. The
+  checklist's P-105, P-205, P-602 and P-803 name their tests.
 
 ## Phase 4 — Rules
 
