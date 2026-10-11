@@ -11,6 +11,7 @@ enums:
       - {name: reply, doc: "A reply to the source's sender."}
       - {name: replyall, doc: "A reply to the sender and every other recipient but the account's own addresses."}
       - {name: forward, doc: "The source as quoted text with its attachments."}
+      - {name: attached, doc: "Forward as Attachment: the source attached whole, as an .eml file. The draft is then a forward."}
 types:
   - name: DraftAttachment
     doc: A file attached to a draft, stored by maild.

@@ -2,6 +2,13 @@ domain: message
 doc: >-
   Messages. An ID is local and stays the same while the message exists,
   including across moves the server reports with COPYUID.
+enums:
+  - name: UnsubscribeMethod
+    doc: How a list message can be left (ADR-0027), best first.
+    values:
+      - {name: oneclick, doc: "An HTTPS POST that maild sends (RFC 8058), for a sender the provider's DKIM vouches for."}
+      - {name: mail, doc: "A message to the list's mailto: address, through the outbox."}
+      - {name: web, doc: "The list's https: page, which the app opens in the browser."}
 types:
   - name: Address
     doc: One mailbox address.
@@ -42,6 +49,19 @@ types:
       - {name: disposition, type: string, doc: "inline, attachment or empty."}
       - {name: contentId, type: string, doc: "Without angle brackets."}
       - {name: size, type: int, doc: "Encoded size in bytes."}
+  - name: Unsubscribe
+    doc: How a list message can be left, and whether it was.
+    fields:
+      - {name: methods, type: "[]UnsubscribeMethod", doc: "Best first; empty for a message from no list."}
+      - {name: list, type: string, doc: "The list's name: List-Id's phrase, else its ID, else the sender's name or address."}
+      - {name: host, type: string, optional: true, doc: "Where oneclick's request goes."}
+      - {name: address, type: string, optional: true, doc: "Where mail goes."}
+      - {name: url, type: string, optional: true, doc: "The page web opens."}
+      - {name: done, type: bool, doc: "The user unsubscribed from this list (or from this message) before."}
+  - name: UnsubscribeResult
+    doc: What unsubscribe did.
+    fields:
+      - {name: url, type: string, optional: true, doc: "For web: the page for the app to open."}
   - name: MessageSource
     doc: A message as the server holds it.
     fields:
@@ -169,6 +189,37 @@ methods:
       - {name: id, type: int}
       - {name: path, type: string, doc: "An absolute path the user chose."}
     errors: [notFound, invalidParams, unavailable]
+  - name: unsubscribeInfo
+    doc: >-
+      How a list message can be left, from its stored headers (the body is
+      fetched first when it is not stored).
+    params:
+      - {name: id, type: int}
+    result: Unsubscribe
+    errors: [notFound, unavailable]
+  - name: unsubscribe
+    doc: >-
+      Unsubscribe by one of the message's methods, after the user
+      confirmed: oneclick sends the POST (unavailable with why when it
+      fails), mail queues the message from the account's address, web
+      returns the page to open. The list is remembered. invalidParams for a
+      method the message does not offer; conflict for a read-only account.
+    params:
+      - {name: id, type: int}
+      - {name: method, type: UnsubscribeMethod}
+    result: UnsubscribeResult
+    errors: [notFound, invalidParams, conflict, unavailable]
+  - name: redirect
+    doc: >-
+      Redirect: send the message as it is to other people, with Resent-From,
+      Resent-To, Resent-Date and Resent-Message-ID added, from the account's
+      address, through the outbox (the undo delay applies). Conflict for a
+      read-only account.
+    params:
+      - {name: id, type: int}
+      - {name: to, type: "[]Address", doc: "At least one."}
+    result: OutboxItem
+    errors: [notFound, invalidParams, conflict, unavailable]
   - name: remind
     doc: >-
       Remind Me: at a time, bring messages back to the top of their

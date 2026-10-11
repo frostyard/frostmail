@@ -75,6 +75,9 @@ type Deps struct {
 	// PIM syncs contacts, calendars and tasks; nil turns services on
 	// without discovering them.
 	PIM PIMSyncer
+	// Unsubscriber sends one-click unsubscribe requests (ADR-0027); nil
+	// makes oneclick unavailable.
+	Unsubscriber Unsubscriber
 }
 
 // Engine owns the domain services.

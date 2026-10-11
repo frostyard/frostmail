@@ -23,6 +23,8 @@ import {
   type Rendering,
   type RuleApplied,
   type SyncStatus,
+  type Unsubscribe,
+  type UnsubscribeMethod,
   type ViewCount,
   type ViewQuery,
   type ViewSort,
@@ -47,6 +49,8 @@ export interface MockMessage {
   /** Remote images left out until render is called with remote. */
   remote: number;
   trackers: number;
+  /** How the message can be left, for mail from a list; done is the mock's own. */
+  unsubscribe?: Omit<Unsubscribe, "done">;
 }
 
 /** MockMailbox is a mailbox without counts; the mock computes them. */
@@ -97,6 +101,10 @@ export class MockTransport implements Transport {
   private readonly calendar: MockCalendar;
   private readonly tasks: MockTasks;
   private readonly organize: MockOrganize;
+  /** Lists unsubscribed from, by name. */
+  private readonly unsubscribed = new Set<string>();
+  /** One-click requests fail while this is set, as a sender's server can. */
+  oneClickFails = false;
 
   constructor(
     data: MockData,
@@ -371,6 +379,26 @@ export class MockTransport implements Transport {
           const m = this.messages.get(id);
           return m ? [m.summary] : [];
         });
+      case "message.unsubscribeInfo": {
+        const m = this.find(num(p.id));
+        const u = m.unsubscribe ?? { methods: [], list: m.summary.from.name || m.summary.from.address };
+        return { ...structuredClone(u), done: this.unsubscribed.has(u.list) };
+      }
+      case "message.unsubscribe": {
+        const m = this.find(num(p.id));
+        const method = p.method as UnsubscribeMethod;
+        if (!m.unsubscribe?.methods.includes(method))
+          throw new RPCError(ErrorCode.invalidParams, `message ${m.summary.id} does not offer "${String(method)}"`);
+        if (method === "mail" && this.account(m.summary.accountId).readOnly)
+          throw new RPCError(ErrorCode.conflict, `account ${m.summary.accountId} is read-only`);
+        if (method === "oneclick" && this.oneClickFails)
+          throw new RPCError(
+            ErrorCode.unavailable,
+            `unsubscribe: ${m.unsubscribe.host} answered 500 Internal Server Error`,
+          );
+        this.unsubscribed.add(m.unsubscribe.list);
+        return method === "web" ? { url: m.unsubscribe.url } : {};
+      }
       case "message.source": {
         const m = this.find(num(p.id));
         const s = m.summary;
@@ -473,7 +501,11 @@ export class MockTransport implements Transport {
       inReplyTo: "",
       references: [],
       listId: "",
-      listUnsubscribe: "",
+      listUnsubscribe: m.unsubscribe
+        ? [m.unsubscribe.address && `<mailto:${m.unsubscribe.address}>`, m.unsubscribe.url && `<${m.unsubscribe.url}>`]
+            .filter(Boolean)
+            .join(", ")
+        : "",
       parts: m.parts,
       bodyFetched: true,
     };

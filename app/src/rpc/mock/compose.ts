@@ -135,6 +135,28 @@ export class MockCompose {
       }
       case "draft.send":
         return this.send(this.draft(num(p.id)), typeof p.sendAt === "string" ? p.sendAt : undefined);
+      case "message.redirect": {
+        const src = this.source(num(p.id));
+        if (!src) throw notFound(`message ${num(p.id)}`);
+        const to = (p.to ?? []) as Address[];
+        if (to.length === 0) throw new RPCError(ErrorCode.invalidParams, "a redirect needs at least one recipient");
+        const bad = to.find((a) => !VALID.test(a.address));
+        if (bad) throw new RPCError(ErrorCode.invalidParams, `"${bad.address}" is not a valid address`);
+        if (this.accounts.find((a) => a.id === src.accountId)?.readOnly)
+          throw new RPCError(ErrorCode.conflict, `account ${src.accountId} is read-only`);
+        const o: OutboxItem = {
+          id: this.nextOutbox++,
+          accountId: src.accountId,
+          subject: src.subject,
+          to,
+          state: "queued",
+          scheduled: false,
+          attempts: 0,
+        };
+        this.outbox.set(o.id, o);
+        this.place(o);
+        return structuredClone(o);
+      }
       case "outbox.list":
         return [...this.outbox.values()].filter((o) => o.state !== "sent").map((o) => structuredClone(o));
       case "outbox.cancel":
@@ -238,7 +260,9 @@ export class MockCompose {
     if (src) {
       const quoted = src.html !== "" ? src.html : `<p>${src.text}</p>`;
       const name = src.from.name || src.from.address;
-      if (kind === "forward") {
+      if (kind === "attached") {
+        content.subject = /^fwd?:/i.test(src.subject) ? src.subject : `Fwd: ${src.subject}`;
+      } else if (kind === "forward") {
         content.subject = /^fwd?:/i.test(src.subject) ? src.subject : `Fwd: ${src.subject}`;
         content.html = `<p><br></p><p>Begin forwarded message:</p><blockquote type="cite">${quoted}</blockquote>`;
       } else {
@@ -248,12 +272,17 @@ export class MockCompose {
         content.html = `<p><br></p><p>${name} wrote:</p><blockquote type="cite">${quoted}</blockquote>`;
       }
     }
+    const name = (src?.subject.trim() || "message").replace(/[/\\]/g, "-");
     const d: Draft = {
       id: this.nextDraft++,
       accountId: acct,
       content,
-      attachments: [],
-      kind,
+      attachments:
+        kind === "attached" && src
+          ? [{ id: 1, filename: `${name}.eml`, contentType: "message/rfc822", size: src.text.length }]
+          : [],
+      // An attached forward is a forward once made, as in maild.
+      kind: kind === "attached" ? "forward" : kind,
       updatedAt: new Date().toISOString(),
     };
     if (typeof sourceId === "number") d.sourceId = sourceId;

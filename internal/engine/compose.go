@@ -68,7 +68,7 @@ func (d drafts) Create(ctx context.Context, p *api.DraftCreateParams) (*api.Draf
 	}
 	dr := store.Draft{
 		AccountID: acctID,
-		Kind:      string(p.Kind),
+		Kind:      storedKind(p.Kind),
 		Content: store.DraftContent{
 			IdentityID: ident.ID, To: []store.Address{}, Cc: []store.Address{}, Bcc: []store.Address{},
 		},
@@ -119,6 +119,15 @@ func (d drafts) draftAccount(ctx context.Context, asked *int64, src *store.Messa
 	return accts[0].ID, nil
 }
 
+// storedKind is the kind a draft is stored with: Forward as Attachment is
+// stored as a forward, which is what it is once made.
+func storedKind(k api.DraftKind) string {
+	if k == api.DraftKindAttached {
+		return string(api.DraftKindForward)
+	}
+	return string(k)
+}
+
 // startFrom fills a reply or forward from its source message and returns
 // the source's attachments to carry over (forwards only).
 func (d drafts) startFrom(ctx context.Context, dr *store.Draft, src store.MessageDetail, ident store.Identity, kind api.DraftKind) ([]mimePart, error) {
@@ -147,6 +156,19 @@ func (d drafts) startFrom(ctx context.Context, dr *store.Draft, src store.Messag
 	}
 	sig := signatureBlock(ident)
 	switch kind {
+	case api.DraftKindAttached:
+		dr.Content.Subject = compose.ForwardSubject(src.Subject)
+		dr.Content.HTML = withSignature("<p><br></p>", sig)
+		name := strings.Map(func(r rune) rune {
+			if r == '/' || r == '\\' || r < ' ' {
+				return '-'
+			}
+			return r
+		}, strings.TrimSpace(src.Subject))
+		if name == "" {
+			name = "message"
+		}
+		return []mimePart{{filename: name + ".eml", contentType: "message/rfc822", data: raw}}, nil
 	case api.DraftKindForward:
 		dr.Content.Subject = compose.ForwardSubject(src.Subject)
 		dr.Content.HTML = withSignature(compose.ForwardHTML(source, time.Local), sig)

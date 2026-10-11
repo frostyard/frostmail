@@ -1252,12 +1252,15 @@ const (
 	DraftKindReplyall DraftKind = "replyall"
 	// The source as quoted text with its attachments.
 	DraftKindForward DraftKind = "forward"
+	// Forward as Attachment: the source attached whole, as an .eml file. The
+	// draft is then a forward.
+	DraftKindAttached DraftKind = "attached"
 )
 
 // Valid reports whether v is one of the declared values.
 func (v DraftKind) Valid() bool {
 	switch v {
-	case DraftKindNew, DraftKindReply, DraftKindReplyall, DraftKindForward:
+	case DraftKindNew, DraftKindReply, DraftKindReplyall, DraftKindForward, DraftKindAttached:
 		return true
 	}
 	return false
@@ -1992,6 +1995,28 @@ func (MailboxChanged) Durable() bool { return true }
 
 // ---- message ----
 
+// UnsubscribeMethod: How a list message can be left (ADR-0027), best first.
+type UnsubscribeMethod string
+
+const (
+	// An HTTPS POST that maild sends (RFC 8058), for a sender the provider's DKIM
+	// vouches for.
+	UnsubscribeMethodOneclick UnsubscribeMethod = "oneclick"
+	// A message to the list's mailto: address, through the outbox.
+	UnsubscribeMethodMail UnsubscribeMethod = "mail"
+	// The list's https: page, which the app opens in the browser.
+	UnsubscribeMethodWeb UnsubscribeMethod = "web"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v UnsubscribeMethod) Valid() bool {
+	switch v {
+	case UnsubscribeMethodOneclick, UnsubscribeMethodMail, UnsubscribeMethodWeb:
+		return true
+	}
+	return false
+}
+
 // Address: One mailbox address.
 type Address struct {
 	// Display name; may be empty.
@@ -2047,6 +2072,29 @@ type Part struct {
 	ContentID string `json:"contentId"`
 	// Encoded size in bytes.
 	Size int64 `json:"size"`
+}
+
+// Unsubscribe: How a list message can be left, and whether it was.
+type Unsubscribe struct {
+	// Best first; empty for a message from no list.
+	Methods []UnsubscribeMethod `json:"methods"`
+	// The list's name: List-Id's phrase, else its ID, else the sender's name or
+	// address.
+	List string `json:"list"`
+	// Where oneclick's request goes.
+	Host *string `json:"host,omitzero"`
+	// Where mail goes.
+	Address *string `json:"address,omitzero"`
+	// The page web opens.
+	URL *string `json:"url,omitzero"`
+	// The user unsubscribed from this list (or from this message) before.
+	Done bool `json:"done"`
+}
+
+// UnsubscribeResult: What unsubscribe did.
+type UnsubscribeResult struct {
+	// For web: the page for the app to open.
+	URL *string `json:"url,omitzero"`
 }
 
 // MessageSource: A message as the server holds it.
@@ -2184,6 +2232,24 @@ type MessageSaveParams struct {
 	Path string `json:"path"`
 }
 
+// MessageUnsubscribeInfoParams holds the params of message.unsubscribeInfo.
+type MessageUnsubscribeInfoParams struct {
+	ID int64 `json:"id"`
+}
+
+// MessageUnsubscribeParams holds the params of message.unsubscribe.
+type MessageUnsubscribeParams struct {
+	ID     int64             `json:"id"`
+	Method UnsubscribeMethod `json:"method"`
+}
+
+// MessageRedirectParams holds the params of message.redirect.
+type MessageRedirectParams struct {
+	ID int64 `json:"id"`
+	// At least one.
+	To []Address `json:"to"`
+}
+
 // MessageRemindParams holds the params of message.remind.
 type MessageRemindParams struct {
 	IDs []int64 `json:"ids"`
@@ -2232,6 +2298,22 @@ type MessageService interface {
 	// holds it (an .eml file) to path, replacing a file there. invalidParams for
 	// a relative path.
 	Save(ctx context.Context, p *MessageSaveParams) error
+	// UnsubscribeInfo implements message.unsubscribeInfo. How a list message can
+	// be left, from its stored headers (the body is fetched first when it is not
+	// stored).
+	UnsubscribeInfo(ctx context.Context, p *MessageUnsubscribeInfoParams) (*Unsubscribe, error)
+	// Unsubscribe implements message.unsubscribe. Unsubscribe by one of the
+	// message's methods, after the user confirmed: oneclick sends the POST
+	// (unavailable with why when it fails), mail queues the message from the
+	// account's address, web returns the page to open. The list is remembered.
+	// invalidParams for a method the message does not offer; conflict for a
+	// read-only account.
+	Unsubscribe(ctx context.Context, p *MessageUnsubscribeParams) (*UnsubscribeResult, error)
+	// Redirect implements message.redirect. Redirect: send the message as it is
+	// to other people, with Resent-From, Resent-To, Resent-Date and
+	// Resent-Message-ID added, from the account's address, through the outbox
+	// (the undo delay applies). Conflict for a read-only account.
+	Redirect(ctx context.Context, p *MessageRedirectParams) (*OutboxItem, error)
 	// Remind implements message.remind. Remind Me: at a time, bring messages back
 	// to the top of their account's inbox and notify (ADR-0025). Without at,
 	// clear their reminders. Conflict for a read-only account's messages.
@@ -2315,6 +2397,27 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return nil, s.Save(ctx, &p)
+	})
+	r.handle("message.unsubscribeInfo", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageUnsubscribeInfoParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.UnsubscribeInfo(ctx, &p)
+	})
+	r.handle("message.unsubscribe", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageUnsubscribeParams
+		if err := decodeParams(raw, &p, []string{"id", "method"}); err != nil {
+			return nil, err
+		}
+		return s.Unsubscribe(ctx, &p)
+	})
+	r.handle("message.redirect", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageRedirectParams
+		if err := decodeParams(raw, &p, []string{"id", "to"}); err != nil {
+			return nil, err
+		}
+		return s.Redirect(ctx, &p)
 	})
 	r.handle("message.remind", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRemindParams
@@ -2413,6 +2516,36 @@ func (x MessageClient) Source(ctx context.Context, p *MessageSourceParams) (*Mes
 // Save calls message.save.
 func (x MessageClient) Save(ctx context.Context, p *MessageSaveParams) error {
 	return x.c.Call(ctx, "message.save", p, nil)
+}
+
+// UnsubscribeInfo calls message.unsubscribeInfo.
+func (x MessageClient) UnsubscribeInfo(ctx context.Context, p *MessageUnsubscribeInfoParams) (*Unsubscribe, error) {
+	var r Unsubscribe
+	err := x.c.Call(ctx, "message.unsubscribeInfo", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Unsubscribe calls message.unsubscribe.
+func (x MessageClient) Unsubscribe(ctx context.Context, p *MessageUnsubscribeParams) (*UnsubscribeResult, error) {
+	var r UnsubscribeResult
+	err := x.c.Call(ctx, "message.unsubscribe", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Redirect calls message.redirect.
+func (x MessageClient) Redirect(ctx context.Context, p *MessageRedirectParams) (*OutboxItem, error) {
+	var r OutboxItem
+	err := x.c.Call(ctx, "message.redirect", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // Remind calls message.remind.
@@ -4554,6 +4687,9 @@ var Methods = []string{
 	"message.delete",
 	"message.source",
 	"message.save",
+	"message.unsubscribeInfo",
+	"message.unsubscribe",
+	"message.redirect",
 	"message.remind",
 	"oauth.setClient",
 	"oauth.getClient",

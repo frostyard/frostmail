@@ -37,6 +37,7 @@ import (
 	"github.com/frostyard/frostmail/internal/rpcserver"
 	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
+	"github.com/frostyard/frostmail/internal/unsubscribe"
 	"github.com/frostyard/frostmail/internal/view"
 )
 
@@ -162,7 +163,7 @@ func run(ctx context.Context, args []string) error {
 		OnAttended: func(bool) { sched.Kick() }})
 	eng := engine.New(engine.Deps{
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
-		OAuth: tokens, PIM: pim,
+		OAuth: tokens, PIM: pim, Unsubscriber: unsubscribe.New(),
 	})
 	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, syncer.FireReminders, logger)
 	router, err := api.NewRouter(api.Services{

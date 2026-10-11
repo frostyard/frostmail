@@ -805,6 +805,7 @@ How a new draft starts.
 | `reply` | A reply to the source's sender. |
 | `replyall` | A reply to the sender and every other recipient but the account's own addresses. |
 | `forward` | The source as quoted text with its attachments. |
+| `attached` | Forward as Attachment: the source attached whole, as an .eml file. The draft is then a forward. |
 
 ## events
 
@@ -1153,6 +1154,41 @@ Save As: write the message as the server holds it (an .eml file) to path, replac
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`, `unavailable`.
 
+### `message.unsubscribeInfo`
+
+How a list message can be left, from its stored headers (the body is fetched first when it is not stored).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Unsubscribe`.
+Errors: `notFound`, `unavailable`.
+
+### `message.unsubscribe`
+
+Unsubscribe by one of the message's methods, after the user confirmed: oneclick sends the POST (unavailable with why when it fails), mail queues the message from the account's address, web returns the page to open. The list is remembered. invalidParams for a method the message does not offer; conflict for a read-only account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `method` | `UnsubscribeMethod` |  |
+
+Result: `UnsubscribeResult`.
+Errors: `notFound`, `invalidParams`, `conflict`, `unavailable`.
+
+### `message.redirect`
+
+Redirect: send the message as it is to other people, with Resent-From, Resent-To, Resent-Date and Resent-Message-ID added, from the account's address, through the outbox (the undo delay applies). Conflict for a read-only account.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `to` | `[]Address` | At least one. |
+
+Result: `OutboxItem`.
+Errors: `notFound`, `invalidParams`, `conflict`, `unavailable`.
+
 ### `message.remind`
 
 Remind Me: at a time, bring messages back to the top of their account's inbox and notify (ADR-0025). Without at, clear their reminders. Conflict for a read-only account's messages.
@@ -1238,6 +1274,27 @@ One MIME part.
 | `contentId` | `string` | Without angle brackets. |
 | `size` | `int` | Encoded size in bytes. |
 
+### Type `Unsubscribe`
+
+How a list message can be left, and whether it was.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `methods` | `[]UnsubscribeMethod` | Best first; empty for a message from no list. |
+| `list` | `string` | The list's name: List-Id's phrase, else its ID, else the sender's name or address. |
+| `host` | `string` (optional) | Where oneclick's request goes. |
+| `address` | `string` (optional) | Where mail goes. |
+| `url` | `string` (optional) | The page web opens. |
+| `done` | `bool` | The user unsubscribed from this list (or from this message) before. |
+
+### Type `UnsubscribeResult`
+
+What unsubscribe did.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `url` | `string` (optional) | For web: the page for the app to open. |
+
 ### Type `MessageSource`
 
 A message as the server holds it.
@@ -1307,6 +1364,16 @@ Flags to set or clear; omitted fields keep their values.
 | `flagged` | `bool` (optional) |  |
 | `answered` | `bool` (optional) |  |
 | `flagColor` | `int` (optional) |  |
+
+### Enum `UnsubscribeMethod`
+
+How a list message can be left (ADR-0027), best first.
+
+| Value | Meaning |
+| --- | --- |
+| `oneclick` | An HTTPS POST that maild sends (RFC 8058), for a sender the provider's DKIM vouches for. |
+| `mail` | A message to the list's mailto: address, through the outbox. |
+| `web` | The list's https: page, which the app opens in the browser. |
 
 ## oauth
 
