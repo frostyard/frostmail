@@ -49,14 +49,14 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-201 | Organize by Conversation, with a count | Conversation mode, with a badge | Have | `TestViewRoleAndThreads`, `MessageRow.test.tsx` |
-| P-202 | Turn conversations on and off | A View toggle (the state exists, unset) | M5·6 | |
-| P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | M5·6 | |
+| P-202 | Turn conversations on and off | The Sort menu's Conversations | Have | `SortMenu.test.tsx`, `SortList.test.tsx` |
+| P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | Have | `TestViewSort`, `SortList.test.tsx`, `stores.sort.test.ts` |
 | P-204 | Filter: Unread, Flagged, Attachments | The filter bar | Have | `FilterBar.test.tsx`, `ListFilter.test.tsx` |
 | P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | Have | `FilterBar.more.test.tsx`, `stores.filter.more.test.ts`, `ListFilter.more.test.tsx` |
 | P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` |
 | P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` |
 | P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` |
-| P-209 | Contact photos in the list | People photos, never fetched | M5·6 | |
+| P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` |
 | P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |
 | P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |
 | P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |
@@ -69,11 +69,11 @@ tasks are not Mail's and are not listed; their parity is
 | P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` |
 | P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
-| P-304 | Raw Source, All Headers | Same, from the blob store | M5·6 | |
+| P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` |
 | P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | M5·6 | |
 | P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
-| P-307 | Print | Same | M5·6 | |
-| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | M5·6 | |
+| P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
+| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
 | P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
 | P-310 | Collapse and expand messages in a conversation | | Later | Quotes already collapse (`PlainText.test.tsx`) |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
