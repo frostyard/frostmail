@@ -160,13 +160,18 @@ func bit(b bool) int64 {
 // result, and returns the account's mailboxes afterwards in ListMailboxes
 // order, read through t. A path not stored yet is inserted; a stored path has
 // its delimiter, name, role, attributes, selectable and subscribed columns
-// updated; a stored path missing from list is deleted, together with the
+// updated, the roles after the account's own choices (Use This Mailbox
+// For); a stored path missing from list is deleted, together with the
 // messages left in no mailbox (and their search entries). Name is the last
 // component of Path after Delimiter (the whole path when Delimiter is empty).
 // It emits api.MailboxChanged for each mailbox inserted, changed or deleted
 // (Deleted: true), and api.MessageRemoved for messages deleted with a
 // mailbox. Task T-0012 implements it.
 func (t *Tx) ReplaceMailboxes(ctx context.Context, accountID int64, list []ServerMailbox) ([]Mailbox, error) {
+	list = slices.Clone(list)
+	if err := t.applyRoleChoices(ctx, accountID, list); err != nil {
+		return nil, err
+	}
 	stored, err := loadStoredMailboxes(ctx, t, accountID)
 	if err != nil {
 		return nil, err

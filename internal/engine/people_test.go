@@ -238,3 +238,24 @@ func TestSuggestContactsFirst(t *testing.T) {
 		t.Errorf("limit 1 = %+v", one)
 	}
 }
+
+// TestPeopleSenders: people.senders names the addresses whose person has a
+// photo, in any case, and only those.
+func TestPeopleSenders(t *testing.T) {
+	ps := newPeopleServer(t)
+	ctx := t.Context()
+	got, err := ps.c.People().Senders(ctx, &api.PeopleSendersParams{Addresses: []string{" ADA@example.com", "stranger@example.com", "alan@example.com"}})
+	if err != nil || len(got) != 1 || got[0].Address != "ada@example.com" || got[0].PersonID != ps.ada {
+		t.Errorf("people.senders = %+v, %v", got, err)
+	}
+	if got, err := ps.c.People().Senders(ctx, &api.PeopleSendersParams{Addresses: []string{}}); err != nil || len(got) != 0 {
+		t.Errorf("no addresses = %+v, %v", got, err)
+	}
+	many := make([]string, 501)
+	for i := range many {
+		many[i] = "x@example.com"
+	}
+	if _, err := ps.c.People().Senders(ctx, &api.PeopleSendersParams{Addresses: many}); code(err) != api.CodeInvalidParams {
+		t.Errorf("501 addresses: %v", err)
+	}
+}

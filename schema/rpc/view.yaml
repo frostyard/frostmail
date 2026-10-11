@@ -8,6 +8,17 @@ enums:
     values:
       - {name: insert, doc: "count rows were inserted at index at."}
       - {name: remove, doc: "count rows starting at index at were removed."}
+  - name: ViewSort
+    doc: What a view's rows are ordered by.
+    values:
+      - {name: date, doc: "The list date: arrival, or when a Remind Me reminder fired (the default)."}
+      - {name: from, doc: "The sender's name, else address."}
+      - {name: to, doc: "The first recipient's name, else address."}
+      - {name: subject, doc: "The subject without Re: and Fwd:."}
+      - {name: size}
+      - {name: flags, doc: "Flagged, by color."}
+      - {name: unread}
+      - {name: attachments, doc: "Has attachments."}
   - name: ConditionMatch
     doc: How a list of conditions combines (docs/design/organize.md).
     values:
@@ -71,7 +82,7 @@ types:
       - {name: match, type: ConditionMatch}
       - {name: conditions, type: "[]Condition"}
   - name: ViewQuery
-    doc: Which messages a view lists, newest first. Every field that is set must match.
+    doc: Which messages a view lists, newest first unless sort says otherwise. Every field that is set must match.
     fields:
       - {name: accountId, type: int, optional: true}
       - {name: mailboxId, type: int, optional: true}
@@ -84,6 +95,8 @@ types:
       - {name: conditions, type: Conditions, optional: true, doc: "Conditions every listed message also meets."}
       - {name: smartMailboxId, type: int, optional: true, doc: "The messages of a smart mailbox, which the view follows as it is edited."}
       - {name: filter, type: Conditions, optional: true, doc: "More conditions, which must also hold: the filter bar's, beside a source's own."}
+      - {name: sort, type: ViewSort, optional: true, doc: "The order; date by default. With threads, threads are ordered by their row's message."}
+      - {name: ascending, type: bool, optional: true, doc: "Lowest first: oldest, A to Z, smallest, and unflagged, read or without attachments before the others. Descending by default."}
   - name: ViewInfo
     doc: An open view.
     fields:

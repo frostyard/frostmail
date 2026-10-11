@@ -29,8 +29,26 @@ func (s settingsService) Get(ctx context.Context, _ *api.SettingsGetParams) (*ap
 	if err != nil {
 		return nil, err
 	}
+	return s.answer(ctx, st)
+}
+
+// answer is the settings as the API gives them: favorites since deleted
+// left out.
+func (s settingsService) answer(ctx context.Context, st store.Settings) (*api.Settings, error) {
+	mbs, err := s.DB.ListMailboxes(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	exists := map[int64]bool{}
+	for _, mb := range mbs {
+		exists[mb.ID] = true
+	}
+	st.Favorites = slices.DeleteFunc(slices.Clone(st.Favorites), func(id int64) bool { return !exists[id] })
 	return toAPISettings(st), nil
 }
+
+// maxFavorites bounds the sidebar's Favorites.
+const maxFavorites = 50
 
 // maxFlagName bounds a flag's name, in characters.
 const maxFlagName = 40
@@ -73,13 +91,24 @@ func (s settingsService) Set(ctx context.Context, p *api.SettingsSetParams) (*ap
 			}
 			st.FlagNames = names
 		}
+		if p.Favorites != nil {
+			if len(p.Favorites) > maxFavorites || len(slices.Compact(slices.Sorted(slices.Values(p.Favorites)))) != len(p.Favorites) {
+				return api.InvalidParams("favorites must be at most %d mailboxes, without repeats", maxFavorites)
+			}
+			for _, id := range p.Favorites {
+				if _, err := s.DB.GetMailbox(ctx, id); err != nil {
+					return apiError(err, fmt.Sprintf("mailbox %d", id))
+				}
+			}
+			st.Favorites = slices.Clone(p.Favorites)
+		}
 		out = st
 		return tx.SetSettings(ctx, st)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return toAPISettings(out), nil
+	return s.answer(ctx, out)
 }
 
 // flagNames checks seven flag names and trims them.
@@ -99,7 +128,11 @@ func flagNames(in []string) ([]string, error) {
 }
 
 func toAPISettings(s store.Settings) *api.Settings {
-	out := &api.Settings{UndoDelay: int64(s.UndoDelay), NotifyScope: api.NotifyScope(s.NotifyScope), FlagNames: s.FlagNames}
+	out := &api.Settings{UndoDelay: int64(s.UndoDelay), NotifyScope: api.NotifyScope(s.NotifyScope), FlagNames: s.FlagNames,
+		Favorites: s.Favorites}
+	if out.Favorites == nil {
+		out.Favorites = []int64{}
+	}
 	if s.NotifySmartID != 0 {
 		out.NotifySmartID = &s.NotifySmartID
 	}

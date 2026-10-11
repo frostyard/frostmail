@@ -1787,12 +1787,74 @@ type MailboxListParams struct {
 	AccountID *int64 `json:"accountId,omitzero"`
 }
 
+// MailboxCreateParams holds the params of mailbox.create.
+type MailboxCreateParams struct {
+	AccountID int64 `json:"accountId"`
+	// 1-100 characters, without the account's hierarchy delimiter.
+	Name string `json:"name"`
+	// A mailbox of the same account.
+	ParentID *int64 `json:"parentId,omitzero"`
+}
+
+// MailboxRenameParams holds the params of mailbox.rename.
+type MailboxRenameParams struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// MailboxMoveParams holds the params of mailbox.move.
+type MailboxMoveParams struct {
+	ID       int64  `json:"id"`
+	ParentID *int64 `json:"parentId,omitzero"`
+}
+
+// MailboxDeleteParams holds the params of mailbox.delete.
+type MailboxDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// MailboxSetRoleParams holds the params of mailbox.setRole.
+type MailboxSetRoleParams struct {
+	ID int64 `json:"id"`
+	// drafts, sent, junk, trash or archive.
+	Role MailboxRole `json:"role"`
+}
+
+// MailboxEraseParams holds the params of mailbox.erase.
+type MailboxEraseParams struct {
+	ID int64 `json:"id"`
+}
+
 // MailboxService: Mailboxes (IMAP folders, and Gmail labels shown as
 // folders).
 type MailboxService interface {
 	// List implements mailbox.list. Mailboxes ordered by account, role, then
 	// path.
 	List(ctx context.Context, p *MailboxListParams) ([]Mailbox, error)
+	// Create implements mailbox.create. Make a mailbox (a label on Gmail), at the
+	// top level or inside parentId, at once here and on the server when online.
+	// Conflict when the name is taken or the account is read-only.
+	Create(ctx context.Context, p *MailboxCreateParams) (*Mailbox, error)
+	// Rename implements mailbox.rename. Give a mailbox a new name in the same
+	// place; the mailboxes inside it follow. Conflict for a mailbox with a role,
+	// while the account has changes waiting to reach the server, or when the name
+	// is taken.
+	Rename(ctx context.Context, p *MailboxRenameParams) (*Mailbox, error)
+	// Move implements mailbox.move. Put a mailbox inside parentId, or at the top
+	// level without it; the mailboxes inside it follow. Conflict as rename, and
+	// for a parent inside the mailbox itself.
+	Move(ctx context.Context, p *MailboxMoveParams) (*Mailbox, error)
+	// Delete implements mailbox.delete. Delete a mailbox, the mailboxes inside
+	// it, and their messages (on Gmail, the labels; the messages stay in All
+	// Mail). Conflict as rename.
+	Delete(ctx context.Context, p *MailboxDeleteParams) error
+	// SetRole implements mailbox.setRole. Use This Mailbox For: make a mailbox
+	// the account's drafts, sent, junk, trash or archive mailbox, in place of the
+	// one the server names. Conflict on Gmail, whose mailboxes keep their roles.
+	SetRole(ctx context.Context, p *MailboxSetRoleParams) (*Mailbox, error)
+	// Erase implements mailbox.erase. Erase Deleted Items or Erase Junk Mail:
+	// delete every message in a trash or junk mailbox for good. Returns how many.
+	Erase(ctx context.Context, p *MailboxEraseParams) (int64, error)
 }
 
 func registerMailbox(r *Router, s MailboxService) {
@@ -1802,6 +1864,48 @@ func registerMailbox(r *Router, s MailboxService) {
 			return nil, err
 		}
 		return s.List(ctx, &p)
+	})
+	r.handle("mailbox.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxCreateParams
+		if err := decodeParams(raw, &p, []string{"accountId", "name"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("mailbox.rename", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxRenameParams
+		if err := decodeParams(raw, &p, []string{"id", "name"}); err != nil {
+			return nil, err
+		}
+		return s.Rename(ctx, &p)
+	})
+	r.handle("mailbox.move", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxMoveParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Move(ctx, &p)
+	})
+	r.handle("mailbox.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("mailbox.setRole", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxSetRoleParams
+		if err := decodeParams(raw, &p, []string{"id", "role"}); err != nil {
+			return nil, err
+		}
+		return s.SetRole(ctx, &p)
+	})
+	r.handle("mailbox.erase", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxEraseParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Erase(ctx, &p)
 	})
 }
 
@@ -1817,6 +1921,58 @@ var _ MailboxService = MailboxClient{}
 func (x MailboxClient) List(ctx context.Context, p *MailboxListParams) ([]Mailbox, error) {
 	var r []Mailbox
 	err := x.c.Call(ctx, "mailbox.list", p, &r)
+	return r, err
+}
+
+// Create calls mailbox.create.
+func (x MailboxClient) Create(ctx context.Context, p *MailboxCreateParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Rename calls mailbox.rename.
+func (x MailboxClient) Rename(ctx context.Context, p *MailboxRenameParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.rename", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Move calls mailbox.move.
+func (x MailboxClient) Move(ctx context.Context, p *MailboxMoveParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.move", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls mailbox.delete.
+func (x MailboxClient) Delete(ctx context.Context, p *MailboxDeleteParams) error {
+	return x.c.Call(ctx, "mailbox.delete", p, nil)
+}
+
+// SetRole calls mailbox.setRole.
+func (x MailboxClient) SetRole(ctx context.Context, p *MailboxSetRoleParams) (*Mailbox, error) {
+	var r Mailbox
+	err := x.c.Call(ctx, "mailbox.setRole", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Erase calls mailbox.erase.
+func (x MailboxClient) Erase(ctx context.Context, p *MailboxEraseParams) (int64, error) {
+	var r int64
+	err := x.c.Call(ctx, "mailbox.erase", p, &r)
 	return r, err
 }
 
@@ -1891,6 +2047,16 @@ type Part struct {
 	ContentID string `json:"contentId"`
 	// Encoded size in bytes.
 	Size int64 `json:"size"`
+}
+
+// MessageSource: A message as the server holds it.
+type MessageSource struct {
+	// The header section, up to the blank line.
+	Headers string `json:"headers"`
+	// The whole message, at most 2 MB of it.
+	Text string `json:"text"`
+	// The message is longer than text.
+	Truncated bool `json:"truncated"`
 }
 
 // Message: Everything about a message except its body.
@@ -2006,6 +2172,18 @@ type MessageDeleteParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageSourceParams holds the params of message.source.
+type MessageSourceParams struct {
+	ID int64 `json:"id"`
+}
+
+// MessageSaveParams holds the params of message.save.
+type MessageSaveParams struct {
+	ID int64 `json:"id"`
+	// An absolute path the user chose.
+	Path string `json:"path"`
+}
+
 // MessageRemindParams holds the params of message.remind.
 type MessageRemindParams struct {
 	IDs []int64 `json:"ids"`
@@ -2046,6 +2224,14 @@ type MessageService interface {
 	// Delete implements message.delete. Move messages to the account's Trash;
 	// messages already in Trash are deleted from the server.
 	Delete(ctx context.Context, p *MessageDeleteParams) error
+	// Source implements message.source. Raw Source and All Headers: the message
+	// as the server holds it, fetched first when it is not stored. Bytes that are
+	// not UTF-8 show as U+FFFD.
+	Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error)
+	// Save implements message.save. Save As: write the message as the server
+	// holds it (an .eml file) to path, replacing a file there. invalidParams for
+	// a relative path.
+	Save(ctx context.Context, p *MessageSaveParams) error
 	// Remind implements message.remind. Remind Me: at a time, bring messages back
 	// to the top of their account's inbox and notify (ADR-0025). Without at,
 	// clear their reminders. Conflict for a read-only account's messages.
@@ -2115,6 +2301,20 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("message.source", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageSourceParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Source(ctx, &p)
+	})
+	r.handle("message.save", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageSaveParams
+		if err := decodeParams(raw, &p, []string{"id", "path"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Save(ctx, &p)
 	})
 	r.handle("message.remind", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRemindParams
@@ -2198,6 +2398,21 @@ func (x MessageClient) Copy(ctx context.Context, p *MessageCopyParams) error {
 // Delete calls message.delete.
 func (x MessageClient) Delete(ctx context.Context, p *MessageDeleteParams) error {
 	return x.c.Call(ctx, "message.delete", p, nil)
+}
+
+// Source calls message.source.
+func (x MessageClient) Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error) {
+	var r MessageSource
+	err := x.c.Call(ctx, "message.source", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Save calls message.save.
+func (x MessageClient) Save(ctx context.Context, p *MessageSaveParams) error {
+	return x.c.Call(ctx, "message.save", p, nil)
 }
 
 // Remind calls message.remind.
@@ -2574,6 +2789,13 @@ type Photo struct {
 	Data string `json:"data"`
 }
 
+// SenderPhoto: An address whose person has a photo (people.photo).
+type SenderPhoto struct {
+	// Lowercased.
+	Address  string `json:"address"`
+	PersonID int64  `json:"personId"`
+}
+
 // ContactCard: What the app shows for an email address in mail.
 type ContactCard struct {
 	// Lowercased.
@@ -2615,6 +2837,12 @@ type PeoplePhotoParams struct {
 	ID int64 `json:"id"`
 }
 
+// PeopleSendersParams holds the params of people.senders.
+type PeopleSendersParams struct {
+	// At most 500.
+	Addresses []string `json:"addresses"`
+}
+
 // PeopleAddParams holds the params of people.add.
 type PeopleAddParams struct {
 	Email string `json:"email"`
@@ -2640,6 +2868,10 @@ type PeopleService interface {
 	// Photo implements people.photo. A person's photo, from the first of their
 	// contacts that has one.
 	Photo(ctx context.Context, p *PeoplePhotoParams) (*Photo, error)
+	// Senders implements people.senders. Which of these addresses belong to a
+	// person with a photo, for contact photos in the message list. Addresses
+	// without one are left out.
+	Senders(ctx context.Context, p *PeopleSendersParams) ([]SenderPhoto, error)
 	// Add implements people.add. Add to Contacts: store a new vCard 3.0 with the
 	// name and address in an address book and write it to the server.
 	Add(ctx context.Context, p *PeopleAddParams) (*Person, error)
@@ -2673,6 +2905,13 @@ func registerPeople(r *Router, s PeopleService) {
 			return nil, err
 		}
 		return s.Photo(ctx, &p)
+	})
+	r.handle("people.senders", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleSendersParams
+		if err := decodeParams(raw, &p, []string{"addresses"}); err != nil {
+			return nil, err
+		}
+		return s.Senders(ctx, &p)
 	})
 	r.handle("people.add", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p PeopleAddParams
@@ -2726,6 +2965,13 @@ func (x PeopleClient) Photo(ctx context.Context, p *PeoplePhotoParams) (*Photo, 
 		return nil, err
 	}
 	return &r, nil
+}
+
+// Senders calls people.senders.
+func (x PeopleClient) Senders(ctx context.Context, p *PeopleSendersParams) ([]SenderPhoto, error) {
+	var r []SenderPhoto
+	err := x.c.Call(ctx, "people.senders", p, &r)
+	return r, err
 }
 
 // Add calls people.add.
@@ -3070,6 +3316,9 @@ type Settings struct {
 	// Seven names, for flag colors 1-7; an empty name is the color's own (Red ...
 	// Gray).
 	FlagNames []string `json:"flagNames"`
+	// Mailboxes added to the sidebar's Favorites, in order; mailboxes since
+	// deleted are left out. Absent when there are none.
+	Favorites []int64 `json:"favorites,omitzero"`
 }
 
 // SettingsGetParams holds the params of settings.get.
@@ -3084,6 +3333,8 @@ type SettingsSetParams struct {
 	NotifySmartID *int64 `json:"notifySmartId,omitzero"`
 	// Seven names, each at most 40 characters.
 	FlagNames []string `json:"flagNames,omitzero"`
+	// Mailbox IDs, at most 50, without repeats.
+	Favorites []int64 `json:"favorites,omitzero"`
 }
 
 // SettingsService: Preferences maild keeps for every account, so they hold
@@ -3694,6 +3945,35 @@ func (v ViewOpKind) Valid() bool {
 	return false
 }
 
+// ViewSort: What a view's rows are ordered by.
+type ViewSort string
+
+const (
+	// The list date: arrival, or when a Remind Me reminder fired (the default).
+	ViewSortDate ViewSort = "date"
+	// The sender's name, else address.
+	ViewSortFrom ViewSort = "from"
+	// The first recipient's name, else address.
+	ViewSortTo ViewSort = "to"
+	// The subject without Re: and Fwd:.
+	ViewSortSubject ViewSort = "subject"
+	ViewSortSize    ViewSort = "size"
+	// Flagged, by color.
+	ViewSortFlags  ViewSort = "flags"
+	ViewSortUnread ViewSort = "unread"
+	// Has attachments.
+	ViewSortAttachments ViewSort = "attachments"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ViewSort) Valid() bool {
+	switch v {
+	case ViewSortDate, ViewSortFrom, ViewSortTo, ViewSortSubject, ViewSortSize, ViewSortFlags, ViewSortUnread, ViewSortAttachments:
+		return true
+	}
+	return false
+}
+
 // ConditionMatch: How a list of conditions combines
 // (docs/design/organize.md).
 type ConditionMatch string
@@ -3831,8 +4111,8 @@ type Conditions struct {
 	Conditions []Condition    `json:"conditions"`
 }
 
-// ViewQuery: Which messages a view lists, newest first. Every field that is
-// set must match.
+// ViewQuery: Which messages a view lists, newest first unless sort says
+// otherwise. Every field that is set must match.
 type ViewQuery struct {
 	AccountID *int64 `json:"accountId,omitzero"`
 	MailboxID *int64 `json:"mailboxId,omitzero"`
@@ -3860,6 +4140,12 @@ type ViewQuery struct {
 	// More conditions, which must also hold: the filter bar's, beside a source's
 	// own.
 	Filter *Conditions `json:"filter,omitzero"`
+	// The order; date by default. With threads, threads are ordered by their
+	// row's message.
+	Sort *ViewSort `json:"sort,omitzero"`
+	// Lowest first: oldest, A to Z, smallest, and unflagged, read or without
+	// attachments before the others. Descending by default.
+	Ascending *bool `json:"ascending,omitzero"`
 }
 
 // ViewInfo: An open view.
@@ -4251,6 +4537,12 @@ var Methods = []string{
 	"identity.create",
 	"identity.delete",
 	"mailbox.list",
+	"mailbox.create",
+	"mailbox.rename",
+	"mailbox.move",
+	"mailbox.delete",
+	"mailbox.setRole",
+	"mailbox.erase",
 	"message.get",
 	"message.body",
 	"message.summaries",
@@ -4260,6 +4552,8 @@ var Methods = []string{
 	"message.move",
 	"message.copy",
 	"message.delete",
+	"message.source",
+	"message.save",
 	"message.remind",
 	"oauth.setClient",
 	"oauth.getClient",
@@ -4271,6 +4565,7 @@ var Methods = []string{
 	"people.get",
 	"people.card",
 	"people.photo",
+	"people.senders",
 	"people.add",
 	"rpc.hello",
 	"rule.list",

@@ -148,6 +148,51 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (`outbox.reschedule {id, sendAt: now}`) and Change Time… (the time sheet
   titled "Send Later", starting at its time; OK calls
   `outbox.reschedule`). The Outbox section leaves these messages out.
+- **Mailboxes** (M5, [organize.md](../design/organize.md#mailboxes)): an
+  account's section header shows, on hover and while focused, a 14px `plus`
+  named "New Mailbox" (not on a read-only account), which opens the
+  mailbox sheet to make one at the top level. Right click (or the Menu
+  key) on one of an account's mailbox rows opens, in this order:
+  - New Mailbox… (the sheet, inside this mailbox), Rename Mailbox…, Move
+    Mailbox… and Delete Mailbox…; the last three are disabled for a
+    mailbox with a role. Delete asks first, as removing an account does
+    (title "Delete Mailbox?", text `Delete the mailbox "<name>" and the
+    messages in it?`, OK labeled Delete), then calls `mailbox.delete`;
+    the source becomes All Inboxes when it was that mailbox.
+  - Then, after a separator, Use This Mailbox For ▸ Drafts, Sent, Junk,
+    Trash, Archive (the mailbox's role checked; `mailbox.setRole`), not
+    for the inbox nor on Gmail (label) mailboxes; and for a trash mailbox
+    Erase Deleted Items…, for a junk mailbox Erase Junk Mail…, which ask
+    first (title "Erase Deleted Items?" or "Erase Junk Mail?", text
+    `Erase the <total> messages in "<name>"? They cannot be recovered.`,
+    OK labeled Erase), then call `mailbox.erase`.
+  - Then, after a separator, Add to Favorites or Remove from Favorites.
+
+  On a read-only account every item but the favorites one is disabled.
+- **The mailbox sheet** (`app/src/features/sidebar/MailboxSheet.tsx`): the
+  smart mailbox sheet's frame, 400 wide, titled "New Mailbox", "Rename
+  Mailbox" or "Move Mailbox". "Name:" (a text input, at most 100
+  characters; not when moving) and "Location:" (a `select`: "Top Level"
+  valued `""`, then the account's mailboxes by path, valued by ID; not
+  when renaming); then maild's error (`ALERT`), Cancel and OK. OK is
+  disabled while the name is blank or a save is under way. OK calls
+  `mailbox.create {accountId, name, parentId?}`, `mailbox.rename {id,
+  name}` or `mailbox.move {id, parentId?}` (no `parentId` for the top
+  level); the sheet closes when it succeeds and shows maild's error when
+  it does not.
+- **Favorites** (M5): after All Inboxes, the unified rows, VIPs and
+  Flagged, the `favorites` setting's mailboxes in order: key
+  `favorite:<id>`, the mailbox's name, its role's icon, its unread count;
+  choosing one shows that mailbox. Right click on one: Remove from
+  Favorites, Move Up and Move Down (disabled at the ends), each a
+  `settings.set {favorites}`.
+- **Drag and drop** (M5): message rows drag; the dragged messages are the
+  selection when the row is in it, else the row. Dropping them on a
+  mailbox row (an account's or a favorite) of their own account moves
+  them there, as Move to does; with Alt held (as in Mail.app) or Ctrl
+  (the Linux habit) it copies them, as Copy to does. A row under a drag that would take them shows
+  `--selection-inactive`. Nothing happens on a mailbox of another account
+  or of a read-only account.
 - **Counts of built-in sources:** one `view.count` for VIPs, each VIP row,
   Flagged, colors 1–7 and each smart mailbox, when the window connects and
   300 ms after the last `mailbox.changed`, `vip.changed`,
@@ -174,6 +219,22 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - Rows are **84 high**, fixed: 8 padding top and bottom, a 24px gutter on the
   left and 12 on the right; a 1px `--separator` at the bottom inset 24 from
   the left.
+- **Sort and view options** (M5, P-202, P-203, P-209): at the right of
+  the filter bar's row (outside its toolbar), a button "Sort by <Field>"
+  with a 12px `chevron-down`, 12/16 `--text-secondary`, opening a menu:
+  Date, From, To, Subject, Size, Flags, Unread, Attachments (the current
+  one checked); a separator; Ascending and Descending (the current
+  direction checked); a separator; Conversations and Contact Photos (each
+  checked when on). Choosing a field sets its usual direction: Date,
+  Size, Flags, Unread and Attachments descending, From, To and Subject
+  ascending. The sort, the direction and both options are kept with the
+  window's layout; the list's query carries `sort` and `ascending` unless
+  they are Date, descending (the default), and `threads` with
+  Conversations.
+- **Contact photos** (M5): with Contact Photos on, each row shows, left of
+  its two lines and 8px from them, a 32px circle: the sender's person's
+  photo (`people.senders` for the rows' senders, then `people.photo`,
+  kept for the session), else the reader header's initials on its tone.
 - **Line 1:** sender (display name, else address) 13/600 truncated; at the
   right a 12px paperclip when `hasAttachments`, a 12px `alarm-clock` in
   `--text-secondary` when the message has a pending reminder (M5,
@@ -254,6 +315,27 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (the time sheet titled "Remind Me", starting at the reminder's time; OK
   calls `message.remind {ids: [id], at}`) and Clear (`message.remind
   {ids: [id]}`), disabled on a read-only account.
+- **More Actions** (M5, P-304, P-307, P-308): at the right of each
+  message's header, a 28px button named "More Actions" (Lucide
+  `ellipsis`, 16px, `--text-secondary`) opening a menu: Show All Headers
+  (or Hide All Headers), Raw Source…, a separator, Save As…, Print….
+  - **All headers:** the message's header section (`message.source`'s
+    `headers`) in a `section` named "All Headers" under the header: a
+    `pre`, 11/16 monospace
+    `--text-secondary`, `white-space: pre-wrap`, 16px side padding, until
+    hidden or another message is shown.
+  - **Raw Source:** a sheet (the smart mailbox sheet's frame, 720 wide,
+    titled "Raw Source") with the whole message (`text`) in a 12/18
+    monospace `pre` 480 high that scrolls, "The message is longer than
+    what is shown." under it when `truncated`, and Close.
+  - **Save As:** the save dialog (title "Save Message", default name the
+    subject with `/` and `\` replaced by `-`, "(no subject)" when blank,
+    plus `.eml`, filter "Email Message" `eml`), then `message.save {id,
+    path}`; nothing when the dialog is cancelled; outside Tauri,
+    nothing.
+  - **Print:** the webview's print (`window.print()`). Print styles show
+    only the reader pane, unscrolled and without toolbars or banners'
+    buttons; the print dialog's Print to File is Export as PDF.
 - **Remote content banner** (between header and body, `--bg-banner`, 12/400):
   "This message contains remote content." with a "Load Remote Content"
   button; when trackers were blocked, " N trackers blocked." follows. Hidden

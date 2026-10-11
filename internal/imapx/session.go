@@ -840,6 +840,47 @@ func expand(set imap.UIDSet) []uint32 {
 // Expunge permanently removes uids, which must already be \Deleted, from the
 // selected mailbox. It needs UIDPLUS; a bare EXPUNGE could remove messages
 // another client marked.
+// Create makes a mailbox; one the server already has is not an error.
+func (s *Session) Create(ctx context.Context, path string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
+	err := s.run(ctx, func() error { return s.c.Create(path, nil).Wait() })
+	if e, ok := errors.AsType[*imap.Error](err); ok && e.Code == imap.ResponseCodeAlreadyExists {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("create %q: %w", path, err)
+	}
+	return nil
+}
+
+// Rename renames a mailbox and the mailboxes inside it.
+func (s *Session) Rename(ctx context.Context, from, to string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
+	if err := s.run(ctx, func() error { return s.c.Rename(from, to, nil).Wait() }); err != nil {
+		return fmt.Errorf("rename %q to %q: %w", from, to, err)
+	}
+	return nil
+}
+
+// Delete deletes a mailbox; one the server does not have is not an error.
+func (s *Session) Delete(ctx context.Context, path string) error {
+	if s.readOnly {
+		return ErrReadOnly
+	}
+	err := s.run(ctx, func() error { return s.c.Delete(path).Wait() })
+	if e, ok := errors.AsType[*imap.Error](err); ok && e.Code == imap.ResponseCodeNonExistent {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("delete %q: %w", path, err)
+	}
+	return nil
+}
+
 func (s *Session) Expunge(ctx context.Context, uids []uint32) error {
 	if s.readOnly {
 		return ErrReadOnly

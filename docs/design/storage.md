@@ -39,7 +39,11 @@ lexically. Highlights:
 - `settings`, `vips`, `smart_mailboxes`, `rules`, `message_reminders`
   (M5): preferences and what is built on them
   ([organize.md](organize.md)). Views order by `messages.list_date`, the
-  arrival date until a Remind Me reminder fires.
+  arrival date until a Remind Me reminder fires, unless `ViewQuery.sort`
+  names another key (from, to, subject, size, flags, unread,
+  attachments, either way); ties keep the list date. With threads, a
+  thread is its newest message's row and goes where that row's key puts
+  it.
 - `changes`: the durable event log; `seq` is AUTOINCREMENT, so it is never
   reused after `PruneChanges`.
 

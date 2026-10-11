@@ -5,6 +5,40 @@
 @import "@fontsource-variable/inter";
 @import "./tokens.css";
 
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  html,
+  body,
+  #root,
+  body *:has([data-print-area]) {
+    height: auto;
+    overflow: visible;
+  }
+
+  [data-print-area],
+  [data-print-area] * {
+    visibility: visible;
+  }
+
+  [data-print-area] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  [data-print-area] [role="status"] button,
+  [data-print-area] [role="dialog"],
+  [data-print-area] .print\:hidden {
+    display: none;
+  }
+}
+
 @theme inline {
   --font-sans: "Inter Variable", system-ui, sans-serif;
 
