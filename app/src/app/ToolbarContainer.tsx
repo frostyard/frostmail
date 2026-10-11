@@ -240,6 +240,7 @@ function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) 
 /** ToolbarContainer connects Toolbar to the active module and the window. */
 export function ToolbarContainer(props: ToolbarContainerProps) {
   const ui = useUI();
+  const flagNames = useMail((s) => s.settings?.flagNames);
   const data = useToolbarData(props.model, props.people);
   const frame = useCalendarFrame();
   const maximized = useMaximized();
@@ -277,6 +278,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
       subtitle={data.subtitle}
       syncing={data.syncing}
       selection={data.selection}
+      flagNames={flagNames}
       canArchive={data.archive !== undefined}
       moveTargets={data.moveTargets}
       maximized={maximized}
