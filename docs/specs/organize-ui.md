@@ -94,8 +94,9 @@ a whole new `Conditions`.
   (`circle-plus`, "Add condition after N"). N counts from 1.
 - Choosing a field gives the row that field's first operator and its
   starting value. Choosing an operator keeps the value when it is the same
-  kind (text to text, one choice to one choice), else gives the operator's
-  starting value.
+  kind (text to text, a duration to a duration, a day to a day, and
+  choices to choices, a list going to a single choice keeping its first
+  item), else gives the operator's starting value.
 - Add inserts, after its row, a new `from contains ""` row. Remove deletes
   its row; it is disabled when there is one row.
 - A value that does not fit its control (a condition made elsewhere) shows
