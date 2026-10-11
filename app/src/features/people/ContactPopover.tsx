@@ -21,6 +21,9 @@ export interface ContactPopoverProps {
   /** The clock for the recent mail's dates. */
   now: Date;
   add: AddState;
+  vip?: boolean;
+  vipBusy?: boolean;
+  onVip?: () => void;
   onCompose: () => void;
   onAdd: () => void;
   onOpenPerson: (id: number) => void;
@@ -87,6 +90,16 @@ export function ContactPopover(props: ContactPopoverProps) {
             onClick={() => card.person && onOpenPerson(card.person.id)}
           >
             Open in People
+          </button>
+        )}
+        {props.onVip && (
+          <button
+            type="button"
+            className="h-7 rounded-md border border-separator px-2"
+            disabled={props.vipBusy}
+            onClick={props.onVip}
+          >
+            {props.vip ? "Remove from VIPs" : "Add to VIPs"}
           </button>
         )}
       </div>

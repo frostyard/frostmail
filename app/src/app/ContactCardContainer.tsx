@@ -1,9 +1,10 @@
 // Opens the contact card for an address in the reader (docs/specs/pim-ui.md).
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useClient } from "../data/session";
-import { useUI } from "../data/stores";
+import { useMail, useUI } from "../data/stores";
 import { UpcomingList } from "../features/calendar/UpcomingList";
 import { type AddState, ContactPopover } from "../features/people/ContactPopover";
+import { isVip, vipSet } from "../lib/vips";
 import type { Address, ContactCard } from "../rpc/gen/api";
 import { composeTo } from "./compose";
 import { revealMessage } from "./openMessage";
@@ -24,6 +25,11 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
   const [card, setCard] = useState<ContactCard | null>(null);
   const [photo, setPhoto] = useState<string | undefined>();
   const [add, setAdd] = useState<AddState>("idle");
+  const vips = useMail((s) => s.vips);
+  const vipAddresses = useMemo(() => vipSet(vips), [vips]);
+  const vip = isVip(address.address, vipAddresses);
+  const [vipBusy, setVipBusy] = useState(false);
+  const changingVip = useRef(false);
   const name = card?.name.trim() || address.name.trim();
 
   useEffect(() => {
@@ -69,6 +75,22 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
     }
   };
 
+  const toggleVip = async () => {
+    if (changingVip.current) return;
+    changingVip.current = true;
+    setVipBusy(true);
+    try {
+      const params = person ? { personId: person.id } : { addresses: [address.address] };
+      if (vip) await client.vip.remove(params);
+      else await client.vip.add(params);
+    } catch (err: unknown) {
+      console.warn("change VIP", err);
+    } finally {
+      changingVip.current = false;
+      setVipBusy(false);
+    }
+  };
+
   return (
     <ContactPopover
       address={address}
@@ -93,6 +115,9 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
         )
       }
       add={add}
+      vip={vip}
+      vipBusy={vipBusy}
+      onVip={() => void toggleVip()}
       onClose={onClose}
       onCompose={() => {
         void composeTo(client, address.address, name).catch((err: unknown) => console.warn("compose", err));
