@@ -9,8 +9,9 @@ import type { ViewModel } from "../data/view";
 import { emptyText } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
-import { FLAG_NAMES } from "../lib/flags";
+import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
+import { isVip, vipSet } from "../lib/vips";
 import {
   archiveMailbox,
   archiveOf,
@@ -62,6 +63,9 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const client = useClient();
     const mailboxes = useMail((s) => s.mailboxes);
     const accounts = useMail((s) => s.accounts);
+    const flagNames = useMail((s) => s.settings?.flagNames);
+    const vips = useMail((s) => s.vips);
+    const vipAddresses = useMemo(() => vipSet(vips), [vips]);
     const { selected, anchor, focus, conversations, source, listFilter, select, setFocus, setListFilter } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
@@ -272,10 +276,10 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           disabled: readOnly,
           items: [
             ...FLAG_NAMES.map(
-              (name, i): MenuItem => ({
+              (_, i): MenuItem => ({
                 kind: "item",
                 id: `flag:${i + 1}`,
-                label: name,
+                label: flagLabel(i + 1, flagNames),
                 checked: rows[0]?.flags.flagColor === i + 1,
                 disabled: readOnly,
               }),
@@ -298,7 +302,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         },
       );
       return items;
-    }, [menu, model, mailboxes, accounts]);
+    }, [menu, model, mailboxes, accounts, flagNames]);
 
     const onMenuSelect = useCallback(
       (id: string) => {
@@ -377,6 +381,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                   {row ? (
                     <MessageRow
                       message={row}
+                      vip={isVip(row.from.address, vipAddresses)}
                       selected={selected.includes(row.id)}
                       focused={focused}
                       showThreadCount={conversations}

@@ -3,7 +3,7 @@
 // name, date, subject and recipients; the strip lists a message's
 // attachments as chips; the banner reports remote content and trackers that
 // were held back and offers to load them.
-import { File } from "lucide-react";
+import { File, Star } from "lucide-react";
 import { Fragment } from "react";
 
 import { avatarTone, displayName, formatAddressList, formatHeaderDate, formatSize, initials } from "../../lib/format";
@@ -25,6 +25,7 @@ const AVATAR_CLASSES: Record<number, string> = {
 /** MessageHeaderProps are a header's inputs. */
 export interface MessageHeaderProps {
   message: Message;
+  vip?: boolean;
   onAddress?: (address: Address, at: { x: number; y: number }) => void;
 }
 
@@ -100,17 +101,22 @@ export function MessageHeader(props: MessageHeaderProps) {
       </div>
       <div className="min-w-0 flex-1 select-text">
         <div className="flex items-baseline gap-2">
-          {props.onAddress ? (
-            <AddressButton
-              address={summary.from}
-              onAddress={props.onAddress}
-              className="text-reader-sender truncate flex-1 text-left"
-            />
-          ) : (
-            <span className="text-reader-sender truncate flex-1" title={summary.from.address}>
-              {displayName(summary.from)}
-            </span>
-          )}
+          <span className="flex min-w-0 flex-1 items-center gap-1">
+            {props.onAddress ? (
+              <AddressButton
+                address={summary.from}
+                onAddress={props.onAddress}
+                className="text-reader-sender truncate text-left"
+              />
+            ) : (
+              <span className="text-reader-sender truncate" title={summary.from.address}>
+                {displayName(summary.from)}
+              </span>
+            )}
+            {props.vip && (
+              <Star size={12} role="img" aria-label="VIP" className="shrink-0 fill-current text-secondary" />
+            )}
+          </span>
           <span className="text-reader-meta text-secondary shrink-0">{formatHeaderDate(new Date(summary.date))}</span>
         </div>
         <div className="text-reader-subject">{subject === "" ? "(No Subject)" : subject}</div>

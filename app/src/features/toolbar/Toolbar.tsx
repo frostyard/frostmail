@@ -31,7 +31,7 @@ import {
 import { type MouseEvent, type ReactNode, useState } from "react";
 
 import type { CalendarView } from "../../lib/calendarDates";
-import { FLAG_NAMES } from "../../lib/flags";
+import { FLAG_NAMES, flagLabel } from "../../lib/flags";
 import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ToolbarCommand is what a toolbar control asks for. */
@@ -93,6 +93,7 @@ export interface ToolbarTasks {
 
 /** ToolbarProps are the toolbar's inputs. */
 export interface ToolbarProps {
+  flagNames?: readonly string[];
   mode?: "mail" | "people" | "calendar" | "tasks";
   calendar?: ToolbarCalendar;
   tasks?: ToolbarTasks;
@@ -124,11 +125,11 @@ const BUTTON_CLASS =
   "flex size-7 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
 
 // The Flag menu: the seven colors as checkable items, then Clear Flag.
-function flagItems(selection: ToolbarSelection): MenuItem[] {
-  const items: MenuItem[] = FLAG_NAMES.map((name, i) => ({
+function flagItems(selection: ToolbarSelection, flagNames?: readonly string[]): MenuItem[] {
+  const items: MenuItem[] = FLAG_NAMES.map((_, i) => ({
     kind: "item",
     id: `flag:${i + 1}`,
-    label: name,
+    label: flagLabel(i + 1, flagNames),
     checked: selection.flagColor === i + 1,
   }));
   items.push({ kind: "separator" });
@@ -529,7 +530,7 @@ export function Toolbar(props: ToolbarProps) {
       <ToolbarSegments props={props} onOpenMenu={openMenu} />
       {menu && (props.mode ?? "mail") === "mail" ? (
         <ContextMenu
-          items={menu.kind === "flag" ? flagItems(props.selection) : moveItems(props.moveTargets)}
+          items={menu.kind === "flag" ? flagItems(props.selection, props.flagNames) : moveItems(props.moveTargets)}
           x={menu.x}
           y={menu.y}
           onSelect={choose}

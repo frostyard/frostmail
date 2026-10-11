@@ -15,7 +15,9 @@ import {
   type LucideIcon,
   Send,
   ShieldAlert,
+  Star,
   Trash2,
+  User,
 } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useState } from "react";
 
@@ -48,6 +50,18 @@ const ICONS: Record<SidebarIcon, LucideIcon> = {
   archive: Archive,
   flag: Flag,
   folder: Folder,
+  star: Star,
+  user: User,
+};
+
+const FLAG_CLASSES: Record<number, string> = {
+  1: "text-flag-1",
+  2: "text-flag-2",
+  3: "text-flag-3",
+  4: "text-flag-4",
+  5: "text-flag-5",
+  6: "text-flag-6",
+  7: "text-flag-7",
 };
 
 const NAVIGATION = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
@@ -86,6 +100,7 @@ function SyncDot({ indicator }: { indicator: SyncIndicator | undefined }) {
 function Row({ item, selected, focused }: { item: SidebarItem; selected: boolean; focused: boolean }) {
   const contrast = selected && focused;
   const Icon = ICONS[item.icon];
+  const iconColor = item.flagColor === undefined ? "text-accent" : (FLAG_CLASSES[item.flagColor] ?? "text-accent");
   const classes = [
     "mx-2 flex h-7 items-center gap-2 rounded-md pr-1",
     selected ? (focused ? "bg-accent text-accent-contrast" : "bg-selection-sidebar") : "",
@@ -104,11 +119,7 @@ function Row({ item, selected, focused }: { item: SidebarItem; selected: boolean
       className={classes}
       style={{ paddingLeft: 4 + 16 * item.depth }}
     >
-      <Icon
-        size={16}
-        data-icon={item.icon}
-        className={`shrink-0 ${contrast ? "text-accent-contrast" : "text-accent"}`}
-      />
+      <Icon size={16} data-icon={item.icon} className={`shrink-0 ${contrast ? "text-accent-contrast" : iconColor}`} />
       <span className="text-sidebar-row flex-1 truncate">{item.label}</span>
       {item.unread > 0 && (
         <span className={`text-[12px] tabular-nums ${contrast ? "text-accent-contrast" : "text-secondary"}`}>

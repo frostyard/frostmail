@@ -1,6 +1,6 @@
 // The reader: the selected message's conversation (docs/design/app.md, Reader).
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
@@ -14,6 +14,7 @@ import {
 } from "../features/reader/MessageHeader";
 import { PlainText } from "../features/reader/PlainText";
 import { zoned } from "../lib/calendarDates";
+import { isVip, vipSet } from "../lib/vips";
 import type { Address, Invitation, Message, MessageSummary, Part, Rendering } from "../rpc/gen/api";
 import { ContactCardContainer } from "./ContactCardContainer";
 import { useCalendarFrame } from "./useCalendar";
@@ -143,6 +144,8 @@ function ConversationMessage({
   onAddress: MessageHeaderProps["onAddress"];
 }) {
   const client = useClient();
+  const vips = useMail((s) => s.vips);
+  const vipAddresses = useMemo(() => vipSet(vips), [vips]);
   const [message, setMessage] = useState<Message | null>(null);
   const [rendering, setRendering] = useState<Rendering | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +187,13 @@ function ConversationMessage({
 
   return (
     <article aria-label={summary.subject} className="pb-2">
-      {message && <MessageHeader message={message} onAddress={onAddress} />}
+      {message && (
+        <MessageHeader
+          message={message}
+          onAddress={onAddress}
+          vip={isVip(message.summary.from.address, vipAddresses)}
+        />
+      )}
       {invitation && (
         <InvitationCard
           invitation={invitation}

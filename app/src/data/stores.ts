@@ -6,6 +6,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { OccurrenceKey } from "../features/calendar/TimeGrid";
 import type { ListFilter } from "../features/list/FilterBar";
 import type { CalendarView } from "../lib/calendarDates";
+import { vipGroups } from "../lib/mailboxTree";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
 import type { Account, Mailbox, MailboxRole, OutboxItem, Settings, SyncStatus, ViewQuery, Vip } from "../rpc/gen/api";
@@ -43,7 +44,10 @@ export type Source =
   | { kind: "mailbox"; mailboxId: number }
   | { kind: "allInboxes" }
   | { kind: "role"; role: MailboxRole }
-  | { kind: "flagged" };
+  | { kind: "flagged" }
+  | { kind: "flagColor"; color: number }
+  | { kind: "vips" }
+  | { kind: "vip"; key: string; addresses: string[] };
 
 /** Pane is a focusable area of the window. */
 export type Pane = "sidebar" | "list" | "reader";
@@ -200,6 +204,12 @@ export function sourceKey(s: Source): string {
       return `role:${s.role}`;
     case "flagged":
       return "flagged";
+    case "flagColor":
+      return `flag:${s.color}`;
+    case "vips":
+      return "vips";
+    case "vip":
+      return s.key;
     case "mailbox":
       return `mailbox:${s.mailboxId}`;
   }
@@ -209,9 +219,14 @@ export function sourceKey(s: Source): string {
 const UNIFIED_ROLES: readonly MailboxRole[] = ["drafts", "sent", "junk", "trash", "archive"];
 
 /** sourceFromKey parses a sidebar key; null for keys that are not sources. */
-export function sourceFromKey(key: string): Source | null {
+export function sourceFromKey(key: string, vips: Vip[] = []): Source | null {
   if (key === "all-inboxes") return { kind: "allInboxes" };
   if (key === "flagged") return { kind: "flagged" };
+  if (key === "vips") return { kind: "vips" };
+  const color = /^flag:([1-7])$/.exec(key);
+  if (color) return { kind: "flagColor", color: Number(color[1]) };
+  const group = vipGroups(vips).find((group) => group.key === key);
+  if (group) return { kind: "vip", key: group.key, addresses: group.addresses };
   const role = UNIFIED_ROLES.find((r) => key === `role:${r}`);
   if (role) return { kind: "role", role };
   const m = /^mailbox:(\d+)$/.exec(key);
@@ -228,6 +243,18 @@ export function sourceQuery(s: Source, conversations: boolean): ViewQuery {
       return { role: s.role, ...threads };
     case "flagged":
       return { flagged: true, ...threads };
+    case "flagColor":
+      return {
+        conditions: { match: "all", conditions: [{ field: "color", op: "is", value: String(s.color) }] },
+        ...threads,
+      };
+    case "vips":
+      return { conditions: { match: "all", conditions: [{ field: "vip", op: "is", value: "true" }] }, ...threads };
+    case "vip":
+      return {
+        conditions: { match: "any", conditions: s.addresses.map((value) => ({ field: "from", op: "is", value })) },
+        ...threads,
+      };
     case "mailbox":
       return { mailboxId: s.mailboxId, ...threads };
   }
