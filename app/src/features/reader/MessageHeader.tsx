@@ -217,7 +217,7 @@ export function ReminderBanner(props: { when: string; disabled?: boolean; onChan
       <span>{`Remind Me: ${props.when}`}</span>
       <button
         type="button"
-        className="ml-auto h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2"
+        className="ml-auto h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2 disabled:opacity-40"
         disabled={props.disabled}
         onClick={props.onChange}
       >
@@ -225,7 +225,7 @@ export function ReminderBanner(props: { when: string; disabled?: boolean; onChan
       </button>
       <button
         type="button"
-        className="h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2"
+        className="h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2 disabled:opacity-40"
         disabled={props.disabled}
         onClick={props.onClear}
       >
