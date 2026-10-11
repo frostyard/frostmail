@@ -291,14 +291,16 @@ export class MockCompose {
    *  undo delay is Send Later, due then; anything else waits the undo delay. */
   private place(o: OutboxItem, sendAt?: string): void {
     const at = sendAt === undefined ? Number.NaN : Date.parse(sendAt);
-    if (at > Date.now() + this.undoMs) this.queue(o, at - Date.now(), true);
+    const now = Date.now();
+    if (at > now + this.undoMs) this.queue(o, at - now, true, at);
     else this.queue(o, this.undoMs);
   }
 
-  private queue(o: OutboxItem, delay: number, scheduled = false): void {
+  /** queue waits delay ms; due, when given, is the exact time it shows. */
+  private queue(o: OutboxItem, delay: number, scheduled = false, due = Date.now() + delay): void {
     o.state = "queued";
     o.scheduled = scheduled;
-    o.sendAt = new Date(Date.now() + delay).toISOString();
+    o.sendAt = new Date(due).toISOString();
     this.changed(o, false);
     // setTimeout cannot wait longer than about 24 days; the mock never
     // sends such a message.
