@@ -1,6 +1,6 @@
 // The settings window (docs/specs/settings-ui.md): the pane tabs and the
-// containers that connect the General, Accounts, Signatures, Rules and Sign-In panes to
-// maild.
+// containers that connect the General, Accounts, Signatures, Rules and Sign-In
+// panes to maild.
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
