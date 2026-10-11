@@ -284,6 +284,7 @@ export function buildSidebar(accounts: Account[], mailboxes: Mailbox[], extras: 
     key: `account:${a.id}`,
     title: a.email,
     accountId: a.id,
+    ...(a.readOnly ? {} : { addLabel: "New Mailbox" }),
     items: accountRows(a, mailboxes),
   }));
   const smart: SidebarSection[] =
