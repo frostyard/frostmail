@@ -2049,6 +2049,16 @@ type Part struct {
 	Size int64 `json:"size"`
 }
 
+// MessageSource: A message as the server holds it.
+type MessageSource struct {
+	// The header section, up to the blank line.
+	Headers string `json:"headers"`
+	// The whole message, at most 2 MB of it.
+	Text string `json:"text"`
+	// The message is longer than text.
+	Truncated bool `json:"truncated"`
+}
+
 // Message: Everything about a message except its body.
 type Message struct {
 	Summary MessageSummary `json:"summary"`
@@ -2162,6 +2172,18 @@ type MessageDeleteParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageSourceParams holds the params of message.source.
+type MessageSourceParams struct {
+	ID int64 `json:"id"`
+}
+
+// MessageSaveParams holds the params of message.save.
+type MessageSaveParams struct {
+	ID int64 `json:"id"`
+	// An absolute path the user chose.
+	Path string `json:"path"`
+}
+
 // MessageRemindParams holds the params of message.remind.
 type MessageRemindParams struct {
 	IDs []int64 `json:"ids"`
@@ -2202,6 +2224,14 @@ type MessageService interface {
 	// Delete implements message.delete. Move messages to the account's Trash;
 	// messages already in Trash are deleted from the server.
 	Delete(ctx context.Context, p *MessageDeleteParams) error
+	// Source implements message.source. Raw Source and All Headers: the message
+	// as the server holds it, fetched first when it is not stored. Bytes that are
+	// not UTF-8 show as U+FFFD.
+	Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error)
+	// Save implements message.save. Save As: write the message as the server
+	// holds it (an .eml file) to path, replacing a file there. invalidParams for
+	// a relative path.
+	Save(ctx context.Context, p *MessageSaveParams) error
 	// Remind implements message.remind. Remind Me: at a time, bring messages back
 	// to the top of their account's inbox and notify (ADR-0025). Without at,
 	// clear their reminders. Conflict for a read-only account's messages.
@@ -2271,6 +2301,20 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("message.source", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageSourceParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Source(ctx, &p)
+	})
+	r.handle("message.save", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageSaveParams
+		if err := decodeParams(raw, &p, []string{"id", "path"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Save(ctx, &p)
 	})
 	r.handle("message.remind", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRemindParams
@@ -2354,6 +2398,21 @@ func (x MessageClient) Copy(ctx context.Context, p *MessageCopyParams) error {
 // Delete calls message.delete.
 func (x MessageClient) Delete(ctx context.Context, p *MessageDeleteParams) error {
 	return x.c.Call(ctx, "message.delete", p, nil)
+}
+
+// Source calls message.source.
+func (x MessageClient) Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error) {
+	var r MessageSource
+	err := x.c.Call(ctx, "message.source", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Save calls message.save.
+func (x MessageClient) Save(ctx context.Context, p *MessageSaveParams) error {
+	return x.c.Call(ctx, "message.save", p, nil)
 }
 
 // Remind calls message.remind.
@@ -2730,6 +2789,13 @@ type Photo struct {
 	Data string `json:"data"`
 }
 
+// SenderPhoto: An address whose person has a photo (people.photo).
+type SenderPhoto struct {
+	// Lowercased.
+	Address  string `json:"address"`
+	PersonID int64  `json:"personId"`
+}
+
 // ContactCard: What the app shows for an email address in mail.
 type ContactCard struct {
 	// Lowercased.
@@ -2771,6 +2837,12 @@ type PeoplePhotoParams struct {
 	ID int64 `json:"id"`
 }
 
+// PeopleSendersParams holds the params of people.senders.
+type PeopleSendersParams struct {
+	// At most 500.
+	Addresses []string `json:"addresses"`
+}
+
 // PeopleAddParams holds the params of people.add.
 type PeopleAddParams struct {
 	Email string `json:"email"`
@@ -2796,6 +2868,10 @@ type PeopleService interface {
 	// Photo implements people.photo. A person's photo, from the first of their
 	// contacts that has one.
 	Photo(ctx context.Context, p *PeoplePhotoParams) (*Photo, error)
+	// Senders implements people.senders. Which of these addresses belong to a
+	// person with a photo, for contact photos in the message list. Addresses
+	// without one are left out.
+	Senders(ctx context.Context, p *PeopleSendersParams) ([]SenderPhoto, error)
 	// Add implements people.add. Add to Contacts: store a new vCard 3.0 with the
 	// name and address in an address book and write it to the server.
 	Add(ctx context.Context, p *PeopleAddParams) (*Person, error)
@@ -2829,6 +2905,13 @@ func registerPeople(r *Router, s PeopleService) {
 			return nil, err
 		}
 		return s.Photo(ctx, &p)
+	})
+	r.handle("people.senders", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleSendersParams
+		if err := decodeParams(raw, &p, []string{"addresses"}); err != nil {
+			return nil, err
+		}
+		return s.Senders(ctx, &p)
 	})
 	r.handle("people.add", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p PeopleAddParams
@@ -2882,6 +2965,13 @@ func (x PeopleClient) Photo(ctx context.Context, p *PeoplePhotoParams) (*Photo, 
 		return nil, err
 	}
 	return &r, nil
+}
+
+// Senders calls people.senders.
+func (x PeopleClient) Senders(ctx context.Context, p *PeopleSendersParams) ([]SenderPhoto, error) {
+	var r []SenderPhoto
+	err := x.c.Call(ctx, "people.senders", p, &r)
+	return r, err
 }
 
 // Add calls people.add.
@@ -3855,6 +3945,35 @@ func (v ViewOpKind) Valid() bool {
 	return false
 }
 
+// ViewSort: What a view's rows are ordered by.
+type ViewSort string
+
+const (
+	// The list date: arrival, or when a Remind Me reminder fired (the default).
+	ViewSortDate ViewSort = "date"
+	// The sender's name, else address.
+	ViewSortFrom ViewSort = "from"
+	// The first recipient's name, else address.
+	ViewSortTo ViewSort = "to"
+	// The subject without Re: and Fwd:.
+	ViewSortSubject ViewSort = "subject"
+	ViewSortSize    ViewSort = "size"
+	// Flagged, by color.
+	ViewSortFlags  ViewSort = "flags"
+	ViewSortUnread ViewSort = "unread"
+	// Has attachments.
+	ViewSortAttachments ViewSort = "attachments"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ViewSort) Valid() bool {
+	switch v {
+	case ViewSortDate, ViewSortFrom, ViewSortTo, ViewSortSubject, ViewSortSize, ViewSortFlags, ViewSortUnread, ViewSortAttachments:
+		return true
+	}
+	return false
+}
+
 // ConditionMatch: How a list of conditions combines
 // (docs/design/organize.md).
 type ConditionMatch string
@@ -3992,8 +4111,8 @@ type Conditions struct {
 	Conditions []Condition    `json:"conditions"`
 }
 
-// ViewQuery: Which messages a view lists, newest first. Every field that is
-// set must match.
+// ViewQuery: Which messages a view lists, newest first unless sort says
+// otherwise. Every field that is set must match.
 type ViewQuery struct {
 	AccountID *int64 `json:"accountId,omitzero"`
 	MailboxID *int64 `json:"mailboxId,omitzero"`
@@ -4021,6 +4140,12 @@ type ViewQuery struct {
 	// More conditions, which must also hold: the filter bar's, beside a source's
 	// own.
 	Filter *Conditions `json:"filter,omitzero"`
+	// The order; date by default. With threads, threads are ordered by their
+	// row's message.
+	Sort *ViewSort `json:"sort,omitzero"`
+	// Lowest first: oldest, A to Z, smallest, and unflagged, read or without
+	// attachments before the others. Descending by default.
+	Ascending *bool `json:"ascending,omitzero"`
 }
 
 // ViewInfo: An open view.
@@ -4427,6 +4552,8 @@ var Methods = []string{
 	"message.move",
 	"message.copy",
 	"message.delete",
+	"message.source",
+	"message.save",
 	"message.remind",
 	"oauth.setClient",
 	"oauth.getClient",
@@ -4438,6 +4565,7 @@ var Methods = []string{
 	"people.get",
 	"people.card",
 	"people.photo",
+	"people.senders",
 	"people.add",
 	"rpc.hello",
 	"rule.list",

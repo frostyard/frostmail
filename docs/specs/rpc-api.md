@@ -1130,6 +1130,29 @@ Move messages to the account's Trash; messages already in Trash are deleted from
 Result: none (`null`).
 Errors: `notFound`.
 
+### `message.source`
+
+Raw Source and All Headers: the message as the server holds it, fetched first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `MessageSource`.
+Errors: `notFound`, `unavailable`.
+
+### `message.save`
+
+Save As: write the message as the server holds it (an .eml file) to path, replacing a file there. invalidParams for a relative path.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `path` | `string` | An absolute path the user chose. |
+
+Result: none (`null`).
+Errors: `notFound`, `invalidParams`, `unavailable`.
+
 ### `message.remind`
 
 Remind Me: at a time, bring messages back to the top of their account's inbox and notify (ADR-0025). Without at, clear their reminders. Conflict for a read-only account's messages.
@@ -1214,6 +1237,16 @@ One MIME part.
 | `disposition` | `string` | inline, attachment or empty. |
 | `contentId` | `string` | Without angle brackets. |
 | `size` | `int` | Encoded size in bytes. |
+
+### Type `MessageSource`
+
+A message as the server holds it.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `headers` | `string` | The header section, up to the blank line. |
+| `text` | `string` | The whole message, at most 2 MB of it. |
+| `truncated` | `bool` | The message is longer than text. |
 
 ### Type `Message`
 
@@ -1458,6 +1491,17 @@ A person's photo, from the first of their contacts that has one.
 Result: `Photo`.
 Errors: `notFound`.
 
+### `people.senders`
+
+Which of these addresses belong to a person with a photo, for contact photos in the message list. Addresses without one are left out.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `addresses` | `[]string` | At most 500. |
+
+Result: `[]SenderPhoto`.
+Errors: `invalidParams`.
+
 ### `people.add`
 
 Add to Contacts: store a new vCard 3.0 with the name and address in an address book and write it to the server.
@@ -1557,6 +1601,15 @@ A person's photo.
 | --- | --- | --- |
 | `contentType` | `string` | Such as image/jpeg. |
 | `data` | `string` | The image, base64-encoded. |
+
+### Type `SenderPhoto`
+
+An address whose person has a photo (people.photo).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `address` | `string` | Lowercased. |
+| `personId` | `int` |  |
 
 ### Type `ContactCard`
 
@@ -2134,7 +2187,7 @@ Conditions, combined by match. An empty list matches every message.
 
 ### Type `ViewQuery`
 
-Which messages a view lists, newest first. Every field that is set must match.
+Which messages a view lists, newest first unless sort says otherwise. Every field that is set must match.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -2149,6 +2202,8 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `conditions` | `Conditions` (optional) | Conditions every listed message also meets. |
 | `smartMailboxId` | `int` (optional) | The messages of a smart mailbox, which the view follows as it is edited. |
 | `filter` | `Conditions` (optional) | More conditions, which must also hold: the filter bar's, beside a source's own. |
+| `sort` | `ViewSort` (optional) | The order; date by default. With threads, threads are ordered by their row's message. |
+| `ascending` | `bool` (optional) | Lowest first: oldest, A to Z, smallest, and unflagged, read or without attachments before the others. Descending by default. |
 
 ### Type `ViewInfo`
 
@@ -2186,6 +2241,21 @@ How a delta changes a view.
 | --- | --- |
 | `insert` | count rows were inserted at index at. |
 | `remove` | count rows starting at index at were removed. |
+
+### Enum `ViewSort`
+
+What a view's rows are ordered by.
+
+| Value | Meaning |
+| --- | --- |
+| `date` | The list date: arrival, or when a Remind Me reminder fired (the default). |
+| `from` | The sender's name, else address. |
+| `to` | The first recipient's name, else address. |
+| `subject` | The subject without Re: and Fwd:. |
+| `size` |  |
+| `flags` | Flagged, by color. |
+| `unread` |  |
+| `attachments` | Has attachments. |
 
 ### Enum `ConditionMatch`
 

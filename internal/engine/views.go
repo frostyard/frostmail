@@ -83,6 +83,15 @@ func filterOf(q api.ViewQuery) (store.ViewFilter, error) {
 	if q.Threads != nil {
 		f.Threads = *q.Threads
 	}
+	if q.Sort != nil {
+		if !q.Sort.Valid() {
+			return f, api.InvalidParams("sort %q is unknown", *q.Sort)
+		}
+		f.Sort = string(*q.Sort)
+	}
+	if q.Ascending != nil {
+		f.Ascending = *q.Ascending
+	}
 	if q.Conditions != nil {
 		if err := store.CheckConditions(*q.Conditions); err != nil {
 			return f, api.InvalidParams("%v", err)

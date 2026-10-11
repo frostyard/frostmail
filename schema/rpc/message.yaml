@@ -42,6 +42,12 @@ types:
       - {name: disposition, type: string, doc: "inline, attachment or empty."}
       - {name: contentId, type: string, doc: "Without angle brackets."}
       - {name: size, type: int, doc: "Encoded size in bytes."}
+  - name: MessageSource
+    doc: A message as the server holds it.
+    fields:
+      - {name: headers, type: string, doc: "The header section, up to the blank line."}
+      - {name: text, type: string, doc: "The whole message, at most 2 MB of it."}
+      - {name: truncated, type: bool, doc: "The message is longer than text."}
   - name: Message
     doc: Everything about a message except its body.
     fields:
@@ -146,6 +152,23 @@ methods:
     params:
       - {name: ids, type: "[]int"}
     errors: [notFound]
+  - name: source
+    doc: >-
+      Raw Source and All Headers: the message as the server holds it,
+      fetched first when it is not stored. Bytes that are not UTF-8 show as
+      U+FFFD.
+    params:
+      - {name: id, type: int}
+    result: MessageSource
+    errors: [notFound, unavailable]
+  - name: save
+    doc: >-
+      Save As: write the message as the server holds it (an .eml file) to
+      path, replacing a file there. invalidParams for a relative path.
+    params:
+      - {name: id, type: int}
+      - {name: path, type: string, doc: "An absolute path the user chose."}
+    errors: [notFound, invalidParams, unavailable]
   - name: remind
     doc: >-
       Remind Me: at a time, bring messages back to the top of their

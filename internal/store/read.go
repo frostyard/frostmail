@@ -40,6 +40,36 @@ type ViewFilter struct {
 	// SmartMailboxID lists a smart mailbox, read each time so an edit
 	// shows at the next recompute; an unknown one lists nothing.
 	SmartMailboxID int64
+
+	// Sort orders the rows by an api.ViewSort other than date; Ascending
+	// puts the lowest first. Ties keep viewOrder.
+	Sort      string
+	Ascending bool
+}
+
+// sortKeys are the SQL of each api.ViewSort, over messages m.
+var sortKeys = map[string]string{
+	"date":        `m.list_date`,
+	"from":        `lower(CASE WHEN m.from_name <> '' THEN m.from_name ELSE m.from_addr END)`,
+	"to":          `lower(COALESCE(NULLIF(json_extract(m.to_json, '$[0].name'), ''), json_extract(m.to_json, '$[0].addr'), ''))`,
+	"subject":     `lower(m.subject_norm)`,
+	"size":        `m.size`,
+	"flags":       `m.flagged * 8 + m.flag_color`,
+	"unread":      `1 - m.seen`,
+	"attachments": `m.has_attachments`,
+}
+
+// orderOf is a filter's ORDER BY: its sort key, then viewOrder.
+func orderOf(f ViewFilter) string {
+	key, ok := sortKeys[f.Sort]
+	if !ok || f.Sort == "date" && !f.Ascending {
+		return viewOrder
+	}
+	dir := " DESC"
+	if f.Ascending {
+		dir = " ASC"
+	}
+	return key + dir + ", " + viewOrder
 }
 
 // viewOrder is the order every view lists messages in: newest first by
@@ -63,13 +93,13 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("view ids: %w", err)
 	}
-	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + viewOrder
+	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + orderOf(f)
 	if f.Threads {
-		query = `SELECT id FROM (SELECT m.id AS id, m.list_date AS ord_list,` +
-			` COALESCE(m.date_hdr, '') AS ord_hdr,` +
-			` ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, -m.id) ORDER BY ` + viewOrder + `) AS rn` +
-			` FROM messages m WHERE ` + where + `)` +
-			` WHERE rn = 1 ORDER BY ord_list DESC, ord_hdr DESC, id DESC`
+		// A thread's row is its newest message; threads go in the order of
+		// their rows.
+		query = `SELECT t.id FROM (SELECT m.id AS id, ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, -m.id)` +
+			` ORDER BY ` + viewOrder + `) AS rn FROM messages m WHERE ` + where + `) t` +
+			` JOIN messages m ON m.id = t.id WHERE t.rn = 1 ORDER BY ` + orderOf(f)
 	}
 	rows, err := d.db.QueryContext(ctx, query, args...)
 	if err != nil {
