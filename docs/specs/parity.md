@@ -71,7 +71,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
 | P-304 | Raw Source, All Headers | Same, from the blob store | M5·6 | |
 | P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | M5·6 | |
-| P-306 | Remind Me banner and clock | Same | M5·5 | |
+| P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
 | P-307 | Print | Same | M5·6 | |
 | P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print | M5·6 | |
 | P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
@@ -94,7 +94,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` |
 | P-410 | Mute a conversation | Same; a muted conversation never notifies | M5·6 | |
 | P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | M5·6 | |
-| P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same | M5·5 | |
+| P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` |
 | P-413 | Follow Up: sent mail with no reply after three days returns | | Later | A suggestion heuristic; after Remind Me |
 | P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` |
 | P-415 | Move to the predicted mailbox | | Out | On-device learning |
@@ -108,7 +108,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-503 | Several signatures per account, chosen in compose | | Later | One per identity covers the user |
 | P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |
 | P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |
-| P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time | M5·5 | |
+| P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` |
 | P-507 | Message priority | | Later | Rarely used |
 | P-508 | Reply quoting the selected text | | Later | Needs the frame's selection |
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |

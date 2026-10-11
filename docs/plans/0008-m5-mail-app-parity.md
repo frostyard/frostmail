@@ -168,7 +168,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   fake. Not yet run against the throwaway Gmail account itself. The
   checklist's P-414 and P-701 to P-703 name their tests.
 
-## Phase 5 — Send Later and Remind Me
+## Phase 5 — Send Later and Remind Me — done
 
 - Planner (done before the cards): `draft.send {sendAt}` building with
   the chosen `Date`, `outbox.reschedule`, the Remind Me store and its
@@ -183,6 +183,17 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   closed, with that time as its `Date`, and at maild's next start when it
   was stopped; a reminded message is back at the top of the inbox at its
   time, from the archive too, and notifies.
+- **Evidence (2026-10-11):** T-0115 to T-0118 each verified on Codex's
+  first attempt (T-0117's first finish stopped on a flaky mock test of
+  the planner's, fixed in a start commit). `TestSendLater` sends at the
+  chosen time with it as the `Date`, after a reschedule, and a time past
+  at once; `TestSendLaterCanBeEdited` returns the draft. `TestRemindMe`
+  brings a filed message back to the top of the inbox and to INBOX on the
+  server, announces it as a reminder, and fires a reminder that fell due
+  while maild was stopped (`FireReminders` at a later time); deleting
+  drops a reminder. maild sends with the app closed by design: the
+  sender and the reminder scheduler are maild's. The checklist's P-306,
+  P-412 and P-506 name their tests.
 
 ## Phase 6 — The rest of the checklist
 
