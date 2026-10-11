@@ -21,9 +21,6 @@ tasks are not Mail's and are not listed; their parity is
 
 - Every row has a status, and Later and Out rows a reason.
 - A row becomes Have only in the change that adds or names its test.
-- "Phase 1" in the Test column of a Have row means the test exists in
-  spirit but is not yet named or is not specific; Phase 1 names or writes
-  it.
 - Mail.app's ⌘ is Ctrl and ⌥ is Alt; a shortcut Frostmail already uses
   for something else keeps Frostmail's meaning and is noted.
 - A Mail.app feature found missing from the list is added with a status,
@@ -33,7 +30,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
-| P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`; Phase 1 (sidebar) |
+| P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`, `mailboxTree.test.ts` (unified mailboxes) |
 | P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | M5·6 | |
 | P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color; counts (today 0) | M5·2 | |
 | P-104 | VIPs, with a mailbox per VIP | Same | M5·2 | |
@@ -44,7 +41,8 @@ tasks are not Mail's and are not listed; their parity is
 | P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account | M5·6 | |
 | P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | M5·6 | |
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
-| P-112 | Unread counts in the sidebar and the Dock badge | Sidebar counts | Have | Phase 1 |
+| P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
+| P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry) |
 
 ## The message list
 
@@ -68,7 +66,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
-| P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages`; Phase 1 (app) |
+| P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` |
 | P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
 | P-304 | Raw Source, All Headers | Same, from the blob store | M5·6 | |
@@ -85,7 +83,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
-| P-401 | Reply, Reply All, Forward | Same | Have | `ComposeWindow.test.tsx`; Phase 1 (reply rules) |
+| P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` |
 | P-402 | Redirect | A resend with the original headers, as maild sends | M5·6 | |
 | P-403 | Forward as Attachment | Same | M5·6 | |
 | P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` |
@@ -144,7 +142,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` |
 | P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | M5·2 | |
 | P-803 | Notify for a smart mailbox | The scope may be one | M5·3 | |
-| P-804 | Per account on or off | Same | Have | `TestNewMailIsAnnounced`; Phase 1 (off) |
+| P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` |
 | P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |
 
 ## Categories
