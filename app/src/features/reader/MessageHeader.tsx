@@ -226,6 +226,22 @@ export function RemoteBanner(props: RemoteBannerProps) {
   );
 }
 
+/** BlockedBanner identifies a blocked sender and offers to unblock them. */
+export function BlockedBanner(props: { onUnblock: () => void }) {
+  return (
+    <div role="status" className="flex items-center gap-2 bg-banner px-5 py-2 text-[12px]">
+      <span>This message is from a blocked sender.</span>
+      <button
+        type="button"
+        className="ml-auto h-6 shrink-0 whitespace-nowrap rounded border border-separator bg-window px-2"
+        onClick={props.onUnblock}
+      >
+        Unblock
+      </button>
+    </div>
+  );
+}
+
 /** ReminderBanner offers to change or clear a pending reminder. */
 export function ReminderBanner(props: { when: string; disabled?: boolean; onChange: () => void; onClear: () => void }) {
   return (

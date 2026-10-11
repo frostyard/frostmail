@@ -30,6 +30,9 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
   const vip = isVip(address.address, vipAddresses);
   const [vipBusy, setVipBusy] = useState(false);
   const changingVip = useRef(false);
+  const blocked = useMail((s) => s.blocked.some((sender) => sender.address === address.address.toLowerCase()));
+  const [blockBusy, setBlockBusy] = useState(false);
+  const changingBlock = useRef(false);
   const name = card?.name.trim() || address.name.trim();
 
   useEffect(() => {
@@ -91,6 +94,22 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
     }
   };
 
+  const toggleBlock = async () => {
+    if (changingBlock.current) return;
+    changingBlock.current = true;
+    setBlockBusy(true);
+    try {
+      const params = { addresses: [address.address] };
+      if (blocked) await client.block.remove(params);
+      else await client.block.add(params);
+    } catch (err: unknown) {
+      console.warn("change blocked sender", err);
+    } finally {
+      changingBlock.current = false;
+      setBlockBusy(false);
+    }
+  };
+
   return (
     <ContactPopover
       address={address}
@@ -118,6 +137,9 @@ export function ContactCardContainer({ address, at, onClose }: ContactCardContai
       vip={vip}
       vipBusy={vipBusy}
       onVip={() => void toggleVip()}
+      blocked={blocked}
+      blockBusy={blockBusy}
+      onBlock={() => void toggleBlock()}
       onClose={onClose}
       onCompose={() => {
         void composeTo(client, address.address, name).catch((err: unknown) => console.warn("compose", err));

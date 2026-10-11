@@ -24,6 +24,9 @@ export interface ContactPopoverProps {
   vip?: boolean;
   vipBusy?: boolean;
   onVip?: () => void;
+  blocked?: boolean;
+  blockBusy?: boolean;
+  onBlock?: () => void;
   onCompose: () => void;
   onAdd: () => void;
   onOpenPerson: (id: number) => void;
@@ -100,6 +103,16 @@ export function ContactPopover(props: ContactPopoverProps) {
             onClick={props.onVip}
           >
             {props.vip ? "Remove from VIPs" : "Add to VIPs"}
+          </button>
+        )}
+        {props.onBlock && (
+          <button
+            type="button"
+            className="h-7 rounded-md border border-separator px-2"
+            disabled={props.blockBusy}
+            onClick={props.onBlock}
+          >
+            {props.blocked ? "Unblock Contact" : "Block Contact"}
           </button>
         )}
       </div>
