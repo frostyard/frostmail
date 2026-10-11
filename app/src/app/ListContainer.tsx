@@ -1,7 +1,16 @@
 // The message list: a virtualized view with selection, keyboard commands
 // and the row context menu (docs/specs/ui.md, Message list and Behavior).
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  type DragEvent,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
@@ -21,6 +30,7 @@ import {
   compose,
   copyMessages,
   copyTargets,
+  DRAG_TYPE,
   moveMessages,
   moveTargets,
   rangeIds,
@@ -151,6 +161,14 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       },
       [model, selected, anchor, select, setFocus],
     );
+
+    const onDragStart = (id: number, event: DragEvent<HTMLDivElement>) => {
+      const ids = selected.includes(id) ? selected : [id];
+      const first = selectedSummaries(model, ids)[0];
+      if (!first) return;
+      event.dataTransfer.setData(DRAG_TYPE, JSON.stringify({ accountId: first.accountId, ids }));
+      event.dataTransfer.effectAllowed = "copyMove";
+    };
 
     // A message in a Drafts mailbox opens in a compose window.
     const openIfDraft = useCallback(
@@ -428,6 +446,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                       now={now}
                       onSelect={onSelect}
                       onContextMenu={openMenu}
+                      onDragStart={onDragStart}
                       onAction={
                         accounts.find((account) => account.id === row.accountId)?.readOnly ? undefined : onRowAction
                       }
