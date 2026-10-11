@@ -62,6 +62,8 @@ container calls maild.
                Flag names:   ⚑ [Red          ]
                              ⚑ [Orange       ]
                              …  (seven rows)
+             Blocked mail:   [Mark it, and leave it where it arrives ▾]
+          Blocked senders:   Spam Co  spam@y.test          [Unblock]
 ```
 
 - A `GRID` of labeled rows, 24px padding, `LABEL` right-aligned.
@@ -77,8 +79,18 @@ container calls maild.
   color's own name, at most 40 characters) holding the custom name, empty
   for none. Leaving a changed field, or Enter in it, calls
   `settings.set {flagNames}` with all seven, trimmed.
+- **Blocked mail** (M5, P-411): a `select`: "Mark it, and leave it where
+  it arrives" (`mark`), "Move it to the Trash" (`trash`). Choosing one
+  calls `settings.set {blockAction}`.
+- **Blocked senders** (M5): a list named "Blocked senders" of the window's
+  blocked list (`block.list`, again on `block.changed`), by address: each
+  row the name (13/18) when there is one, then the address (12/16
+  `--text-secondary`), and at the right a `BUTTON` "Unblock" named
+  "Unblock <address>" calling `block.remove {addresses: [address]}`.
+  "None" in `--text-secondary` when it is empty. Senders are blocked from
+  the contact card ([pim-ui.md](pim-ui.md#contact-card)).
 - An error from maild shows in an `ALERT` under the rows, until the next
-  change succeeds.
+  change succeeds; an unblock's error too.
 
 ## Rules pane
 
