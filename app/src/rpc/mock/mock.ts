@@ -8,6 +8,8 @@ import {
   type AccountCreateParams,
   type AccountUpdateParams,
   type Address,
+  type Condition,
+  type Conditions,
   type Discovery,
   ErrorCode,
   type Event,
@@ -19,12 +21,14 @@ import {
   type Part,
   type Rendering,
   type SyncStatus,
+  type ViewCount,
   type ViewQuery,
 } from "../gen/api";
 import { RPCError, type Transport } from "../transport";
 import { MockCalendar, type MockCalendarData } from "./calendar";
 import { MockCompose, NOT_HANDLED } from "./compose";
 import { diffIds } from "./diff";
+import { MockOrganize } from "./organize";
 import { MockPeople, type MockPeopleData } from "./people";
 import { MockTasks, type MockTasksData } from "./tasks";
 
@@ -89,6 +93,7 @@ export class MockTransport implements Transport {
   private readonly people: MockPeople;
   private readonly calendar: MockCalendar;
   private readonly tasks: MockTasks;
+  private readonly organize: MockOrganize;
 
   constructor(
     data: MockData,
@@ -132,6 +137,17 @@ export class MockTransport implements Transport {
       () => [...this.messages.values()],
       () => this.accounts,
       (email) => this.calendar.upcoming(email),
+    );
+    this.organize = new MockOrganize(
+      (e) => {
+        this.emit(e);
+        if (e.event === "vip.changed") this.refreshViews();
+      },
+      (id) => this.people.emailsOf(id),
+      (address) => this.people.personOf(address),
+      (address) =>
+        [...this.messages.values()].find((m) => m.summary.from.address.toLowerCase() === address)?.summary.from.name ??
+        "",
     );
   }
 
@@ -347,6 +363,12 @@ export class MockTransport implements Transport {
         return this.thread(num(p.id));
       case "view.open":
         return this.openView((p.query ?? {}) as ViewQuery);
+      case "view.count":
+        return ((p.queries ?? []) as ViewQuery[]).map((q): ViewCount => {
+          const ids = this.viewIds({ ...q, threads: false });
+          const unread = ids.filter((id) => !this.messages.get(id)?.summary.flags.seen).length;
+          return { total: ids.length, unread };
+        });
       case "view.range":
         return this.range(num(p.id), num(p.start), num(p.end));
       case "view.close":
@@ -361,6 +383,8 @@ export class MockTransport implements Transport {
         if (tasks !== NOT_HANDLED) return tasks;
         const q = this.people.dispatch(method, p);
         if (q !== NOT_HANDLED) return q;
+        const o = this.organize.dispatch(method, p);
+        if (o !== NOT_HANDLED) return o;
         throw new RPCError(ErrorCode.methodNotFound, `method ${method} does not exist`);
       }
     }
@@ -513,6 +537,7 @@ export class MockTransport implements Transport {
           (q.unread === undefined || s.flags.seen !== q.unread || keep.has(s.id)) &&
           (q.flagged === undefined || s.flags.flagged === q.flagged) &&
           (q.hasAttachments === undefined || s.hasAttachments === q.hasAttachments) &&
+          (q.conditions === undefined || this.matches(s, q.conditions)) &&
           (text === "" ||
             text
               .split(/\s+/)
@@ -529,6 +554,68 @@ export class MockTransport implements Transport {
       });
     }
     return rows.map((s) => s.id);
+  }
+
+  /** matches evaluates conditions (docs/design/organize.md) for the fields
+   *  the app uses; any other field is invalidParams. */
+  private matches(s: MessageSummary, c: Conditions): boolean {
+    const one = (cond: Condition): boolean => {
+      const v = cond.value.trim().toLowerCase();
+      const list = v.split(",").map((x) => x.trim());
+      const yes = v === "true";
+      const text = (...fields: string[]): boolean => {
+        const f = fields.map((x) => x.toLowerCase());
+        switch (cond.op) {
+          case "contains":
+            return v.split(/\s+/).every((w) => f.some((x) => x.includes(w)));
+          case "notcontains":
+            return !v.split(/\s+/).every((w) => f.some((x) => x.includes(w)));
+          case "is":
+            return f.includes(v);
+          case "begins":
+            return f.some((x) => x.startsWith(v));
+          case "ends":
+            return f.some((x) => x.endsWith(v));
+          default:
+            throw new RPCError(ErrorCode.invalidParams, `${cond.field} does not take ${cond.op}`);
+        }
+      };
+      const among = (value: number | string | undefined, values: readonly (number | string)[]): boolean => {
+        const has = values.some((x) => String(x) === String(value));
+        return cond.op === "isnot" ? !has : has;
+      };
+      const role = (id: number) => this.mailboxes.find((mb) => mb.id === id)?.role;
+      switch (cond.field) {
+        case "from":
+          return text(s.from.name, s.from.address);
+        case "subject":
+          return text(s.subject);
+        case "color":
+          return s.flags.flagged ? among(s.flags.flagColor, list) : cond.op === "isnot";
+        case "vip":
+          return this.organize.isVip(s.from.address) === yes;
+        case "flagged":
+          return s.flags.flagged === yes;
+        case "unread":
+          return !s.flags.seen === yes;
+        case "attachments":
+          return s.hasAttachments === yes;
+        case "account":
+          return among(s.accountId, list);
+        case "mailbox":
+          return cond.op === "isnot"
+            ? !s.mailboxIds.some((id) => list.includes(String(id)))
+            : s.mailboxIds.some((id) => list.includes(String(id)));
+        case "role":
+          return cond.op === "isnot"
+            ? !s.mailboxIds.some((id) => list.includes(String(role(id))))
+            : s.mailboxIds.some((id) => list.includes(String(role(id))));
+        default:
+          throw new RPCError(ErrorCode.invalidParams, `the mock does not compile ${cond.field}`);
+      }
+    };
+    if (c.conditions.length === 0) return true;
+    return c.match === "any" ? c.conditions.some(one) : c.conditions.every(one);
   }
 
   private refreshViews(): void {

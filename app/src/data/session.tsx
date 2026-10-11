@@ -80,6 +80,24 @@ async function reload(c: Client): Promise<void> {
     c.outbox.list({}),
   ]);
   useMail.setState({ accounts, mailboxes, sync: Object.fromEntries(sync.map((s) => [s.accountId, s])), outbox });
+  // M5's preferences load on their own, so a maild without them still
+  // shows mail.
+  loadVips(c);
+  loadSettings(c);
+}
+
+function loadVips(c: Client): void {
+  void c.vip
+    .list()
+    .then((vips) => useMail.setState({ vips }))
+    .catch(() => {});
+}
+
+function loadSettings(c: Client): void {
+  void c.settings
+    .get()
+    .then((settings) => useMail.setState({ settings }))
+    .catch(() => {});
 }
 
 // wire keeps the mail store current from events; it returns the unsubscribe.
@@ -111,6 +129,12 @@ function wire(c: Client): () => void {
         break;
       case "outbox.changed":
         reloadOutbox();
+        break;
+      case "vip.changed":
+        loadVips(c);
+        break;
+      case "settings.changed":
+        loadSettings(c);
         break;
       case "sync.progress":
         useMail.setState((s) => ({ sync: { ...s.sync, [e.data.status.accountId]: e.data.status } }));

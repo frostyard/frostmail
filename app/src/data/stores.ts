@@ -8,7 +8,7 @@ import type { ListFilter } from "../features/list/FilterBar";
 import type { CalendarView } from "../lib/calendarDates";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
-import type { Account, Mailbox, MailboxRole, OutboxItem, SyncStatus, ViewQuery } from "../rpc/gen/api";
+import type { Account, Mailbox, MailboxRole, OutboxItem, Settings, SyncStatus, ViewQuery, Vip } from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
 export type Connection = { state: "connecting" } | { state: "ready" } | { state: "lost"; reason: string };
@@ -21,6 +21,10 @@ export interface MailState {
   sync: Record<number, SyncStatus>;
   /** Messages not yet sent (outbox.list). */
   outbox: OutboxItem[];
+  /** VIP addresses (vip.list), in its order. */
+  vips: Vip[];
+  /** maild's preferences (settings.get); null until loaded. */
+  settings: Settings | null;
 }
 
 /** useMail is the store of maild data. */
@@ -30,6 +34,8 @@ export const useMail = create<MailState>(() => ({
   mailboxes: [],
   sync: {},
   outbox: [],
+  vips: [],
+  settings: null,
 }));
 
 /** Source is what the sidebar selected. */
