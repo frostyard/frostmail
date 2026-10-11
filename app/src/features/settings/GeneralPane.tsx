@@ -3,12 +3,13 @@ import { Flag } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 import { flagName } from "../../lib/flags";
-import type { NotifyScope, Settings, SettingsSetParams } from "../../rpc/gen/api";
+import type { NotifyScope, Settings, SettingsSetParams, SmartMailbox } from "../../rpc/gen/api";
 import { ALERT, FIELD, GRID, LABEL } from "./labels";
 
 /** GeneralPaneProps supplies preferences and saves changes through its container. */
 export interface GeneralPaneProps {
   settings: Settings | null;
+  smarts?: SmartMailbox[];
   error?: string;
   onChange: (change: SettingsSetParams) => void;
 }
@@ -24,7 +25,7 @@ const FLAG_CLASSES = [
 ] as const;
 
 /** GeneralPane edits notifications, undo send and the seven flag names. */
-export function GeneralPane({ settings, error, onChange }: GeneralPaneProps) {
+export function GeneralPane({ settings, smarts = [], error, onChange }: GeneralPaneProps) {
   const id = useId();
   const flagNames = settings?.flagNames;
   const [names, setNames] = useState(() => FLAG_CLASSES.map((_, i) => flagNames?.[i] ?? ""));
@@ -45,13 +46,31 @@ export function GeneralPane({ settings, error, onChange }: GeneralPaneProps) {
           id={`${id}-scope`}
           className={FIELD}
           disabled={!settings}
-          value={settings?.notifyScope ?? "inbox"}
-          onChange={(event) => onChange({ notifyScope: event.target.value as NotifyScope })}
+          value={
+            settings?.notifyScope === "smart" ? `smart:${settings.notifySmartId}` : (settings?.notifyScope ?? "inbox")
+          }
+          onChange={(event) => {
+            const value = event.target.value;
+            onChange(
+              value.startsWith("smart:")
+                ? { notifyScope: "smart", notifySmartId: Number(value.slice(6)) }
+                : { notifyScope: value as NotifyScope },
+            );
+          }}
         >
           <option value="inbox">Inbox Only</option>
           <option value="vips">VIPs</option>
           <option value="contacts">Contacts</option>
           <option value="all">All Mailboxes</option>
+          {smarts.length > 0 && (
+            <optgroup label="Smart Mailboxes">
+              {smarts.map((smart) => (
+                <option key={smart.id} value={`smart:${smart.id}`}>
+                  {smart.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
         <label htmlFor={`${id}-delay`} className={LABEL}>
           Undo send delay:
