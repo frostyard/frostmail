@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -17,7 +18,7 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 	if v.Views == nil {
 		return nil, api.Unavailable("views are not running")
 	}
-	f, err := filterOf(p.Query)
+	f, err := v.filter(ctx, p.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +38,7 @@ func (v views) Count(ctx context.Context, p *api.ViewCountParams) ([]api.ViewCou
 	}
 	out := make([]api.ViewCount, 0, len(p.Queries))
 	for _, q := range p.Queries {
-		f, err := filterOf(q)
+		f, err := v.filter(ctx, q)
 		if err != nil {
 			return nil, err
 		}
@@ -48,6 +49,20 @@ func (v views) Count(ctx context.Context, p *api.ViewCountParams) ([]api.ViewCou
 		out = append(out, api.ViewCount{Total: int64(total), Unread: int64(unread)})
 	}
 	return out, nil
+}
+
+// filter is the store filter of a view query whose smart mailbox exists.
+func (v views) filter(ctx context.Context, q api.ViewQuery) (store.ViewFilter, error) {
+	f, err := filterOf(q)
+	if err != nil {
+		return f, err
+	}
+	if f.SmartMailboxID != 0 {
+		if _, err := v.DB.SmartMailbox(ctx, f.SmartMailboxID); err != nil {
+			return f, apiError(err, fmt.Sprintf("smart mailbox %d", f.SmartMailboxID))
+		}
+	}
+	return f, nil
 }
 
 // filterOf is the store filter of a view query.
@@ -74,8 +89,14 @@ func filterOf(q api.ViewQuery) (store.ViewFilter, error) {
 		}
 		f.Conditions = q.Conditions
 	}
+	if q.Filter != nil {
+		if err := store.CheckConditions(*q.Filter); err != nil {
+			return f, api.InvalidParams("filter: %v", err)
+		}
+		f.Filter = q.Filter
+	}
 	if q.SmartMailboxID != nil {
-		return f, notYet(3)
+		f.SmartMailboxID = *q.SmartMailboxID
 	}
 	return f, nil
 }

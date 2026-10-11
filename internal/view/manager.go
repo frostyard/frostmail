@@ -143,7 +143,7 @@ func (m *Manager) OnCommit(evs []api.EventEnvelope) {
 			if e.Deleted {
 				m.dirty[0], changed = true, true
 			}
-		case api.VipChanged, api.PeopleChanged, api.SettingsChanged:
+		case api.VipChanged, api.PeopleChanged, api.SettingsChanged, api.SmartChanged:
 			// Conditions on VIPs and People (ADR-0023) may list other messages.
 			m.dirty[0], changed = true, true
 		}

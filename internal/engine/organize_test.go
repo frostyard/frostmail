@@ -4,14 +4,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/rpctest"
 )
 
-// TestViewConditions: view.open narrows by conditions (ADR-0023), refuses
-// ones it cannot compile, and does not serve smart mailboxes before M5's
-// Phase 3.
+// TestViewConditions: view.open narrows by conditions (ADR-0023), and
+// refuses ones it cannot compile and smart mailboxes that do not exist.
 func TestViewConditions(t *testing.T) {
 	srv := rpctest.Start(t)
 	c := srv.Dial(t)
@@ -32,8 +32,8 @@ func TestViewConditions(t *testing.T) {
 	if _, err := c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{Conditions: &bad}}); code(err) != api.CodeInvalidParams {
 		t.Errorf("unread is yes: %v, want invalidParams", err)
 	}
-	if _, err := c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{SmartMailboxID: ptr(int64(1))}}); code(err) != api.CodeUnavailable {
-		t.Errorf("smartMailboxId: %v, want unavailable until Phase 3", err)
+	if _, err := c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{SmartMailboxID: ptr(int64(1))}}); code(err) != api.CodeNotFound {
+		t.Errorf("an unknown smartMailboxId: %v, want notFound", err)
 	}
 }
 
@@ -91,8 +91,11 @@ func TestSettings(t *testing.T) {
 			t.Errorf("%s: %v, want invalidParams", name, err)
 		}
 	}
-	if _, err := c.Settings().Set(ctx, &api.SettingsSetParams{NotifyScope: ptr(api.NotifyScopeSmart), NotifySmartID: ptr(int64(1))}); code(err) != api.CodeUnavailable {
-		t.Errorf("smart scope: %v, want unavailable until Phase 3", err)
+	if _, err := c.Settings().Set(ctx, &api.SettingsSetParams{NotifyScope: ptr(api.NotifyScopeSmart), NotifySmartID: ptr(int64(1))}); code(err) != api.CodeNotFound {
+		t.Errorf("the scope of an unknown smart mailbox: %v, want notFound", err)
+	}
+	if _, err := c.Settings().Set(ctx, &api.SettingsSetParams{NotifyScope: ptr(api.NotifyScopeSmart)}); code(err) != api.CodeInvalidParams {
+		t.Errorf("smart scope without a smart mailbox: %v, want invalidParams", err)
 	}
 }
 
@@ -133,5 +136,99 @@ func TestVIPs(t *testing.T) {
 	}
 	if _, err := ps.c.Vip().Add(ctx, &api.VipAddParams{PersonID: ptr(int64(9999))}); code(err) != api.CodeNotFound {
 		t.Errorf("unknown person: %v", err)
+	}
+}
+
+// TestSmartMailboxes: smart.* keeps smart mailboxes in order with their
+// unread counts; a view of one follows its edits; fromSearch saves what a
+// search lists; the notification scope can name one.
+func TestSmartMailboxes(t *testing.T) {
+	srv := rpctest.Start(t)
+	c := srv.Dial(t)
+	ids := conversation(t, srv, c)
+	ctx := t.Context()
+	role := func(r string) api.Conditions {
+		return api.Conditions{Match: api.ConditionMatchAll, Conditions: []api.Condition{
+			{Field: api.ConditionFieldRole, Op: api.ConditionOpIs, Value: r}}}
+	}
+	archive, err := c.Smart().Create(ctx, &api.SmartCreateParams{Name: " Archived ", Conditions: role("archive")})
+	if err != nil || archive.Name != "Archived" || archive.Position != 0 || archive.Unread != 1 {
+		t.Fatalf("create = %+v, %v", archive, err)
+	}
+	inbox, err := c.Smart().Create(ctx, &api.SmartCreateParams{Name: "In", Conditions: role("inbox"), IncludeTrash: ptr(true)})
+	if err != nil || inbox.Position != 1 || !inbox.IncludeTrash || inbox.Unread != 3 {
+		t.Fatalf("second = %+v, %v", inbox, err)
+	}
+	for name, p := range map[string]*api.SmartCreateParams{
+		"no name":        {Name: "  ", Conditions: role("inbox")},
+		"bad conditions": {Name: "X", Conditions: role("nowhere")},
+	} {
+		if _, err := c.Smart().Create(ctx, p); code(err) != api.CodeInvalidParams {
+			t.Errorf("%s: %v, want invalidParams", name, err)
+		}
+	}
+
+	v, err := c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{SmartMailboxID: &archive.ID}})
+	if err != nil || v.Count != 1 {
+		t.Fatalf("view of Archived = %+v, %v", v, err)
+	}
+	if _, err := c.Smart().Update(ctx, &api.SmartUpdateParams{ID: archive.ID, Conditions: ptr(role("inbox"))}); err != nil {
+		t.Fatal(err)
+	}
+	timeout := time.After(5 * time.Second)
+	for delta := false; !delta; {
+		select {
+		case env := <-c.Notifications():
+			ev, err := api.DecodeEvent(env.Event, env.Data)
+			d, ok := ev.(api.ViewDelta)
+			delta = err == nil && ok && d.ID == v.ID
+		case <-timeout:
+			t.Fatal("no view.delta after the edit")
+		}
+	}
+	rows, err := c.View().Range(ctx, &api.ViewRangeParams{ID: v.ID, Start: 0, End: 10})
+	if err != nil || !slices.Equal(summaryIDs(rows), []int64{ids[2], ids[1], ids[0]}) {
+		t.Fatalf("the view did not follow the edit: %v, %v", summaryIDs(rows), err)
+	}
+	counts, err := c.View().Count(ctx, &api.ViewCountParams{Queries: []api.ViewQuery{{SmartMailboxID: &inbox.ID}}})
+	if err != nil || len(counts) != 1 || counts[0].Total != 3 {
+		t.Errorf("count = %+v, %v", counts, err)
+	}
+	if _, err := c.View().Open(ctx, &api.ViewOpenParams{Query: api.ViewQuery{SmartMailboxID: ptr(int64(9999))}}); code(err) != api.CodeNotFound {
+		t.Errorf("unknown smart mailbox: %v", err)
+	}
+
+	if err := c.Smart().Move(ctx, &api.SmartMoveParams{ID: inbox.ID, Position: 0}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := c.Smart().List(ctx, &api.SmartListParams{})
+	if err != nil || len(list) != 2 || list[0].ID != inbox.ID || list[1].ID != archive.ID {
+		t.Errorf("after the move = %+v, %v", list, err)
+	}
+
+	cond, err := c.Smart().FromSearch(ctx, &api.SmartFromSearchParams{Text: "plan is:unread"})
+	want := []api.Condition{
+		{Field: api.ConditionFieldContent, Op: api.ConditionOpContains, Value: "plan"},
+		{Field: api.ConditionFieldUnread, Op: api.ConditionOpIs, Value: "true"},
+	}
+	if err != nil || cond.Match != api.ConditionMatchAll || !slices.Equal(cond.Conditions, want) {
+		t.Errorf("fromSearch = %+v, %v", cond, err)
+	}
+	if _, err := c.Smart().FromSearch(ctx, &api.SmartFromSearchParams{Text: "x", MailboxID: ptr(int64(9999))}); code(err) != api.CodeNotFound {
+		t.Errorf("fromSearch in an unknown mailbox: %v", err)
+	}
+
+	s, err := c.Settings().Set(ctx, &api.SettingsSetParams{NotifyScope: ptr(api.NotifyScopeSmart), NotifySmartID: &archive.ID})
+	if err != nil || s.NotifyScope != api.NotifyScopeSmart || s.NotifySmartID == nil || *s.NotifySmartID != archive.ID {
+		t.Fatalf("smart scope = %+v, %v", s, err)
+	}
+	if _, err := c.Settings().Set(ctx, &api.SettingsSetParams{NotifySmartID: ptr(int64(9999))}); code(err) != api.CodeNotFound {
+		t.Errorf("scope of an unknown smart mailbox: %v", err)
+	}
+	if err := c.Smart().Delete(ctx, &api.SmartDeleteParams{ID: archive.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := c.Settings().Get(ctx, &api.SettingsGetParams{}); s == nil || s.NotifyScope != api.NotifyScopeInbox {
+		t.Errorf("after deleting the scope's smart mailbox = %+v", s)
 	}
 }

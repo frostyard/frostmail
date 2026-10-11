@@ -35,6 +35,11 @@ type ViewFilter struct {
 	// Conditions (ADR-0023), compiled each time the view is computed so
 	// relative dates move along; checked with CheckConditions first.
 	Conditions *api.Conditions
+	// Filter is more conditions that must also hold (the filter bar's).
+	Filter *api.Conditions
+	// SmartMailboxID lists a smart mailbox, read each time so an edit
+	// shows at the next recompute; an unknown one lists nothing.
+	SmartMailboxID int64
 }
 
 // viewOrder is the order every view lists messages in: newest first by
@@ -55,7 +60,7 @@ const viewOrder = `m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DES
 // match every other condition, a message with no thread being its own
 // thread. The result keeps the view's order.
 func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
-	where, args, err := d.viewWhere(f)
+	where, args, err := d.viewWhere(ctx, f)
 	if err != nil {
 		return nil, fmt.Errorf("view ids: %w", err)
 	}
@@ -86,7 +91,7 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 // CountView counts the messages f lists, and the unread ones among them;
 // messages, not threads (Threads is ignored).
 func (d *DB) CountView(ctx context.Context, f ViewFilter) (total, unread int, err error) {
-	where, args, err := d.viewWhere(f)
+	where, args, err := d.viewWhere(ctx, f)
 	if err != nil {
 		return 0, 0, fmt.Errorf("count view: %w", err)
 	}
@@ -99,7 +104,7 @@ func (d *DB) CountView(ctx context.Context, f ViewFilter) (total, unread int, er
 }
 
 // viewWhere is the condition over messages m that a view filter makes.
-func (d *DB) viewWhere(f ViewFilter) (string, []any, error) {
+func (d *DB) viewWhere(ctx context.Context, f ViewFilter) (string, []any, error) {
 	conds := []string{"m.deleted = 0"}
 	var args []any
 	if f.AccountID != 0 {
@@ -155,15 +160,88 @@ func (d *DB) viewWhere(f ViewFilter) (string, []any, error) {
 			args = append(args, r)
 		}
 	}
-	if f.Conditions != nil {
-		p, err := CompileConditions(*f.Conditions, d.Now(), time.Local)
+	for _, c := range []*api.Conditions{f.Conditions, f.Filter} {
+		if c == nil {
+			continue
+		}
+		p, err := CompileConditions(*c, d.Now(), time.Local)
 		if err != nil {
 			return "", nil, err
 		}
 		conds = append(conds, p.SQL)
 		args = append(args, p.Args...)
 	}
+	if f.SmartMailboxID != 0 {
+		sql, sargs, err := d.smartWhere(ctx, f.SmartMailboxID)
+		if err != nil {
+			return "", nil, err
+		}
+		conds = append(conds, sql)
+		args = append(args, sargs...)
+	}
 	return strings.Join(conds, " AND "), args, nil
+}
+
+// smartWhere is a smart mailbox's condition: its conditions, and unless it
+// includes them, no message in a Trash or Sent mailbox.
+func (d *DB) smartWhere(ctx context.Context, id int64) (string, []any, error) {
+	s, err := d.SmartMailbox(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return "0", nil, nil
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	p, err := CompileConditions(s.Conditions, d.Now(), time.Local)
+	if err != nil {
+		return "", nil, err
+	}
+	sql, args := p.SQL, p.Args
+	var out []any
+	if !s.IncludeTrash {
+		out = append(out, string(api.MailboxRoleTrash))
+	}
+	if !s.IncludeSent {
+		out = append(out, string(api.MailboxRoleSent))
+	}
+	if len(out) > 0 {
+		sql += ` AND NOT EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id
+			WHERE mm.message_id = m.id AND mb.role IN (` + inPlace(len(out)) + `))`
+		args = append(args, out...)
+	}
+	return sql, args, nil
+}
+
+// FilterIDs returns those of ids, ascending, that f lists (Threads and
+// Keep aside): what a smart mailbox or a scope takes of new mail.
+func (d *DB) FilterIDs(ctx context.Context, f ViewFilter, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	f.Threads, f.Keep = false, nil
+	where, args, err := d.viewWhere(ctx, f)
+	if err != nil {
+		return nil, fmt.Errorf("filter ids: %w", err)
+	}
+	in, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("filter ids: %w", err)
+	}
+	rows, err := d.db.QueryContext(ctx, `SELECT m.id FROM messages m WHERE m.id IN (SELECT value FROM json_each(?)) AND `+
+		where+` ORDER BY m.id`, append([]any{string(in)}, args...)...)
+	if err != nil {
+		return nil, fmt.Errorf("filter ids: %w", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("filter ids: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // Summary is a message list row (api.MessageSummary).

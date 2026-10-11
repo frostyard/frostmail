@@ -3188,6 +3188,14 @@ type SmartUpdateParams struct {
 	IncludeSent  *bool       `json:"includeSent,omitzero"`
 }
 
+// SmartFromSearchParams holds the params of smart.fromSearch.
+type SmartFromSearchParams struct {
+	// The search language (docs/specs/search.md).
+	Text string `json:"text"`
+	// A search scoped to one mailbox.
+	MailboxID *int64 `json:"mailboxId,omitzero"`
+}
+
 // SmartDeleteParams holds the params of smart.delete.
 type SmartDeleteParams struct {
 	ID int64 `json:"id"`
@@ -3208,6 +3216,10 @@ type SmartService interface {
 	Create(ctx context.Context, p *SmartCreateParams) (*SmartMailbox, error)
 	// Update implements smart.update. Change the fields given.
 	Update(ctx context.Context, p *SmartUpdateParams) (*SmartMailbox, error)
+	// FromSearch implements smart.fromSearch. The conditions that list what a
+	// search lists, for Save as Smart Mailbox; save them with includeTrash and
+	// includeSent, as a search looks everywhere.
+	FromSearch(ctx context.Context, p *SmartFromSearchParams) (*Conditions, error)
 	// Delete implements smart.delete. Remove a smart mailbox; a notification
 	// scope that named it becomes inbox.
 	Delete(ctx context.Context, p *SmartDeleteParams) error
@@ -3237,6 +3249,13 @@ func registerSmart(r *Router, s SmartService) {
 			return nil, err
 		}
 		return s.Update(ctx, &p)
+	})
+	r.handle("smart.fromSearch", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SmartFromSearchParams
+		if err := decodeParams(raw, &p, []string{"text"}); err != nil {
+			return nil, err
+		}
+		return s.FromSearch(ctx, &p)
 	})
 	r.handle("smart.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p SmartDeleteParams
@@ -3283,6 +3302,16 @@ func (x SmartClient) Create(ctx context.Context, p *SmartCreateParams) (*SmartMa
 func (x SmartClient) Update(ctx context.Context, p *SmartUpdateParams) (*SmartMailbox, error) {
 	var r SmartMailbox
 	err := x.c.Call(ctx, "smart.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// FromSearch calls smart.fromSearch.
+func (x SmartClient) FromSearch(ctx context.Context, p *SmartFromSearchParams) (*Conditions, error) {
+	var r Conditions
+	err := x.c.Call(ctx, "smart.fromSearch", p, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -3828,6 +3857,9 @@ type ViewQuery struct {
 	Conditions *Conditions `json:"conditions,omitzero"`
 	// The messages of a smart mailbox, which the view follows as it is edited.
 	SmartMailboxID *int64 `json:"smartMailboxId,omitzero"`
+	// More conditions, which must also hold: the filter bar's, beside a source's
+	// own.
+	Filter *Conditions `json:"filter,omitzero"`
 }
 
 // ViewInfo: An open view.
@@ -4252,6 +4284,7 @@ var Methods = []string{
 	"smart.list",
 	"smart.create",
 	"smart.update",
+	"smart.fromSearch",
 	"smart.delete",
 	"smart.move",
 	"sync.status",

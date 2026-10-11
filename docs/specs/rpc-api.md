@@ -1751,6 +1751,18 @@ Change the fields given.
 Result: `SmartMailbox`.
 Errors: `invalidParams`, `notFound`.
 
+### `smart.fromSearch`
+
+The conditions that list what a search lists, for Save as Smart Mailbox; save them with includeTrash and includeSent, as a search looks everywhere.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `text` | `string` | The search language (docs/specs/search.md). |
+| `mailboxId` | `int` (optional) | A search scoped to one mailbox. |
+
+Result: `Conditions`.
+Errors: `notFound`.
+
 ### `smart.delete`
 
 Remove a smart mailbox; a notification scope that named it becomes inbox.
@@ -2063,6 +2075,7 @@ Which messages a view lists, newest first. Every field that is set must match.
 | `threads` | `bool` (optional) | One row per thread: its newest message that matches. |
 | `conditions` | `Conditions` (optional) | Conditions every listed message also meets. |
 | `smartMailboxId` | `int` (optional) | The messages of a smart mailbox, which the view follows as it is edited. |
+| `filter` | `Conditions` (optional) | More conditions, which must also hold: the filter bar's, beside a source's own. |
 
 ### Type `ViewInfo`
 
