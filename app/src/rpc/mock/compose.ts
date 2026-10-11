@@ -134,11 +134,21 @@ export class MockCompose {
         return null;
       }
       case "draft.send":
-        return this.send(this.draft(num(p.id)));
+        return this.send(this.draft(num(p.id)), typeof p.sendAt === "string" ? p.sendAt : undefined);
       case "outbox.list":
         return [...this.outbox.values()].filter((o) => o.state !== "sent").map((o) => structuredClone(o));
       case "outbox.cancel":
         return this.cancel(num(p.id));
+      case "outbox.reschedule": {
+        const o = this.outbox.get(num(p.id));
+        if (!o) throw notFound(`outbox message ${num(p.id)}`);
+        if (o.state !== "queued" || !o.scheduled)
+          throw new RPCError(ErrorCode.conflict, `message ${o.id} is not waiting to be sent later`);
+        clearTimeout(this.timers.get(o.id));
+        this.timers.delete(o.id);
+        this.place(o, String(p.sendAt));
+        return structuredClone(o);
+      }
       case "outbox.retry": {
         const o = this.outbox.get(num(p.id));
         if (!o) throw notFound(`outbox message ${num(p.id)}`);
@@ -252,7 +262,7 @@ export class MockCompose {
     return structuredClone(d);
   }
 
-  private send(d: Draft): OutboxItem {
+  private send(d: Draft, sendAt?: string): OutboxItem {
     const all = [...d.content.to, ...d.content.cc, ...d.content.bcc];
     if (all.length === 0) throw new RPCError(ErrorCode.invalidParams, "the message has no recipients");
     const bad = all.find((a) => !VALID.test(a.address));
@@ -273,19 +283,32 @@ export class MockCompose {
       attempts: 0,
     };
     this.outbox.set(o.id, o);
-    this.queue(o, this.undoMs);
+    this.place(o, sendAt);
     return structuredClone(o);
   }
 
-  private queue(o: OutboxItem, delay: number): void {
+  /** place queues a message as maild's draft.send does: a sendAt past the
+   *  undo delay is Send Later, due then; anything else waits the undo delay. */
+  private place(o: OutboxItem, sendAt?: string): void {
+    const at = sendAt === undefined ? Number.NaN : Date.parse(sendAt);
+    if (at > Date.now() + this.undoMs) this.queue(o, at - Date.now(), true);
+    else this.queue(o, this.undoMs);
+  }
+
+  private queue(o: OutboxItem, delay: number, scheduled = false): void {
     o.state = "queued";
+    o.scheduled = scheduled;
     o.sendAt = new Date(Date.now() + delay).toISOString();
     this.changed(o, false);
+    // setTimeout cannot wait longer than about 24 days; the mock never
+    // sends such a message.
+    if (delay > 2_147_483_647) return;
     this.timers.set(
       o.id,
       setTimeout(() => {
         this.timers.delete(o.id);
         o.state = "sent";
+        o.scheduled = false;
         o.sendAt = undefined;
         if (o.draftId !== undefined) {
           this.drafts.delete(o.draftId);

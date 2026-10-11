@@ -33,7 +33,9 @@ the conventions for measurements and shortcuts are those of the reader UI
 - **Toolbar (`ComposeToolbar`, 52, `--bg-toolbar`, 1px `--separator`
   bottom, drag region):** 8px side padding, 4px gaps.
   - Left: Send (Lucide `Send`), enabled only when the draft can be sent;
-    enabled it is drawn in `--accent`, disabled at 40% opacity.
+    enabled it is drawn in `--accent`, disabled at 40% opacity. Right after
+    it, Send Later (M5): a 16 × 28 button with a 12px `chevron-down`,
+    named "Send Later", enabled with Send, which opens the Send Later menu.
   - Then the title (toolbar title role, truncated) in the flexible middle,
     which is part of the drag region.
   - Right: Attach Files (`Paperclip`), Show Format Bar (`Type`, pressed
@@ -148,16 +150,32 @@ the conventions for measurements and shortcuts are those of the reader UI
   once when it is empty and after a confirmation otherwise.
 - Send (Ctrl+Enter) is enabled when the draft has at least one valid
   recipient and no invalid one, and nothing is still being attached. Sending
-  closes the window at once and shows the undo toast in the main window.
+  closes the window at once and shows the undo toast in the main window;
+  a Send Later message (`scheduled`) shows none.
 - Undo, before the delay runs out, cancels the send (`outbox.cancel`) and
   reopens the draft in its compose window. When the delay runs out the
   toast leaves.
-- A message that failed shows in the Outbox with its error; Retry queues it
+- A message that failed shows in the Outbox with its error (Send Later
+  messages show in their own section until they go); Retry queues it
   again and Edit opens its draft. State lines: queued with no attempt
   "Waiting to send"; queued after a failed attempt "Retrying in N min: " and
   the error (N at least 1, rounded up); sending "Sending…"; accepted
   "Saving to Sent…"; failed "Not sent: " and the error, in `--flag-1`.
   Queued messages offer Edit; failed ones offer Retry and Edit.
+
+### Send Later
+
+- The Send Later menu (`menu`, as the main window's menus) holds the send
+  choices (`sendChoices`, [ui.md](ui.md#times-m5): "Send 9:00 PM Tonight"
+  before 9 PM, "Send 8:00 AM Tomorrow"), a separator, and "Send Later…",
+  which opens the time sheet titled "Send Later", starting tomorrow at
+  8:00 AM.
+- Choosing a time sends as Send does, with `draft.send {id, sendAt}`: the
+  window closes, and the message waits in the main window's Send Later
+  section ([ui.md](ui.md#sidebar)) instead of showing an undo toast.
+- maild builds the message with that time as its `Date` and sends it then,
+  with the app closed or not; a time already past sends it now
+  ([send.md](../design/send.md#outbox)).
 
 ### Attachments
 
