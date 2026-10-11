@@ -1835,6 +1835,14 @@ export interface SmartUpdateParams {
   includeSent?: boolean;
 }
 
+/** Params of smart.fromSearch. */
+export interface SmartFromSearchParams {
+  /** The search language (docs/specs/search.md). */
+  text: string;
+  /** A search scoped to one mailbox. */
+  mailboxId?: number;
+}
+
 /** Params of smart.delete. */
 export interface SmartDeleteParams {
   id: number;
@@ -1864,6 +1872,12 @@ export interface SmartClient {
   /** Change the fields given. */
   update(params: SmartUpdateParams): Promise<SmartMailbox>;
   /**
+   * The conditions that list what a search lists, for Save as Smart Mailbox;
+   * save them with includeTrash and includeSent, as a search looks
+   * everywhere.
+   */
+  fromSearch(params: SmartFromSearchParams): Promise<Conditions>;
+  /**
    * Remove a smart mailbox; a notification scope that named it becomes inbox.
    */
   delete(params: SmartDeleteParams): Promise<void>;
@@ -1876,6 +1890,7 @@ function smartClient(t: Transport): SmartClient {
     list: (params = {}) => t.call<SmartMailbox[]>("smart.list", params),
     create: (params) => t.call<SmartMailbox>("smart.create", params),
     update: (params) => t.call<SmartMailbox>("smart.update", params),
+    fromSearch: (params) => t.call<Conditions>("smart.fromSearch", params),
     delete: (params) => t.call<null>("smart.delete", params).then(() => undefined),
     move: (params) => t.call<null>("smart.move", params).then(() => undefined),
   };
@@ -2139,6 +2154,11 @@ export interface ViewQuery {
    * The messages of a smart mailbox, which the view follows as it is edited.
    */
   smartMailboxId?: number;
+  /**
+   * More conditions, which must also hold: the filter bar's, beside a
+   * source's own.
+   */
+  filter?: Conditions;
 }
 
 /** An open view. */
@@ -2375,6 +2395,7 @@ export const METHODS = [
   "smart.list",
   "smart.create",
   "smart.update",
+  "smart.fromSearch",
   "smart.delete",
   "smart.move",
   "sync.status",

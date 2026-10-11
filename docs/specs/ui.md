@@ -129,9 +129,20 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   else Red, Orange, Yellow, Green, Blue, Purple, Gray), icon `flag` in
   `--flag-<color>` instead of `--accent`, listing `color is <color>`, with
   its number of flagged messages.
+- **Smart Mailboxes** (M5, Phase 3): a section after Favorites, key
+  `smart`, titled "Smart Mailboxes", shown even when empty. Its header
+  shows, on hover and while focused, a 14px `plus` button named "New Smart
+  Mailbox", which opens the smart mailbox sheet
+  ([organize-ui.md](organize-ui.md)). A row per smart mailbox in
+  `smart.list` order: key `smart:<id>`, its name, icon `folder-cog`,
+  listing `smartMailboxId`, with its unread count. Right click (or the
+  Menu key) on one opens a menu: Edit Smart Mailbox… (the sheet, filled)
+  and Delete Smart Mailbox (`smart.delete`; the source becomes All Inboxes
+  when it was that one). Its title is its name.
 - **Counts of built-in sources:** one `view.count` for VIPs, each VIP row,
-  Flagged and colors 1–7, when the window connects and 300 ms after the
-  last `mailbox.changed`, `vip.changed` or `settings.changed`.
+  Flagged, colors 1–7 and each smart mailbox, when the window connects and
+  300 ms after the last `mailbox.changed`, `vip.changed`,
+  `settings.changed` or `smart.changed`.
 - **Rows:** 28 high, left padding 12 + 16 × depth, 16px icon in `--accent`,
   8px gap, label 13/400 truncated, unread count right-aligned 12/400
   `--text-secondary` with 12px right padding, hidden when 0.
@@ -184,7 +195,13 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   `--selection-inactive`; the others `--text-secondary` with no background,
   `--text-primary` on hover. The filter narrows whatever the list shows,
   the source or a search, through the view query (`unread`, `flagged`,
-  `hasAttachments`); All is no filter. It lasts until changed (not across
+  `hasAttachments`); All is no filter. A fifth button, More (`chevron-down`
+  after its label, `aria-haspopup="menu"`, named "More filters"), opens a
+  menu of To Me, Cc Me and From VIPs (M5), each a condition in the view's
+  `filter` (`tome`, `ccme`, `vip` is true), so it combines with a source's
+  own conditions; while one of them is chosen, More shows its label,
+  pressed, and their empty lists read "No Messages to You", "No Messages
+  Cc'd to You" and "No Messages from VIPs". It lasts until changed (not across
   restarts), is the same for every source, and changing it clears the
   selection. A row read while the Unread filter shows it stays until the
   filter or the source changes (maild keeps it: `ViewQuery.unread`); an
@@ -252,8 +269,12 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   last row if it was last.
 - **Search:** the field filters as typed after 250 ms of no typing. A scope
   bar under the toolbar (28 high) offers "All Mailboxes" (default) and the
-  current mailbox. Escape in the field clears the search and returns to the
-  previous source.
+  current mailbox, and at its right a Save button (12/16 `--accent`, no
+  background, 12px right margin) named "Save as Smart Mailbox" (M5), which
+  opens the smart mailbox sheet with `smart.fromSearch`'s conditions for
+  the search (and its mailbox, when the scope is the current mailbox).
+  Escape in the field clears the search and returns to the previous
+  source.
 - **Context menu** on list rows (right click or the Menu key), in this
   order, with separators between the groups:
   - Reply, Reply All, Forward (on the last message of the menu's set).

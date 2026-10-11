@@ -3,7 +3,7 @@
 // account: role mailboxes at depth 0 in role order, then folders by label,
 // nested by the hierarchy delimiter. A folder whose parent mailbox is not in
 // the list gets a synthesized, non-selectable parent row.
-import type { Account, Mailbox, MailboxRole, ViewCount, Vip } from "../rpc/gen/api";
+import type { Account, Mailbox, MailboxRole, SmartMailbox, ViewCount, Vip } from "../rpc/gen/api";
 
 import { flagLabel } from "./flags";
 
@@ -16,6 +16,7 @@ export type SidebarIcon =
   | "trash-2"
   | "archive"
   | "flag"
+  | "folder-cog"
   | "folder"
   | "star"
   | "user";
@@ -69,6 +70,8 @@ export interface SidebarExtras {
   vips?: Vip[];
   flagNames?: readonly string[];
   counts?: SidebarCounts;
+  smarts?: SmartMailbox[];
+  smartCounts?: Record<number, ViewCount>;
 }
 
 function extraRows({ vips = [], flagNames, counts }: SidebarExtras): SidebarItem[] {
@@ -122,6 +125,7 @@ export interface SidebarSection {
   /** "favorites" or "account:<id>". */
   key: string;
   title: string;
+  addLabel?: string;
   /** Absent for Favorites. */
   accountId?: number;
   /** Rows in display order, parents before their children. */
@@ -282,5 +286,23 @@ export function buildSidebar(accounts: Account[], mailboxes: Mailbox[], extras: 
     accountId: a.id,
     items: accountRows(a, mailboxes),
   }));
-  return [favorites, ...sections];
+  const smart: SidebarSection[] =
+    extras.smarts === undefined
+      ? []
+      : [
+          {
+            key: "smart",
+            title: "Smart Mailboxes",
+            addLabel: "New Smart Mailbox",
+            items: extras.smarts.map((mailbox) => ({
+              key: `smart:${mailbox.id}`,
+              label: mailbox.name,
+              icon: "folder-cog",
+              depth: 0,
+              unread: extras.smartCounts?.[mailbox.id]?.unread ?? 0,
+              selectable: true,
+            })),
+          },
+        ];
+  return [favorites, ...smart, ...sections];
 }

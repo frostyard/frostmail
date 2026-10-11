@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/search"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -53,13 +56,19 @@ func (s settingsService) Set(ctx context.Context, p *api.SettingsSetParams) (*ap
 			if !p.NotifyScope.Valid() {
 				return api.InvalidParams("notifyScope %q is unknown", *p.NotifyScope)
 			}
-			if *p.NotifyScope == api.NotifyScopeSmart {
-				return notYet(3)
-			}
 			st.NotifyScope, st.NotifySmartID = string(*p.NotifyScope), 0
 		}
-		if p.NotifySmartID != nil && st.NotifyScope != string(api.NotifyScopeSmart) {
-			return api.InvalidParams("notifySmartId goes with notifyScope smart")
+		if p.NotifySmartID != nil {
+			if st.NotifyScope != string(api.NotifyScopeSmart) {
+				return api.InvalidParams("notifySmartId goes with notifyScope smart")
+			}
+			if _, err := s.DB.SmartMailbox(ctx, *p.NotifySmartID); err != nil {
+				return apiError(err, fmt.Sprintf("smart mailbox %d", *p.NotifySmartID))
+			}
+			st.NotifySmartID = *p.NotifySmartID
+		}
+		if st.NotifyScope == string(api.NotifyScopeSmart) && st.NotifySmartID == 0 {
+			return api.InvalidParams("notifyScope smart needs notifySmartId")
 		}
 		if p.FlagNames != nil {
 			names, err := flagNames(p.FlagNames)
@@ -169,20 +178,130 @@ func (e *Engine) Smart() api.SmartService { return smartMailboxes{e.d} }
 
 type smartMailboxes struct{ Deps }
 
-func (s smartMailboxes) List(context.Context, *api.SmartListParams) ([]api.SmartMailbox, error) {
-	return nil, notYet(3)
+// maxSmartName bounds a smart mailbox's name, in characters.
+const maxSmartName = 100
+
+func (s smartMailboxes) List(ctx context.Context, _ *api.SmartListParams) ([]api.SmartMailbox, error) {
+	rows, err := s.DB.SmartMailboxes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.SmartMailbox, 0, len(rows))
+	for _, r := range rows {
+		m, err := s.toAPI(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, nil
 }
 
-func (s smartMailboxes) Create(context.Context, *api.SmartCreateParams) (*api.SmartMailbox, error) {
-	return nil, notYet(3)
+func (s smartMailboxes) Create(ctx context.Context, p *api.SmartCreateParams) (*api.SmartMailbox, error) {
+	name, err := smartName(p.Name)
+	if err != nil {
+		return nil, err
+	}
+	if err := store.CheckConditions(p.Conditions); err != nil {
+		return nil, api.InvalidParams("%v", err)
+	}
+	in := store.SmartMailbox{Name: name, Conditions: p.Conditions,
+		IncludeTrash: p.IncludeTrash != nil && *p.IncludeTrash, IncludeSent: p.IncludeSent != nil && *p.IncludeSent}
+	var out store.SmartMailbox
+	err = s.DB.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = tx.CreateSmartMailbox(ctx, in)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	m, err := s.toAPI(ctx, out)
+	return &m, err
 }
 
-func (s smartMailboxes) Update(context.Context, *api.SmartUpdateParams) (*api.SmartMailbox, error) {
-	return nil, notYet(3)
+func (s smartMailboxes) Update(ctx context.Context, p *api.SmartUpdateParams) (*api.SmartMailbox, error) {
+	cur, err := s.DB.SmartMailbox(ctx, p.ID)
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("smart mailbox %d", p.ID))
+	}
+	if p.Name != nil {
+		if cur.Name, err = smartName(*p.Name); err != nil {
+			return nil, err
+		}
+	}
+	if p.Conditions != nil {
+		if err := store.CheckConditions(*p.Conditions); err != nil {
+			return nil, api.InvalidParams("%v", err)
+		}
+		cur.Conditions = *p.Conditions
+	}
+	if p.IncludeTrash != nil {
+		cur.IncludeTrash = *p.IncludeTrash
+	}
+	if p.IncludeSent != nil {
+		cur.IncludeSent = *p.IncludeSent
+	}
+	var out store.SmartMailbox
+	err = s.DB.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = tx.UpdateSmartMailbox(ctx, cur)
+		return err
+	})
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("smart mailbox %d", p.ID))
+	}
+	m, err := s.toAPI(ctx, out)
+	return &m, err
 }
 
-func (s smartMailboxes) Delete(context.Context, *api.SmartDeleteParams) error { return notYet(3) }
-func (s smartMailboxes) Move(context.Context, *api.SmartMoveParams) error     { return notYet(3) }
+func (s smartMailboxes) Delete(ctx context.Context, p *api.SmartDeleteParams) error {
+	err := s.DB.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteSmartMailbox(ctx, p.ID) })
+	return apiError(err, fmt.Sprintf("smart mailbox %d", p.ID))
+}
+
+func (s smartMailboxes) Move(ctx context.Context, p *api.SmartMoveParams) error {
+	if p.Position < 0 {
+		return api.InvalidParams("position must not be negative")
+	}
+	err := s.DB.Tx(ctx, func(tx *store.Tx) error { return tx.MoveSmartMailbox(ctx, p.ID, int(p.Position)) })
+	return apiError(err, fmt.Sprintf("smart mailbox %d", p.ID))
+}
+
+func (s smartMailboxes) FromSearch(ctx context.Context, p *api.SmartFromSearchParams) (*api.Conditions, error) {
+	c := search.ToConditions(search.Parse(p.Text, time.Now(), time.Local), time.Local)
+	if p.MailboxID != nil {
+		mbs, err := s.DB.ListMailboxes(ctx, 0)
+		if err != nil {
+			return nil, err
+		}
+		if !slices.ContainsFunc(mbs, func(mb store.Mailbox) bool { return mb.ID == *p.MailboxID }) {
+			return nil, api.NotFound("mailbox %d does not exist", *p.MailboxID)
+		}
+		c.Conditions = append(c.Conditions, api.Condition{Field: api.ConditionFieldMailbox, Op: api.ConditionOpIs,
+			Value: strconv.FormatInt(*p.MailboxID, 10)})
+	}
+	return &c, nil
+}
+
+// toAPI is a smart mailbox with its unread count.
+func (s smartMailboxes) toAPI(ctx context.Context, m store.SmartMailbox) (api.SmartMailbox, error) {
+	_, unread, err := s.DB.CountView(ctx, store.ViewFilter{SmartMailboxID: m.ID})
+	if err != nil {
+		return api.SmartMailbox{}, err
+	}
+	return api.SmartMailbox{ID: m.ID, Name: m.Name, Position: int64(m.Position), Conditions: m.Conditions,
+		IncludeTrash: m.IncludeTrash, IncludeSent: m.IncludeSent, Unread: int64(unread)}, nil
+}
+
+// smartName checks a smart mailbox's name and trims it.
+func smartName(n string) (string, error) {
+	n = strings.TrimSpace(n)
+	if n == "" || utf8.RuneCountInString(n) > maxSmartName || strings.ContainsFunc(n, unicode.IsControl) {
+		return "", api.InvalidParams("a smart mailbox's name must be 1 to %d characters without control characters", maxSmartName)
+	}
+	return n, nil
+}
 
 // Rules implements the rule domain.
 func (e *Engine) Rules() api.RuleService { return rules{e.d} }

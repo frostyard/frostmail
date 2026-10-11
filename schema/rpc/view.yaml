@@ -83,6 +83,7 @@ types:
       - {name: threads, type: bool, optional: true, doc: "One row per thread: its newest message that matches."}
       - {name: conditions, type: Conditions, optional: true, doc: "Conditions every listed message also meets."}
       - {name: smartMailboxId, type: int, optional: true, doc: "The messages of a smart mailbox, which the view follows as it is edited."}
+      - {name: filter, type: Conditions, optional: true, doc: "More conditions, which must also hold: the filter bar's, beside a source's own."}
   - name: ViewInfo
     doc: An open view.
     fields:

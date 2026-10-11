@@ -116,10 +116,12 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   condition (`TestCompileEveryCondition`), not yet by one run against
   Dovecot.
 
-## Phase 3 — Smart mailboxes
+## Phase 3 — Smart mailboxes — done
 
-- Planner: `ViewQuery.smartMailboxId`, recomputing views with conditions
-  when what they depend on changes, and counts.
+- Planner (done before the cards): the smart mailbox store and `smart.*`
+  with `smart.fromSearch`, `ViewQuery.smartMailboxId` and `filter` (so a
+  filter combines with a source's own conditions), views recomputed on
+  `smart.changed`, counts, and a smart mailbox as the notification scope.
 - Cards: the smart mailbox store and `smart.*`; the condition
   editor; smart mailboxes in the sidebar with their sheet and Save from the
   search field; the filter bar's To: Me, Cc: Me and VIPs (P-205).
@@ -127,6 +129,15 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   conditions, list exactly the messages their given tests name and stay
   live as mail arrives and changes; one saved from a search lists what the
   search does; a smart mailbox can be the notification scope.
+- **Evidence (2026-10-11):** T-0107 to T-0110 each verified on Codex's
+  first attempt. `TestSmartMailboxViews` and
+  `TestSmartMailboxAcrossAccounts` list exactly the named messages, any
+  and all, over two accounts, Trash and Sent left out unless included;
+  `TestSmartMailboxes` shows a view following an edit (views of smart
+  mailboxes recompute on every account's commits, like All Inboxes);
+  `TestSearchAsConditions` shows a saved search listing what the search
+  does; `TestNotifySmartScope` notifies for a smart mailbox. The
+  checklist's P-105, P-205, P-602 and P-803 name their tests.
 
 ## Phase 4 — Rules
 
@@ -193,9 +204,15 @@ solution, and runs with `make task T=NNNN`.
 | T-0104 | L | 2 | VIPs and Flagged's colors in the sidebar, with their counts; the new sources' titles |
 | T-0105 | M | 2 | the VIP star in the list and the reader; Add to VIPs on the contact card |
 | T-0106 | M | 2 | the settings window's General pane; the flags' names in the menus |
+| T-0107 | L | 3 | the condition editor and what it knows of fields and operators |
+| T-0108 | L | 3 | smart mailboxes in the sidebar, their sheet, Save from search |
+| T-0109 | M | 3 | the filter bar's More menu: To Me, Cc Me, From VIPs |
+| T-0110 | S | 3 | a smart mailbox as the notification scope |
 
-Phase 2's cards share `ListContainer.tsx` and `ToolbarContainer.tsx`:
-run them in order, each merged before the next starts. The planner keeps
+Phase 2's cards share `ListContainer.tsx` and `ToolbarContainer.tsx`, and
+Phase 3's `stores.ts` and `MainWindow.tsx`, with T-0108 building on
+T-0107: run each phase's cards in order, each merged before the next
+starts. The planner keeps
 what ADR-0021 reserves, and in M5 also the condition compiler, rule
 evaluation, the Remind Me timer and everything that sends or deletes for
 good: redirect, unsubscribe, rule actions and erasing.

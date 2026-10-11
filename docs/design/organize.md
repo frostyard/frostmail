@@ -85,8 +85,9 @@ search does.
 
 ## Views
 
-`ViewQuery` gains `conditions` and `smartMailboxId`; `store.ViewFilter`
-gains both. `ViewIDs` adds the compiled predicate to its other conditions
+`ViewQuery` gains `conditions`, `filter` (more conditions that must also
+hold: the filter bar's, beside a source's own) and `smartMailboxId`;
+`store.ViewFilter` gains all three. `ViewIDs` adds the compiled predicate to its other conditions
 and, for a smart mailbox, reads its row each time, so an edit shows at the
 next recompute. Besides the commits that touch an account's messages,
 the view manager recomputes every view with conditions when VIPs, people,
@@ -95,7 +96,8 @@ smart mailboxes or settings change, and at local midnight.
 `view.count {queries}` counts what each query lists, messages and unread
 ones, without opening views (`store.CountView`); the sidebar counts its
 built-in sources with it. `store.MatchingIDs` runs conditions over given
-messages, for rules and the notification scope.
+messages, and `store.FilterIDs` a whole view filter (a smart mailbox's
+included), for rules and the notification scope.
 
 The sidebar's built-in sources are conditions too: Flagged's color rows
 are `color is N`, VIPs is `vip is true`, one VIP is `from is
@@ -105,10 +107,17 @@ are `color is N`, VIPs is `vip is true`, one VIP is `from is
 ## Smart mailboxes
 
 `smart_mailboxes (id, name, position, conditions_json, include_trash,
-include_sent)`. `smart.list`, `create`, `update`, `delete` and
-`move` (position); `smart.changed`. Unless a smart mailbox includes
-them, messages whose only mailboxes are Trash or Sent (by role) are left
-out. Its unread count is the view's, counted by `smart.list`.
+include_sent)`, the conditions as JSON with a version. `smart.list`,
+`create`, `update`, `delete` and `move` (position, the others moving
+along); `smart.changed`. Unless a smart mailbox includes them, messages in
+a Trash or a Sent mailbox (by role) are left out; on Gmail, where sent
+mail is also in All Mail, that is still the Sent label. A view of a smart
+mailbox (`ViewQuery.smartMailboxId`) reads its row at every recompute, so
+an edit shows at once, and `smart.list` counts its unread messages.
+`smart.fromSearch {text, mailboxId}` is `search.ToConditions`, with
+`mailbox is` for a search scoped to one mailbox, for Save as Smart
+Mailbox. Deleting the smart mailbox that is the notification scope makes
+the scope Inbox only.
 
 ## VIPs
 

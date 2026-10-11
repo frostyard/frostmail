@@ -92,6 +92,7 @@ export interface ScopeBarProps {
   scopes: Scope[];
   selected: string;
   onSelect: (key: string) => void;
+  onSave?: () => void;
 }
 
 /** ScopeBar picks where a search looks: all mailboxes or the current one. */
@@ -114,6 +115,16 @@ export function ScopeBar(props: ScopeBarProps) {
           </button>
         );
       })}
+      {props.onSave && (
+        <button
+          type="button"
+          aria-label="Save as Smart Mailbox"
+          onClick={props.onSave}
+          className="ml-auto mr-3 text-[12px] leading-4 text-accent"
+        >
+          Save
+        </button>
+      )}
     </div>
   );
 }

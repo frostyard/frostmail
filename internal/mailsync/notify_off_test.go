@@ -144,3 +144,51 @@ func (h *harness) mailboxByPath(path string) api.Mailbox {
 	h.t.Fatalf("no mailbox %s in %+v", path, list)
 	return api.Mailbox{}
 }
+
+// TestNotifySmartScope: under a smart mailbox's scope, new mail in any
+// folder that the smart mailbox lists notifies, and nothing else does.
+func TestNotifySmartScope(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	if err := mem.User.Create("Lists", nil); err != nil {
+		t.Fatal(err)
+	}
+	announced := make(chan []notify.Mail, 8)
+	cfg := testConfig
+	cfg.Announce = func(_ context.Context, _ int64, mail []notify.Mail) error {
+		announced <- mail
+		return nil
+	}
+	h := newHarnessWith(t, mem.DialOptions(), imapxtest.Password, cfg)
+	h.waitPhase(api.SyncPhaseIdle)
+	ctx := t.Context()
+	deliver := func(folder, subject string) {
+		t.Helper()
+		raw := "From: Bob <bob@x.test>\r\nSubject: " + subject + "\r\n\r\nHello.\r\n"
+		if _, err := mem.User.Append(folder, strings.NewReader(raw), &imap.AppendOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	urgent, err := h.c.Smart().Create(ctx, &api.SmartCreateParams{Name: "Urgent", Conditions: api.Conditions{
+		Match: api.ConditionMatchAll, Conditions: []api.Condition{
+			{Field: api.ConditionFieldSubject, Op: api.ConditionOpContains, Value: "urgent"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.c.Settings().Set(ctx, &api.SettingsSetParams{NotifyScope: ptr(api.NotifyScopeSmart), NotifySmartID: &urgent.ID}); err != nil {
+		t.Fatal(err)
+	}
+	deliver("INBOX", "Lunch")
+	deliver("Lists", "Urgent: the build is red")
+	select {
+	case mail := <-announced:
+		if len(mail) != 1 || mail[0].Subject != "Urgent: the build is red" {
+			t.Errorf("announced %+v, want only the urgent one (Lunch first would be wrong)", mail)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the urgent mail was not announced")
+	}
+}

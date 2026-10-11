@@ -21,6 +21,7 @@ import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { watchOccurrenceRequests, watchReminders } from "./reminders";
 import { SidebarContainer } from "./SidebarContainer";
+import { SmartSheetContainer } from "./SmartSheetContainer";
 import { Splitter } from "./Splitter";
 import { openSettings } from "./settings";
 import { type TasksHandle, TasksModule, tasksCommand } from "./TasksModule";
@@ -201,6 +202,7 @@ function useWindowEvents(
   useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const ui = useUI.getState();
+      if (ui.smartSheet) return;
       const field = inTextField(event.target);
       const command = commandFor(
         event,
@@ -266,21 +268,24 @@ function usePaneWidths() {
 }
 
 function MailScope() {
+  const client = useClient();
   const ui = useUI();
-  const { mailboxes, vips, settings } = useMail();
+  const { mailboxes, vips, settings, smarts } = useMail();
   const source = ui.source;
   const label =
-    source.kind === "mailbox"
-      ? (mailboxes.find((mailbox) => mailbox.id === source.mailboxId)?.name ?? "Mailbox")
-      : source.kind === "allInboxes"
-        ? "All Inboxes"
-        : source.kind === "vips"
-          ? "VIPs"
-          : source.kind === "vip"
-            ? (vipGroups(vips).find((group) => group.key === source.key)?.label ?? "")
-            : source.kind === "flagColor"
-              ? flagLabel(source.color, settings?.flagNames)
-              : "Flagged";
+    source.kind === "smart"
+      ? (smarts.find((smart) => smart.id === source.id)?.name ?? "")
+      : source.kind === "mailbox"
+        ? (mailboxes.find((mailbox) => mailbox.id === source.mailboxId)?.name ?? "Mailbox")
+        : source.kind === "allInboxes"
+          ? "All Inboxes"
+          : source.kind === "vips"
+            ? "VIPs"
+            : source.kind === "vip"
+              ? (vipGroups(vips).find((group) => group.key === source.key)?.label ?? "")
+              : source.kind === "flagColor"
+                ? flagLabel(source.color, settings?.flagNames)
+                : "Flagged";
   if (ui.search === "") return null;
   return (
     <ScopeBar
@@ -289,6 +294,19 @@ function MailScope() {
         { key: "source", label },
       ]}
       selected={ui.searchScope}
+      onSave={() => {
+        const text = ui.search;
+        const mailbox = ui.searchScope === "source" && source.kind === "mailbox" ? { mailboxId: source.mailboxId } : {};
+        void client.smart
+          .fromSearch({ text, ...mailbox })
+          .then((conditions) => {
+            ui.openSmartSheet({
+              mode: "new",
+              initial: { name: text, conditions, includeTrash: true, includeSent: true },
+            });
+          })
+          .catch((err: unknown) => console.warn("save search", err));
+      }}
       onSelect={(key) => ui.setSearchScope(key === "source" ? "source" : "all")}
     />
   );
@@ -383,6 +401,7 @@ export function MainWindow() {
         <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
       )}
       <UndoToasts />
+      <SmartSheetContainer />
     </div>
   );
 }

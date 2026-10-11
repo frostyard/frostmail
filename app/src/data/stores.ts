@@ -5,11 +5,22 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { OccurrenceKey } from "../features/calendar/TimeGrid";
 import type { ListFilter } from "../features/list/FilterBar";
+import type { SmartDraft } from "../features/organize/SmartSheet";
 import type { CalendarView } from "../lib/calendarDates";
 import { vipGroups } from "../lib/mailboxTree";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
-import type { Account, Mailbox, MailboxRole, OutboxItem, Settings, SyncStatus, ViewQuery, Vip } from "../rpc/gen/api";
+import type {
+  Account,
+  Mailbox,
+  MailboxRole,
+  OutboxItem,
+  Settings,
+  SmartMailbox,
+  SyncStatus,
+  ViewQuery,
+  Vip,
+} from "../rpc/gen/api";
 
 /** Connection is the state of the link to maild. */
 export type Connection = { state: "connecting" } | { state: "ready" } | { state: "lost"; reason: string };
@@ -26,6 +37,8 @@ export interface MailState {
   vips: Vip[];
   /** maild's preferences (settings.get); null until loaded. */
   settings: Settings | null;
+  /** Smart mailboxes (smart.list), in sidebar order. */
+  smarts: SmartMailbox[];
 }
 
 /** useMail is the store of maild data. */
@@ -37,10 +50,12 @@ export const useMail = create<MailState>(() => ({
   outbox: [],
   vips: [],
   settings: null,
+  smarts: [],
 }));
 
 /** Source is what the sidebar selected. */
 export type Source =
+  | { kind: "smart"; id: number }
   | { kind: "mailbox"; mailboxId: number }
   | { kind: "allInboxes" }
   | { kind: "role"; role: MailboxRole }
@@ -49,11 +64,15 @@ export type Source =
   | { kind: "vips" }
   | { kind: "vip"; key: string; addresses: string[] };
 
+/** SmartSheetState identifies the smart mailbox being made or edited. */
+export type SmartSheetState = { mode: "new"; initial?: SmartDraft } | { mode: "edit"; id: number };
+
 /** Pane is a focusable area of the window. */
 export type Pane = "sidebar" | "list" | "reader";
 
 /** UIState is the window's own state. */
 export interface UIState {
+  smartSheet: SmartSheetState | null;
   module: Module;
   calendarView: CalendarView;
   calendarDate: string;
@@ -90,6 +109,8 @@ export interface UIState {
 
 /** UIActions change UIState. */
 export interface UIActions {
+  openSmartSheet: (state: SmartSheetState) => void;
+  closeSmartSheet: () => void;
   setCalendarView: (view: CalendarView) => void;
   setCalendarDate: (date: string) => void;
   selectOccurrence: (key: OccurrenceKey | null, date?: string) => void;
@@ -119,6 +140,7 @@ export interface UIActions {
 }
 
 const initialUI: UIState = {
+  smartSheet: null,
   module: "mail",
   calendarView: "week",
   calendarDate: "",
@@ -153,6 +175,8 @@ export const useUI = create<UIState & UIActions>()(
   persist(
     (set) => ({
       ...initialUI,
+      openSmartSheet: (smartSheet) => set({ smartSheet }),
+      closeSmartSheet: () => set({ smartSheet: null }),
       setCalendarView: (calendarView) => set({ calendarView }),
       setCalendarDate: (calendarDate) => set({ calendarDate }),
       selectOccurrence: (calendarSelected, date) =>
@@ -198,6 +222,8 @@ export const useUI = create<UIState & UIActions>()(
 /** sourceKey is the sidebar key of a source (lib/mailboxTree.ts). */
 export function sourceKey(s: Source): string {
   switch (s.kind) {
+    case "smart":
+      return `smart:${s.id}`;
     case "allInboxes":
       return "all-inboxes";
     case "role":
@@ -229,6 +255,8 @@ export function sourceFromKey(key: string, vips: Vip[] = []): Source | null {
   if (group) return { kind: "vip", key: group.key, addresses: group.addresses };
   const role = UNIFIED_ROLES.find((r) => key === `role:${r}`);
   if (role) return { kind: "role", role };
+  const smart = /^smart:(\d+)$/.exec(key);
+  if (smart) return { kind: "smart", id: Number(smart[1]) };
   const m = /^mailbox:(\d+)$/.exec(key);
   return m ? { kind: "mailbox", mailboxId: Number(m[1]) } : null;
 }
@@ -237,6 +265,8 @@ export function sourceFromKey(key: string, vips: Vip[] = []): Source | null {
 export function sourceQuery(s: Source, conversations: boolean): ViewQuery {
   const threads = conversations ? { threads: true } : {};
   switch (s.kind) {
+    case "smart":
+      return { smartMailboxId: s.id, ...threads };
     case "allInboxes":
       return { role: "inbox", ...threads };
     case "role":
@@ -260,18 +290,30 @@ export function sourceQuery(s: Source, conversations: boolean): ViewQuery {
   }
 }
 
+function filterQuery(filter: ListFilter = "all"): ViewQuery {
+  switch (filter) {
+    case "all":
+      return {};
+    case "unread":
+      return { unread: true };
+    case "flagged":
+      return { flagged: true };
+    case "attachments":
+      return { hasAttachments: true };
+    case "toMe":
+    case "ccMe":
+    case "vips": {
+      const field = filter === "toMe" ? "tome" : filter === "ccMe" ? "ccme" : "vip";
+      return { filter: { match: "all", conditions: [{ field, op: "is", value: "true" }] } };
+    }
+  }
+}
+
 /** listQuery is the view query the list shows for the UI state. */
 export function listQuery(
   ui: Pick<UIState, "source" | "search" | "searchScope" | "conversations"> & Partial<Pick<UIState, "listFilter">>,
 ): ViewQuery {
-  const filter: ViewQuery =
-    ui.listFilter === "unread"
-      ? { unread: true }
-      : ui.listFilter === "flagged"
-        ? { flagged: true }
-        : ui.listFilter === "attachments"
-          ? { hasAttachments: true }
-          : {};
+  const filter = filterQuery(ui.listFilter);
   const base = { ...sourceQuery(ui.source, ui.conversations), ...filter };
   if (ui.search === "") return base;
   if (ui.searchScope === "all")

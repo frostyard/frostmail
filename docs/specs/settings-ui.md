@@ -66,8 +66,10 @@ container calls maild.
 
 - A `GRID` of labeled rows, 24px padding, `LABEL` right-aligned.
 - **New message notifications:** a `select`: Inbox Only (`inbox`), VIPs
-  (`vips`), Contacts (`contacts`), All Mailboxes (`all`). Choosing one
-  calls `settings.set {notifyScope}`.
+  (`vips`), Contacts (`contacts`), All Mailboxes (`all`), then, in an
+  `optgroup` labeled "Smart Mailboxes", each smart mailbox by name
+  (`smart:<id>`). Choosing one calls `settings.set {notifyScope}`, or
+  `{notifyScope: "smart", notifySmartId}` for a smart mailbox.
 - **Undo send delay:** a `select`: Off (0), 10 Seconds, 20 Seconds, 30
   Seconds. Choosing one calls `settings.set {undoDelay}`.
 - **Flag names:** seven rows, each a 12px filled `flag` in `--flag-<n>`

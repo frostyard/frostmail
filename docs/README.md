@@ -69,6 +69,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Settings UI](specs/settings-ui.md): accounts, signatures and the Google client
 - [People, calendar and tasks UI](specs/pim-ui.md): the module bar, the People module, the contact card (M4.5)
 - [Mail.app parity](specs/parity.md): every Mail feature, its status and its test (M5)
+- [Condition editor and smart mailboxes](specs/organize-ui.md): the editor rules share, the smart mailbox sheet (M5)
 
 ### Plans
 

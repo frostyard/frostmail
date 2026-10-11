@@ -36,6 +36,16 @@ methods:
       - {name: includeSent, type: bool, optional: true}
     result: SmartMailbox
     errors: [invalidParams, notFound]
+  - name: fromSearch
+    doc: >-
+      The conditions that list what a search lists, for Save as Smart
+      Mailbox; save them with includeTrash and includeSent, as a search
+      looks everywhere.
+    params:
+      - {name: text, type: string, doc: "The search language (docs/specs/search.md)."}
+      - {name: mailboxId, type: int, optional: true, doc: "A search scoped to one mailbox."}
+    result: Conditions
+    errors: [notFound]
   - name: delete
     doc: Remove a smart mailbox; a notification scope that named it becomes inbox.
     params:

@@ -55,6 +55,9 @@ func (a *actor) inScope(ctx context.Context, ids []int64) ([]notify.Mail, error)
 	}
 	inMailbox := func(id int64) bool {
 		role, ok := roles[id]
+		if scope == api.NotifyScopeSmart {
+			return ok // the smart mailbox decides, Trash and Sent included
+		}
 		if scope == api.NotifyScopeAll {
 			return ok && role != api.MailboxRoleJunk && role != api.MailboxRoleTrash &&
 				role != api.MailboxRoleSent && role != api.MailboxRoleDrafts
@@ -71,15 +74,18 @@ func (a *actor) inScope(ctx context.Context, ids []int64) ([]notify.Mail, error)
 			kept = append(kept, r)
 		}
 	}
+	if scope == api.NotifyScopeSmart && len(kept) > 0 {
+		match, err := a.m.db.FilterIDs(ctx, store.ViewFilter{SmartMailboxID: settings.NotifySmartID}, summaryIDs(kept))
+		if err != nil {
+			return nil, err
+		}
+		kept = slices.DeleteFunc(kept, func(r store.Summary) bool { return !slices.Contains(match, r.ID) })
+	}
 	if sender, ok := map[api.NotifyScope]api.ConditionField{
 		api.NotifyScopeVips: api.ConditionFieldVip, api.NotifyScopeContacts: api.ConditionFieldContact,
 	}[scope]; ok && len(kept) > 0 {
-		keptIDs := make([]int64, len(kept))
-		for i, r := range kept {
-			keptIDs[i] = r.ID
-		}
 		match, err := a.m.db.MatchingIDs(ctx, api.Conditions{Match: api.ConditionMatchAll,
-			Conditions: []api.Condition{{Field: sender, Op: api.ConditionOpIs, Value: "true"}}}, keptIDs, time.Local)
+			Conditions: []api.Condition{{Field: sender, Op: api.ConditionOpIs, Value: "true"}}}, summaryIDs(kept), time.Local)
 		if err != nil {
 			return nil, err
 		}
@@ -90,4 +96,12 @@ func (a *actor) inScope(ctx context.Context, ids []int64) ([]notify.Mail, error)
 		mail = append(mail, notify.Mail{ID: r.ID, FromName: r.From.Name, FromAddr: r.From.Addr, Subject: r.Subject, Preview: r.Preview})
 	}
 	return mail, nil
+}
+
+func summaryIDs(rows []store.Summary) []int64 {
+	ids := make([]int64, len(rows))
+	for i, r := range rows {
+		ids[i] = r.ID
+	}
+	return ids
 }
