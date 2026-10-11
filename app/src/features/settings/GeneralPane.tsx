@@ -3,15 +3,24 @@ import { Flag } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 import { flagName } from "../../lib/flags";
-import type { NotifyScope, Settings, SettingsSetParams, SmartMailbox } from "../../rpc/gen/api";
-import { ALERT, FIELD, GRID, LABEL } from "./labels";
+import type {
+  BlockAction,
+  BlockedSender,
+  NotifyScope,
+  Settings,
+  SettingsSetParams,
+  SmartMailbox,
+} from "../../rpc/gen/api";
+import { ALERT, BUTTON, FIELD, GRID, LABEL } from "./labels";
 
 /** GeneralPaneProps supplies preferences and saves changes through its container. */
 export interface GeneralPaneProps {
   settings: Settings | null;
   smarts?: SmartMailbox[];
+  blocked?: BlockedSender[];
   error?: string;
   onChange: (change: SettingsSetParams) => void;
+  onUnblock?: (address: string) => void;
 }
 
 const FLAG_CLASSES = [
@@ -24,8 +33,8 @@ const FLAG_CLASSES = [
   "text-flag-7",
 ] as const;
 
-/** GeneralPane edits notifications, undo send and the seven flag names. */
-export function GeneralPane({ settings, smarts = [], error, onChange }: GeneralPaneProps) {
+/** GeneralPane edits notifications, undo send, flag names and blocked senders. */
+export function GeneralPane({ settings, smarts = [], blocked = [], error, onChange, onUnblock }: GeneralPaneProps) {
   const id = useId();
   const flagNames = settings?.flagNames;
   const [names, setNames] = useState(() => FLAG_CLASSES.map((_, i) => flagNames?.[i] ?? ""));
@@ -111,6 +120,42 @@ export function GeneralPane({ settings, smarts = [], error, onChange }: GeneralP
             </div>
           ))}
         </div>
+        <label htmlFor={`${id}-block-action`} className={LABEL}>
+          Blocked mail:
+        </label>
+        <select
+          id={`${id}-block-action`}
+          className={FIELD}
+          disabled={!settings}
+          value={settings?.blockAction ?? "mark"}
+          onChange={(event) => onChange({ blockAction: event.target.value as BlockAction })}
+        >
+          <option value="mark">Mark it, and leave it where it arrives</option>
+          <option value="trash">Move it to the Trash</option>
+        </select>
+        <span className={`${LABEL} self-start pt-1`}>Blocked senders:</span>
+        {blocked.length > 0 ? (
+          <ul aria-label="Blocked senders" className="flex flex-col gap-2">
+            {blocked.map((sender) => (
+              <li key={sender.address} className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  {sender.name && <span className="text-[13px] leading-[18px]">{sender.name}</span>}
+                  <span className="block text-[12px] leading-4 text-secondary">{sender.address}</span>
+                </div>
+                <button
+                  type="button"
+                  className={BUTTON}
+                  aria-label={`Unblock ${sender.address}`}
+                  onClick={() => onUnblock?.(sender.address)}
+                >
+                  Unblock
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <span className="text-secondary">None</span>
+        )}
       </div>
       {error && (
         <p role="alert" className={ALERT}>
