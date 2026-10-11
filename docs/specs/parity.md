@@ -32,8 +32,8 @@ tasks are not Mail's and are not listed; their parity is
 | --- | --- | --- | --- | --- |
 | P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`, `mailboxTree.test.ts` (unified mailboxes) |
 | P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | M5·6 | |
-| P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color; counts (today 0) | M5·2 | |
-| P-104 | VIPs, with a mailbox per VIP | Same | M5·2 | |
+| P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color in use, counted | Have | `mailboxTree.sources.test.ts`, `SidebarSources.test.tsx` |
+| P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` |
 | P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | M5·3 | |
 | P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |
 | P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | M5·6 | |
@@ -55,7 +55,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | M5·3 | |
 | P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` |
 | P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` |
-| P-208 | VIP star on the sender | Same | M5·2 | |
+| P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` |
 | P-209 | Contact photos in the list | People photos, never fetched | M5·6 | |
 | P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |
 | P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |
@@ -77,7 +77,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
 | P-310 | Collapse and expand messages in a conversation | | Later | Quotes already collapse (`PlainText.test.tsx`) |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
-| P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | M5·2 | `ContactCard.test.tsx` (Contacts) |
+| P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` |
 
 ## Acting on messages
 
@@ -90,7 +90,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` |
 | P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | M5·6 | |
 | P-407 | Flag with seven colors, Clear Flag | Same (`$MailFlagBit0–2`) | Have | `TestFlagsRoundTrip`, `TestFlagChangesReplayToServer` |
-| P-408 | Rename flags | Names kept by maild | M5·2 | |
+| P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` |
 | P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` |
 | P-410 | Mute a conversation | Same; a muted conversation never notifies | M5·6 | |
 | P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | M5·6 | |
@@ -107,7 +107,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` |
 | P-503 | Several signatures per account, chosen in compose | | Later | One per identity covers the user |
 | P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |
-| P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | M5·2 | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `Outbox.test.tsx` (the toast) |
+| P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |
 | P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time | M5·5 | |
 | P-507 | Message priority | | Later | Rarely used |
 | P-508 | Reply quoting the selected text | | Later | Needs the frame's selection |
@@ -140,7 +140,7 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` |
-| P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | M5·2 | |
+| P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` |
 | P-803 | Notify for a smart mailbox | The scope may be one | M5·3 | |
 | P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` |
 | P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |

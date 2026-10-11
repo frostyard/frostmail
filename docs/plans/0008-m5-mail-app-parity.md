@@ -94,7 +94,7 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 - **Done when:** `make check` and `make ui-check` are green, the ADRs and
   specs are merged, and Phase 2's cards are ready.
 
-## Phase 2 — Flags, VIPs and the notification scope
+## Phase 2 — Flags, VIPs and the notification scope — done
 
 - Planner (done with Phase 1, so the cards meet a working maild): the
   settings and VIP stores and services, `view.count`, the scope in
@@ -108,6 +108,13 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   row; renamed flags label the sidebar and menus; mail from a VIP shows
   the star, lists under VIPs and is the only mail that notifies under the
   VIPs scope; Undo Send's Off sends at once and 30 seconds waits 30.
+- **Evidence (2026-10-11):** T-0104, T-0105 and T-0106 each verified on
+  Codex's first attempt; the checklist's P-103, P-104, P-208, P-312,
+  P-408, P-505 and P-802 name their tests. A color set by another client
+  lists under its row through the existing flag sync
+  (`TestFlagsFromIMAP`, `TestFlagChangesReplayToServer`) and the `color`
+  condition (`TestCompileEveryCondition`), not yet by one run against
+  Dovecot.
 
 ## Phase 3 — Smart mailboxes
 
