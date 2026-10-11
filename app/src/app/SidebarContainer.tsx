@@ -65,6 +65,15 @@ function mailboxMenu(mailbox: Mailbox, readOnly: boolean, favorite: boolean): Me
   return items;
 }
 
+function favoriteMenu(id: number, favorites: Mailbox[]): MenuItem[] {
+  const index = favorites.findIndex((mailbox) => mailbox.id === id);
+  return [
+    { kind: "item", id: "remove", label: "Remove from Favorites" },
+    { kind: "item", id: "up", label: "Move Up", disabled: index <= 0 },
+    { kind: "item", id: "down", label: "Move Down", disabled: index < 0 || index === favorites.length - 1 },
+  ];
+}
+
 async function confirmMailbox(mailbox: Mailbox, erase: boolean): Promise<boolean> {
   const text = erase
     ? `Erase the ${mailbox.total} messages in "${mailbox.name}"? They cannot be recovered.`
@@ -84,8 +93,14 @@ interface MailboxEdit {
 /** SidebarContainer connects Sidebar to the stores. */
 export function SidebarContainer() {
   const client = useClient();
-  const [menu, setMenu] = useState<{ kind: "smart" | "mailbox"; id: number; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ kind: "smart" | "mailbox" | "favorite"; id: number; x: number; y: number } | null>(
+    null,
+  );
   const { accounts, mailboxes, sync, vips, settings, smarts } = useMail();
+  const favorites = useMemo(
+    () => (settings?.favorites ?? []).flatMap((id) => mailboxes.filter((mailbox) => mailbox.id === id)),
+    [settings, mailboxes],
+  );
   const [sheet, setSheet] = useState<MailboxEdit | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -151,12 +166,35 @@ export function SidebarContainer() {
       }
     }
   };
+  const favoriteAction = async (id: number, action: string) => {
+    const { settings, mailboxes } = useMail.getState();
+    const ids = (settings?.favorites ?? []).filter((id) => mailboxes.some((mailbox) => mailbox.id === id));
+    const index = ids.indexOf(id);
+    if (index < 0) return;
+    if (action === "remove") await client.settings.set({ favorites: ids.filter((favorite) => favorite !== id) });
+    else if (action === "up" || action === "down") {
+      const next = index + (action === "up" ? -1 : 1);
+      const neighbor = ids[next];
+      if (neighbor === undefined) return;
+      ids[index] = neighbor;
+      ids[next] = id;
+      await client.settings.set({ favorites: ids });
+    }
+  };
   const { source, search, searchScope, focus, setSource, setFocus, module, setModule } = useUI();
   const counts = useSidebarCounts(vipGroups(vips));
   const smartCounts = useSmartCounts(smarts);
   const sections = useMemo(
-    () => buildSidebar(accounts, mailboxes, { vips, flagNames: settings?.flagNames, counts, smarts, smartCounts }),
-    [accounts, mailboxes, vips, settings, counts, smarts, smartCounts],
+    () =>
+      buildSidebar(accounts, mailboxes, {
+        vips,
+        flagNames: settings?.flagNames,
+        counts,
+        smarts,
+        smartCounts,
+        favorites,
+      }),
+    [accounts, mailboxes, vips, settings, counts, smarts, smartCounts, favorites],
   );
   const indicators = useMemo(() => {
     const out: Record<number, SyncIndicator> = {};
@@ -189,7 +227,8 @@ export function SidebarContainer() {
           onContextMenu={(key, x, y) => {
             const source = sourceFromKey(key);
             if (source?.kind === "smart") setMenu({ kind: "smart", id: source.id, x, y });
-            else if (source?.kind === "mailbox") setMenu({ kind: "mailbox", id: source.mailboxId, x, y });
+            else if (source?.kind === "mailbox")
+              setMenu({ kind: key.startsWith("favorite:") ? "favorite" : "mailbox", id: source.mailboxId, x, y });
           }}
           onSelect={(key) => {
             const s = sourceFromKey(key, vips);
@@ -237,6 +276,18 @@ export function SidebarContainer() {
           onClose={() => setMenu(null)}
           onSelect={(action) => {
             void mailboxAction(menuMailbox, action).catch((err: unknown) => console.warn("mailbox action", err));
+          }}
+        />
+      )}
+      {menu?.kind === "favorite" && (
+        <ContextMenu
+          key={`favorite:${menu.id}`}
+          x={menu.x}
+          y={menu.y}
+          items={favoriteMenu(menu.id, favorites)}
+          onClose={() => setMenu(null)}
+          onSelect={(action) => {
+            void favoriteAction(menu.id, action).catch((err: unknown) => console.warn("favorite action", err));
           }}
         />
       )}
