@@ -4,6 +4,7 @@ import type { Source } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import type { Client, Mailbox, MessageSummary } from "../rpc/gen/api";
 import { startDraft } from "./compose";
+import { undoableFlags, undoableMove } from "./undo";
 
 /** DRAG_TYPE identifies messages dragged from the list to a mailbox. */
 export const DRAG_TYPE = "application/x-frostmail-messages";
@@ -23,20 +24,20 @@ export async function toggleRead(client: Client, model: ViewModel | null, ids: n
   if (ids.length === 0) return;
   const rows = selectedSummaries(model, ids);
   const allSeen = rows.length > 0 && rows.every((r) => r.flags.seen);
-  await client.message.setFlags({ ids, changes: { seen: !allSeen } });
+  await undoableFlags(client, ids, { seen: !allSeen });
 }
 
 /** toggleFlag clears the flag when the first message is flagged, else flags red. */
 export async function toggleFlag(client: Client, model: ViewModel | null, ids: number[]): Promise<void> {
   if (ids.length === 0) return;
   const first = selectedSummaries(model, ids)[0];
-  await client.message.setFlags({ ids, changes: { flagColor: first?.flags.flagged ? 0 : 1 } });
+  await undoableFlags(client, ids, { flagColor: first?.flags.flagged ? 0 : 1 });
 }
 
 /** setFlagColor sets a flag color; 0 clears the flag. */
 export async function setFlagColor(client: Client, ids: number[], color: number): Promise<void> {
   if (ids.length === 0) return;
-  await client.message.setFlags({ ids, changes: { flagColor: color } });
+  await undoableFlags(client, ids, { flagColor: color });
 }
 
 /** applyRules runs the enabled rules on the messages now. */
@@ -144,7 +145,7 @@ export async function moveMessages(
   mailboxes: Mailbox[],
 ): Promise<void> {
   if (!to || ids.length === 0) return;
-  await client.message.move(moveParams(ids, to, source, mailboxes));
+  await undoableMove(client, ids, () => client.message.move(moveParams(ids, to, source, mailboxes)));
 }
 
 /** getMail asks maild to sync every account now. */

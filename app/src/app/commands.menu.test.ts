@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0103 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0103 and T-0130 (docs/tasks). Do not edit.
 import { describe, expect, it, vi } from "vitest";
 
 import type { ViewModel } from "../data/view";
@@ -82,7 +82,8 @@ describe("junkOf and spamTarget", () => {
 
   it("moves through message.move", async () => {
     const move = vi.fn().mockResolvedValue(undefined);
-    const client = { message: { move } } as unknown as Client;
+    const summaries = vi.fn().mockResolvedValue([]);
+    const client = { message: { move, summaries } } as unknown as Client;
     await toggleSpam(client, rows, [100], { kind: "mailbox", mailboxId: 1 }, mailboxes);
     await toggleSpam(client, rows, [101], { kind: "mailbox", mailboxId: 2 }, mailboxes);
     await toggleSpam(client, rows, [300], { kind: "allInboxes" }, mailboxes);
