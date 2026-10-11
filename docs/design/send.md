@@ -99,9 +99,13 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   `draft.send {id, sendAt}` with a time later than the undo delay builds
   the message with `sendAt` as its `Date` and queues the row `scheduled`,
   due at `sendAt`. `outbox.reschedule {id, sendAt}` rebuilds a scheduled
-  row's message with the new `Date` and moves `send_at`; a `sendAt` within
-  the undo delay sends it now. `OutboxItem.scheduled` tells the app which
-  rows are Send Later rather than in their undo window.
+  row's message from its draft with the new `Date` and moves `send_at`; a
+  `sendAt` within the undo delay makes it an ordinary send, after the undo
+  delay and dated now, as `draft.send` would. `OutboxItem.scheduled` tells
+  the app which rows are Send Later rather than in their undo window. The
+  sender waits at most a minute between looks at the clock: timers stop
+  while the computer sleeps, so a scheduled time is checked against the
+  wall clock.
 - `outbox.cancel` on a `queued` row deletes it, emits `outbox.changed` with
   `deleted`, and returns the draft; for a scheduled row this is Edit, and
   the app reopens the draft. `outbox.retry` queues a `failed` row again,

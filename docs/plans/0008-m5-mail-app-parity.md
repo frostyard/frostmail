@@ -170,10 +170,12 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 ## Phase 5 — Send Later and Remind Me
 
-- Planner: `draft.send {sendAt}` building with the chosen `Date`,
-  `outbox.reschedule`, the Remind Me store and its timer (as
-  `internal/reminders` keeps alarms), the return to the inbox, and views
-  ordered by `list_date`.
+- Planner (done before the cards): `draft.send {sendAt}` building with
+  the chosen `Date`, `outbox.reschedule`, the Remind Me store and its
+  timer (`internal/reminders` has mailsync fire them each minute), the
+  return to the inbox, and views ordered by `list_date`. It also closed
+  the race in which a pass over a mailbox took a message that a queued
+  move was taking out of it for new mail.
 - Cards: Send Later (the Send menu's times, the Send Later mailbox, edit
   and cancel; scheduled rows are not undo toasts); Remind Me (the menu, the
   reader's banner, the clock in the row).

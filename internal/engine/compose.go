@@ -591,39 +591,16 @@ func (d drafts) Delete(ctx context.Context, p *api.DraftDeleteParams) error {
 }
 
 func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxItem, error) {
-	if d.Blobs == nil {
-		return nil, api.Unavailable("the blob store is not running")
-	}
 	dr, err := d.DB.GetDraft(ctx, p.ID)
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("draft %d", p.ID))
 	}
-	ident, err := d.DB.GetIdentity(ctx, dr.Content.IdentityID)
-	if err != nil || ident.AccountID != dr.AccountID {
-		return nil, api.InvalidParams("the draft's identity %d is not in its account", dr.Content.IdentityID)
-	}
-	if err := checkSendable(dr); err != nil {
-		return nil, err
-	}
-	acct, err := d.DB.GetAccount(ctx, dr.AccountID)
-	if err != nil {
-		return nil, apiError(err, fmt.Sprintf("account %d", dr.AccountID))
-	}
-	if acct.ReadOnly {
-		return nil, api.Conflict("account %d is read-only", dr.AccountID)
-	}
-	m := mailsync.DraftMessage(dr, ident, d.Blobs, d.parts(), time.Now())
-	var buf bytes.Buffer
-	if err := compose.Build(&buf, m); errors.Is(err, compose.ErrInvalid) {
-		return nil, api.InvalidParams("%v", err)
-	} else if err != nil {
-		return nil, err
-	}
-	blobID, err := d.Blobs.Put(ctx, &buf)
-	if err != nil {
-		return nil, err
-	}
 	delay, err := d.undoDelay(ctx)
+	if err != nil {
+		return nil, err
+	}
+	when := sendTime(d.DB.Now(), delay, p.SendAt)
+	b, err := d.build(ctx, dr, when.date)
 	if err != nil {
 		return nil, err
 	}
@@ -645,9 +622,9 @@ func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxIt
 			}
 		}
 		item, err = tx.QueueOutbox(ctx, store.OutboxItem{
-			AccountID: dr.AccountID, DraftID: dr.ID, SendAt: tx.Now().Add(delay), BlobID: blobID,
-			MessageID: dr.MessageID, From: ident.Email, Recipients: m.Envelope(),
-			Subject: dr.Content.Subject, To: dr.Content.To,
+			AccountID: dr.AccountID, DraftID: dr.ID, SendAt: when.at, BlobID: b.blobID,
+			MessageID: dr.MessageID, From: b.ident.Email, Recipients: b.recipients,
+			Subject: dr.Content.Subject, To: dr.Content.To, Scheduled: when.scheduled,
 		})
 		if err != nil {
 			return err
@@ -662,6 +639,63 @@ func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxIt
 	}
 	r := toAPIOutbox(item)
 	return &r, nil
+}
+
+// sendWhen is when a message goes and the Date it is built with.
+type sendWhen struct {
+	at, date  time.Time
+	scheduled bool // Send Later
+}
+
+// sendTime places a message sent at now: a sendAt past the undo delay is
+// Send Later, due then and dated then (ADR-0025); anything else goes after
+// the undo delay, dated now.
+func sendTime(now time.Time, delay time.Duration, sendAt *time.Time) sendWhen {
+	if sendAt != nil && sendAt.After(now.Add(delay)) {
+		return sendWhen{at: *sendAt, date: *sendAt, scheduled: true}
+	}
+	return sendWhen{at: now.Add(delay), date: now}
+}
+
+// built is a draft built into a message, stored as a blob.
+type built struct {
+	blobID     string
+	ident      store.Identity
+	recipients []string // the envelope's
+}
+
+// build checks that a draft can be sent from a writable account and builds
+// it with date as its Date.
+func (d Deps) build(ctx context.Context, dr store.Draft, date time.Time) (built, error) {
+	if d.Blobs == nil {
+		return built{}, api.Unavailable("the blob store is not running")
+	}
+	ident, err := d.DB.GetIdentity(ctx, dr.Content.IdentityID)
+	if err != nil || ident.AccountID != dr.AccountID {
+		return built{}, api.InvalidParams("the draft's identity %d is not in its account", dr.Content.IdentityID)
+	}
+	if err := checkSendable(dr); err != nil {
+		return built{}, err
+	}
+	acct, err := d.DB.GetAccount(ctx, dr.AccountID)
+	if err != nil {
+		return built{}, apiError(err, fmt.Sprintf("account %d", dr.AccountID))
+	}
+	if acct.ReadOnly {
+		return built{}, api.Conflict("account %d is read-only", dr.AccountID)
+	}
+	m := mailsync.DraftMessage(dr, ident, d.Blobs, d.parts(), date)
+	var buf bytes.Buffer
+	if err := compose.Build(&buf, m); errors.Is(err, compose.ErrInvalid) {
+		return built{}, api.InvalidParams("%v", err)
+	} else if err != nil {
+		return built{}, err
+	}
+	blobID, err := d.Blobs.Put(ctx, &buf)
+	if err != nil {
+		return built{}, err
+	}
+	return built{blobID: blobID, ident: ident, recipients: m.Envelope()}, nil
 }
 
 // checkSendable refuses a draft without recipients, with an address that

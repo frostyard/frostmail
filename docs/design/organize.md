@@ -211,19 +211,22 @@ color}`.
 
 `message_reminders (message_id, remind_at)`, and `messages.list_date`,
 which views order by. `list_date` is the arrival date, set by every
-insert, until a reminder fires. `message.remind {ids, at}` sets or, with
-no `at`, clears. The reminder scheduler (`internal/reminders`) also asks
-for message reminders due by now. For each, one transaction:
+insert, until a reminder fires. `message.remind {ids, at}` sets (a time in
+the future; a read-only account's messages are a conflict) or, with no
+`at`, clears, and emits `message.changed`. Deleting a message drops its
+reminder. The reminder scheduler (`internal/reminders`), at each minute,
+has mailsync fire the message reminders due by now
+(`Manager.FireReminders`), so one that fell due while maild was stopped
+fires at its next start. For each account, one transaction:
 
-1. deletes the reminder;
+1. deletes the reminders;
 2. sets `list_date` to now;
-3. moves the message back to its account's inbox if it is not there (an
-   op; a label edit on Gmail);
+3. moves the messages that left the inbox back to it (an op, as
+   `message.move`; a label edit on Gmail), except on a read-only account;
 4. emits `message.changed`.
 
-maild then notifies, with "Reminder" before the subject.
-`MessageSummary.remindAt` and `Message.remindAt` show a pending
-reminder.
+maild then notifies, with "Reminder: " before the subject, whatever the
+notification scope. `MessageSummary.remindAt` shows a pending reminder.
 
 ## Later in M5
 

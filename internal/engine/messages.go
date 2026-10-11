@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/mailsync"
@@ -159,8 +160,14 @@ func opError(err error) error {
 }
 
 func toAPISummary(s store.Summary) api.MessageSummary {
+	var remindAt *time.Time
+	if !s.RemindAt.IsZero() {
+		at := s.RemindAt
+		remindAt = &at
+	}
 	return api.MessageSummary{
-		ID: s.ID, AccountID: s.AccountID, MailboxIDs: s.MailboxIDs, ThreadID: s.ThreadID,
+		RemindAt: remindAt,
+		ID:       s.ID, AccountID: s.AccountID, MailboxIDs: s.MailboxIDs, ThreadID: s.ThreadID,
 		Subject: s.Subject, From: api.Address{Name: s.From.Name, Address: s.From.Addr}, Date: s.Date,
 		Preview: s.Preview, HasAttachments: s.HasAttachments, Size: s.Size,
 		ThreadCount: s.ThreadCount,

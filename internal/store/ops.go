@@ -50,10 +50,20 @@ func (t *Tx) QueueOp(ctx context.Context, accountID int64, kind string, payload 
 
 // DueOps returns an account's queued actions due by now, oldest first.
 func (d *DB) DueOps(ctx context.Context, accountID int64, now time.Time) ([]Op, error) {
-	rows, err := d.db.QueryContext(ctx, `SELECT id, account_id, kind, payload_json, attempts FROM pending_ops
-		WHERE account_id = ? AND state = 'queued' AND next_try_at <= ? ORDER BY id`, accountID, FormatTime(now))
+	return d.queryOps(ctx, `WHERE account_id = ? AND state = 'queued' AND next_try_at <= ? ORDER BY id`,
+		accountID, FormatTime(now))
+}
+
+// QueuedOps returns an account's queued actions of one kind, due or not,
+// oldest first.
+func (d *DB) QueuedOps(ctx context.Context, accountID int64, kind string) ([]Op, error) {
+	return d.queryOps(ctx, `WHERE account_id = ? AND state = 'queued' AND kind = ? ORDER BY id`, accountID, kind)
+}
+
+func (d *DB) queryOps(ctx context.Context, where string, args ...any) ([]Op, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT id, account_id, kind, payload_json, attempts FROM pending_ops `+where, args...)
 	if err != nil {
-		return nil, fmt.Errorf("due ops: %w", err)
+		return nil, fmt.Errorf("ops: %w", err)
 	}
 	defer rows.Close()
 	var out []Op

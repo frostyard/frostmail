@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,13 +17,7 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-// The M5 domains (docs/design/organize.md, plans/0008). Each method is
-// built in the phase its error names.
-
-// notYet is the error of a method its M5 phase has not built.
-func notYet(phase int) error {
-	return api.Unavailable("not implemented yet: M5 phase %d", phase)
-}
+// The M5 domains (docs/design/organize.md, plans/0008).
 
 // Settings implements the settings domain.
 func (e *Engine) Settings() api.SettingsService { return settingsService{e.d} }
@@ -496,10 +492,93 @@ func toAPIRule(r store.Rule, mailboxes map[int64]bool) api.Rule {
 	return out
 }
 
-// Remind sets or clears Remind Me reminders (ADR-0025).
-func (m messages) Remind(context.Context, *api.MessageRemindParams) error { return notYet(5) }
+// Remind sets or clears Remind Me reminders (ADR-0025): at a time in the
+// future, a message comes back to the top of its account's inbox.
+func (m messages) Remind(ctx context.Context, p *api.MessageRemindParams) error {
+	if p.At != nil && !p.At.After(m.DB.Now()) {
+		return api.InvalidParams("a reminder's time must be in the future")
+	}
+	rows, err := m.DB.Summaries(ctx, p.IDs)
+	if err != nil {
+		return err
+	}
+	if len(rows) != len(slices.Compact(slices.Sorted(slices.Values(p.IDs)))) {
+		return api.NotFound("a message does not exist")
+	}
+	byAccount := map[int64][]int64{}
+	for _, r := range rows {
+		byAccount[r.AccountID] = append(byAccount[r.AccountID], r.ID)
+	}
+	for id := range byAccount {
+		acct, err := m.DB.GetAccount(ctx, id)
+		if err != nil {
+			return err
+		}
+		if acct.ReadOnly {
+			return api.Conflict("account %d is read-only", id)
+		}
+	}
+	return m.DB.Tx(ctx, func(tx *store.Tx) error {
+		if p.At != nil {
+			if err := tx.SetMessageReminders(ctx, p.IDs, *p.At); err != nil {
+				return err
+			}
+		} else if _, err := tx.ClearMessageReminders(ctx, p.IDs); err != nil {
+			return err
+		}
+		for _, acct := range slices.Sorted(maps.Keys(byAccount)) {
+			if err := tx.Emit(ctx, api.MessageChanged{AccountID: acct, IDs: byAccount[acct]}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
 
-// Reschedule gives a Send Later message a new time (ADR-0025).
-func (o outbox) Reschedule(context.Context, *api.OutboxRescheduleParams) (*api.OutboxItem, error) {
-	return nil, notYet(5)
+// Reschedule gives a Send Later message a new time and rebuilds it with
+// that Date (ADR-0025); a time within the undo delay sends it after the
+// undo delay, as draft.send would.
+func (o outbox) Reschedule(ctx context.Context, p *api.OutboxRescheduleParams) (*api.OutboxItem, error) {
+	it, err := o.DB.GetOutbox(ctx, p.ID)
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("outbox message %d", p.ID))
+	}
+	if it.State != "queued" || !it.Scheduled || it.DraftID == 0 {
+		return nil, api.Conflict("message %d is not waiting to be sent later", p.ID)
+	}
+	dr, err := o.DB.GetDraft(ctx, it.DraftID)
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("draft %d", it.DraftID))
+	}
+	delay, err := o.undoDelay(ctx)
+	if err != nil {
+		return nil, err
+	}
+	when := sendTime(o.DB.Now(), delay, &p.SendAt)
+	b, err := o.build(ctx, dr, when.date)
+	if err != nil {
+		return nil, err
+	}
+	var out store.OutboxItem
+	err = o.DB.Tx(ctx, func(tx *store.Tx) error {
+		err := tx.RescheduleOutbox(ctx, it.ID, when.at, when.scheduled, b.blobID)
+		if errors.Is(err, store.ErrConflict) {
+			return api.Conflict("message %d is already being sent", p.ID)
+		}
+		if err != nil {
+			return err
+		}
+		if out, err = tx.GetOutbox(ctx, it.ID); err != nil {
+			return err
+		}
+		return tx.Emit(ctx, api.OutboxChanged{ID: out.ID, AccountID: out.AccountID, State: api.OutboxStateQueued})
+	})
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("outbox message %d", p.ID))
+	}
+	if o.Sync != nil {
+		o.Sync.OutboxChanged(out.AccountID)
+	}
+	r := toAPIOutbox(out)
+	return &r, nil
 }

@@ -3,6 +3,8 @@ package mailsync
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
+	"fmt"
 	"slices"
 	"time"
 
@@ -56,6 +58,9 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		}
 	}
 	added, gone, kept := diffUIDs(local, server)
+	if added, err = a.notLeaving(ctx, mb.ID, added); err != nil {
+		return err
+	}
 
 	if err := a.remove(ctx, mb, gone); err != nil {
 		return err
@@ -101,6 +106,32 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
 		ServerCount: sel.Messages, LastSyncAt: time.Now(),
 	})
+}
+
+// notLeaving is uids without those that queued moves take out of the
+// mailbox: the store has moved them already, the server not until the
+// moves replay, so they are not new mail.
+func (a *actor) notLeaving(ctx context.Context, mailboxID int64, uids []uint32) ([]uint32, error) {
+	if len(uids) == 0 {
+		return uids, nil
+	}
+	ops, err := a.m.db.QueuedOps(ctx, a.acct.ID, opMove)
+	if err != nil {
+		return nil, err
+	}
+	leaving := map[uint32]bool{}
+	for _, op := range ops {
+		var p moveOp
+		if err := json.Unmarshal(op.Payload, &p); err != nil {
+			return nil, fmt.Errorf("move op %d: %w", op.ID, err)
+		}
+		if p.From == mailboxID {
+			for _, it := range p.Items {
+				leaving[it.UID] = true
+			}
+		}
+	}
+	return slices.DeleteFunc(uids, func(u uint32) bool { return leaving[u] }), nil
 }
 
 // diffUIDs splits two ascending UID lists into server-only (added),

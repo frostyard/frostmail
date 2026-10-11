@@ -128,8 +128,11 @@ func (a *actor) sendLoop(ctx context.Context) {
 			a.m.log.Warn("outbox", "account", a.acct.ID, "err", err)
 			due = time.After(a.m.cfg.MaxBackoff)
 		case ok:
-			// At least a moment, so a row the clock disagrees about cannot spin.
-			due = time.After(max(time.Until(at), 10*time.Millisecond))
+			// At least a moment, so a row the clock disagrees about cannot
+			// spin, and at most a minute: timers do not run while the
+			// computer sleeps, so a Send Later time is checked against the
+			// wall clock (ADR-0025).
+			due = time.After(min(max(time.Until(at), 10*time.Millisecond), time.Minute))
 		}
 		select {
 		case <-ctx.Done():

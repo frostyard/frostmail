@@ -148,6 +148,9 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 		}
 	}
 	added, gone, kept := diffUIDs(local, server)
+	if added, err = a.notLeaving(ctx, mb.ID, added); err != nil {
+		return err
+	}
 	if err := a.removeGmail(ctx, mb, gone); err != nil {
 		return err
 	}
