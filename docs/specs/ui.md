@@ -219,6 +219,22 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - Rows are **84 high**, fixed: 8 padding top and bottom, a 24px gutter on the
   left and 12 on the right; a 1px `--separator` at the bottom inset 24 from
   the left.
+- **Sort and view options** (M5, P-202, P-203, P-209): at the right of
+  the filter bar's row (outside its toolbar), a button "Sort by <Field>"
+  with a 12px `chevron-down`, 12/16 `--text-secondary`, opening a menu:
+  Date, From, To, Subject, Size, Flags, Unread, Attachments (the current
+  one checked); a separator; Ascending and Descending (the current
+  direction checked); a separator; Conversations and Contact Photos (each
+  checked when on). Choosing a field sets its usual direction: Date,
+  Size, Flags, Unread and Attachments descending, From, To and Subject
+  ascending. The sort, the direction and both options are kept with the
+  window's layout; the list's query carries `sort` and `ascending` unless
+  they are Date, descending (the default), and `threads` with
+  Conversations.
+- **Contact photos** (M5): with Contact Photos on, each row shows, left of
+  its two lines and 8px from them, a 32px circle: the sender's person's
+  photo (`people.senders` for the rows' senders, then `people.photo`,
+  kept for the session), else the reader header's initials on its tone.
 - **Line 1:** sender (display name, else address) 13/600 truncated; at the
   right a 12px paperclip when `hasAttachments`, a 12px `alarm-clock` in
   `--text-secondary` when the message has a pending reminder (M5,
@@ -299,6 +315,27 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (the time sheet titled "Remind Me", starting at the reminder's time; OK
   calls `message.remind {ids: [id], at}`) and Clear (`message.remind
   {ids: [id]}`), disabled on a read-only account.
+- **More Actions** (M5, P-304, P-307, P-308): at the right of each
+  message's header, a 28px button named "More Actions" (Lucide
+  `ellipsis`, 16px, `--text-secondary`) opening a menu: Show All Headers
+  (or Hide All Headers), Raw Source…, a separator, Save As…, Print….
+  - **All headers:** the message's header section (`message.source`'s
+    `headers`) in a `section` named "All Headers" under the header: a
+    `pre`, 11/16 monospace
+    `--text-secondary`, `white-space: pre-wrap`, 16px side padding, until
+    hidden or another message is shown.
+  - **Raw Source:** a sheet (the smart mailbox sheet's frame, 720 wide,
+    titled "Raw Source") with the whole message (`text`) in a 12/18
+    monospace `pre` 480 high that scrolls, "The message is longer than
+    what is shown." under it when `truncated`, and Close.
+  - **Save As:** the save dialog (title "Save Message", default name the
+    subject with `/` and `\` replaced by `-`, "(no subject)" when blank,
+    plus `.eml`, filter "Email Message" `eml`), then `message.save {id,
+    path}`; nothing when the dialog is cancelled; outside Tauri,
+    nothing.
+  - **Print:** the webview's print (`window.print()`). Print styles show
+    only the reader pane, unscrolled and without toolbars or banners'
+    buttons; the print dialog's Print to File is Export as PDF.
 - **Remote content banner** (between header and body, `--bg-banner`, 12/400):
   "This message contains remote content." with a "Load Remote Content"
   button; when trackers were blocked, " N trackers blocked." follows. Hidden

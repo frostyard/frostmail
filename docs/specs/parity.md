@@ -73,7 +73,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | M5·6 | |
 | P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
 | P-307 | Print | Same | M5·6 | |
-| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print | M5·6 | |
+| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | M5·6 | |
 | P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
 | P-310 | Collapse and expand messages in a conversation | | Later | Quotes already collapse (`PlainText.test.tsx`) |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
