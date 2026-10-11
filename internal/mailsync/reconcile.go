@@ -69,7 +69,7 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		if err != nil {
 			return err
 		}
-		ids, err := a.insert(ctx, mb, headers)
+		ids, err := a.insert(ctx, mb, headers, ok && !a.acct.ReadOnly)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func diffUIDs(local, server []uint32) (added, gone, kept []uint32) {
 
 // insert stores new headers, threads and indexes them, emits the batch,
 // and returns the messages it created.
-func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.MessageHeader) ([]int64, error) {
+func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.MessageHeader, waiting bool) ([]int64, error) {
 	if len(headers) == 0 {
 		return nil, nil
 	}
@@ -156,6 +156,12 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 				if err := tx.IndexMessage(ctx, id, store.SearchDocFor(h)); err != nil {
 					return err
 				}
+			}
+		}
+		if waiting {
+			// New inbox mail waits for the rules (ADR-0024).
+			if err := tx.MarkRulesWaiting(ctx, ids); err != nil {
+				return err
 			}
 		}
 		if err := tx.Emit(ctx, api.MessageChanged{AccountID: a.acct.ID, IDs: ids}); err != nil {

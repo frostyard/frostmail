@@ -177,15 +177,35 @@ color}`.
 - **The run.** In `settled`, before `announceNew`, the actor reads its
   account's waiting messages and the enabled rules. For each rule in
   order, it compiles the conditions, restricted to the messages still in
-  the run, and records each match's actions. Stop takes the message out
-  of the run. Then one transaction applies every action through the
-  transaction-level forms of `SetFlags`, `Move`, `Copy` and `Delete`,
+  the run, and records each match's actions. Every rule sees the messages
+  as they were before the run: a rule that marks read does not stop a
+  later "Unread is Yes" from matching. Stop takes the matched messages
+  out of the rest of the run. Then one transaction applies every action
+  through the transaction-level forms of `SetFlags`, `Move`, `Copy` and
+  `Delete` (`setFlagsTx` and the rest in `internal/mailsync/ops.go`),
   queues their ops, and clears `rules_waiting` on every message it read.
+  When that transaction fails, the marks are cleared on their own and the
+  failure is logged: the messages stay as they came, and one bad message
+  cannot hold the rules for the rest.
 - **Order of actions** for one message: flags and read marks first, then
   copies, then the move or delete. The last move wins; a delete overrides
-  any move.
+  any move. A move or copy acts only on messages of its mailbox's account.
+  The ops replay in that order, and a flags op names the UIDs the messages
+  had when it was queued, so the flags reach the server before the move
+  and travel with the message.
+- **Send Notification** puts the message in the run's announcement
+  whatever the scope, and even when a move took it out of the inbox.
+- **Replay first.** The actor replays queued ops before every pass, so a
+  rule's move reaches the server before the inbox is reconciled again;
+  otherwise the moved message's old UID would come back as new mail.
 - `rule.apply {ids}` runs the same on chosen messages of writable
-  accounts in one transaction, and returns how many matched a rule.
+  accounts in one transaction, and returns how many matched a rule. A
+  message of a read-only account makes it a conflict; a missing one,
+  `notFound`.
+- **Problems.** `rule.update` checks only the fields it changes, so a rule
+  whose mailbox is gone can still be renamed or turned off. `Rule.problem`
+  names the first action whose mailbox is gone; the run skips that move
+  or copy.
 
 ## Remind Me
 

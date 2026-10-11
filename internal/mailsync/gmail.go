@@ -159,7 +159,7 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 		if err != nil {
 			return err
 		}
-		added, err := a.insertGmail(ctx, mb, allMail, headers)
+		added, err := a.insertGmail(ctx, mb, allMail, headers, ok && allMail && !a.acct.ReadOnly)
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 // insertGmail stores new headers of a synced folder, threads and indexes
 // the new messages, announces what changed, and returns the messages it
 // created.
-func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool, headers []store.MessageHeader) ([]int64, error) {
+func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool, headers []store.MessageHeader, waiting bool) ([]int64, error) {
 	if len(headers) == 0 {
 		return nil, nil
 	}
@@ -207,6 +207,12 @@ func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool,
 		r, err := tx.InsertGmail(ctx, a.acct.ID, mb.ID, allMail, labels, headers)
 		if err != nil {
 			return err
+		}
+		if waiting {
+			// New mail with \Inbox waits for the rules (ADR-0024).
+			if err := tx.MarkRulesWaiting(ctx, r.Added); err != nil {
+				return err
+			}
 		}
 		added = r.Added
 		ids := append(slices.Clone(r.Added), r.Changed...)

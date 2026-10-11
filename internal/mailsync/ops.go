@@ -6,6 +6,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -30,6 +31,20 @@ type flagsOp struct {
 	Messages []int64  `json:"messages"`
 	Add      []string `json:"add"`
 	Remove   []string `json:"remove"`
+	// At is where the messages were when the op was queued. Ops replay in
+	// order, so those UIDs hold until it replays, even when a later op
+	// (a move queued with it, as a rule does) has changed the store: the
+	// flags reach the server before the move, and move with the message.
+	// A message with no UID then (its own move still pending) is found at
+	// replay. Ops queued before At existed have none.
+	At []flagsAt `json:"at,omitzero"`
+}
+
+// flagsAt is one membership a flags op stores to.
+type flagsAt struct {
+	Message int64  `json:"message"`
+	Mailbox int64  `json:"mailbox"`
+	UID     uint32 `json:"uid"`
 }
 
 // moveItem is one message and the UID it had in the source mailbox.
@@ -65,9 +80,26 @@ type expungeOp struct {
 // SetFlags changes flags locally and queues the change for each account the
 // messages belong to.
 func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error {
+	var accounts []int64
+	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		accounts, err = m.setFlagsTx(ctx, tx, ids, c)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, acct := range accounts {
+		m.kick(acct)
+	}
+	return nil
+}
+
+// setFlagsTx is SetFlags inside tx; it returns the accounts it queued ops for.
+func (m *Manager) setFlagsTx(ctx context.Context, tx *store.Tx, ids []int64, c store.FlagChange) ([]int64, error) {
 	add, remove := imapFlagChange(c)
 	accounts := map[int64]bool{}
-	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+	err := func() error {
 		changed, err := tx.ChangeFlags(ctx, ids, c)
 		if err != nil {
 			return err
@@ -77,6 +109,7 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 			return err
 		}
 		byAccount := map[int64][]int64{}
+		at := map[int64][]flagsAt{}
 		for _, mem := range mems {
 			if err := refuseReadOnly(ctx, tx, mem.AccountID); err != nil {
 				return err
@@ -84,9 +117,13 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 			if len(byAccount[mem.AccountID]) == 0 || byAccount[mem.AccountID][len(byAccount[mem.AccountID])-1] != mem.MessageID {
 				byAccount[mem.AccountID] = append(byAccount[mem.AccountID], mem.MessageID)
 			}
+			if mem.UID != 0 {
+				at[mem.AccountID] = append(at[mem.AccountID], flagsAt{Message: mem.MessageID, Mailbox: mem.MailboxID, UID: mem.UID})
+			}
 		}
 		for acct, msgs := range byAccount {
-			if _, err := tx.QueueOp(ctx, acct, opFlags, flagsOp{Messages: msgs, Add: add, Remove: remove}, msgs); err != nil {
+			op := flagsOp{Messages: msgs, Add: add, Remove: remove, At: at[acct]}
+			if _, err := tx.QueueOp(ctx, acct, opFlags, op, msgs); err != nil {
 				return err
 			}
 			accounts[acct] = true
@@ -122,14 +159,8 @@ func (m *Manager) SetFlags(ctx context.Context, ids []int64, c store.FlagChange)
 			}
 		}
 		return refreshThreadsOf(ctx, tx, changed)
-	})
-	if err != nil {
-		return err
-	}
-	for acct := range accounts {
-		m.kick(acct)
-	}
-	return nil
+	}()
+	return slices.Sorted(maps.Keys(accounts)), err
 }
 
 // flaggedChange reports the \Flagged a FlagChange sets, if it sets one.
@@ -181,6 +212,20 @@ func imapFlagChange(c store.FlagChange) (add, remove []string) {
 func (m *Manager) Move(ctx context.Context, ids []int64, from, to int64) error {
 	var acct int64
 	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		acct, err = m.moveTx(ctx, tx, ids, from, to)
+		return err
+	})
+	if err == nil && acct != 0 {
+		m.kick(acct)
+	}
+	return err
+}
+
+// moveTx is Move inside tx; it returns the messages' account (0 for none).
+func (m *Manager) moveTx(ctx context.Context, tx *store.Tx, ids []int64, from, to int64) (int64, error) {
+	var acct int64
+	err := func() error {
 		mems, err := tx.Memberships(ctx, ids)
 		if err != nil {
 			return err
@@ -213,11 +258,8 @@ func (m *Manager) Move(ctx context.Context, ids []int64, from, to int64) error {
 			return m.gmailMove(ctx, tx, acct, mems, from, to)
 		}
 		return moveFolders(ctx, tx, acct, mems, to)
-	})
-	if err == nil && acct != 0 {
-		m.kick(acct)
-	}
-	return err
+	}()
+	return acct, err
 }
 
 // moveFolders is Move where each message is in one mailbox.
@@ -263,6 +305,20 @@ func moveFolders(ctx context.Context, tx *store.Tx, acct int64, mems []store.Mem
 func (m *Manager) Copy(ctx context.Context, ids []int64, to int64) error {
 	var acct int64
 	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		acct, err = m.copyTx(ctx, tx, ids, to)
+		return err
+	})
+	if err == nil && acct != 0 {
+		m.kick(acct)
+	}
+	return err
+}
+
+// copyTx is Copy inside tx; it returns the messages' account (0 for none).
+func (m *Manager) copyTx(ctx context.Context, tx *store.Tx, ids []int64, to int64) (int64, error) {
+	var acct int64
+	err := func() error {
 		mems, err := tx.Memberships(ctx, ids)
 		if err != nil {
 			return err
@@ -292,11 +348,8 @@ func (m *Manager) Copy(ctx context.Context, ids []int64, to int64) error {
 			return m.gmailCopy(ctx, tx, acct, mems, to)
 		}
 		return copyFolders(ctx, tx, acct, mems, to)
-	})
-	if err == nil && acct != 0 {
-		m.kick(acct)
-	}
-	return err
+	}()
+	return acct, err
 }
 
 // copyFolders is Copy where each message is in one mailbox: one COPY per
@@ -325,11 +378,28 @@ func copyFolders(ctx context.Context, tx *store.Tx, acct int64, mems []store.Mem
 // Delete moves messages to their account's Trash, or expunges those already
 // there (and everything, on an account without a Trash mailbox).
 func (m *Manager) Delete(ctx context.Context, ids []int64) error {
+	var accounts []int64
+	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		accounts, err = m.deleteTx(ctx, tx, ids)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	for _, acct := range accounts {
+		m.kick(acct)
+	}
+	return nil
+}
+
+// deleteTx is Delete inside tx; it returns the accounts it queued ops for.
+func (m *Manager) deleteTx(ctx context.Context, tx *store.Tx, ids []int64) ([]int64, error) {
 	accountOf := map[int64]int64{} // mailbox → account
 	expunges := map[int64]*expungeOp{}
 	moves := map[[2]int64]*moveOp{} // [from, trash]
 	changed := map[int64][]int64{}  // account → messages
-	err := m.db.Tx(ctx, func(tx *store.Tx) error {
+	err := func() error {
 		mems, err := tx.Memberships(ctx, ids)
 		if err != nil {
 			return err
@@ -406,14 +476,8 @@ func (m *Manager) Delete(ctx context.Context, ids []int64) error {
 			}
 		}
 		return nil
-	})
-	if err != nil {
-		return err
-	}
-	for acct := range changed {
-		m.kick(acct)
-	}
-	return nil
+	}()
+	return slices.Sorted(maps.Keys(changed)), err
 }
 
 // ErrInvalid marks a request the caller must change.
@@ -529,15 +593,32 @@ func (a *actor) replayOne(ctx context.Context, cmd conn, op store.Op) error {
 		if err := json.Unmarshal(op.Payload, &p); err != nil {
 			return err
 		}
+		byPath := map[string][]uint32{}
+		placed := map[int64]bool{}
+		paths := map[int64]string{} // "" for a mailbox that is gone
+		for _, at := range p.At {
+			placed[at.Message] = true
+			path, ok := paths[at.Mailbox]
+			if !ok {
+				var err error
+				path, err = a.mailboxPath(ctx, at.Mailbox)
+				if err != nil && !errors.Is(err, store.ErrNotFound) {
+					return err
+				}
+				paths[at.Mailbox] = path
+			}
+			if path != "" { // else the mailbox is gone, and the message with it
+				byPath[path] = append(byPath[path], at.UID)
+			}
+		}
 		var mems []store.Membership
 		if err := a.m.db.Tx(ctx, func(tx *store.Tx) error {
 			var err error
-			mems, err = tx.Memberships(ctx, p.Messages)
+			mems, err = tx.Memberships(ctx, slices.DeleteFunc(slices.Clone(p.Messages), func(id int64) bool { return placed[id] }))
 			return err
 		}); err != nil {
 			return err
 		}
-		byPath := map[string][]uint32{}
 		for _, mem := range mems {
 			if mem.UID != 0 {
 				byPath[mem.MailboxPath] = append(byPath[mem.MailboxPath], mem.UID)

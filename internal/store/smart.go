@@ -143,16 +143,8 @@ func (t *Tx) UpdateSmartMailbox(ctx context.Context, s SmartMailbox) (SmartMailb
 // positions, makes a notification scope that named it Inbox only, and
 // emits api.SmartChanged (and api.SettingsChanged when the scope moved).
 func (t *Tx) DeleteSmartMailbox(ctx context.Context, id int64) error {
-	var pos int
-	err := t.QueryRowContext(ctx, `DELETE FROM smart_mailboxes WHERE id = ? RETURNING position`, id).Scan(&pos)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return fmt.Errorf("delete smart mailbox: %w", err)
-	}
-	if _, err := t.ExecContext(ctx, `UPDATE smart_mailboxes SET position = position - 1 WHERE position > ?`, pos); err != nil {
-		return fmt.Errorf("delete smart mailbox: %w", err)
+	if err := t.deleteRow(ctx, "smart_mailboxes", id); err != nil {
+		return err
 	}
 	if err := t.Emit(ctx, api.SmartChanged{ID: id, Deleted: true}); err != nil {
 		return err
@@ -171,32 +163,58 @@ func (t *Tx) DeleteSmartMailbox(ctx context.Context, id int64) error {
 // MoveSmartMailbox puts a smart mailbox at position (clamped to the list),
 // moving the others along, and emits api.SmartChanged.
 func (t *Tx) MoveSmartMailbox(ctx context.Context, id int64, position int) error {
+	moved, err := t.moveRow(ctx, "smart_mailboxes", id, position)
+	if err != nil || !moved {
+		return err
+	}
+	return t.Emit(ctx, api.SmartChanged{ID: id})
+}
+
+// moveRow puts a row of a positioned table (smart_mailboxes, rules) at
+// position, clamped to the list, moving the others along. It reports
+// whether the row moved; ErrNotFound when there is no such row.
+func (t *Tx) moveRow(ctx context.Context, table string, id int64, position int) (bool, error) {
 	var from, count int
-	err := t.QueryRowContext(ctx, `SELECT position, (SELECT COUNT(*) FROM smart_mailboxes) FROM smart_mailboxes WHERE id = ?`, id).
+	err := t.QueryRowContext(ctx, `SELECT position, (SELECT COUNT(*) FROM `+table+`) FROM `+table+` WHERE id = ?`, id).
 		Scan(&from, &count)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	if err != nil {
+		return false, fmt.Errorf("move %s: %w", table, err)
+	}
+	to := min(max(position, 0), count-1)
+	if to == from {
+		return false, nil
+	}
+	shift := `UPDATE ` + table + ` SET position = position - 1 WHERE position > ? AND position <= ?`
+	lo, hi := from, to
+	if to < from {
+		shift = `UPDATE ` + table + ` SET position = position + 1 WHERE position >= ? AND position < ?`
+		lo, hi = to, from
+	}
+	if _, err := t.ExecContext(ctx, shift, lo, hi); err != nil {
+		return false, fmt.Errorf("move %s: %w", table, err)
+	}
+	if _, err := t.ExecContext(ctx, `UPDATE `+table+` SET position = ? WHERE id = ?`, to, id); err != nil {
+		return false, fmt.Errorf("move %s: %w", table, err)
+	}
+	return true, nil
+}
+
+// deleteRow deletes a row of a positioned table and closes the gap;
+// ErrNotFound when there is no such row.
+func (t *Tx) deleteRow(ctx context.Context, table string, id int64) error {
+	var pos int
+	err := t.QueryRowContext(ctx, `DELETE FROM `+table+` WHERE id = ? RETURNING position`, id).Scan(&pos)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("move smart mailbox: %w", err)
+		return fmt.Errorf("delete from %s: %w", table, err)
 	}
-	to := min(max(position, 0), count-1)
-	if to == from {
-		return nil
+	if _, err := t.ExecContext(ctx, `UPDATE `+table+` SET position = position - 1 WHERE position > ?`, pos); err != nil {
+		return fmt.Errorf("delete from %s: %w", table, err)
 	}
-	shift := `UPDATE smart_mailboxes SET position = position - 1 WHERE position > ? AND position <= ?`
-	if to < from {
-		shift = `UPDATE smart_mailboxes SET position = position + 1 WHERE position >= ? AND position < ?`
-	}
-	lo, hi := from, to
-	if to < from {
-		lo, hi = to, from
-	}
-	if _, err := t.ExecContext(ctx, shift, lo, hi); err != nil {
-		return fmt.Errorf("move smart mailbox: %w", err)
-	}
-	if _, err := t.ExecContext(ctx, `UPDATE smart_mailboxes SET position = ? WHERE id = ?`, to, id); err != nil {
-		return fmt.Errorf("move smart mailbox: %w", err)
-	}
-	return t.Emit(ctx, api.SmartChanged{ID: id})
+	return nil
 }

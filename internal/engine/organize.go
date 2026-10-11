@@ -308,17 +308,192 @@ func (e *Engine) Rules() api.RuleService { return rules{e.d} }
 
 type rules struct{ Deps }
 
-func (r rules) List(context.Context, *api.RuleListParams) ([]api.Rule, error) { return nil, notYet(4) }
-func (r rules) Create(context.Context, *api.RuleCreateParams) (*api.Rule, error) {
-	return nil, notYet(4)
+// maxRuleActions bounds one rule's actions.
+const maxRuleActions = 20
+
+func (r rules) List(ctx context.Context, _ *api.RuleListParams) ([]api.Rule, error) {
+	rows, err := r.DB.Rules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	mailboxes, err := r.mailboxIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.Rule, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toAPIRule(row, mailboxes))
+	}
+	return out, nil
 }
-func (r rules) Update(context.Context, *api.RuleUpdateParams) (*api.Rule, error) {
-	return nil, notYet(4)
+
+func (r rules) Create(ctx context.Context, p *api.RuleCreateParams) (*api.Rule, error) {
+	in := store.Rule{Enabled: p.Enabled == nil || *p.Enabled, Conditions: p.Conditions, Actions: p.Actions}
+	var err error
+	if in.Name, err = smartName(p.Name); err != nil {
+		return nil, api.InvalidParams("a rule's name must be 1 to %d characters without control characters", maxSmartName)
+	}
+	if err := r.check(ctx, in); err != nil {
+		return nil, err
+	}
+	var out store.Rule
+	err = r.DB.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = tx.CreateRule(ctx, in)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.answer(ctx, out)
 }
-func (r rules) Delete(context.Context, *api.RuleDeleteParams) error { return notYet(4) }
-func (r rules) Move(context.Context, *api.RuleMoveParams) error     { return notYet(4) }
-func (r rules) Apply(context.Context, *api.RuleApplyParams) (*api.RuleApplied, error) {
-	return nil, notYet(4)
+
+func (r rules) Update(ctx context.Context, p *api.RuleUpdateParams) (*api.Rule, error) {
+	cur, err := r.DB.Rule(ctx, p.ID)
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("rule %d", p.ID))
+	}
+	if p.Name != nil {
+		if cur.Name, err = smartName(*p.Name); err != nil {
+			return nil, api.InvalidParams("a rule's name must be 1 to %d characters without control characters", maxSmartName)
+		}
+	}
+	if p.Conditions != nil {
+		cur.Conditions = *p.Conditions
+	}
+	if p.Actions != nil {
+		cur.Actions = p.Actions
+	}
+	if p.Enabled != nil {
+		cur.Enabled = *p.Enabled
+	}
+	// Only what changes is checked, so a rule whose mailbox is gone can
+	// still be renamed or turned off.
+	if p.Conditions != nil {
+		if err := store.CheckConditions(cur.Conditions); err != nil {
+			return nil, api.InvalidParams("%v", err)
+		}
+	}
+	if p.Actions != nil {
+		if err := r.checkActions(ctx, cur.Actions); err != nil {
+			return nil, err
+		}
+	}
+	var out store.Rule
+	err = r.DB.Tx(ctx, func(tx *store.Tx) error {
+		var err error
+		out, err = tx.UpdateRule(ctx, cur)
+		return err
+	})
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("rule %d", p.ID))
+	}
+	return r.answer(ctx, out)
+}
+
+func (r rules) Delete(ctx context.Context, p *api.RuleDeleteParams) error {
+	err := r.DB.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteRule(ctx, p.ID) })
+	return apiError(err, fmt.Sprintf("rule %d", p.ID))
+}
+
+func (r rules) Move(ctx context.Context, p *api.RuleMoveParams) error {
+	if p.Position < 0 {
+		return api.InvalidParams("position must not be negative")
+	}
+	err := r.DB.Tx(ctx, func(tx *store.Tx) error { return tx.MoveRule(ctx, p.ID, int(p.Position)) })
+	return apiError(err, fmt.Sprintf("rule %d", p.ID))
+}
+
+func (r rules) Apply(ctx context.Context, p *api.RuleApplyParams) (*api.RuleApplied, error) {
+	if r.Sync == nil {
+		return nil, api.Unavailable("sync is not running")
+	}
+	n, err := r.Sync.ApplyRules(ctx, p.IDs)
+	if err != nil {
+		return nil, opError(err)
+	}
+	return &api.RuleApplied{Matched: int64(n)}, nil
+}
+
+// check refuses a rule maild cannot run: conditions that do not compile,
+// and actions that are unknown, lack what they need, or name a mailbox
+// that does not exist.
+func (r rules) check(ctx context.Context, in store.Rule) error {
+	if err := store.CheckConditions(in.Conditions); err != nil {
+		return api.InvalidParams("%v", err)
+	}
+	return r.checkActions(ctx, in.Actions)
+}
+
+// checkActions refuses actions that are unknown, lack what they need, or
+// name a mailbox that does not exist.
+func (r rules) checkActions(ctx context.Context, actions []api.RuleAction) error {
+	if len(actions) == 0 || len(actions) > maxRuleActions {
+		return api.InvalidParams("a rule needs 1 to %d actions", maxRuleActions)
+	}
+	mailboxes, err := r.mailboxIDs(ctx)
+	if err != nil {
+		return err
+	}
+	for i, a := range actions {
+		n := i + 1
+		if !a.Kind.Valid() {
+			return api.InvalidParams("action %d: %q is not an action", n, a.Kind)
+		}
+		needsMailbox := a.Kind == api.RuleActionKindMove || a.Kind == api.RuleActionKindCopy
+		switch {
+		case needsMailbox && a.MailboxID == nil:
+			return api.InvalidParams("action %d: %s needs a mailboxId", n, a.Kind)
+		case needsMailbox && !mailboxes[*a.MailboxID]:
+			return api.NotFound("action %d: mailbox %d does not exist", n, *a.MailboxID)
+		case !needsMailbox && a.MailboxID != nil:
+			return api.InvalidParams("action %d: %s takes no mailboxId", n, a.Kind)
+		case a.Kind == api.RuleActionKindFlag && (a.Color == nil || *a.Color < 1 || *a.Color > 7):
+			return api.InvalidParams("action %d: flag needs a color 1-7", n)
+		case a.Kind != api.RuleActionKindFlag && a.Color != nil:
+			return api.InvalidParams("action %d: %s takes no color", n, a.Kind)
+		}
+	}
+	return nil
+}
+
+func (r rules) answer(ctx context.Context, row store.Rule) (*api.Rule, error) {
+	mailboxes, err := r.mailboxIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := toAPIRule(row, mailboxes)
+	return &out, nil
+}
+
+// mailboxIDs is every mailbox's ID, for checking actions.
+func (r rules) mailboxIDs(ctx context.Context) (map[int64]bool, error) {
+	mbs, err := r.DB.ListMailboxes(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]bool, len(mbs))
+	for _, mb := range mbs {
+		out[mb.ID] = true
+	}
+	return out, nil
+}
+
+// toAPIRule is a rule with the problem of an action whose mailbox is gone.
+func toAPIRule(r store.Rule, mailboxes map[int64]bool) api.Rule {
+	out := api.Rule{ID: r.ID, Name: r.Name, Position: int64(r.Position), Enabled: r.Enabled,
+		Conditions: r.Conditions, Actions: r.Actions}
+	if out.Actions == nil {
+		out.Actions = []api.RuleAction{}
+	}
+	for i, a := range r.Actions {
+		if a.MailboxID != nil && !mailboxes[*a.MailboxID] {
+			problem := fmt.Sprintf("action %d: mailbox %d is gone", i+1, *a.MailboxID)
+			out.Problem = &problem
+			break
+		}
+	}
+	return out
 }
 
 // Remind sets or clears Remind Me reminders (ADR-0025).

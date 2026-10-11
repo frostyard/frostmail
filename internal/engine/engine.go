@@ -35,6 +35,9 @@ type Syncer interface {
 	Move(ctx context.Context, ids []int64, from, to int64) error
 	Copy(ctx context.Context, ids []int64, to int64) error
 	Delete(ctx context.Context, ids []int64) error
+	// ApplyRules runs the enabled rules on messages now (rule.apply) and
+	// returns how many met a rule's conditions.
+	ApplyRules(ctx context.Context, ids []int64) (int, error)
 	// Verify compares an account's synced folders with the server.
 	Verify(ctx context.Context, accountID int64) ([]mailsync.Check, error)
 	// Kick, OutboxChanged and DraftsChanged wake an account's IMAP actor

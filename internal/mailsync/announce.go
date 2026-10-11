@@ -16,15 +16,32 @@ import (
 // and read-only accounts, announce nothing; neither does a folder's first
 // sync, which never collects.
 func (a *actor) announceNew(ctx context.Context) {
-	ids := a.fresh
-	a.fresh = nil
-	if len(ids) == 0 || a.m.cfg.Announce == nil || !a.acct.Notify || a.acct.ReadOnly {
+	ids, ruled := a.fresh, a.ruleNotify
+	a.fresh, a.ruleNotify = nil, nil
+	if len(ids)+len(ruled) == 0 || a.m.cfg.Announce == nil || !a.acct.Notify || a.acct.ReadOnly {
 		return
 	}
 	mail, err := a.inScope(ctx, ids)
 	if err != nil {
 		a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
 		return
+	}
+	// A rule's Send Notification announces whatever the scope.
+	var extra []int64
+	for _, id := range ruled {
+		if !slices.ContainsFunc(mail, func(m notify.Mail) bool { return m.ID == id }) {
+			extra = append(extra, id)
+		}
+	}
+	if len(extra) > 0 {
+		rows, err := a.m.db.Summaries(ctx, extra)
+		if err != nil {
+			a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
+			return
+		}
+		for _, r := range rows {
+			mail = append(mail, notify.Mail{ID: r.ID, FromName: r.From.Name, FromAddr: r.From.Addr, Subject: r.Subject, Preview: r.Preview})
+		}
 	}
 	if len(mail) == 0 {
 		return

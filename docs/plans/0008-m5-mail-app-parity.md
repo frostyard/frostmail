@@ -141,8 +141,14 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
 
 ## Phase 4 — Rules
 
-- Planner: evaluation in `mailsync` (after insert, before announce, once
-  per message), actions as ops, read-only accounts, `rule.apply`.
+- Planner (done before the cards): evaluation in `mailsync` (after
+  insert, before announce, once per message, through
+  `messages.rules_waiting`), actions as ops through the transaction-level
+  forms of the message actions, read-only accounts, `rule.*` with
+  `rule.apply`. Two sync fixes came with it: queued ops replay before
+  every pass, and a flags op keeps the UIDs it was queued for, so a read
+  mark followed by a move (a rule's, or a user's offline) reaches the
+  server.
 - Cards: the Rules pane (the list in order, the editor over the condition
   editor); Apply Rules in the menus; `mailctl rules`.
 - **Done when:** on the Dovecot account and the throwaway Gmail account,
