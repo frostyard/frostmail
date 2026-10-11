@@ -1,4 +1,4 @@
-// CONTRACT TEST for task cards T-0103 and T-0118 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0103, T-0118 and T-0126 (docs/tasks). Do not edit.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -73,6 +73,8 @@ describe("the message list's context menu", () => {
       "Reply",
       "Reply All",
       "Forward",
+      "Forward as Attachment",
+      "Redirect…",
       "—",
       "Archive",
       "Delete",
@@ -167,7 +169,7 @@ describe("the message list's context menu", () => {
     const enabled = menuItems(menu)
       .filter((el) => el.getAttribute("aria-disabled") !== "true")
       .map((el) => el.querySelector(".flex-1")?.textContent);
-    expect(enabled).toEqual(["Reply", "Reply All", "Forward"]);
+    expect(enabled).toEqual(["Reply", "Reply All", "Forward", "Forward as Attachment"]);
   });
 
   it("marks the selection as spam with Ctrl+Shift+J", async () => {
