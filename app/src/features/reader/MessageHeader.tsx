@@ -3,7 +3,7 @@
 // name, date, subject and recipients; the strip lists a message's
 // attachments as chips; the banner reports remote content and trackers that
 // were held back and offers to load them.
-import { File, Star } from "lucide-react";
+import { Ellipsis, File, Star } from "lucide-react";
 import { Fragment } from "react";
 
 import { avatarTone, displayName, formatAddressList, formatHeaderDate, formatSize, initials } from "../../lib/format";
@@ -11,7 +11,7 @@ import type { Address, Message, Part } from "../../rpc/gen/api";
 
 // Tailwind only generates a class it finds whole in the source, so the
 // eight avatar tones are listed rather than built from the tone number.
-const AVATAR_CLASSES: Record<number, string> = {
+export const AVATAR_CLASSES: Record<number, string> = {
   0: "bg-avatar-0",
   1: "bg-avatar-1",
   2: "bg-avatar-2",
@@ -27,6 +27,7 @@ export interface MessageHeaderProps {
   message: Message;
   vip?: boolean;
   onAddress?: (address: Address, at: { x: number; y: number }) => void;
+  onMore?: (at: { x: number; y: number }) => void;
 }
 
 function AddressButton({
@@ -118,6 +119,21 @@ export function MessageHeader(props: MessageHeaderProps) {
             )}
           </span>
           <span className="text-reader-meta text-secondary shrink-0">{formatHeaderDate(new Date(summary.date))}</span>
+          {props.onMore && (
+            <button
+              type="button"
+              aria-label="More Actions"
+              title="More Actions"
+              aria-haspopup="menu"
+              className="flex size-7 shrink-0 items-center justify-center text-secondary print:hidden"
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                props.onMore?.({ x: rect.left, y: rect.bottom });
+              }}
+            >
+              <Ellipsis size={16} />
+            </button>
+          )}
         </div>
         <div className="text-reader-subject">{subject === "" ? "(No Subject)" : subject}</div>
         <AddressLine label="To" addresses={to} onAddress={props.onAddress} />

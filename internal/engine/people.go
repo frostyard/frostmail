@@ -233,6 +233,26 @@ func (p people) Photo(ctx context.Context, params *api.PeoplePhotoParams) (*api.
 	return &api.Photo{ContentType: typ, Data: base64.StdEncoding.EncodeToString(data)}, nil
 }
 
+// maxSenders bounds one people.senders request.
+const maxSenders = 500
+
+// Senders implements people.senders: the addresses whose person has a
+// photo, for the message list's contact photos.
+func (p people) Senders(ctx context.Context, params *api.PeopleSendersParams) ([]api.SenderPhoto, error) {
+	if len(params.Addresses) > maxSenders {
+		return nil, api.InvalidParams("at most %d addresses", maxSenders)
+	}
+	rows, err := p.DB.SenderPhotos(ctx, params.Addresses)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.SenderPhoto, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, api.SenderPhoto{Address: r.Address, PersonID: r.PersonID})
+	}
+	return out, nil
+}
+
 // Add stores a new vCard 3.0 for an address in an address book, as a
 // change for sync to write with If-None-Match: * (docs/design/pim.md,
 // People in mail), and returns its person.

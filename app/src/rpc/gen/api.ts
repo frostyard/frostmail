@@ -1162,6 +1162,16 @@ export interface Part {
   size: number;
 }
 
+/** A message as the server holds it. */
+export interface MessageSource {
+  /** The header section, up to the blank line. */
+  headers: string;
+  /** The whole message, at most 2 MB of it. */
+  text: string;
+  /** The message is longer than text. */
+  truncated: boolean;
+}
+
 /** Everything about a message except its body. */
 export interface Message {
   summary: MessageSummary;
@@ -1279,6 +1289,18 @@ export interface MessageDeleteParams {
   ids: number[];
 }
 
+/** Params of message.source. */
+export interface MessageSourceParams {
+  id: number;
+}
+
+/** Params of message.save. */
+export interface MessageSaveParams {
+  id: number;
+  /** An absolute path the user chose. */
+  path: string;
+}
+
 /** Params of message.remind. */
 export interface MessageRemindParams {
   ids: number[];
@@ -1341,6 +1363,16 @@ export interface MessageClient {
    */
   delete(params: MessageDeleteParams): Promise<void>;
   /**
+   * Raw Source and All Headers: the message as the server holds it, fetched
+   * first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+   */
+  source(params: MessageSourceParams): Promise<MessageSource>;
+  /**
+   * Save As: write the message as the server holds it (an .eml file) to path,
+   * replacing a file there. invalidParams for a relative path.
+   */
+  save(params: MessageSaveParams): Promise<void>;
+  /**
    * Remind Me: at a time, bring messages back to the top of their account's
    * inbox and notify (ADR-0025). Without at, clear their reminders. Conflict
    * for a read-only account's messages.
@@ -1359,6 +1391,8 @@ function messageClient(t: Transport): MessageClient {
     move: (params) => t.call<null>("message.move", params).then(() => undefined),
     copy: (params) => t.call<null>("message.copy", params).then(() => undefined),
     delete: (params) => t.call<null>("message.delete", params).then(() => undefined),
+    source: (params) => t.call<MessageSource>("message.source", params),
+    save: (params) => t.call<null>("message.save", params).then(() => undefined),
     remind: (params) => t.call<null>("message.remind", params).then(() => undefined),
   };
 }
@@ -1576,6 +1610,13 @@ export interface Photo {
   data: string;
 }
 
+/** An address whose person has a photo (people.photo). */
+export interface SenderPhoto {
+  /** Lowercased. */
+  address: string;
+  personId: number;
+}
+
 /** What the app shows for an email address in mail. */
 export interface ContactCard {
   /** Lowercased. */
@@ -1623,6 +1664,12 @@ export interface PeoplePhotoParams {
   id: number;
 }
 
+/** Params of people.senders. */
+export interface PeopleSendersParams {
+  /** At most 500. */
+  addresses: string[];
+}
+
 /** Params of people.add. */
 export interface PeopleAddParams {
   email: string;
@@ -1656,6 +1703,11 @@ export interface PeopleClient {
   /** A person's photo, from the first of their contacts that has one. */
   photo(params: PeoplePhotoParams): Promise<Photo>;
   /**
+   * Which of these addresses belong to a person with a photo, for contact
+   * photos in the message list. Addresses without one are left out.
+   */
+  senders(params: PeopleSendersParams): Promise<SenderPhoto[]>;
+  /**
    * Add to Contacts: store a new vCard 3.0 with the name and address in an
    * address book and write it to the server.
    */
@@ -1668,6 +1720,7 @@ function peopleClient(t: Transport): PeopleClient {
     get: (params) => t.call<Person>("people.get", params),
     card: (params) => t.call<ContactCard>("people.card", params),
     photo: (params) => t.call<Photo>("people.photo", params),
+    senders: (params) => t.call<SenderPhoto[]>("people.senders", params),
     add: (params) => t.call<Person>("people.add", params),
   };
 }
@@ -2171,6 +2224,10 @@ function threadClient(t: Transport): ThreadClient {
 export type ViewOpKind = "insert" | "remove";
 export const ViewOpKindValues: readonly ViewOpKind[] = ["insert", "remove"];
 
+/** What a view's rows are ordered by. */
+export type ViewSort = "date" | "from" | "to" | "subject" | "size" | "flags" | "unread" | "attachments";
+export const ViewSortValues: readonly ViewSort[] = ["date", "from", "to", "subject", "size", "flags", "unread", "attachments"];
+
 /** How a list of conditions combines (docs/design/organize.md). */
 export type ConditionMatch = "all" | "any";
 export const ConditionMatchValues: readonly ConditionMatch[] = ["all", "any"];
@@ -2204,8 +2261,8 @@ export interface Conditions {
 }
 
 /**
- * Which messages a view lists, newest first. Every field that is set must
- * match.
+ * Which messages a view lists, newest first unless sort says otherwise. Every
+ * field that is set must match.
  */
 export interface ViewQuery {
   accountId?: number;
@@ -2244,6 +2301,16 @@ export interface ViewQuery {
    * source's own.
    */
   filter?: Conditions;
+  /**
+   * The order; date by default. With threads, threads are ordered by their
+   * row's message.
+   */
+  sort?: ViewSort;
+  /**
+   * Lowest first: oldest, A to Z, smallest, and unflagged, read or without
+   * attachments before the others. Descending by default.
+   */
+  ascending?: boolean;
 }
 
 /** An open view. */
@@ -2462,6 +2529,8 @@ export const METHODS = [
   "message.move",
   "message.copy",
   "message.delete",
+  "message.source",
+  "message.save",
   "message.remind",
   "oauth.setClient",
   "oauth.getClient",
@@ -2473,6 +2542,7 @@ export const METHODS = [
   "people.get",
   "people.card",
   "people.photo",
+  "people.senders",
   "people.add",
   "rpc.hello",
   "rule.list",

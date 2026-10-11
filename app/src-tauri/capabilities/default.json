@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main, compose, settings and reminder windows. App commands (maild_*, open_link, open_part, open_compose, open_settings, open_reminders) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach and confirms.",
+  "description": "The main, compose, settings and reminder windows. App commands (maild_*, open_link, open_part, open_compose, open_settings, open_reminders) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach, picks where Save As writes, and confirms.",
   "windows": [
     "main",
     "compose-*",
@@ -19,6 +19,7 @@
     "core:window:allow-set-title",
     "core:window:allow-set-focus",
     "dialog:allow-open",
+    "dialog:allow-save",
     "dialog:allow-ask",
     "core:window:allow-show"
   ]

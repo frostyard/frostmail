@@ -8,9 +8,10 @@ import type { DragEvent, MouseEvent } from "react";
 
 import { appLocale } from "../../lib/calendarDates";
 import { flagName } from "../../lib/flags";
-import { displayName, formatListDate } from "../../lib/format";
+import { avatarTone, displayName, formatListDate, initials } from "../../lib/format";
 import { whenText } from "../../lib/later";
 import type { MessageSummary } from "../../rpc/gen/api";
+import { AVATAR_CLASSES } from "../reader/MessageHeader";
 
 /** ROW_HEIGHT is the fixed height of a list row in pixels. */
 export const ROW_HEIGHT = 84;
@@ -25,6 +26,7 @@ export type RowAction = "flag" | "archive" | "delete";
 export interface MessageRowProps {
   message: MessageSummary;
   vip?: boolean;
+  photo?: string | null;
   selected: boolean;
   /** The list has keyboard focus: selected rows use the accent color. */
   focused: boolean;
@@ -92,7 +94,8 @@ export function MessageRow(props: MessageRowProps) {
       draggable={props.onDragStart !== undefined}
       onDragStart={(event) => props.onDragStart?.(message.id, event)}
       className={joinClasses(
-        "group relative h-[84px] pt-2 pb-2 pl-6 pr-3",
+        "group relative h-[84px] pt-2 pb-2 pr-3",
+        props.photo === undefined ? "pl-6" : "pl-16",
         contrast && "bg-accent text-accent-contrast",
         selected && !contrast && "bg-selection-inactive",
       )}
@@ -103,6 +106,22 @@ export function MessageRow(props: MessageRowProps) {
       }}
     >
       {!selected && <div className="absolute bottom-0 left-6 right-0 h-px bg-separator" />}
+      {props.photo !== undefined && (
+        <div
+          data-avatar
+          aria-hidden="true"
+          className={joinClasses(
+            "absolute left-6 top-2 size-8 overflow-hidden rounded-full flex items-center justify-center text-[13px] font-semibold text-white",
+            props.photo === null && AVATAR_CLASSES[avatarTone(message.from.address)],
+          )}
+        >
+          {props.photo === null ? (
+            initials(message.from)
+          ) : (
+            <img src={props.photo} alt="" className="size-full object-cover" />
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-1">
         {props.vip && (

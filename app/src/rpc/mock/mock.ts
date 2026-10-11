@@ -25,6 +25,7 @@ import {
   type SyncStatus,
   type ViewCount,
   type ViewQuery,
+  type ViewSort,
 } from "../gen/api";
 import { RPCError, type Transport } from "../transport";
 import { MockCalendar, type MockCalendarData } from "./calendar";
@@ -370,6 +371,24 @@ export class MockTransport implements Transport {
           const m = this.messages.get(id);
           return m ? [m.summary] : [];
         });
+      case "message.source": {
+        const m = this.find(num(p.id));
+        const s = m.summary;
+        const headers = [
+          `From: ${s.from.name ? `${s.from.name} <${s.from.address}>` : s.from.address}`,
+          `To: ${m.to.map((a) => a.address).join(", ")}`,
+          `Subject: ${s.subject}`,
+          `Date: ${new Date(s.date).toUTCString()}`,
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=utf-8",
+        ].join("\r\n");
+        return { headers, text: `${headers}\r\n\r\n${m.text}`, truncated: false };
+      }
+      case "message.save":
+        this.find(num(p.id));
+        if (!String(p.path ?? "").startsWith("/"))
+          throw new RPCError(ErrorCode.invalidParams, `"${String(p.path)}" is not an absolute path`);
+        return null;
       case "message.render":
         return this.render(num(p.id), p.remote === true);
       case "message.part":
@@ -796,7 +815,40 @@ export class MockTransport implements Transport {
         return true;
       });
     }
+    if (q.sort !== undefined && (q.sort !== "date" || q.ascending === true)) {
+      const key = (s: MessageSummary): string | number => this.sortKey(s, q.sort ?? "date");
+      const dir = q.ascending === true ? 1 : -1;
+      rows = [...rows].sort((a, b) => {
+        const ka = key(a);
+        const kb = key(b);
+        return (ka < kb ? -1 : ka > kb ? 1 : 0) * dir || newestFirst(a, b);
+      });
+    }
     return rows.map((s) => s.id);
+  }
+
+  /** sortKey is a message's key for a ViewSort, as maild's. */
+  private sortKey(s: MessageSummary, sort: ViewSort): string | number {
+    switch (sort) {
+      case "from":
+        return (s.from.name || s.from.address).toLowerCase();
+      case "to": {
+        const to = this.messages.get(s.id)?.to[0];
+        return (to?.name || to?.address || "").toLowerCase();
+      }
+      case "subject":
+        return s.subject.replace(/^((re|fwd?)\s*:\s*)+/i, "").toLowerCase();
+      case "size":
+        return s.size;
+      case "flags":
+        return (s.flags.flagged ? 8 : 0) + s.flags.flagColor;
+      case "unread":
+        return s.flags.seen ? 0 : 1;
+      case "attachments":
+        return s.hasAttachments ? 1 : 0;
+      default:
+        return s.date;
+    }
   }
 
   /** matches evaluates conditions (docs/design/organize.md) for the fields

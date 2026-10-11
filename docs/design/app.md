@@ -98,6 +98,17 @@ client.
   command with the returned path; Rust resolves it under the parts cache
   with the same checks as the `mailpart` protocol and opens it with the
   system's default application.
+- **Raw Source, All Headers, Save As, Print** (M5): `message.source` gives
+  the message as the server holds it (its header section apart) from the
+  blob store, fetching the body first when it is not stored; `message.save
+  {id, path}` writes it to a path from the save dialog, so the app needs
+  no file access of its own. Print is the webview's own print with print
+  styles that leave only the reader; Export as PDF is the print dialog's
+  Print to File.
+- **Contact photos** (M5): `people.senders` names, in one request, the
+  list's sender addresses whose person has a photo; the app fetches each
+  person's `people.photo` once and keeps it for the session. Photos are
+  the contacts' own, never fetched from anywhere.
 
 ## Window
 

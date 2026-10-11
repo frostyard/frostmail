@@ -213,6 +213,11 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   `TestDovecotMailboxes` reach the server, a nested rename and delete on
   Dovecot included; `TestMigration12KeepsQueuedOps` keeps a schema-11
   database's queued ops. P-102 and P-107 to P-110 are Have.
+- **6b, list and reader (2026-10-11):** sorted views, `message.source`
+  and `message.save`, and `people.senders` (planner), then T-0122 to
+  T-0124, each verified on Codex's first attempt. P-202, P-203, P-209,
+  P-304, P-307 and P-308 are Have; Print to File's PDF is not tested by
+  the suite (the GTK print dialog).
 
 ## Phase 7 — Categories spike
 

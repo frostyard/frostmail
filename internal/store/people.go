@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"unicode"
@@ -359,6 +360,46 @@ func (d *DB) ContactsIn(ctx context.Context, collectionID int64) (map[int64]bool
 			return nil, fmt.Errorf("contacts in collection: %w", err)
 		}
 		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// SenderPhoto is an address whose person has a photo.
+type SenderPhoto struct {
+	Address  string // lowercased
+	PersonID int64
+}
+
+// SenderPhotos returns those of addresses whose person has a photo, by
+// address; addresses are lowercased.
+func (d *DB) SenderPhotos(ctx context.Context, addresses []string) ([]SenderPhoto, error) {
+	if len(addresses) == 0 {
+		return nil, nil
+	}
+	lower := make([]string, len(addresses))
+	for i, a := range addresses {
+		lower[i] = strings.ToLower(strings.TrimSpace(a))
+	}
+	in, err := json.Marshal(lower)
+	if err != nil {
+		return nil, fmt.Errorf("sender photos: %w", err)
+	}
+	rows, err := d.db.QueryContext(ctx, `SELECT ce.email, MIN(c.person_id) FROM contacts c
+ JOIN contact_emails ce ON ce.contact_id = c.object_id`+eligibleContactJoins+`
+ AND ce.email IN (SELECT value FROM json_each(?)) AND c.person_id IS NOT NULL
+ AND EXISTS (SELECT 1 FROM contacts p WHERE p.person_id = c.person_id AND length(p.photo) > 0)
+ GROUP BY ce.email ORDER BY ce.email`, string(in))
+	if err != nil {
+		return nil, fmt.Errorf("sender photos: %w", err)
+	}
+	defer rows.Close()
+	var out []SenderPhoto
+	for rows.Next() {
+		var sp SenderPhoto
+		if err := rows.Scan(&sp.Address, &sp.PersonID); err != nil {
+			return nil, fmt.Errorf("sender photos: %w", err)
+		}
+		out = append(out, sp)
 	}
 	return out, rows.Err()
 }

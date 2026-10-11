@@ -6,6 +6,7 @@ import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
 import type { ViewModel } from "../data/view";
 import { FilterBar } from "../features/list/FilterBar";
+import { SortMenu } from "../features/list/SortMenu";
 import { ScopeBar } from "../features/search/SearchField";
 import { addDays, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
@@ -331,7 +332,21 @@ function MailPanes(props: {
         </>
       )}
       <div className="flex h-full shrink-0 flex-col" style={{ width: ui.listWidth }}>
-        <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
+        <div className="flex h-[32px] shrink-0 items-center border-b border-separator bg-window pr-3">
+          <div className="min-w-0 flex-1 overflow-x-auto [&>div]:w-max [&>div]:border-b-0">
+            <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
+          </div>
+          <SortMenu
+            sort={ui.sort}
+            ascending={ui.ascending}
+            conversations={ui.conversations}
+            contactPhotos={ui.contactPhotos}
+            onSort={ui.setSort}
+            onAscending={ui.setAscending}
+            onConversations={ui.setConversations}
+            onContactPhotos={ui.setContactPhotos}
+          />
+        </div>
         <div className="min-h-0 flex-1">
           <ListContainer ref={props.handles.list} model={props.model} onDelete={props.onDelete} />
         </div>
