@@ -1,10 +1,10 @@
 // The settings window (docs/specs/settings-ui.md): the pane tabs and the
-// containers that connect the Accounts, Signatures and Sign-In panes to
+// containers that connect the General, Accounts, Signatures and Sign-In panes to
 // maild.
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { AtSign, KeyRound, PenLine, X } from "lucide-react";
+import { AtSign, KeyRound, PenLine, Settings2, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
@@ -16,6 +16,7 @@ import {
   defaultServices,
 } from "../features/settings/AccountForm";
 import { AccountList } from "../features/settings/AccountList";
+import { GeneralPane } from "../features/settings/GeneralPane";
 import { type IdentityChange, IdentityEditor } from "../features/settings/IdentityEditor";
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
 import { ServicesSection } from "../features/settings/ServicesSection";
@@ -27,14 +28,16 @@ import type {
   ServerConfig,
   ServiceKind,
   ServiceSettings,
+  SettingsSetParams,
 } from "../rpc/gen/api";
 import { ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 import { openInBrowser } from "./settings";
 
-type Pane = "accounts" | "signatures" | "signin";
+type Pane = "general" | "accounts" | "signatures" | "signin";
 
 const TABS: { pane: Pane; label: string; icon: ReactNode }[] = [
+  { pane: "general", label: "General", icon: <Settings2 size={18} /> },
   { pane: "accounts", label: "Accounts", icon: <AtSign size={18} /> },
   { pane: "signatures", label: "Signatures", icon: <PenLine size={18} /> },
   { pane: "signin", label: "Sign-In", icon: <KeyRound size={18} /> },
@@ -83,6 +86,7 @@ export function SettingsWindow() {
         </button>
       </div>
       <div className="min-h-0 flex-1">
+        {pane === "general" && <GeneralPaneContainer />}
         {pane === "accounts" && <AccountsPane />}
         {pane === "signatures" && <SignaturesPane />}
         {pane === "signin" && <SignInPane />}
@@ -93,6 +97,21 @@ export function SettingsWindow() {
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function GeneralPaneContainer() {
+  const client = useClient();
+  const settings = useMail((s) => s.settings);
+  const [error, setError] = useState<string>();
+  const change = async (params: SettingsSetParams) => {
+    try {
+      await client.settings.set(params);
+      setError(undefined);
+    } catch (err) {
+      setError(message(err));
+    }
+  };
+  return <GeneralPane settings={settings} error={error} onChange={(params) => void change(params)} />;
 }
 
 /** useRequest runs one request at a time and keeps its error. */
