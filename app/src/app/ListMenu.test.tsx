@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0103 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0103 and T-0118 (docs/tasks). Do not edit.
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -84,6 +84,7 @@ describe("the message list's context menu", () => {
       flags?.flagged ? "Unflag" : "Flag",
       "Flag Color",
       flags?.seen ? "Mark as Unread" : "Mark as Read",
+      "Remind Me",
     ]);
     expect(item(menu, "Mark as Spam").textContent).toContain("Ctrl+Shift+J");
     expect(item(menu, flags?.flagged ? "Unflag" : "Flag").textContent).toContain("Ctrl+Shift+L");

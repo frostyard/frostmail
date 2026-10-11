@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0113 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0113 and T-0118 (docs/tasks). Do not edit.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -75,7 +75,7 @@ describe("Apply Rules in the message list's context menu", () => {
   it("is not offered when no rule is on", async () => {
     const { menu } = await setup([{ enabled: false }]);
     expect(entries(menu)).not.toContain("Apply Rules");
-    expect(entries(menu).at(-1)).toMatch(/^Mark as (Read|Unread)$/);
+    expect(entries(menu).at(-1)).toBe("Remind Me");
   });
 
   it("is disabled on a read-only account", async () => {
