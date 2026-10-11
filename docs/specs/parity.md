@@ -70,7 +70,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
 | P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` |
-| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | M5·6 | |
+| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestPublicRefusesInsideAddresses`, `Unsubscribe.test.tsx` |
 | P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
 | P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
 | P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
@@ -84,8 +84,8 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
 | P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` |
-| P-402 | Redirect | A resend with the original headers, as maild sends | M5·6 | |
-| P-403 | Forward as Attachment | Same | M5·6 | |
+| P-402 | Redirect | A resend with the original headers, as maild sends | Have | `TestRedirect`, `Redirect.test.tsx` |
+| P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` |
 | P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` |
 | P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` |
 | P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | M5·6 | |

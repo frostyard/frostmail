@@ -218,6 +218,12 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   T-0124, each verified on Codex's first attempt. P-202, P-203, P-209,
   P-304, P-307 and P-308 are Have; Print to File's PDF is not tested by
   the suite (the GTK print dialog).
+- **6c, passing mail on (2026-10-11):** one-click unsubscribe with its
+  address rule, mail and web unsubscribing, Redirect and Forward as
+  Attachment (planner), then T-0125 and T-0126, each verified on Codex's
+  first attempt. P-305, P-402 and P-403 are Have; the one-click `POST` is
+  tested against a local HTTPS server, which the address rule refuses
+  unless the test allows it.
 
 ## Phase 7 — Categories spike
 
