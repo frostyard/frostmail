@@ -2,6 +2,7 @@
 // out its undo delay, and the outbox section for messages not yet sent
 // (docs/specs/compose-ui.md, Undo toast and Outbox).
 import { formatAddressList } from "../../lib/format";
+import { whenText } from "../../lib/later";
 import type { OutboxItem } from "../../rpc/gen/api";
 
 /** subjectShown is the subject, or "(no subject)" when it is blank. */
@@ -71,7 +72,7 @@ export interface OutboxStatusProps {
 
 /** OutboxStatus lists the messages that are not yet sent, with their state and what can be done. */
 export function OutboxStatus({ items, now, onRetry, onEdit }: OutboxStatusProps) {
-  const pending = items.filter((item) => item.state !== "sent");
+  const pending = items.filter((item) => item.state !== "sent" && !isSendLater(item));
   if (pending.length === 0) {
     return null;
   }
@@ -98,6 +99,63 @@ export function OutboxStatus({ items, now, onRetry, onEdit }: OutboxStatusProps)
                 </button>
               </span>
             )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** isSendLater identifies a message queued for its chosen Send Later time. */
+export function isSendLater(item: OutboxItem): boolean {
+  return item.state === "queued" && item.scheduled;
+}
+
+/** SendLaterStatusProps supplies the waiting messages, local time and actions. */
+export interface SendLaterStatusProps {
+  items: OutboxItem[];
+  now: Date;
+  timeZone: string;
+  locale: string;
+  onEdit: (item: OutboxItem) => void;
+  onSendNow: (item: OutboxItem) => void;
+  onChangeTime: (item: OutboxItem) => void;
+}
+
+/** SendLaterStatus lists scheduled messages soonest first, with their send actions. */
+export function SendLaterStatus({
+  items,
+  now,
+  timeZone,
+  locale,
+  onEdit,
+  onSendNow,
+  onChangeTime,
+}: SendLaterStatusProps) {
+  const waiting = items.filter(isSendLater).sort((a, b) => Date.parse(a.sendAt ?? "") - Date.parse(b.sendAt ?? ""));
+  if (waiting.length === 0) return null;
+  return (
+    <section aria-label="Send Later">
+      <h2 className="px-4 pt-3 pb-1 text-sidebar-section text-secondary">Send Later</h2>
+      <ul>
+        {waiting.map((item) => (
+          <li key={item.id} className="flex flex-col px-4 py-2">
+            <span className="truncate text-[13px] leading-[18px] font-semibold">{subjectShown(item.subject)}</span>
+            <span className="truncate text-[12px] leading-4 text-secondary">{`To: ${formatAddressList(item.to, 2)}`}</span>
+            <span className="text-[12px] leading-4 text-secondary">
+              {`Sends ${whenText(new Date(item.sendAt ?? now.toISOString()), now, timeZone, locale)}`}
+            </span>
+            <span className="flex gap-3">
+              <button type="button" className="text-[12px] leading-4 text-accent" onClick={() => onEdit(item)}>
+                Edit
+              </button>
+              <button type="button" className="text-[12px] leading-4 text-accent" onClick={() => onSendNow(item)}>
+                Send Now
+              </button>
+              <button type="button" className="text-[12px] leading-4 text-accent" onClick={() => onChangeTime(item)}>
+                Change Time…
+              </button>
+            </span>
           </li>
         ))}
       </ul>
