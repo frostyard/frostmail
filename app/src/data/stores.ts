@@ -290,18 +290,30 @@ export function sourceQuery(s: Source, conversations: boolean): ViewQuery {
   }
 }
 
+function filterQuery(filter: ListFilter = "all"): ViewQuery {
+  switch (filter) {
+    case "all":
+      return {};
+    case "unread":
+      return { unread: true };
+    case "flagged":
+      return { flagged: true };
+    case "attachments":
+      return { hasAttachments: true };
+    case "toMe":
+    case "ccMe":
+    case "vips": {
+      const field = filter === "toMe" ? "tome" : filter === "ccMe" ? "ccme" : "vip";
+      return { filter: { match: "all", conditions: [{ field, op: "is", value: "true" }] } };
+    }
+  }
+}
+
 /** listQuery is the view query the list shows for the UI state. */
 export function listQuery(
   ui: Pick<UIState, "source" | "search" | "searchScope" | "conversations"> & Partial<Pick<UIState, "listFilter">>,
 ): ViewQuery {
-  const filter: ViewQuery =
-    ui.listFilter === "unread"
-      ? { unread: true }
-      : ui.listFilter === "flagged"
-        ? { flagged: true }
-        : ui.listFilter === "attachments"
-          ? { hasAttachments: true }
-          : {};
+  const filter = filterQuery(ui.listFilter);
   const base = { ...sourceQuery(ui.source, ui.conversations), ...filter };
   if (ui.search === "") return base;
   if (ui.searchScope === "all")
