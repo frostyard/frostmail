@@ -10,9 +10,11 @@ import {
   File,
   Flag,
   Folder,
+  FolderCog,
   Inbox,
   LoaderCircle,
   type LucideIcon,
+  Plus,
   Send,
   ShieldAlert,
   Star,
@@ -39,6 +41,8 @@ export interface SidebarProps {
   /** Sync state by account ID; missing means idle. */
   sync: Record<number, SyncIndicator>;
   onSelect: (key: string) => void;
+  onAdd?: (sectionKey: string) => void;
+  onContextMenu?: (key: string, x: number, y: number) => void;
 }
 
 const ICONS: Record<SidebarIcon, LucideIcon> = {
@@ -50,6 +54,7 @@ const ICONS: Record<SidebarIcon, LucideIcon> = {
   archive: Archive,
   flag: Flag,
   folder: Folder,
+  "folder-cog": FolderCog,
   star: Star,
   user: User,
 };
@@ -150,6 +155,20 @@ export function Sidebar(props: SidebarProps) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) &&
+      props.selectedKey &&
+      props.onContextMenu
+    ) {
+      const row = event.currentTarget.querySelector(`[data-key="${props.selectedKey}"]`);
+      const rect = row?.getBoundingClientRect();
+      if (rect) {
+        event.preventDefault();
+        event.stopPropagation();
+        props.onContextMenu(props.selectedKey, rect.left, rect.bottom);
+      }
+      return;
+    }
     if (!NAVIGATION.has(event.key)) return;
     const keys = visibleKeys(props.sections, collapsed);
     const at = props.selectedKey === null ? -1 : keys.indexOf(props.selectedKey);
@@ -169,6 +188,13 @@ export function Sidebar(props: SidebarProps) {
       aria-label="Mailboxes"
       tabIndex={0}
       className="pt-2 outline-none"
+      onContextMenu={(event) => {
+        const key = (event.target as Element).closest("[data-key]")?.getAttribute("data-key");
+        if (key && props.onContextMenu) {
+          event.preventDefault();
+          props.onContextMenu(key, event.clientX, event.clientY);
+        }
+      }}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
@@ -176,19 +202,31 @@ export function Sidebar(props: SidebarProps) {
         const open = !collapsed.has(section.key);
         return (
           <div key={section.key}>
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => toggle(section.key)}
-              className="group flex h-[26px] w-full items-center gap-1 border-0 bg-transparent pl-3 text-left text-sidebar-section text-secondary"
-            >
-              <span className="truncate">{section.title}</span>
-              {section.accountId !== undefined && <SyncDot indicator={props.sync[section.accountId]} />}
-              <ChevronDown
-                size={12}
-                className={`shrink-0 opacity-0 group-hover:opacity-100 ${open ? "" : "-rotate-90"}`}
-              />
-            </button>
+            <div className="group flex items-center">
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => toggle(section.key)}
+                className="flex h-[26px] flex-1 min-w-0 items-center gap-1 border-0 bg-transparent pl-3 text-left text-sidebar-section text-secondary"
+              >
+                <span className="truncate">{section.title}</span>
+                {section.accountId !== undefined && <SyncDot indicator={props.sync[section.accountId]} />}
+                <ChevronDown
+                  size={12}
+                  className={`shrink-0 opacity-0 group-hover:opacity-100 ${open ? "" : "-rotate-90"}`}
+                />
+              </button>
+              {section.addLabel && props.onAdd && (
+                <button
+                  type="button"
+                  aria-label={section.addLabel}
+                  onClick={() => props.onAdd?.(section.key)}
+                  className="mr-3 text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+            </div>
             {open && (
               // biome-ignore lint/a11y/useSemanticElements: a tree's rows are grouped by role="group"; a fieldset would not belong in a tree.
               <div role="group">

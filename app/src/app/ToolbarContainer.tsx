@@ -51,7 +51,7 @@ function useMaximized() {
 
 function mailTitle(model: ViewModel | null) {
   const ui = useUI.getState();
-  const { accounts, mailboxes, vips, settings } = useMail.getState();
+  const { accounts, mailboxes, vips, settings, smarts } = useMail.getState();
   const searching = ui.search !== "";
   const count = model?.ready ? model.count : null;
   if (searching) {
@@ -64,6 +64,11 @@ function mailTitle(model: ViewModel | null) {
     const unread = list.reduce((n, mb) => n + mb.unread, 0);
     return `${formatCount(total)} messages, ${formatCount(unread)} unread`;
   };
+  if (src.kind === "smart")
+    return {
+      title: smarts.find((smart) => smart.id === src.id)?.name ?? "",
+      subtitle: count === null ? "" : `${formatCount(count)} messages`,
+    };
   if (src.kind === "allInboxes") return { title: "All Inboxes", subtitle: counts(inboxes) };
   if (src.kind === "role") {
     const label = buildSidebar(accounts, mailboxes)[0]?.items.find((i) => i.key === `role:${src.role}`)?.label;
