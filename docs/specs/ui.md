@@ -348,7 +348,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **More Actions** (M5, P-304, P-307, P-308): at the right of each
   message's header, a 28px button named "More Actions" (Lucide
   `ellipsis`, 16px, `--text-secondary`) opening a menu: Show All Headers
-  (or Hide All Headers), Raw Source…, a separator, Save As…, Print….
+  (or Hide All Headers), Raw Source…, a separator, Save As…, Print…,
+  showing their keys (Ctrl+Shift+H, Ctrl+Alt+U, Ctrl+P; M5).
   - **All headers:** the message's header section (`message.source`'s
     `headers`) in a `section` named "All Headers" under the header: a
     `pre`, 11/16 monospace
@@ -410,7 +411,7 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   - Reply, Reply All, Forward, Forward as Attachment and Redirect… (M5,
     P-402, P-403), on the last message of the menu's set. Forward as
     Attachment opens a draft of kind `attached` as Forward opens its
-    draft. Redirect… opens the Redirect sheet (below).
+    draft. Redirect… (Ctrl+Shift+E) opens the Redirect sheet (below).
   - Archive (only when the account has an archive destination), Delete,
     and Mark as Spam, which moves to the account's junk mailbox; when every
     message is already there it reads Not Spam and moves them to the
