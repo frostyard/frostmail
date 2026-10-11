@@ -164,3 +164,15 @@ describe("MockTransport smart mailboxes", () => {
     expect(view.count).toBe(data.messages.filter((m) => m.summary.flags.flagged && !m.summary.flags.seen).length);
   });
 });
+
+describe("MockTransport To Me and Cc Me", () => {
+  it("match the accounts' own addresses", async () => {
+    const { data, mock } = setup();
+    const me = new Set(data.accounts.map((a) => a.email.toLowerCase()));
+    const view = await mock.call<ViewInfo>("view.open", {
+      query: { conditions: { match: "all", conditions: [{ field: "tome", op: "is", value: "true" }] } },
+    });
+    expect(view.count).toBe(data.messages.filter((m) => m.to.some((a) => me.has(a.address.toLowerCase()))).length);
+    expect(view.count).toBeGreaterThan(0);
+  });
+});

@@ -608,6 +608,13 @@ export class MockTransport implements Transport {
           return text(s.subject);
         case "content":
           return text(`${s.subject} ${s.from.name} ${s.from.address} ${s.preview}`);
+        case "tome":
+        case "ccme": {
+          const m = this.messages.get(s.id);
+          const me = new Set(this.accounts.map((a) => a.email.toLowerCase()));
+          const list = cond.field === "tome" ? (m?.to ?? []) : (m?.cc ?? []);
+          return list.some((a) => me.has(a.address.toLowerCase())) === yes;
+        }
         case "color":
           return s.flags.flagged ? among(s.flags.flagColor, list) : cond.op === "isnot";
         case "vip":
