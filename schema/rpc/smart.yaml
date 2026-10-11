@@ -1,0 +1,56 @@
+domain: smart
+doc: >-
+  Smart mailboxes: saved conditions listed as a mailbox, across accounts
+  (ADR-0023, docs/design/organize.md).
+types:
+  - name: SmartMailbox
+    doc: One smart mailbox.
+    fields:
+      - {name: id, type: int}
+      - {name: name, type: string}
+      - {name: position, type: int, doc: "Its place in the sidebar, from 0."}
+      - {name: conditions, type: Conditions}
+      - {name: includeTrash, type: bool, doc: "Also list messages that are only in Trash."}
+      - {name: includeSent, type: bool, doc: "Also list messages that are only in Sent."}
+      - {name: unread, type: int, doc: "Unread messages it lists."}
+methods:
+  - name: list
+    doc: Every smart mailbox, in sidebar order.
+    result: "[]SmartMailbox"
+  - name: create
+    doc: Add a smart mailbox at the end of the list.
+    params:
+      - {name: name, type: string}
+      - {name: conditions, type: Conditions}
+      - {name: includeTrash, type: bool, optional: true}
+      - {name: includeSent, type: bool, optional: true}
+    result: SmartMailbox
+    errors: [invalidParams]
+  - name: update
+    doc: Change the fields given.
+    params:
+      - {name: id, type: int}
+      - {name: name, type: string, optional: true}
+      - {name: conditions, type: Conditions, optional: true}
+      - {name: includeTrash, type: bool, optional: true}
+      - {name: includeSent, type: bool, optional: true}
+    result: SmartMailbox
+    errors: [invalidParams, notFound]
+  - name: delete
+    doc: Remove a smart mailbox; a notification scope that named it becomes inbox.
+    params:
+      - {name: id, type: int}
+    errors: [notFound]
+  - name: move
+    doc: Put a smart mailbox at a position, moving the others along.
+    params:
+      - {name: id, type: int}
+      - {name: position, type: int}
+    errors: [invalidParams, notFound]
+events:
+  - name: changed
+    doc: A smart mailbox was created, changed, moved or deleted.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: deleted, type: bool}

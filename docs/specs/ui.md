@@ -111,9 +111,27 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Sections:** "Favorites", then one section per account titled with the
   account name. Favorites holds All Inboxes; then All Drafts, All Sent, All
   Junk, All Trash and All Archives, each only when two or more accounts
-  have a mailbox of that role (unread counts summed); then Flagged. Section header: 26 high, 11/600
+  have a mailbox of that role (unread counts summed); then VIPs, when there
+  is at least one VIP; then Flagged. Section header: 26 high, 11/600
   `--text-secondary`, 12px left padding; a chevron appears on hover and
   collapses the section.
+- **VIPs** (M5, [organize.md](../design/organize.md#vips)): the row (key
+  `vips`, icon `star`) lists `vip is true`; under it at depth 1, one row
+  per VIP person, in `vip.list` order, grouped by `personId` (one row for
+  all of a person's addresses, labeled with the name), else one per
+  address (labeled with the name, else the address): key `vip:<address>`
+  of the group's first address, icon `user`, listing `from is` each of the
+  group's addresses (`match: any`). Counts are unread.
+- **Flagged** (M5): the row (key `flagged`) lists every flagged message
+  and shows the number of them, read or not, as Mail.app does. Under it at
+  depth 1, one row per flag color with at least one flagged message, in
+  color order: key `flag:<color>`, the flag's name (`Settings.flagNames`,
+  else Red, Orange, Yellow, Green, Blue, Purple, Gray), icon `flag` in
+  `--flag-<color>` instead of `--accent`, listing `color is <color>`, with
+  its number of flagged messages.
+- **Counts of built-in sources:** one `view.count` for VIPs, each VIP row,
+  Flagged and colors 1–7, when the window connects and 300 ms after the
+  last `mailbox.changed`, `vip.changed` or `settings.changed`.
 - **Rows:** 28 high, left padding 12 + 16 × depth, 16px icon in `--accent`,
   8px gap, label 13/400 truncated, unread count right-aligned 12/400
   `--text-secondary` with 12px right padding, hidden when 0.
@@ -138,7 +156,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   the left.
 - **Line 1:** sender (display name, else address) 13/600 truncated; at the
   right a 12px paperclip when `hasAttachments`, then the date 12/400
-  `--text-secondary`.
+  `--text-secondary`. When the sender's address is a VIP (M5), a 10px
+  filled `star` in `--text-secondary` (`--accent-contrast` on a selected
+  row in a focused list) comes before the name, 4px from it, named "VIP".
 - **Line 2:** subject 13/400 truncated ("(No Subject)" in
   `--text-tertiary` when empty). In conversation mode with `threadCount > 1`,
   a badge at the right: 16 high, 5px horizontal padding, 8px radius, 10/600
@@ -192,7 +212,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   in Trash are omitted unless the selected one is.
 - **Header (per message, 16 / 20 padding):** a 40px avatar circle with up to
   two initials (13/600 white) on one of eight tones chosen by a stable hash of
-  the address; to its right, line 1 the sender name (14/600) with the date
+  the address; to its right, line 1 the sender name (14/600), followed by a
+  12px filled `star` in `--text-secondary` named "VIP" 4px after it when the
+  sender is a VIP (M5), with the date
   right-aligned (12/400 `--text-secondary`, long form: "October 7, 2026 at
   9:41 AM"); line 2 the subject (13/600); then "To:" and, when present,
   "Cc:" lines (12/400 `--text-secondary`, names, else addresses, comma
@@ -244,6 +266,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     not Starred), by path; disabled when empty.
   - Flag or Unflag (as Toggle Flag), Flag Color ▸ the 7 colors (the first
     message's checked) and Clear Flag, then Mark as Read or Mark as Unread.
+    The colors are labeled with the flag names, as the sidebar's are (M5);
+    so is the toolbar's Flag menu. A flag glyph's accessible name keeps the
+    color's own name ("Flagged Red").
 
   Every item but Reply, Reply All and Forward is disabled when the
   account is read-only. The menu acts on the selection when the clicked

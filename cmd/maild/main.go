@@ -146,7 +146,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		pim.Poll(id, true)
 	}
-	undo := engine.DefaultUndoDelay
+	var undo time.Duration // the undoDelay setting, unless FROSTMAIL_UNDO_DELAY overrides it
 	if v := os.Getenv("FROSTMAIL_UNDO_DELAY"); v != "" {
 		if undo, err = time.ParseDuration(v); err != nil {
 			return fmt.Errorf("FROSTMAIL_UNDO_DELAY: %w", err)
@@ -170,6 +170,7 @@ func run(ctx context.Context, args []string) error {
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
+		Settings: eng.Settings(), Vip: eng.Vips(), Smart: eng.Smart(), Rule: eng.Rules(),
 	})
 	if err != nil {
 		return err

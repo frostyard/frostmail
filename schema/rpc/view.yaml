@@ -8,7 +8,68 @@ enums:
     values:
       - {name: insert, doc: "count rows were inserted at index at."}
       - {name: remove, doc: "count rows starting at index at were removed."}
+  - name: ConditionMatch
+    doc: How a list of conditions combines (docs/design/organize.md).
+    values:
+      - {name: all, doc: "Every condition must hold."}
+      - {name: any, doc: "At least one condition must hold."}
+  - name: ConditionField
+    doc: What a condition looks at; docs/design/organize.md lists the ops and values each takes.
+    values:
+      - {name: from, doc: "The sender."}
+      - {name: to, doc: "An address or name in To."}
+      - {name: cc, doc: "An address or name in Cc."}
+      - {name: recipient, doc: "Any recipient, To or Cc, by the words of the search index."}
+      - {name: tome, doc: "One of the account's own addresses is in To."}
+      - {name: ccme, doc: "One of the account's own addresses is in Cc."}
+      - {name: subject}
+      - {name: content, doc: "Anything the search index holds: subject, addresses, body and attachment names."}
+      - {name: filename, doc: "An attachment's file name."}
+      - {name: listid, doc: "The List-Id header."}
+      - {name: account, doc: "Account IDs."}
+      - {name: mailbox, doc: "Mailbox IDs."}
+      - {name: role, doc: "Mailbox roles, in any account."}
+      - {name: received, doc: "The arrival date."}
+      - {name: sent, doc: "The Date header."}
+      - {name: unread}
+      - {name: flagged}
+      - {name: attachments, doc: "Has attachments."}
+      - {name: color, doc: "The flag color, 1-7."}
+      - {name: vip, doc: "The sender is a VIP."}
+      - {name: contact, doc: "The sender is in People."}
+      - {name: reminder, doc: "A Remind Me reminder is pending."}
+  - name: ConditionOp
+    doc: How a condition compares; which fields take which ops is in docs/design/organize.md.
+    values:
+      - {name: contains, doc: "Every word of the value, as prefixes; a quoted value is a phrase."}
+      - {name: notcontains, doc: "Not contains; also true when the field is empty."}
+      - {name: is, doc: "Equal, ignoring case; true or false for yes-or-no fields."}
+      - {name: isnot, doc: "Not equal; also true when the field is empty."}
+      - {name: begins}
+      - {name: ends}
+      - {name: anyof, doc: "One of a comma-separated list of IDs, roles or colors."}
+      - {name: today}
+      - {name: yesterday}
+      - {name: thisweek, doc: "Since Monday."}
+      - {name: thismonth}
+      - {name: thisyear}
+      - {name: within, doc: "Since the start of the day N units ago; the value is N and d, w, m or y, such as 7d."}
+      - {name: notwithin}
+      - {name: on, doc: "That day, YYYY-MM-DD."}
+      - {name: since, doc: "From that day, YYYY-MM-DD."}
+      - {name: before, doc: "Before that day, YYYY-MM-DD."}
 types:
+  - name: Condition
+    doc: One condition, as Mail.app's editors show it.
+    fields:
+      - {name: field, type: ConditionField}
+      - {name: op, type: ConditionOp}
+      - {name: value, type: string, doc: "Empty for ops that take none."}
+  - name: Conditions
+    doc: Conditions, combined by match. An empty list matches every message.
+    fields:
+      - {name: match, type: ConditionMatch}
+      - {name: conditions, type: "[]Condition"}
   - name: ViewQuery
     doc: Which messages a view lists, newest first. Every field that is set must match.
     fields:
@@ -20,11 +81,18 @@ types:
       - {name: hasAttachments, type: bool, optional: true, doc: "true: only messages with attachments; false: only those without."}
       - {name: role, type: MailboxRole, optional: true, doc: "Messages in mailboxes with this role in any account, such as every inbox."}
       - {name: threads, type: bool, optional: true, doc: "One row per thread: its newest message that matches."}
+      - {name: conditions, type: Conditions, optional: true, doc: "Conditions every listed message also meets."}
+      - {name: smartMailboxId, type: int, optional: true, doc: "The messages of a smart mailbox, which the view follows as it is edited."}
   - name: ViewInfo
     doc: An open view.
     fields:
       - {name: id, type: int}
       - {name: count, type: int}
+  - name: ViewCount
+    doc: How many messages a query lists.
+    fields:
+      - {name: total, type: int}
+      - {name: unread, type: int}
   - name: ViewOp
     doc: One step of a delta; apply a delta's ops in order.
     fields:
@@ -37,7 +105,16 @@ methods:
     params:
       - {name: query, type: ViewQuery}
     result: ViewInfo
-    errors: [invalidParams]
+    errors: [invalidParams, notFound]
+  - name: count
+    doc: >-
+      Count what each query lists, without opening views: the sidebar's
+      Flagged colors, VIPs and other built-in sources. Messages, not
+      threads; a query's threads field is ignored.
+    params:
+      - {name: queries, type: "[]ViewQuery", doc: "At most 100."}
+    result: "[]ViewCount"
+    errors: [invalidParams, notFound]
   - name: range
     doc: The rows from start up to, not including, end; end is capped at the view's count.
     params:

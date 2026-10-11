@@ -38,6 +38,11 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0020 — One window for mail, calendar, people and tasks](adr/0020-one-window-for-mail-calendar-people-and-tasks.md)
 - [0021 — Run task cards with Codex](adr/0021-run-task-cards-with-codex.md)
 - [0022 — Mail the reply the server will not send](adr/0022-mail-the-reply-the-server-will-not-send.md)
+- [0023 — One condition language for smart mailboxes and rules](adr/0023-one-condition-language-for-smart-mailboxes-and-rules.md)
+- [0024 — Rules run in maild on new mail](adr/0024-rules-run-in-maild-on-new-mail.md)
+- [0025 — maild keeps Send Later, Remind Me and Undo Send](adr/0025-maild-keeps-send-later-remind-me-and-undo-send.md)
+- [0026 — Preferences live in maild](adr/0026-preferences-live-in-maild.md)
+- [0027 — Unsubscribe with one click through the sender's server](adr/0027-unsubscribe-with-one-click.md)
 
 ### Design
 
@@ -50,6 +55,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Accounts, sign-in and providers](design/accounts.md)
 - [Running on the desktop](design/desktop.md)
 - [Contacts, calendars and tasks](design/pim.md)
+- [Organizing mail](design/organize.md): conditions, smart mailboxes, rules, VIPs, flags, Remind Me (M5)
 - [Testing](design/testing.md)
 - [Agent workflow](design/agent-workflow.md)
 
@@ -62,6 +68,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Search language](specs/search.md): what the search field accepts
 - [Settings UI](specs/settings-ui.md): accounts, signatures and the Google client
 - [People, calendar and tasks UI](specs/pim-ui.md): the module bar, the People module, the contact card (M4.5)
+- [Mail.app parity](specs/parity.md): every Mail feature, its status and its test (M5)
 
 ### Plans
 
@@ -72,6 +79,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md), done, with its evidence
 - [0006 — M4 daily driver](plans/0006-m4-daily-driver.md)
 - [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md)
+- [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md)
 
 ## Conventions
 

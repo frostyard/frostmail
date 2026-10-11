@@ -187,6 +187,20 @@ export class MockPeople {
       });
   }
 
+  /** emailsOf names a person and lists their addresses, lowercased; undefined for no such person. */
+  emailsOf(id: number): { name: string; emails: string[] } | undefined {
+    const p = this.data.people.find((x) => x.id === id);
+    if (!p) return undefined;
+    const emails = p.contacts.flatMap((c) => c.emails.map((e) => e.value.toLowerCase()));
+    return { name: p.displayName, emails: [...new Set(emails)].sort() };
+  }
+
+  /** personOf is the person with an address, by ID and name. */
+  personOf(address: string): { id: number; name: string } | undefined {
+    const p = this.byEmail(address.toLowerCase());
+    return p ? { id: p.id, name: p.displayName } : undefined;
+  }
+
   private person(id: number): Person {
     const p = this.data.people.find((x) => x.id === id);
     if (!p) throw new RPCError(ErrorCode.notFound, `person ${id} does not exist`);

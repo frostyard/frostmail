@@ -92,9 +92,20 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   Cc, Bcc), the Message-ID. A draft already queued, sending or accepted is a
   conflict; a failed row of the same draft is replaced. The draft row is
   kept, linked to the outbox row, until the message is accepted.
+- **The undo delay** is the `undoDelay` setting (0, 10, 20 or 30 seconds,
+  10 by default; [organize.md](organize.md#settings)). 0 queues the row due
+  at once. `FROSTMAIL_UNDO_DELAY`, when set, overrides it (tests).
+- **Send Later** ([ADR-0025](../adr/0025-maild-keeps-send-later-remind-me-and-undo-send.md)):
+  `draft.send {id, sendAt}` with a time later than the undo delay builds
+  the message with `sendAt` as its `Date` and queues the row `scheduled`,
+  due at `sendAt`. `outbox.reschedule {id, sendAt}` rebuilds a scheduled
+  row's message with the new `Date` and moves `send_at`; a `sendAt` within
+  the undo delay sends it now. `OutboxItem.scheduled` tells the app which
+  rows are Send Later rather than in their undo window.
 - `outbox.cancel` on a `queued` row deletes it, emits `outbox.changed` with
-  `deleted`, and returns the draft. `outbox.retry` queues a `failed` row
-  again, now.
+  `deleted`, and returns the draft; for a scheduled row this is Edit, and
+  the app reopens the draft. `outbox.retry` queues a `failed` row again,
+  now.
 - **Sender** (one goroutine per account beside its IMAP actor, so mail goes
   out while IMAP is down): wakes when a row is queued and when the next
   falls due; claims due rows oldest first (`queued` → `sending`, compare and
@@ -150,6 +161,12 @@ case-insensitively, ranked by `count` and then `last_seen`.
   draft; Delete Draft discards it).
 - Each window has its own bridge connection to maild; closing the window
   closes it.
+
+## Unsubscribing
+
+[ADR-0027](../adr/0027-unsubscribe-with-one-click.md) decides the methods
+and limits; Phase 6 of [plan 0008](../plans/0008-m5-mail-app-parity.md)
+designs the mechanism here.
 
 ## Operational notes
 

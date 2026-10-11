@@ -32,6 +32,7 @@ types:
       - {name: hasAttachments, type: bool}
       - {name: size, type: int, doc: "Size in bytes on the server."}
       - {name: threadCount, type: int, doc: "Messages in the thread across every mailbox; 1 for a message alone."}
+      - {name: remindAt, type: time, optional: true, doc: "When a pending Remind Me reminder brings the message back."}
   - name: Part
     doc: One MIME part.
     fields:
@@ -145,6 +146,15 @@ methods:
     params:
       - {name: ids, type: "[]int"}
     errors: [notFound]
+  - name: remind
+    doc: >-
+      Remind Me: at a time, bring messages back to the top of their
+      account's inbox and notify (ADR-0025). Without at, clear their
+      reminders. Conflict for a read-only account's messages.
+    params:
+      - {name: ids, type: "[]int"}
+      - {name: at, type: time, optional: true, doc: "In the future."}
+    errors: [notFound, invalidParams, conflict]
 events:
   - name: changed
     doc: Messages were added or changed (flags, mailbox, fetched body).

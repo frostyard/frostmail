@@ -22,6 +22,10 @@ type Query struct {
 	After         time.Time         // inclusive lower bound (zero: none)
 	Before        time.Time         // exclusive upper bound (zero: none)
 	Roles         []api.MailboxRole // in:inbox, in:sent, … (any of them)
+	// AfterRel and BeforeRel are newer_than: and older_than:'s values
+	// ("2d") when After or Before came from one, so a saved search stays
+	// relative (ToConditions).
+	AfterRel, BeforeRel string
 }
 
 // Term is one full-text condition.
@@ -173,28 +177,28 @@ func applyOperator(q *Query, t token, now time.Time, loc *time.Location) bool {
 		}
 	case "after":
 		if d, ok := parseDate(t.value, loc); ok && !t.neg {
-			q.After = d
+			q.After, q.AfterRel = d, ""
 			return true
 		}
 	case "before":
 		if d, ok := parseDate(t.value, loc); ok && !t.neg {
-			q.Before = d
+			q.Before, q.BeforeRel = d, ""
 			return true
 		}
 	case "on":
 		if d, ok := parseDate(t.value, loc); ok && !t.neg {
-			q.After = d
-			q.Before = d.AddDate(0, 0, 1)
+			q.After, q.AfterRel = d, ""
+			q.Before, q.BeforeRel = d.AddDate(0, 0, 1), ""
 			return true
 		}
 	case "newer_than":
-		if d, ok := parseRelative(t.value, now, loc); ok && !t.neg {
-			q.After = d
+		if d, ok := ParseRelative(t.value, now, loc); ok && !t.neg {
+			q.After, q.AfterRel = d, strings.ToLower(t.value)
 			return true
 		}
 	case "older_than":
-		if d, ok := parseRelative(t.value, now, loc); ok && !t.neg {
-			q.Before = d
+		if d, ok := ParseRelative(t.value, now, loc); ok && !t.neg {
+			q.Before, q.BeforeRel = d, strings.ToLower(t.value)
 			return true
 		}
 	case "in":
@@ -253,10 +257,11 @@ func parseDate(v string, loc *time.Location) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// parseRelative reads Nd, Nw, Nm or Ny (N >= 1) as midnight in loc of
+// ParseRelative reads Nd, Nw, Nm or Ny (N >= 1) as midnight in loc of
 // the day N days, weeks, 30-day months or 365-day years before now's
-// day in loc.
-func parseRelative(v string, now time.Time, loc *time.Location) (time.Time, bool) {
+// day in loc: newer_than: and older_than:, and the within and notwithin
+// conditions (docs/design/organize.md).
+func ParseRelative(v string, now time.Time, loc *time.Location) (time.Time, bool) {
 	r := []rune(v)
 	if len(r) < 2 {
 		return time.Time{}, false
@@ -352,6 +357,26 @@ func fts(t Term) string {
 		s += "*"
 	}
 	return s
+}
+
+// Words splits a condition's value into terms on column, as the search
+// field would: a value wholly in double quotes is one phrase, otherwise
+// each whitespace-separated word with a letter or digit is a prefix term.
+func Words(value, column string) []Term {
+	v := strings.TrimSpace(value)
+	if r := []rune(v); len(r) >= 2 && r[0] == '"' && r[len(r)-1] == '"' {
+		if text := string(r[1 : len(r)-1]); hasAlnum(text) {
+			return []Term{{Column: column, Text: text, Phrase: true}}
+		}
+		return nil
+	}
+	var terms []Term
+	for _, w := range strings.Fields(v) {
+		if hasAlnum(w) {
+			terms = append(terms, Term{Column: column, Text: w})
+		}
+	}
+	return terms
 }
 
 // Empty reports whether the query has no condition at all.

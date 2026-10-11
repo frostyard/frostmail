@@ -419,9 +419,9 @@ func (c calendarService) replyMail(ctx context.Context, r *response, src []byte,
 	if err != nil {
 		return nil, err
 	}
-	delay := c.UndoDelay
-	if delay == 0 {
-		delay = DefaultUndoDelay
+	delay, err := c.undoDelay(ctx)
+	if err != nil {
+		return nil, err
 	}
 	return &reply{item: store.OutboxItem{AccountID: r.acct.ID, SendAt: now.Add(delay), BlobID: blobID,
 		MessageID: m.MessageID, From: ident.Email, Recipients: m.Envelope(), Subject: m.Subject,

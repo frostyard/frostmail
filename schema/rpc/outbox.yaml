@@ -20,6 +20,7 @@ types:
       - {name: to, type: "[]Address"}
       - {name: state, type: OutboxState}
       - {name: sendAt, type: time, optional: true, doc: "When a queued message goes out."}
+      - {name: scheduled, type: bool, doc: "Send Later: queued for a chosen time rather than in its undo window."}
       - {name: attempts, type: int}
       - {name: error, type: string, optional: true, doc: "The last error, when there was one."}
 methods:
@@ -41,6 +42,16 @@ methods:
     params:
       - {name: id, type: int}
     errors: [notFound, conflict]
+  - name: reschedule
+    doc: >-
+      Give a scheduled message a new time and rebuild it with that time as
+      its Date; a time within the undo delay sends it after the undo delay.
+      Conflict unless the message is queued and scheduled.
+    params:
+      - {name: id, type: int}
+      - {name: sendAt, type: time}
+    result: OutboxItem
+    errors: [notFound, conflict, invalidParams]
 events:
   - name: changed
     doc: An outbox message changed state.

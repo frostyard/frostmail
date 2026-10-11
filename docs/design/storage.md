@@ -36,6 +36,10 @@ lexically. Highlights:
 - `outbox`, `pending_ops`: queued sends and offline actions;
   `pending_op_messages` names the messages each action covers, whose flags
   sync leaves alone until the action is replayed or fails.
+- `settings`, `vips`, `smart_mailboxes`, `rules`, `message_reminders`
+  (M5): preferences and what is built on them
+  ([organize.md](organize.md)). Views order by `messages.list_date`, the
+  arrival date until a Remind Me reminder fires.
 - `changes`: the durable event log; `seq` is AUTOINCREMENT, so it is never
   reused after `PruneChanges`.
 

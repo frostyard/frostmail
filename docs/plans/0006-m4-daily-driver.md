@@ -115,9 +115,11 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
 
 ## Phase 5 — Real accounts
 
-- The real Gmail and iCloud accounts read-only for a day, then read-write.
+- The real Gmail and iCloud accounts read-only for an evening, then
+  read-write from 2026-10-08.
 - Seven days as the user's only client, with `mailctl verify` daily and
-  every surprise logged as an issue.
+  every surprise logged as an issue: 2026-10-08 to 2026-10-15. M5
+  ([plan 0008](0008-m5-mail-app-parity.md)) is built meanwhile.
 
 ## Phase 6 — Exit evidence
 

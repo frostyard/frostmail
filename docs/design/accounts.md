@@ -79,8 +79,9 @@ offline operations or appends, and refuses `message.setFlags`,
 `message.move`, `message.delete`, `draft.send` and server draft copies for
 it with `conflict` ("account is read-only"). Drafts stay local. The app
 does not mark messages read on such accounts and shows "Read-only" in the
-toolbar subtitle. New accounts in M4's trial start read-only (a checkbox
-in the add-account form, on by default until M5).
+toolbar subtitle. New accounts start writable; the add-account form's
+Read only checkbox makes one read-only (it was on by default during M4's
+trial).
 
 ## Sync window
 

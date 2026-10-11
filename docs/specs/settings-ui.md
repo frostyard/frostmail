@@ -35,8 +35,9 @@ this spec adds no tokens.
   the right. A tab is a `button` 72 × 44, rounded 6, an 18px Lucide icon
   over its 11/13 label, `--text-secondary`; the open pane's tab is
   `--selection-inactive` filled with `--text-primary` and
-  `aria-pressed="true"`. Tabs: Accounts (`AtSign`), Signatures (`PenLine`),
-  Sign-In (`KeyRound`).
+  `aria-pressed="true"`. Tabs: General (`Settings2`, M5), Accounts
+  (`AtSign`), Signatures (`PenLine`), Sign-In (`KeyRound`). The window
+  opens on Accounts.
 - The pane fills the rest of the window.
 
 ## Shared pieces
@@ -47,6 +48,35 @@ this spec adds no tokens.
 `GRID` (labeled rows), `LABEL`, `FIELD` (text inputs and selects),
 `BUTTON` (secondary), `PRIMARY_BUTTON` and `ALERT`. Components use these
 constants rather than repeating the classes.
+
+## General pane
+
+Maild's preferences ([organize.md](../design/organize.md#settings)), read
+with `settings.get` when the pane opens and again on `settings.changed`.
+`app/src/features/settings/GeneralPane.tsx` is presentational; the window's
+container calls maild.
+
+```
+ New message notifications:  [Inbox Only ▾]
+          Undo send delay:   [10 Seconds ▾]
+               Flag names:   ⚑ [Red          ]
+                             ⚑ [Orange       ]
+                             …  (seven rows)
+```
+
+- A `GRID` of labeled rows, 24px padding, `LABEL` right-aligned.
+- **New message notifications:** a `select`: Inbox Only (`inbox`), VIPs
+  (`vips`), Contacts (`contacts`), All Mailboxes (`all`). Choosing one
+  calls `settings.set {notifyScope}`.
+- **Undo send delay:** a `select`: Off (0), 10 Seconds, 20 Seconds, 30
+  Seconds. Choosing one calls `settings.set {undoDelay}`.
+- **Flag names:** seven rows, each a 12px filled `flag` in `--flag-<n>`
+  and a `FIELD` text input (named "Flag <n> name", placeholder the
+  color's own name, at most 40 characters) holding the custom name, empty
+  for none. Leaving a changed field, or Enter in it, calls
+  `settings.set {flagNames}` with all seven, trimmed.
+- An error from maild shows in an `ALERT` under the rows, until the next
+  change succeeds.
 
 ## Accounts pane
 
@@ -298,8 +328,7 @@ interface ServicesSectionProps {
 ### Behavior (container)
 
 - **Add:** + selects "New Account" with an empty form (kind `imap`, auth
-  `password`, TLS defaults, notify on, and read-only on until M5, as
-  [accounts.md](../design/accounts.md#read-only-accounts) says). Find Settings calls
+  `password`, TLS defaults, notify on, read-only off; parity P-952). Find Settings calls
   `account.discover` and fills kind, the first auth kind, and the servers
   it found; a found username left empty becomes the email. Add Account
   calls `account.create`; then for password auth `account.setPassword`

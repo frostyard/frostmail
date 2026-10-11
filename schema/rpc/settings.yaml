@@ -1,0 +1,38 @@
+domain: settings
+doc: >-
+  Preferences maild keeps for every account, so they hold with the app
+  closed and look the same from mailctl (ADR-0026, docs/design/organize.md).
+enums:
+  - name: NotifyScope
+    doc: Which new mail notifies, after each account's own notify switch.
+    values:
+      - {name: inbox, doc: "New mail in an inbox (the default)."}
+      - {name: vips, doc: "New mail in an inbox from a VIP."}
+      - {name: contacts, doc: "New mail in an inbox from an address in People."}
+      - {name: all, doc: "New mail in any mailbox but Junk, Trash and Sent."}
+      - {name: smart, doc: "New mail that a smart mailbox lists (notifySmartId)."}
+types:
+  - name: Settings
+    doc: Every preference, with its current value.
+    fields:
+      - {name: undoDelay, type: int, doc: "Seconds a sent message waits in the outbox: 0, 10, 20 or 30."}
+      - {name: notifyScope, type: NotifyScope}
+      - {name: notifySmartId, type: int, optional: true, doc: "The smart mailbox, when notifyScope is smart."}
+      - {name: flagNames, type: "[]string", doc: "Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray)."}
+methods:
+  - name: get
+    doc: The current preferences.
+    result: Settings
+  - name: set
+    doc: Change the preferences given; the others stay. Returns them all.
+    params:
+      - {name: undoDelay, type: int, optional: true, doc: "0, 10, 20 or 30."}
+      - {name: notifyScope, type: NotifyScope, optional: true}
+      - {name: notifySmartId, type: int, optional: true, doc: "Required with notifyScope smart."}
+      - {name: flagNames, type: "[]string", optional: true, doc: "Seven names, each at most 40 characters."}
+    result: Settings
+    errors: [invalidParams, notFound]
+events:
+  - name: changed
+    doc: A preference changed.
+    durable: true

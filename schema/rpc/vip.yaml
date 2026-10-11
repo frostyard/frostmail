@@ -1,0 +1,32 @@
+domain: vip
+doc: >-
+  VIP senders: addresses whose mail gets a star, a mailbox of its own, and
+  can be the only mail that notifies (docs/design/organize.md).
+types:
+  - name: Vip
+    doc: One VIP address.
+    fields:
+      - {name: address, type: string, doc: "Lowercased."}
+      - {name: name, type: string, doc: "The name to show: the person's in People, else the last one seen, else empty."}
+      - {name: personId, type: int, optional: true, doc: "The person in People with this address, when there is one."}
+methods:
+  - name: list
+    doc: Every VIP, by name, then address.
+    result: "[]Vip"
+  - name: add
+    doc: Make addresses VIPs, or every address of a person. Addresses already VIPs stay as they are.
+    params:
+      - {name: addresses, type: "[]string", optional: true}
+      - {name: personId, type: int, optional: true}
+    result: "[]Vip"
+    errors: [invalidParams, notFound]
+  - name: remove
+    doc: Stop addresses being VIPs, or every address of a person.
+    params:
+      - {name: addresses, type: "[]string", optional: true}
+      - {name: personId, type: int, optional: true}
+    errors: [invalidParams, notFound]
+events:
+  - name: changed
+    doc: VIPs were added or removed.
+    durable: true

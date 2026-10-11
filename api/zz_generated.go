@@ -1348,6 +1348,9 @@ type DraftDeleteParams struct {
 // DraftSendParams holds the params of draft.send.
 type DraftSendParams struct {
 	ID int64 `json:"id"`
+	// Send Later: a time past the undo delay queues the message scheduled, with
+	// this time as its Date; an earlier one sends it after the undo delay.
+	SendAt *time.Time `json:"sendAt,omitzero"`
 }
 
 // DraftService: Drafts: messages being written. maild stores a draft at once
@@ -1374,9 +1377,9 @@ type DraftService interface {
 	Detach(ctx context.Context, p *DraftDetachParams) error
 	// Delete implements draft.delete. Discard a draft, and its server copy.
 	Delete(ctx context.Context, p *DraftDeleteParams) error
-	// Send implements draft.send. Queue a draft for sending after the undo delay.
-	// Fails with invalidParams when it has no recipients, an address does not
-	// parse, or it is too large.
+	// Send implements draft.send. Queue a draft for sending after the undo delay,
+	// or at sendAt (Send Later). Fails with invalidParams when it has no
+	// recipients, an address does not parse, or it is too large.
 	Send(ctx context.Context, p *DraftSendParams) (*OutboxItem, error)
 }
 
@@ -1871,6 +1874,8 @@ type MessageSummary struct {
 	Size int64 `json:"size"`
 	// Messages in the thread across every mailbox; 1 for a message alone.
 	ThreadCount int64 `json:"threadCount"`
+	// When a pending Remind Me reminder brings the message back.
+	RemindAt *time.Time `json:"remindAt,omitzero"`
 }
 
 // Part: One MIME part.
@@ -2001,6 +2006,13 @@ type MessageDeleteParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageRemindParams holds the params of message.remind.
+type MessageRemindParams struct {
+	IDs []int64 `json:"ids"`
+	// In the future.
+	At *time.Time `json:"at,omitzero"`
+}
+
 // MessageService: Messages. An ID is local and stays the same while the
 // message exists, including across moves the server reports with COPYUID.
 type MessageService interface {
@@ -2034,6 +2046,10 @@ type MessageService interface {
 	// Delete implements message.delete. Move messages to the account's Trash;
 	// messages already in Trash are deleted from the server.
 	Delete(ctx context.Context, p *MessageDeleteParams) error
+	// Remind implements message.remind. Remind Me: at a time, bring messages back
+	// to the top of their account's inbox and notify (ADR-0025). Without at,
+	// clear their reminders. Conflict for a read-only account's messages.
+	Remind(ctx context.Context, p *MessageRemindParams) error
 }
 
 func registerMessage(r *Router, s MessageService) {
@@ -2099,6 +2115,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("message.remind", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageRemindParams
+		if err := decodeParams(raw, &p, []string{"ids"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Remind(ctx, &p)
 	})
 }
 
@@ -2175,6 +2198,11 @@ func (x MessageClient) Copy(ctx context.Context, p *MessageCopyParams) error {
 // Delete calls message.delete.
 func (x MessageClient) Delete(ctx context.Context, p *MessageDeleteParams) error {
 	return x.c.Call(ctx, "message.delete", p, nil)
+}
+
+// Remind calls message.remind.
+func (x MessageClient) Remind(ctx context.Context, p *MessageRemindParams) error {
+	return x.c.Call(ctx, "message.remind", p, nil)
 }
 
 // MessageChanged: Messages were added or changed (flags, mailbox, fetched
@@ -2337,8 +2365,10 @@ type OutboxItem struct {
 	To      []Address   `json:"to"`
 	State   OutboxState `json:"state"`
 	// When a queued message goes out.
-	SendAt   *time.Time `json:"sendAt,omitzero"`
-	Attempts int64      `json:"attempts"`
+	SendAt *time.Time `json:"sendAt,omitzero"`
+	// Send Later: queued for a chosen time rather than in its undo window.
+	Scheduled bool  `json:"scheduled"`
+	Attempts  int64 `json:"attempts"`
 	// The last error, when there was one.
 	Error *string `json:"error,omitzero"`
 }
@@ -2358,6 +2388,12 @@ type OutboxRetryParams struct {
 	ID int64 `json:"id"`
 }
 
+// OutboxRescheduleParams holds the params of outbox.reschedule.
+type OutboxRescheduleParams struct {
+	ID     int64     `json:"id"`
+	SendAt time.Time `json:"sendAt"`
+}
+
 // OutboxService: Messages on their way out (docs/design/send.md, Outbox).
 type OutboxService interface {
 	// List implements outbox.list. Messages not yet sent, oldest first.
@@ -2368,6 +2404,11 @@ type OutboxService interface {
 	Cancel(ctx context.Context, p *OutboxCancelParams) (*Draft, error)
 	// Retry implements outbox.retry. Queue a failed message again, now.
 	Retry(ctx context.Context, p *OutboxRetryParams) error
+	// Reschedule implements outbox.reschedule. Give a scheduled message a new
+	// time and rebuild it with that time as its Date; a time within the undo
+	// delay sends it after the undo delay. Conflict unless the message is queued
+	// and scheduled.
+	Reschedule(ctx context.Context, p *OutboxRescheduleParams) (*OutboxItem, error)
 }
 
 func registerOutbox(r *Router, s OutboxService) {
@@ -2391,6 +2432,13 @@ func registerOutbox(r *Router, s OutboxService) {
 			return nil, err
 		}
 		return nil, s.Retry(ctx, &p)
+	})
+	r.handle("outbox.reschedule", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p OutboxRescheduleParams
+		if err := decodeParams(raw, &p, []string{"id", "sendAt"}); err != nil {
+			return nil, err
+		}
+		return s.Reschedule(ctx, &p)
 	})
 }
 
@@ -2422,6 +2470,16 @@ func (x OutboxClient) Cancel(ctx context.Context, p *OutboxCancelParams) (*Draft
 // Retry calls outbox.retry.
 func (x OutboxClient) Retry(ctx context.Context, p *OutboxRetryParams) error {
 	return x.c.Call(ctx, "outbox.retry", p, nil)
+}
+
+// Reschedule calls outbox.reschedule.
+func (x OutboxClient) Reschedule(ctx context.Context, p *OutboxRescheduleParams) (*OutboxItem, error) {
+	var r OutboxItem
+	err := x.c.Call(ctx, "outbox.reschedule", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // OutboxChanged: An outbox message changed state.
@@ -2745,6 +2803,513 @@ func (x RPCClient) Hello(ctx context.Context, p *RPCHelloParams) (*Hello, error)
 	}
 	return &r, nil
 }
+
+// ---- rule ----
+
+// RuleActionKind: What a rule does to a message that meets its conditions.
+type RuleActionKind string
+
+const (
+	// Move to mailboxId (messages of that mailbox's account only).
+	RuleActionKindMove RuleActionKind = "move"
+	// Copy to mailboxId (messages of that mailbox's account only).
+	RuleActionKindCopy RuleActionKind = "copy"
+	// Mark as read.
+	RuleActionKindRead RuleActionKind = "read"
+	// Flag with color (1-7).
+	RuleActionKindFlag RuleActionKind = "flag"
+	// Move to Trash, as message.delete.
+	RuleActionKindDelete RuleActionKind = "delete"
+	// Notify, whatever the notification scope.
+	RuleActionKindNotify RuleActionKind = "notify"
+	// Stop evaluating rules for this message.
+	RuleActionKindStop RuleActionKind = "stop"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v RuleActionKind) Valid() bool {
+	switch v {
+	case RuleActionKindMove, RuleActionKindCopy, RuleActionKindRead, RuleActionKindFlag, RuleActionKindDelete, RuleActionKindNotify, RuleActionKindStop:
+		return true
+	}
+	return false
+}
+
+// RuleAction: One action.
+type RuleAction struct {
+	Kind RuleActionKind `json:"kind"`
+	// For move and copy.
+	MailboxID *int64 `json:"mailboxId,omitzero"`
+	// For flag: 1-7.
+	Color *int64 `json:"color,omitzero"`
+}
+
+// Rule: One rule.
+type Rule struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	// Rules run in position order, from 0.
+	Position   int64      `json:"position"`
+	Enabled    bool       `json:"enabled"`
+	Conditions Conditions `json:"conditions"`
+	// Run in order: flags and read marks, then copies, then the move or delete.
+	Actions []RuleAction `json:"actions"`
+	// Why an action cannot run, such as a mailbox that is gone.
+	Problem *string `json:"problem,omitzero"`
+}
+
+// RuleApplied: What apply did.
+type RuleApplied struct {
+	// Messages that met at least one rule's conditions.
+	Matched int64 `json:"matched"`
+}
+
+// RuleListParams holds the params of rule.list.
+type RuleListParams struct{}
+
+// RuleCreateParams holds the params of rule.create.
+type RuleCreateParams struct {
+	Name       string       `json:"name"`
+	Conditions Conditions   `json:"conditions"`
+	Actions    []RuleAction `json:"actions"`
+	// Default true.
+	Enabled *bool `json:"enabled,omitzero"`
+}
+
+// RuleUpdateParams holds the params of rule.update.
+type RuleUpdateParams struct {
+	ID         int64        `json:"id"`
+	Name       *string      `json:"name,omitzero"`
+	Conditions *Conditions  `json:"conditions,omitzero"`
+	Actions    []RuleAction `json:"actions,omitzero"`
+	Enabled    *bool        `json:"enabled,omitzero"`
+}
+
+// RuleDeleteParams holds the params of rule.delete.
+type RuleDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// RuleMoveParams holds the params of rule.move.
+type RuleMoveParams struct {
+	ID       int64 `json:"id"`
+	Position int64 `json:"position"`
+}
+
+// RuleApplyParams holds the params of rule.apply.
+type RuleApplyParams struct {
+	IDs []int64 `json:"ids"`
+}
+
+// RuleService: Rules that act on new inbox mail in maild, before it notifies,
+// and on chosen messages with apply (ADR-0024, docs/design/organize.md).
+type RuleService interface {
+	// List implements rule.list. Every rule, in order.
+	List(ctx context.Context, p *RuleListParams) ([]Rule, error)
+	// Create implements rule.create. Add a rule at the end of the list.
+	Create(ctx context.Context, p *RuleCreateParams) (*Rule, error)
+	// Update implements rule.update. Change the fields given.
+	Update(ctx context.Context, p *RuleUpdateParams) (*Rule, error)
+	// Delete implements rule.delete. Remove a rule.
+	Delete(ctx context.Context, p *RuleDeleteParams) error
+	// Move implements rule.move. Put a rule at a position, moving the others
+	// along.
+	Move(ctx context.Context, p *RuleMoveParams) error
+	// Apply implements rule.apply. Run the enabled rules, in order, on these
+	// messages now; conflict when one is in a read-only account.
+	Apply(ctx context.Context, p *RuleApplyParams) (*RuleApplied, error)
+}
+
+func registerRule(r *Router, s RuleService) {
+	r.handle("rule.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RuleListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("rule.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RuleCreateParams
+		if err := decodeParams(raw, &p, []string{"name", "conditions", "actions"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("rule.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RuleUpdateParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("rule.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RuleDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("rule.move", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RuleMoveParams
+		if err := decodeParams(raw, &p, []string{"id", "position"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Move(ctx, &p)
+	})
+	r.handle("rule.apply", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RuleApplyParams
+		if err := decodeParams(raw, &p, []string{"ids"}); err != nil {
+			return nil, err
+		}
+		return s.Apply(ctx, &p)
+	})
+}
+
+// RuleClient calls the rule methods; it implements RuleService.
+type RuleClient struct{ c *Client }
+
+// Rule returns the rule methods.
+func (c *Client) Rule() RuleClient { return RuleClient{c} }
+
+var _ RuleService = RuleClient{}
+
+// List calls rule.list.
+func (x RuleClient) List(ctx context.Context, p *RuleListParams) ([]Rule, error) {
+	var r []Rule
+	err := x.c.Call(ctx, "rule.list", p, &r)
+	return r, err
+}
+
+// Create calls rule.create.
+func (x RuleClient) Create(ctx context.Context, p *RuleCreateParams) (*Rule, error) {
+	var r Rule
+	err := x.c.Call(ctx, "rule.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Update calls rule.update.
+func (x RuleClient) Update(ctx context.Context, p *RuleUpdateParams) (*Rule, error) {
+	var r Rule
+	err := x.c.Call(ctx, "rule.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls rule.delete.
+func (x RuleClient) Delete(ctx context.Context, p *RuleDeleteParams) error {
+	return x.c.Call(ctx, "rule.delete", p, nil)
+}
+
+// Move calls rule.move.
+func (x RuleClient) Move(ctx context.Context, p *RuleMoveParams) error {
+	return x.c.Call(ctx, "rule.move", p, nil)
+}
+
+// Apply calls rule.apply.
+func (x RuleClient) Apply(ctx context.Context, p *RuleApplyParams) (*RuleApplied, error) {
+	var r RuleApplied
+	err := x.c.Call(ctx, "rule.apply", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// RuleChanged: A rule was created, changed, moved or deleted.
+type RuleChanged struct {
+	ID      int64 `json:"id"`
+	Deleted bool  `json:"deleted"`
+}
+
+// EventName is the wire name of RuleChanged.
+func (RuleChanged) EventName() string { return "rule.changed" }
+
+// Durable reports whether RuleChanged is kept in the changes log.
+func (RuleChanged) Durable() bool { return true }
+
+// ---- settings ----
+
+// NotifyScope: Which new mail notifies, after each account's own notify
+// switch.
+type NotifyScope string
+
+const (
+	// New mail in an inbox (the default).
+	NotifyScopeInbox NotifyScope = "inbox"
+	// New mail in an inbox from a VIP.
+	NotifyScopeVips NotifyScope = "vips"
+	// New mail in an inbox from an address in People.
+	NotifyScopeContacts NotifyScope = "contacts"
+	// New mail in any mailbox but Junk, Trash and Sent.
+	NotifyScopeAll NotifyScope = "all"
+	// New mail that a smart mailbox lists (notifySmartId).
+	NotifyScopeSmart NotifyScope = "smart"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v NotifyScope) Valid() bool {
+	switch v {
+	case NotifyScopeInbox, NotifyScopeVips, NotifyScopeContacts, NotifyScopeAll, NotifyScopeSmart:
+		return true
+	}
+	return false
+}
+
+// Settings: Every preference, with its current value.
+type Settings struct {
+	// Seconds a sent message waits in the outbox: 0, 10, 20 or 30.
+	UndoDelay   int64       `json:"undoDelay"`
+	NotifyScope NotifyScope `json:"notifyScope"`
+	// The smart mailbox, when notifyScope is smart.
+	NotifySmartID *int64 `json:"notifySmartId,omitzero"`
+	// Seven names, for flag colors 1-7; an empty name is the color's own (Red ...
+	// Gray).
+	FlagNames []string `json:"flagNames"`
+}
+
+// SettingsGetParams holds the params of settings.get.
+type SettingsGetParams struct{}
+
+// SettingsSetParams holds the params of settings.set.
+type SettingsSetParams struct {
+	// 0, 10, 20 or 30.
+	UndoDelay   *int64       `json:"undoDelay,omitzero"`
+	NotifyScope *NotifyScope `json:"notifyScope,omitzero"`
+	// Required with notifyScope smart.
+	NotifySmartID *int64 `json:"notifySmartId,omitzero"`
+	// Seven names, each at most 40 characters.
+	FlagNames []string `json:"flagNames,omitzero"`
+}
+
+// SettingsService: Preferences maild keeps for every account, so they hold
+// with the app closed and look the same from mailctl (ADR-0026,
+// docs/design/organize.md).
+type SettingsService interface {
+	// Get implements settings.get. The current preferences.
+	Get(ctx context.Context, p *SettingsGetParams) (*Settings, error)
+	// Set implements settings.set. Change the preferences given; the others stay.
+	// Returns them all.
+	Set(ctx context.Context, p *SettingsSetParams) (*Settings, error)
+}
+
+func registerSettings(r *Router, s SettingsService) {
+	r.handle("settings.get", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SettingsGetParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Get(ctx, &p)
+	})
+	r.handle("settings.set", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SettingsSetParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Set(ctx, &p)
+	})
+}
+
+// SettingsClient calls the settings methods; it implements SettingsService.
+type SettingsClient struct{ c *Client }
+
+// Settings returns the settings methods.
+func (c *Client) Settings() SettingsClient { return SettingsClient{c} }
+
+var _ SettingsService = SettingsClient{}
+
+// Get calls settings.get.
+func (x SettingsClient) Get(ctx context.Context, p *SettingsGetParams) (*Settings, error) {
+	var r Settings
+	err := x.c.Call(ctx, "settings.get", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Set calls settings.set.
+func (x SettingsClient) Set(ctx context.Context, p *SettingsSetParams) (*Settings, error) {
+	var r Settings
+	err := x.c.Call(ctx, "settings.set", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// SettingsChanged: A preference changed.
+type SettingsChanged struct{}
+
+// EventName is the wire name of SettingsChanged.
+func (SettingsChanged) EventName() string { return "settings.changed" }
+
+// Durable reports whether SettingsChanged is kept in the changes log.
+func (SettingsChanged) Durable() bool { return true }
+
+// ---- smart ----
+
+// SmartMailbox: One smart mailbox.
+type SmartMailbox struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	// Its place in the sidebar, from 0.
+	Position   int64      `json:"position"`
+	Conditions Conditions `json:"conditions"`
+	// Also list messages that are only in Trash.
+	IncludeTrash bool `json:"includeTrash"`
+	// Also list messages that are only in Sent.
+	IncludeSent bool `json:"includeSent"`
+	// Unread messages it lists.
+	Unread int64 `json:"unread"`
+}
+
+// SmartListParams holds the params of smart.list.
+type SmartListParams struct{}
+
+// SmartCreateParams holds the params of smart.create.
+type SmartCreateParams struct {
+	Name         string     `json:"name"`
+	Conditions   Conditions `json:"conditions"`
+	IncludeTrash *bool      `json:"includeTrash,omitzero"`
+	IncludeSent  *bool      `json:"includeSent,omitzero"`
+}
+
+// SmartUpdateParams holds the params of smart.update.
+type SmartUpdateParams struct {
+	ID           int64       `json:"id"`
+	Name         *string     `json:"name,omitzero"`
+	Conditions   *Conditions `json:"conditions,omitzero"`
+	IncludeTrash *bool       `json:"includeTrash,omitzero"`
+	IncludeSent  *bool       `json:"includeSent,omitzero"`
+}
+
+// SmartDeleteParams holds the params of smart.delete.
+type SmartDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// SmartMoveParams holds the params of smart.move.
+type SmartMoveParams struct {
+	ID       int64 `json:"id"`
+	Position int64 `json:"position"`
+}
+
+// SmartService: Smart mailboxes: saved conditions listed as a mailbox, across
+// accounts (ADR-0023, docs/design/organize.md).
+type SmartService interface {
+	// List implements smart.list. Every smart mailbox, in sidebar order.
+	List(ctx context.Context, p *SmartListParams) ([]SmartMailbox, error)
+	// Create implements smart.create. Add a smart mailbox at the end of the list.
+	Create(ctx context.Context, p *SmartCreateParams) (*SmartMailbox, error)
+	// Update implements smart.update. Change the fields given.
+	Update(ctx context.Context, p *SmartUpdateParams) (*SmartMailbox, error)
+	// Delete implements smart.delete. Remove a smart mailbox; a notification
+	// scope that named it becomes inbox.
+	Delete(ctx context.Context, p *SmartDeleteParams) error
+	// Move implements smart.move. Put a smart mailbox at a position, moving the
+	// others along.
+	Move(ctx context.Context, p *SmartMoveParams) error
+}
+
+func registerSmart(r *Router, s SmartService) {
+	r.handle("smart.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SmartListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("smart.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SmartCreateParams
+		if err := decodeParams(raw, &p, []string{"name", "conditions"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("smart.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SmartUpdateParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("smart.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SmartDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+	r.handle("smart.move", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SmartMoveParams
+		if err := decodeParams(raw, &p, []string{"id", "position"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Move(ctx, &p)
+	})
+}
+
+// SmartClient calls the smart methods; it implements SmartService.
+type SmartClient struct{ c *Client }
+
+// Smart returns the smart methods.
+func (c *Client) Smart() SmartClient { return SmartClient{c} }
+
+var _ SmartService = SmartClient{}
+
+// List calls smart.list.
+func (x SmartClient) List(ctx context.Context, p *SmartListParams) ([]SmartMailbox, error) {
+	var r []SmartMailbox
+	err := x.c.Call(ctx, "smart.list", p, &r)
+	return r, err
+}
+
+// Create calls smart.create.
+func (x SmartClient) Create(ctx context.Context, p *SmartCreateParams) (*SmartMailbox, error) {
+	var r SmartMailbox
+	err := x.c.Call(ctx, "smart.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Update calls smart.update.
+func (x SmartClient) Update(ctx context.Context, p *SmartUpdateParams) (*SmartMailbox, error) {
+	var r SmartMailbox
+	err := x.c.Call(ctx, "smart.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls smart.delete.
+func (x SmartClient) Delete(ctx context.Context, p *SmartDeleteParams) error {
+	return x.c.Call(ctx, "smart.delete", p, nil)
+}
+
+// Move calls smart.move.
+func (x SmartClient) Move(ctx context.Context, p *SmartMoveParams) error {
+	return x.c.Call(ctx, "smart.move", p, nil)
+}
+
+// SmartChanged: A smart mailbox was created, changed, moved or deleted.
+type SmartChanged struct {
+	ID      int64 `json:"id"`
+	Deleted bool  `json:"deleted"`
+}
+
+// EventName is the wire name of SmartChanged.
+func (SmartChanged) EventName() string { return "smart.changed" }
+
+// Durable reports whether SmartChanged is kept in the changes log.
+func (SmartChanged) Durable() bool { return true }
 
 // ---- sync ----
 
@@ -3100,6 +3665,143 @@ func (v ViewOpKind) Valid() bool {
 	return false
 }
 
+// ConditionMatch: How a list of conditions combines
+// (docs/design/organize.md).
+type ConditionMatch string
+
+const (
+	// Every condition must hold.
+	ConditionMatchAll ConditionMatch = "all"
+	// At least one condition must hold.
+	ConditionMatchAny ConditionMatch = "any"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ConditionMatch) Valid() bool {
+	switch v {
+	case ConditionMatchAll, ConditionMatchAny:
+		return true
+	}
+	return false
+}
+
+// ConditionField: What a condition looks at; docs/design/organize.md lists
+// the ops and values each takes.
+type ConditionField string
+
+const (
+	// The sender.
+	ConditionFieldFrom ConditionField = "from"
+	// An address or name in To.
+	ConditionFieldTo ConditionField = "to"
+	// An address or name in Cc.
+	ConditionFieldCc ConditionField = "cc"
+	// Any recipient, To or Cc, by the words of the search index.
+	ConditionFieldRecipient ConditionField = "recipient"
+	// One of the account's own addresses is in To.
+	ConditionFieldTome ConditionField = "tome"
+	// One of the account's own addresses is in Cc.
+	ConditionFieldCcme    ConditionField = "ccme"
+	ConditionFieldSubject ConditionField = "subject"
+	// Anything the search index holds: subject, addresses, body and attachment
+	// names.
+	ConditionFieldContent ConditionField = "content"
+	// An attachment's file name.
+	ConditionFieldFilename ConditionField = "filename"
+	// The List-Id header.
+	ConditionFieldListid ConditionField = "listid"
+	// Account IDs.
+	ConditionFieldAccount ConditionField = "account"
+	// Mailbox IDs.
+	ConditionFieldMailbox ConditionField = "mailbox"
+	// Mailbox roles, in any account.
+	ConditionFieldRole ConditionField = "role"
+	// The arrival date.
+	ConditionFieldReceived ConditionField = "received"
+	// The Date header.
+	ConditionFieldSent    ConditionField = "sent"
+	ConditionFieldUnread  ConditionField = "unread"
+	ConditionFieldFlagged ConditionField = "flagged"
+	// Has attachments.
+	ConditionFieldAttachments ConditionField = "attachments"
+	// The flag color, 1-7.
+	ConditionFieldColor ConditionField = "color"
+	// The sender is a VIP.
+	ConditionFieldVip ConditionField = "vip"
+	// The sender is in People.
+	ConditionFieldContact ConditionField = "contact"
+	// A Remind Me reminder is pending.
+	ConditionFieldReminder ConditionField = "reminder"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ConditionField) Valid() bool {
+	switch v {
+	case ConditionFieldFrom, ConditionFieldTo, ConditionFieldCc, ConditionFieldRecipient, ConditionFieldTome, ConditionFieldCcme, ConditionFieldSubject, ConditionFieldContent, ConditionFieldFilename, ConditionFieldListid, ConditionFieldAccount, ConditionFieldMailbox, ConditionFieldRole, ConditionFieldReceived, ConditionFieldSent, ConditionFieldUnread, ConditionFieldFlagged, ConditionFieldAttachments, ConditionFieldColor, ConditionFieldVip, ConditionFieldContact, ConditionFieldReminder:
+		return true
+	}
+	return false
+}
+
+// ConditionOp: How a condition compares; which fields take which ops is in
+// docs/design/organize.md.
+type ConditionOp string
+
+const (
+	// Every word of the value, as prefixes; a quoted value is a phrase.
+	ConditionOpContains ConditionOp = "contains"
+	// Not contains; also true when the field is empty.
+	ConditionOpNotcontains ConditionOp = "notcontains"
+	// Equal, ignoring case; true or false for yes-or-no fields.
+	ConditionOpIs ConditionOp = "is"
+	// Not equal; also true when the field is empty.
+	ConditionOpIsnot  ConditionOp = "isnot"
+	ConditionOpBegins ConditionOp = "begins"
+	ConditionOpEnds   ConditionOp = "ends"
+	// One of a comma-separated list of IDs, roles or colors.
+	ConditionOpAnyof     ConditionOp = "anyof"
+	ConditionOpToday     ConditionOp = "today"
+	ConditionOpYesterday ConditionOp = "yesterday"
+	// Since Monday.
+	ConditionOpThisweek  ConditionOp = "thisweek"
+	ConditionOpThismonth ConditionOp = "thismonth"
+	ConditionOpThisyear  ConditionOp = "thisyear"
+	// Since the start of the day N units ago; the value is N and d, w, m or y,
+	// such as 7d.
+	ConditionOpWithin    ConditionOp = "within"
+	ConditionOpNotwithin ConditionOp = "notwithin"
+	// That day, YYYY-MM-DD.
+	ConditionOpOn ConditionOp = "on"
+	// From that day, YYYY-MM-DD.
+	ConditionOpSince ConditionOp = "since"
+	// Before that day, YYYY-MM-DD.
+	ConditionOpBefore ConditionOp = "before"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ConditionOp) Valid() bool {
+	switch v {
+	case ConditionOpContains, ConditionOpNotcontains, ConditionOpIs, ConditionOpIsnot, ConditionOpBegins, ConditionOpEnds, ConditionOpAnyof, ConditionOpToday, ConditionOpYesterday, ConditionOpThisweek, ConditionOpThismonth, ConditionOpThisyear, ConditionOpWithin, ConditionOpNotwithin, ConditionOpOn, ConditionOpSince, ConditionOpBefore:
+		return true
+	}
+	return false
+}
+
+// Condition: One condition, as Mail.app's editors show it.
+type Condition struct {
+	Field ConditionField `json:"field"`
+	Op    ConditionOp    `json:"op"`
+	// Empty for ops that take none.
+	Value string `json:"value"`
+}
+
+// Conditions: Conditions, combined by match. An empty list matches every
+// message.
+type Conditions struct {
+	Match      ConditionMatch `json:"match"`
+	Conditions []Condition    `json:"conditions"`
+}
+
 // ViewQuery: Which messages a view lists, newest first. Every field that is
 // set must match.
 type ViewQuery struct {
@@ -3122,12 +3824,22 @@ type ViewQuery struct {
 	Role *MailboxRole `json:"role,omitzero"`
 	// One row per thread: its newest message that matches.
 	Threads *bool `json:"threads,omitzero"`
+	// Conditions every listed message also meets.
+	Conditions *Conditions `json:"conditions,omitzero"`
+	// The messages of a smart mailbox, which the view follows as it is edited.
+	SmartMailboxID *int64 `json:"smartMailboxId,omitzero"`
 }
 
 // ViewInfo: An open view.
 type ViewInfo struct {
 	ID    int64 `json:"id"`
 	Count int64 `json:"count"`
+}
+
+// ViewCount: How many messages a query lists.
+type ViewCount struct {
+	Total  int64 `json:"total"`
+	Unread int64 `json:"unread"`
 }
 
 // ViewOp: One step of a delta; apply a delta's ops in order.
@@ -3140,6 +3852,12 @@ type ViewOp struct {
 // ViewOpenParams holds the params of view.open.
 type ViewOpenParams struct {
 	Query ViewQuery `json:"query"`
+}
+
+// ViewCountParams holds the params of view.count.
+type ViewCountParams struct {
+	// At most 100.
+	Queries []ViewQuery `json:"queries"`
 }
 
 // ViewRangeParams holds the params of view.range.
@@ -3160,6 +3878,10 @@ type ViewService interface {
 	// Open implements view.open. Open a view; deltas follow on this connection
 	// without events.subscribe.
 	Open(ctx context.Context, p *ViewOpenParams) (*ViewInfo, error)
+	// Count implements view.count. Count what each query lists, without opening
+	// views: the sidebar's Flagged colors, VIPs and other built-in sources.
+	// Messages, not threads; a query's threads field is ignored.
+	Count(ctx context.Context, p *ViewCountParams) ([]ViewCount, error)
 	// Range implements view.range. The rows from start up to, not including, end;
 	// end is capped at the view's count.
 	Range(ctx context.Context, p *ViewRangeParams) ([]MessageSummary, error)
@@ -3174,6 +3896,13 @@ func registerView(r *Router, s ViewService) {
 			return nil, err
 		}
 		return s.Open(ctx, &p)
+	})
+	r.handle("view.count", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ViewCountParams
+		if err := decodeParams(raw, &p, []string{"queries"}); err != nil {
+			return nil, err
+		}
+		return s.Count(ctx, &p)
 	})
 	r.handle("view.range", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p ViewRangeParams
@@ -3209,6 +3938,13 @@ func (x ViewClient) Open(ctx context.Context, p *ViewOpenParams) (*ViewInfo, err
 	return &r, nil
 }
 
+// Count calls view.count.
+func (x ViewClient) Count(ctx context.Context, p *ViewCountParams) ([]ViewCount, error) {
+	var r []ViewCount
+	err := x.c.Call(ctx, "view.count", p, &r)
+	return r, err
+}
+
 // Range calls view.range.
 func (x ViewClient) Range(ctx context.Context, p *ViewRangeParams) ([]MessageSummary, error) {
 	var r []MessageSummary
@@ -3236,6 +3972,107 @@ func (ViewDelta) EventName() string { return "view.delta" }
 // Durable reports whether ViewDelta is kept in the changes log.
 func (ViewDelta) Durable() bool { return false }
 
+// ---- vip ----
+
+// Vip: One VIP address.
+type Vip struct {
+	// Lowercased.
+	Address string `json:"address"`
+	// The name to show: the person's in People, else the last one seen, else
+	// empty.
+	Name string `json:"name"`
+	// The person in People with this address, when there is one.
+	PersonID *int64 `json:"personId,omitzero"`
+}
+
+// VipListParams holds the params of vip.list.
+type VipListParams struct{}
+
+// VipAddParams holds the params of vip.add.
+type VipAddParams struct {
+	Addresses []string `json:"addresses,omitzero"`
+	PersonID  *int64   `json:"personId,omitzero"`
+}
+
+// VipRemoveParams holds the params of vip.remove.
+type VipRemoveParams struct {
+	Addresses []string `json:"addresses,omitzero"`
+	PersonID  *int64   `json:"personId,omitzero"`
+}
+
+// VipService: VIP senders: addresses whose mail gets a star, a mailbox of its
+// own, and can be the only mail that notifies (docs/design/organize.md).
+type VipService interface {
+	// List implements vip.list. Every VIP, by name, then address.
+	List(ctx context.Context, p *VipListParams) ([]Vip, error)
+	// Add implements vip.add. Make addresses VIPs, or every address of a person.
+	// Addresses already VIPs stay as they are.
+	Add(ctx context.Context, p *VipAddParams) ([]Vip, error)
+	// Remove implements vip.remove. Stop addresses being VIPs, or every address
+	// of a person.
+	Remove(ctx context.Context, p *VipRemoveParams) error
+}
+
+func registerVip(r *Router, s VipService) {
+	r.handle("vip.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p VipListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("vip.add", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p VipAddParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Add(ctx, &p)
+	})
+	r.handle("vip.remove", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p VipRemoveParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return nil, s.Remove(ctx, &p)
+	})
+}
+
+// VipClient calls the vip methods; it implements VipService.
+type VipClient struct{ c *Client }
+
+// Vip returns the vip methods.
+func (c *Client) Vip() VipClient { return VipClient{c} }
+
+var _ VipService = VipClient{}
+
+// List calls vip.list.
+func (x VipClient) List(ctx context.Context, p *VipListParams) ([]Vip, error) {
+	var r []Vip
+	err := x.c.Call(ctx, "vip.list", p, &r)
+	return r, err
+}
+
+// Add calls vip.add.
+func (x VipClient) Add(ctx context.Context, p *VipAddParams) ([]Vip, error) {
+	var r []Vip
+	err := x.c.Call(ctx, "vip.add", p, &r)
+	return r, err
+}
+
+// Remove calls vip.remove.
+func (x VipClient) Remove(ctx context.Context, p *VipRemoveParams) error {
+	return x.c.Call(ctx, "vip.remove", p, nil)
+}
+
+// VipChanged: VIPs were added or removed.
+type VipChanged struct{}
+
+// EventName is the wire name of VipChanged.
+func (VipChanged) EventName() string { return "vip.changed" }
+
+// Durable reports whether VipChanged is kept in the changes log.
+func (VipChanged) Durable() bool { return true }
+
 // Services is one implementation per domain, for NewRouter.
 type Services struct {
 	Account  AccountService
@@ -3250,10 +4087,14 @@ type Services struct {
 	Outbox   OutboxService
 	People   PeopleService
 	RPC      RPCService
+	Rule     RuleService
+	Settings SettingsService
+	Smart    SmartService
 	Sync     SyncService
 	Tasks    TasksService
 	Thread   ThreadService
 	View     ViewService
+	Vip      VipService
 }
 
 func (s Services) register(r *Router) error {
@@ -3305,6 +4146,18 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.RPC is nil")
 	}
 	registerRPC(r, s.RPC)
+	if s.Rule == nil {
+		return errors.New("api: Services.Rule is nil")
+	}
+	registerRule(r, s.Rule)
+	if s.Settings == nil {
+		return errors.New("api: Services.Settings is nil")
+	}
+	registerSettings(r, s.Settings)
+	if s.Smart == nil {
+		return errors.New("api: Services.Smart is nil")
+	}
+	registerSmart(r, s.Smart)
 	if s.Sync == nil {
 		return errors.New("api: Services.Sync is nil")
 	}
@@ -3321,6 +4174,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.View is nil")
 	}
 	registerView(r, s.View)
+	if s.Vip == nil {
+		return errors.New("api: Services.Vip is nil")
+	}
+	registerVip(r, s.Vip)
 	return nil
 }
 
@@ -3371,17 +4228,32 @@ var Methods = []string{
 	"message.move",
 	"message.copy",
 	"message.delete",
+	"message.remind",
 	"oauth.setClient",
 	"oauth.getClient",
 	"outbox.list",
 	"outbox.cancel",
 	"outbox.retry",
+	"outbox.reschedule",
 	"people.list",
 	"people.get",
 	"people.card",
 	"people.photo",
 	"people.add",
 	"rpc.hello",
+	"rule.list",
+	"rule.create",
+	"rule.update",
+	"rule.delete",
+	"rule.move",
+	"rule.apply",
+	"settings.get",
+	"settings.set",
+	"smart.list",
+	"smart.create",
+	"smart.update",
+	"smart.delete",
+	"smart.move",
 	"sync.status",
 	"sync.now",
 	"sync.pim",
@@ -3391,8 +4263,12 @@ var Methods = []string{
 	"tasks.delete",
 	"thread.messages",
 	"view.open",
+	"view.count",
 	"view.range",
 	"view.close",
+	"vip.list",
+	"vip.add",
+	"vip.remove",
 }
 
 // DecodeEvent decodes the data of the named event.
@@ -3452,6 +4328,24 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}
 		return e, nil
+	case "rule.changed":
+		var e RuleChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "settings.changed":
+		var e SettingsChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "smart.changed":
+		var e SmartChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
 	case "sync.progress":
 		var e SyncProgress
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -3466,6 +4360,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "view.delta":
 		var e ViewDelta
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "vip.changed":
+		var e VipChanged
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

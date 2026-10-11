@@ -73,8 +73,8 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		if err != nil {
 			return err
 		}
-		if ok && mb.Role == api.MailboxRoleInbox {
-			a.fresh = append(a.fresh, ids...) // new mail, not the first sync
+		if ok {
+			a.fresh = append(a.fresh, ids...) // new mail, not the first sync; the scope decides (announceNew)
 		}
 		done := start + len(chunk)
 		a.setStatus(func(s *api.SyncStatus) { s.Done, s.Total = int64(done), int64(total) })

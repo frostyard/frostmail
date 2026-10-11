@@ -192,7 +192,10 @@ does.
   address, closing the card); **Add to Contacts** when `canAdd` (calls `people.add` and shows
   "Added" in place of the button when it succeeds, or the error under the
   row); **Open in People** when there is a person (switches to People with
-  them selected).
+  them selected); **Add to VIPs**, or **Remove from VIPs** when the
+  address is a VIP (M5): `vip.add` or `vip.remove` with the person's ID
+  when the card has a person, else the address, the button turning into
+  the other when it succeeds.
 - **Recent Mail** and **Upcoming** as in the person pane, at most 5 rows
   each; a recent message opens in Mail and closes the card.
 - The card asks `people.card` each time it opens; while the answer is

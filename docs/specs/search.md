@@ -21,6 +21,9 @@ type Query struct {
     After         time.Time       // inclusive lower bound (zero: none)
     Before        time.Time       // exclusive upper bound (zero: none)
     Roles         []api.MailboxRole // in:inbox, in:sent, … (any of them)
+    // newer_than: and older_than:'s values ("2d"), when After or Before
+    // came from one; a later after:, before: or on: clears them.
+    AfterRel, BeforeRel string
 }
 
 type Term struct {
@@ -36,6 +39,15 @@ func (q Query) Match() string
 func (q Query) Exclude() string
 // Empty reports whether the query has no condition at all.
 func (q Query) Empty() bool
+
+// ToConditions turns a query into conditions listing the same messages,
+// for Save as Smart Mailbox (docs/design/organize.md, From a search).
+func ToConditions(q Query, loc *time.Location) api.Conditions
+// Words splits a condition's value into terms on a column: a value wholly
+// in double quotes is one phrase, else each word with a letter or digit.
+func Words(value, column string) []Term
+// ParseRelative reads newer_than:'s Nd, Nw, Nm or Ny as a day in loc.
+func ParseRelative(v string, now time.Time, loc *time.Location) (time.Time, bool)
 ```
 
 ## Rules

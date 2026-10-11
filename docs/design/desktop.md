@@ -68,6 +68,11 @@ desktop icon.
   without notifications.
 - Per account: notifications on or off (`account.update {notify}`); off
   for read-only accounts.
+- Which new mail notifies is the `notifyScope` setting: Inbox only (the
+  default), VIPs, Contacts, All Mailboxes or a smart mailbox; a rule can
+  ask for a notification whatever the scope ([organize.md](organize.md#notifications)).
+- A Remind Me reminder notifies when it fires, with "Reminder" before the
+  subject ([organize.md](organize.md#remind-me)).
 
 ## One app instance
 

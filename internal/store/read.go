@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/frostyard/frostmail/api"
 )
 
 // ViewFilter selects the messages of a view (api.ViewQuery). Zero fields do
@@ -29,6 +31,10 @@ type ViewFilter struct {
 	HasAttachment *bool     // has:attachment
 	After, Before time.Time // arrival in [After, Before)
 	Roles         []string  // in: any of these mailbox roles
+
+	// Conditions (ADR-0023), compiled each time the view is computed so
+	// relative dates move along; checked with CheckConditions first.
+	Conditions *api.Conditions
 }
 
 // viewOrder is the order every view lists messages in: newest first by
@@ -49,6 +55,51 @@ const viewOrder = `m.internal_date DESC, COALESCE(m.date_hdr, '') DESC, m.id DES
 // match every other condition, a message with no thread being its own
 // thread. The result keeps the view's order.
 func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
+	where, args, err := d.viewWhere(f)
+	if err != nil {
+		return nil, fmt.Errorf("view ids: %w", err)
+	}
+	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + viewOrder
+	if f.Threads {
+		query = `SELECT id FROM (SELECT m.id AS id, m.internal_date AS ord_internal,` +
+			` COALESCE(m.date_hdr, '') AS ord_hdr,` +
+			` ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, -m.id) ORDER BY ` + viewOrder + `) AS rn` +
+			` FROM messages m WHERE ` + where + `)` +
+			` WHERE rn = 1 ORDER BY ord_internal DESC, ord_hdr DESC, id DESC`
+	}
+	rows, err := d.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("view ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("view ids: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// CountView counts the messages f lists, and the unread ones among them;
+// messages, not threads (Threads is ignored).
+func (d *DB) CountView(ctx context.Context, f ViewFilter) (total, unread int, err error) {
+	where, args, err := d.viewWhere(f)
+	if err != nil {
+		return 0, 0, fmt.Errorf("count view: %w", err)
+	}
+	err = d.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(m.seen = 0), 0) FROM messages m WHERE `+where, args...).
+		Scan(&total, &unread)
+	if err != nil {
+		return 0, 0, fmt.Errorf("count view: %w", err)
+	}
+	return total, unread, nil
+}
+
+// viewWhere is the condition over messages m that a view filter makes.
+func (d *DB) viewWhere(f ViewFilter) (string, []any, error) {
 	conds := []string{"m.deleted = 0"}
 	var args []any
 	if f.AccountID != 0 {
@@ -62,7 +113,7 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 	if f.Unread != nil && len(f.Keep) > 0 {
 		keep, err := json.Marshal(f.Keep)
 		if err != nil {
-			return nil, fmt.Errorf("view ids: %w", err)
+			return "", nil, err
 		}
 		conds = append(conds, "(m.seen = ? OR m.id IN (SELECT value FROM json_each(?)))")
 		args = append(args, bit(!*f.Unread), string(keep))
@@ -104,29 +155,15 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 			args = append(args, r)
 		}
 	}
-	where := strings.Join(conds, " AND ")
-	query := `SELECT m.id FROM messages m WHERE ` + where + ` ORDER BY ` + viewOrder
-	if f.Threads {
-		query = `SELECT id FROM (SELECT m.id AS id, m.internal_date AS ord_internal,` +
-			` COALESCE(m.date_hdr, '') AS ord_hdr,` +
-			` ROW_NUMBER() OVER (PARTITION BY COALESCE(m.thread_id, -m.id) ORDER BY ` + viewOrder + `) AS rn` +
-			` FROM messages m WHERE ` + where + `)` +
-			` WHERE rn = 1 ORDER BY ord_internal DESC, ord_hdr DESC, id DESC`
-	}
-	rows, err := d.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("view ids: %w", err)
-	}
-	defer rows.Close()
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("view ids: %w", err)
+	if f.Conditions != nil {
+		p, err := CompileConditions(*f.Conditions, d.Now(), time.Local)
+		if err != nil {
+			return "", nil, err
 		}
-		ids = append(ids, id)
+		conds = append(conds, p.SQL)
+		args = append(args, p.Args...)
 	}
-	return ids, rows.Err()
+	return strings.Join(conds, " AND "), args, nil
 }
 
 // Summary is a message list row (api.MessageSummary).
