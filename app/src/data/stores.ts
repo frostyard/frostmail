@@ -261,7 +261,7 @@ export function sourceFromKey(key: string, vips: Vip[] = []): Source | null {
   if (role) return { kind: "role", role };
   const smart = /^smart:(\d+)$/.exec(key);
   if (smart) return { kind: "smart", id: Number(smart[1]) };
-  const m = /^mailbox:(\d+)$/.exec(key);
+  const m = /^(?:mailbox|favorite):(\d+)$/.exec(key);
   return m ? { kind: "mailbox", mailboxId: Number(m[1]) } : null;
 }
 

@@ -1,27 +1,228 @@
 // The sidebar, fed by the mail store (docs/specs/ui.md, Sidebar).
+import { isTauri } from "@tauri-apps/api/core";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { useMemo, useState } from "react";
 
 import { useClient } from "../data/session";
 import { sourceFromKey, sourceKey, useMail, useUI } from "../data/stores";
-import { ContextMenu } from "../features/menu/ContextMenu";
+import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
+import { MailboxSheet, type MailboxSheetMode } from "../features/sidebar/MailboxSheet";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
 import { buildSidebar, vipGroups } from "../lib/mailboxTree";
+import type { Mailbox, MailboxRole } from "../rpc/gen/api";
+import { copyMessages, DRAG_TYPE, moveMessages } from "./commands";
 import { OutboxSection, SendLaterSection } from "./OutboxContainer";
 import { useSidebarCounts } from "./useSidebarCounts";
 import { useSmartCounts } from "./useSmartCounts";
 
+const ROLES: [MailboxRole, string][] = [
+  ["drafts", "Drafts"],
+  ["sent", "Sent"],
+  ["junk", "Junk"],
+  ["trash", "Trash"],
+  ["archive", "Archive"],
+];
+
+function mailboxMenu(mailbox: Mailbox, readOnly: boolean, favorite: boolean): MenuItem[] {
+  const locked = readOnly || mailbox.role !== "none";
+  const items: MenuItem[] = [
+    { kind: "item", id: "new", label: "New Mailbox…", disabled: readOnly },
+    { kind: "item", id: "rename", label: "Rename Mailbox…", disabled: locked },
+    { kind: "item", id: "move", label: "Move Mailbox…", disabled: locked },
+    { kind: "item", id: "delete", label: "Delete Mailbox…", disabled: locked },
+  ];
+  if (mailbox.role !== "inbox" && !mailbox.label) {
+    items.push(
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        id: "role",
+        label: "Use This Mailbox For",
+        disabled: readOnly,
+        items: ROLES.map(([role, label]) => ({
+          kind: "item",
+          id: `role:${role}`,
+          label,
+          checked: mailbox.role === role,
+          disabled: readOnly,
+        })),
+      },
+    );
+  }
+  if (mailbox.role === "trash" || mailbox.role === "junk") {
+    if (items.at(-1)?.kind !== "submenu") items.push({ kind: "separator" });
+    items.push({
+      kind: "item",
+      id: "erase",
+      label: mailbox.role === "trash" ? "Erase Deleted Items…" : "Erase Junk Mail…",
+      disabled: readOnly,
+    });
+  }
+  items.push(
+    { kind: "separator" },
+    { kind: "item", id: "favorite", label: favorite ? "Remove from Favorites" : "Add to Favorites" },
+  );
+  return items;
+}
+
+function favoriteMenu(id: number, favorites: Mailbox[]): MenuItem[] {
+  const index = favorites.findIndex((mailbox) => mailbox.id === id);
+  return [
+    { kind: "item", id: "remove", label: "Remove from Favorites" },
+    { kind: "item", id: "up", label: "Move Up", disabled: index <= 0 },
+    { kind: "item", id: "down", label: "Move Down", disabled: index < 0 || index === favorites.length - 1 },
+  ];
+}
+
+async function confirmMailbox(mailbox: Mailbox, erase: boolean): Promise<boolean> {
+  const text = erase
+    ? `Erase the ${mailbox.total} messages in "${mailbox.name}"? They cannot be recovered.`
+    : `Delete the mailbox "${mailbox.name}" and the messages in it?`;
+  const title = erase ? (mailbox.role === "trash" ? "Erase Deleted Items?" : "Erase Junk Mail?") : "Delete Mailbox?";
+  return isTauri() ? ask(text, { title, kind: "warning", okLabel: erase ? "Erase" : "Delete" }) : window.confirm(text);
+}
+
+interface MailboxEdit {
+  mode: MailboxSheetMode;
+  accountId: number;
+  id?: number;
+  name: string;
+  parentId?: number;
+}
+
 /** SidebarContainer connects Sidebar to the stores. */
 export function SidebarContainer() {
   const client = useClient();
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ kind: "smart" | "mailbox" | "favorite"; id: number; x: number; y: number } | null>(
+    null,
+  );
   const { accounts, mailboxes, sync, vips, settings, smarts } = useMail();
+  const favorites = useMemo(
+    () => (settings?.favorites ?? []).flatMap((id) => mailboxes.filter((mailbox) => mailbox.id === id)),
+    [settings, mailboxes],
+  );
+  const [sheet, setSheet] = useState<MailboxEdit | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const menuMailbox = menu?.kind === "mailbox" ? mailboxes.find((m) => m.id === menu.id) : undefined;
+  const openSheet = (edit: MailboxEdit) => {
+    setError(undefined);
+    setSheet(edit);
+  };
+  const editMailbox = (mailbox: Mailbox, mode: MailboxSheetMode) => {
+    const index = mailbox.delimiter ? mailbox.path.lastIndexOf(mailbox.delimiter) : -1;
+    const parent =
+      mode === "new"
+        ? mailbox
+        : mailboxes.find(
+            (m) => m.accountId === mailbox.accountId && index >= 0 && m.path === mailbox.path.slice(0, index),
+          );
+    openSheet({
+      mode,
+      accountId: mailbox.accountId,
+      id: mailbox.id,
+      name: mode === "new" ? "" : mailbox.name,
+      ...(parent ? { parentId: parent.id } : {}),
+    });
+  };
+  const saveMailbox = async (draft: { name: string; parentId?: number }) => {
+    if (!sheet || busy) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      if (sheet.mode === "new") await client.mailbox.create({ accountId: sheet.accountId, ...draft });
+      else if (sheet.id !== undefined && sheet.mode === "rename")
+        await client.mailbox.rename({ id: sheet.id, name: draft.name });
+      else if (sheet.id !== undefined)
+        await client.mailbox.move({
+          id: sheet.id,
+          ...(draft.parentId === undefined ? {} : { parentId: draft.parentId }),
+        });
+      setSheet((current) => (current === sheet ? null : current));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const mailboxAction = async (mailbox: Mailbox, action: string) => {
+    if (action === "new" || action === "rename" || action === "move") editMailbox(mailbox, action);
+    else if (action === "favorite") {
+      const favorites = useMail.getState().settings?.favorites ?? [];
+      await client.settings.set({
+        favorites: favorites.includes(mailbox.id)
+          ? favorites.filter((id) => id !== mailbox.id)
+          : [...favorites, mailbox.id],
+      });
+    } else if (action.startsWith("role:")) {
+      const role = ROLES.find(([role]) => action === `role:${role}`)?.[0];
+      if (role) await client.mailbox.setRole({ id: mailbox.id, role });
+    } else if ((action === "delete" || action === "erase") && (await confirmMailbox(mailbox, action === "erase"))) {
+      if (action === "erase") await client.mailbox.erase({ id: mailbox.id });
+      else {
+        await client.mailbox.delete({ id: mailbox.id });
+        const ui = useUI.getState();
+        if (ui.source.kind === "mailbox" && ui.source.mailboxId === mailbox.id) ui.setSource({ kind: "allInboxes" });
+      }
+    }
+  };
+  const favoriteAction = async (id: number, action: string) => {
+    const { settings, mailboxes } = useMail.getState();
+    const ids = (settings?.favorites ?? []).filter((id) => mailboxes.some((mailbox) => mailbox.id === id));
+    const index = ids.indexOf(id);
+    if (index < 0) return;
+    if (action === "remove") await client.settings.set({ favorites: ids.filter((favorite) => favorite !== id) });
+    else if (action === "up" || action === "down") {
+      const next = index + (action === "up" ? -1 : 1);
+      const neighbor = ids[next];
+      if (neighbor === undefined) return;
+      ids[index] = neighbor;
+      ids[next] = id;
+      await client.settings.set({ favorites: ids });
+    }
+  };
   const { source, search, searchScope, focus, setSource, setFocus, module, setModule } = useUI();
+  const onDrop = (key: string, data: string, copy: boolean) => {
+    const target = sourceFromKey(key);
+    if (target?.kind !== "mailbox") return;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      !("accountId" in payload) ||
+      typeof payload.accountId !== "number" ||
+      !("ids" in payload) ||
+      !Array.isArray(payload.ids) ||
+      !payload.ids.every((id: unknown) => typeof id === "number" && Number.isSafeInteger(id) && id > 0)
+    )
+      return;
+    const to = mailboxes.find((m) => m.id === target.mailboxId && m.accountId === payload.accountId);
+    const account = accounts.find((a) => a.id === payload.accountId);
+    if (!to || !account || account.readOnly) return;
+    const command = copy
+      ? copyMessages(client, payload.ids, to)
+      : moveMessages(client, payload.ids, to, source, mailboxes);
+    void command.catch((err: unknown) => console.warn("drop messages", err));
+  };
   const counts = useSidebarCounts(vipGroups(vips));
   const smartCounts = useSmartCounts(smarts);
   const sections = useMemo(
-    () => buildSidebar(accounts, mailboxes, { vips, flagNames: settings?.flagNames, counts, smarts, smartCounts }),
-    [accounts, mailboxes, vips, settings, counts, smarts, smartCounts],
+    () =>
+      buildSidebar(accounts, mailboxes, {
+        vips,
+        flagNames: settings?.flagNames,
+        counts,
+        smarts,
+        smartCounts,
+        favorites,
+      }),
+    [accounts, mailboxes, vips, settings, counts, smarts, smartCounts, favorites],
   );
   const indicators = useMemo(() => {
     const out: Record<number, SyncIndicator> = {};
@@ -44,12 +245,21 @@ export function SidebarContainer() {
           selectedKey={selectedKey}
           focused={focus === "sidebar"}
           sync={indicators}
+          dragType={DRAG_TYPE}
+          canDrop={(key) => /^(mailbox|favorite):\d+$/.test(key)}
+          onDrop={onDrop}
           onAdd={(key) => {
             if (key === "smart") useUI.getState().openSmartSheet({ mode: "new" });
+            else {
+              const account = accounts.find((a) => key === `account:${a.id}`);
+              if (account && !account.readOnly) openSheet({ mode: "new", accountId: account.id, name: "" });
+            }
           }}
           onContextMenu={(key, x, y) => {
             const source = sourceFromKey(key);
-            if (source?.kind === "smart") setMenu({ id: source.id, x, y });
+            if (source?.kind === "smart") setMenu({ kind: "smart", id: source.id, x, y });
+            else if (source?.kind === "mailbox")
+              setMenu({ kind: key.startsWith("favorite:") ? "favorite" : "mailbox", id: source.mailboxId, x, y });
           }}
           onSelect={(key) => {
             const s = sourceFromKey(key, vips);
@@ -61,7 +271,7 @@ export function SidebarContainer() {
         <OutboxSection />
         <SendLaterSection />
       </div>
-      {menu && (
+      {menu?.kind === "smart" && (
         <ContextMenu
           key={menu.id}
           x={menu.x}
@@ -82,6 +292,50 @@ export function SidebarContainer() {
                 })
                 .catch((err: unknown) => console.warn("delete smart mailbox", err));
           }}
+        />
+      )}
+      {menu && menuMailbox && (
+        <ContextMenu
+          key={`mailbox:${menu.id}`}
+          x={menu.x}
+          y={menu.y}
+          items={mailboxMenu(
+            menuMailbox,
+            accounts.find((a) => a.id === menuMailbox.accountId)?.readOnly ?? true,
+            settings?.favorites?.includes(menuMailbox.id) ?? false,
+          )}
+          onClose={() => setMenu(null)}
+          onSelect={(action) => {
+            void mailboxAction(menuMailbox, action).catch((err: unknown) => console.warn("mailbox action", err));
+          }}
+        />
+      )}
+      {menu?.kind === "favorite" && (
+        <ContextMenu
+          key={`favorite:${menu.id}`}
+          x={menu.x}
+          y={menu.y}
+          items={favoriteMenu(menu.id, favorites)}
+          onClose={() => setMenu(null)}
+          onSelect={(action) => {
+            void favoriteAction(menu.id, action).catch((err: unknown) => console.warn("favorite action", err));
+          }}
+        />
+      )}
+      {sheet && (
+        <MailboxSheet
+          mode={sheet.mode}
+          name={sheet.name}
+          parentId={sheet.parentId}
+          locations={mailboxes
+            .filter((m) => m.accountId === sheet.accountId)
+            .sort((a, b) => a.path.localeCompare(b.path))}
+          busy={busy}
+          error={error}
+          onSave={(draft) => {
+            void saveMailbox(draft);
+          }}
+          onCancel={() => setSheet(null)}
         />
       )}
       <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={module} onSelect={setModule} />

@@ -32,6 +32,62 @@ methods:
     params:
       - {name: accountId, type: int, optional: true, doc: "Limit to one account. Omit for all accounts."}
     result: "[]Mailbox"
+  - name: create
+    doc: >-
+      Make a mailbox (a label on Gmail), at the top level or inside parentId,
+      at once here and on the server when online. Conflict when the name is
+      taken or the account is read-only.
+    params:
+      - {name: accountId, type: int}
+      - {name: name, type: string, doc: "1-100 characters, without the account's hierarchy delimiter."}
+      - {name: parentId, type: int, optional: true, doc: "A mailbox of the same account."}
+    result: Mailbox
+    errors: [invalidParams, notFound, conflict]
+  - name: rename
+    doc: >-
+      Give a mailbox a new name in the same place; the mailboxes inside it
+      follow. Conflict for a mailbox with a role, while the account has
+      changes waiting to reach the server, or when the name is taken.
+    params:
+      - {name: id, type: int}
+      - {name: name, type: string}
+    result: Mailbox
+    errors: [invalidParams, notFound, conflict]
+  - name: move
+    doc: >-
+      Put a mailbox inside parentId, or at the top level without it; the
+      mailboxes inside it follow. Conflict as rename, and for a parent inside
+      the mailbox itself.
+    params:
+      - {name: id, type: int}
+      - {name: parentId, type: int, optional: true}
+    result: Mailbox
+    errors: [invalidParams, notFound, conflict]
+  - name: delete
+    doc: >-
+      Delete a mailbox, the mailboxes inside it, and their messages (on Gmail,
+      the labels; the messages stay in All Mail). Conflict as rename.
+    params:
+      - {name: id, type: int}
+    errors: [notFound, conflict]
+  - name: setRole
+    doc: >-
+      Use This Mailbox For: make a mailbox the account's drafts, sent, junk,
+      trash or archive mailbox, in place of the one the server names.
+      Conflict on Gmail, whose mailboxes keep their roles.
+    params:
+      - {name: id, type: int}
+      - {name: role, type: MailboxRole, doc: "drafts, sent, junk, trash or archive."}
+    result: Mailbox
+    errors: [invalidParams, notFound, conflict]
+  - name: erase
+    doc: >-
+      Erase Deleted Items or Erase Junk Mail: delete every message in a trash
+      or junk mailbox for good. Returns how many.
+    params:
+      - {name: id, type: int}
+    result: int
+    errors: [invalidParams, notFound, conflict]
 events:
   - name: changed
     doc: A mailbox was created, renamed, deleted, or its counts changed.

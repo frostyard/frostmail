@@ -144,6 +144,7 @@ by `settings.get` and `settings.set`; `settings.changed` after a change.
 | `notifyScope` | `inbox`, `vips`, `contacts`, `all`, `smart` | `inbox` |
 | `notifySmartId` | a smart mailbox, with `notifyScope: smart` | none |
 | `flagNames` | seven strings | empty (Red … Gray) |
+| `favorites` | mailbox IDs, at most 50 | none |
 
 ## Notifications
 
@@ -227,6 +228,44 @@ fires at its next start. For each account, one transaction:
 
 maild then notifies, with "Reminder: " before the subject, whatever the
 notification scope. `MessageSummary.remindAt` shows a pending reminder.
+
+## Mailboxes
+
+Mailbox operations made here (M5 Phase 6, P-102 and P-107 to P-110) work
+as message actions do ([sync.md](sync.md#offline-actions)): the store
+changes at once, and the server follows when the op replays.
+
+- **Create** (`mailbox.create {accountId, name, parentId?}`): a row with
+  no sync state (a label on Gmail) and an `mbcreate` op (`CREATE`; one
+  the server already has is fine). The name is trimmed, 1–100
+  characters, without control characters or the hierarchy delimiter (the
+  parent's, else any mailbox's); a taken path, INBOX in any case, is a
+  conflict.
+- **Rename and move** (`mailbox.rename {id, name}`, `mailbox.move {id,
+  parentId?}`): the mailbox and those inside it get their new paths and
+  keep their IDs; the account's role choices follow; an `mbrename` op
+  (`RENAME`, which carries the ones inside along).
+- **Delete** (`mailbox.delete {id}`): the mailbox and those inside it go,
+  with their messages left in no mailbox (on Gmail a label goes; its
+  messages stay in All Mail), and an `mbdelete` op per mailbox, deepest
+  first (`DELETE`; one the server does not have is fine).
+- Rename, move and delete refuse a mailbox with a role and Gmail's
+  `[Gmail]` folders, and refuse while the account has ops waiting for the
+  server: those name mailboxes by path at replay, and a rename must not
+  overtake them. Online they replay within a moment.
+- A refused mailbox op is marked failed and wakes a full pass, whose
+  listing puts the store back as the server has it.
+- **Use This Mailbox For** (`mailbox.setRole {id, role}`: drafts, sent,
+  junk, trash or archive): `mailbox_roles (account_id, role, path)`, which
+  `ReplaceMailboxes` puts over the server's roles at every listing; the
+  mailbox that had the role loses it. Gmail's mailboxes keep their roles.
+- **Erase** (`mailbox.erase {id}`, a trash or junk mailbox): every message
+  in it is hidden at once and expunged by one `expunge` op; it returns
+  how many.
+- **Favorites**: the `favorites` setting, mailbox IDs in order; a mailbox
+  since deleted is left out when the settings are read.
+- `pending_ops.kind` takes `mbcreate`, `mbrename` and `mbdelete`
+  (migration 0012 rebuilds the table, keeping its rows).
 
 ## Later in M5
 

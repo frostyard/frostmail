@@ -146,7 +146,8 @@ that has a `Re:` prefix and no references, within 7 days.
 
 M1 implements flags (`\Seen`, `\Flagged`, `\Answered`, Mail.app color bits),
 moves, and deletes (to Trash; expunge when already in Trash or when the
-account has no Trash). Copies (M4.5, the list's Copy to) queue a `copy` op
+account has no Trash). M5 adds mailbox create, rename and delete
+([organize.md](organize.md#mailboxes)). Copies (M4.5, the list's Copy to) queue a `copy` op
 and change nothing locally: on a folder server each copy is a new message,
 so after the replay's `UID COPY` the actor reconciles the destination at
 once and the copies arrive as messages of their own (a copy older than the

@@ -148,6 +148,51 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (`outbox.reschedule {id, sendAt: now}`) and Change Time… (the time sheet
   titled "Send Later", starting at its time; OK calls
   `outbox.reschedule`). The Outbox section leaves these messages out.
+- **Mailboxes** (M5, [organize.md](../design/organize.md#mailboxes)): an
+  account's section header shows, on hover and while focused, a 14px `plus`
+  named "New Mailbox" (not on a read-only account), which opens the
+  mailbox sheet to make one at the top level. Right click (or the Menu
+  key) on one of an account's mailbox rows opens, in this order:
+  - New Mailbox… (the sheet, inside this mailbox), Rename Mailbox…, Move
+    Mailbox… and Delete Mailbox…; the last three are disabled for a
+    mailbox with a role. Delete asks first, as removing an account does
+    (title "Delete Mailbox?", text `Delete the mailbox "<name>" and the
+    messages in it?`, OK labeled Delete), then calls `mailbox.delete`;
+    the source becomes All Inboxes when it was that mailbox.
+  - Then, after a separator, Use This Mailbox For ▸ Drafts, Sent, Junk,
+    Trash, Archive (the mailbox's role checked; `mailbox.setRole`), not
+    for the inbox nor on Gmail (label) mailboxes; and for a trash mailbox
+    Erase Deleted Items…, for a junk mailbox Erase Junk Mail…, which ask
+    first (title "Erase Deleted Items?" or "Erase Junk Mail?", text
+    `Erase the <total> messages in "<name>"? They cannot be recovered.`,
+    OK labeled Erase), then call `mailbox.erase`.
+  - Then, after a separator, Add to Favorites or Remove from Favorites.
+
+  On a read-only account every item but the favorites one is disabled.
+- **The mailbox sheet** (`app/src/features/sidebar/MailboxSheet.tsx`): the
+  smart mailbox sheet's frame, 400 wide, titled "New Mailbox", "Rename
+  Mailbox" or "Move Mailbox". "Name:" (a text input, at most 100
+  characters; not when moving) and "Location:" (a `select`: "Top Level"
+  valued `""`, then the account's mailboxes by path, valued by ID; not
+  when renaming); then maild's error (`ALERT`), Cancel and OK. OK is
+  disabled while the name is blank or a save is under way. OK calls
+  `mailbox.create {accountId, name, parentId?}`, `mailbox.rename {id,
+  name}` or `mailbox.move {id, parentId?}` (no `parentId` for the top
+  level); the sheet closes when it succeeds and shows maild's error when
+  it does not.
+- **Favorites** (M5): after All Inboxes, the unified rows, VIPs and
+  Flagged, the `favorites` setting's mailboxes in order: key
+  `favorite:<id>`, the mailbox's name, its role's icon, its unread count;
+  choosing one shows that mailbox. Right click on one: Remove from
+  Favorites, Move Up and Move Down (disabled at the ends), each a
+  `settings.set {favorites}`.
+- **Drag and drop** (M5): message rows drag; the dragged messages are the
+  selection when the row is in it, else the row. Dropping them on a
+  mailbox row (an account's or a favorite) of their own account moves
+  them there, as Move to does; with Alt held (as in Mail.app) or Ctrl
+  (the Linux habit) it copies them, as Copy to does. A row under a drag that would take them shows
+  `--selection-inactive`. Nothing happens on a mailbox of another account
+  or of a read-only account.
 - **Counts of built-in sources:** one `view.count` for VIPs, each VIP row,
   Flagged, colors 1–7 and each smart mailbox, when the window connects and
   300 ms after the last `mailbox.changed`, `vip.changed`,

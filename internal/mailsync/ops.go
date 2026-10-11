@@ -694,6 +694,8 @@ func (a *actor) replayOne(ctx context.Context, cmd conn, op store.Op) error {
 			// deleted again.
 			return tx.Emit(ctx, api.MessageChanged{AccountID: a.acct.ID, IDs: itemIDs(p.Items)})
 		})
+	case opMbCreate, opMbRename, opMbDelete:
+		return a.replayMailbox(ctx, cmd, op)
 	case opCopy:
 		var p moveOp
 		if err := json.Unmarshal(op.Payload, &p); err != nil {
@@ -807,6 +809,13 @@ func (a *actor) undo(ctx context.Context, op store.Op, reason string) error {
 			return tx.Emit(ctx, api.OutboxChanged{ID: p.Outbox, AccountID: a.acct.ID, State: api.OutboxStateSent})
 		case opRemoveCopy:
 			return nil // the copy stays; the next pass shows it
+		case opMbCreate, opMbRename, opMbDelete:
+			// A full pass lists the server's mailboxes again.
+			select {
+			case a.wake <- struct{}{}:
+			default:
+			}
+			return nil
 		case opCopy:
 			return nil // nothing changed locally
 		default: // flags: the next pass refetches every flag

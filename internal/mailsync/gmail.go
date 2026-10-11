@@ -33,6 +33,9 @@ type conn interface {
 	Copy(ctx context.Context, uids []uint32, dest string) (map[uint32]uint32, error)
 	Expunge(ctx context.Context, uids []uint32) error
 	Append(ctx context.Context, mailbox string, raw []byte, flags []string) (uint32, error)
+	Create(ctx context.Context, path string) error
+	Rename(ctx context.Context, from, to string) error
+	Delete(ctx context.Context, path string) error
 }
 
 var _ conn = (*imapx.Session)(nil)
