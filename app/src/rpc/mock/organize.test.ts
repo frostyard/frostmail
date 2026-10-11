@@ -35,6 +35,7 @@ describe("MockTransport settings", () => {
       undoDelay: 10,
       notifyScope: "inbox",
       flagNames: ["", "", "", "", "", "", ""],
+      blockAction: "mark",
     });
     const s = await mock.call<Settings>("settings.set", {
       undoDelay: 30,

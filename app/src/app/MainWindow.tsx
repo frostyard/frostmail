@@ -28,6 +28,7 @@ import { openSettings } from "./settings";
 import { type TasksHandle, TasksModule, tasksCommand } from "./TasksModule";
 import { ToDoBarContainer } from "./ToDoBarContainer";
 import { ToolbarContainer, useListQuery } from "./ToolbarContainer";
+import { undo, undoableMove } from "./undo";
 import { type CalendarData, useCalendar } from "./useCalendar";
 import { type PeopleData, personEmail, usePeople, writeToPerson } from "./usePeople";
 import { type TasksData, useTasks } from "./useTasks";
@@ -87,6 +88,9 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
   const { accounts, mailboxes } = useMail.getState();
   const ids = ui.selected;
   switch (command) {
+    case "undo":
+      void undo(client).catch((err: unknown) => console.warn("undo", err));
+      break;
     case "escape":
       if (ui.search === "" && ui.searchDraft === "") return false;
       ui.clearSearch();
@@ -108,6 +112,17 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
       break;
     case "junk":
       void toggleSpam(client, model, ids, ui.source, mailboxes);
+      break;
+    case "redirect":
+      return handles.list.current?.command("redirect") ?? false;
+    case "print":
+      if (ids.length !== 1) return false;
+      window.print();
+      break;
+    case "rawSource":
+    case "allHeaders":
+      if (ids.length !== 1) return false;
+      handles.reader.current?.more(command === "rawSource" ? "source" : "headers");
       break;
     case "pageDown":
     case "pageUp":
@@ -390,7 +405,9 @@ export function MainWindow() {
   useWindowEvents(handles, model, people, calendar, tasks);
   const onDelete = useCallback(
     (ids: number[]) => {
-      void client.message.delete({ ids }).catch((err: unknown) => console.warn("delete", err));
+      void undoableMove(client, ids, () => client.message.delete({ ids })).catch((err: unknown) =>
+        console.warn("delete", err),
+      );
     },
     [client],
   );

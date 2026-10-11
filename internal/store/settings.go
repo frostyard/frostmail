@@ -16,6 +16,7 @@ type Settings struct {
 	NotifySmartID int64  // the smart mailbox of scope smart; 0 otherwise
 	FlagNames     []string
 	Favorites     []int64 // mailboxes in the sidebar's Favorites, in order
+	BlockAction   string  // api.BlockAction: what new mail from a blocked sender does
 }
 
 // FlagColors is how many flag colors there are, and so flag names.
@@ -24,7 +25,7 @@ const FlagColors = 7
 // DefaultSettings are the settings of a new database.
 func DefaultSettings() Settings {
 	return Settings{UndoDelay: 10, NotifyScope: string(api.NotifyScopeInbox), FlagNames: make([]string, FlagColors),
-		Favorites: []int64{}}
+		Favorites: []int64{}, BlockAction: string(api.BlockActionMark)}
 }
 
 // fields maps each key of the settings table to its field of s.
@@ -35,6 +36,7 @@ func (s *Settings) fields() map[string]any {
 		"notifySmartId": &s.NotifySmartID,
 		"flagNames":     &s.FlagNames,
 		"favorites":     &s.Favorites,
+		"blockAction":   &s.BlockAction,
 	}
 }
 

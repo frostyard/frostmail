@@ -1,0 +1,30 @@
+domain: block
+doc: >-
+  Blocked senders (ADR-0028): their mail never notifies, and is marked as
+  blocked or moved to the Trash as it arrives (the blockAction setting).
+types:
+  - name: BlockedSender
+    doc: One blocked address.
+    fields:
+      - {name: address, type: string, doc: "Lowercased."}
+      - {name: name, type: string, doc: "The name last seen with the address in mail, else empty."}
+      - {name: at, type: time, doc: "When it was blocked."}
+methods:
+  - name: list
+    doc: Every blocked sender, by address.
+    result: "[]BlockedSender"
+  - name: add
+    doc: Block addresses. Addresses already blocked stay as they are.
+    params:
+      - {name: addresses, type: "[]string", doc: "At least one."}
+    result: "[]BlockedSender"
+    errors: [invalidParams]
+  - name: remove
+    doc: Unblock addresses.
+    params:
+      - {name: addresses, type: "[]string", doc: "At least one."}
+    errors: [invalidParams]
+events:
+  - name: changed
+    doc: Senders were blocked or unblocked.
+    durable: true

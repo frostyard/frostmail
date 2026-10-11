@@ -436,6 +436,57 @@ function addressClient(t: Transport): AddressClient {
   };
 }
 
+// ---- block ----
+
+/** One blocked address. */
+export interface BlockedSender {
+  /** Lowercased. */
+  address: string;
+  /** The name last seen with the address in mail, else empty. */
+  name: string;
+  /** When it was blocked. */
+  at: string /* RFC 3339 */;
+}
+
+/** Params of block.list. */
+export type BlockListParams = Record<string, never>;
+
+/** Params of block.add. */
+export interface BlockAddParams {
+  /** At least one. */
+  addresses: string[];
+}
+
+/** Params of block.remove. */
+export interface BlockRemoveParams {
+  /** At least one. */
+  addresses: string[];
+}
+
+/** Senders were blocked or unblocked. */
+export type BlockChanged = Record<string, never>;
+
+/**
+ * Blocked senders (ADR-0028): their mail never notifies, and is marked as
+ * blocked or moved to the Trash as it arrives (the blockAction setting).
+ */
+export interface BlockClient {
+  /** Every blocked sender, by address. */
+  list(params?: BlockListParams): Promise<BlockedSender[]>;
+  /** Block addresses. Addresses already blocked stay as they are. */
+  add(params: BlockAddParams): Promise<BlockedSender[]>;
+  /** Unblock addresses. */
+  remove(params: BlockRemoveParams): Promise<void>;
+}
+
+function blockClient(t: Transport): BlockClient {
+  return {
+    list: (params = {}) => t.call<BlockedSender[]>("block.list", params),
+    add: (params) => t.call<BlockedSender[]>("block.add", params),
+    remove: (params) => t.call<null>("block.remove", params).then(() => undefined),
+  };
+}
+
 // ---- calendar ----
 
 /** An attendee's answer to an invitation (iCalendar PARTSTAT). */
@@ -1149,6 +1200,8 @@ export interface MessageSummary {
   threadCount: number;
   /** When a pending Remind Me reminder brings the message back. */
   remindAt?: string /* RFC 3339 */;
+  /** Present and true when the message's conversation is muted (ADR-0028). */
+  muted?: boolean;
 }
 
 /** One MIME part. */
@@ -1348,6 +1401,13 @@ export interface MessageRedirectParams {
   to: Address[];
 }
 
+/** Params of message.mute. */
+export interface MessageMuteParams {
+  /** At least one. */
+  ids: number[];
+  muted: boolean;
+}
+
 /** Params of message.remind. */
 export interface MessageRemindParams {
   ids: number[];
@@ -1440,6 +1500,12 @@ export interface MessageClient {
    */
   redirect(params: MessageRedirectParams): Promise<OutboxItem>;
   /**
+   * Mute or unmute the conversations of messages (ADR-0028): a muted
+   * conversation's new mail never notifies. Emits message.changed for every
+   * message of the conversations.
+   */
+  mute(params: MessageMuteParams): Promise<void>;
+  /**
    * Remind Me: at a time, bring messages back to the top of their account's
    * inbox and notify (ADR-0025). Without at, clear their reminders. Conflict
    * for a read-only account's messages.
@@ -1463,6 +1529,7 @@ function messageClient(t: Transport): MessageClient {
     unsubscribeInfo: (params) => t.call<Unsubscribe>("message.unsubscribeInfo", params),
     unsubscribe: (params) => t.call<UnsubscribeResult>("message.unsubscribe", params),
     redirect: (params) => t.call<OutboxItem>("message.redirect", params),
+    mute: (params) => t.call<null>("message.mute", params).then(() => undefined),
     remind: (params) => t.call<null>("message.remind", params).then(() => undefined),
   };
 }
@@ -1950,6 +2017,10 @@ function ruleClient(t: Transport): RuleClient {
 export type NotifyScope = "inbox" | "vips" | "contacts" | "all" | "smart";
 export const NotifyScopeValues: readonly NotifyScope[] = ["inbox", "vips", "contacts", "all", "smart"];
 
+/** What happens to new mail from a blocked sender (ADR-0028). */
+export type BlockAction = "mark" | "trash";
+export const BlockActionValues: readonly BlockAction[] = ["mark", "trash"];
+
 /** Every preference, with its current value. */
 export interface Settings {
   /** Seconds a sent message waits in the outbox: 0, 10, 20 or 30. */
@@ -1967,6 +2038,8 @@ export interface Settings {
    * deleted are left out. Absent when there are none.
    */
   favorites?: number[];
+  /** mark when absent. */
+  blockAction?: BlockAction;
 }
 
 /** Params of settings.get. */
@@ -1983,6 +2056,7 @@ export interface SettingsSetParams {
   flagNames?: string[];
   /** Mailbox IDs, at most 50, without repeats. */
   favorites?: number[];
+  blockAction?: BlockAction;
 }
 
 /** A preference changed. */
@@ -2529,6 +2603,7 @@ function vipClient(t: Transport): VipClient {
 /** A server notification. Durable events carry seq. */
 export type Event =
   | { event: "account.changed"; seq?: number; data: AccountChanged }
+  | { event: "block.changed"; seq?: number; data: BlockChanged }
   | { event: "calendar.changed"; seq?: number; data: CalendarChanged }
   | { event: "calendar.reminders"; seq?: number; data: CalendarReminders }
   | { event: "draft.changed"; seq?: number; data: DraftChanged }
@@ -2562,6 +2637,9 @@ export const METHODS = [
   "account.collections",
   "account.setCollection",
   "address.suggest",
+  "block.list",
+  "block.add",
+  "block.remove",
   "calendar.range",
   "calendar.event",
   "calendar.invitation",
@@ -2604,6 +2682,7 @@ export const METHODS = [
   "message.unsubscribeInfo",
   "message.unsubscribe",
   "message.redirect",
+  "message.mute",
   "message.remind",
   "oauth.setClient",
   "oauth.getClient",
@@ -2653,6 +2732,7 @@ export const METHODS = [
 export class Client {
   readonly account: AccountClient;
   readonly address: AddressClient;
+  readonly block: BlockClient;
   readonly calendar: CalendarClient;
   readonly draft: DraftClient;
   readonly events: EventsClient;
@@ -2675,6 +2755,7 @@ export class Client {
   constructor(readonly transport: Transport) {
     this.account = accountClient(transport);
     this.address = addressClient(transport);
+    this.block = blockClient(transport);
     this.calendar = calendarClient(transport);
     this.draft = draftClient(transport);
     this.events = eventsClient(transport);

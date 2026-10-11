@@ -209,9 +209,13 @@ func toAPISummary(s store.Summary) api.MessageSummary {
 		at := s.RemindAt
 		remindAt = &at
 	}
+	var muted *bool
+	if s.Muted {
+		muted = &s.Muted
+	}
 	return api.MessageSummary{
-		RemindAt: remindAt,
-		ID:       s.ID, AccountID: s.AccountID, MailboxIDs: s.MailboxIDs, ThreadID: s.ThreadID,
+		RemindAt: remindAt, Muted: muted,
+		ID: s.ID, AccountID: s.AccountID, MailboxIDs: s.MailboxIDs, ThreadID: s.ThreadID,
 		Subject: s.Subject, From: api.Address{Name: s.From.Name, Address: s.From.Addr}, Date: s.Date,
 		Preview: s.Preview, HasAttachments: s.HasAttachments, Size: s.Size,
 		ThreadCount: s.ThreadCount,

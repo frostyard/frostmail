@@ -11,6 +11,7 @@ import { type Answer, InvitationCard, invitationPart } from "../features/reader/
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
   AttachmentStrip,
+  BlockedBanner,
   MessageHeader,
   type MessageHeaderProps,
   ReminderBanner,
@@ -40,10 +41,17 @@ import { useCalendarFrame } from "./useCalendar";
 /** MAX_CONVERSATION is how many messages the reader shows before "Show earlier". */
 export const MAX_CONVERSATION = 20;
 
-/** ReaderHandle lets the window page the reader. */
+interface MoreRequest {
+  id: number;
+  action: "headers" | "source";
+  count: number;
+}
+
+/** ReaderHandle lets the window page the reader and run More Actions. */
 export interface ReaderHandle {
   page: (direction: 1 | -1) => void;
   focus: () => void;
+  more: (action: "headers" | "source") => void;
 }
 
 /** openLink opens a URL in the system browser. */
@@ -59,14 +67,18 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
   const openContact = useCallback((address: Address, at: { x: number; y: number }) => setContact({ address, at }), []);
   const closeContact = useCallback(() => setContact(null), []);
   const scroller = useRef<HTMLElement>(null);
+  const [moreRequest, setMoreRequest] = useState<MoreRequest | null>(null);
+  const id = selected.length === 1 ? selected[0] : undefined;
   useImperativeHandle(ref, () => ({
     page: (direction) => {
       const el = scroller.current;
       if (el) el.scrollBy({ top: direction * el.clientHeight * 0.9 });
     },
     focus: () => scroller.current?.focus(),
+    more: (action) => {
+      if (id !== undefined) setMoreRequest((previous) => ({ id, action, count: (previous?.count ?? 0) + 1 }));
+    },
   }));
-  const id = selected.length === 1 ? selected[0] : undefined;
   return (
     <section
       ref={scroller}
@@ -79,7 +91,7 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
     >
       {selected.length === 0 && <Empty text="No Message Selected" />}
       {selected.length > 1 && <Empty text={`${selected.length} Messages Selected`} />}
-      {id !== undefined && <Conversation key={id} id={id} onAddress={openContact} />}
+      {id !== undefined && <Conversation key={id} id={id} onAddress={openContact} moreRequest={moreRequest} />}
       {contact && <ContactCardContainer key={contact.address.address} {...contact} onClose={closeContact} />}
     </section>
   );
@@ -89,7 +101,15 @@ function Empty({ text }: { text: string }) {
   return <div className="flex h-full items-center justify-center text-empty text-secondary">{text}</div>;
 }
 
-function Conversation({ id, onAddress }: { id: number; onAddress: MessageHeaderProps["onAddress"] }) {
+function Conversation({
+  id,
+  onAddress,
+  moreRequest,
+}: {
+  id: number;
+  onAddress: MessageHeaderProps["onAddress"];
+  moreRequest: MoreRequest | null;
+}) {
   const client = useClient();
   // Only the Trash mailboxes matter here; counts change on every flag change.
   const trashKey = useMail((s) =>
@@ -142,7 +162,7 @@ function Conversation({ id, onAddress }: { id: number; onAddress: MessageHeaderP
   return (
     <div className="divide-y divide-separator">
       {shown.map((s) => (
-        <ConversationMessage key={s.id} summary={s} onAddress={onAddress} />
+        <ConversationMessage key={s.id} summary={s} onAddress={onAddress} moreRequest={moreRequest} />
       ))}
       {shown.length < items.length && (
         <button
@@ -158,9 +178,11 @@ function Conversation({ id, onAddress }: { id: number; onAddress: MessageHeaderP
 function ConversationMessage({
   summary,
   onAddress,
+  moreRequest,
 }: {
   summary: MessageSummary;
   onAddress: MessageHeaderProps["onAddress"];
+  moreRequest: MoreRequest | null;
 }) {
   const client = useClient();
   const vips = useMail((s) => s.vips);
@@ -170,6 +192,8 @@ function ConversationMessage({
   const [error, setError] = useState<string | null>(null);
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [currentSummary, setCurrentSummary] = useState(summary);
+  const senderAddress = currentSummary.from.address;
+  const blocked = useMail((s) => s.blocked.some((sender) => sender.address === senderAddress.toLowerCase()));
   const [reminderSheet, setReminderSheet] = useState<Date | null>(null);
   const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const [headers, setHeaders] = useState<string | null>(null);
@@ -234,24 +258,39 @@ function ConversationMessage({
     [client, id],
   );
 
-  const moreAction = async (action: string) => {
-    if (action === "headers") {
-      if (headers !== null) setHeaders(null);
-      else setHeaders((await client.message.source({ id })).headers);
-    } else if (action === "source") {
-      setSource(await client.message.source({ id }));
-    } else if (action === "save" && isTauri()) {
-      const subject = (summary.subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
-      const path = await save({
-        title: "Save Message",
-        defaultPath: `${subject}.eml`,
-        filters: [{ name: "Email Message", extensions: ["eml"] }],
-      });
-      if (path !== null) await client.message.save({ id, path });
-    } else if (action === "print") {
-      window.print();
-    }
-  };
+  const moreAction = useCallback(
+    async (action: string) => {
+      if (action === "headers") {
+        if (headers !== null) setHeaders(null);
+        else setHeaders((await client.message.source({ id })).headers);
+      } else if (action === "source") {
+        setSource(await client.message.source({ id }));
+      } else if (action === "save" && isTauri()) {
+        const subject = (summary.subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
+        const path = await save({
+          title: "Save Message",
+          defaultPath: `${subject}.eml`,
+          filters: [{ name: "Email Message", extensions: ["eml"] }],
+        });
+        if (path !== null) await client.message.save({ id, path });
+      } else if (action === "print") {
+        window.print();
+      }
+    },
+    [client, id, headers, summary.subject],
+  );
+
+  // New articles start at the current count so retained requests cannot
+  // replay after a selection change or revealing earlier messages.
+  const lastMoreRequest = useRef(moreRequest?.count ?? 0);
+  useEffect(() => {
+    if (!moreRequest || moreRequest.count <= lastMoreRequest.current) return;
+    lastMoreRequest.current = moreRequest.count;
+    if (moreRequest.id === id)
+      void moreAction(moreRequest.action).catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      );
+  }, [moreRequest, id, moreAction]);
 
   return (
     <article aria-label={summary.subject} className="pb-2">
@@ -267,11 +306,16 @@ function ConversationMessage({
         <ContextMenu
           {...more}
           items={[
-            { kind: "item", id: "headers", label: headers === null ? "Show All Headers" : "Hide All Headers" },
-            { kind: "item", id: "source", label: "Raw Source…" },
+            {
+              kind: "item",
+              id: "headers",
+              label: headers === null ? "Show All Headers" : "Hide All Headers",
+              shortcut: "Ctrl+Shift+H",
+            },
+            { kind: "item", id: "source", label: "Raw Source…", shortcut: "Ctrl+Alt+U" },
             { kind: "separator" },
             { kind: "item", id: "save", label: "Save As…" },
-            { kind: "item", id: "print", label: "Print…" },
+            { kind: "item", id: "print", label: "Print…", shortcut: "Ctrl+P" },
           ]}
           onSelect={(action) => {
             void moreAction(action).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
@@ -308,6 +352,15 @@ function ConversationMessage({
             if (!readOnly)
               void remindMessages(client, [id], at).catch((err: unknown) => console.warn("change reminder", err));
             setReminderSheet(null);
+          }}
+        />
+      )}
+      {blocked && (
+        <BlockedBanner
+          onUnblock={() => {
+            void client.block
+              .remove({ addresses: [senderAddress] })
+              .catch((err: unknown) => console.warn("unblock sender", err));
           }}
         />
       )}

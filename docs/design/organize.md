@@ -145,6 +145,7 @@ by `settings.get` and `settings.set`; `settings.changed` after a change.
 | `notifySmartId` | a smart mailbox, with `notifyScope: smart` | none |
 | `flagNames` | seven strings | empty (Red … Gray) |
 | `favorites` | mailbox IDs, at most 50 | none |
+| `blockAction` | `mark`, `trash` | `mark` |
 
 ## Notifications
 
@@ -152,14 +153,16 @@ The actor collects the new mail of every folder that has synced before,
 not only the inbox. Then `announceNew` keeps:
 
 1. Nothing, when the account has notifications off or is read-only.
-2. Unread messages only.
-3. By the scope:
+2. Nothing of a muted conversation or from a blocked sender
+   ([Mute and block](#mute-and-block)), even when a rule asks.
+3. Unread messages only.
+4. By the scope:
    - `inbox`: messages in the inbox (today's behavior).
    - `vips`: in the inbox, from a VIP.
    - `contacts`: in the inbox, from an address in People.
    - `all`: in any mailbox but Junk, Trash and Sent.
    - `smart`: matching the smart mailbox, in any mailbox.
-4. Plus the messages a rule's Send Notification named, whatever the scope.
+5. Plus the messages a rule's Send Notification named, whatever the scope.
 
 A smart mailbox deleted while it is the scope makes the scope `inbox`.
 
@@ -267,14 +270,31 @@ changes at once, and the server follows when the op replays.
 - `pending_ops.kind` takes `mbcreate`, `mbrename` and `mbdelete`
   (migration 0012 rebuilds the table, keeping its rows).
 
-## Later in M5
+## Mute and block
 
-Phase 6's mute, block, favorites, sort, role overrides and mailbox
-operations are designed here when that phase starts.
+[ADR-0028](../adr/0028-mute-and-block-in-maild-undo-in-the-app.md):
+both stay on this computer.
+
+- **Mute** (P-410): `threads.muted` (migration 0014). `message.mute {ids,
+  muted}` sets it on the conversations of messages and emits
+  `message.changed` for every message of them; a message not yet in a
+  conversation is left as it is. `MessageSummary.muted` is present and
+  true for a muted conversation's messages. When conversations merge, the
+  merged one is muted if either was; a conversation whose last message
+  goes is gone, mute and all.
+- **Block** (P-411): `blocked (address, name, at)`, the address
+  lowercased and matched against `from_addr` in any case. `block.list`,
+  `add`, `remove` (addresses); `block.changed`. The app marks a blocked
+  sender's mail from the list it keeps, as it stars VIPs.
+- **New mail from a blocked sender** never notifies. With `blockAction`
+  `trash`, the actor's rule run first takes the account's waiting inbox
+  mail from blocked senders out of the run and deletes it as Delete does
+  (to the Trash); without a Trash it stays, marked. Mail that arrived
+  before the block stays where it is.
 
 ## References
 
-- Rationale: ADRs 0023–0026
+- Rationale: ADRs 0023–0026 and 0028
 - Contracts: [specs/organize-ui.md](../specs/organize-ui.md),
   [specs/rpc-api.md](../specs/rpc-api.md)
 - Built in: [plan 0008](../plans/0008-m5-mail-app-parity.md), Phases 2–5

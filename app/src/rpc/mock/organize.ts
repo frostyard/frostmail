@@ -1,7 +1,9 @@
-// The settings, VIP, smart mailbox and rule domains of MockTransport, as
+// The settings, VIP, block, smart mailbox and rule domains of MockTransport, as
 // maild keeps them (docs/design/organize.md; internal/engine/organize.go).
 // rule.apply is MockTransport's, which holds the messages.
 import {
+  type BlockAction,
+  type BlockedSender,
   type Conditions,
   ErrorCode,
   type Event,
@@ -22,15 +24,24 @@ export type MockPersonEmails = (personId: number) => { name: string; emails: str
 
 const SCOPES: readonly NotifyScope[] = ["inbox", "vips", "contacts", "all", "smart"];
 
+const BLOCK_ACTIONS: readonly BlockAction[] = ["mark", "trash"];
+
 const KINDS: readonly RuleAction["kind"][] = ["move", "copy", "read", "flag", "delete", "notify", "stop"];
 
 const invalid = (message: string) => new RPCError(ErrorCode.invalidParams, message);
 
 /** MockOrganize keeps settings and VIPs. */
 export class MockOrganize {
-  private settings: Settings = { undoDelay: 10, notifyScope: "inbox", flagNames: ["", "", "", "", "", "", ""] };
+  private settings: Settings = {
+    undoDelay: 10,
+    notifyScope: "inbox",
+    flagNames: ["", "", "", "", "", "", ""],
+    blockAction: "mark",
+  };
   /** VIP addresses, lowercased, with the name seen when added. */
   private readonly vips = new Map<string, string>();
+  /** Blocked senders by lowercased address. */
+  private readonly blocked = new Map<string, BlockedSender>();
   /** Smart mailboxes in position order; unread is counted when listed. */
   private smarts: SmartMailbox[] = [];
   private nextSmart = 1;
@@ -59,6 +70,11 @@ export class MockOrganize {
     return structuredClone(this.rules);
   }
 
+  /** isBlocked reports whether an address is blocked. */
+  isBlocked(address: string): boolean {
+    return this.blocked.has(address.trim().toLowerCase());
+  }
+
   /** isVip reports whether an address is a VIP. */
   isVip(address: string): boolean {
     return this.vips.has(address.trim().toLowerCase());
@@ -82,6 +98,20 @@ export class MockOrganize {
         for (const a of this.addresses(p)) this.vips.delete(a);
         this.emit({ event: "vip.changed", data: {} });
         return null;
+      case "block.list":
+        return this.blockedList();
+      case "block.add": {
+        const added = this.blockAddresses(p).filter((a) => !this.blocked.has(a));
+        for (const a of added)
+          this.blocked.set(a, { address: a, name: this.seenName(a), at: new Date().toISOString() });
+        if (added.length > 0) this.emit({ event: "block.changed", data: {} });
+        return this.blockedList();
+      }
+      case "block.remove": {
+        const removed = this.blockAddresses(p).filter((a) => this.blocked.delete(a));
+        if (removed.length > 0) this.emit({ event: "block.changed", data: {} });
+        return null;
+      }
       case "smart.list":
         return this.smarts.map((s) => this.counted(s));
       case "smart.create": {
@@ -276,6 +306,11 @@ export class MockOrganize {
       if (gone !== undefined) throw new RPCError(ErrorCode.notFound, `mailbox ${gone} does not exist`);
       next.favorites = favorites;
     }
+    if (p.blockAction !== undefined) {
+      const action = p.blockAction as BlockAction;
+      if (!BLOCK_ACTIONS.includes(action)) throw invalid(`blockAction "${String(action)}" is unknown`);
+      next.blockAction = action;
+    }
     this.settings = next;
     this.emit({ event: "settings.changed", data: {} });
     return this.shown(next);
@@ -302,6 +337,17 @@ export class MockOrganize {
       out.push(...person.emails);
     }
     return out;
+  }
+
+  private blockAddresses(p: Params): string[] {
+    const out = ((p.addresses as string[] | undefined) ?? []).map((a) => String(a).trim().toLowerCase());
+    if (out.length === 0) throw invalid("give at least one address");
+    if (out.some((a) => !a.includes("@") || /\s/.test(a))) throw invalid("not an email address");
+    return out;
+  }
+
+  private blockedList(): BlockedSender[] {
+    return [...this.blocked.values()].map((b) => ({ ...b })).sort((a, b) => a.address.localeCompare(b.address));
   }
 
   private list(): Vip[] {

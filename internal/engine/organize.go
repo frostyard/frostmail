@@ -102,6 +102,12 @@ func (s settingsService) Set(ctx context.Context, p *api.SettingsSetParams) (*ap
 			}
 			st.Favorites = slices.Clone(p.Favorites)
 		}
+		if p.BlockAction != nil {
+			if !p.BlockAction.Valid() {
+				return api.InvalidParams("blockAction %q is unknown", *p.BlockAction)
+			}
+			st.BlockAction = string(*p.BlockAction)
+		}
 		out = st
 		return tx.SetSettings(ctx, st)
 	})
@@ -136,6 +142,8 @@ func toAPISettings(s store.Settings) *api.Settings {
 	if s.NotifySmartID != 0 {
 		out.NotifySmartID = &s.NotifySmartID
 	}
+	action := api.BlockAction(s.BlockAction)
+	out.BlockAction = &action
 	return out
 }
 
@@ -566,6 +574,74 @@ func (m messages) Remind(ctx context.Context, p *api.MessageRemindParams) error 
 		}
 		return nil
 	})
+}
+
+// Mute mutes or unmutes the conversations of messages (ADR-0028). It is
+// local, so read-only accounts' conversations can be muted too.
+func (m messages) Mute(ctx context.Context, p *api.MessageMuteParams) error {
+	if len(p.IDs) == 0 {
+		return api.InvalidParams("mute needs at least one message")
+	}
+	rows, err := m.DB.Summaries(ctx, p.IDs)
+	if err != nil {
+		return err
+	}
+	if len(rows) != len(slices.Compact(slices.Sorted(slices.Values(p.IDs)))) {
+		return api.NotFound("a message does not exist")
+	}
+	return m.DB.Tx(ctx, func(tx *store.Tx) error { return tx.MuteThreads(ctx, p.IDs, p.Muted) })
+}
+
+// Blocks implements the block domain (ADR-0028).
+func (e *Engine) Blocks() api.BlockService { return blocks{e.d} }
+
+type blocks struct{ Deps }
+
+func (b blocks) List(ctx context.Context, _ *api.BlockListParams) ([]api.BlockedSender, error) {
+	rows, err := b.DB.BlockedSenders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.BlockedSender, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, api.BlockedSender{Address: r.Address, Name: r.Name, At: r.At})
+	}
+	return out, nil
+}
+
+func (b blocks) Add(ctx context.Context, p *api.BlockAddParams) ([]api.BlockedSender, error) {
+	addrs, err := emailAddresses(p.Addresses)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.DB.Tx(ctx, func(tx *store.Tx) error { return tx.Block(ctx, addrs) }); err != nil {
+		return nil, err
+	}
+	return b.List(ctx, &api.BlockListParams{})
+}
+
+func (b blocks) Remove(ctx context.Context, p *api.BlockRemoveParams) error {
+	addrs, err := emailAddresses(p.Addresses)
+	if err != nil {
+		return err
+	}
+	return b.DB.Tx(ctx, func(tx *store.Tx) error { return tx.Unblock(ctx, addrs) })
+}
+
+// emailAddresses checks at least one address and lowercases them.
+func emailAddresses(in []string) ([]string, error) {
+	if len(in) == 0 {
+		return nil, api.InvalidParams("give at least one address")
+	}
+	out := make([]string, 0, len(in))
+	for _, a := range in {
+		a = strings.ToLower(strings.TrimSpace(a))
+		if !strings.Contains(a, "@") || strings.ContainsFunc(a, unicode.IsSpace) {
+			return nil, api.InvalidParams("%q is not an email address", a)
+		}
+		out = append(out, a)
+	}
+	return out, nil
 }
 
 // Reschedule gives a Send Later message a new time and rebuilds it with

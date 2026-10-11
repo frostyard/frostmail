@@ -196,6 +196,8 @@ does.
   address is a VIP (M5): `vip.add` or `vip.remove` with the person's ID
   when the card has a person, else the address, the button turning into
   the other when it succeeds.
+  Then **Block Contact**, or **Unblock Contact** when the address is
+  blocked (M5, P-411): `block.add` or `block.remove` with the address.
 - **Recent Mail** and **Upcoming** as in the person pane, at most 5 rows
   each; a recent message opens in Mail and closes the card.
 - The card asks `people.card` each time it opens; while the answer is

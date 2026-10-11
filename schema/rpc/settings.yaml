@@ -11,6 +11,11 @@ enums:
       - {name: contacts, doc: "New mail in an inbox from an address in People."}
       - {name: all, doc: "New mail in any mailbox but Junk, Trash and Sent."}
       - {name: smart, doc: "New mail that a smart mailbox lists (notifySmartId)."}
+  - name: BlockAction
+    doc: What happens to new mail from a blocked sender (ADR-0028).
+    values:
+      - {name: mark, doc: "It stays where it arrives, marked as blocked (the default)."}
+      - {name: trash, doc: "New inbox mail moves to the Trash as it arrives."}
 types:
   - name: Settings
     doc: Every preference, with its current value.
@@ -20,6 +25,7 @@ types:
       - {name: notifySmartId, type: int, optional: true, doc: "The smart mailbox, when notifyScope is smart."}
       - {name: flagNames, type: "[]string", doc: "Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray)."}
       - {name: favorites, type: "[]int", optional: true, doc: "Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none."}
+      - {name: blockAction, type: BlockAction, optional: true, doc: "mark when absent."}
 methods:
   - name: get
     doc: The current preferences.
@@ -32,6 +38,7 @@ methods:
       - {name: notifySmartId, type: int, optional: true, doc: "Required with notifyScope smart."}
       - {name: flagNames, type: "[]string", optional: true, doc: "Seven names, each at most 40 characters."}
       - {name: favorites, type: "[]int", optional: true, doc: "Mailbox IDs, at most 50, without repeats."}
+      - {name: blockAction, type: BlockAction, optional: true}
     result: Settings
     errors: [invalidParams, notFound]
 events:

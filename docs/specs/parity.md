@@ -88,12 +88,12 @@ tasks are not Mail's and are not listed; their parity is
 | P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` |
 | P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` |
 | P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` |
-| P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | M5·6 | |
+| P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | Have | `undo.test.ts`, `Undo.test.tsx` |
 | P-407 | Flag with seven colors, Clear Flag | Same (`$MailFlagBit0–2`) | Have | `TestFlagsRoundTrip`, `TestFlagChangesReplayToServer` |
 | P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` |
 | P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` |
-| P-410 | Mute a conversation | Same; a muted conversation never notifies | M5·6 | |
-| P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | M5·6 | |
+| P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` |
+| P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` |
 | P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` |
 | P-413 | Follow Up: sent mail with no reply after three days returns | | Later | A suggestion heuristic; after Remind Me |
 | P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` |
@@ -160,7 +160,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |
 | P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |
 | P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts |
-| P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | M5·6 | Phase 6 adds Redirect, Undo, Print, raw source |
+| P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` |
 | P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |
 
 ## References

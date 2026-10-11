@@ -83,6 +83,7 @@ async function reload(c: Client): Promise<void> {
   // M5's preferences load on their own, so a maild without them still
   // shows mail.
   loadVips(c);
+  loadBlocked(c);
   loadSettings(c);
   loadSmarts(c);
   loadRules(c);
@@ -106,6 +107,13 @@ function loadVips(c: Client): void {
   void c.vip
     .list()
     .then((vips) => useMail.setState({ vips }))
+    .catch(() => {});
+}
+
+function loadBlocked(c: Client): void {
+  void c.block
+    .list()
+    .then((blocked) => useMail.setState({ blocked }))
     .catch(() => {});
 }
 
@@ -148,6 +156,9 @@ function wire(c: Client): () => void {
         break;
       case "vip.changed":
         loadVips(c);
+        break;
+      case "block.changed":
+        loadBlocked(c);
         break;
       case "settings.changed":
         loadSettings(c);

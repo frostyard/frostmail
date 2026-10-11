@@ -137,9 +137,10 @@ func (t *Tx) threadBySubject(ctx context.Context, accountID int64, norm, interna
 }
 
 // mergeThread moves everything in thread from into thread into and deletes
-// from.
+// from. The merged thread is muted when either was.
 func (t *Tx) mergeThread(ctx context.Context, from, into int64) error {
 	for _, q := range []string{
+		`UPDATE threads SET muted = 1 WHERE id = ? AND EXISTS (SELECT 1 FROM threads WHERE id = ? AND muted = 1)`,
 		`UPDATE messages SET thread_id = ? WHERE thread_id = ?`,
 		`UPDATE thread_refs SET thread_id = ? WHERE thread_id = ?`,
 	} {
