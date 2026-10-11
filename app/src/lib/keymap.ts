@@ -25,6 +25,7 @@ export type Command =
   | "pageDown"
   | "pageUp"
   | "delete"
+  | "undo"
   | "archive"
   | "junk"
   | "toggleRead"
@@ -65,6 +66,7 @@ interface Binding {
 }
 
 const BINDINGS: Binding[] = [
+  { key: "z", ctrl: true, alt: false, shift: false, command: "undo" },
   { key: "1", ctrl: true, alt: true, shift: false, command: "dayView" },
   { key: "2", ctrl: true, alt: true, shift: false, command: "weekView" },
   { key: "3", ctrl: true, alt: true, shift: false, command: "monthView" },
