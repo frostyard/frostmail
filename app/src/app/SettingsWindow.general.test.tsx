@@ -1,4 +1,4 @@
-// CONTRACT TEST for task card T-0106 (docs/tasks). Do not edit.
+// CONTRACT TEST for task cards T-0106 and T-0112 (docs/tasks). Do not edit.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -29,7 +29,7 @@ describe("the settings window's General pane", () => {
   it("comes first among the tabs, and the window opens on Accounts", async () => {
     await setup();
     const tabs = screen.getAllByRole("button").filter((b) => b.hasAttribute("aria-pressed"));
-    expect(tabs.map((b) => b.textContent)).toEqual(["General", "Accounts", "Signatures", "Sign-In"]);
+    expect(tabs.map((b) => b.textContent)).toEqual(["General", "Accounts", "Signatures", "Rules", "Sign-In"]);
     expect(tabs[1]?.getAttribute("aria-pressed")).toBe("true");
   });
 
