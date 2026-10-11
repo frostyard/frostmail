@@ -3,7 +3,7 @@
 // two-line preview, and the unread dot and the flag in the 24px gutter. The
 // list container owns focus, selection and virtualization; the row only
 // reports what the pointer did to it.
-import { AlarmClock, Archive, Flag, Paperclip, Star, Trash2 } from "lucide-react";
+import { AlarmClock, Archive, BellOff, Flag, Paperclip, Star, Trash2 } from "lucide-react";
 import type { DragEvent, MouseEvent } from "react";
 
 import { appLocale } from "../../lib/calendarDates";
@@ -129,6 +129,11 @@ export function MessageRow(props: MessageRowProps) {
         )}
         <span className="text-list-sender truncate flex-1">{displayName(message.from)}</span>
         <span className={joinClasses("flex shrink-0 items-center gap-1", onAction && "group-hover:hidden")}>
+          {message.muted && (
+            <span role="img" aria-label="Muted" title="Muted" className={joinClasses("shrink-0", secondary)}>
+              <BellOff size={12} aria-hidden="true" />
+            </span>
+          )}
           {message.hasAttachments && (
             <Paperclip size={12} aria-label="Has attachments" className={joinClasses("shrink-0", secondary)} />
           )}
