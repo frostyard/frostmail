@@ -113,6 +113,17 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
     case "junk":
       void toggleSpam(client, model, ids, ui.source, mailboxes);
       break;
+    case "redirect":
+      return handles.list.current?.command("redirect") ?? false;
+    case "print":
+      if (ids.length !== 1) return false;
+      window.print();
+      break;
+    case "rawSource":
+    case "allHeaders":
+      if (ids.length !== 1) return false;
+      handles.reader.current?.more(command === "rawSource" ? "source" : "headers");
+      break;
     case "pageDown":
     case "pageUp":
       if (ui.focus === "sidebar") return false;
