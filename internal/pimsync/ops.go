@@ -67,6 +67,9 @@ func (p *pass) replayOne(ctx context.Context, op store.PIMOp, services []store.S
 	case "put":
 		return p.put(ctx, c, kind, col, op)
 	case "delete":
+		if col.Kind == api.CollectionKindCalendar {
+			return p.deleteEvent(ctx, c, col, op)
+		}
 		err := c.Delete(ctx, op.Href, op.IfMatch)
 		if err != nil && kind == davx.AddressBooks && refusal(err) {
 			return p.refusedDelete(ctx, op, col)
@@ -105,6 +108,9 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 		return err
 	}
 	w, err := c.Put(ctx, op.Href, obj.Raw, kind, op.IfMatch)
+	if err != nil && col.Kind == api.CollectionKindCalendar && refusal(err) {
+		return p.refusedPut(ctx, c, col, op, err)
+	}
 	if err != nil {
 		if payload, edit := ParseContactPayload(op.Payload); edit && kind == davx.AddressBooks && refusal(err) {
 			if errors.Is(err, davx.ErrPrecondition) && !payload.Whole {

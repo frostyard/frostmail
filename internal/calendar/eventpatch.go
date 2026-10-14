@@ -15,19 +15,21 @@ import (
 // EventChange is a change to an event (calendar.update's EventFields,
 // ADR-0030): nil fields keep their values. A change of timing gives all
 // of it: AllDay, and Start, End and Zone for a timed event or StartDate
-// and EndDate for an all-day one.
+// and EndDate for an all-day one. Its JSON is how a put's payload keeps
+// it, to apply again after a 412.
 type EventChange struct {
-	Summary     *string
-	Location    *string
-	Description *string
-	AllDay      *bool
-	Start, End  *time.Time // timed: instants, written in Zone; End after Start
-	Zone        *string    // an IANA zone name, or UTC
-	StartDate   *string    // all-day: YYYY-MM-DD
-	EndDate     *string    // all-day: the day after the last
-	RRule       *string    // the RRULE value; "" removes RRULE
-	Alarms      *[]int     // minutes before the start (negative: after); replaces the DISPLAY and AUDIO alarms
-	Transparent *bool
+	Summary     *string    `json:"summary,omitzero"`
+	Location    *string    `json:"location,omitzero"`
+	Description *string    `json:"description,omitzero"`
+	AllDay      *bool      `json:"allDay,omitzero"`
+	Start       *time.Time `json:"start,omitzero"` // timed: instants, written in Zone; End after Start
+	End         *time.Time `json:"end,omitzero"`
+	Zone        *string    `json:"zone,omitzero"`        // an IANA zone name, or UTC
+	StartDate   *string    `json:"startDate,omitzero"`   // all-day: YYYY-MM-DD
+	EndDate     *string    `json:"endDate,omitzero"`     // all-day: the day after the last
+	RRule       *string    `json:"rrule,omitzero"`       // the RRULE value; "" removes RRULE
+	Alarms      *[]int     `json:"alarms,omitzero"`      // minutes before the start (negative: after); replaces the DISPLAY and AUDIO alarms
+	Transparent *bool      `json:"transparent,omitzero"` // TRANSP:TRANSPARENT, or OPAQUE when false
 }
 
 // PatchEvent applies c to the single event, or the master of the series,
