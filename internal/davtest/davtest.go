@@ -20,6 +20,7 @@ import (
 	"net/http/httptest"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -63,6 +64,9 @@ type Options struct {
 	// NoInitialSync answers a sync-collection without a token with 400,
 	// as Google's CardDAV does, while still listing the report.
 	NoInitialSync bool
+	// KeepSequence refuses with 409, as Google's CalDAV does, a calendar
+	// object whose highest SEQUENCE is lower than the stored one's.
+	KeepSequence bool
 }
 
 // Request is one request the server received.
@@ -387,6 +391,10 @@ func (s *Server) put(w http.ResponseWriter, r *http.Request, body []byte) {
 		http.Error(w, "precondition failed", http.StatusPreconditionFailed)
 		return
 	}
+	if s.opts.KeepSequence && old != nil && c.calendar && maxSequence(body) < maxSequence(old.data) {
+		http.Error(w, "sequence went back", http.StatusConflict)
+		return
+	}
 	if old == nil && s.opts.RelocateCreates {
 		if uid := objectUID(body); uid != "" {
 			ext := path.Ext(r.URL.Path)
@@ -468,6 +476,19 @@ func describeReport(body []byte) (report, token string, hrefs int) {
 }
 
 // objectUID is the first UID in a vCard or iCalendar object.
+// maxSequence is the highest SEQUENCE line in a calendar object, 0 without one.
+func maxSequence(data []byte) int {
+	most := 0
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "SEQUENCE:"); ok {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > most {
+				most = n
+			}
+		}
+	}
+	return most
+}
+
 func objectUID(data []byte) string {
 	for line := range strings.SplitSeq(string(data), "\n") {
 		if uid, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "UID:"); ok {

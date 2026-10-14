@@ -544,6 +544,13 @@ func (c calendarService) restoreEvent(ctx context.Context, tx *store.Tx, o store
 	switch {
 	case exists:
 		next.ETag = current.ETag
+		// The kept source goes over a later version: its SEQUENCE must not
+		// go back, or Google refuses it (409).
+		raised, err := calendar.RaiseSequence(o.Raw, calendar.MaxSequence(current.Raw))
+		if err != nil {
+			return 0, err
+		}
+		next.Raw = raised
 	default:
 		deleted, waiting, err := tx.TakeQueuedDelete(ctx, col.ID, o.Href)
 		if err != nil {

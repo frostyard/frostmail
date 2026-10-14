@@ -2,7 +2,10 @@ package pimsync_test
 
 import (
 	"encoding/json/v2"
+	"io"
+	"log/slog"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +14,8 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davtest"
 	"github.com/frostyard/frostmail/internal/engine"
+	"github.com/frostyard/frostmail/internal/pimsync"
+	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -37,9 +42,24 @@ type eventEnv struct {
 	cal        api.CalendarService
 }
 
+// newEventEnv is newCalendarEnv's account against a server that, as
+// Google's does, refuses an event whose SEQUENCE goes back.
 func newEventEnv(t *testing.T) *eventEnv {
+	t.Helper()
+	ctx := t.Context()
 	now := utcAt("2026-10-08T12:00Z")
-	e := newCalendarEnv(t, &now)
+	e := newEnv(t, davtest.Options{KeepSequence: true}, api.ServiceKindCalendar)
+	sec := secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json"))
+	if err := sec.Set(ctx, secrets.AccountPassword(e.acct.ID), davtest.Password); err != nil {
+		t.Fatal(err)
+	}
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.m = pimsync.New(e.db, sec, slog.New(slog.NewTextHandler(io.Discard, nil)), pimsync.Config{
+		HTTP: e.dav.Client, Batch: 2, Now: func() time.Time { return now }, Local: newYork,
+	})
 	work := e.dav.Calendar("work", "Work", "#3366cc", "VEVENT")
 	home := e.dav.Calendar("home", "Home", "#34c759", "VEVENT")
 	e.dav.Put(work+"planning.ics", planning("Planning", "Agenda in the doc"))
@@ -306,17 +326,25 @@ func TestEventDeleteAndRestore(t *testing.T) {
 	e := newEventEnv(t)
 	ctx := t.Context()
 	before := e.server(e.work + "planning.ics")
-	w, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: e.event("Planning"), Fields: api.EventFields{Summary: ptr2("x")}})
+	// A move raises SEQUENCE; its undo goes over the moved version, and
+	// must raise it again, as Google refuses a SEQUENCE that goes back.
+	start := utcAt("2026-10-09T18:00Z")
+	w, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: e.event("Planning"), Fields: api.EventFields{
+		AllDay: ptr2(false), Start: &start, End: ptr2(start.Add(time.Hour)), TimeZone: ptr2("America/New_York")}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.pass()
+	hasLines(t, e.server(e.work+"planning.ics"), "SEQUENCE:1", "DTSTART;TZID=America/New_York:20261009T140000")
 	if err := e.cal.Restore(ctx, &api.CalendarRestoreParams{RestoreID: w.RestoreID}); err != nil {
 		t.Fatal(err)
 	}
 	e.pass()
-	if got := e.server(e.work + "planning.ics"); got != before {
-		t.Errorf("after the restore the server has %s; want %s", got, before)
+	if r := e.refused(); len(r) != 0 {
+		t.Errorf("the restore was refused: %+v", r)
+	}
+	if got, want := e.server(e.work+"planning.ics"), strings.Replace(before, "SEQUENCE:0", "SEQUENCE:2", 1); got != want {
+		t.Errorf("after the restore the server has %s; want %s", got, want)
 	}
 
 	gone, err := e.cal.Delete(ctx, &api.CalendarDeleteParams{ID: e.event("Planning")})
