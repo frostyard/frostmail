@@ -317,7 +317,14 @@ contacts and events writable through `people.create`, `update`, `delete`,
   series. The editor edits a draft (`lib/eventDraft.ts`), sends
   `calendar.create`, or `calendar.update` with the changed fields after
   the scope sheet, and turns repeat presets and the Custom Repeat sheet
-  into `RRULE`s (`lib/repeat.ts`).
+  into `RRULE`s (`lib/repeat.ts`). Dragging in the views (Phase 4) moves
+  and resizes occurrences in 15-minute steps of the app's wall time and
+  by days (`lib/eventDrag.ts`); a drop is one `calendar.update` in the
+  event's zone, after the scope sheet for a series, and a range drawn
+  across empty time opens the editor. Every write's restore goes on its
+  module's undo list (`app/pimUndo.ts`), which Ctrl+Z pops into
+  `calendar.restore` or `people.restore`; the editor window announces its
+  writes to the main window's list.
 - **Invitations as organizer** (ADR-0034, Phase 5 of the plan): the
   organizer is the account's default identity. The provider fact
   `SchedulesOrganizer` chooses between the server and maild's iTIP
