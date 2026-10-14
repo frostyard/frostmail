@@ -84,6 +84,7 @@ types:
       - {name: endDate, type: string}
       - {name: timeZone, type: string, doc: "The IANA zone the event was made in, or empty (UTC, floating or all-day)."}
       - {name: recurring, type: bool}
+      - {name: first, type: bool, optional: true, doc: "For an occurrence of a series: whether it is the series' first, from which All Future Events is All Events (ADR-0031)."}
       - {name: recurrence, type: string, doc: "The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty for a single event."}
       - {name: status, type: EventStatus}
       - {name: transparent, type: bool}

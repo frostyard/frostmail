@@ -309,6 +309,7 @@ export class MockCalendar {
     if (!one) throw new RPCError(ErrorCode.notFound, "occurrence does not exist");
     return {
       ...copy,
+      first: one.recurrenceId === occurrenceKey(mock, 0),
       ...structuredClone(mock.overrides?.[one.recurrenceId]),
       recurrenceId: one.recurrenceId,
       start: one.start,

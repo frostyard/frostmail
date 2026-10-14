@@ -210,6 +210,12 @@ func TestSeriesEditsInEachScope(t *testing.T) {
 	ctx := t.Context()
 	id := e.event("Sync")
 	oct22, oct29 := "2026-10-22T13:00:00.000Z", "2026-10-29T13:00:00.000Z"
+	for rid, want := range map[string]bool{"2026-10-15T13:00:00.000Z": true, oct22: false} {
+		if got, err := e.cal.Event(ctx, &api.CalendarEventParams{ID: id, RecurrenceID: &rid}); err != nil ||
+			got.First == nil || *got.First != want {
+			t.Errorf("%s first = %+v, %v; want %v", rid, got, err, want)
+		}
+	}
 	if _, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: id, Fields: api.EventFields{Summary: ptr2("x")}}); code(err) != api.CodeInvalidParams {
 		t.Errorf("a series edit without a scope = %v", err)
 	}
@@ -217,6 +223,9 @@ func TestSeriesEditsInEachScope(t *testing.T) {
 		Fields: api.EventFields{Location: ptr2("Room 2")}})
 	if err != nil || w.Event == nil || w.Event.Location != "Room 2" || w.Event.RecurrenceID != oct22 {
 		t.Fatalf("this = %+v, %v", w, err)
+	}
+	if got, err := e.cal.Event(ctx, &api.CalendarEventParams{ID: w.Event.ID}); err != nil || got.First == nil || *got.First {
+		t.Errorf("the override's first = %+v, %v", got, err)
 	}
 	e.pass()
 	hasLines(t, e.server(e.work+"sync.ics"), "RECURRENCE-ID;TZID=America/New_York:20261022T090000", "LOCATION:Room 2")
