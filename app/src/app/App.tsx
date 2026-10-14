@@ -1,5 +1,6 @@
 // The app root: the connection to maild around the main window, a compose
-// window's draft, the reminders, or the settings window (docs/design/app.md).
+// window's draft, an event editor, the reminders, or the settings window
+// (docs/design/app.md).
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
@@ -8,6 +9,8 @@ import { type Connect, Session } from "../data/session";
 import { useMail } from "../data/stores";
 import { ComposeWindow } from "./ComposeWindow";
 import { composeTarget } from "./compose";
+import { EventWindow } from "./EventWindow";
+import { editorTarget } from "./eventWindow";
 import { MainWindow } from "./MainWindow";
 import { RemindersWindow } from "./RemindersWindow";
 import { isRemindersWindow } from "./reminders";
@@ -24,7 +27,7 @@ function Connecting() {
   );
 }
 
-/** useHash re-renders on hash changes (a browser may open #/compose/<id>, #/reminders or #/settings in the same tab). */
+/** useHash re-renders on hash changes (a browser may open #/compose/<id>, #/event/<id>, #/reminders or #/settings in the same tab). */
 function useHash() {
   const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
@@ -35,10 +38,11 @@ function useHash() {
   return hash;
 }
 
-/** App connects to maild with connect and shows the main window, a compose window's draft, reminders, or settings. */
+/** App connects to maild with connect and shows the main window, a compose window's draft, an event editor, reminders, or settings. */
 export function App(props: { connect: Connect }) {
   useHash();
   const target = composeTarget();
+  const event = editorTarget();
   // Tauri creates windows hidden; show this one now that it has rendered,
   // so it never flashes WebKit's blank white page (src-tauri main.rs).
   useEffect(() => {
@@ -48,6 +52,8 @@ export function App(props: { connect: Connect }) {
     <Session connect={props.connect} fallback={<Connecting />}>
       {target !== null ? (
         <ComposeWindow draftId={target.draftId} fresh={target.fresh} />
+      ) : event !== null ? (
+        <EventWindow target={event} />
       ) : isRemindersWindow() ? (
         <RemindersWindow />
       ) : isSettingsWindow() ? (

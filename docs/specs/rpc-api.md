@@ -662,6 +662,7 @@ An event in full; for an occurrence of a series, that occurrence's times.
 | `endDate` | `string` |  |
 | `timeZone` | `string` | The IANA zone the event was made in, or empty (UTC, floating or all-day). |
 | `recurring` | `bool` |  |
+| `first` | `bool` (optional) | For an occurrence of a series: whether it is the series' first, from which All Future Events is All Events (ADR-0031). |
 | `recurrence` | `string` | The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty for a single event. |
 | `status` | `EventStatus` |  |
 | `transparent` | `bool` |  |

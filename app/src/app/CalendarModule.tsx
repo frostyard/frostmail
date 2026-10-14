@@ -5,17 +5,22 @@ import { type Pane, useUI } from "../data/stores";
 import { CalendarSidebar } from "../features/calendar/CalendarSidebar";
 import { EventPane } from "../features/calendar/EventPane";
 import { MonthGrid } from "../features/calendar/MonthGrid";
+import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { TimeGrid } from "../features/calendar/TimeGrid";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { addDays, monthGrid, viewRange, zoned } from "../lib/calendarDates";
+import type { CalendarDeleteParams, CalendarEvent } from "../rpc/gen/api";
 import { ContactCardContainer, type ContactCardContainerProps } from "./ContactCardContainer";
+import { openEvent } from "./eventWindow";
 import { Splitter } from "./Splitter";
 import type { CalendarData } from "./useCalendar";
 
-/** CalendarHandle lets MainWindow focus panes and scroll the hours. */
+/** CalendarHandle lets MainWindow focus panes, scroll hours and edit or delete the selection. */
 export interface CalendarHandle {
   focus: (pane: Pane) => void;
   scroll: (hours: number) => void;
+  edit: () => boolean;
+  remove: () => boolean;
 }
 
 function useMonthLines(view: RefObject<HTMLElement | null>, month: boolean) {
@@ -82,26 +87,47 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
   const view = useRef<HTMLElement>(null);
   const reader = useRef<HTMLElement>(null);
   const [card, setCard] = useState<Omit<ContactCardContainerProps, "onClose"> | null>(null);
-  useImperativeHandle(
-    ref,
-    () => ({
-      focus: (pane) => {
-        if (pane === "sidebar") sidebar.current?.focus();
-        else if (pane === "list") view.current?.focus();
-        else reader.current?.focus();
-      },
-      scroll: (hours) => {
-        const scroller = view.current?.querySelector<HTMLElement>(".overflow-y-auto");
-        if (scroller) scroller.scrollTop += hours * 48;
-      },
-    }),
-    [],
-  );
+  const [deleting, setDeleting] = useState<CalendarEvent | null>(null);
   const data = props.data;
   const section = data.sections.find((section) =>
     section.calendars.some((calendar) => calendar.id === data.event?.calendarId),
   );
   const calendar = section?.calendars.find((calendar) => calendar.id === data.event?.calendarId);
+  const event = data.event;
+  const writable = !!event && !!calendar && !calendar.readOnly && !event.readOnly;
+  const invitation = !!event?.organizer && !event.organizer.isUser;
+  const edit = () => {
+    if (!writable || !event) return false;
+    void openEvent({ kind: "edit", id: event.id, recurrenceId: event.recurrenceId }, event.summary).catch(
+      (err: unknown) => console.warn("edit event", err),
+    );
+    return true;
+  };
+  const deleteEvent = (params: CalendarDeleteParams) => {
+    void client.calendar
+      .delete(params)
+      .then(() => ui.selectOccurrence(null))
+      .catch((err: unknown) => console.warn("delete event", err));
+  };
+  const remove = () => {
+    if (!writable || invitation || !event) return false;
+    if (event.recurring && event.recurrenceId) setDeleting(event);
+    else deleteEvent({ id: event.id });
+    return true;
+  };
+  useImperativeHandle(ref, () => ({
+    focus: (pane) => {
+      if (pane === "sidebar") sidebar.current?.focus();
+      else if (pane === "list") view.current?.focus();
+      else reader.current?.focus();
+    },
+    scroll: (hours) => {
+      const scroller = view.current?.querySelector<HTMLElement>(".overflow-y-auto");
+      if (scroller) scroller.scrollTop += hours * 48;
+    },
+    edit,
+    remove,
+  }));
   return (
     <div className="flex min-h-0 flex-1">
       {ui.sidebarVisible && (
@@ -167,6 +193,8 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
           calendar={calendar && section ? { ...calendar, account: section.title } : null}
           timeZone={data.timeZone}
           locale={data.locale}
+          onEdit={writable ? edit : undefined}
+          onDelete={writable && !invitation ? remove : undefined}
           onPerson={(email, name, anchor) => {
             const rect = anchor.getBoundingClientRect();
             setCard({ address: { address: email, name }, at: { x: rect.left, y: rect.bottom } });
@@ -174,6 +202,17 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
         />
       </section>
       {card && <ContactCardContainer key={card.address.address} {...card} onClose={() => setCard(null)} />}
+      {deleting && (
+        <ScopeSheet
+          action="delete"
+          first={deleting.first ?? false}
+          onChoose={(scope) => {
+            deleteEvent({ id: deleting.id, recurrenceId: deleting.recurrenceId, scope });
+            setDeleting(null);
+          }}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   );
 });

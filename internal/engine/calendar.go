@@ -172,6 +172,7 @@ func (c calendarService) Event(ctx context.Context, p *api.CalendarEventParams) 
 	if err != nil {
 		return nil, apiError(err, "calendar event")
 	}
+	var first *bool
 	if p.RecurrenceID != nil && *p.RecurrenceID != e.RecurrenceID {
 		if e.Recurrence == "" || e.RecurrenceID != "" {
 			return nil, api.NotFound("event is not a series master")
@@ -184,15 +185,38 @@ func (c calendarService) Event(ctx context.Context, p *api.CalendarEventParams) 
 		if err != nil || calendar.RecurrenceKey(start, e.AllDay) != *p.RecurrenceID {
 			return nil, api.NotFound("invalid recurrence id")
 		}
+		isFirst := start.Equal(e.Start)
+		first = &isFirst
 		e.End, e.Start = start.Add(e.End.Sub(e.Start)), start
 		e.RecurrenceID = *p.RecurrenceID
+	} else if e.RecurrenceID != "" {
+		if first, err = c.firstOccurrence(ctx, e); err != nil {
+			return nil, err
+		}
 	}
 	emails, err := c.eventUserEmails(ctx, e.AccountID)
 	if err != nil {
 		return nil, err
 	}
 	out := calendarEventAPI(e, emails)
+	out.First = first
 	return &out, nil
+}
+
+// firstOccurrence reports whether an override replaces its series' first
+// occurrence; nil when the object has no master.
+func (c calendarService) firstOccurrence(ctx context.Context, override store.EventRow) (*bool, error) {
+	rows, err := c.DB.EventsByUID(ctx, override.AccountID, override.UID)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if r.ObjectID == override.ObjectID && r.RecurrenceID == "" {
+			first := calendar.RecurrenceKey(r.Start, r.AllDay) == override.RecurrenceID
+			return &first, nil
+		}
+	}
+	return nil, nil
 }
 
 func (c calendarService) eventUserEmails(ctx context.Context, id int64) ([]string, error) {

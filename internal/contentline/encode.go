@@ -101,10 +101,16 @@ type Edit struct {
 }
 
 // Apply returns src with the edits made. Edits may come in any order but
-// must not overlap; two insertions at the same place keep their order.
+// must not overlap; two insertions at the same place keep their order, and
+// an insertion goes before an edit that replaces text starting there.
 func Apply(src []byte, edits ...Edit) ([]byte, error) {
 	sorted := slices.Clone(edits)
-	slices.SortStableFunc(sorted, func(a, b Edit) int { return cmp.Compare(a.Start, b.Start) })
+	slices.SortStableFunc(sorted, func(a, b Edit) int {
+		if n := cmp.Compare(a.Start, b.Start); n != 0 {
+			return n
+		}
+		return cmp.Compare(min(a.End-a.Start, 1), min(b.End-b.Start, 1))
+	})
 	var out bytes.Buffer
 	at := 0
 	for _, e := range sorted {

@@ -84,7 +84,24 @@ func TestRadicaleContactEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	href := "/" + strings.ReplaceAll(user, "@", "%40") + "/contacts/radicale-ann.vcf"
+	book := "/" + strings.ReplaceAll(user, "@", "%40") + "/contacts/"
+	href := book + "radicale-ann.vcf"
+	// ours lists the hrefs of this test's cards, under any name: a restore
+	// of a written delete comes back under a new one.
+	ours := func() []string {
+		t.Helper()
+		list, err := other.List(ctx, book)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, o := range list {
+			if obj, err := other.Get(ctx, o.Href); err == nil && strings.Contains(string(obj.Data), "UID:radicale-ann\r\n") {
+				out = append(out, o.Href)
+			}
+		}
+		return out
+	}
 	card := func(title, note string) []byte {
 		return []byte("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:radicale-ann\r\nN:Smith;Ann;;;\r\nFN:Ann Smith\r\n" +
 			"TITLE:" + title + "\r\nNOTE:" + note + "\r\nX-CUSTOM:keep me\r\nEND:VCARD\r\n")
@@ -108,8 +125,10 @@ func TestRadicaleContactEdits(t *testing.T) {
 		}
 	}
 	// The container's reset keeps Radicale's data: start from no card.
-	if err := other.Delete(ctx, href, ""); err != nil {
-		t.Fatal(err)
+	for _, h := range ours() {
+		if err := other.Delete(ctx, h, ""); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := other.Put(ctx, href, card("Head of Operations", "Runs the offsite"), davx.AddressBooks, ""); err != nil {
 		t.Fatal(err)
@@ -177,8 +196,13 @@ func TestRadicaleContactEdits(t *testing.T) {
 		t.Fatal(err)
 	}
 	pass()
-	if got := server(); !strings.Contains(got, "TITLE:Chief of Staff") || !strings.Contains(got, "X-CUSTOM:keep me") {
-		t.Errorf("after the delete's undo the server has %s", got)
+	if back := ours(); len(back) != 1 {
+		t.Errorf("after the delete's undo the server has %v", back)
+	} else {
+		href = back[0]
+		if got := server(); !strings.Contains(got, "TITLE:Chief of Staff") || !strings.Contains(got, "X-CUSTOM:keep me") {
+			t.Errorf("after the delete's undo the server has %s", got)
+		}
 	}
 	pass()
 	checks, err := m.Verify(ctx, acct.ID)

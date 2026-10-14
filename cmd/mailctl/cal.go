@@ -13,8 +13,9 @@ import (
 )
 
 func newCalCmd(opts *rootOptions) *cobra.Command {
-	cmd := &cobra.Command{Use: "cal", Short: "Inspect calendars and events"}
+	cmd := &cobra.Command{Use: "cal", Short: "Inspect and manage calendars and events"}
 	cmd.AddCommand(newCalLsCmd(opts), newCalAgendaCmd(opts))
+	cmd.AddCommand(newCalAddCmd(opts), newCalRmCmd(opts))
 	return cmd
 }
 
@@ -85,6 +86,7 @@ func agendaRange(from, zone string, days int) (*api.CalendarRangeParams, *time.L
 func newCalAgendaCmd(opts *rootOptions) *cobra.Command {
 	var from, zone string
 	var days int
+	var ids bool
 	cmd := &cobra.Command{
 		Use: "agenda", Short: "Show upcoming events", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -105,16 +107,17 @@ func newCalAgendaCmd(opts *rootOptions) *cobra.Command {
 			if written, err := clix.OutputJSON(rows); err != nil || written {
 				return err
 			}
-			return printAgenda(cmd.OutOrStdout(), rows, loc)
+			return printAgenda(cmd.OutOrStdout(), rows, loc, ids)
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "first day (YYYY-MM-DD; default: today)")
 	cmd.Flags().IntVar(&days, "days", 7, "number of days")
 	cmd.Flags().StringVar(&zone, "zone", "", "time zone (IANA; default: the local zone)")
+	cmd.Flags().BoolVar(&ids, "ids", false, "show event and occurrence IDs")
 	return cmd
 }
 
-func printAgenda(w io.Writer, rows []api.Occurrence, loc *time.Location) error {
+func printAgenda(w io.Writer, rows []api.Occurrence, loc *time.Location, ids bool) error {
 	if len(rows) == 0 {
 		_, err := fmt.Fprintln(w, "no events")
 		return err
@@ -145,6 +148,13 @@ func printAgenda(w io.Writer, rows []api.Occurrence, loc *time.Location) error {
 		}
 		if row.Status == api.EventStatusCancelled {
 			summary += " [cancelled]"
+		}
+		if ids {
+			id := fmt.Sprint(row.EventID)
+			if row.RecurrenceID != "" {
+				id += " " + row.RecurrenceID
+			}
+			summary += "  [" + id + "]"
 		}
 		fmt.Fprintf(&b, "  %s  %s\n", span, summary)
 	}

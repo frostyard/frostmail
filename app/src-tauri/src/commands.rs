@@ -67,6 +67,38 @@ pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), St
         .map_err(|e| e.to_string())
 }
 
+/// Open an event in its editor window (docs/specs/pim-ui.md, Event editor
+/// window), labeled event-<id>, event-<id>-<occurrence> or event-new-<n>,
+/// or focus the window that already shows it. The window learns what it
+/// edits from an initialization script, so the app's URL stays the same.
+#[tauri::command]
+pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, title: String) -> Result<(), String> {
+    let valid = label
+        .strip_prefix("event-")
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
+    if !valid {
+        return Err(format!("{label} is not an event window"));
+    }
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.unminimize();
+        let _ = w.show();
+        return w.set_focus().map_err(|e| e.to_string());
+    }
+    let target = serde_json::to_string(&target).map_err(|e| e.to_string())?;
+    WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
+        .title(title)
+        .inner_size(480.0, 600.0)
+        .min_inner_size(420.0, 480.0)
+        // The editor draws its own title strip.
+        .decorations(false)
+        .initialization_script(format!("window.__frostmailEvent = {target};"))
+        .on_navigation(crate::allowed_navigation)
+        .visible(false)
+        .build()
+        .map(crate::show_soon)
+        .map_err(|e| e.to_string())
+}
+
 /// Open the settings window, labeled settings, or focus it when it is open.
 /// It learns that it is the settings window from an initialization script.
 #[tauri::command]

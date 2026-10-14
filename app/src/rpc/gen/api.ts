@@ -581,6 +581,11 @@ export interface CalendarEvent {
   timeZone: string;
   recurring: boolean;
   /**
+   * For an occurrence of a series: whether it is the series' first, from
+   * which All Future Events is All Events (ADR-0031).
+   */
+  first?: boolean;
+  /**
    * The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty
    * for a single event.
    */

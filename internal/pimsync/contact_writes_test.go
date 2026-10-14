@@ -246,14 +246,31 @@ func TestContactRestore(t *testing.T) {
 		t.Errorf("a second restore = %v", err)
 	}
 
+	// A delete already written comes back under a new name, as servers
+	// such as Google keep a deleted object's.
 	gone, _ := e.people.Delete(ctx, &api.PeopleDeleteParams{ID: ann})
 	e.pass()
 	if err := e.people.Restore(ctx, &api.PeopleRestoreParams{RestoreID: gone.RestoreID}); err != nil {
 		t.Fatal(err)
 	}
 	e.pass()
-	if got := e.server(e.book + "ann.vcf"); got != before {
-		t.Errorf("after restoring the delete the server has %s", got)
+	paths := e.dav.Paths(e.book)
+	if len(paths) != 1 || paths[0] == e.book+"ann.vcf" || e.server(paths[0]) != before {
+		t.Errorf("after restoring the delete the server has %v", paths)
+	}
+	ann = e.contact("Ann Smith")
+
+	// A delete not yet written is only cancelled: nothing is deleted.
+	gone, _ = e.people.Delete(ctx, &api.PeopleDeleteParams{ID: ann})
+	if err := e.people.Restore(ctx, &api.PeopleRestoreParams{RestoreID: gone.RestoreID}); err != nil {
+		t.Fatal(err)
+	}
+	e.pass()
+	if slices.ContainsFunc(e.dav.Requests(), func(r davtest.Request) bool { return r.Method == "DELETE" }) {
+		t.Error("a delete undone before the pass was written")
+	}
+	if got := e.dav.Paths(e.book); !slices.Equal(got, paths) || e.server(paths[0]) != before {
+		t.Errorf("after undoing an unwritten delete the server has %v", got)
 	}
 	e.contact("Ann Smith")
 

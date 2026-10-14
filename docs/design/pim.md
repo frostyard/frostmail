@@ -255,8 +255,12 @@ contacts and events writable through `people.create`, `update`, `delete`,
   account and when; `pim_restore_objects`, a row per object it touched,
   with the collection, href, UID and the source before, or NULL when the
   write created the object). `restore` queues a `put` of each kept
-  source on the object's current ETag, re-creates deleted objects with
-  `If-None-Match: *`, deletes the created ones, and drops the row. Rows
+  source on the object's current ETag, deletes the created ones, and
+  drops the row. A deleted object whose delete still waits gets that
+  delete cancelled and its source put back on the server's ETag; one
+  whose delete was written is created again under a new name with
+  `If-None-Match: *`, keeping its UID, since Google refuses the deleted
+  name (found by Phase 2's check, 2026-10-14). Rows
   older than a day are dropped by the pass. The tables come with Phase
   2's migration.
 - **Contacts.** `vcardx.Patch` keeps the card's version, its groups and
@@ -265,17 +269,55 @@ contacts and events writable through `people.create`, `update`, `delete`,
   as groups (ADR-0030). A new contact is a vCard 3.0, `<uid>.vcf` in the
   address book. `setPhoto` writes `PHOTO` in the card's version: a JPEG
   or PNG of at most 256 KB, which the app has scaled to at most 512 × 512.
-- **Events.** `calendar.PatchEvent` changes the master, an override or
-  the split of ADR-0031 by `scope`. A new event is `<uid>.ics` in its
-  calendar, with the generated `VTIMEZONE` of its zone
-  (`calendar.VTimezone`, ADR-0033), `DTSTAMP`, `CREATED`,
-  `LAST-MODIFIED` and `SEQUENCE:0`. Alerts are `VALARM`s with
+- **Events.** `calendar.PatchEvent` changes a single event or a series'
+  master; `calendar.PatchOccurrence` and `DeleteOccurrence` change one
+  occurrence of a series in its scope (ADR-0031):
+  - **This Event** patches the occurrence's override, made from the
+    master when it has none; a delete adds an `EXDATE` and drops the
+    override.
+  - **All Events** patches the master from the occurrence edited. The
+    editor sends only the fields that changed, and new times are the
+    occurrence's: the series moves as that occurrence does, each time
+    keeping its days and clock from the occurrence's original start in the
+    series' zone, so a 09:00 series moved to 10:00 is at 10:00 on both
+    sides of a DST change. Its `EXDATE`s, `RDATE`s, overrides and an
+    `UNTIL` move with it. An override takes each changed value it still
+    shared with the old master, and the new times when its own were its
+    occurrence's; what was changed for it alone stays. A new rule drops
+    the overrides and `EXDATE`s that no longer name an occurrence.
+  - **All Future Events** splits the series: the old object ends a second
+    (or a day) before the occurrence, and a new object under a new UID
+    starts there with the change, the rule's remaining `COUNT` or its
+    `UNTIL`, and the later `RDATE`s, `EXDATE`s and overrides. Its creation
+    is a put of its own. From the first occurrence it is All Events, and
+    a delete deletes the object (`calendar.ErrWholeSeries`);
+    `CalendarEvent.first` tells the app which occurrence that is.
+
+  A new event is `<uid>.ics` in its calendar, with the generated
+  `VTIMEZONE` of its zone (`calendar.VTimezone`, ADR-0033), `DTSTAMP`,
+  `CREATED`, `LAST-MODIFIED` and `SEQUENCE:0`. Alerts are `VALARM`s with
   `ACTION:DISPLAY` and a relative `TRIGGER`: the fields replace the
   event's `DISPLAY` and `AUDIO` alarms (the ones Calendar shows) and keep
-  its `EMAIL` alarms, which are the server's. A move to another
-  calendar is a `put` there and a `delete` here, whose payload names the
-  put (`{"after": <op id>}`): the delete waits while the put is queued,
-  and is dropped with a `calendar.refused` if the put was refused.
+  its `EMAIL` alarms, which are the server's. An event put's payload is
+  `{"event": [edits…], "base": {…}}`, each edit the occurrence, scope and
+  fields (or a delete of occurrences). For a single event the base keys
+  are `VEVENT/<PROPERTY>` for the properties the edits touch; for a series
+  they are every VEVENT's (`VEVENT;RECURRENCE-ID=<key>/<PROPERTY>`)
+  touched properties and its shape (`DTSTART`, `DTEND`, `DURATION`,
+  `RRULE`, `RDATE`, `EXDATE`, `RECURRENCE-ID`), and `VEVENTS`, the list of
+  its VEVENTs. A 412 applies the edits again with the calendar package
+  when the base fits. A move to another calendar is a `put` there and a
+  `delete` here, whose payload names the put (`{"after": <op id>}`): the
+  delete waits while the put is queued; when the server refuses the put,
+  the delete is dropped, the old calendar is listed in full again, which
+  brings the event back, and `calendar.refused` says so.
+- **The app** (docs/specs/pim-ui.md): the event pane's Edit opens the
+  event editor window (`open_event`; `#/event/<id>` in a browser), and
+  its Delete deletes through the scope sheet for an occurrence of a
+  series. The editor edits a draft (`lib/eventDraft.ts`), sends
+  `calendar.create`, or `calendar.update` with the changed fields after
+  the scope sheet, and turns repeat presets and the Custom Repeat sheet
+  into `RRULE`s (`lib/repeat.ts`).
 - **Invitations as organizer** (ADR-0034, Phase 5 of the plan): the
   organizer is the account's default identity. The provider fact
   `SchedulesOrganizer` chooses between the server and maild's iTIP

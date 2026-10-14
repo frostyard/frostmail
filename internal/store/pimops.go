@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -107,4 +108,45 @@ func (t *Tx) SetObjectETag(ctx context.Context, id int64, etag string) error {
 		return fmt.Errorf("set object etag: %w", err)
 	}
 	return nil
+}
+
+// PIMOpState is a change's state (queued, running or failed); ok is false
+// once it is done and gone.
+func (d *DB) PIMOpState(ctx context.Context, id int64) (state string, ok bool, err error) {
+	err = d.db.QueryRowContext(ctx, `SELECT state FROM pim_ops WHERE id = ?`, id).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("pim op state: %w", err)
+	}
+	return state, true, nil
+}
+
+// DropDeletesAfter removes the deletes waiting for a put (a move's,
+// ADR-0030) when the server refused it, and returns their collections.
+func (t *Tx) DropDeletesAfter(ctx context.Context, putID int64) ([]int64, error) {
+	rows, err := t.QueryContext(ctx, `SELECT id, collection_id FROM pim_ops
+		WHERE kind = 'delete' AND state = 'queued' AND json_extract(payload_json, '$.after') = ?`, putID)
+	if err != nil {
+		return nil, fmt.Errorf("deletes after: %w", err)
+	}
+	var ids, cols []int64
+	for rows.Next() {
+		var id, col int64
+		if err := rows.Scan(&id, &col); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("deletes after: %w", err)
+		}
+		ids, cols = append(ids, id), append(cols, col)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("deletes after: %w", err)
+	}
+	for _, id := range ids {
+		if err := t.DonePIMOp(ctx, id); err != nil {
+			return nil, err
+		}
+	}
+	return cols, nil
 }

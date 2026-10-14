@@ -12,7 +12,26 @@ import {
   type Reminder,
 } from "../gen/api";
 import { RPCError } from "../transport";
+import { MockEventEdits, occurrenceKey } from "./calendarEdits";
 import { NOT_HANDLED } from "./compose";
+
+/** MockOverride holds the fields changed for one occurrence. */
+export type MockOverride = Partial<
+  Pick<
+    CalendarEvent,
+    | "summary"
+    | "location"
+    | "description"
+    | "allDay"
+    | "start"
+    | "end"
+    | "startDate"
+    | "endDate"
+    | "timeZone"
+    | "alarms"
+    | "transparent"
+  >
+>;
 
 /** MockEvent is a stored event: the CalendarEvent of its first occurrence
  *  (recurrenceId ""), repeating every day or week `count` times when
@@ -21,6 +40,8 @@ export interface MockEvent {
   event: CalendarEvent;
   every?: "day" | "week";
   count?: number;
+  overrides?: Record<string, MockOverride>;
+  excluded?: string[];
 }
 
 /** MockReminder is a fired reminder of one occurrence of an event (its
@@ -63,6 +84,7 @@ function validDate(value: unknown): value is string {
 function occurrences(mock: MockEvent, zone: string): Occurrence[] {
   const e = mock.event;
   return Array.from({ length: mock.every ? (mock.count ?? 1) : 1 }, (_, index) => {
+    const key = occurrenceKey(mock, index);
     const days = index * (mock.every === "week" ? 7 : 1);
     const startDate = e.allDay ? addDays(e.startDate, days) : "";
     const endDate = e.allDay ? addDays(e.endDate, days) : "";
@@ -72,37 +94,50 @@ function occurrences(mock: MockEvent, zone: string): Occurrence[] {
     const end = e.allDay
       ? dayStart(endDate, zone).toISOString()
       : new Date(Date.parse(e.end) + days * DAY_MS).toISOString();
+    const changed = { ...e, start, end, startDate, endDate, ...mock.overrides?.[key] };
     return {
       eventId: e.id,
-      recurrenceId: mock.every ? (e.allDay ? startDate : start) : "",
+      recurrenceId: mock.every ? key : "",
       calendarId: e.calendarId,
       accountId: e.accountId,
-      summary: e.summary,
-      location: e.location,
-      allDay: e.allDay,
-      start,
-      end,
-      startDate,
-      endDate,
+      summary: changed.summary,
+      location: changed.location,
+      allDay: changed.allDay,
+      start: changed.allDay ? dayStart(changed.startDate, zone).toISOString() : changed.start,
+      end: changed.allDay ? dayStart(changed.endDate, zone).toISOString() : changed.end,
+      startDate: changed.startDate,
+      endDate: changed.endDate,
       status: e.status,
       ...(e.answer === undefined ? {} : { answer: e.answer }),
-      transparent: e.transparent,
+      transparent: changed.transparent,
       recurring: mock.every !== undefined,
     };
-  });
+  }).filter((one) => !mock.excluded?.includes(one.recurrenceId));
 }
 
 /** MockCalendar answers calendar queries and updates shared collections. */
 export class MockCalendar {
+  private readonly edits: MockEventEdits;
+
   constructor(
     private readonly data: MockCalendarData,
     private readonly collections: Collection[],
     private readonly emit: (event: Event) => void,
-  ) {}
+  ) {
+    this.edits = new MockEventEdits(data, collections, emit, (id, recurrenceId) => this.event(id, recurrenceId));
+  }
 
   /** dispatch answers supported methods or returns NOT_HANDLED. */
   dispatch(method: string, params: Params): unknown {
     switch (method) {
+      case "calendar.create":
+        return this.edits.create(params);
+      case "calendar.update":
+        return this.edits.update(params);
+      case "calendar.delete":
+        return this.edits.delete(params);
+      case "calendar.restore":
+        return this.edits.restore(String(params.restoreId));
       case "calendar.invitation":
         return this.invitation(Number(params.messageId));
       case "calendar.respond":
@@ -274,6 +309,8 @@ export class MockCalendar {
     if (!one) throw new RPCError(ErrorCode.notFound, "occurrence does not exist");
     return {
       ...copy,
+      first: one.recurrenceId === occurrenceKey(mock, 0),
+      ...structuredClone(mock.overrides?.[one.recurrenceId]),
       recurrenceId: one.recurrenceId,
       start: one.start,
       end: one.end,

@@ -1087,6 +1087,9 @@ type CalendarEvent struct {
 	// The IANA zone the event was made in, or empty (UTC, floating or all-day).
 	TimeZone  string `json:"timeZone"`
 	Recurring bool   `json:"recurring"`
+	// For an occurrence of a series: whether it is the series' first, from which
+	// All Future Events is All Events (ADR-0031).
+	First *bool `json:"first,omitzero"`
 	// The RRULE, RDATE and EXDATE lines as sent, for the app to describe; empty
 	// for a single event.
 	Recurrence  string      `json:"recurrence"`
