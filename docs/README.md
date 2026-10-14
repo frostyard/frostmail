@@ -83,6 +83,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0006 — M4 daily driver](plans/0006-m4-daily-driver.md)
 - [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md)
 - [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md), done, with its evidence
+- [0009 — M5.5 edit events and contacts](plans/0009-m5.5-edit-events-and-contacts.md)
 
 ## Conventions
 
