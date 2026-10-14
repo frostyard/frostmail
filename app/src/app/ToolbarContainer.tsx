@@ -29,6 +29,7 @@ import type { TasksData } from "./useTasks";
 interface ToolbarContainerProps {
   tasks?: TasksData;
   onNewTask?: () => void;
+  onNewEvent?: () => void;
   people?: PeopleData;
   model: ViewModel | null;
   onDelete: (ids: number[]) => void;
@@ -151,7 +152,8 @@ function useToolbarCommand(props: ToolbarContainerProps) {
         return;
       }
       if (ui.module === "calendar") {
-        if (command.kind === "today") ui.setCalendarDate(frame.today);
+        if (command.kind === "newEvent") props.onNewEvent?.();
+        else if (command.kind === "today") ui.setCalendarDate(frame.today);
         else if (command.kind === "calendarView") ui.setCalendarView(command.view);
         else if (command.kind === "previousPeriod" || command.kind === "nextPeriod")
           ui.setCalendarDate(
@@ -263,6 +265,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
         ui.module === "calendar"
           ? {
               view: ui.calendarView,
+              canCreate: props.onNewEvent !== undefined,
               title: viewTitle(ui.calendarView, frame.date, frame.weekStart, frame.locale),
               paneWidth: 320,
             }

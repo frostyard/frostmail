@@ -38,6 +38,7 @@ import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 /** ToolbarCommand is what a toolbar control asks for. */
 export type ToolbarCommand =
   | { kind: "newContact" }
+  | { kind: "newEvent" }
   | { kind: "newTask" }
   | { kind: "toggleCompleted" }
   | { kind: "toggleTodoBar" }
@@ -82,6 +83,7 @@ export interface ToolbarSelection {
 export interface ToolbarCalendar {
   view: CalendarView;
   title: string;
+  canCreate?: boolean;
   paneWidth: number;
 }
 
@@ -406,6 +408,13 @@ function CalendarSegment({
   const views: CalendarView[] = ["day", "week", "month"];
   return (
     <div data-segment="calendar" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
+      <ToolbarButton
+        label="New Event"
+        shortcut="Ctrl+N"
+        icon={<Plus size={16} />}
+        disabled={calendar.canCreate === false}
+        onClick={() => onCommand({ kind: "newEvent" })}
+      />
       <button
         type="button"
         className="h-7 rounded-md px-[10px] text-[13px] hover:bg-selection-inactive"
