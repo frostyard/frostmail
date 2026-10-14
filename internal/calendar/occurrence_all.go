@@ -148,10 +148,11 @@ func (p *allPlan) prepare(src []byte, c EventChange) error {
 	}
 	if rule != "" {
 		p.series.Recurrence = "RRULE:" + rule + "\n"
-		for _, prop := range p.old.master.PropsNamed("RDATE") {
-			if dates := recurrenceDates(p.old.event, prop); len(dates) > 0 {
-				p.series.Recurrence += p.dateProp(prop.Name, dates).Encode("\n")
-			}
+	}
+	// A series of RDATEs alone has occurrences too.
+	for _, prop := range p.old.master.PropsNamed("RDATE") {
+		if dates := recurrenceDates(p.old.event, prop); len(dates) > 0 {
+			p.series.Recurrence += p.dateProp(prop.Name, dates).Encode("\n")
 		}
 	}
 	eol := contentline.LineEnding(src)
