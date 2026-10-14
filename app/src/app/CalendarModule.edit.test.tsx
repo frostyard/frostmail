@@ -32,6 +32,7 @@ async function setup() {
   );
   await screen.findByRole("tree", { name: "Mailboxes" });
   fireEvent.keyDown(window, { key: "2", ctrlKey: true });
+  await screen.findByRole("group", { name: "Thursday, October 8, 2026" });
   await within(day("Thursday, October 8, 2026")).findByRole("button", { name: /^Design review/ });
   const calls = (method: string) => mock.calls.filter((c) => c.method === method);
   return { mock, calls };
