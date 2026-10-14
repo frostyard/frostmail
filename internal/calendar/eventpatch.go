@@ -38,7 +38,12 @@ func PatchEvent(src []byte, c EventChange, now time.Time) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return patchEventComponent(src, cal, event, c, now)
+}
+
+func patchEventComponent(src []byte, cal, event *contentline.Component, c EventChange, now time.Time) ([]byte, error) {
 	var timing []contentline.Prop
+	var err error
 	if c.AllDay != nil || c.Start != nil || c.End != nil || c.Zone != nil || c.StartDate != nil || c.EndDate != nil {
 		timing, err = eventTiming(c)
 		if err != nil {
@@ -52,12 +57,7 @@ func PatchEvent(src []byte, c EventChange, now time.Time) ([]byte, error) {
 	if len(fields) == 0 && c.Alarms == nil {
 		return src, nil
 	}
-	if len(timing) > 0 || c.RRule != nil {
-		sequence, _ := strconv.Atoi(propertyValue(event, "SEQUENCE"))
-		fields = append(fields, contentline.Prop{Name: "SEQUENCE", Value: strconv.Itoa(sequence + 1)})
-	}
-	stamp := now.UTC().Format("20060102T150405Z")
-	fields = append(fields, contentline.Prop{Name: "DTSTAMP", Value: stamp}, contentline.Prop{Name: "LAST-MODIFIED", Value: stamp})
+	fields = append(fields, eventRevisionFields(event, now, len(timing) > 0 || c.RRule != nil)...)
 	eol := contentline.LineEnding(src)
 	zone, err := eventNewZone(cal, c, eol)
 	if err != nil {
@@ -77,6 +77,16 @@ func PatchEvent(src []byte, c EventChange, now time.Time) ([]byte, error) {
 		return nil, fmt.Errorf("patch event: %w", err)
 	}
 	return out, nil
+}
+
+func eventRevisionFields(event *contentline.Component, now time.Time, increment bool) []contentline.Prop {
+	var fields []contentline.Prop
+	if increment {
+		sequence, _ := strconv.Atoi(propertyValue(event, "SEQUENCE"))
+		fields = append(fields, contentline.Prop{Name: "SEQUENCE", Value: strconv.Itoa(sequence + 1)})
+	}
+	stamp := now.UTC().Format("20060102T150405Z")
+	return append(fields, contentline.Prop{Name: "DTSTAMP", Value: stamp}, contentline.Prop{Name: "LAST-MODIFIED", Value: stamp})
 }
 
 // NewEvent writes a calendar object holding one new VEVENT, and the
