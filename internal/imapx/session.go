@@ -318,6 +318,45 @@ func (s *Session) UIDsSince(ctx context.Context, since time.Time) ([]uint32, err
 	return out, nil
 }
 
+// ErrNotGmail means a Gmail command was sent to a server without
+// X-GM-EXT-1.
+var ErrNotGmail = errors.New("imapx: the server has no Gmail extensions")
+
+// SearchGmailRaw returns the UIDs in the selected mailbox that a Gmail
+// search matches (X-GM-RAW, in the web's search language, such as
+// "category:promotions"), limited to UIDs at or above minUID unless it is
+// 0 and to mail that arrived on since's day or later unless it is zero;
+// ascending.
+func (s *Session) SearchGmailRaw(ctx context.Context, raw string, since time.Time, minUID uint32) ([]uint32, error) {
+	if !s.Caps.Gmail {
+		return nil, ErrNotGmail
+	}
+	criteria := &imap.SearchCriteria{GmailRaw: raw, Since: since}
+	if minUID > 0 {
+		criteria.UID = []imap.UIDSet{{imap.UIDRange{Start: imap.UID(minUID), Stop: 0}}}
+	}
+	var d *imap.SearchData
+	err := s.run(ctx, func() error {
+		var opts *imap.SearchOptions
+		if s.Caps.ESearch {
+			opts = &imap.SearchOptions{ReturnAll: true}
+		}
+		var err error
+		d, err = s.c.UIDSearch(criteria, opts).Wait()
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("uid search x-gm-raw: %w", err)
+	}
+	all := d.AllUIDs()
+	out := make([]uint32, len(all))
+	for i, u := range all {
+		out[i] = uint32(u)
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
 // SearchMessageID returns the UIDs in the selected mailbox whose Message-ID
 // header contains msgid (given without angle brackets), ascending.
 func (s *Session) SearchMessageID(ctx context.Context, msgid string) ([]uint32, error) {
