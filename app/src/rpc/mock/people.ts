@@ -7,6 +7,7 @@ import {
   type Collection,
   type Contact,
   type ContactCard,
+  type ContactFields,
   ErrorCode,
   type Event,
   type MessageSummary,
@@ -19,6 +20,7 @@ import {
 } from "../gen/api";
 import { RPCError } from "../transport";
 import { NOT_HANDLED } from "./compose";
+import { MockContactEdits } from "./peopleEdits";
 
 /** MockPeopleData is the address books and people the mock serves. */
 export interface MockPeopleData {
@@ -68,6 +70,7 @@ function firstEmail(p: Person): string {
 /** MockPeople answers account.collections and the people domain. */
 export class MockPeople {
   private nextId: number;
+  private readonly edits: MockContactEdits;
 
   constructor(
     private readonly data: MockPeopleData,
@@ -77,6 +80,13 @@ export class MockPeople {
     private readonly upcoming?: (email: string) => Occurrence[],
   ) {
     this.nextId = 1 + Math.max(1000, ...data.people.flatMap((p) => [p.id, ...p.contacts.map((c) => c.id)]));
+    this.edits = new MockContactEdits(
+      data,
+      emit,
+      accounts,
+      () => this.nextId++,
+      () => this.writableBooks(),
+    );
   }
 
   /** dispatch answers a method of these domains, or returns NOT_HANDLED. */
@@ -108,10 +118,20 @@ export class MockPeople {
       case "people.photo": {
         const photo = this.data.photos?.[Number(p.id)];
         if (!photo) throw new RPCError(ErrorCode.notFound, `person photo ${Number(p.id)} does not exist`);
-        return photo;
+        return structuredClone(photo);
       }
       case "people.add":
         return this.add(String(p.email ?? ""), typeof p.name === "string" ? p.name : "");
+      case "people.create":
+        return this.edits.create(p.fields as ContactFields, p.collectionId as number | undefined);
+      case "people.update":
+        return this.edits.update(Number(p.id), p.fields as ContactFields);
+      case "people.delete":
+        return this.edits.delete(Number(p.id));
+      case "people.setPhoto":
+        return this.edits.setPhoto(Number(p.id), p.photo as Photo | undefined);
+      case "people.restore":
+        return this.edits.restore(String(p.restoreId));
       case "account.services":
         return this.services(Number(p.id)).map((s) => ({ ...s }));
       case "account.setService":
