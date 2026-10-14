@@ -144,6 +144,77 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
 - **Upcoming:** with the Calendar module, the card's upcoming events the
   same way ("UPCOMING"); hidden while empty.
 
+### Editing a contact (`ContactEditor`, `PhotoWell`)
+
+M5.5 ([plan 0009](../plans/0009-m5.5-edit-events-and-contacts.md),
+Phase 2; ADR-0030). A contact is edited in its own block of the person
+pane, since a person's contacts live in different address books.
+
+- **Edit:** a writable contact's heading row ends with an **Edit** text
+  button 12/16 `--accent` (named "Edit Contact"). It turns that block into
+  its editor; the other blocks' Edit buttons are disabled while it is
+  open. A read-only contact has none.
+- **The editor** keeps the block's heading and replaces its grid with
+  rows (label 12/16 `--text-secondary` right-aligned in the 96px column,
+  controls 13/18, 32 high, 6px apart). Text fields are 28 high, with a 1px
+  `--separator` border, rounded 6, 8px padding; they are named by their
+  labels.
+  - **Photo well** first: the contact's 64px avatar (photo or initials)
+    as a button named "Change Photo". It opens a file picker for JPEG and
+    PNG images. The image is cropped to its centered square and scaled
+    on a canvas to at most 512 × 512 as a JPEG at quality 0.9. Under the
+    well, a **Remove Photo** text button when there is a photo. The new
+    photo shows at once and is written with Done.
+  - **first**, **last**, **nickname**, **company** and **job title**:
+    one text field each.
+  - **email**, **phone**, **address** and **URL** rows, one per value in
+    the contact's order, each starting with a label select (80 wide):
+    - emails: home, work, other;
+    - phones: mobile, home, work, main, home fax, work fax, pager, other;
+    - addresses: home, work, other;
+    - URLs: homepage, home, work, other;
+    - each list ends with **Custom…**, which turns the select into a text
+      field for the label. A label the card already has shows as itself.
+
+    Then the value: a text field, or for an address a street textarea
+    (2 lines) and fields for city, state, ZIP and country, 4px apart.
+    Each row ends with a 16px `MinusCircle` button named "Remove <label>
+    <kind>". After the rows of each kind, an "add email", "add phone",
+    "add address" or "add URL" text button 12/16 `--accent` adds an
+    empty row with the first label not yet used.
+  - **birthday:** a month select, a day select and a year field 64 wide;
+    an empty year means a birthday without one (`--MM-DD`).
+  - **note:** a textarea, 13/18, at least 80 high.
+- **Footer** of the block, 16px under the rows: **Delete Contact** at the
+  left (a text button 13/16 `--flag-1`); at the right **Cancel** and
+  **Done** (the settings buttons; Done is the primary one, disabled while
+  saving or while a field is invalid).
+- **Validation:** an email needs an "@" with text on both sides; a
+  birthday's day must exist in its month (Feb 29 only with a leap year or
+  no year); a new contact needs a first name, a last name, a company or an
+  email. An invalid field gets a 1px `--flag-1` border and its message
+  under it, 12/16 `--flag-1`.
+- **Done** sends `people.update` with the fields that differ from the
+  contact, a list as a whole when anything in it changed, then
+  `people.setPhoto` when the photo changed. It closes the editor when both
+  succeed and otherwise shows maild's error under the footer
+  (`role="alert"`). **Cancel** and Escape discard the editor.
+- **Leaving:** selecting another person, source or module while the
+  editor is open saves it first when it is valid. When it is not, it
+  stays, and the selection stays with it.
+- **New Contact** (People toolbar, Ctrl+N): clears the selection and
+  shows a block titled "New Contact", whose editor is open and empty.
+  When more than one address book can take a contact, an **address
+  book** select comes first; its choices are named as the blocks'
+  headings, and it starts on the first writable one. Done sends
+  `people.create` (then `people.setPhoto`) and selects the new person.
+  Cancel returns to the person selected before.
+- **Delete Contact** asks first: a dialog titled "Delete Contact?", with
+  the text `Delete "<name>" from <book> — <account>? It is removed from
+  every device that syncs this address book.` and OK labeled Delete.
+  Then it sends `people.delete`. The person stays selected while other
+  contacts of theirs remain.
+
 ### People toolbar
 
 The main toolbar keeps its three segments and its right end (search field,
@@ -151,9 +222,10 @@ Settings, window controls); `Toolbar`'s `mode` is `"people"`:
 
 - over the sidebar: the sidebar toggle, without Get Mail;
 - over the list: the title ("All Contacts", or the book's name), the
-  subtitle ("1 contact", "N contacts", or "N results" while searching), and
-  **New Message** as in Mail, addressed to the selected person's first
-  email, or blank without a selection;
+  subtitle ("1 contact", "N contacts", or "N results" while searching),
+  **New Contact** (`UserPlus`, "New Contact (Ctrl+N)"; disabled when no
+  address book can take one), and **New Message** as in Mail, addressed to
+  the selected person's first email, or blank without a selection;
 - over the person pane: none of Mail's message actions.
 - The search field's placeholder is "Search Contacts"; it filters the list
   (`people.list` with `query`) 250 ms after typing stops; Escape clears it.
@@ -170,8 +242,15 @@ Settings, window controls); `Toolbar`'s `mode` is `"people"`:
   is gone, nothing is selected.
 - **Focus:** Tab and Shift+Tab move between sidebar, list and pane as in
   Mail. Ctrl+F (and Ctrl+Alt+F) focus the search field. Ctrl+N starts a
-  new message (to the selected person's first email when the list has
-  focus).
+  new contact (M5.5; before, it started a new message, which the toolbar's
+  New Message still does).
+- **Refused changes:** a `people.refused` event shows a notice in the
+  undo toast's frame ([compose-ui.md](compose-ui.md)) for 8 seconds, with
+  a close button:
+  - `changed`: `"<name>" was changed on another device, so your change
+    wasn't saved.`;
+  - `deleted`: `"<name>" was deleted on another device.`;
+  - `refused`: `The server didn't accept your change to "<name>".`
 
 ## Contact card
 
@@ -206,9 +285,10 @@ does.
 ## Calendar module
 
 Day, week and month views over `calendar.range`, Apple Calendar's look
-with Outlook's keys. Phase 3 shows events; creating and editing them is a
-later event editor window (ADR-0020), and answering invitations is Phase
-4's.
+with Outlook's keys. Phase 3 shows events, and answering invitations is
+Phase 4's. Creating and editing them is M5.5's
+([plan 0009](../plans/0009-m5.5-edit-events-and-contacts.md)): the event
+editor window (ADR-0020), changes in the views, and undo, below.
 
 ```
 ┌──────────────┬──────────────────────────────────────────┬─────────────────┐
@@ -358,6 +438,14 @@ later event editor window (ADR-0020), and answering invitations is Phase
   for no answer; the icon's `aria-label` is the answer. A person's name is
   a button that opens the contact card.
 - **Notes:** the description 13/18, line breaks kept, links not made.
+- **Edit and Delete** (M5.5): at the pane's top right, two 28 × 28 icon
+  buttons, `Pencil` named "Edit Event" and `Trash2` named "Delete Event",
+  for an event in a writable calendar. Edit opens the event editor for
+  the selected occurrence. Delete deletes it: through the scope sheet for
+  an occurrence of a series, at once otherwise (Ctrl+Z brings it back).
+  For an event the user is invited to, Edit opens the editor with only
+  the alerts enabled, and Delete is absent: declining is the invitation's
+  answer.
 
 ### Calendar toolbar
 
@@ -365,7 +453,9 @@ later event editor window (ADR-0020), and answering invitations is Phase
 width and its right segment the event pane's.
 
 - Over the sidebar: the sidebar toggle.
-- Over the view: **Today** (a text button 28 high, 10px padding), ‹ ›
+- Over the view: **New Event** (`Plus`, "New Event (Ctrl+N)"; M5.5,
+  disabled when no calendar is writable), **Today** (a text button 28
+  high, 10px padding), ‹ ›
   (28 × 28, named "Previous Day/Week/Month" and "Next …"), the title
   15/20 600 ("Thursday, October 8, 2026"; a week "October 2026", or
   "Sep – Oct 2026" across months, or across years "Dec 2026 – Jan 2027";
@@ -385,9 +475,11 @@ width and its right segment the event pane's.
   Ctrl+T selects today; Ctrl+← and Ctrl+→ page the view by its period;
   with the view focused, ← → move the selected date by a day and ↑ ↓ by a
   week in the month view (in the day and week views they scroll the grid
-  by an hour); Enter shows the selected date's day; Escape clears the
-  selected occurrence. Tab and Shift+Tab move between sidebar, view and
-  pane.
+  by an hour); Enter opens the selected occurrence in the event editor,
+  or with none selected shows the selected date's day; Escape clears the
+  selected occurrence. Ctrl+N creates an event (the editor, below), and
+  Delete or Backspace deletes the selected occurrence as the pane's
+  Delete does. Tab and Shift+Tab move between sidebar, view and pane.
 - **Data:** the view's days come from `calendar.range` (the day; the
   week; the month view's 42 days), the small month's dots from another over
   its 42 days; `account.collections` lists the calendars and `account.list`
@@ -401,6 +493,128 @@ width and its right segment the event pane's.
 - **From elsewhere:** an Upcoming row on a contact card or the person
   pane switches to Calendar, selects the occurrence's date and the
   occurrence, and keeps the current view.
+- **Refused changes:** a `calendar.refused` event shows the notice of
+  People's (Behavior), with the event's summary as the name.
+
+### Event editor window (`EventEditor`)
+
+M5.5, Phase 3 (ADR-0020, ADR-0031, ADR-0033). A window of its own, as
+compose is: in the app, a Tauri window labeled `event-<id>`
+(`event-new-<n>` for a new event), opened by the `open_event` command;
+in a browser, a tab at `#/event/<id>?recurrenceId=…` or
+`#/event/new?…`. It is 480 × 600 (minimum 420 × 480), titled with the
+event's summary, else "New Event".
+
+- **Opening:** New Event and Ctrl+N give a new event on the selected
+  date: at the next whole hour today, else at 9:00 AM; an hour long; in
+  the default calendar. Double-clicking empty time in the day and week
+  views gives one at that half hour, an hour long. Double-clicking a
+  month cell or the all-day strip gives an all-day event on that day.
+  Dragging across empty time gives the dragged range. Double-click, Enter
+  or the pane's Edit opens an existing occurrence.
+- **Fields,** top to bottom, 20px padding:
+  - the title, a text field 17/22 600 named "Title" (placeholder "New
+    Event"), and the location, 13/18 (placeholder "Add Location");
+  - then rows (label 12/16 `--text-secondary` 80 wide, controls 13/18,
+    32 high):
+    - **all-day**: a checkbox;
+    - **starts** and **ends**: a date input, and a time input unless
+      all-day. Moving the start keeps the duration; an end before the
+      start marks the field invalid;
+    - **time zone**: a select (timed events only), the app's zone first,
+      then the event's own, then every IANA zone the webview knows, by
+      name;
+    - **repeat**: Never, Every Day, Every Weekday, Every Week, Every 2
+      Weeks, Every Month, Every Year, and Custom…, which opens the repeat
+      sheet. A rule the presets do not cover shows as its description
+      (`describeRecurrence`) and keeps its `RRULE` until changed;
+    - **end repeat** (when it repeats): Never, On Date (with a date
+      input), or After (with a count field and "times");
+    - **calendar**: a select of the writable calendars, grouped by
+      account, each with its color's 8px dot, starting on the event's own;
+    - **alerts**: a select per alert and an "add alert" text button.
+      Timed events offer None, At time of event, 5, 10, 15 and 30 minutes
+      before, 1 and 2 hours before, and 1 day, 2 days and 1 week before.
+      All-day events offer On the day at 9:00 AM, and 1 day, 2 days and 1
+      week before at 9:00 AM (minutes −540, 900, 2340 and 9540). An alert
+      the presets do not cover shows as `alarmText` and is kept until
+      changed;
+    - **show as**: Busy or Free.
+  - **notes:** a textarea, 13/18, at least 120 high.
+- **The repeat sheet** (the time sheet's frame, 420 wide, titled
+  "Custom Repeat"): **frequency** (Daily, Weekly, Monthly, Yearly);
+  **every** N days, weeks, months or years; for Weekly, seven toggle
+  buttons for the days, starting on the locale's first day; for Monthly,
+  either "on day N" or "on the first, second, third, fourth or last
+  <weekday>". OK writes the rule. `lib/repeat.ts` turns the presets and
+  the sheet into an `RRULE` and back.
+- **Footer:** for an existing event, **Delete Event** at the left
+  (13/16 `--flag-1`); at the right **Cancel** and **Save** (primary,
+  disabled while saving or while a field is invalid). Enter in a text
+  field saves; Escape cancels.
+- **Save** sends `calendar.create`, or `calendar.update` with the fields
+  that changed (an occurrence of a series asks the scope sheet first),
+  closes the window when it succeeds, and shows maild's error otherwise.
+  Closing the window with changes asks "Save changes to "<title>"?" with
+  Save, Don't Save and Cancel.
+- **Read-only and invited:** in a read-only calendar every field is
+  disabled, a line "Read-only" with a 12px `Lock` sits under the title,
+  and the footer is **Close**. For an event the user is invited to, only
+  the alerts are enabled, and the footer is Cancel and Save.
+
+### Scope sheet (`ScopeSheet`)
+
+ADR-0031. A dialog in the time sheet's frame, 420 wide, over the editor
+or the main window. It is titled "Change Repeating Event" or "Delete
+Repeating Event", with the text "Change only this event, this and all
+future events, or every event in the series?" ("Delete…" for a delete).
+Its buttons are stacked at the right: **This Event**, **All Future
+Events** (absent for the series' first occurrence), **All Events** and
+**Cancel**. They answer `this`, `future` and `all`; Cancel and Escape
+abandon the change.
+
+### Changing events in the views
+
+M5.5, Phase 4. Only occurrences of writable events the user organizes
+(or that have no organizer) move.
+
+- **Day and week views:**
+  - Pressing on an occurrence and moving 4px starts a drag. The block
+    follows the pointer at 60% opacity, in 15-minute steps, across days;
+    its time line shows the new range ("9:15 – 10:15 AM").
+  - Dropping writes `calendar.update` with the new start and end (in
+    the event's zone, or the app's when it has none), after the scope
+    sheet for a series.
+  - The bottom 6px of a block resize it instead: the end moves in
+    15-minute steps, to no less than 15 minutes after the start.
+  - Pressing on empty time and dragging draws a placeholder block in
+    15-minute steps; releasing opens the event editor with that range,
+    and nothing is written until Save.
+- **Month view and all-day strip:** dragging an occurrence to another day
+  moves it by whole days, keeping its times.
+- Escape during a drag puts everything back and writes nothing. A drag
+  that ends where it began is a click.
+
+### Sending to invitees (`NotifySheet`)
+
+M5.5, Phase 5 (ADR-0034). Before a create, change, delete or undo that
+would tell invitees, a dialog in the time sheet's frame asks. It is
+titled "Send Invitations?" (a new event, or invitees added), "Send
+Updates?" (a change) or "Send Cancellations?" (a delete, or invitees
+removed), with the text `<n> invitees will get <it/them> by email.` Its
+buttons are **Send**, **Don't Send** (absent where the provider's
+scheduling cannot be kept quiet) and **Cancel**. They become `notify`
+true or false, and Cancel abandons the change. The editor's Invitees
+field and the answers it shows are Phase 5's, specified with its cards.
+
+### Undo in Calendar and People
+
+M5.5, Phase 4 (ADR-0032). Calendar and People each keep their own undo
+list, as Mail does (at most 20 entries, in memory). Every create, change,
+delete, move and photo change pushes `{method: "calendar.restore" |
+"people.restore", restoreId}`. Ctrl+Z, outside a text field, undoes the
+module's newest entry and removes it. A restore that would tell invitees
+asks first, with the notify sheet.
 
 ## Tasks module
 

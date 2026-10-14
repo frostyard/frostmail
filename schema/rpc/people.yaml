@@ -1,7 +1,8 @@
 domain: people
 doc: >-
   Contacts from the accounts' address books, joined into people by email
-  address across address books and accounts (docs/design/pim.md).
+  address across address books and accounts (docs/design/pim.md), and
+  their edits (ADR-0030, ADR-0032).
 types:
   - name: PersonSummary
     doc: A row of the People list.
@@ -45,6 +46,26 @@ types:
       - {name: birthday, type: string, doc: "YYYY-MM-DD, or --MM-DD without a year; empty when unknown."}
       - {name: note, type: string}
       - {name: readOnly, type: bool}
+  - name: ContactFields
+    doc: What an edit sets; absent fields keep their values, and a list replaces the whole list.
+    fields:
+      - {name: givenName, type: string, optional: true}
+      - {name: familyName, type: string, optional: true}
+      - {name: nickname, type: string, optional: true}
+      - {name: organization, type: string, optional: true}
+      - {name: title, type: string, optional: true}
+      - {name: emails, type: "[]LabeledValue", optional: true}
+      - {name: phones, type: "[]LabeledValue", optional: true}
+      - {name: addresses, type: "[]PostalAddress", optional: true}
+      - {name: urls, type: "[]LabeledValue", optional: true}
+      - {name: birthday, type: string, optional: true, doc: "YYYY-MM-DD, --MM-DD, or empty to clear."}
+      - {name: note, type: string, optional: true}
+  - name: ContactWrite
+    doc: What a change wrote, and how to undo it (ADR-0032).
+    fields:
+      - {name: contactId, type: int}
+      - {name: person, type: Person, optional: true, doc: "The contact's person as changed; absent when no contact of theirs is left."}
+      - {name: restoreId, type: string, doc: "For people.restore, within a day."}
   - name: Person
     doc: A person and every contact that makes them up.
     fields:
@@ -117,9 +138,50 @@ methods:
       - {name: collectionId, type: int, optional: true, doc: "Default: the default address book of the first account with contacts on."}
     result: Person
     errors: [invalidParams, notFound, conflict]
+  - name: create
+    doc: Add a contact (a vCard 3.0) to an address book and write it to the server (ADR-0030).
+    params:
+      - {name: collectionId, type: int, optional: true, doc: "Default: the default address book of the first account with contacts on."}
+      - {name: fields, type: ContactFields, doc: "At least a name, an organization or an email address."}
+    result: ContactWrite
+    errors: [invalidParams, notFound, conflict]
+  - name: update
+    doc: Change a contact; the vCard keeps everything the fields do not touch (ADR-0030).
+    params:
+      - {name: id, type: int, doc: "The contact's ID."}
+      - {name: fields, type: ContactFields}
+    result: ContactWrite
+    errors: [invalidParams, notFound, conflict]
+  - name: delete
+    doc: Delete a contact from its address book and the server.
+    params:
+      - {name: id, type: int}
+    result: ContactWrite
+    errors: [notFound, conflict]
+  - name: setPhoto
+    doc: Set or remove a contact's photo; the app scales it to at most 512 by 512 first.
+    params:
+      - {name: id, type: int}
+      - {name: photo, type: Photo, optional: true, doc: "JPEG or PNG, at most 256 KB; absent removes the photo."}
+    result: ContactWrite
+    errors: [invalidParams, notFound, conflict]
+  - name: restore
+    doc: Undo a create, update, delete or setPhoto by writing back what it replaced (ADR-0032).
+    params:
+      - {name: restoreId, type: string}
+    errors: [notFound, conflict]
 events:
   - name: changed
     doc: An account's contacts changed, so people may have.
     durable: true
     fields:
       - {name: accountId, type: int}
+  - name: refused
+    doc: >-
+      The server refused a change and it could not be applied again; the
+      server's version stands (ADR-0030).
+    fields:
+      - {name: accountId, type: int}
+      - {name: contactId, type: int, optional: true, doc: "Absent when the contact is gone."}
+      - {name: name, type: string}
+      - {name: reason, type: string, doc: "changed (another client changed the same fields), deleted, or refused."}

@@ -505,6 +505,10 @@ export const AttendeeRoleValues: readonly AttendeeRole[] = ["chair", "required",
 export type ITIPMethod = "request" | "cancel" | "reply" | "publish" | "other";
 export const ITIPMethodValues: readonly ITIPMethod[] = ["request", "cancel", "reply", "publish", "other"];
 
+/** What a change to an occurrence of a series changes (ADR-0031). */
+export type EventScope = "this" | "future" | "all";
+export const EventScopeValues: readonly EventScope[] = ["this", "future", "all"];
+
 /** One occurrence of an event. */
 export interface Occurrence {
   /**
@@ -620,6 +624,46 @@ export interface Invitation {
   adjacent: Occurrence[];
 }
 
+/**
+ * What an edit sets; absent fields keep their values. A timed event has
+ * start, end and timeZone; an all-day one has startDate and endDate.
+ */
+export interface EventFields {
+  summary?: string;
+  location?: string;
+  /** Plain text. */
+  description?: string;
+  allDay?: boolean;
+  start?: string /* RFC 3339 */;
+  /** Exclusive; after start. */
+  end?: string /* RFC 3339 */;
+  /** The IANA zone the times are written in (ADR-0033). */
+  timeZone?: string;
+  /** All-day: the first day, YYYY-MM-DD. */
+  startDate?: string;
+  /** All-day: the day after the last. */
+  endDate?: string;
+  /** The RRULE value, such as FREQ=WEEKLY;BYDAY=MO,WE; empty for no repeat. */
+  rrule?: string;
+  /**
+   * The user's alerts, as minutes before the start (negative: after);
+   * replaces them all.
+   */
+  alarms?: number[];
+  /** Does not count as busy. */
+  transparent?: boolean;
+  /** Move the event to this calendar (ADR-0030). */
+  calendarId?: number;
+}
+
+/** What a change wrote, and how to undo it (ADR-0032). */
+export interface EventWrite {
+  /** The event or occurrence as changed; absent after a delete. */
+  event?: CalendarEvent;
+  /** For calendar.restore, within a day. */
+  restoreId: string;
+}
+
 /** An alarm that is due. */
 export interface Reminder {
   /**
@@ -688,6 +732,40 @@ export interface CalendarDismissParams {
   ids: string[];
 }
 
+/** Params of calendar.create. */
+export interface CalendarCreateParams {
+  /**
+   * Default: the default calendar of the first account with the calendar
+   * service on.
+   */
+  calendarId?: number;
+  /** With start, end and timeZone, or startDate and endDate. */
+  fields: EventFields;
+}
+
+/** Params of calendar.update. */
+export interface CalendarUpdateParams {
+  id: number;
+  /** The occurrence, for an event that repeats. */
+  recurrenceId?: string;
+  /** Required with recurrenceId. */
+  scope?: EventScope;
+  fields: EventFields;
+}
+
+/** Params of calendar.delete. */
+export interface CalendarDeleteParams {
+  id: number;
+  recurrenceId?: string;
+  /** Required with recurrenceId. */
+  scope?: EventScope;
+}
+
+/** Params of calendar.restore. */
+export interface CalendarRestoreParams {
+  restoreId: string;
+}
+
 /** An account's calendars or events changed; views refetch their ranges. */
 export interface CalendarChanged {
   accountId: number;
@@ -703,8 +781,22 @@ export interface CalendarReminders {
 }
 
 /**
+ * The server refused a change and it could not be applied again; the server's
+ * version stands (ADR-0030).
+ */
+export interface CalendarRefused {
+  accountId: number;
+  /** Absent when the event is gone. */
+  eventId?: number;
+  summary: string;
+  /** changed (another client changed the same fields), deleted, or refused. */
+  reason: string;
+}
+
+/**
  * Events from the accounts' calendars, their occurrences, invitations and
- * reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+ * reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits
+ * (ADR-0030 to ADR-0034).
  */
 export interface CalendarClient {
   /**
@@ -733,6 +825,23 @@ export interface CalendarClient {
   snooze(params: CalendarSnoozeParams): Promise<void>;
   /** Stop showing reminders. */
   dismiss(params: CalendarDismissParams): Promise<void>;
+  /**
+   * Add an event and write it to the server (ADR-0030). The views show it at
+   * once.
+   */
+  create(params: CalendarCreateParams): Promise<EventWrite>;
+  /**
+   * Change an event, an occurrence, or a series from an occurrence on
+   * (ADR-0031). An event the user is invited to takes only alarms.
+   */
+  update(params: CalendarUpdateParams): Promise<EventWrite>;
+  /** Delete an event, an occurrence, or a series from an occurrence on. */
+  delete(params: CalendarDeleteParams): Promise<EventWrite>;
+  /**
+   * Undo a create, update or delete by writing back what it replaced
+   * (ADR-0032).
+   */
+  restore(params: CalendarRestoreParams): Promise<void>;
 }
 
 function calendarClient(t: Transport): CalendarClient {
@@ -744,6 +853,10 @@ function calendarClient(t: Transport): CalendarClient {
     reminders: (params = {}) => t.call<Reminder[]>("calendar.reminders", params),
     snooze: (params) => t.call<null>("calendar.snooze", params).then(() => undefined),
     dismiss: (params) => t.call<null>("calendar.dismiss", params).then(() => undefined),
+    create: (params) => t.call<EventWrite>("calendar.create", params),
+    update: (params) => t.call<EventWrite>("calendar.update", params),
+    delete: (params) => t.call<EventWrite>("calendar.delete", params),
+    restore: (params) => t.call<null>("calendar.restore", params).then(() => undefined),
   };
 }
 
@@ -1729,6 +1842,37 @@ export interface Contact {
   readOnly: boolean;
 }
 
+/**
+ * What an edit sets; absent fields keep their values, and a list replaces the
+ * whole list.
+ */
+export interface ContactFields {
+  givenName?: string;
+  familyName?: string;
+  nickname?: string;
+  organization?: string;
+  title?: string;
+  emails?: LabeledValue[];
+  phones?: LabeledValue[];
+  addresses?: PostalAddress[];
+  urls?: LabeledValue[];
+  /** YYYY-MM-DD, --MM-DD, or empty to clear. */
+  birthday?: string;
+  note?: string;
+}
+
+/** What a change wrote, and how to undo it (ADR-0032). */
+export interface ContactWrite {
+  contactId: number;
+  /**
+   * The contact's person as changed; absent when no contact of theirs is
+   * left.
+   */
+  person?: Person;
+  /** For people.restore, within a day. */
+  restoreId: string;
+}
+
 /** A person and every contact that makes them up. */
 export interface Person {
   id: number;
@@ -1818,14 +1962,62 @@ export interface PeopleAddParams {
   collectionId?: number;
 }
 
+/** Params of people.create. */
+export interface PeopleCreateParams {
+  /**
+   * Default: the default address book of the first account with contacts on.
+   */
+  collectionId?: number;
+  /** At least a name, an organization or an email address. */
+  fields: ContactFields;
+}
+
+/** Params of people.update. */
+export interface PeopleUpdateParams {
+  /** The contact's ID. */
+  id: number;
+  fields: ContactFields;
+}
+
+/** Params of people.delete. */
+export interface PeopleDeleteParams {
+  id: number;
+}
+
+/** Params of people.setPhoto. */
+export interface PeopleSetPhotoParams {
+  id: number;
+  /** JPEG or PNG, at most 256 KB; absent removes the photo. */
+  photo?: Photo;
+}
+
+/** Params of people.restore. */
+export interface PeopleRestoreParams {
+  restoreId: string;
+}
+
 /** An account's contacts changed, so people may have. */
 export interface PeopleChanged {
   accountId: number;
 }
 
 /**
+ * The server refused a change and it could not be applied again; the server's
+ * version stands (ADR-0030).
+ */
+export interface PeopleRefused {
+  accountId: number;
+  /** Absent when the contact is gone. */
+  contactId?: number;
+  name: string;
+  /** changed (another client changed the same fields), deleted, or refused. */
+  reason: string;
+}
+
+/**
  * Contacts from the accounts' address books, joined into people by email
- * address across address books and accounts (docs/design/pim.md).
+ * address across address books and accounts (docs/design/pim.md), and their
+ * edits (ADR-0030, ADR-0032).
  */
 export interface PeopleClient {
   /**
@@ -1849,6 +2041,28 @@ export interface PeopleClient {
    * address book and write it to the server.
    */
   add(params: PeopleAddParams): Promise<Person>;
+  /**
+   * Add a contact (a vCard 3.0) to an address book and write it to the server
+   * (ADR-0030).
+   */
+  create(params: PeopleCreateParams): Promise<ContactWrite>;
+  /**
+   * Change a contact; the vCard keeps everything the fields do not touch
+   * (ADR-0030).
+   */
+  update(params: PeopleUpdateParams): Promise<ContactWrite>;
+  /** Delete a contact from its address book and the server. */
+  delete(params: PeopleDeleteParams): Promise<ContactWrite>;
+  /**
+   * Set or remove a contact's photo; the app scales it to at most 512 by 512
+   * first.
+   */
+  setPhoto(params: PeopleSetPhotoParams): Promise<ContactWrite>;
+  /**
+   * Undo a create, update, delete or setPhoto by writing back what it
+   * replaced (ADR-0032).
+   */
+  restore(params: PeopleRestoreParams): Promise<void>;
 }
 
 function peopleClient(t: Transport): PeopleClient {
@@ -1859,6 +2073,11 @@ function peopleClient(t: Transport): PeopleClient {
     photo: (params) => t.call<Photo>("people.photo", params),
     senders: (params) => t.call<SenderPhoto[]>("people.senders", params),
     add: (params) => t.call<Person>("people.add", params),
+    create: (params) => t.call<ContactWrite>("people.create", params),
+    update: (params) => t.call<ContactWrite>("people.update", params),
+    delete: (params) => t.call<ContactWrite>("people.delete", params),
+    setPhoto: (params) => t.call<ContactWrite>("people.setPhoto", params),
+    restore: (params) => t.call<null>("people.restore", params).then(() => undefined),
   };
 }
 
@@ -2606,12 +2825,14 @@ export type Event =
   | { event: "block.changed"; seq?: number; data: BlockChanged }
   | { event: "calendar.changed"; seq?: number; data: CalendarChanged }
   | { event: "calendar.reminders"; seq?: number; data: CalendarReminders }
+  | { event: "calendar.refused"; seq?: number; data: CalendarRefused }
   | { event: "draft.changed"; seq?: number; data: DraftChanged }
   | { event: "mailbox.changed"; seq?: number; data: MailboxChanged }
   | { event: "message.changed"; seq?: number; data: MessageChanged }
   | { event: "message.removed"; seq?: number; data: MessageRemoved }
   | { event: "outbox.changed"; seq?: number; data: OutboxChanged }
   | { event: "people.changed"; seq?: number; data: PeopleChanged }
+  | { event: "people.refused"; seq?: number; data: PeopleRefused }
   | { event: "rule.changed"; seq?: number; data: RuleChanged }
   | { event: "settings.changed"; seq?: number; data: SettingsChanged }
   | { event: "smart.changed"; seq?: number; data: SmartChanged }
@@ -2647,6 +2868,10 @@ export const METHODS = [
   "calendar.reminders",
   "calendar.snooze",
   "calendar.dismiss",
+  "calendar.create",
+  "calendar.update",
+  "calendar.delete",
+  "calendar.restore",
   "draft.create",
   "draft.open",
   "draft.get",
@@ -2696,6 +2921,11 @@ export const METHODS = [
   "people.photo",
   "people.senders",
   "people.add",
+  "people.create",
+  "people.update",
+  "people.delete",
+  "people.setPhoto",
+  "people.restore",
   "rpc.hello",
   "rule.list",
   "rule.create",
