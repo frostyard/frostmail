@@ -1,5 +1,5 @@
 // Details and people for the selected event.
-import { Check, CircleHelp, X } from "lucide-react";
+import { Check, CircleHelp, Pencil, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { alarmText, answerText, calendarColor, dateText, describeRecurrence, timeRange } from "../../lib/eventText";
 import type { Attendee, CalendarEvent } from "../../rpc/gen/api";
@@ -22,6 +22,8 @@ export interface EventPaneProps {
   locale: string;
   /** Open the contact card for a person, anchored at their name. */
   onPerson: (email: string, name: string, anchor: HTMLElement) => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -74,7 +76,7 @@ function People({
 }
 
 /** EventPane shows the selected event's details. */
-export function EventPane({ event, calendar, timeZone, locale, onPerson }: EventPaneProps) {
+export function EventPane({ event, calendar, timeZone, locale, onPerson, onEdit, onDelete }: EventPaneProps) {
   if (event === null)
     return (
       <div className="flex h-full items-center justify-center bg-window p-5 text-[13px] leading-4 text-tertiary">
@@ -83,11 +85,35 @@ export function EventPane({ event, calendar, timeZone, locale, onPerson }: Event
     );
   return (
     <div className="h-full overflow-y-auto bg-window p-5">
-      <header className="mb-4 select-text">
-        <h2 className="text-[17px] font-semibold leading-[22px]">{event.summary || "No Title"}</h2>
-        {event.location && <div className="text-[13px] leading-4 text-secondary">{event.location}</div>}
-        {event.status === "cancelled" && (
-          <div className="text-[12px] font-semibold leading-4 text-flag-1">Cancelled</div>
+      <header className="mb-4 flex items-start gap-1 select-text">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[17px] font-semibold leading-[22px]">{event.summary || "No Title"}</h2>
+          {event.location && <div className="text-[13px] leading-4 text-secondary">{event.location}</div>}
+          {event.status === "cancelled" && (
+            <div className="text-[12px] font-semibold leading-4 text-flag-1">Cancelled</div>
+          )}
+        </div>
+        {onEdit && (
+          <button
+            type="button"
+            aria-label="Edit Event"
+            title="Edit Event"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive"
+            onClick={onEdit}
+          >
+            <Pencil size={16} />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            aria-label="Delete Event"
+            title="Delete Event"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive"
+            onClick={onDelete}
+          >
+            <Trash2 size={16} />
+          </button>
         )}
       </header>
       <div className="mb-5 select-text text-[13px] leading-[18px]">
