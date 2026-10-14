@@ -1005,6 +1005,27 @@ func (v ITIPMethod) Valid() bool {
 	return false
 }
 
+// EventScope: What a change to an occurrence of a series changes (ADR-0031).
+type EventScope string
+
+const (
+	// This occurrence only: an override, or an EXDATE when deleting.
+	EventScopeThis EventScope = "this"
+	// This occurrence and the ones after it: the series splits.
+	EventScopeFuture EventScope = "future"
+	// The whole series: the master.
+	EventScopeAll EventScope = "all"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v EventScope) Valid() bool {
+	switch v {
+	case EventScopeThis, EventScopeFuture, EventScopeAll:
+		return true
+	}
+	return false
+}
+
 // Occurrence: One occurrence of an event.
 type Occurrence struct {
 	// The single event, the series' master, or the override that replaced this
@@ -1105,6 +1126,43 @@ type Invitation struct {
 	Adjacent []Occurrence `json:"adjacent"`
 }
 
+// EventFields: What an edit sets; absent fields keep their values. A timed
+// event has start, end and timeZone; an all-day one has startDate and
+// endDate.
+type EventFields struct {
+	Summary  *string `json:"summary,omitzero"`
+	Location *string `json:"location,omitzero"`
+	// Plain text.
+	Description *string    `json:"description,omitzero"`
+	AllDay      *bool      `json:"allDay,omitzero"`
+	Start       *time.Time `json:"start,omitzero"`
+	// Exclusive; after start.
+	End *time.Time `json:"end,omitzero"`
+	// The IANA zone the times are written in (ADR-0033).
+	TimeZone *string `json:"timeZone,omitzero"`
+	// All-day: the first day, YYYY-MM-DD.
+	StartDate *string `json:"startDate,omitzero"`
+	// All-day: the day after the last.
+	EndDate *string `json:"endDate,omitzero"`
+	// The RRULE value, such as FREQ=WEEKLY;BYDAY=MO,WE; empty for no repeat.
+	Rrule *string `json:"rrule,omitzero"`
+	// The user's alerts, as minutes before the start (negative: after); replaces
+	// them all.
+	Alarms []int64 `json:"alarms,omitzero"`
+	// Does not count as busy.
+	Transparent *bool `json:"transparent,omitzero"`
+	// Move the event to this calendar (ADR-0030).
+	CalendarID *int64 `json:"calendarId,omitzero"`
+}
+
+// EventWrite: What a change wrote, and how to undo it (ADR-0032).
+type EventWrite struct {
+	// The event or occurrence as changed; absent after a delete.
+	Event *CalendarEvent `json:"event,omitzero"`
+	// For calendar.restore, within a day.
+	RestoreID string `json:"restoreId"`
+}
+
 // Reminder: An alarm that is due.
 type Reminder struct {
 	// Opaque; names the occurrence and alarm for calendar.snooze and
@@ -1171,8 +1229,41 @@ type CalendarDismissParams struct {
 	IDs []string `json:"ids"`
 }
 
+// CalendarCreateParams holds the params of calendar.create.
+type CalendarCreateParams struct {
+	// Default: the default calendar of the first account with the calendar
+	// service on.
+	CalendarID *int64 `json:"calendarId,omitzero"`
+	// With start, end and timeZone, or startDate and endDate.
+	Fields EventFields `json:"fields"`
+}
+
+// CalendarUpdateParams holds the params of calendar.update.
+type CalendarUpdateParams struct {
+	ID int64 `json:"id"`
+	// The occurrence, for an event that repeats.
+	RecurrenceID *string `json:"recurrenceId,omitzero"`
+	// Required with recurrenceId.
+	Scope  *EventScope `json:"scope,omitzero"`
+	Fields EventFields `json:"fields"`
+}
+
+// CalendarDeleteParams holds the params of calendar.delete.
+type CalendarDeleteParams struct {
+	ID           int64   `json:"id"`
+	RecurrenceID *string `json:"recurrenceId,omitzero"`
+	// Required with recurrenceId.
+	Scope *EventScope `json:"scope,omitzero"`
+}
+
+// CalendarRestoreParams holds the params of calendar.restore.
+type CalendarRestoreParams struct {
+	RestoreID string `json:"restoreId"`
+}
+
 // CalendarService: Events from the accounts' calendars, their occurrences,
-// invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+// invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019), and
+// their edits (ADR-0030 to ADR-0034).
 type CalendarService interface {
 	// Range implements calendar.range. The occurrences that overlap the days from
 	// to to, in start order, from enabled calendars of accounts with the calendar
@@ -1196,6 +1287,19 @@ type CalendarService interface {
 	Snooze(ctx context.Context, p *CalendarSnoozeParams) error
 	// Dismiss implements calendar.dismiss. Stop showing reminders.
 	Dismiss(ctx context.Context, p *CalendarDismissParams) error
+	// Create implements calendar.create. Add an event and write it to the server
+	// (ADR-0030). The views show it at once.
+	Create(ctx context.Context, p *CalendarCreateParams) (*EventWrite, error)
+	// Update implements calendar.update. Change an event, an occurrence, or a
+	// series from an occurrence on (ADR-0031). An event the user is invited to
+	// takes only alarms.
+	Update(ctx context.Context, p *CalendarUpdateParams) (*EventWrite, error)
+	// Delete implements calendar.delete. Delete an event, an occurrence, or a
+	// series from an occurrence on.
+	Delete(ctx context.Context, p *CalendarDeleteParams) (*EventWrite, error)
+	// Restore implements calendar.restore. Undo a create, update or delete by
+	// writing back what it replaced (ADR-0032).
+	Restore(ctx context.Context, p *CalendarRestoreParams) error
 }
 
 func registerCalendar(r *Router, s CalendarService) {
@@ -1247,6 +1351,34 @@ func registerCalendar(r *Router, s CalendarService) {
 			return nil, err
 		}
 		return nil, s.Dismiss(ctx, &p)
+	})
+	r.handle("calendar.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarCreateParams
+		if err := decodeParams(raw, &p, []string{"fields"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("calendar.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarUpdateParams
+		if err := decodeParams(raw, &p, []string{"id", "fields"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("calendar.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Delete(ctx, &p)
+	})
+	r.handle("calendar.restore", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarRestoreParams
+		if err := decodeParams(raw, &p, []string{"restoreId"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Restore(ctx, &p)
 	})
 }
 
@@ -1312,6 +1444,41 @@ func (x CalendarClient) Dismiss(ctx context.Context, p *CalendarDismissParams) e
 	return x.c.Call(ctx, "calendar.dismiss", p, nil)
 }
 
+// Create calls calendar.create.
+func (x CalendarClient) Create(ctx context.Context, p *CalendarCreateParams) (*EventWrite, error) {
+	var r EventWrite
+	err := x.c.Call(ctx, "calendar.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Update calls calendar.update.
+func (x CalendarClient) Update(ctx context.Context, p *CalendarUpdateParams) (*EventWrite, error) {
+	var r EventWrite
+	err := x.c.Call(ctx, "calendar.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls calendar.delete.
+func (x CalendarClient) Delete(ctx context.Context, p *CalendarDeleteParams) (*EventWrite, error) {
+	var r EventWrite
+	err := x.c.Call(ctx, "calendar.delete", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Restore calls calendar.restore.
+func (x CalendarClient) Restore(ctx context.Context, p *CalendarRestoreParams) error {
+	return x.c.Call(ctx, "calendar.restore", p, nil)
+}
+
 // CalendarChanged: An account's calendars or events changed; views refetch
 // their ranges.
 type CalendarChanged struct {
@@ -1336,6 +1503,23 @@ func (CalendarReminders) EventName() string { return "calendar.reminders" }
 
 // Durable reports whether CalendarReminders is kept in the changes log.
 func (CalendarReminders) Durable() bool { return false }
+
+// CalendarRefused: The server refused a change and it could not be applied
+// again; the server's version stands (ADR-0030).
+type CalendarRefused struct {
+	AccountID int64 `json:"accountId"`
+	// Absent when the event is gone.
+	EventID *int64 `json:"eventId,omitzero"`
+	Summary string `json:"summary"`
+	// changed (another client changed the same fields), deleted, or refused.
+	Reason string `json:"reason"`
+}
+
+// EventName is the wire name of CalendarRefused.
+func (CalendarRefused) EventName() string { return "calendar.refused" }
+
+// Durable reports whether CalendarRefused is kept in the changes log.
+func (CalendarRefused) Durable() bool { return false }
 
 // ---- draft ----
 
@@ -3029,6 +3213,32 @@ type Contact struct {
 	ReadOnly bool   `json:"readOnly"`
 }
 
+// ContactFields: What an edit sets; absent fields keep their values, and a
+// list replaces the whole list.
+type ContactFields struct {
+	GivenName    *string         `json:"givenName,omitzero"`
+	FamilyName   *string         `json:"familyName,omitzero"`
+	Nickname     *string         `json:"nickname,omitzero"`
+	Organization *string         `json:"organization,omitzero"`
+	Title        *string         `json:"title,omitzero"`
+	Emails       []LabeledValue  `json:"emails,omitzero"`
+	Phones       []LabeledValue  `json:"phones,omitzero"`
+	Addresses    []PostalAddress `json:"addresses,omitzero"`
+	URLs         []LabeledValue  `json:"urls,omitzero"`
+	// YYYY-MM-DD, --MM-DD, or empty to clear.
+	Birthday *string `json:"birthday,omitzero"`
+	Note     *string `json:"note,omitzero"`
+}
+
+// ContactWrite: What a change wrote, and how to undo it (ADR-0032).
+type ContactWrite struct {
+	ContactID int64 `json:"contactId"`
+	// The contact's person as changed; absent when no contact of theirs is left.
+	Person *Person `json:"person,omitzero"`
+	// For people.restore, within a day.
+	RestoreID string `json:"restoreId"`
+}
+
 // Person: A person and every contact that makes them up.
 type Person struct {
 	ID           int64  `json:"id"`
@@ -3110,9 +3320,41 @@ type PeopleAddParams struct {
 	CollectionID *int64 `json:"collectionId,omitzero"`
 }
 
+// PeopleCreateParams holds the params of people.create.
+type PeopleCreateParams struct {
+	// Default: the default address book of the first account with contacts on.
+	CollectionID *int64 `json:"collectionId,omitzero"`
+	// At least a name, an organization or an email address.
+	Fields ContactFields `json:"fields"`
+}
+
+// PeopleUpdateParams holds the params of people.update.
+type PeopleUpdateParams struct {
+	// The contact's ID.
+	ID     int64         `json:"id"`
+	Fields ContactFields `json:"fields"`
+}
+
+// PeopleDeleteParams holds the params of people.delete.
+type PeopleDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// PeopleSetPhotoParams holds the params of people.setPhoto.
+type PeopleSetPhotoParams struct {
+	ID int64 `json:"id"`
+	// JPEG or PNG, at most 256 KB; absent removes the photo.
+	Photo *Photo `json:"photo,omitzero"`
+}
+
+// PeopleRestoreParams holds the params of people.restore.
+type PeopleRestoreParams struct {
+	RestoreID string `json:"restoreId"`
+}
+
 // PeopleService: Contacts from the accounts' address books, joined into
 // people by email address across address books and accounts
-// (docs/design/pim.md).
+// (docs/design/pim.md), and their edits (ADR-0030, ADR-0032).
 type PeopleService interface {
 	// List implements people.list. People sorted by name. With query, those whose
 	// name, organization or email address has a word starting with it,
@@ -3133,6 +3375,21 @@ type PeopleService interface {
 	// Add implements people.add. Add to Contacts: store a new vCard 3.0 with the
 	// name and address in an address book and write it to the server.
 	Add(ctx context.Context, p *PeopleAddParams) (*Person, error)
+	// Create implements people.create. Add a contact (a vCard 3.0) to an address
+	// book and write it to the server (ADR-0030).
+	Create(ctx context.Context, p *PeopleCreateParams) (*ContactWrite, error)
+	// Update implements people.update. Change a contact; the vCard keeps
+	// everything the fields do not touch (ADR-0030).
+	Update(ctx context.Context, p *PeopleUpdateParams) (*ContactWrite, error)
+	// Delete implements people.delete. Delete a contact from its address book and
+	// the server.
+	Delete(ctx context.Context, p *PeopleDeleteParams) (*ContactWrite, error)
+	// SetPhoto implements people.setPhoto. Set or remove a contact's photo; the
+	// app scales it to at most 512 by 512 first.
+	SetPhoto(ctx context.Context, p *PeopleSetPhotoParams) (*ContactWrite, error)
+	// Restore implements people.restore. Undo a create, update, delete or
+	// setPhoto by writing back what it replaced (ADR-0032).
+	Restore(ctx context.Context, p *PeopleRestoreParams) error
 }
 
 func registerPeople(r *Router, s PeopleService) {
@@ -3177,6 +3434,41 @@ func registerPeople(r *Router, s PeopleService) {
 			return nil, err
 		}
 		return s.Add(ctx, &p)
+	})
+	r.handle("people.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleCreateParams
+		if err := decodeParams(raw, &p, []string{"fields"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("people.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleUpdateParams
+		if err := decodeParams(raw, &p, []string{"id", "fields"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("people.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Delete(ctx, &p)
+	})
+	r.handle("people.setPhoto", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleSetPhotoParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.SetPhoto(ctx, &p)
+	})
+	r.handle("people.restore", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p PeopleRestoreParams
+		if err := decodeParams(raw, &p, []string{"restoreId"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Restore(ctx, &p)
 	})
 }
 
@@ -3242,6 +3534,51 @@ func (x PeopleClient) Add(ctx context.Context, p *PeopleAddParams) (*Person, err
 	return &r, nil
 }
 
+// Create calls people.create.
+func (x PeopleClient) Create(ctx context.Context, p *PeopleCreateParams) (*ContactWrite, error) {
+	var r ContactWrite
+	err := x.c.Call(ctx, "people.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Update calls people.update.
+func (x PeopleClient) Update(ctx context.Context, p *PeopleUpdateParams) (*ContactWrite, error) {
+	var r ContactWrite
+	err := x.c.Call(ctx, "people.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls people.delete.
+func (x PeopleClient) Delete(ctx context.Context, p *PeopleDeleteParams) (*ContactWrite, error) {
+	var r ContactWrite
+	err := x.c.Call(ctx, "people.delete", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// SetPhoto calls people.setPhoto.
+func (x PeopleClient) SetPhoto(ctx context.Context, p *PeopleSetPhotoParams) (*ContactWrite, error) {
+	var r ContactWrite
+	err := x.c.Call(ctx, "people.setPhoto", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Restore calls people.restore.
+func (x PeopleClient) Restore(ctx context.Context, p *PeopleRestoreParams) error {
+	return x.c.Call(ctx, "people.restore", p, nil)
+}
+
 // PeopleChanged: An account's contacts changed, so people may have.
 type PeopleChanged struct {
 	AccountID int64 `json:"accountId"`
@@ -3252,6 +3589,23 @@ func (PeopleChanged) EventName() string { return "people.changed" }
 
 // Durable reports whether PeopleChanged is kept in the changes log.
 func (PeopleChanged) Durable() bool { return true }
+
+// PeopleRefused: The server refused a change and it could not be applied
+// again; the server's version stands (ADR-0030).
+type PeopleRefused struct {
+	AccountID int64 `json:"accountId"`
+	// Absent when the contact is gone.
+	ContactID *int64 `json:"contactId,omitzero"`
+	Name      string `json:"name"`
+	// changed (another client changed the same fields), deleted, or refused.
+	Reason string `json:"reason"`
+}
+
+// EventName is the wire name of PeopleRefused.
+func (PeopleRefused) EventName() string { return "people.refused" }
+
+// Durable reports whether PeopleRefused is kept in the changes log.
+func (PeopleRefused) Durable() bool { return false }
 
 // ---- rpc ----
 
@@ -4810,6 +5164,10 @@ var Methods = []string{
 	"calendar.reminders",
 	"calendar.snooze",
 	"calendar.dismiss",
+	"calendar.create",
+	"calendar.update",
+	"calendar.delete",
+	"calendar.restore",
 	"draft.create",
 	"draft.open",
 	"draft.get",
@@ -4859,6 +5217,11 @@ var Methods = []string{
 	"people.photo",
 	"people.senders",
 	"people.add",
+	"people.create",
+	"people.update",
+	"people.delete",
+	"people.setPhoto",
+	"people.restore",
 	"rpc.hello",
 	"rule.list",
 	"rule.create",
@@ -4918,6 +5281,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}
 		return e, nil
+	case "calendar.refused":
+		var e CalendarRefused
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
 	case "draft.changed":
 		var e DraftChanged
 		if err := json.Unmarshal(data, &e); err != nil {
@@ -4950,6 +5319,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "people.changed":
 		var e PeopleChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "people.refused":
+		var e PeopleRefused
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

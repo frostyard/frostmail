@@ -1,7 +1,8 @@
 domain: calendar
 doc: >-
   Events from the accounts' calendars, their occurrences, invitations and
-  reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+  reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits
+  (ADR-0030 to ADR-0034).
 enums:
   - name: PartStat
     doc: An attendee's answer to an invitation (iCalendar PARTSTAT).
@@ -32,6 +33,12 @@ enums:
       - {name: reply, doc: "An attendee answered the user's invitation."}
       - {name: publish, doc: "An event to add; no answer expected."}
       - {name: other, doc: "ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on."}
+  - name: EventScope
+    doc: What a change to an occurrence of a series changes (ADR-0031).
+    values:
+      - {name: this, doc: "This occurrence only: an override, or an EXDATE when deleting."}
+      - {name: future, doc: "This occurrence and the ones after it: the series splits."}
+      - {name: all, doc: "The whole series: the master."}
 types:
   - name: Occurrence
     doc: One occurrence of an event.
@@ -97,6 +104,29 @@ types:
       - {name: outdated, type: bool, doc: "The stored event has a later SEQUENCE than the message."}
       - {name: conflicts, type: "[]Occurrence", doc: "Busy occurrences overlapping the event's first occurrence."}
       - {name: adjacent, type: "[]Occurrence", doc: "The occurrences just before and after it on the same day."}
+  - name: EventFields
+    doc: >-
+      What an edit sets; absent fields keep their values. A timed event has
+      start, end and timeZone; an all-day one has startDate and endDate.
+    fields:
+      - {name: summary, type: string, optional: true}
+      - {name: location, type: string, optional: true}
+      - {name: description, type: string, optional: true, doc: "Plain text."}
+      - {name: allDay, type: bool, optional: true}
+      - {name: start, type: time, optional: true}
+      - {name: end, type: time, optional: true, doc: "Exclusive; after start."}
+      - {name: timeZone, type: string, optional: true, doc: "The IANA zone the times are written in (ADR-0033)."}
+      - {name: startDate, type: string, optional: true, doc: "All-day: the first day, YYYY-MM-DD."}
+      - {name: endDate, type: string, optional: true, doc: "All-day: the day after the last."}
+      - {name: rrule, type: string, optional: true, doc: "The RRULE value, such as FREQ=WEEKLY;BYDAY=MO,WE; empty for no repeat."}
+      - {name: alarms, type: "[]int", optional: true, doc: "The user's alerts, as minutes before the start (negative: after); replaces them all."}
+      - {name: transparent, type: bool, optional: true, doc: "Does not count as busy."}
+      - {name: calendarId, type: int, optional: true, doc: "Move the event to this calendar (ADR-0030)."}
+  - name: EventWrite
+    doc: What a change wrote, and how to undo it (ADR-0032).
+    fields:
+      - {name: event, type: CalendarEvent, optional: true, doc: "The event or occurrence as changed; absent after a delete."}
+      - {name: restoreId, type: string, doc: "For calendar.restore, within a day."}
   - name: Reminder
     doc: An alarm that is due.
     fields:
@@ -164,6 +194,39 @@ methods:
     params:
       - {name: ids, type: "[]string"}
     errors: [invalidParams]
+  - name: create
+    doc: >-
+      Add an event and write it to the server (ADR-0030). The views show it
+      at once.
+    params:
+      - {name: calendarId, type: int, optional: true, doc: "Default: the default calendar of the first account with the calendar service on."}
+      - {name: fields, type: EventFields, doc: "With start, end and timeZone, or startDate and endDate."}
+    result: EventWrite
+    errors: [invalidParams, notFound, conflict]
+  - name: update
+    doc: >-
+      Change an event, an occurrence, or a series from an occurrence on
+      (ADR-0031). An event the user is invited to takes only alarms.
+    params:
+      - {name: id, type: int}
+      - {name: recurrenceId, type: string, optional: true, doc: "The occurrence, for an event that repeats."}
+      - {name: scope, type: EventScope, optional: true, doc: "Required with recurrenceId."}
+      - {name: fields, type: EventFields}
+    result: EventWrite
+    errors: [invalidParams, notFound, conflict]
+  - name: delete
+    doc: Delete an event, an occurrence, or a series from an occurrence on.
+    params:
+      - {name: id, type: int}
+      - {name: recurrenceId, type: string, optional: true}
+      - {name: scope, type: EventScope, optional: true, doc: "Required with recurrenceId."}
+    result: EventWrite
+    errors: [invalidParams, notFound, conflict]
+  - name: restore
+    doc: Undo a create, update or delete by writing back what it replaced (ADR-0032).
+    params:
+      - {name: restoreId, type: string}
+    errors: [notFound, conflict]
 events:
   - name: changed
     doc: An account's calendars or events changed; views refetch their ranges.
@@ -174,3 +237,12 @@ events:
     doc: Reminders became due; the app raises its reminder window with calendar.reminders.
     fields:
       - {name: count, type: int, doc: "How many are due now."}
+  - name: refused
+    doc: >-
+      The server refused a change and it could not be applied again; the
+      server's version stands (ADR-0030).
+    fields:
+      - {name: accountId, type: int}
+      - {name: eventId, type: int, optional: true, doc: "Absent when the event is gone."}
+      - {name: summary, type: string}
+      - {name: reason, type: string, doc: "changed (another client changed the same fields), deleted, or refused."}

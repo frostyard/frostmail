@@ -445,7 +445,7 @@ One blocked address.
 
 ## calendar
 
-Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019).
+Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits (ADR-0030 to ADR-0034).
 
 ### `calendar.range`
 
@@ -530,6 +530,56 @@ Stop showing reminders.
 Result: none (`null`).
 Errors: `invalidParams`.
 
+### `calendar.create`
+
+Add an event and write it to the server (ADR-0030). The views show it at once.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `calendarId` | `int` (optional) | Default: the default calendar of the first account with the calendar service on. |
+| `fields` | `EventFields` | With start, end and timeZone, or startDate and endDate. |
+
+Result: `EventWrite`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `calendar.update`
+
+Change an event, an occurrence, or a series from an occurrence on (ADR-0031). An event the user is invited to takes only alarms.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `recurrenceId` | `string` (optional) | The occurrence, for an event that repeats. |
+| `scope` | `EventScope` (optional) | Required with recurrenceId. |
+| `fields` | `EventFields` |  |
+
+Result: `EventWrite`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `calendar.delete`
+
+Delete an event, an occurrence, or a series from an occurrence on.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `recurrenceId` | `string` (optional) |  |
+| `scope` | `EventScope` (optional) | Required with recurrenceId. |
+
+Result: `EventWrite`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `calendar.restore`
+
+Undo a create, update or delete by writing back what it replaced (ADR-0032).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `restoreId` | `string` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
 ### Event `calendar.changed` (durable)
 
 An account's calendars or events changed; views refetch their ranges.
@@ -545,6 +595,17 @@ Reminders became due; the app raises its reminder window with calendar.reminders
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `count` | `int` | How many are due now. |
+
+### Event `calendar.refused` (transient)
+
+The server refused a change and it could not be applied again; the server's version stands (ADR-0030).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `eventId` | `int` (optional) | Absent when the event is gone. |
+| `summary` | `string` |  |
+| `reason` | `string` | changed (another client changed the same fields), deleted, or refused. |
 
 ### Type `Occurrence`
 
@@ -626,6 +687,35 @@ An iTIP message in mail, matched against the stored events (ADR-0019).
 | `conflicts` | `[]Occurrence` | Busy occurrences overlapping the event's first occurrence. |
 | `adjacent` | `[]Occurrence` | The occurrences just before and after it on the same day. |
 
+### Type `EventFields`
+
+What an edit sets; absent fields keep their values. A timed event has start, end and timeZone; an all-day one has startDate and endDate.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `summary` | `string` (optional) |  |
+| `location` | `string` (optional) |  |
+| `description` | `string` (optional) | Plain text. |
+| `allDay` | `bool` (optional) |  |
+| `start` | `time` (optional) |  |
+| `end` | `time` (optional) | Exclusive; after start. |
+| `timeZone` | `string` (optional) | The IANA zone the times are written in (ADR-0033). |
+| `startDate` | `string` (optional) | All-day: the first day, YYYY-MM-DD. |
+| `endDate` | `string` (optional) | All-day: the day after the last. |
+| `rrule` | `string` (optional) | The RRULE value, such as FREQ=WEEKLY;BYDAY=MO,WE; empty for no repeat. |
+| `alarms` | `[]int` (optional) | The user's alerts, as minutes before the start (negative: after); replaces them all. |
+| `transparent` | `bool` (optional) | Does not count as busy. |
+| `calendarId` | `int` (optional) | Move the event to this calendar (ADR-0030). |
+
+### Type `EventWrite`
+
+What a change wrote, and how to undo it (ADR-0032).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `event` | `CalendarEvent` (optional) | The event or occurrence as changed; absent after a delete. |
+| `restoreId` | `string` | For calendar.restore, within a day. |
+
 ### Type `Reminder`
 
 An alarm that is due.
@@ -687,6 +777,16 @@ What an invitation message asks (iTIP METHOD).
 | `reply` | An attendee answered the user's invitation. |
 | `publish` | An event to add; no answer expected. |
 | `other` | ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on. |
+
+### Enum `EventScope`
+
+What a change to an occurrence of a series changes (ADR-0031).
+
+| Value | Meaning |
+| --- | --- |
+| `this` | This occurrence only: an override, or an EXDATE when deleting. |
+| `future` | This occurrence and the ones after it: the series splits. |
+| `all` | The whole series: the master. |
 
 ## draft
 
@@ -1575,7 +1675,7 @@ Where a message is on its way out.
 
 ## people
 
-Contacts from the accounts' address books, joined into people by email address across address books and accounts (docs/design/pim.md).
+Contacts from the accounts' address books, joined into people by email address across address books and accounts (docs/design/pim.md), and their edits (ADR-0030, ADR-0032).
 
 ### `people.list`
 
@@ -1645,6 +1745,64 @@ Add to Contacts: store a new vCard 3.0 with the name and address in an address b
 Result: `Person`.
 Errors: `invalidParams`, `notFound`, `conflict`.
 
+### `people.create`
+
+Add a contact (a vCard 3.0) to an address book and write it to the server (ADR-0030).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `collectionId` | `int` (optional) | Default: the default address book of the first account with contacts on. |
+| `fields` | `ContactFields` | At least a name, an organization or an email address. |
+
+Result: `ContactWrite`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `people.update`
+
+Change a contact; the vCard keeps everything the fields do not touch (ADR-0030).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` | The contact's ID. |
+| `fields` | `ContactFields` |  |
+
+Result: `ContactWrite`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `people.delete`
+
+Delete a contact from its address book and the server.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `ContactWrite`.
+Errors: `notFound`, `conflict`.
+
+### `people.setPhoto`
+
+Set or remove a contact's photo; the app scales it to at most 512 by 512 first.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `photo` | `Photo` (optional) | JPEG or PNG, at most 256 KB; absent removes the photo. |
+
+Result: `ContactWrite`.
+Errors: `invalidParams`, `notFound`, `conflict`.
+
+### `people.restore`
+
+Undo a create, update, delete or setPhoto by writing back what it replaced (ADR-0032).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `restoreId` | `string` |  |
+
+Result: none (`null`).
+Errors: `notFound`, `conflict`.
+
 ### Event `people.changed` (durable)
 
 An account's contacts changed, so people may have.
@@ -1652,6 +1810,17 @@ An account's contacts changed, so people may have.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `accountId` | `int` |  |
+
+### Event `people.refused` (transient)
+
+The server refused a change and it could not be applied again; the server's version stands (ADR-0030).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `contactId` | `int` (optional) | Absent when the contact is gone. |
+| `name` | `string` |  |
+| `reason` | `string` | changed (another client changed the same fields), deleted, or refused. |
 
 ### Type `PersonSummary`
 
@@ -1710,6 +1879,34 @@ One vCard of a person, from one address book, read from its source.
 | `birthday` | `string` | YYYY-MM-DD, or --MM-DD without a year; empty when unknown. |
 | `note` | `string` |  |
 | `readOnly` | `bool` |  |
+
+### Type `ContactFields`
+
+What an edit sets; absent fields keep their values, and a list replaces the whole list.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `givenName` | `string` (optional) |  |
+| `familyName` | `string` (optional) |  |
+| `nickname` | `string` (optional) |  |
+| `organization` | `string` (optional) |  |
+| `title` | `string` (optional) |  |
+| `emails` | `[]LabeledValue` (optional) |  |
+| `phones` | `[]LabeledValue` (optional) |  |
+| `addresses` | `[]PostalAddress` (optional) |  |
+| `urls` | `[]LabeledValue` (optional) |  |
+| `birthday` | `string` (optional) | YYYY-MM-DD, --MM-DD, or empty to clear. |
+| `note` | `string` (optional) |  |
+
+### Type `ContactWrite`
+
+What a change wrote, and how to undo it (ADR-0032).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `contactId` | `int` |  |
+| `person` | `Person` (optional) | The contact's person as changed; absent when no contact of theirs is left. |
+| `restoreId` | `string` | For people.restore, within a day. |
 
 ### Type `Person`
 

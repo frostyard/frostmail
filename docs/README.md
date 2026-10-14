@@ -45,6 +45,11 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0027 — Unsubscribe with one click through the sender's server](adr/0027-unsubscribe-with-one-click.md)
 - [0028 — Mute and block are maild's; Undo is the app's](adr/0028-mute-and-block-in-maild-undo-in-the-app.md)
 - [0029 — Show no mail categories](adr/0029-show-no-mail-categories.md)
+- [0030 — Edit contacts and events as patches, and re-apply a refused change](adr/0030-edit-contacts-and-events-as-patches.md)
+- [0031 — Edit a recurring event in three scopes](adr/0031-edit-a-recurring-event-in-three-scopes.md)
+- [0032 — Undo restores what a change replaced](adr/0032-undo-restores-what-a-change-replaced.md)
+- [0033 — Write new events with their zone's VTIMEZONE](adr/0033-write-new-events-with-their-zones-vtimezone.md)
+- [0034 — Invite from the organizer's copy, and ask before telling invitees](adr/0034-invite-from-the-organizers-copy-and-ask-before-telling-invitees.md)
 
 ### Design
 

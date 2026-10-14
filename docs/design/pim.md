@@ -7,7 +7,14 @@ editing events and contacts comes in
 [ADR-0018](../adr/0018-keep-contacts-events-and-tasks-as-sent.md) (storage),
 [ADR-0022](../adr/0022-mail-the-reply-the-server-will-not-send.md)
 (invitations), [ADR-0020](../adr/0020-one-window-for-mail-calendar-people-and-tasks.md)
-(one window). Contracts: `schema/rpc/{people,calendar,tasks}.yaml` and
+(one window), and for editing
+[ADR-0030](../adr/0030-edit-contacts-and-events-as-patches.md) (patches
+and refusals), [ADR-0031](../adr/0031-edit-a-recurring-event-in-three-scopes.md)
+(recurring scopes), [ADR-0032](../adr/0032-undo-restores-what-a-change-replaced.md)
+(undo), [ADR-0033](../adr/0033-write-new-events-with-their-zones-vtimezone.md)
+(time zones) and
+[ADR-0034](../adr/0034-invite-from-the-organizers-copy-and-ask-before-telling-invitees.md)
+(invitations as organizer). Contracts: `schema/rpc/{people,calendar,tasks}.yaml` and
 `specs/pim-ui.md`, written in Phase 1.
 
 ## Overview
@@ -68,11 +75,11 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   source is already patched locally, and the ETag the change was made on
   (`If-None-Match: *` for a creation). Each pass replays the due changes
   before it reads, and leaves objects with waiting changes alone. A
-  network failure retries after 1, 5, 15 and 60 minutes; a server that
-  refuses the change (412, or another 4xx) fails it, and the server's
-  version stands (a refused creation is removed locally). Re-applying a
-  patch to the server's newer version after a 412 comes with the first
-  patches (Phase 4). A server may store a new object under a name of its
+  network failure retries after 1, 5, 15 and 60 minutes. A server that
+  refuses a task change or an answer (412, or another 4xx) fails it, and
+  the server's version stands (a refused creation is removed locally).
+  An edit of a contact or event is re-applied after a 412 when it still
+  fits (Editing, below). A server may store a new object under a name of its
   own and answer 201 with a `Location` (Google's CalDAV names it from its
   UID, which for an accepted invitation is the organizer's): the local
   object moves there, or gives way to the copy a pass already brought,
@@ -208,6 +215,66 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - "Add to Contacts" creates a vCard 3.0 (Google and iCloud both accept it)
   in the account's default address book with `dav.put` and
   `If-None-Match: *`.
+
+### Editing
+
+M5.5 ([plan 0009](../plans/0009-m5.5-edit-events-and-contacts.md)) makes
+contacts and events writable through `people.create`, `update`, `delete`,
+`setPhoto` and `restore`, and `calendar.create`, `update`, `delete` and
+`restore`.
+
+- **Patches.** A method checks the object is writable (`conflict` for a
+  read-only account, address book or calendar), applies the fields to
+  the stored source (`vcardx.Patch` and `NewCard`; `calendar.PatchEvent`
+  and `NewEvent`), stores the result and its index, records the restore,
+  and queues the op, all in one transaction with `people.changed` or
+  `calendar.changed`. Then it kicks the account's pass. An event's
+  instances are expanded again in that transaction, so the views move at
+  once.
+- **The op's payload.** An edit's `put` holds `{"changes": [fields…],
+  "base": {"<component>/<PROPERTY>": [lines…]}}`. A component is `VCARD`,
+  or `VEVENT` with the occurrence's `RECURRENCE-ID` (`VEVENT` alone for
+  the master). The base holds each touched property's unfolded lines as
+  the source had them before the first change. A second edit while the
+  op waits appends its fields, and its base for properties not yet in it.
+- **After a 412**, the pass fetches the object (`GET`). When every base
+  entry matches the server's lines, it applies the changes in order to
+  the server's source, stores that with the server's ETag, and puts it
+  again: three attempts, then as below. Otherwise it stores the server's
+  version, drops the op, and emits `people.refused` or `calendar.refused`
+  with reason `changed`. A 404 emits reason `deleted` and removes the
+  local object; other 4xx answers emit `refused`.
+- **Restores** (`pim_restores`, a row per write with an opaque ID, the
+  account and when; `pim_restore_objects`, a row per object it touched,
+  with the collection, href, UID and the source before, or NULL when the
+  write created the object). `restore` queues a `put` of each kept
+  source on the object's current ETag, re-creates deleted objects with
+  `If-None-Match: *`, deletes the created ones, and drops the row. Rows
+  older than a day are dropped by the pass. The tables come with Phase
+  2's migration.
+- **Contacts.** `vcardx.Patch` keeps the card's version, its groups and
+  every parameter the fields do not set. List fields map onto the lines
+  of their property in order, with Apple's `itemN.X-ABLabel` labels kept
+  as groups (ADR-0030). A new contact is a vCard 3.0, `<uid>.vcf` in the
+  address book. `setPhoto` writes `PHOTO` in the card's version: a JPEG
+  or PNG of at most 256 KB, which the app has scaled to at most 512 × 512.
+- **Events.** `calendar.PatchEvent` changes the master, an override or
+  the split of ADR-0031 by `scope`. A new event is `<uid>.ics` in its
+  calendar, with the generated `VTIMEZONE` of its zone
+  (`calendar.VTimezone`, ADR-0033), `DTSTAMP`, `CREATED`,
+  `LAST-MODIFIED` and `SEQUENCE:0`. Alerts are `VALARM`s with
+  `ACTION:DISPLAY` and a relative `TRIGGER`: the fields replace the
+  event's `DISPLAY` and `AUDIO` alarms (the ones Calendar shows) and keep
+  its `EMAIL` alarms, which are the server's. A move to another
+  calendar is a `put` there and a `delete` here, whose payload names the
+  put (`{"after": <op id>}`): the delete waits while the put is queued,
+  and is dropped with a `calendar.refused` if the put was refused.
+- **Invitations as organizer** (ADR-0034, Phase 5 of the plan): the
+  organizer is the account's default identity. The provider fact
+  `SchedulesOrganizer` chooses between the server and maild's iTIP
+  `REQUEST` and `CANCEL` (`internal/itip`) through the outbox. The app
+  asks first, and the methods take `notify`. Answers that come back as
+  mail are applied to the organizer's copy.
 
 ### Tasks
 
