@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/frostyard/frostmail/internal/contentline"
 )
@@ -57,4 +58,44 @@ func RaiseSequence(src []byte, floor int) ([]byte, error) {
 		return nil, fmt.Errorf("raise sequence: %w", err)
 	}
 	return out, nil
+}
+
+// KeepOverrides is restored with a plain override, made from its master
+// as This Event makes one, for each occurrence that current overrides and
+// restored does not. Google's CalDAV keeps an exception its PUT leaves
+// out, so a restore written there must reset the exception instead.
+func KeepOverrides(restored, current []byte, now time.Time) ([]byte, error) {
+	components, err := contentline.Parse(current)
+	if err != nil {
+		return nil, fmt.Errorf("keep overrides: %w", err)
+	}
+	have := map[string]bool{}
+	for _, e := range mustEvents(restored) {
+		have[e.RecurrenceID] = true
+	}
+	out := restored
+	for _, cal := range components {
+		if cal.Name != "VCALENDAR" {
+			continue
+		}
+		for _, v := range cal.ChildrenNamed("VEVENT") {
+			key := VEventRecurrenceID(cal, v, time.Local)
+			if key == "" || have[key] {
+				continue
+			}
+			next, _, err := PatchOccurrence(out, key, ScopeThis, EventChange{}, "", now)
+			if err != nil {
+				continue // the restored series has no such occurrence
+			}
+			out = next
+			have[key] = true
+		}
+		break
+	}
+	return out, nil
+}
+
+func mustEvents(src []byte) []Event {
+	events, _ := Parse(src, Options{Local: time.Local})
+	return events
 }

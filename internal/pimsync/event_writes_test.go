@@ -404,6 +404,41 @@ func TestEventEditRefusedOutright(t *testing.T) {
 	}
 }
 
+// Google keeps an exception a PUT leaves out, so undoing This Event on a
+// Gmail account resets the override to its occurrence instead of
+// dropping it.
+func TestEventRestoreKeepsGooglesException(t *testing.T) {
+	e := newEventEnv(t)
+	ctx := t.Context()
+	if err := e.db.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE accounts SET kind = 'gmail' WHERE id = ?`, e.acct.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	oct22 := "2026-10-22T13:00:00.000Z"
+	later := utcAt("2026-10-22T14:00Z")
+	w, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: e.event("Sync"), RecurrenceID: &oct22,
+		Scope: scope(api.EventScopeThis), Fields: api.EventFields{AllDay: ptr2(false), Start: &later,
+			End: ptr2(later.Add(30 * time.Minute)), TimeZone: ptr2("America/New_York")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.pass()
+	if err := e.cal.Restore(ctx, &api.CalendarRestoreParams{RestoreID: w.RestoreID}); err != nil {
+		t.Fatal(err)
+	}
+	e.pass()
+	got := e.server(e.work + "sync.ics")
+	hasLines(t, got, "RECURRENCE-ID;TZID=America/New_York:20261022T090000", "DTSTART;TZID=America/New_York:20261022T090000")
+	if strings.Contains(got, "20261022T100000") {
+		t.Errorf("the restore kept the moved time:\n%s", got)
+	}
+	if want := []string{"10-15T13:00 Sync", "10-22T13:00 Sync", "10-29T13:00 Sync", "11-05T14:00 Sync"}; !slices.Equal(e.occurrences("2026-10-12", "2026-11-10"), want) {
+		t.Errorf("occurrences after the restore = %q", e.occurrences("2026-10-12", "2026-11-10"))
+	}
+}
+
 func TestEventWritesRefuseWhatCannotBeWritten(t *testing.T) {
 	e := newEventEnv(t)
 	ctx := t.Context()
