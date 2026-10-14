@@ -260,8 +260,11 @@ contacts and events writable through `people.create`, `update`, `delete`,
   delete cancelled and its source put back on the server's ETag; one
   whose delete was written is created again under a new name with
   `If-None-Match: *`, keeping its UID, since Google refuses the deleted
-  name (found by Phase 2's check, 2026-10-14). Rows
-  older than a day are dropped by the pass. The tables come with Phase
+  name (found by Phase 2's check, 2026-10-14). An event's kept source
+  goes back with every VEVENT's `SEQUENCE` one past the highest on the
+  version it replaces, since Google refuses a `SEQUENCE` that goes back
+  (409; found by Phase 4's check, 2026-10-14). Rows older than a day are
+  dropped by the pass. The tables come with Phase
   2's migration.
 - **Contacts.** `vcardx.Patch` keeps the card's version, its groups and
   every parameter the fields do not set. List fields map onto the lines
