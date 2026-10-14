@@ -138,19 +138,35 @@ func readOccurrencePatch(src []byte, id string) (occurrencePatch, error) {
 
 // timeProp retains DTSTART's date, UTC, zoned or floating representation.
 func (p occurrencePatch) timeProp(name string, instant time.Time) contentline.Prop {
-	prop := contentline.Prop{Name: name}
+	return p.frame().timeProp(name, instant)
+}
+
+type occurrenceFrame struct {
+	allDay bool
+	utc    bool
+	tzid   string
+	zone   *time.Location
+}
+
+func (p occurrencePatch) frame() occurrenceFrame {
 	start := p.master.Prop("DTSTART")
+	return occurrenceFrame{allDay: p.event.AllDay, utc: strings.HasSuffix(start.Value, "Z"),
+		tzid: start.Param("TZID"), zone: eventZone(p.event)}
+}
+
+func (f occurrenceFrame) timeProp(name string, instant time.Time) contentline.Prop {
+	prop := contentline.Prop{Name: name}
 	switch {
-	case p.event.AllDay:
+	case f.allDay:
 		prop.Params = []contentline.Param{{Name: "VALUE", Values: []string{"DATE"}}}
 		prop.Value = instant.UTC().Format("20060102")
-	case strings.HasSuffix(start.Value, "Z"):
+	case f.utc:
 		prop.Value = instant.UTC().Format("20060102T150405Z")
 	default:
-		if tzid := start.Param("TZID"); tzid != "" {
-			prop.Params = []contentline.Param{{Name: "TZID", Values: []string{tzid}}}
+		if f.tzid != "" {
+			prop.Params = []contentline.Param{{Name: "TZID", Values: []string{f.tzid}}}
 		}
-		prop.Value = instant.In(eventZone(p.event)).Format("20060102T150405")
+		prop.Value = instant.In(f.zone).Format("20060102T150405")
 	}
 	return prop
 }
