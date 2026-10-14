@@ -160,6 +160,8 @@ function useToolbarCommand(props: ToolbarContainerProps) {
         return;
       }
       if (ui.module === "people") {
+        if (ui.peopleEditing !== null) return;
+        if (command.kind === "newContact" && props.people?.writableBooks.length) ui.editContact("new");
         if (command.kind === "compose") writeToPerson(client, personEmail(props.people?.person ?? null));
         return;
       }
@@ -210,20 +212,23 @@ function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) 
   const inPeople = ui.module === "people";
   const onSearch = (text: string) => {
     if (inPeople) {
+      if (useUI.getState().peopleEditing !== null) return;
       if (text === "") ui.clearPeopleSearch();
       else ui.commitPeopleSearch(text);
     } else if (text === "") ui.clearSearch();
     else ui.commitSearch(text);
   };
   return (
-    <SearchField
-      value={inPeople ? ui.peopleSearchDraft : ui.searchDraft}
-      placeholder={inPeople ? "Search Contacts" : "Search"}
-      onChange={inPeople ? ui.setPeopleSearchDraft : ui.setSearchDraft}
-      onSearch={onSearch}
-      onClear={inPeople ? ui.clearPeopleSearch : ui.clearSearch}
-      inputRef={searchRef}
-    />
+    <div inert={inPeople && ui.peopleEditing !== null}>
+      <SearchField
+        value={inPeople ? ui.peopleSearchDraft : ui.searchDraft}
+        placeholder={inPeople ? "Search Contacts" : "Search"}
+        onChange={inPeople ? ui.setPeopleSearchDraft : ui.setSearchDraft}
+        onSearch={onSearch}
+        onClear={inPeople ? ui.clearPeopleSearch : ui.clearSearch}
+        inputRef={searchRef}
+      />
+    </div>
   );
 }
 
@@ -238,6 +243,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
   return (
     <Toolbar
       mode={ui.module}
+      people={{ canCreate: Boolean(props.people?.writableBooks.length) && ui.peopleEditing === null }}
       tasks={
         ui.module === "tasks"
           ? {

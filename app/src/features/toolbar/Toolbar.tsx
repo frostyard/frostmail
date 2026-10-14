@@ -26,6 +26,7 @@ import {
   Square,
   SquarePen,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, useState } from "react";
@@ -36,6 +37,7 @@ import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ToolbarCommand is what a toolbar control asks for. */
 export type ToolbarCommand =
+  | { kind: "newContact" }
   | { kind: "newTask" }
   | { kind: "toggleCompleted" }
   | { kind: "toggleTodoBar" }
@@ -97,6 +99,7 @@ export interface ToolbarProps {
   mode?: "mail" | "people" | "calendar" | "tasks";
   calendar?: ToolbarCalendar;
   tasks?: ToolbarTasks;
+  people?: { canCreate: boolean };
   todoBar?: boolean;
   /** The sidebar's width, 0 while it is hidden. */
   sidebarWidth: number;
@@ -216,11 +219,15 @@ function SidebarSegment({
 // The segment over the list: the source title above its subtitle, and
 // New Message.
 function ListSegment({
+  mode,
+  people,
   listWidth,
   title,
   subtitle,
   onCommand,
 }: {
+  mode: ToolbarProps["mode"];
+  people: ToolbarProps["people"];
   listWidth: number;
   title: string;
   subtitle: string;
@@ -237,9 +244,18 @@ function ListSegment({
         <span className="text-toolbar-title truncate">{title}</span>
         <span className="text-toolbar-subtitle truncate text-secondary">{subtitle}</span>
       </div>
+      {mode === "people" && (
+        <ToolbarButton
+          label="New Contact"
+          shortcut="Ctrl+N"
+          icon={<UserPlus size={16} />}
+          disabled={!people?.canCreate}
+          onClick={() => onCommand({ kind: "newContact" })}
+        />
+      )}
       <ToolbarButton
         label="New Message"
-        shortcut="Ctrl+N"
+        shortcut={mode === "people" ? undefined : "Ctrl+N"}
         icon={<SquarePen size={16} />}
         onClick={() => onCommand({ kind: "compose" })}
       />
@@ -484,6 +500,8 @@ function ToolbarSegments({
         />
       ) : (
         <ListSegment
+          mode={props.mode}
+          people={props.people}
           listWidth={props.listWidth}
           title={props.title}
           subtitle={props.subtitle}

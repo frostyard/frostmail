@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
+import type { BookChoice } from "../features/people/ContactEditor";
 import type { AddressBookSection } from "../features/people/PeopleSidebar";
 import type { BookLabel } from "../features/people/PersonPane";
 import type { Client, Collection, Event, MessageSummary, Occurrence, Person, PersonSummary } from "../rpc/gen/api";
@@ -157,10 +158,14 @@ function useAddressBooks(client: Client, active: boolean) {
       }))
       .filter((section) => section.books.length > 0);
     const books: Record<number, BookLabel> = {};
+    const writableBooks: BookChoice[] = [];
     for (const section of sections) {
-      for (const book of section.books) books[book.id] = { name: book.name, account: section.title };
+      for (const book of section.books) {
+        books[book.id] = { name: book.name, account: section.title };
+        if (!book.readOnly) writableBooks.push({ id: book.id, label: `${book.name} — ${section.title}` });
+      }
     }
-    return { sections, books };
+    return { sections, books, writableBooks };
   }, [accounts, collections]);
 }
 

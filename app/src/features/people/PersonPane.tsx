@@ -25,6 +25,9 @@ export interface PersonPaneProps {
   /** Recent mail with the person's first email. */
   recent: MessageSummary[];
   upcoming?: ReactNode;
+  editing?: number | "new" | null;
+  editor?: ReactNode;
+  onEdit?: (contactId: number) => void;
   /** The clock for the recent mail's dates. */
   now: Date;
   onCompose: (email: string) => void;
@@ -65,11 +68,17 @@ function birthdayLabel(value: string): string {
 function ContactBlock({
   contact,
   book,
+  editing,
+  editor,
+  onEdit,
   onCompose,
   onOpenURL,
 }: {
   contact: Contact;
   book: BookLabel | undefined;
+  editing: PersonPaneProps["editing"];
+  editor: ReactNode;
+  onEdit: PersonPaneProps["onEdit"];
   onCompose: (email: string) => void;
   onOpenURL: (url: string) => void;
 }) {
@@ -128,10 +137,27 @@ function ContactBlock({
   if (contact.note) add("note", <span className="whitespace-pre-wrap">{contact.note}</span>);
   return (
     <section aria-labelledby={headingId}>
-      <h3 id={headingId} className="mb-2 text-sidebar-section text-secondary uppercase">
-        {title}
-      </h3>
-      <dl className="grid select-text grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-[6px]">{fields}</dl>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 id={headingId} className="text-sidebar-section text-secondary uppercase">
+          {title}
+        </h3>
+        {onEdit && !contact.readOnly && editing !== contact.id && (
+          <button
+            type="button"
+            aria-label="Edit Contact"
+            className="text-[12px] leading-4 text-accent hover:underline disabled:opacity-40"
+            disabled={editing != null}
+            onClick={() => onEdit(contact.id)}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+      {editing === contact.id ? (
+        editor
+      ) : (
+        <dl className="grid select-text grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-[6px]">{fields}</dl>
+      )}
     </section>
   );
 }
@@ -173,11 +199,25 @@ export function PersonPane({
   photo,
   recent,
   upcoming,
+  editing,
+  editor,
+  onEdit,
   now,
   onCompose,
   onOpenMessage,
   onOpenURL,
 }: PersonPaneProps) {
+  const headingId = useId();
+  if (editing === "new") {
+    return (
+      <section aria-labelledby={headingId} className="h-full overflow-y-auto bg-window p-6">
+        <h2 id={headingId} className="mb-5 text-[20px] font-semibold leading-[26px]">
+          New Contact
+        </h2>
+        {editor}
+      </section>
+    );
+  }
   if (person === null) {
     return (
       <div className="flex h-full items-center justify-center bg-window p-6">
@@ -211,6 +251,9 @@ export function PersonPane({
             key={contact.id}
             contact={contact}
             book={books[contact.collectionId]}
+            editing={editing}
+            editor={editor}
+            onEdit={onEdit}
             onCompose={onCompose}
             onOpenURL={onOpenURL}
           />
