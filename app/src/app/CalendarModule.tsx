@@ -9,9 +9,17 @@ import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { TimeGrid } from "../features/calendar/TimeGrid";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { addDays, monthGrid, viewRange, zoned } from "../lib/calendarDates";
-import type { CalendarDeleteParams, CalendarEvent } from "../rpc/gen/api";
+import { canMove, dropFields, type Range, shiftedDays } from "../lib/eventDrag";
+import type {
+  CalendarDeleteParams,
+  CalendarEvent,
+  CalendarUpdateParams,
+  EventFields,
+  Occurrence,
+} from "../rpc/gen/api";
 import { ContactCardContainer, type ContactCardContainerProps } from "./ContactCardContainer";
 import { openEvent } from "./eventWindow";
+import { rememberRestore } from "./pimUndo";
 import { Splitter } from "./Splitter";
 import type { CalendarData } from "./useCalendar";
 
@@ -40,8 +48,66 @@ function useMonthLines(view: RefObject<HTMLElement | null>, month: boolean) {
   return lines;
 }
 
+function useCalendarDrag(data: CalendarData) {
+  const client = useClient();
+  const [changing, setChanging] = useState<{ event: CalendarEvent; fields: EventFields } | null>(null);
+  const writable = new Set(
+    data.sections.flatMap((section) =>
+      section.calendars.filter((calendar) => !calendar.readOnly).map((calendar) => calendar.id),
+    ),
+  );
+  const update = (params: CalendarUpdateParams) => {
+    void client.calendar
+      .update(params)
+      .then(({ restoreId }) => rememberRestore({ module: "calendar", restoreId }))
+      .catch((err: unknown) => console.warn("move event", err));
+  };
+  const drop = (occurrence: Occurrence, fieldsIn: (zone: string) => EventFields) => {
+    if (!canMove(occurrence, writable)) return;
+    void client.calendar
+      .event({
+        id: occurrence.eventId,
+        ...(occurrence.recurrenceId ? { recurrenceId: occurrence.recurrenceId } : {}),
+      })
+      .then((event) => {
+        const fields = fieldsIn(event.timeZone || data.timeZone);
+        if (event.recurring && event.recurrenceId) setChanging({ event, fields });
+        else update({ id: event.id, fields });
+      })
+      .catch((err: unknown) => console.warn("move event", err));
+  };
+  return {
+    canMove: (occurrence: Occurrence) => canMove(occurrence, writable),
+    onMove: (occurrence: Occurrence, range: Range) => drop(occurrence, (zone) => dropFields(range, zone)),
+    onMoveDays: (occurrence: Occurrence, days: number) =>
+      drop(occurrence, (zone) => shiftedDays(occurrence, days, data.timeZone, zone)),
+    onDraw: (range: Range) => {
+      void openEvent({
+        kind: "new",
+        allDay: false,
+        start: range.start,
+        end: range.end,
+        startDate: "",
+        endDate: "",
+      }).catch((err: unknown) => console.warn("new event", err));
+    },
+    scopeSheet: changing && (
+      <ScopeSheet
+        action="change"
+        first={changing.event.first ?? false}
+        onChoose={(scope) => {
+          update({ id: changing.event.id, recurrenceId: changing.event.recurrenceId, scope, fields: changing.fields });
+          setChanging(null);
+        }}
+        onCancel={() => setChanging(null)}
+      />
+    ),
+  };
+}
+
 function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: RefObject<HTMLElement | null> }) {
   const ui = useUI();
+  const { scopeSheet, onMove, onDraw, ...drag } = useCalendarDrag(data);
   const lines = useMonthLines(elementRef, ui.calendarView === "month");
   const range = viewRange(ui.calendarView, data.date, data.weekStart);
   const days =
@@ -49,6 +115,7 @@ function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: Re
       ? monthGrid(data.date, data.weekStart)
       : Array.from({ length: ui.calendarView === "day" ? 1 : 7 }, (_, index) => addDays(range.from, index));
   const props = {
+    ...drag,
     days,
     occurrences: data.occurrences,
     colors: data.colors,
@@ -66,10 +133,15 @@ function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: Re
       ui.setCalendarView("day");
     },
   };
-  return ui.calendarView === "month" ? (
-    <MonthGrid {...props} selectedDate={data.date} lines={lines} onSelectDate={ui.setCalendarDate} />
-  ) : (
-    <TimeGrid {...props} now={data.now} />
+  return (
+    <>
+      {ui.calendarView === "month" ? (
+        <MonthGrid {...props} selectedDate={data.date} lines={lines} onSelectDate={ui.setCalendarDate} />
+      ) : (
+        <TimeGrid {...props} now={data.now} onMove={onMove} onDraw={onDraw} />
+      )}
+      {scopeSheet}
+    </>
   );
 }
 
