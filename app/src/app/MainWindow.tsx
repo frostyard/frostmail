@@ -15,6 +15,7 @@ import { vipGroups } from "../lib/mailboxTree";
 import type { Client } from "../rpc/gen/api";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
+import { newEventAt, openEvent } from "./eventWindow";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
 import { watchOpenRequests } from "./openMessage";
@@ -157,10 +158,28 @@ function moduleCommand(command: Command, people: PeopleData) {
   return true;
 }
 
+function canCreateEvent(data: CalendarData): boolean {
+  return data.sections.some((section) => section.calendars.some((calendar) => !calendar.readOnly));
+}
+
+function newCalendarEvent(data: CalendarData) {
+  const date = useUI.getState().calendarDate || data.today;
+  void openEvent(newEventAt(date, data.today, data.now, data.timeZone)).catch((err: unknown) =>
+    console.warn("new event", err),
+  );
+}
+
 function calendarCommand(command: Command, frame: CalendarData, handles: WindowHandles): boolean {
   const ui = useUI.getState();
   const date = ui.calendarDate || frame.today;
   switch (command) {
+    case "compose":
+      if (!canCreateEvent(frame)) return false;
+      newCalendarEvent(frame);
+      break;
+    case "delete":
+      if (!ui.calendarSelected) return false;
+      return handles.calendar.current?.remove() ?? false;
     case "dayView":
       ui.setCalendarView("day");
       break;
@@ -192,6 +211,7 @@ function calendarCommand(command: Command, frame: CalendarData, handles: WindowH
     }
     case "open":
       if (ui.calendarFocus !== "list") return false;
+      if (ui.calendarSelected && handles.calendar.current?.edit()) return true;
       ui.setCalendarDate(date);
       ui.setCalendarView("day");
       break;
@@ -227,7 +247,7 @@ function useWindowEvents(
         field &&
           !(
             (ui.module === "people" && ["f", "n"].includes(event.key.toLowerCase())) ||
-            (ui.module === "tasks" && event.key.toLowerCase() === "n")
+            ((ui.module === "tasks" || ui.module === "calendar") && event.key.toLowerCase() === "n")
           ),
       );
       if (!command) return;
@@ -424,6 +444,7 @@ export function MainWindow() {
         key={module}
         tasks={tasks}
         onNewTask={() => handles.tasks.current?.focusNewTask()}
+        onNewEvent={canCreateEvent(calendar) ? () => newCalendarEvent(calendar) : undefined}
         people={people}
         model={model}
         onDelete={onDelete}
