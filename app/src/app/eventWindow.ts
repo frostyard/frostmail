@@ -6,7 +6,7 @@
 // tab at #/event/<id>?recurrenceId=… or #/event/new?….
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
-import { addDays, dayStart, zoned } from "../lib/calendarDates";
+import { addDays, instantAt, zoned } from "../lib/calendarDates";
 
 /** EditorTarget is what an event editor window edits: a stored event (one
  *  occurrence of a series when recurrenceId is set), or a new event with
@@ -80,19 +80,6 @@ export async function openEvent(target: EditorTarget, title = ""): Promise<void>
     return;
   }
   window.open(`${window.location.pathname}${toHash(target)}`, label);
-}
-
-/** instantAt is the instant of a wall time (minutes after midnight) on a date in a zone. */
-export function instantAt(date: string, minutes: number, timeZone: string): Date {
-  const target = new Date(date).getTime() + minutes * 60_000;
-  let instant = dayStart(date, timeZone).getTime() + minutes * 60_000;
-  for (let correction = 0; correction < 3; correction++) {
-    const wall = zoned(new Date(instant), timeZone);
-    const difference = target - (new Date(wall.date).getTime() + wall.minutes * 60_000);
-    instant += difference;
-    if (difference === 0) break;
-  }
-  return new Date(instant);
 }
 
 /** newEventAt is a new event's first times on a date: an hour from the next whole hour today, else from 9:00 AM. */

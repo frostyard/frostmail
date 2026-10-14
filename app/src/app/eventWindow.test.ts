@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { editorTarget, instantAt, newEventAt, openEvent, windowLabel } from "./eventWindow";
+import { instantAt } from "../lib/calendarDates";
+import { editorTarget, newEventAt, openEvent, windowLabel } from "./eventWindow";
 
 afterEach(() => {
   window.location.hash = "";

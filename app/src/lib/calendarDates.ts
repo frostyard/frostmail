@@ -118,3 +118,16 @@ export function appLocale(language: string): string {
     return fallback;
   }
 }
+
+/** instantAt is the instant of a wall time (minutes after midnight) on a date in a zone. */
+export function instantAt(date: string, minutes: number, timeZone: string): Date {
+  const target = new Date(date).getTime() + minutes * 60_000;
+  let instant = dayStart(date, timeZone).getTime() + minutes * 60_000;
+  for (let correction = 0; correction < 3; correction++) {
+    const wall = zoned(new Date(instant), timeZone);
+    const difference = target - (new Date(wall.date).getTime() + wall.minutes * 60_000);
+    instant += difference;
+    if (difference === 0) break;
+  }
+  return new Date(instant);
+}
