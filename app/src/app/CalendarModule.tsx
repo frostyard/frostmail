@@ -178,7 +178,10 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
   const deleteEvent = (params: CalendarDeleteParams) => {
     void client.calendar
       .delete(params)
-      .then(() => ui.selectOccurrence(null))
+      .then(({ restoreId }) => {
+        rememberRestore({ module: "calendar", restoreId });
+        ui.selectOccurrence(null);
+      })
       .catch((err: unknown) => console.warn("delete event", err));
   };
   const remove = () => {
