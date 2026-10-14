@@ -31,8 +31,11 @@ func PatchOccurrence(src []byte, recurrenceID string, scope Scope, c EventChange
 	}
 	switch scope {
 	case ScopeThis:
-	case ScopeFuture, ScopeAll:
-		return nil, nil, errors.New("patch occurrence: scope comes with T-0141")
+	case ScopeAll:
+		patched, err = patchAll(src, p, c, now)
+		return patched, nil, err
+	case ScopeFuture:
+		return nil, nil, errors.New("patch occurrence: scope comes with T-0142")
 	default:
 		return nil, nil, errors.New("patch occurrence: invalid scope")
 	}
