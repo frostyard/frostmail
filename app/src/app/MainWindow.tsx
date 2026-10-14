@@ -20,6 +20,7 @@ import { UndoToasts } from "./OutboxContainer";
 import { watchOpenRequests } from "./openMessage";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
+import { RefusedNotices } from "./RefusedNotices";
 import { watchOccurrenceRequests, watchReminders } from "./reminders";
 import { SidebarContainer } from "./SidebarContainer";
 import { SmartSheetContainer } from "./SmartSheetContainer";
@@ -439,6 +440,7 @@ export function MainWindow() {
         <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
       )}
       <UndoToasts />
+      <RefusedNotices />
       <SmartSheetContainer />
     </div>
   );
