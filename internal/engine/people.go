@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/pimsync"
 	"github.com/frostyard/frostmail/internal/store"
 	"github.com/frostyard/frostmail/internal/vcardx"
 )
@@ -330,18 +331,13 @@ func (p people) addressBookFor(ctx context.Context, id *int64) (store.Collection
 	return store.Collection{}, api.NotFound("no address book can take a contact; turn contacts on in Settings")
 }
 
-// contactIndex indexes a vCard Frostmail built.
+// contactIndex indexes a vCard Frostmail built, as sync does.
 func contactIndex(raw []byte) store.ContactIndex {
 	card, err := vcardx.Parse(raw)
 	if err != nil {
 		return store.ContactIndex{}
 	}
-	c := store.ContactIndex{DisplayName: card.DisplayName(), SortKey: card.SortKey(),
-		GivenName: card.GivenName, FamilyName: card.FamilyName}
-	for _, e := range card.Emails {
-		c.Emails = append(c.Emails, store.ContactEmail{Email: e.Value, Label: e.Label})
-	}
-	return c
+	return pimsync.ContactIndexOf(card)
 }
 
 // newUUID is a random (version 4) UUID, for a new object's UID and href.
