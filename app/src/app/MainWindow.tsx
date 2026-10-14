@@ -30,7 +30,7 @@ import { ToDoBarContainer } from "./ToDoBarContainer";
 import { ToolbarContainer, useListQuery } from "./ToolbarContainer";
 import { undo, undoableMove } from "./undo";
 import { type CalendarData, useCalendar } from "./useCalendar";
-import { type PeopleData, personEmail, usePeople, writeToPerson } from "./usePeople";
+import { type PeopleData, usePeople } from "./usePeople";
 import { type TasksData, useTasks } from "./useTasks";
 
 const SIDEBAR = { min: 160, max: 320 };
@@ -141,7 +141,7 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
   return true;
 }
 
-function moduleCommand(command: Command, client: Client, people: PeopleData) {
+function moduleCommand(command: Command, people: PeopleData) {
   const ui = useUI.getState();
   if (command === "showTasks") ui.setModule("tasks");
   else if (command === "showCalendar") ui.setModule("calendar");
@@ -150,8 +150,9 @@ function moduleCommand(command: Command, client: Client, people: PeopleData) {
     ui.setModule("mail");
     ui.setSource({ kind: "allInboxes" });
   } else if (command === "escape") ui.clearPeopleSearch();
-  else if (command === "compose") writeToPerson(client, ui.peopleFocus === "list" ? personEmail(people.person) : "");
-  else return ui.peopleFocus === "list" && peopleCommand(command, people.people);
+  else if (command === "compose") {
+    if (people.writableBooks.length > 0) ui.editContact("new");
+  } else return ui.peopleFocus === "list" && peopleCommand(command, people.people);
   return true;
 }
 
@@ -229,6 +230,11 @@ function useWindowEvents(
           ),
       );
       if (!command) return;
+      if (ui.module === "people" && ui.peopleEditing !== null) {
+        // Keep native editing, form submission and Tab navigation in the editor.
+        if (event.ctrlKey || event.metaKey || event.altKey) event.preventDefault();
+        return;
+      }
       let handled = true;
       if (command === "focusSearch") {
         if (ui.module === "calendar" || ui.module === "tasks") return;
@@ -245,7 +251,7 @@ function useWindowEvents(
         command === "allInboxes" ||
         ui.module === "people"
       ) {
-        handled = moduleCommand(command, client, people);
+        handled = moduleCommand(command, people);
       } else if (ui.module === "tasks") handled = tasksCommand(command, tasks, handles.tasks.current);
       else if (ui.module === "calendar") handled = calendarCommand(command, calendar, handles);
       else handled = mailCommand(command, client, model, handles);

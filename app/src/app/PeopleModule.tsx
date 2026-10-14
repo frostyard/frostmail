@@ -1,10 +1,11 @@
 // People panes share Mail's column widths and splitters.
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { type Pane, useUI } from "../data/stores";
 import { UpcomingList } from "../features/calendar/UpcomingList";
+import { ContactEditor, type ContactEditorProps } from "../features/people/ContactEditor";
 import { PeopleSidebar } from "../features/people/PeopleSidebar";
 import { PersonPane } from "../features/people/PersonPane";
 import { IndexHeader, PersonRow } from "../features/people/PersonRow";
@@ -165,7 +166,42 @@ function PeopleList({ people }: { people: PersonSummary[] }) {
   );
 }
 
+function PeopleEditor({ contact, books }: Pick<ContactEditorProps, "contact" | "books">) {
+  const client = useClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const cancel = () => useUI.getState().editContact(null);
+  const save: ContactEditorProps["onSave"] = async (fields, bookId) => {
+    if (busy) return;
+    if (contact && Object.keys(fields).length === 0) {
+      cancel();
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    try {
+      if (contact) await client.people.update({ id: contact.id, fields });
+      else {
+        const result = await client.people.create({
+          fields,
+          ...(bookId === undefined ? {} : { collectionId: bookId }),
+        });
+        if (result.person) useUI.getState().selectPerson(result.person.id);
+      }
+      cancel();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <ContactEditor contact={contact} books={books} busy={busy} error={error} onSave={save} onCancel={cancel} />;
+}
+
 function PeopleDetail({ data }: { data: PeopleData }) {
+  const editing = useUI((state) => state.peopleEditing);
+  const editContact = useUI((state) => state.editContact);
+  const contact = data.person?.contacts.find((item) => item.id === editing);
   const frame = useCalendarFrame();
   const colors = useCalendarColors();
   const client = useClient();
@@ -179,6 +215,13 @@ function PeopleDetail({ data }: { data: PeopleData }) {
   };
   return (
     <PersonPane
+      editing={editing}
+      onEdit={editContact}
+      editor={
+        editing !== null && (editing === "new" || contact) ? (
+          <PeopleEditor key={editing} contact={contact ?? null} books={data.writableBooks} />
+        ) : undefined
+      }
       person={data.person}
       books={data.books}
       recent={data.recent}
@@ -207,6 +250,7 @@ function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef:
     <fieldset
       ref={elementRef}
       aria-label="People sidebar"
+      inert={ui.peopleEditing !== null}
       onFocus={() => ui.setPeopleFocus("sidebar")}
       className="m-0 flex h-full min-w-0 shrink-0 flex-col border-0 bg-sidebar p-0"
       style={{ width: ui.sidebarWidth }}
@@ -259,7 +303,7 @@ export const PeopleModule = forwardRef<PeopleHandle, PeopleModuleProps>(function
           <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
         </>
       )}
-      <div ref={list} className="h-full shrink-0" style={{ width: ui.listWidth }}>
+      <div ref={list} inert={ui.peopleEditing !== null} className="h-full shrink-0" style={{ width: ui.listWidth }}>
         <PeopleList people={props.data.people} />
       </div>
       <Splitter label="Resize contacts list" onResize={props.resizeList} onEnd={props.endDrag} />
