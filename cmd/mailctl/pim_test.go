@@ -1,6 +1,7 @@
 package main
 
-// CONTRACT TEST for task card T-0090 (docs/tasks). Do not edit.
+// CONTRACT TEST for task card T-0090 (docs/tasks), amended by T-0138:
+// people show names each contact. Do not edit.
 
 import (
 	"encoding/json"
@@ -190,7 +191,12 @@ func TestPeopleCommands(t *testing.T) {
 		t.Errorf("no match = %q", got)
 	}
 	show := mustRun(t, "--socket", srv.Socket, "people", "show", itoa64(ids.ada))
-	want2 := "Ada Lovelace\nOrganization: Engines\nEmail: ada@example.com (home)\nPhone: +44 20 7946 0000 (mobile)\nNote: Countess\n"
+	var ada api.Person
+	if err := json.Unmarshal([]byte(mustRun(t, "--socket", srv.Socket, "--json", "people", "show", itoa64(ids.ada))), &ada); err != nil {
+		t.Fatal(err)
+	}
+	want2 := "Ada Lovelace\nOrganization: Engines\nContact " + itoa64(ada.Contacts[0].ID) +
+		"\nEmail: ada@example.com (home)\nPhone: +44 20 7946 0000 (mobile)\nNote: Countess\n"
 	if show != want2 {
 		t.Errorf("people show =\n%s\nwant\n%s", show, want2)
 	}
