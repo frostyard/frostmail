@@ -180,6 +180,19 @@ func TestApply(t *testing.T) {
 	if _, err := Apply(src, Edit{Start: 0, End: 10}, Edit{Start: 5, End: 12}); err == nil {
 		t.Error("overlapping edits applied")
 	}
+	// An insertion where a replaced line starts goes before it, in either
+	// order: a new email after the last one, and the NOTE line after it
+	// rewritten.
+	for _, order := range [][2]Edit{
+		{{Start: tel.Start, End: tel.End, Text: "NOTE:x\r\n"}, {Start: tel.Start, End: tel.Start, Text: "EMAIL:b@x.test\r\n"}},
+		{{Start: tel.Start, End: tel.Start, Text: "EMAIL:b@x.test\r\n"}, {Start: tel.Start, End: tel.End, Text: "NOTE:x\r\n"}},
+	} {
+		got, err := Apply(src, order[0], order[1])
+		want := strings.Replace(card, "TEL;TYPE=work,voice:+1 555 0100\r\n", "EMAIL:b@x.test\r\nNOTE:x\r\n", 1)
+		if err != nil || string(got) != want {
+			t.Errorf("Apply(%+v) = %q, %v", order, got, err)
+		}
+	}
 	if LineEnding(src) != "\r\n" || LineEnding([]byte("A:b\nC:d\n")) != "\n" {
 		t.Error("LineEnding")
 	}
