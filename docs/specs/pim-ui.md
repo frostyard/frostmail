@@ -506,10 +506,13 @@ width and its right segment the event pane's.
 
 M5.5, Phase 3 (ADR-0020, ADR-0031, ADR-0033). A window of its own, as
 compose is: in the app, a Tauri window labeled `event-<id>`
-(`event-new-<n>` for a new event), opened by the `open_event` command;
-in a browser, a tab at `#/event/<id>?recurrenceId=…` or
-`#/event/new?…`. It is 480 × 600 (minimum 420 × 480), titled with the
-event's summary, else "New Event".
+(`event-<id>-<occurrence>` for one occurrence of a series, the
+recurrence ID's letters and digits joined by hyphens; `event-new-<n>`
+for a new event), opened by the `open_event` command, which focuses the
+window already showing it; in a browser, a tab at
+`#/event/<id>?recurrenceId=…` or `#/event/new?…`. It is 480 × 600
+(minimum 420 × 480), titled with the event's summary, else "New Event",
+and draws its own 32-high title strip with a Close button.
 
 - **Opening:** New Event and Ctrl+N give a new event on the selected
   date: at the next whole hour today, else at 9:00 AM; an hour long; in
