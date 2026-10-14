@@ -35,7 +35,7 @@ func PatchOccurrence(src []byte, recurrenceID string, scope Scope, c EventChange
 		patched, err = patchAll(src, p, c, now)
 		return patched, nil, err
 	case ScopeFuture:
-		return nil, nil, errors.New("patch occurrence: scope comes with T-0142")
+		return patchFuture(src, p, c, newUID, now)
 	default:
 		return nil, nil, errors.New("patch occurrence: invalid scope")
 	}
@@ -69,7 +69,7 @@ func DeleteOccurrence(src []byte, recurrenceID string, scope Scope, now time.Tim
 	switch scope {
 	case ScopeThis:
 	case ScopeFuture:
-		return nil, errors.New("delete occurrence: scope comes with T-0141")
+		return deleteFuture(src, p, now)
 	default:
 		return nil, errors.New("delete occurrence: only this or future occurrences can be patched")
 	}
