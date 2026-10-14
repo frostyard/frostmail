@@ -170,7 +170,7 @@ pane, since a person's contacts live in different address books.
   - **email**, **phone**, **address** and **URL** rows, one per value in
     the contact's order, each starting with a label select (80 wide):
     - emails: home, work, other;
-    - phones: mobile, home, work, main, home fax, work fax, pager, other;
+    - phones: mobile, home, work, main, fax, pager, other;
     - addresses: home, work, other;
     - URLs: homepage, home, work, other;
     - each list ends with **Custom…**, which turns the select into a text
@@ -178,12 +178,17 @@ pane, since a person's contacts live in different address books.
 
     Then the value: a text field, or for an address a street textarea
     (2 lines) and fields for city, state, ZIP and country, 4px apart.
-    Each row ends with a 16px `MinusCircle` button named "Remove <label>
-    <kind>". After the rows of each kind, an "add email", "add phone",
-    "add address" or "add URL" text button 12/16 `--accent` adds an
-    empty row with the first label not yet used.
-  - **birthday:** a month select, a day select and a year field 64 wide;
-    an empty year means a birthday without one (`--MM-DD`).
+    Each row ends with a 16px `MinusCircle` button. After the rows of
+    each kind, an "add email", "add phone", "add address" or "add URL"
+    text button 12/16 `--accent` adds an empty row with the first label
+    not yet used. Controls are named by kind and row, counting from 1:
+    "Email 2", "Label for email 2", "Remove email 2"; "Street 1",
+    "City 1", "State 1", "ZIP 1", "Country 1"; the custom label field
+    "Custom label for phone 3".
+  - **birthday:** a month select ("Birthday month"), a day select
+    ("Birthday day") and a year field 64 wide ("Birthday year"); an
+    empty year means a birthday without one (`--MM-DD`), and an empty
+    month and day mean none.
   - **note:** a textarea, 13/18, at least 80 high.
 - **Footer** of the block, 16px under the rows: **Delete Contact** at the
   left (a text button 13/16 `--flag-1`); at the right **Cancel** and
@@ -199,9 +204,10 @@ pane, since a person's contacts live in different address books.
   `people.setPhoto` when the photo changed. It closes the editor when both
   succeed and otherwise shows maild's error under the footer
   (`role="alert"`). **Cancel** and Escape discard the editor.
-- **Leaving:** selecting another person, source or module while the
-  editor is open saves it first when it is valid. When it is not, it
-  stays, and the selection stays with it.
+- **While editing,** the People list, sidebar, search field and module
+  bar are inert (the `inert` attribute), and Ctrl+1 to Ctrl+4 do
+  nothing: Done or Cancel ends the edit. Nothing is lost by a stray
+  click.
 - **New Contact** (People toolbar, Ctrl+N): clears the selection and
   shows a block titled "New Contact", whose editor is open and empty.
   When more than one address book can take a contact, an **address
@@ -247,10 +253,10 @@ Settings, window controls); `Toolbar`'s `mode` is `"people"`:
 - **Refused changes:** a `people.refused` event shows a notice in the
   undo toast's frame ([compose-ui.md](compose-ui.md)) for 8 seconds, with
   a close button:
-  - `changed`: `"<name>" was changed on another device, so your change
+  - `changed`: `“<name>” was changed on another device, so your change
     wasn't saved.`;
-  - `deleted`: `"<name>" was deleted on another device.`;
-  - `refused`: `The server didn't accept your change to "<name>".`
+  - `deleted`: `“<name>” was deleted on another device.`;
+  - `refused`: `The server didn't accept your change to “<name>”.`
 
 ## Contact card
 
