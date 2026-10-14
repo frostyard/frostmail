@@ -44,6 +44,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0026 — Preferences live in maild](adr/0026-preferences-live-in-maild.md)
 - [0027 — Unsubscribe with one click through the sender's server](adr/0027-unsubscribe-with-one-click.md)
 - [0028 — Mute and block are maild's; Undo is the app's](adr/0028-mute-and-block-in-maild-undo-in-the-app.md)
+- [0029 — Show no mail categories](adr/0029-show-no-mail-categories.md)
 
 ### Design
 
@@ -81,7 +82,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md), done, with its evidence
 - [0006 — M4 daily driver](plans/0006-m4-daily-driver.md)
 - [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md)
-- [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md)
+- [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md), done, with its evidence
 
 ## Conventions
 

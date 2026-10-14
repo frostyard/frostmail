@@ -9,6 +9,7 @@ runs during [M4](0006-m4-daily-driver.md)'s seven-day trial, after
 [roadmap](0002-roadmap.md). Editing events, which plan 0007 named the next
 milestone, follows M5. Apple Intelligence and iCloud's services are out of
 scope; Gmail's categories get a spike.
+Status: **done** (2026-10-14); evidence under each phase.
 
 ## Decisions for M5
 
@@ -231,12 +232,23 @@ change; the user's choices of 2026-10-10 are recorded as they were made.
   verified on Codex's first attempt. P-406, P-410, P-411 and P-956 are
   Have, and with them every M5·6 row.
 
-## Phase 7 — Categories spike
+## Phase 7 — Categories spike — done
 
 - Gmail's categories over IMAP (`X-GM-RAW "category:promotions"` searches
   on All Mail) against classifying locally, measured on the user's Gmail.
 - **Done when:** an ADR decides whether Frostmail shows categories and
   how, and P-901 is Have, Later or Out accordingly.
+- **Evidence (2026-10-14):** `imapx.SearchGmailRaw` (planner, with a
+  replay test) and `tools/catprobe`, run read-only on a snapshot of the
+  store against the user's Gmail (39,010 messages in the 365-day window)
+  and the iCloud account. Gmail answers every category by search and
+  carries none in X-GM-LABELS; `category:primary` matches inbox mail
+  only. Searches bounded to mail since yesterday cost 0.9 s for the five
+  tabs. Gmail puts 14% of the inbox in Primary. A header classifier agreed
+  with Gmail on 58.1% of the mail, a sender memory taught by Gmail on
+  84.1%, and iCloud shares 21% of its senders with Gmail. The user chose
+  Out: [ADR-0029](../adr/0029-show-no-mail-categories.md), and P-901 is
+  Out.
 
 Phases 2 to 7 overlap once Phase 1's compiler is in.
 
@@ -245,6 +257,10 @@ Phases 2 to 7 overlap once Phase 1's compiler is in.
 - **Done when:** [specs/parity.md](../specs/parity.md) holds no M5 row,
   every Have row names its test, and every Later and Out row gives its
   reason.
+- **Met (2026-10-14):** 59 rows are Have, each with its test; 19 are Later
+  and 9 Out, each with its reason. Still to be shown by a run, not by a
+  test: a flag color set by another client on Dovecot (Phase 2), and rules
+  on the throwaway Gmail account itself (Phase 4).
 
 ## Cards (Codex, [ADR-0021](../adr/0021-run-task-cards-with-codex.md))
 
@@ -278,7 +294,8 @@ good: redirect, unsubscribe, rule actions and erasing.
 
 ## Open questions
 
-- **Categories:** Phase 7.
+- **Categories:** decided by Phase 7: Out
+  ([ADR-0029](../adr/0029-show-no-mail-categories.md)).
 
 ## References
 

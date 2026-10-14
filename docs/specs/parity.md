@@ -149,7 +149,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test |
 | --- | --- | --- | --- | --- |
-| P-901 | Primary, Transactions, Updates, Promotions | Decided by a spike | M5·7 | The spike's ADR |
+| P-901 | Primary, Transactions, Updates, Promotions | | Out | Gmail's are reachable only by search and iCloud has none; a local guess agreed with Gmail on 58% ([ADR-0029](../adr/0029-show-no-mail-categories.md)) |
 
 ## Settings, accounts and the rest
 
