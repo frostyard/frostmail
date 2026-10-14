@@ -41,6 +41,13 @@ export function emptyText(filter: ListFilter): string {
   }
 }
 
+/** emptyTextIn is emptyText naming the source the filter narrows: "No
+ *  Flagged Messages in All Inboxes". All narrows nothing, so it names none. */
+export function emptyTextIn(filter: ListFilter, scope: string): string {
+  const text = emptyText(filter);
+  return filter === "all" || scope === "" ? text : `${text} in ${scope}`;
+}
+
 function filterStyle(active: boolean): string {
   return active ? "bg-selection-inactive text-primary" : "bg-transparent text-secondary hover:text-primary";
 }

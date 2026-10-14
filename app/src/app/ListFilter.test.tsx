@@ -92,13 +92,13 @@ describe("the list's filter bar", () => {
     act(() => useUI.getState().setSource({ kind: "mailbox", mailboxId: quiet.id }));
     fireEvent.click(within(await bar()).getByRole("button", { name: "Flagged" }));
     await waitFor(() => expect(lastQuery(mock)).toEqual({ mailboxId: quiet.id, threads: true, flagged: true }));
-    expect(await screen.findByText("No Flagged Messages")).toBeDefined();
+    expect(await screen.findByText(`No Flagged Messages in ${quiet.name}`)).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Show All" }));
     expect(useUI.getState().listFilter).toBe("all");
     await waitFor(() => expect(lastQuery(mock)).toEqual({ mailboxId: quiet.id, threads: true }));
     await waitFor(() => expect(rows().length).toBeGreaterThan(0));
-    expect(screen.queryByText("No Flagged Messages")).toBeNull();
+    expect(screen.queryByText(`No Flagged Messages in ${quiet.name}`)).toBeNull();
     expect(FIXTURE.inbox).not.toBe(quiet.id);
   });
 });
