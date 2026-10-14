@@ -255,8 +255,12 @@ contacts and events writable through `people.create`, `update`, `delete`,
   account and when; `pim_restore_objects`, a row per object it touched,
   with the collection, href, UID and the source before, or NULL when the
   write created the object). `restore` queues a `put` of each kept
-  source on the object's current ETag, re-creates deleted objects with
-  `If-None-Match: *`, deletes the created ones, and drops the row. Rows
+  source on the object's current ETag, deletes the created ones, and
+  drops the row. A deleted object whose delete still waits gets that
+  delete cancelled and its source put back on the server's ETag; one
+  whose delete was written is created again under a new name with
+  `If-None-Match: *`, keeping its UID, since Google refuses the deleted
+  name (found by Phase 2's check, 2026-10-14). Rows
   older than a day are dropped by the pass. The tables come with Phase
   2's migration.
 - **Contacts.** `vcardx.Patch` keeps the card's version, its groups and

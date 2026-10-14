@@ -287,8 +287,26 @@ func (p people) restoreObject(ctx context.Context, tx *store.Tx, o store.Restore
 		return err
 	}
 	next := store.Object{CollectionID: col.ID, Href: o.Href, Kind: store.ObjectVCard, UID: o.UID, Raw: o.Raw}
-	if exists {
+	switch {
+	case exists:
 		next.ETag = current.ETag
+	default:
+		// A delete not yet written is cancelled, and the server's object
+		// stays; one already written is created again under a new name,
+		// since servers such as Google keep a deleted object's.
+		deleted, waiting, err := tx.TakeQueuedDelete(ctx, col.ID, o.Href)
+		if err != nil {
+			return err
+		}
+		if waiting {
+			next.ETag = deleted.IfMatch
+			break
+		}
+		name, err := newUUID()
+		if err != nil {
+			return err
+		}
+		next.Href = col.Href + name + ".vcf"
 	}
 	id, err := tx.PutObject(ctx, next)
 	if err != nil {
@@ -307,7 +325,7 @@ func (p people) restoreObject(ctx context.Context, tx *store.Tx, o store.Restore
 		return tx.SetPIMOpPayload(ctx, op.ID, whole)
 	}
 	_, err = tx.QueuePIMOp(ctx, store.PIMOp{AccountID: col.AccountID, CollectionID: col.ID, ObjectID: &id,
-		Kind: "put", Href: o.Href, IfMatch: next.ETag, Payload: whole})
+		Kind: "put", Href: next.Href, IfMatch: next.ETag, Payload: whole})
 	return err
 }
 

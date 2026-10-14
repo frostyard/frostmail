@@ -127,3 +127,23 @@ func (d *DB) PersonOfContact(ctx context.Context, objectID int64) (PersonRow, er
 	}
 	return d.Person(ctx, id.Int64)
 }
+
+// TakeQueuedDelete removes a delete waiting for an href (queued, not
+// running) and returns it: a restore that comes before the delete was
+// written keeps the server's object instead.
+func (t *Tx) TakeQueuedDelete(ctx context.Context, collectionID int64, href string) (PIMOp, bool, error) {
+	op := PIMOp{CollectionID: collectionID, Kind: "delete", Href: href}
+	err := t.QueryRowContext(ctx, `SELECT id, account_id, if_match FROM pim_ops
+		WHERE collection_id = ? AND href = ? AND kind = 'delete' AND state = 'queued' ORDER BY id LIMIT 1`,
+		collectionID, href).Scan(&op.ID, &op.AccountID, &op.IfMatch)
+	if errors.Is(err, sql.ErrNoRows) {
+		return PIMOp{}, false, nil
+	}
+	if err != nil {
+		return PIMOp{}, false, fmt.Errorf("queued delete: %w", err)
+	}
+	if err := t.DonePIMOp(ctx, op.ID); err != nil {
+		return PIMOp{}, false, err
+	}
+	return op, true, nil
+}
