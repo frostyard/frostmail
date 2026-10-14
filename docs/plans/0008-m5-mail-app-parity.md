@@ -7,7 +7,8 @@ checklist ([specs/parity.md](../specs/parity.md)), each with a test. It
 runs during [M4](0006-m4-daily-driver.md)'s seven-day trial, after
 [M4.5](0007-m4.5-people-calendar-tasks.md) in the
 [roadmap](0002-roadmap.md). Editing events, which plan 0007 named the next
-milestone, follows M5. Apple Intelligence and iCloud's services are out of
+milestone, follows M5 in M5.5
+([plan 0009](0009-m5.5-edit-events-and-contacts.md)). Apple Intelligence and iCloud's services are out of
 scope; Gmail's categories get a spike.
 Status: **done** (2026-10-14); evidence under each phase.
 

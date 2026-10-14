@@ -1,7 +1,8 @@
 # Design: contacts, calendars and tasks
 
-Status: designed for [M4.5](../plans/0007-m4.5-people-calendar-tasks.md);
-nothing here is built yet. Rationale:
+Status: built in [M4.5](../plans/0007-m4.5-people-calendar-tasks.md);
+editing events and contacts comes in
+[M5.5](../plans/0009-m5.5-edit-events-and-contacts.md). Rationale:
 [ADR-0017](../adr/0017-sync-contacts-calendars-and-tasks.md) (protocols),
 [ADR-0018](../adr/0018-keep-contacts-events-and-tasks-as-sent.md) (storage),
 [ADR-0022](../adr/0022-mail-the-reply-the-server-will-not-send.md)
