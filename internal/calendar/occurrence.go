@@ -25,7 +25,7 @@ const (
 // do (RecurrenceKey of its original start). For ScopeFuture, split is the
 // new series' object, under newUID; it is nil otherwise.
 func PatchOccurrence(src []byte, recurrenceID string, scope Scope, c EventChange, newUID string, now time.Time) (patched, split []byte, err error) {
-	p, err := readOccurrencePatch(src, recurrenceID)
+	p, err := readSeriesOccurrencePatch(src, recurrenceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -62,7 +62,7 @@ func PatchOccurrence(src []byte, recurrenceID string, scope Scope, c EventChange
 // it on (ScopeFuture). Deleting a whole series deletes its object, which
 // is not a patch.
 func DeleteOccurrence(src []byte, recurrenceID string, scope Scope, now time.Time) ([]byte, error) {
-	p, err := readOccurrencePatch(src, recurrenceID)
+	p, err := readSeriesOccurrencePatch(src, recurrenceID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +96,14 @@ type occurrencePatch struct {
 	start                 time.Time
 }
 
+func readSeriesOccurrencePatch(src []byte, id string) (occurrencePatch, error) {
+	p, err := readOccurrencePatch(src, id)
+	if err == nil && p.master.Prop("RRULE") == nil && p.master.Prop("RDATE") == nil {
+		return p, errors.New("occurrence: master is not a usable series")
+	}
+	return p, err
+}
+
 func readOccurrencePatch(src []byte, id string) (occurrencePatch, error) {
 	var p occurrencePatch
 	cal, master, err := eventPatchMaster(src)
@@ -103,7 +111,7 @@ func readOccurrencePatch(src []byte, id string) (occurrencePatch, error) {
 		return p, err
 	}
 	event, ok := readEvent(master, timeReader{calendar: cal, local: time.Local}, src, nil)
-	if !ok || (master.Prop("RRULE") == nil && master.Prop("RDATE") == nil) {
+	if !ok {
 		return p, errors.New("occurrence: master is not a usable series")
 	}
 	layout := time.RFC3339Nano
@@ -118,6 +126,10 @@ func readOccurrencePatch(src []byte, id string) (occurrencePatch, error) {
 		return p, errors.New("occurrence: recurrence ID is not in canonical form")
 	}
 	p = occurrencePatch{cal: cal, master: master, event: event, start: start}
+	// A split can exhaust its COUNT and leave only the new master's start.
+	if master.Prop("RRULE") == nil && master.Prop("RDATE") == nil && start.Equal(event.Start) {
+		return p, nil
+	}
 	for _, component := range cal.ChildrenNamed("VEVENT") {
 		if VEventRecurrenceID(cal, component, time.Local) == id {
 			p.override = component
