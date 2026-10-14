@@ -228,7 +228,8 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
 
 - Microsoft (Outlook.com, Microsoft 365) profile and OAuth: when an
   account needs it; tenant admin consent documented.
-- Gmail categories (Primary, Promotions) via `X-GM-RAW`: M5 spike.
+- Gmail categories (Primary, Promotions) via `X-GM-RAW`: measured by M5's
+  spike and Out ([ADR-0029](../adr/0029-show-no-mail-categories.md)).
 - The sync window in Settings (a "Keep mail from" choice) and server search
   for mail outside it (`UID SEARCH`, `X-GM-RAW` on Gmail).
 - Contacts beyond seen addresses (CardDAV): M4.5,
