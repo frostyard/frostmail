@@ -27,6 +27,7 @@ fn main() {
             commands::open_link,
             commands::open_part,
             commands::open_compose,
+            commands::open_event,
             commands::open_settings,
             commands::open_reminders,
             commands::startup_message
