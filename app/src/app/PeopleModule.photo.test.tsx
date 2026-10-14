@@ -112,11 +112,14 @@ describe("contact photos, deletes and refusals", () => {
 
   it("shows a refused change until dismissed", async () => {
     const { mock } = await setup();
-    act(() => {
+    // The mock delivers events on a microtask: flush it inside act, so the
+    // notice renders before the query, however busy the machine is.
+    await act(async () => {
       mock.emit({
         event: "people.refused",
         data: { accountId: 1, contactId: 201, name: "Ann Smith", reason: "changed" },
       });
+      await Promise.resolve();
     });
     const notice = await screen.findByText("“Ann Smith” was changed on another device, so your change wasn't saved.");
     fireEvent.click(within(notice.closest("output") as HTMLElement).getByRole("button", { name: "Dismiss" }));
