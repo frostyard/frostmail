@@ -258,9 +258,15 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   "Yesterday"; within the last 6 days, the weekday ("Tuesday"); otherwise the
   locale's short date ("10/3/26").
 - **Empty:** "No Messages" centered, 15/400 `--text-secondary`. With a
-  filter (below) it names the filter: "No Unread Messages", "No Flagged
-  Messages", "No Messages with Attachments", with a "Show All" button
-  (12/16 `--accent`, no background) under it that sets the filter to All.
+  filter (below) it names the filter and the source it narrows, titled as
+  the toolbar titles it: "No Unread Messages in All Inboxes", "No Flagged
+  Messages in Work", "No Messages with Attachments in Archive". While
+  searching it names no source, and the Flagged filter in Flagged reads
+  "No Flagged Messages". Under it, a "Show All" button (12/16 `--accent`,
+  no background) sets the filter to All; under the Flagged filter outside
+  Flagged, a "Show All Flagged" button in the same style, 12px after it,
+  opens Flagged with the filter set to All, since flagged mail filed away
+  is not in the source.
 - **Filter bar** (M4.5): a 32-high strip at the top of the list column,
   `--bg-window` with a 1px `--separator` bottom, 12px side padding, a
   `toolbar` named "Filter messages" holding four buttons 22 high, 4px apart,

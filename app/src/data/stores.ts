@@ -7,7 +7,8 @@ import type { OccurrenceKey } from "../features/calendar/TimeGrid";
 import type { ListFilter } from "../features/list/FilterBar";
 import type { SmartDraft } from "../features/organize/SmartSheet";
 import type { CalendarView } from "../lib/calendarDates";
-import { vipGroups } from "../lib/mailboxTree";
+import { flagLabel } from "../lib/flags";
+import { buildSidebar, vipGroups } from "../lib/mailboxTree";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
 import type {
@@ -264,6 +265,36 @@ export function sourceKey(s: Source): string {
       return s.key;
     case "mailbox":
       return `mailbox:${s.mailboxId}`;
+  }
+}
+
+/** sourceTitle names a source as the toolbar titles it: "All Inboxes", a
+ *  mailbox's sidebar label, a smart mailbox's name; "" for one not loaded. */
+export function sourceTitle(
+  s: Source,
+  mail: Pick<MailState, "accounts" | "mailboxes" | "vips" | "smarts"> & { flagNames?: readonly string[] },
+): string {
+  switch (s.kind) {
+    case "smart":
+      return mail.smarts.find((smart) => smart.id === s.id)?.name ?? "";
+    case "allInboxes":
+      return "All Inboxes";
+    case "role":
+      return buildSidebar(mail.accounts, mail.mailboxes)[0]?.items.find((i) => i.key === `role:${s.role}`)?.label ?? "";
+    case "flagged":
+      return "Flagged";
+    case "flagColor":
+      return flagLabel(s.color, mail.flagNames);
+    case "vips":
+      return "VIPs";
+    case "vip":
+      return vipGroups(mail.vips).find((group) => group.key === s.key)?.label ?? "";
+    case "mailbox": {
+      const label = buildSidebar(mail.accounts, mail.mailboxes)
+        .flatMap((section) => section.items)
+        .find((i) => i.mailboxId === s.mailboxId)?.label;
+      return label ?? mail.mailboxes.find((mb) => mb.id === s.mailboxId)?.name ?? "";
+    }
   }
 }
 

@@ -13,11 +13,11 @@ import {
 } from "react";
 
 import { useClient } from "../data/session";
-import { useMail, useUI } from "../data/stores";
+import { sourceTitle, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import { RedirectSheet } from "../features/compose/RedirectSheet";
 import { TimeSheet } from "../features/later/TimeSheet";
-import { emptyText } from "../features/list/FilterBar";
+import { emptyTextIn } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES, flagLabel } from "../lib/flags";
@@ -139,6 +139,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const rules = useMail((s) => s.rules);
     const flagNames = useMail((s) => s.settings?.flagNames);
     const vips = useMail((s) => s.vips);
+    const smarts = useMail((s) => s.smarts);
     const vipAddresses = useMemo(() => vipSet(vips), [vips]);
     const {
       selected,
@@ -147,9 +148,11 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       conversations,
       contactPhotos,
       source,
+      search,
       listFilter,
       select,
       setFocus,
+      setSource,
       setListFilter,
     } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
@@ -161,6 +164,16 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const [now, setNow] = useState(() => new Date());
     const lastIndex = useRef(0);
     const count = model?.count ?? 0;
+    // An empty filtered list names the source it narrows, so a flagged
+    // message elsewhere does not look lost; a search spans more than the
+    // source, and Flagged needs no "in Flagged".
+    const emptyScope = useMemo(
+      () =>
+        search !== "" || (listFilter === "flagged" && source.kind === "flagged")
+          ? ""
+          : sourceTitle(source, { accounts, mailboxes, vips, smarts, flagNames }),
+      [search, listFilter, source, accounts, mailboxes, vips, smarts, flagNames],
+    );
 
     useEffect(() => {
       const t = setInterval(() => setNow(new Date()), 60_000);
@@ -518,15 +531,29 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           </div>
         ) : model?.ready && count === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 text-empty text-secondary">
-            <span>{emptyText(listFilter)}</span>
+            <span>{emptyTextIn(listFilter, emptyScope)}</span>
             {listFilter !== "all" && (
-              <button
-                type="button"
-                className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
-                onClick={() => setListFilter("all")}
-              >
-                Show All
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
+                  onClick={() => setListFilter("all")}
+                >
+                  Show All
+                </button>
+                {listFilter === "flagged" && source.kind !== "flagged" && (
+                  <button
+                    type="button"
+                    className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
+                    onClick={() => {
+                      setSource({ kind: "flagged" });
+                      setListFilter("all");
+                    }}
+                  >
+                    Show All Flagged
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ) : (

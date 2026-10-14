@@ -4,14 +4,13 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type Ref, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useClient } from "../data/session";
-import { listQuery, useMail, useUI } from "../data/stores";
+import { listQuery, sourceTitle, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import { SearchField } from "../features/search/SearchField";
 import { type MoveTarget, Toolbar, type ToolbarCommand } from "../features/toolbar/Toolbar";
 import { step, viewTitle } from "../lib/calendarDates";
-import { flagLabel } from "../lib/flags";
 import { formatCount } from "../lib/format";
-import { buildSidebar, vipGroups } from "../lib/mailboxTree";
+import { buildSidebar } from "../lib/mailboxTree";
 import {
   archiveMailbox,
   compose,
@@ -51,47 +50,33 @@ function useMaximized() {
 
 function mailTitle(model: ViewModel | null) {
   const ui = useUI.getState();
-  const { accounts, mailboxes, vips, settings, smarts } = useMail.getState();
+  const mail = useMail.getState();
+  const { accounts, mailboxes } = mail;
   const searching = ui.search !== "";
   const count = model?.ready ? model.count : null;
   if (searching) {
     return { title: "Search", subtitle: count === null ? "Searching…" : `${formatCount(count)} results` };
   }
   const src = ui.source;
-  const inboxes = mailboxes.filter((mb) => mb.role === "inbox");
+  const title = sourceTitle(src, { ...mail, flagNames: mail.settings?.flagNames });
   const counts = (list: typeof mailboxes) => {
     const total = list.reduce((n, mb) => n + mb.total, 0);
     const unread = list.reduce((n, mb) => n + mb.unread, 0);
     return `${formatCount(total)} messages, ${formatCount(unread)} unread`;
   };
-  if (src.kind === "smart")
-    return {
-      title: smarts.find((smart) => smart.id === src.id)?.name ?? "",
-      subtitle: count === null ? "" : `${formatCount(count)} messages`,
-    };
-  if (src.kind === "allInboxes") return { title: "All Inboxes", subtitle: counts(inboxes) };
-  if (src.kind === "role") {
-    const label = buildSidebar(accounts, mailboxes)[0]?.items.find((i) => i.key === `role:${src.role}`)?.label;
-    return { title: label ?? "", subtitle: counts(mailboxes.filter((mb) => mb.role === src.role)) };
+  switch (src.kind) {
+    case "allInboxes":
+      return { title, subtitle: counts(mailboxes.filter((mb) => mb.role === "inbox")) };
+    case "role":
+      return { title, subtitle: counts(mailboxes.filter((mb) => mb.role === src.role)) };
+    case "mailbox": {
+      const mb = mailboxes.find((m) => m.id === src.mailboxId);
+      const readOnly = accounts.some((a) => a.id === mb?.accountId && a.readOnly);
+      return { title, subtitle: mb ? `${counts([mb])}${readOnly ? " · Read-only" : ""}` : "" };
+    }
+    default:
+      return { title, subtitle: count === null ? "" : `${formatCount(count)} messages` };
   }
-  if (src.kind === "flagged")
-    return { title: "Flagged", subtitle: count === null ? "" : `${formatCount(count)} messages` };
-  if (src.kind === "vips" || src.kind === "vip" || src.kind === "flagColor") {
-    const title =
-      src.kind === "vips"
-        ? "VIPs"
-        : src.kind === "flagColor"
-          ? flagLabel(src.color, settings?.flagNames)
-          : (vipGroups(vips).find((group) => group.key === src.key)?.label ?? "");
-    return { title, subtitle: count === null ? "" : `${formatCount(count)} messages` };
-  }
-  const mb = mailboxes.find((m) => m.id === src.mailboxId);
-  const label = buildSidebar(accounts, mailboxes)
-    .flatMap((s) => s.items)
-    .find((i) => i.mailboxId === src.mailboxId)?.label;
-  const readOnly = accounts.some((a) => a.id === mb?.accountId && a.readOnly);
-  const subtitle = mb ? `${counts([mb])}${readOnly ? " · Read-only" : ""}` : "";
-  return { title: label ?? mb?.name ?? "", subtitle };
 }
 
 function useToolbarData(model: ViewModel | null, people?: PeopleData) {
