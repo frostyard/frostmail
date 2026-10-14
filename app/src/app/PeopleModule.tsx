@@ -1,16 +1,20 @@
 // People panes share Mail's column widths and splitters.
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { type Pane, useUI } from "../data/stores";
 import { UpcomingList } from "../features/calendar/UpcomingList";
+import { ContactEditor, type ContactEditorProps } from "../features/people/ContactEditor";
 import { PeopleSidebar } from "../features/people/PeopleSidebar";
 import { PersonPane } from "../features/people/PersonPane";
 import { IndexHeader, PersonRow } from "../features/people/PersonRow";
+import { PhotoWell } from "../features/people/PhotoWell";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import type { Command } from "../lib/keymap";
 import { type PeopleRow, peopleRows } from "../lib/peopleRows";
+import { type PhotoChange, photoURL, scalePhoto } from "../lib/photo";
 import type { PersonSummary } from "../rpc/gen/api";
 import { revealMessage } from "./openMessage";
 import { Splitter } from "./Splitter";
@@ -165,7 +169,119 @@ function PeopleList({ people }: { people: PersonSummary[] }) {
   );
 }
 
+function PeopleEditor({
+  contact,
+  books,
+  currentPhoto,
+}: Pick<ContactEditorProps, "contact" | "books"> & { currentPhoto?: string }) {
+  const client = useClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const [photo, setPhoto] = useState<PhotoChange>();
+  const [scaling, setScaling] = useState(false);
+  const photoRequest = useRef(0);
+  useEffect(
+    () => () => {
+      photoRequest.current++;
+    },
+    [],
+  );
+  const pick = async (file: File) => {
+    if (busy) return;
+    const request = ++photoRequest.current;
+    setScaling(true);
+    setError(undefined);
+    try {
+      const scaled = await scalePhoto(file);
+      if (request === photoRequest.current) setPhoto(scaled);
+    } catch (err: unknown) {
+      if (request === photoRequest.current) setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (request === photoRequest.current) setScaling(false);
+    }
+  };
+  const cancel = () => useUI.getState().editContact(null);
+  const save: ContactEditorProps["onSave"] = async (fields, bookId) => {
+    if (busy || scaling) return;
+    if (contact && Object.keys(fields).length === 0 && photo === undefined) {
+      cancel();
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    try {
+      let id = contact?.id;
+      if (contact) {
+        if (Object.keys(fields).length > 0) await client.people.update({ id: contact.id, fields });
+      } else {
+        const result = await client.people.create({
+          fields,
+          ...(bookId === undefined ? {} : { collectionId: bookId }),
+        });
+        id = result.contactId;
+        if (result.person) useUI.getState().selectPerson(result.person.id);
+      }
+      if (photo !== undefined && id !== undefined) {
+        await client.people.setPhoto({ id, ...(photo === null ? {} : { photo }) });
+      }
+      cancel();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const deleteContact = async () => {
+    if (!contact || busy || scaling) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      const book = books?.find((item) => item.id === contact.collectionId)?.label ?? String(contact.collectionId);
+      const text = `Delete "${contact.displayName}" from ${book}? It is removed from every device that syncs this address book.`;
+      const confirmed = isTauri()
+        ? await ask(text, { title: "Delete Contact?", kind: "warning", okLabel: "Delete" })
+        : window.confirm(text);
+      if (confirmed) {
+        await client.people.delete({ id: contact.id });
+        cancel();
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <ContactEditor
+      contact={contact}
+      books={books}
+      busy={busy || scaling}
+      error={error}
+      onSave={save}
+      onCancel={cancel}
+      onDelete={contact ? deleteContact : undefined}
+      photo={
+        <PhotoWell
+          name={contact?.displayName ?? ""}
+          email={contact?.emails[0]?.value ?? ""}
+          photo={photo === undefined ? currentPhoto : photo === null ? undefined : photoURL(photo)}
+          onPick={pick}
+          onRemove={() => {
+            if (busy) return;
+            photoRequest.current++;
+            setScaling(false);
+            setPhoto(null);
+          }}
+        />
+      }
+    />
+  );
+}
+
 function PeopleDetail({ data }: { data: PeopleData }) {
+  const editing = useUI((state) => state.peopleEditing);
+  const editContact = useUI((state) => state.editContact);
+  const contact = data.person?.contacts.find((item) => item.id === editing);
   const frame = useCalendarFrame();
   const colors = useCalendarColors();
   const client = useClient();
@@ -179,6 +295,18 @@ function PeopleDetail({ data }: { data: PeopleData }) {
   };
   return (
     <PersonPane
+      editing={editing}
+      onEdit={editContact}
+      editor={
+        editing !== null && (editing === "new" || contact) ? (
+          <PeopleEditor
+            key={editing}
+            contact={contact ?? null}
+            books={data.writableBooks}
+            currentPhoto={contact ? data.photo : undefined}
+          />
+        ) : undefined
+      }
       person={data.person}
       books={data.books}
       recent={data.recent}
@@ -207,6 +335,7 @@ function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef:
     <fieldset
       ref={elementRef}
       aria-label="People sidebar"
+      inert={ui.peopleEditing !== null}
       onFocus={() => ui.setPeopleFocus("sidebar")}
       className="m-0 flex h-full min-w-0 shrink-0 flex-col border-0 bg-sidebar p-0"
       style={{ width: ui.sidebarWidth }}
@@ -259,7 +388,7 @@ export const PeopleModule = forwardRef<PeopleHandle, PeopleModuleProps>(function
           <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
         </>
       )}
-      <div ref={list} className="h-full shrink-0" style={{ width: ui.listWidth }}>
+      <div ref={list} inert={ui.peopleEditing !== null} className="h-full shrink-0" style={{ width: ui.listWidth }}>
         <PeopleList people={props.data.people} />
       </div>
       <Splitter label="Resize contacts list" onResize={props.resizeList} onEnd={props.endDrag} />

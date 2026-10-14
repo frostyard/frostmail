@@ -95,6 +95,7 @@ export interface UIState {
   todoBar: boolean;
   peopleBook: "all" | number;
   peopleSelected: number | null;
+  peopleEditing: number | "new" | null;
   peopleSearch: string;
   peopleSearchDraft: string;
   peopleFocus: Pane;
@@ -136,6 +137,7 @@ export interface UIActions {
   toggleTodoBar: () => void;
   setPeopleBook: (peopleBook: "all" | number) => void;
   selectPerson: (peopleSelected: number | null) => void;
+  editContact: (peopleEditing: number | "new" | null) => void;
   setPeopleSearchDraft: (peopleSearchDraft: string) => void;
   commitPeopleSearch: (peopleSearch: string) => void;
   clearPeopleSearch: () => void;
@@ -170,6 +172,7 @@ const initialUI: UIState = {
   todoBar: false,
   peopleBook: "all",
   peopleSelected: null,
+  peopleEditing: null,
   peopleSearch: "",
   peopleSearchDraft: "",
   peopleFocus: "list",
@@ -210,6 +213,7 @@ export const useUI = create<UIState & UIActions>()(
       toggleTodoBar: () => set((s) => ({ todoBar: !s.todoBar })),
       setPeopleBook: (peopleBook) => set({ peopleBook }),
       selectPerson: (peopleSelected) => set({ peopleSelected }),
+      editContact: (peopleEditing) => set({ peopleEditing }),
       setPeopleSearchDraft: (peopleSearchDraft) => set({ peopleSearchDraft }),
       commitPeopleSearch: (peopleSearch) => set({ peopleSearch }),
       clearPeopleSearch: () => set({ peopleSearch: "", peopleSearchDraft: "" }),

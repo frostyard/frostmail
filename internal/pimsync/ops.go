@@ -19,6 +19,9 @@ func (p *pass) replay(ctx context.Context, services []store.Service) error {
 	if p.acct.ReadOnly {
 		return nil
 	}
+	if err := p.dropOldRestores(ctx); err != nil {
+		return err
+	}
 	ops, err := p.m.db.DuePIMOps(ctx, p.acct.ID, p.m.db.Now())
 	if err != nil {
 		return err
@@ -65,6 +68,9 @@ func (p *pass) replayOne(ctx context.Context, op store.PIMOp, services []store.S
 		return p.put(ctx, c, kind, col, op)
 	case "delete":
 		err := c.Delete(ctx, op.Href, op.IfMatch)
+		if err != nil && kind == davx.AddressBooks && refusal(err) {
+			return p.refusedDelete(ctx, op, col)
+		}
 		if err != nil {
 			return p.failed(ctx, op, err)
 		}
@@ -100,6 +106,16 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 	}
 	w, err := c.Put(ctx, op.Href, obj.Raw, kind, op.IfMatch)
 	if err != nil {
+		if payload, edit := ParseContactPayload(op.Payload); edit && kind == davx.AddressBooks && refusal(err) {
+			if errors.Is(err, davx.ErrPrecondition) && !payload.Whole {
+				return p.reapply(ctx, c, col, op, payload)
+			}
+			reason := "refused"
+			if errors.Is(err, davx.ErrPrecondition) {
+				reason = "changed"
+			}
+			return p.refusedContact(ctx, op, col, nil, reason)
+		}
 		return p.failed(ctx, op, err)
 	}
 	moved := w.Href != op.Href
@@ -176,10 +192,8 @@ func (p *pass) failed(ctx context.Context, op store.PIMOp, err error) error {
 	}
 	p.m.log.Warn("pim change not written", "account", p.acct.ID, "href", op.Href, "err", err)
 	var next time.Time
-	var se *davx.StatusError
 	var ae *gtasks.APIError
-	refused := errors.Is(err, davx.ErrPrecondition) || errors.As(err, &se) && se.Code/100 == 4 ||
-		errors.As(err, &ae) && ae.Status/100 == 4
+	refused := refusal(err) || errors.As(err, &ae) && ae.Status/100 == 4
 	if wait := retryAfter(op.Attempts); !refused && wait > 0 {
 		next = p.m.db.Now().Add(wait)
 	}

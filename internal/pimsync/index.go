@@ -36,15 +36,7 @@ func (p *pass) indexDAV(ctx context.Context, tx *store.Tx, col store.Collection,
 	if card == nil || card.Kind == "group" {
 		return tx.RemoveContact(ctx, id)
 	}
-	c := store.ContactIndex{DisplayName: card.DisplayName(), SortKey: card.SortKey(),
-		GivenName: card.GivenName, FamilyName: card.FamilyName, Organization: card.Organization}
-	for _, email := range card.Emails {
-		c.Emails = append(c.Emails, store.ContactEmail{Email: email.Value, Label: email.Label})
-	}
-	if len(card.Photo.Data) > 0 {
-		c.Photo, c.PhotoType = card.Photo.Data, card.Photo.Type
-	}
-	return tx.IndexContact(ctx, id, c)
+	return tx.IndexContact(ctx, id, ContactIndexOf(card))
 }
 
 func calendarMetadata(o *store.Object) {

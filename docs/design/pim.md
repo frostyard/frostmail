@@ -235,15 +235,22 @@ contacts and events writable through `people.create`, `update`, `delete`,
   "base": {"<component>/<PROPERTY>": [lines…]}}`. A component is `VCARD`,
   or `VEVENT` with the occurrence's `RECURRENCE-ID` (`VEVENT` alone for
   the master). The base holds each touched property's unfolded lines as
-  the source had them before the first change. A second edit while the
-  op waits appends its fields, and its base for properties not yet in it.
+  the source had them before the first change; a list change also counts
+  the card's `X-ABLabel` lines. A second edit while the op waits appends
+  its fields, and its base for properties not yet in it; an edit to a
+  contact whose creation waits adds nothing, since the creation writes
+  the source as it is then. A restore's put is `{"whole": true}`, which
+  is never applied again, and a contact's delete carries `{"name": …}`
+  for the app should the server refuse it.
 - **After a 412**, the pass fetches the object (`GET`). When every base
   entry matches the server's lines, it applies the changes in order to
   the server's source, stores that with the server's ETag, and puts it
   again: three attempts, then as below. Otherwise it stores the server's
   version, drops the op, and emits `people.refused` or `calendar.refused`
   with reason `changed`. A 404 emits reason `deleted` and removes the
-  local object; other 4xx answers emit `refused`.
+  local object; other 4xx answers emit `refused`. A contact delete
+  refused with 412 lists the address book again, which brings the
+  server's version back, and emits `changed`.
 - **Restores** (`pim_restores`, a row per write with an opaque ID, the
   account and when; `pim_restore_objects`, a row per object it touched,
   with the collection, href, UID and the source before, or NULL when the

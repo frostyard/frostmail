@@ -13,8 +13,9 @@ import (
 )
 
 func newPeopleCmd(opts *rootOptions) *cobra.Command {
-	cmd := &cobra.Command{Use: "people", Short: "Inspect contacts"}
+	cmd := &cobra.Command{Use: "people", Short: "Inspect and manage contacts"}
 	cmd.AddCommand(newPeopleLsCmd(opts), newPeopleShowCmd(opts))
+	cmd.AddCommand(newPeopleAddCmd(opts), newPeopleEditCmd(opts), newPeopleRmCmd(opts))
 	return cmd
 }
 
@@ -120,6 +121,11 @@ func printPerson(w io.Writer, person *api.Person) error {
 		fmt.Fprintf(&b, "Organization: %s\n", person.Organization)
 	}
 	for _, contact := range person.Contacts {
+		readOnly := ""
+		if contact.ReadOnly {
+			readOnly = " (read-only)"
+		}
+		fmt.Fprintf(&b, "Contact %d%s\n", contact.ID, readOnly)
 		printContactValues(&b, "Email", contact.Emails)
 		printContactValues(&b, "Phone", contact.Phones)
 		if contact.Note != "" {
