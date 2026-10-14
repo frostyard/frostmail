@@ -11,6 +11,7 @@ import { ALERT, BUTTON, PRIMARY_BUTTON } from "../features/settings/labels";
 import { changedFields, draftOf, type EventDraft, newDraft, validate } from "../lib/eventDraft";
 import type { CalendarEvent, Client, EventScope } from "../rpc/gen/api";
 import type { EditorTarget } from "./eventWindow";
+import { announceRestore } from "./pimUndo";
 
 interface LoadedEvent {
   event: CalendarEvent | null;
@@ -168,14 +169,19 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
     try {
       const occurrence =
         event?.recurring && event.recurrenceId && scope ? { recurrenceId: event.recurrenceId, scope } : {};
+      let restoreId: string;
       if (action === "delete") {
         if (!event) return;
-        await client.calendar.delete({ id: event.id, ...occurrence });
+        ({ restoreId } = await client.calendar.delete({ id: event.id, ...occurrence }));
       } else {
         const fields = changedFields(original, draft);
-        if (event) await client.calendar.update({ id: event.id, ...occurrence, fields });
-        else await client.calendar.create({ calendarId: draft.calendarId, fields });
+        ({ restoreId } = event
+          ? await client.calendar.update({ id: event.id, ...occurrence, fields })
+          : await client.calendar.create({ calendarId: draft.calendarId, fields }));
       }
+      await announceRestore({ module: "calendar", restoreId }).catch((err: unknown) =>
+        console.warn("announce event restore", err),
+      );
       closeWindow();
     } catch (error) {
       setFailure(message(error));

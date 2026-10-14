@@ -17,6 +17,7 @@ import { type PeopleRow, peopleRows } from "../lib/peopleRows";
 import { type PhotoChange, photoURL, scalePhoto } from "../lib/photo";
 import type { PersonSummary } from "../rpc/gen/api";
 import { revealMessage } from "./openMessage";
+import { rememberRestore } from "./pimUndo";
 import { Splitter } from "./Splitter";
 import { openOccurrence, useCalendarColors, useCalendarFrame } from "./useCalendar";
 import { type PeopleData, writeToPerson } from "./usePeople";
@@ -212,17 +213,22 @@ function PeopleEditor({
     try {
       let id = contact?.id;
       if (contact) {
-        if (Object.keys(fields).length > 0) await client.people.update({ id: contact.id, fields });
+        if (Object.keys(fields).length > 0) {
+          const { restoreId } = await client.people.update({ id: contact.id, fields });
+          rememberRestore({ module: "people", restoreId });
+        }
       } else {
         const result = await client.people.create({
           fields,
           ...(bookId === undefined ? {} : { collectionId: bookId }),
         });
+        rememberRestore({ module: "people", restoreId: result.restoreId });
         id = result.contactId;
         if (result.person) useUI.getState().selectPerson(result.person.id);
       }
       if (photo !== undefined && id !== undefined) {
-        await client.people.setPhoto({ id, ...(photo === null ? {} : { photo }) });
+        const { restoreId } = await client.people.setPhoto({ id, ...(photo === null ? {} : { photo }) });
+        rememberRestore({ module: "people", restoreId });
       }
       cancel();
     } catch (err: unknown) {
@@ -242,7 +248,8 @@ function PeopleEditor({
         ? await ask(text, { title: "Delete Contact?", kind: "warning", okLabel: "Delete" })
         : window.confirm(text);
       if (confirmed) {
-        await client.people.delete({ id: contact.id });
+        const { restoreId } = await client.people.delete({ id: contact.id });
+        rememberRestore({ module: "people", restoreId });
         cancel();
       }
     } catch (err: unknown) {
