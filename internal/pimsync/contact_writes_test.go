@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -207,6 +208,30 @@ func TestContactEditRefusedWhenTheFieldChanged(t *testing.T) {
 	}
 	if ops, _ := e.db.DuePIMOps(ctx, e.acct.ID, e.db.Now()); len(ops) != 0 {
 		t.Errorf("the refused put is still queued: %+v", ops)
+	}
+}
+
+// A change the server refuses outright leaves its version here at once.
+func TestContactEditRefusedOutright(t *testing.T) {
+	e := newContactEnv(t)
+	ctx := t.Context()
+	ann := e.contact("Ann Smith")
+	if _, err := e.people.Update(ctx, &api.PeopleUpdateParams{ID: ann, Fields: api.ContactFields{Title: ptr2("COO")}}); err != nil {
+		t.Fatal(err)
+	}
+	e.dav.FailWith(func(r *http.Request) int {
+		if r.Method == http.MethodPut {
+			return http.StatusForbidden
+		}
+		return 0
+	})
+	e.pass()
+	e.dav.FailWith(nil)
+	if r := e.refused(); len(r) != 1 || r[0].Reason != "refused" {
+		t.Errorf("refused = %+v", r)
+	}
+	if obj, err := e.db.GetObject(ctx, ann); err != nil || string(obj.Raw) != e.server(e.book+"ann.vcf") {
+		t.Errorf("after the refusal the local card is %s, %v", obj.Raw, err)
 	}
 }
 

@@ -120,7 +120,7 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 			if errors.Is(err, davx.ErrPrecondition) {
 				reason = "changed"
 			}
-			return p.refusedContact(ctx, op, col, nil, reason)
+			return p.refusedContact(ctx, op, col, serverCopy(ctx, c, op), reason)
 		}
 		return p.failed(ctx, op, err)
 	}

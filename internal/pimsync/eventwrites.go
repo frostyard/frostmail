@@ -28,7 +28,22 @@ func (p *pass) refusedPut(ctx context.Context, c *davx.Client, col store.Collect
 	if precondition {
 		reason = "changed"
 	}
-	return p.refusedEvent(ctx, op, col, nil, reason)
+	return p.refusedEvent(ctx, op, col, serverCopy(ctx, c, op), reason)
+}
+
+// serverCopy is the server's version of what a refused put would have
+// replaced, so that it replaces the local one at once: a later listing
+// would not fetch it, its ETag being the one the local copy already has.
+// It is nil for a creation, or when the server does not answer.
+func serverCopy(ctx context.Context, c *davx.Client, op store.PIMOp) *davx.Object {
+	if op.IfMatch == "" {
+		return nil
+	}
+	server, err := c.Get(ctx, op.Href)
+	if err != nil {
+		return nil
+	}
+	return &server
 }
 
 // reapplyEvent is reapply for an event edit.

@@ -378,6 +378,32 @@ func TestEventDeleteAndRestore(t *testing.T) {
 	}
 }
 
+// A change the server refuses outright leaves its version here at once:
+// a later listing would not fetch it, its ETag being the one already here.
+func TestEventEditRefusedOutright(t *testing.T) {
+	e := newEventEnv(t)
+	ctx := t.Context()
+	id := e.event("Planning")
+	if _, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: id, Fields: api.EventFields{Summary: ptr2("Planning Q4")}}); err != nil {
+		t.Fatal(err)
+	}
+	e.dav.FailWith(func(r *http.Request) int {
+		if r.Method == http.MethodPut {
+			return http.StatusForbidden
+		}
+		return 0
+	})
+	e.pass()
+	e.dav.FailWith(nil)
+	if r := e.refused(); len(r) != 1 || r[0].Reason != "refused" {
+		t.Errorf("refused = %+v", r)
+	}
+	obj, err := e.db.GetObject(ctx, mustObject(t, e, id))
+	if err != nil || string(obj.Raw) != e.server(e.work+"planning.ics") {
+		t.Errorf("after the refusal the local copy is %s, %v", obj.Raw, err)
+	}
+}
+
 func TestEventWritesRefuseWhatCannotBeWritten(t *testing.T) {
 	e := newEventEnv(t)
 	ctx := t.Context()
