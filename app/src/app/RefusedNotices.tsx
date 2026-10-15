@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { RefusedNotice, refusedText } from "../features/people/RefusedNotice";
 
@@ -16,7 +16,9 @@ export function RefusedNotices() {
     timers.current.delete(id);
     setNotices((current) => current.filter((notice) => notice.id !== id));
   };
-  useEffect(() => {
+  // Subscribe at commit, as the window's other handlers do: a refusal
+  // that comes as soon as the window shows is not missed.
+  useLayoutEffect(() => {
     const pending = timers.current;
     const off = client.transport.onEvent((event) => {
       if (event.event !== "people.refused" && event.event !== "calendar.refused") return;
