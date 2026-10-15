@@ -1,6 +1,6 @@
 # 0034 — Invite from the organizer's copy, and ask before telling invitees
 
-- **Status:** Accepted
+- **Status:** Superseded by [0035](0035-invite-through-the-providers-scheduling.md)
 - **Date:** 2026-10-14
 
 ## Context

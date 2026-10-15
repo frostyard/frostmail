@@ -449,6 +449,8 @@ editor window (ADR-0020), changes in the views, and undo, below.
   for an event in a writable calendar. Edit opens the event editor for
   the selected occurrence. Delete deletes it: through the scope sheet for
   an occurrence of a series, at once otherwise (Ctrl+Z brings it back).
+  An event with invitees asks first with the notify sheet ("Send
+  Cancellations?"), which is the confirmation ADR-0030 asks for.
   For an event the user is invited to, Edit opens the editor with only
   the alerts enabled, and Delete is absent: declining is the invitation's
   answer.
@@ -540,7 +542,24 @@ and draws its own 32-high title strip with a Close button.
     - **end repeat** (when it repeats): Never, On Date (with a date
       input), or After (with a count field and "times");
     - **calendar**: a select of the writable calendars, grouped by
-      account, each with its color's 8px dot, starting on the event's own;
+      account, each with its color's 8px dot, starting on the event's own.
+      An event saved with invitees offers only its own calendar
+      (ADR-0035);
+    - **invitees** (M5.5, Phase 5): the invitees, one 28-high row each:
+      the name, else the address, 13/18 (tooltip "Name <address>"); the
+      answer icon as the event pane draws it (nothing for no answer); an
+      "Optional" text toggle 12/16 (`aria-pressed`, `--accent` when on);
+      and a 20 × 20 Remove button (`X` 14px, named "Remove <name or
+      address>"). An address that does not parse is drawn in `--flag-1`
+      with the tooltip "<address> is not a valid address". Under the
+      rows, an input named "Add Invitee" (placeholder "Add Invitee")
+      that behaves as compose's recipient field (docs/specs/compose-ui.md,
+      Recipients): typing, committing, pasting and the suggestion list
+      (`address.suggest`), and an address already invited is not added
+      again. When the chosen calendar's server does not send invitations
+      (`Collection.invites` false), the input is absent and a line 12/16
+      `--text-tertiary` says "Invitations aren't available in this
+      calendar."; Save stays disabled while invitees are listed there.
     - **alerts**: a select per alert and an "add alert" text button.
       Timed events offer None, At time of event, 5, 10, 15 and 30 minutes
       before, 1 and 2 hours before, and 1 day, 2 days and 1 week before.
@@ -559,11 +578,14 @@ and draws its own 32-high title strip with a Close button.
   the sheet into an `RRULE` and back.
 - **Footer:** for an existing event, **Delete Event** at the left
   (13/16 `--flag-1`); at the right **Cancel** and **Save** (primary,
-  disabled while saving or while a field is invalid). Enter in a text
-  field saves; Escape cancels.
+  disabled while saving or while a field is invalid, an invalid invitee
+  included). Enter in a text field saves; Escape cancels.
 - **Save** sends `calendar.create`, or `calendar.update` with the fields
-  that changed (an occurrence of a series asks the scope sheet first),
-  closes the window when it succeeds, and shows maild's error otherwise.
+  that changed (an occurrence of a series asks the scope sheet first;
+  `attendees` when the invitees changed), closes the window when it
+  succeeds, and shows maild's error otherwise. A save, or Delete Event,
+  that would tell invitees asks first with the notify sheet; Cancel
+  there leaves the editor open with the draft.
   Closing the window with changes asks "Save changes to "<title>"?" with
   Save, Don't Save and Cancel.
 - **Read-only and invited:** in a read-only calendar every field is
@@ -603,18 +625,28 @@ M5.5, Phase 4. Only occurrences of writable events the user organizes
   moves it by whole days, keeping its times.
 - Escape during a drag puts everything back and writes nothing. A drag
   that ends where it began is a click.
+- A drop that would tell invitees asks first with the notify sheet;
+  Cancel writes nothing, and the occurrence stays where it was.
 
 ### Sending to invitees (`NotifySheet`)
 
-M5.5, Phase 5 (ADR-0034). Before a create, change, delete or undo that
-would tell invitees, a dialog in the time sheet's frame asks. It is
-titled "Send Invitations?" (a new event, or invitees added), "Send
-Updates?" (a change) or "Send Cancellations?" (a delete, or invitees
-removed), with the text `<n> invitees will get <it/them> by email.` Its
-buttons are **Send**, **Don't Send** (absent where the provider's
-scheduling cannot be kept quiet) and **Cancel**. They become `notify`
-true or false, and Cancel abandons the change. The editor's Invitees
-field and the answers it shows are Phase 5's, specified with its cards.
+M5.5, Phase 5 (ADR-0035). maild decides what tells invitees: a create,
+update, delete or restore that would, sent without `notify`, fails with
+`notifyRequired`, and its data is an `InviteNotice` (`kind` and
+`count`). The app then asks, in a dialog in the time sheet's frame (420
+wide) over the window that made the change: the editor, or the main
+window for a drop, the pane's or the view's Delete, and an undo.
+
+- **Title:** "Send Invitations?" (`invitations`), "Send Updates?"
+  (`updates`) or "Send Cancellations?" (`cancellations`).
+- **Text** 13/18: "The invitee will get it by email." when `count` is 1,
+  else "<count> invitees will get it by email."
+- **Buttons,** at the right: **Cancel**, then **Send** (primary, focused).
+  Escape is Cancel. Send repeats the call with `notify: true`; Cancel
+  abandons the change and writes nothing. There is no Don't Send: the
+  servers that send invitations cannot be kept quiet (ADR-0035).
+- `lib/notify.ts` reads the notice from the error (`noticeOf`) and runs a
+  write through the sheet (`withNotify`).
 
 ### Undo in Calendar and People
 
@@ -623,7 +655,7 @@ list, as Mail does (at most 20 entries, in memory). Every create, change,
 delete, move and photo change pushes `{method: "calendar.restore" |
 "people.restore", restoreId}`. Ctrl+Z, outside a text field, undoes the
 module's newest entry and removes it. A restore that would tell invitees
-asks first, with the notify sheet.
+asks first, with the notify sheet; Cancel there puts the entry back.
 
 ## Tasks module
 
