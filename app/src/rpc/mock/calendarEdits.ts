@@ -1,6 +1,8 @@
 // Event patches, recurrence scopes and single-use restores (ADR-0030 to ADR-0032).
 import { addDays } from "../../lib/calendarDates";
 import {
+  type Account,
+  type Attendee,
   type CalendarEvent,
   type Collection,
   ErrorCode,
@@ -8,11 +10,14 @@ import {
   type EventFields,
   type EventScope,
   type EventWrite,
+  type Invitee,
+  type InviteNotice,
 } from "../gen/api";
 import { RPCError } from "../transport";
 import type { MockCalendarData, MockEvent, MockOverride } from "./calendar";
 
 type Params = Record<string, unknown>;
+type Changes = Omit<EventFields, "attendees"> & Partial<Pick<CalendarEvent, "attendees" | "organizer">>;
 const DAY_MS = 86_400_000;
 const TIME_FIELDS = ["allDay", "start", "end", "startDate", "endDate", "timeZone"] as const;
 
@@ -94,12 +99,46 @@ function fields(value: unknown): EventFields {
       if (!Number.isSafeInteger(item) || Number(item) <= 0) invalid("invalid calendar ID");
     } else if (key === "alarms") {
       if (!Array.isArray(item) || item.some((alarm) => !Number.isSafeInteger(alarm))) invalid("invalid alarms");
+    } else if (key === "attendees") {
+      if (!Array.isArray(item)) invalid("attendees must be an array");
+      for (const invitee of item) validateInvitee(invitee);
     } else invalid(`unknown field ${key}`);
   }
   const result = structuredClone(
     Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)),
   ) as EventFields;
   times(result);
+  return result;
+}
+
+function validateInvitee(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) invalid("invalid invitee");
+  if (!("email" in value) || typeof value.email !== "string") invalid("invitee requires an email");
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "email") continue;
+    if (key === "name" && (item === undefined || typeof item === "string")) continue;
+    if (key === "role" && (item === undefined || item === "required" || item === "optional")) continue;
+    invalid("invalid invitee field");
+  }
+}
+
+function invitees(event: CalendarEvent, given: Invitee[], account: Account | undefined): Attendee[] {
+  const seen = new Set([account?.email.trim().toLowerCase()]);
+  const result = event.attendees.filter((a) => a.isUser);
+  for (const invitee of given) {
+    const email = invitee.email.trim().toLowerCase();
+    if (!/^[^\s@,;:<>]+@[^\s@,;:<>.]+(?:\.[^\s@,;:<>.]+)+$/.test(email)) invalid("invalid invitee address");
+    if (seen.has(email)) continue;
+    seen.add(email);
+    const previous = event.attendees.find((a) => !a.isUser && a.email.trim().toLowerCase() === email);
+    result.push({
+      email,
+      name: invitee.name ?? previous?.name ?? "",
+      role: invitee.role ?? "required",
+      answer: previous?.answer ?? "needsaction",
+      isUser: false,
+    });
+  }
   return result;
 }
 
@@ -128,7 +167,7 @@ function rule(mock: MockEvent, rrule: string | undefined): void {
   mock.event.recurring = mock.every !== undefined;
 }
 
-function patch(mock: MockEvent, change: EventFields): void {
+function patch(mock: MockEvent, change: Changes): void {
   const { rrule, calendarId: _calendarId, ...values } = change;
   Object.assign(mock.event, values);
   rule(mock, rrule);
@@ -143,7 +182,15 @@ function independentOverride(mock: MockEvent, index: number, override: MockOverr
   if (TIME_FIELDS.every((key) => copy[key] === undefined || copy[key] === original[key])) {
     for (const key of TIME_FIELDS) delete copy[key];
   }
-  for (const key of ["summary", "location", "description", "transparent", "alarms"] as const) {
+  for (const key of [
+    "summary",
+    "location",
+    "description",
+    "transparent",
+    "alarms",
+    "attendees",
+    "organizer",
+  ] as const) {
     if (JSON.stringify(copy[key]) === JSON.stringify(original[key])) delete copy[key];
   }
   return copy;
@@ -164,7 +211,7 @@ function remap(before: MockEvent, after: MockEvent, offset = 0): void {
   }
 }
 
-function all(mock: MockEvent, change: EventFields, index: number): void {
+function all(mock: MockEvent, change: Changes, index: number): void {
   const before = structuredClone(mock);
   patch(mock, change);
   if (change.allDay !== undefined) shift(mock.event, -index * step(mock));
@@ -180,6 +227,66 @@ function truncate(mock: MockEvent, count: number): void {
     .filter((part) => !part.startsWith("COUNT="));
   mock.event.recurrence = `RRULE:${value.join(";")};COUNT=${count}`;
   remap(before, mock);
+}
+
+function eventCopies(mock: MockEvent): CalendarEvent[] {
+  return Array.from({ length: mock.every ? (mock.count ?? 1) : 1 }, (_, index) => {
+    const key = occurrenceKey(mock, index);
+    if (mock.excluded?.includes(key)) return [];
+    const event = structuredClone(mock.event);
+    shift(event, index * step(mock));
+    return [{ ...event, ...mock.overrides?.[key] }];
+  }).flat();
+}
+
+function recipients(events: MockEvent[]): Set<string> {
+  return new Set(
+    events
+      .flatMap(eventCopies)
+      .flatMap((event) =>
+        event.organizer && !event.organizer.isUser
+          ? []
+          : event.attendees.filter((a) => !a.isUser).map((a) => a.email.trim().toLowerCase()),
+      ),
+  );
+}
+
+function visibleFields(event: CalendarEvent): unknown[] {
+  return (["summary", "location", "description", ...TIME_FIELDS, "recurrence", "status"] as const).map(
+    (key) => event[key],
+  );
+}
+
+// Compare effective occurrences, so an alerts-only override is still quiet.
+function visibleEvents(events: MockEvent[]): string {
+  return JSON.stringify(
+    [...events]
+      .sort((a, b) => a.event.id - b.event.id)
+      .map((mock) => [
+        mock.event.id,
+        visibleFields(mock.event),
+        mock.every,
+        mock.count,
+        [...(mock.excluded ?? [])].sort(),
+        eventCopies(mock).map(visibleFields),
+      ]),
+  );
+}
+
+function notice(before: MockEvent[], after: MockEvent[], deleting: boolean): InviteNotice {
+  const old = recipients(before);
+  const next = recipients(after);
+  if (deleting || after.length === 0) return { kind: "cancellations", count: old.size };
+  if (before.length === 0) return { kind: "invitations", count: next.size };
+  if (visibleEvents(before) !== visibleEvents(after)) {
+    return { kind: "updates", count: new Set([...old, ...next]).size };
+  }
+  const added = [...next].filter((email) => !old.has(email));
+  const removed = [...old].filter((email) => !next.has(email));
+  return {
+    kind: added.length && removed.length ? "updates" : removed.length ? "cancellations" : "invitations",
+    count: added.length + removed.length,
+  };
 }
 
 interface Restore {
@@ -200,6 +307,7 @@ export class MockEventEdits {
     private readonly collections: Collection[],
     private readonly emit: (event: Event) => void,
     private readonly read: (id: number, recurrenceId?: string) => CalendarEvent,
+    private readonly accounts: () => Account[] = () => [],
   ) {}
 
   /** create adds an event to a named calendar or the default writable calendar. */
@@ -236,7 +344,8 @@ export class MockEventEdits {
       },
     };
     mock.event.uid = `mock-${mock.event.id}`;
-    patch(mock, change);
+    patch(mock, this.changes(mock.event, change, calendar));
+    this.confirm(p, [], [mock]);
     const restoreId = this.keep(undefined, [mock]);
     this.data.events.push(mock);
     return this.written(restoreId, mock.event.id);
@@ -245,12 +354,23 @@ export class MockEventEdits {
   /** update patches a single event, an occurrence, the whole series or its future. */
   update(p: Params): EventWrite {
     const original = this.writable(Number(p.id));
-    const change = fields(p.fields);
+    const given = fields(p.fields);
     const invited = original.event.organizer && !original.event.organizer.isUser;
-    if (invited && (p.scope === "future" || Object.keys(change).some((key) => key !== "alarms"))) {
+    if (invited && (p.scope === "future" || Object.keys(given).some((key) => key !== "alarms"))) {
       invalid("invitations take only alarms and cannot split");
     }
     const { index, scope } = this.scope(original, p);
+    const calendar = this.calendar(original.event.calendarId);
+    const source = scope === "all" ? original.event : this.read(original.event.id, occurrenceKey(original, index));
+    const change = this.changes(source, given, calendar);
+    if (
+      calendar.invites &&
+      change.calendarId !== undefined &&
+      change.calendarId !== calendar.id &&
+      (recipients([original]).size || change.attendees?.some((a) => !a.isUser))
+    ) {
+      invalid("events with invitees cannot move calendars");
+    }
     if (original.every && change.calendarId !== undefined && scope !== "all") invalid("move requires all events");
     const destination = change.calendarId === undefined ? undefined : this.calendar(change.calendarId);
     const mock = structuredClone(original);
@@ -271,7 +391,9 @@ export class MockEventEdits {
       result.event.calendarId = destination.id;
       result.event.accountId = destination.accountId;
     }
-    const restoreId = this.keep(original, result === mock ? [mock] : [mock, result]);
+    const after = result === mock ? [mock] : [mock, result];
+    this.confirm(p, [original], after);
+    const restoreId = this.keep(original, after);
     this.data.events[this.data.events.indexOf(original)] = mock;
     if (result !== mock) this.data.events.push(result);
     return this.written(restoreId, result.event.id, recurrenceId);
@@ -291,24 +413,61 @@ export class MockEventEdits {
       mock.excluded = [...(mock.excluded ?? []), key];
       if (mock.overrides) delete mock.overrides[key];
     } else if (!remove) truncate(mock, index);
+    this.confirm(p, [original], remove ? [] : [mock], true);
     const restoreId = this.keep(original, remove ? [] : [mock]);
     this.data.events.splice(this.data.events.indexOf(original), 1, ...(remove ? [] : [mock]));
     return this.written(restoreId);
   }
 
   /** restore puts back the saved event at its old position and removes creations. */
-  restore(restoreId: string): null {
+  restore(p: Params): null {
+    const restoreId = String(p.restoreId);
     const saved = this.restores.get(restoreId);
     if (!saved) throw new RPCError(ErrorCode.notFound, "restore does not exist");
     if (saved.before) this.calendar(saved.before.event.calendarId);
     const ids = [...saved.created, ...(saved.before ? [saved.before.event.id] : [])];
     const current = this.data.events.filter((mock) => ids.includes(mock.event.id));
     for (const mock of current) this.writable(mock.event.id);
+    this.confirm(p, current, saved.before ? [saved.before] : []);
     this.data.events = this.data.events.filter((mock) => !ids.includes(mock.event.id));
     if (saved.before) this.data.events.splice(saved.position, 0, structuredClone(saved.before));
     this.restores.delete(restoreId);
     this.announce([...saved.accounts, ...current.map((mock) => mock.event.accountId)]);
     return null;
+  }
+
+  private changes(event: CalendarEvent, given: EventFields, calendar: Collection): Changes {
+    const { attendees, ...change } = given;
+    if (attendees === undefined) return change;
+    const account = this.accounts().find((a) => a.id === calendar.accountId);
+    const result: Changes = { ...change, attendees: invitees(event, attendees, account) };
+    if (result.attendees?.some((a) => !a.isUser)) {
+      if (!calendar.invites) invalid("calendar does not support invitees");
+      if (!event.organizer) {
+        if (!account) invalid("calendar account is missing");
+        result.organizer = {
+          email: account.email.trim().toLowerCase(),
+          name: account.displayName,
+          role: "chair",
+          answer: "accepted",
+          isUser: true,
+        };
+      }
+    }
+    return result;
+  }
+
+  private confirm(p: Params, before: MockEvent[], after: MockEvent[], deleting = false): void {
+    const scheduling = (events: MockEvent[]) =>
+      events.filter(
+        (mock) =>
+          (!mock.event.organizer || mock.event.organizer.isUser) &&
+          this.collections.some((c) => c.id === mock.event.calendarId && c.invites),
+      );
+    const data = notice(scheduling(before), scheduling(after), deleting);
+    if (!data.count || p.notify === true) return;
+    if (p.notify !== undefined) invalid("notifying invitees requires notify: true");
+    throw new RPCError(ErrorCode.notifyRequired, "this change tells invitees", data);
   }
 
   private calendar(id: number): Collection {
@@ -357,11 +516,11 @@ export class MockEventEdits {
   }
 
   private nextId(): number {
-    this.nextEventId = Math.max(this.nextEventId, ...this.data.events.map((m) => m.event.id + 1));
-    return this.nextEventId++;
+    return Math.max(this.nextEventId, ...this.data.events.map((m) => m.event.id + 1));
   }
 
   private keep(before: MockEvent | undefined, after: MockEvent[]): string {
+    this.nextEventId = Math.max(this.nextEventId, ...after.map((mock) => mock.event.id + 1));
     const restoreId = `event-restore-${this.nextRestoreId++}`;
     this.restores.set(
       restoreId,

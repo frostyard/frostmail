@@ -3,6 +3,7 @@
 // (docs/specs/pim-ui.md; internal/engine/calendar.go).
 import { addDays, dayStart } from "../../lib/calendarDates";
 import {
+  type Account,
   type CalendarEvent,
   type Collection,
   ErrorCode,
@@ -30,6 +31,8 @@ export type MockOverride = Partial<
     | "timeZone"
     | "alarms"
     | "transparent"
+    | "attendees"
+    | "organizer"
   >
 >;
 
@@ -123,8 +126,15 @@ export class MockCalendar {
     private readonly data: MockCalendarData,
     private readonly collections: Collection[],
     private readonly emit: (event: Event) => void,
+    accounts: () => Account[] = () => [],
   ) {
-    this.edits = new MockEventEdits(data, collections, emit, (id, recurrenceId) => this.event(id, recurrenceId));
+    this.edits = new MockEventEdits(
+      data,
+      collections,
+      emit,
+      (id, recurrenceId) => this.event(id, recurrenceId),
+      accounts,
+    );
   }
 
   /** dispatch answers supported methods or returns NOT_HANDLED. */
@@ -137,7 +147,7 @@ export class MockCalendar {
       case "calendar.delete":
         return this.edits.delete(params);
       case "calendar.restore":
-        return this.edits.restore(String(params.restoreId));
+        return this.edits.restore(params);
       case "calendar.invitation":
         return this.invitation(Number(params.messageId));
       case "calendar.respond":
