@@ -2,7 +2,10 @@ package pimsync_test
 
 import (
 	"encoding/json/v2"
+	"io"
+	"log/slog"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +14,8 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davtest"
 	"github.com/frostyard/frostmail/internal/engine"
+	"github.com/frostyard/frostmail/internal/pimsync"
+	"github.com/frostyard/frostmail/internal/secrets"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -37,9 +42,24 @@ type eventEnv struct {
 	cal        api.CalendarService
 }
 
+// newEventEnv is newCalendarEnv's account against a server that, as
+// Google's does, refuses an event whose SEQUENCE goes back.
 func newEventEnv(t *testing.T) *eventEnv {
+	t.Helper()
+	ctx := t.Context()
 	now := utcAt("2026-10-08T12:00Z")
-	e := newCalendarEnv(t, &now)
+	e := newEnv(t, davtest.Options{KeepSequence: true}, api.ServiceKindCalendar)
+	sec := secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json"))
+	if err := sec.Set(ctx, secrets.AccountPassword(e.acct.ID), davtest.Password); err != nil {
+		t.Fatal(err)
+	}
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.m = pimsync.New(e.db, sec, slog.New(slog.NewTextHandler(io.Discard, nil)), pimsync.Config{
+		HTTP: e.dav.Client, Batch: 2, Now: func() time.Time { return now }, Local: newYork,
+	})
 	work := e.dav.Calendar("work", "Work", "#3366cc", "VEVENT")
 	home := e.dav.Calendar("home", "Home", "#34c759", "VEVENT")
 	e.dav.Put(work+"planning.ics", planning("Planning", "Agenda in the doc"))
@@ -306,17 +326,25 @@ func TestEventDeleteAndRestore(t *testing.T) {
 	e := newEventEnv(t)
 	ctx := t.Context()
 	before := e.server(e.work + "planning.ics")
-	w, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: e.event("Planning"), Fields: api.EventFields{Summary: ptr2("x")}})
+	// A move raises SEQUENCE; its undo goes over the moved version, and
+	// must raise it again, as Google refuses a SEQUENCE that goes back.
+	start := utcAt("2026-10-09T18:00Z")
+	w, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: e.event("Planning"), Fields: api.EventFields{
+		AllDay: ptr2(false), Start: &start, End: ptr2(start.Add(time.Hour)), TimeZone: ptr2("America/New_York")}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.pass()
+	hasLines(t, e.server(e.work+"planning.ics"), "SEQUENCE:1", "DTSTART;TZID=America/New_York:20261009T140000")
 	if err := e.cal.Restore(ctx, &api.CalendarRestoreParams{RestoreID: w.RestoreID}); err != nil {
 		t.Fatal(err)
 	}
 	e.pass()
-	if got := e.server(e.work + "planning.ics"); got != before {
-		t.Errorf("after the restore the server has %s; want %s", got, before)
+	if r := e.refused(); len(r) != 0 {
+		t.Errorf("the restore was refused: %+v", r)
+	}
+	if got, want := e.server(e.work+"planning.ics"), strings.Replace(before, "SEQUENCE:0", "SEQUENCE:2", 1); got != want {
+		t.Errorf("after the restore the server has %s; want %s", got, want)
 	}
 
 	gone, err := e.cal.Delete(ctx, &api.CalendarDeleteParams{ID: e.event("Planning")})
@@ -347,6 +375,67 @@ func TestEventDeleteAndRestore(t *testing.T) {
 	e.pass()
 	if slices.ContainsFunc(e.dav.Requests(), func(r davtest.Request) bool { return r.Method == "PUT" }) {
 		t.Error("an undone creation was written")
+	}
+}
+
+// A change the server refuses outright leaves its version here at once:
+// a later listing would not fetch it, its ETag being the one already here.
+func TestEventEditRefusedOutright(t *testing.T) {
+	e := newEventEnv(t)
+	ctx := t.Context()
+	id := e.event("Planning")
+	if _, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: id, Fields: api.EventFields{Summary: ptr2("Planning Q4")}}); err != nil {
+		t.Fatal(err)
+	}
+	e.dav.FailWith(func(r *http.Request) int {
+		if r.Method == http.MethodPut {
+			return http.StatusForbidden
+		}
+		return 0
+	})
+	e.pass()
+	e.dav.FailWith(nil)
+	if r := e.refused(); len(r) != 1 || r[0].Reason != "refused" {
+		t.Errorf("refused = %+v", r)
+	}
+	obj, err := e.db.GetObject(ctx, mustObject(t, e, id))
+	if err != nil || string(obj.Raw) != e.server(e.work+"planning.ics") {
+		t.Errorf("after the refusal the local copy is %s, %v", obj.Raw, err)
+	}
+}
+
+// Google keeps an exception a PUT leaves out, so undoing This Event on a
+// Gmail account resets the override to its occurrence instead of
+// dropping it.
+func TestEventRestoreKeepsGooglesException(t *testing.T) {
+	e := newEventEnv(t)
+	ctx := t.Context()
+	if err := e.db.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE accounts SET kind = 'gmail' WHERE id = ?`, e.acct.ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	oct22 := "2026-10-22T13:00:00.000Z"
+	later := utcAt("2026-10-22T14:00Z")
+	w, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: e.event("Sync"), RecurrenceID: &oct22,
+		Scope: scope(api.EventScopeThis), Fields: api.EventFields{AllDay: ptr2(false), Start: &later,
+			End: ptr2(later.Add(30 * time.Minute)), TimeZone: ptr2("America/New_York")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.pass()
+	if err := e.cal.Restore(ctx, &api.CalendarRestoreParams{RestoreID: w.RestoreID}); err != nil {
+		t.Fatal(err)
+	}
+	e.pass()
+	got := e.server(e.work + "sync.ics")
+	hasLines(t, got, "RECURRENCE-ID;TZID=America/New_York:20261022T090000", "DTSTART;TZID=America/New_York:20261022T090000")
+	if strings.Contains(got, "20261022T100000") {
+		t.Errorf("the restore kept the moved time:\n%s", got)
+	}
+	if want := []string{"10-15T13:00 Sync", "10-22T13:00 Sync", "10-29T13:00 Sync", "11-05T14:00 Sync"}; !slices.Equal(e.occurrences("2026-10-12", "2026-11-10"), want) {
+		t.Errorf("occurrences after the restore = %q", e.occurrences("2026-10-12", "2026-11-10"))
 	}
 }
 

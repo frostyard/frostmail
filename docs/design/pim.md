@@ -260,8 +260,14 @@ contacts and events writable through `people.create`, `update`, `delete`,
   delete cancelled and its source put back on the server's ETag; one
   whose delete was written is created again under a new name with
   `If-None-Match: *`, keeping its UID, since Google refuses the deleted
-  name (found by Phase 2's check, 2026-10-14). Rows
-  older than a day are dropped by the pass. The tables come with Phase
+  name (found by Phase 2's check, 2026-10-14). An event's kept source
+  goes back with every VEVENT's `SEQUENCE` one past the highest on the
+  version it replaces, since Google refuses a `SEQUENCE` that goes back
+  (409; found by Phase 4's check, 2026-10-14). On a Gmail account it also
+  keeps, as a plain occurrence (`calendar.KeepOverrides`), each exception
+  the server has and the kept source does not: Google keeps an exception
+  a PUT leaves out, so undoing This Event resets the exception instead.
+  Rows older than a day are dropped by the pass. The tables come with Phase
   2's migration.
 - **Contacts.** `vcardx.Patch` keeps the card's version, its groups and
   every parameter the fields do not set. List fields map onto the lines
@@ -317,7 +323,14 @@ contacts and events writable through `people.create`, `update`, `delete`,
   series. The editor edits a draft (`lib/eventDraft.ts`), sends
   `calendar.create`, or `calendar.update` with the changed fields after
   the scope sheet, and turns repeat presets and the Custom Repeat sheet
-  into `RRULE`s (`lib/repeat.ts`).
+  into `RRULE`s (`lib/repeat.ts`). Dragging in the views (Phase 4) moves
+  and resizes occurrences in 15-minute steps of the app's wall time and
+  by days (`lib/eventDrag.ts`); a drop is one `calendar.update` in the
+  event's zone, after the scope sheet for a series, and a range drawn
+  across empty time opens the editor. Every write's restore goes on its
+  module's undo list (`app/pimUndo.ts`), which Ctrl+Z pops into
+  `calendar.restore` or `people.restore`; the editor window announces its
+  writes to the main window's list.
 - **Invitations as organizer** (ADR-0034, Phase 5 of the plan): the
   organizer is the account's default identity. The provider fact
   `SchedulesOrganizer` chooses between the server and maild's iTIP

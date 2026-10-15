@@ -544,6 +544,20 @@ func (c calendarService) restoreEvent(ctx context.Context, tx *store.Tx, o store
 	switch {
 	case exists:
 		next.ETag = current.ETag
+		kept := o.Raw
+		if account, err := c.DB.GetAccount(ctx, col.AccountID); err == nil && account.Kind == api.AccountKindGmail {
+			// Google keeps an exception a PUT leaves out: reset it instead.
+			if kept, err = calendar.KeepOverrides(o.Raw, current.Raw, c.DB.Now()); err != nil {
+				return 0, err
+			}
+		}
+		// The kept source goes over a later version: its SEQUENCE must not
+		// go back, or Google refuses it (409).
+		raised, err := calendar.RaiseSequence(kept, calendar.MaxSequence(current.Raw))
+		if err != nil {
+			return 0, err
+		}
+		next.Raw = raised
 	default:
 		deleted, waiting, err := tx.TakeQueuedDelete(ctx, col.ID, o.Href)
 		if err != nil {

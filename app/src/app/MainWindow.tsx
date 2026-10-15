@@ -20,6 +20,7 @@ import { ListContainer, type ListHandle } from "./ListContainer";
 import { UndoToasts } from "./OutboxContainer";
 import { watchOpenRequests } from "./openMessage";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
+import { undoPim, watchRestores } from "./pimUndo";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { RefusedNotices } from "./RefusedNotices";
 import { watchOccurrenceRequests, watchReminders } from "./reminders";
@@ -143,7 +144,7 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
   return true;
 }
 
-function moduleCommand(command: Command, people: PeopleData) {
+function moduleCommand(command: Command, client: Client, people: PeopleData) {
   const ui = useUI.getState();
   if (command === "showTasks") ui.setModule("tasks");
   else if (command === "showCalendar") ui.setModule("calendar");
@@ -151,6 +152,8 @@ function moduleCommand(command: Command, people: PeopleData) {
   else if (command === "allInboxes") {
     ui.setModule("mail");
     ui.setSource({ kind: "allInboxes" });
+  } else if (command === "undo") {
+    void undoPim(client, "people").catch((err: unknown) => console.warn("undo people", err));
   } else if (command === "escape") ui.clearPeopleSearch();
   else if (command === "compose") {
     if (people.writableBooks.length > 0) ui.editContact("new");
@@ -169,10 +172,13 @@ function newCalendarEvent(data: CalendarData) {
   );
 }
 
-function calendarCommand(command: Command, frame: CalendarData, handles: WindowHandles): boolean {
+function calendarCommand(command: Command, client: Client, frame: CalendarData, handles: WindowHandles): boolean {
   const ui = useUI.getState();
   const date = ui.calendarDate || frame.today;
   switch (command) {
+    case "undo":
+      void undoPim(client, "calendar").catch((err: unknown) => console.warn("undo calendar", err));
+      break;
     case "compose":
       if (!canCreateEvent(frame)) return false;
       newCalendarEvent(frame);
@@ -234,6 +240,7 @@ function useWindowEvents(
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
   useEffect(() => watchReminders(client), [client]);
+  useEffect(() => watchRestores(), []);
   useLayoutEffect(() => watchOccurrenceRequests(), []);
   // Install input handlers at commit: the visible window must already be
   // ready for keys and occurrence requests before passive data effects run.
@@ -253,7 +260,7 @@ function useWindowEvents(
       if (!command) return;
       if (ui.module === "people" && ui.peopleEditing !== null) {
         // Keep native editing, form submission and Tab navigation in the editor.
-        if (event.ctrlKey || event.metaKey || event.altKey) event.preventDefault();
+        if (command !== "undo" && (event.ctrlKey || event.metaKey || event.altKey)) event.preventDefault();
         return;
       }
       let handled = true;
@@ -272,9 +279,9 @@ function useWindowEvents(
         command === "allInboxes" ||
         ui.module === "people"
       ) {
-        handled = moduleCommand(command, people);
+        handled = moduleCommand(command, client, people);
       } else if (ui.module === "tasks") handled = tasksCommand(command, tasks, handles.tasks.current);
-      else if (ui.module === "calendar") handled = calendarCommand(command, calendar, handles);
+      else if (ui.module === "calendar") handled = calendarCommand(command, client, calendar, handles);
       else handled = mailCommand(command, client, model, handles);
       if (handled) event.preventDefault();
     };

@@ -1,10 +1,22 @@
 // Fixed day headings and all-day lanes over a scrolling time grid.
-import { useEffect, useRef } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { viewTitle, zoned } from "../../lib/calendarDates";
-import { allDayLanes, type TimedBlock, timedLayout } from "../../lib/eventLayout";
+import {
+  daysOf,
+  drawn,
+  minuteAt,
+  moved,
+  PX_PER_MINUTE,
+  type Range,
+  resized,
+  stepsOf,
+  THRESHOLD,
+} from "../../lib/eventDrag";
+import { type AllDayBar, allDayLanes, type TimedBlock, timedLayout } from "../../lib/eventLayout";
 import { timeRange } from "../../lib/eventText";
 import type { Occurrence } from "../../rpc/gen/api";
 import { eventClasses, eventSelected, eventStyle, eventTitleClasses } from "./eventStyle";
+import { useDayDrag } from "./MonthGrid";
 
 /** OccurrenceKey names one occurrence. */
 export interface OccurrenceKey {
@@ -28,9 +40,154 @@ export interface TimeGridProps {
   onSelect: (occurrence: Occurrence) => void;
   /** Show a day in the day view. */
   onShowDay: (date: string) => void;
+  canMove?: (occurrence: Occurrence) => boolean;
+  onMove?: (occurrence: Occurrence, range: Range) => void;
+  onMoveDays?: (occurrence: Occurrence, days: number) => void;
+  onDraw?: (range: Range) => void;
+}
+
+interface Press {
+  pointerId: number;
+  x: number;
+  y: number;
+  day: number;
+  date: string;
+  rect: DOMRect;
+  action: { kind: "draw" } | { kind: "move" | "resize"; occurrence: Occurrence };
+  dragging: boolean;
+}
+
+interface Preview {
+  range: Range;
+  occurrence?: Occurrence;
+}
+
+function pressRange(press: Press, x: number, y: number, props: TimeGridProps): Range {
+  const { action, rect } = press;
+  if (action.kind === "draw") {
+    return drawn(press.date, minuteAt(press.y - rect.top), minuteAt(y - rect.top), props.timeZone);
+  }
+  const minutes = stepsOf(y - press.y);
+  if (action.kind === "resize") return resized(action.occurrence, minutes, props.timeZone);
+  const days = Math.max(-press.day, Math.min(props.days.length - 1 - press.day, daysOf(x - press.x, rect.width)));
+  return moved(action.occurrence, days, minutes, props.timeZone);
+}
+
+function sameRange(a: Range, b: Range): boolean {
+  return Date.parse(a.start) === Date.parse(b.start) && Date.parse(a.end) === Date.parse(b.end);
+}
+
+function useTimeGridDrag(props: TimeGridProps) {
+  const press = useRef<Press | null>(null);
+  const skipClick = useRef(false);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  useEffect(() => {
+    const follow = (event: PointerEvent) => {
+      const current = press.current;
+      if (!current || current.pointerId !== event.pointerId) return null;
+      current.dragging ||=
+        Math.max(Math.abs(event.clientX - current.x), Math.abs(event.clientY - current.y)) >= THRESHOLD;
+      if (!current.dragging) return null;
+      return pressRange(current, event.clientX, event.clientY, props);
+    };
+    const move = (event: PointerEvent) => {
+      const range = follow(event);
+      const action = press.current?.action;
+      if (range && action) setPreview({ range, occurrence: action.kind === "draw" ? undefined : action.occurrence });
+    };
+    const end = () => {
+      press.current = null;
+      setPreview(null);
+    };
+    const up = (event: PointerEvent) => {
+      const current = press.current;
+      if (!current || current.pointerId !== event.pointerId) return;
+      const range = follow(event);
+      end();
+      if (!range || (current.action.kind !== "draw" && sameRange(range, current.action.occurrence))) return;
+      skipClick.current = true;
+      clearTimeout(clickTimer.current);
+      clickTimer.current = setTimeout(() => {
+        skipClick.current = false;
+      }, 0);
+      if (current.action.kind === "draw") props.onDraw?.(range);
+      else props.onMove?.(current.action.occurrence, range);
+    };
+    const cancel = (event: PointerEvent) => {
+      if (press.current?.pointerId === event.pointerId) end();
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !press.current) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      end();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", onEscape, true);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", onEscape, true);
+    };
+  }, [props]);
+  useEffect(() => () => clearTimeout(clickTimer.current), []);
+
+  const begin = (event: ReactPointerEvent<HTMLElement>, day: number, occurrence?: Occurrence) => {
+    if (event.button !== 0 || press.current) return;
+    if (occurrence ? !props.canMove?.(occurrence) : !props.onDraw) return;
+    const column = event.currentTarget.closest("fieldset");
+    const date = props.days[day];
+    if (!column || !date) return;
+    skipClick.current = false;
+    const resize = event.target instanceof Element && event.target.closest("[data-resize]") !== null;
+    press.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      day,
+      date,
+      rect: column.getBoundingClientRect(),
+      dragging: false,
+      action: occurrence ? { kind: resize ? "resize" : "move", occurrence } : { kind: "draw" },
+    };
+  };
+  const select = (occurrence: Occurrence) => {
+    if (!skipClick.current) props.onSelect(occurrence);
+    skipClick.current = false;
+  };
+  return { begin, select, preview };
+}
+
+function DragPreview({ preview, props }: { preview: Preview; props: TimeGridProps }) {
+  const { range, occurrence } = preview;
+  const start = zoned(range.start, props.timeZone);
+  const minutes = (Date.parse(range.end) - Date.parse(range.start)) / 60_000;
+  return (
+    <div
+      data-drag-preview=""
+      className={`pointer-events-none absolute inset-x-0 z-20 rounded-[4px] p-1 opacity-60 ${occurrence ? eventClasses(occurrence, false) : "bg-accent text-accent-contrast"}`}
+      style={{
+        ...(occurrence ? eventStyle(occurrence, props.colors) : {}),
+        top: `${start.minutes * PX_PER_MINUTE}px`,
+        height: `${Math.max(minutes * PX_PER_MINUTE, 18)}px`,
+      }}
+    >
+      <div className="truncate text-[12px] font-semibold leading-[15px]">
+        {occurrence ? occurrence.summary || "No Title" : "New Event"}
+      </div>
+      <div className="truncate text-[11px] leading-[14px]">
+        {timeRange(range.start, range.end, props.timeZone, props.locale)}
+      </div>
+    </div>
+  );
 }
 
 function AllDayStrip({ props }: { props: TimeGridProps }) {
+  const drag = useDayDrag(props);
   const bars = allDayLanes(props.occurrences, props.days);
   const lanes = Math.max(0, ...bars.map((bar) => bar.lane + 1));
   const collapse = props.days.length === 7 && lanes > 3;
@@ -40,7 +197,8 @@ function AllDayStrip({ props }: { props: TimeGridProps }) {
         {lanes > 0 && "all-day"}
       </span>
       <div
-        className="grid flex-1 gap-y-[2px] py-1"
+        data-all-day=""
+        className="relative grid flex-1 gap-y-[2px] py-1"
         style={{
           gridTemplateColumns: `repeat(${props.days.length}, minmax(0, 1fr))`,
           gridTemplateRows: `repeat(${collapse ? 3 : lanes}, 22px)`,
@@ -49,46 +207,122 @@ function AllDayStrip({ props }: { props: TimeGridProps }) {
         {bars
           .filter((bar) => !collapse || bar.lane < 2)
           .map((bar) => (
-            <button
+            <AllDayOccurrence
               key={`${bar.occurrence.eventId}:${bar.occurrence.recurrenceId}`}
-              type="button"
-              aria-label={`${bar.occurrence.summary || "No Title"}, all day`}
-              aria-pressed={eventSelected(bar.occurrence, props.selected)}
-              className={`mx-[2px] truncate rounded-[4px] px-1 text-left text-[12px] font-semibold ${eventClasses(bar.occurrence, eventSelected(bar.occurrence, props.selected))}`}
-              style={{
-                ...eventStyle(bar.occurrence, props.colors),
-                gridColumn: `${bar.first + 1} / ${bar.last + 2}`,
-                gridRow: bar.lane + 1,
-              }}
-              onClick={() => props.onSelect(bar.occurrence)}
-            >
-              <span className={eventTitleClasses(bar.occurrence)}>{bar.occurrence.summary || "No Title"}</span>
-            </button>
+              bar={bar}
+              props={props}
+              drag={drag}
+            />
           ))}
-        {collapse &&
-          props.days.map((date, index) => {
-            const count = bars.filter((bar) => bar.lane >= 2 && bar.first <= index && bar.last >= index).length;
-            return (
-              count > 0 && (
-                <button
-                  key={date}
-                  type="button"
-                  className="text-left text-[11px] text-secondary"
-                  style={{ gridColumn: index + 1, gridRow: 3 }}
-                  aria-label={`Show ${count} more on ${viewTitle("day", date, 0, props.locale)}`}
-                  onClick={() => props.onShowDay(date)}
-                >
-                  {count} more
-                </button>
-              )
-            );
-          })}
+        {collapse && <AllDayMore bars={bars} props={props} />}
+        {drag.active && <AllDayDropCells props={props} drag={drag} />}
       </div>
     </div>
   );
 }
 
-function EventBlock({ block, props }: { block: TimedBlock; props: TimeGridProps }) {
+function AllDayOccurrence({
+  bar,
+  props,
+  drag,
+}: {
+  bar: AllDayBar;
+  props: TimeGridProps;
+  drag: ReturnType<typeof useDayDrag>;
+}) {
+  const pressedDay = useRef<string | undefined>(undefined);
+  const clearPress = () => {
+    pressedDay.current = undefined;
+  };
+  const press = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    clearPress();
+    if (event.button !== 0 || !drag.canDrag(bar.occurrence)) return;
+    const rect = event.currentTarget.closest("[data-all-day]")?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    const index = Math.floor(((event.clientX - rect.left) / rect.width) * props.days.length);
+    pressedDay.current = props.days[Math.max(0, Math.min(props.days.length - 1, index))];
+  };
+  return (
+    <button
+      type="button"
+      draggable={drag.canDrag(bar.occurrence)}
+      onPointerDown={press}
+      onPointerUp={clearPress}
+      onPointerCancel={clearPress}
+      onDragStart={(event) => {
+        const date = pressedDay.current ?? props.days[bar.first];
+        clearPress();
+        if (date) drag.begin(event, bar.occurrence, date);
+      }}
+      onDragEnd={drag.end}
+      aria-label={`${bar.occurrence.summary || "No Title"}, all day`}
+      aria-pressed={eventSelected(bar.occurrence, props.selected)}
+      className={`mx-[2px] truncate rounded-[4px] px-1 text-left text-[12px] font-semibold ${eventClasses(bar.occurrence, eventSelected(bar.occurrence, props.selected))}`}
+      style={{
+        ...eventStyle(bar.occurrence, props.colors),
+        gridColumn: `${bar.first + 1} / ${bar.last + 2}`,
+        gridRow: bar.lane + 1,
+      }}
+      onClick={() => props.onSelect(bar.occurrence)}
+    >
+      <span className={eventTitleClasses(bar.occurrence)}>{bar.occurrence.summary || "No Title"}</span>
+    </button>
+  );
+}
+
+function AllDayDropCells({ props, drag }: { props: TimeGridProps; drag: ReturnType<typeof useDayDrag> }) {
+  return (
+    <div
+      className="absolute inset-0 z-20 grid"
+      style={{ gridTemplateColumns: `repeat(${props.days.length}, minmax(0, 1fr))` }}
+    >
+      {props.days.map((date) => (
+        // biome-ignore lint/a11y/noStaticElementInteractions: cells exist only for a pointer drag; the keyboard moves events in the editor.
+        <div
+          key={date}
+          data-drop-day={date}
+          data-drop-target={drag.target === date ? "" : undefined}
+          className={drag.target === date ? "ring-2 ring-inset ring-accent" : ""}
+          onDragOver={(event) => drag.over(event, date)}
+          onDragLeave={(event) => drag.leave(event, date)}
+          onDrop={(event) => drag.drop(event, date)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AllDayMore({ bars, props }: { bars: AllDayBar[]; props: TimeGridProps }) {
+  return props.days.map((date, index) => {
+    const count = bars.filter((bar) => bar.lane >= 2 && bar.first <= index && bar.last >= index).length;
+    return (
+      count > 0 && (
+        <button
+          key={date}
+          type="button"
+          className="text-left text-[11px] text-secondary"
+          style={{ gridColumn: index + 1, gridRow: 3 }}
+          aria-label={`Show ${count} more on ${viewTitle("day", date, 0, props.locale)}`}
+          onClick={() => props.onShowDay(date)}
+        >
+          {count} more
+        </button>
+      )
+    );
+  });
+}
+
+function EventBlock({
+  block,
+  props,
+  onPress,
+  onSelect,
+}: {
+  block: TimedBlock;
+  props: TimeGridProps;
+  onPress: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onSelect: (occurrence: Occurrence) => void;
+}) {
   const occurrence = block.occurrence;
   const height = Math.max((block.endMinute - block.startMinute) * 0.8, 18);
   const range = timeRange(occurrence.start, occurrence.end, props.timeZone, props.locale);
@@ -98,8 +332,9 @@ function EventBlock({ block, props }: { block: TimedBlock; props: TimeGridProps 
       type="button"
       aria-label={`${occurrence.summary || "No Title"}, ${range}${occurrence.location ? `, ${occurrence.location}` : ""}`}
       aria-pressed={active}
-      onClick={() => props.onSelect(occurrence)}
-      className={`absolute overflow-hidden rounded-[4px] p-1 text-left ${eventClasses(occurrence, active)}`}
+      onClick={() => onSelect(occurrence)}
+      onPointerDown={onPress}
+      className={`absolute overflow-hidden rounded-[4px] p-1 text-left ${props.canMove?.(occurrence) ? "touch-none select-none" : ""} ${eventClasses(occurrence, active)}`}
       style={{
         ...eventStyle(occurrence, props.colors),
         top: `${block.startMinute * 0.8}px`,
@@ -117,12 +352,16 @@ function EventBlock({ block, props }: { block: TimedBlock; props: TimeGridProps 
           {occurrence.location && <div className="truncate">{occurrence.location}</div>}
         </div>
       )}
+      {props.canMove?.(occurrence) && (
+        <span data-resize="" aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[6px] cursor-ns-resize" />
+      )}
     </button>
   );
 }
 
 /** TimeGrid shows the days' all-day strip and hours. */
 export function TimeGrid(props: TimeGridProps) {
+  const drag = useTimeGridDrag(props);
   const scroll = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 7 * 48 - 12;
@@ -182,11 +421,14 @@ export function TimeGrid(props: TimeGridProps) {
               </span>
             )}
           </div>
-          {props.days.map((date) => (
+          {props.days.map((date, day) => (
             <fieldset
               key={date}
               aria-label={viewTitle("day", date, 0, props.locale)}
-              className="relative min-w-0 flex-1 border-l border-separator"
+              className={`relative min-w-0 flex-1 border-l border-separator ${props.onDraw ? "touch-none select-none" : ""}`}
+              onPointerDown={(event) => {
+                if (event.target === event.currentTarget) drag.begin(event, day);
+              }}
             >
               {Array.from({ length: 24 }, (_, hour) => hour).map((hour) => (
                 <div
@@ -202,8 +444,13 @@ export function TimeGrid(props: TimeGridProps) {
                     key={`${block.occurrence.eventId}:${block.occurrence.recurrenceId}`}
                     block={block}
                     props={props}
+                    onPress={(event) => drag.begin(event, day, block.occurrence)}
+                    onSelect={drag.select}
                   />
                 ))}
+              {drag.preview && zoned(drag.preview.range.start, props.timeZone).date === date && (
+                <DragPreview preview={drag.preview} props={props} />
+              )}
               {date === props.today && (
                 <div
                   data-now=""
