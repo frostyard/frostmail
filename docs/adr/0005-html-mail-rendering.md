@@ -1,6 +1,7 @@
 # 0005 — Render HTML mail in a sandboxed iframe under a strict CSP
 
-- **Status:** Accepted
+- **Status:** Accepted; the frame's sandbox and link handling superseded by
+  [0036](0036-reader-links-open-as-new-window-requests.md)
 - **Date:** 2026-10-07
 
 ## Context

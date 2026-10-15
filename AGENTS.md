@@ -68,9 +68,11 @@ symlinks to it; edit this file only.
   within protocol 1 are additive only. Quote doc strings inside inline YAML
   `{...}` mappings.
 - The app never fetches remote content. Message HTML is rendered only in a
-  `srcdoc` iframe with `sandbox="allow-same-origin"` (never `allow-scripts`)
-  under the CSP in `app/src-tauri/tauri.conf.json`
-  ([ADR-0005](docs/adr/0005-html-mail-rendering.md)).
+  `srcdoc` iframe with `sandbox="allow-same-origin allow-popups"` (never
+  `allow-scripts`) under the CSP in `app/src-tauri/tauri.conf.json`
+  ([ADR-0005](docs/adr/0005-html-mail-rendering.md)). Its links open in the
+  system browser through the shell's new-window handler, which never makes a
+  window ([ADR-0036](docs/adr/0036-reader-links-open-as-new-window-requests.md)).
 - SQLite databases never live on `/mnt/host` (WAL needs shared memory).
 - Downloads in scripts are version-pinned and checksum-verified
   (frostyard/core ADR-0023).

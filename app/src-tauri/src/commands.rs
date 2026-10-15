@@ -5,6 +5,7 @@
 
 use std::sync::Mutex;
 
+use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
@@ -21,10 +22,32 @@ const UNSAFE_EXTENSIONS: &[&str] = &[
 #[tauri::command]
 pub fn open_link(app: AppHandle, url: String) -> Result<(), String> {
     let parsed = tauri::Url::parse(&url).map_err(|e| format!("not a URL: {e}"))?;
-    if !matches!(parsed.scheme(), "http" | "https" | "mailto") {
-        return Err(format!("{} links do not open", parsed.scheme()));
+    open_url(&app, &parsed)
+}
+
+/// Open a link with the system's default handler: in the Flatpak, xdg-open
+/// asks the OpenURI portal. Only http, https and mailto URLs open.
+pub(crate) fn open_url(app: &AppHandle, url: &tauri::Url) -> Result<(), String> {
+    openable(url)?;
+    app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
+}
+
+fn openable(url: &tauri::Url) -> Result<(), String> {
+    match url.scheme() {
+        "http" | "https" | "mailto" => Ok(()),
+        scheme => Err(format!("{scheme} links do not open")),
     }
-    app.opener().open_url(parsed.as_str(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// A link clicked in the reader's message frame arrives as a request for a
+/// new window: the frame's links target _blank, and WebKit runs none of the
+/// page's listeners inside a frame sandboxed without scripts (ADR-0036). The
+/// link opens in the system browser; no window is ever created.
+pub(crate) fn open_new_window(app: &AppHandle, url: &tauri::Url) -> NewWindowResponse<tauri::Wry> {
+    if let Err(e) = open_url(app, url) {
+        eprintln!("open link {url}: {e}");
+    }
+    NewWindowResponse::Deny
 }
 
 /// Open a part maild decoded into the parts cache (message.part) with the
@@ -178,10 +201,26 @@ pub fn second_launch(app: &AppHandle, args: &[String]) {
 
 #[cfg(test)]
 mod tests {
-    use super::open_request;
+    use super::{open_request, openable};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn opens_only_web_and_mail_links() {
+        for url in ["https://example.test/a?b=1", "http://example.test", "mailto:a@example.test"] {
+            assert!(openable(&tauri::Url::parse(url).unwrap()).is_ok(), "{url}");
+        }
+        for url in [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "data:text/html,x",
+            "mailpart://localhost/m/1/2.png",
+            "tauri://localhost/",
+        ] {
+            assert!(openable(&tauri::Url::parse(url).unwrap()).is_err(), "{url}");
+        }
     }
 
     #[test]

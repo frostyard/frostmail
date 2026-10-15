@@ -40,6 +40,7 @@ fn main() {
             }
         })
         .setup(|app| {
+            let links = app.handle().clone();
             let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Frostmail")
                 .inner_size(1200.0, 780.0)
@@ -47,6 +48,8 @@ fn main() {
                 // The toolbar is the title bar (docs/specs/ui.md, Layout).
                 .decorations(false)
                 .on_navigation(|url| allowed_navigation(url))
+                // Links clicked in the reader's message frame.
+                .on_new_window(move |url, _| commands::open_new_window(&links, &url))
                 .visible(false)
                 .build()?;
             show_soon(main);
@@ -69,7 +72,7 @@ pub(crate) fn show_soon(window: tauri::WebviewWindow) {
 }
 
 /// Only the app itself may load in a window's main frame; links in messages
-/// open in the system browser through the open_link command instead.
+/// open in the system browser instead (commands::open_new_window).
 pub(crate) fn allowed_navigation(url: &tauri::Url) -> bool {
     match url.scheme() {
         "tauri" | "about" => true,

@@ -1,7 +1,10 @@
 // The sandboxed HTML body (ADR-0005; docs/design/app.md, Reader). The frame
 // never gets allow-scripts. allow-same-origin lets this component size the
-// frame and intercept clicks; maild has already sanitized the HTML and the
-// app CSP forbids the network.
+// frame; maild has already sanitized the HTML and the app CSP forbids the
+// network. Links target _blank and allow-popups lets them ask for a new
+// window, which the app shell opens in the system browser without creating
+// one (ADR-0036): WebKit runs no event listener, not even the parent's,
+// inside a frame sandboxed without scripts.
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /** MessageFrameProps are the frame's inputs. */
@@ -28,7 +31,7 @@ export function frameDocument(html: string, dev = import.meta.env.DEV): string {
   // WebKitGTK does not load mailpart: into the dev server's page; Vite
   // serves the same files under /mailpart/ (vite.config.ts).
   const body = dev ? html.replaceAll("mailpart://localhost/", "/mailpart/") : html;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>${PAGE_STYLE}</style></head><body>${body}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><base target="_blank"><style>${PAGE_STYLE}</style></head><body>${body}</body></html>`;
 }
 
 /** linkTarget returns the URL a click should open, or null. */
@@ -58,6 +61,8 @@ export function MessageFrame({ html, onOpenLink }: MessageFrameProps) {
     if (!el) return;
     let observer: ResizeObserver | undefined;
     let page: Document | null = null;
+    // Browsers (the dev gateway) run these listeners; WebKitGTK does not, and
+    // its links reach the shell as new-window requests instead.
     const onClick = (e: MouseEvent) => {
       // Cancel every navigation; only links open, outside the app.
       e.preventDefault();
@@ -81,6 +86,10 @@ export function MessageFrame({ html, onOpenLink }: MessageFrameProps) {
       page.addEventListener("submit", onSubmit, true);
     };
     el.addEventListener("load", onLoad);
+    // The message may have loaded before this effect ran; it would stay 0px
+    // tall waiting for a load event that has already fired.
+    const loaded = el.contentDocument;
+    if (loaded?.URL === "about:srcdoc" && loaded.readyState === "complete") onLoad();
     return () => {
       el.removeEventListener("load", onLoad);
       observer?.disconnect();
@@ -94,7 +103,7 @@ export function MessageFrame({ html, onOpenLink }: MessageFrameProps) {
     <iframe
       ref={frame}
       title="Message"
-      sandbox="allow-same-origin"
+      sandbox="allow-same-origin allow-popups"
       referrerPolicy="no-referrer"
       srcDoc={doc}
       className="block w-full border-0"
