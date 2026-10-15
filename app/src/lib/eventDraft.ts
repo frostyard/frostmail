@@ -1,9 +1,18 @@
 // The event editor's draft (docs/specs/pim-ui.md, Event editor window): an
 // event's editable fields as the form shows them, and the EventFields a
 // save sends (ADR-0030, ADR-0033).
-import type { CalendarEvent, EventFields } from "../rpc/gen/api";
+import type { CalendarEvent, EventFields, PartStat } from "../rpc/gen/api";
+import { isValidAddress } from "./addressParse";
 import { addDays, instantAt, zoned } from "./calendarDates";
 import { followStart } from "./repeat";
+
+/** DraftInvitee is an invitee's editable address and role, with their current answer. */
+export interface DraftInvitee {
+  email: string;
+  name: string;
+  role: "required" | "optional";
+  answer?: PartStat;
+}
 
 /** EventDraft is an event as the editor shows it. Dates are YYYY-MM-DD and
  *  times HH:MM, in timeZone for a timed event; an all-day event's endDate
@@ -25,10 +34,11 @@ export interface EventDraft {
   /** Show as Free. */
   transparent: boolean;
   description: string;
+  invitees?: DraftInvitee[];
 }
 
 /** DraftErrors names each invalid field's problem. */
-export type DraftErrors = Partial<Record<"start" | "end" | "timeZone", string>>;
+export type DraftErrors = Partial<Record<"start" | "end" | "timeZone" | "invitees", string>>;
 
 function wallTime(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
@@ -51,6 +61,14 @@ export function ruleOf(recurrence: string): string {
 
 /** draftOf is the editable copy of an event (or an occurrence), its times read in its own zone, else appZone. */
 export function draftOf(event: CalendarEvent, appZone: string): EventDraft {
+  const invitees: DraftInvitee[] = event.attendees
+    .filter((attendee) => !attendee.isUser)
+    .map(({ email, name, role, answer }) => ({
+      email,
+      name,
+      role: role === "optional" ? "optional" : "required",
+      answer,
+    }));
   return {
     ...newDraft(event, event.calendarId, event.allDay ? appZone : event.timeZone || appZone),
     summary: event.summary,
@@ -59,6 +77,7 @@ export function draftOf(event: CalendarEvent, appZone: string): EventDraft {
     rrule: ruleOf(event.recurrence),
     alarms: [...event.alarms],
     transparent: event.transparent,
+    ...(invitees.length > 0 ? { invitees } : {}),
   };
 }
 
@@ -97,6 +116,14 @@ export function instants(d: EventDraft): { start: Date; end: Date } {
 
 /** validate names what keeps a draft from being saved. */
 export function validate(d: EventDraft): DraftErrors {
+  const errors = validateTimes(d);
+  if (d.invitees?.some(({ email }) => !isValidAddress(email))) {
+    errors.invitees = "Check the invitees' addresses";
+  }
+  return errors;
+}
+
+function validateTimes(d: EventDraft): DraftErrors {
   const dateShape = /^\d{4}-\d{2}-\d{2}$/;
   const timeShape = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
   if (!dateShape.test(d.startDate) || (!d.allDay && !timeShape.test(d.startTime))) {
@@ -137,6 +164,13 @@ export function changedFields(original: EventDraft | null, d: EventDraft): Event
     ? original.alarms.length !== d.alarms.length || original.alarms.some((alarm, index) => alarm !== d.alarms[index])
     : d.alarms.length > 0;
   if (alarmsChanged) fields.alarms = [...d.alarms];
+  if (inviteesChanged(original, d)) {
+    fields.attendees = (d.invitees ?? []).map(({ email, name, role }) => ({
+      email,
+      ...(name ? { name } : {}),
+      role,
+    }));
+  }
   const timesChanged =
     !original ||
     original.allDay !== d.allDay ||
@@ -157,4 +191,16 @@ export function changedFields(original: EventDraft | null, d: EventDraft): Event
     }
   }
   return fields;
+}
+
+function inviteesChanged(original: EventDraft | null, draft: EventDraft): boolean {
+  const keys = (invitees: DraftInvitee[]) => invitees.map((i) => `${i.email.toLowerCase()}:${i.role}`).sort();
+  const before = keys(original?.invitees ?? []);
+  const after = keys(draft.invitees ?? []);
+  return before.length !== after.length || before.some((key, index) => key !== after[index]);
+}
+
+/** sendsInvitees reports whether a save writes a nonempty invitee list. */
+export function sendsInvitees(original: EventDraft | null, draft: EventDraft): boolean {
+  return (draft.invitees?.length ?? 0) > 0 && inviteesChanged(original, draft);
 }

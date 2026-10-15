@@ -311,6 +311,9 @@ func inheritedChange(master, override Event, c EventChange) EventChange {
 	if slices.Equal(master.Alarms, override.Alarms) {
 		change.Alarms = c.Alarms
 	}
+	if c.Attendees != nil && sameInvitees(master, override) {
+		change.Attendees, change.Organizer = c.Attendees, c.Organizer
+	}
 	return change
 }
 

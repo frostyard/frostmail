@@ -167,6 +167,7 @@ func eventTouched(e EventEdit) ([]string, bool) {
 	add(c.RRule != nil, "RRULE")
 	add(c.Transparent != nil, "TRANSP")
 	add(c.Alarms != nil, alarmLines)
+	add(c.Attendees != nil, "ATTENDEE", "ORGANIZER")
 	series := e.RecurrenceID != ""
 	add(series, seriesShape...)
 	add(series, "RECURRENCE-ID")

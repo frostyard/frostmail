@@ -70,6 +70,12 @@ type DAV struct {
 	// copy a client creates from an emailed invitation: Google does
 	// (verified 2026-10-09), iCloud does not.
 	SchedulesCopies bool
+	// SchedulesOrganizer is a server that tells invitees about every
+	// organizer copy a client writes (invitations, updates and
+	// cancellations) and cannot be kept quiet: SCHEDULE-AGENT=CLIENT and
+	// NONE are ignored. Google and iCloud do (verified 2026-10-14,
+	// tools/schedprobe). Only these calendars take invitees (ADR-0035).
+	SchedulesOrganizer bool
 	// ServesDeleted is a server whose sync-collection calls some objects
 	// deleted, from no token as well, that its listing, a multiget and a
 	// GET still serve: Google's, for a single occurrence whose series is
@@ -95,13 +101,14 @@ var profiles = []Profile{
 		Domains: []string{"gmail.com", "googlemail.com"},
 		Quirks:  Quirks{Gmail: true, SavesSent: true, NoQResync: true, MaxConnections: 10},
 		DAV: DAV{
-			Contacts:        "https://www.googleapis.com/.well-known/carddav",
-			Calendar:        "https://apidata.googleusercontent.com/caldav/v2/",
-			Tasks:           "google",
-			Schedules:       true,
-			SchedulesCopies: true,
-			ServesDeleted:   true,
-			Trusted:         []string{"googleapis.com", "googleusercontent.com"},
+			Contacts:           "https://www.googleapis.com/.well-known/carddav",
+			Calendar:           "https://apidata.googleusercontent.com/caldav/v2/",
+			Tasks:              "google",
+			Schedules:          true,
+			SchedulesCopies:    true,
+			SchedulesOrganizer: true,
+			ServesDeleted:      true,
+			Trusted:            []string{"googleapis.com", "googleusercontent.com"},
 		},
 	},
 	{
@@ -119,10 +126,11 @@ var profiles = []Profile{
 			// left from before, frozen and named with "⚠️": a reminder made
 			// today never appears there (probed on the user's account,
 			// 2026-10-10).
-			Tasks:     "none",
-			NoTasks:   "Apple Reminders can't be reached by apps outside Apple's (since iOS 13).",
-			Schedules: true,
-			Trusted:   []string{"icloud.com"},
+			Tasks:              "none",
+			NoTasks:            "Apple Reminders can't be reached by apps outside Apple's (since iOS 13).",
+			Schedules:          true,
+			SchedulesOrganizer: true,
+			Trusted:            []string{"icloud.com"},
 		},
 	},
 }

@@ -13,7 +13,7 @@ and refusals), [ADR-0031](../adr/0031-edit-a-recurring-event-in-three-scopes.md)
 (recurring scopes), [ADR-0032](../adr/0032-undo-restores-what-a-change-replaced.md)
 (undo), [ADR-0033](../adr/0033-write-new-events-with-their-zones-vtimezone.md)
 (time zones) and
-[ADR-0034](../adr/0034-invite-from-the-organizers-copy-and-ask-before-telling-invitees.md)
+[ADR-0035](../adr/0035-invite-through-the-providers-scheduling.md)
 (invitations as organizer). Contracts: `schema/rpc/{people,calendar,tasks}.yaml` and
 `specs/pim-ui.md`, written in Phase 1.
 
@@ -207,6 +207,9 @@ query flagged messages alongside tasks, and completing one clears the flag.
   - Read-only accounts and calendars, cancellations and replies are
     refused with `conflict`.
 - Whether a provider schedules is in its profile, else not.
+- An organizer's or attendee's address is its `mailto:` value, else its
+  `EMAIL` parameter: iCloud writes the account's own addresses as its
+  principal URL with the address there (ADR-0035).
 
 ### People in mail
 
@@ -334,12 +337,27 @@ contacts and events writable through `people.create`, `update`, `delete`,
   module's undo list (`app/pimUndo.ts`), which Ctrl+Z pops into
   `calendar.restore` or `people.restore`; the editor window announces its
   writes to the main window's list.
-- **Invitations as organizer** (ADR-0034, Phase 5 of the plan): the
-  organizer is the account's default identity. The provider fact
-  `SchedulesOrganizer` chooses between the server and maild's iTIP
-  `REQUEST` and `CANCEL` (`internal/itip`) through the outbox. The app
-  asks first, and the methods take `notify`. Answers that come back as
-  mail are applied to the organizer's copy.
+- **Invitations as organizer** (ADR-0035, Phase 5 of the plan): only in
+  a calendar whose provider schedules organizer copies
+  (`providers.DAV.SchedulesOrganizer`: Google and iCloud), which
+  `Collection.invites` reports; elsewhere invitees are `invalidParams`.
+  `EventFields.attendees` replaces the invitees. maild writes
+  `ORGANIZER` (the account's default identity) and the `ATTENDEE` lines
+  without `SCHEDULE-AGENT`, through the calendar package as one more
+  property of the scopes, and sends no mail: the server tells the
+  invitees. Before each write (create, update, delete, restore) maild
+  compares the events of the objects before and after it, and works out
+  what the server will send: invitations to invitees added (or to all,
+  for a new event or a restored delete), updates to all when something
+  they see changed (title, location, notes, times, recurrence, status,
+  or an occurrence added or removed), cancellations to invitees removed
+  (or to all, for a delete). Without `notify: true` such a write fails
+  with `notifyRequired`, whose data is that `InviteNotice`, and the app
+  asks and repeats it; nothing is written until then. `notify: false` is
+  `invalidParams`, since neither server can be kept quiet. An event with
+  invitees in such a calendar does not move to another. Invitees' answers reach the
+  organizer's copy through the server. maild mailing iTIP itself, for
+  servers that do not schedule, is Later.
 
 ### Tasks
 

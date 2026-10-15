@@ -179,11 +179,7 @@ func answerPartStat(answer string) (string, error) {
 
 func answeredAttendee(event *contentline.Component, address, partStat string) *contentline.Prop {
 	for _, prop := range event.PropsNamed("ATTENDEE") {
-		email := prop.Value
-		if len(email) >= 7 && strings.EqualFold(email[:7], "mailto:") {
-			email = email[7:]
-		}
-		if !strings.EqualFold(email, address) {
+		if !strings.EqualFold(calendar.PersonEmail(prop), address) {
 			continue
 		}
 		var params []contentline.Param

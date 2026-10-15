@@ -2,13 +2,15 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { X } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
 import { type CalendarChoice, EventEditor } from "../features/calendar/EventEditor";
+import { useNotify } from "../features/calendar/NotifySheet";
 import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { ALERT, BUTTON, PRIMARY_BUTTON } from "../features/settings/labels";
-import { changedFields, draftOf, type EventDraft, newDraft, validate } from "../lib/eventDraft";
+import { changedFields, draftOf, type EventDraft, newDraft, sendsInvitees, validate } from "../lib/eventDraft";
+import { withNotify } from "../lib/notify";
 import type { CalendarEvent, Client, EventScope } from "../rpc/gen/api";
 import type { EditorTarget } from "./eventWindow";
 import { announceRestore } from "./pimUndo";
@@ -32,6 +34,7 @@ async function loadEvent(client: Client, target: EditorTarget, appZone: string):
     id: calendar.id,
     name: calendar.name,
     color: calendar.color,
+    invites: calendar.invites,
     account: accounts.find((a) => a.id === calendar.accountId)?.email ?? "",
   });
   if (target.kind === "new") {
@@ -49,10 +52,13 @@ async function loadEvent(client: Client, target: EditorTarget, appZone: string):
     ...(target.recurrenceId ? { recurrenceId: target.recurrenceId } : {}),
   });
   const readOnly = event.readOnly || !writable.some((c) => c.id === event.calendarId);
+  const initial = draftOf(event, appZone);
+  const ownCalendar = collections.filter((c) => c.id === event.calendarId);
+  const staysInCalendar = (initial.invitees?.length ?? 0) > 0 && ownCalendar.some((c) => c.invites);
   return {
     event,
-    initial: draftOf(event, appZone),
-    calendars: (readOnly ? collections.filter((c) => c.id === event.calendarId) : writable).map(choice),
+    initial,
+    calendars: (readOnly || staysInCalendar ? ownCalendar : writable).map(choice),
     readOnly,
   };
 }
@@ -103,7 +109,8 @@ export function EventWindow({ target }: { target: EditorTarget }) {
 }
 
 function TitleStrip({ title, onClose, busy }: { title: string; onClose: () => void; busy?: boolean }) {
-  useEffect(() => {
+  // Keep the window title in sync with the editor before the updated form is visible.
+  useLayoutEffect(() => {
     if (isTauri()) void getCurrentWindow().setTitle(title);
     else document.title = title;
   }, [title]);
@@ -126,6 +133,7 @@ function TitleStrip({ title, onClose, busy }: { title: string; onClose: () => vo
 }
 
 function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: LoadedEvent; appZone: string }) {
+  const { ask, sheet } = useNotify();
   const { event, initial, calendars, readOnly } = loaded;
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -137,6 +145,8 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
   const invalid = Object.keys(errors).length > 0;
   const invited = Boolean(event?.organizer && !event.organizer.isUser);
   const original = event ? initial : null;
+  const cannotInvite = sendsInvitees(original, draft) && !calendars.find((c) => c.id === draft.calendarId)?.invites;
+  const cannotSave = invalid || cannotInvite;
   // An incomplete date still counts as an edit, but cannot be converted to RPC fields yet.
   const dirty =
     !readOnly && (original ? invalid || Object.keys(changedFields(original, draft)).length > 0 : draft.summary !== "");
@@ -162,24 +172,25 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
   }, [close, closing, scopeAction]);
 
   const perform = async (action: "change" | "delete", scope?: EventScope) => {
-    if (busy || readOnly || (action === "change" && invalid) || (action === "delete" && invited)) return;
+    if (busy || readOnly || (action === "change" && cannotSave) || (action === "delete" && invited)) return;
     setBusy(true);
     setFailure("");
     setScopeAction(null);
     try {
       const occurrence =
         event?.recurring && event.recurrenceId && scope ? { recurrenceId: event.recurrenceId, scope } : {};
-      let restoreId: string;
-      if (action === "delete") {
-        if (!event) return;
-        ({ restoreId } = await client.calendar.delete({ id: event.id, ...occurrence }));
-      } else {
-        const fields = changedFields(original, draft);
-        ({ restoreId } = event
-          ? await client.calendar.update({ id: event.id, ...occurrence, fields })
-          : await client.calendar.create({ calendarId: draft.calendarId, fields }));
-      }
-      await announceRestore({ module: "calendar", restoreId }).catch((err: unknown) =>
+      if (action === "delete" && !event) return;
+      const fields = action === "change" ? changedFields(original, draft) : {};
+      const result = await withNotify((notify) => {
+        const notification = notify ? { notify } : {};
+        if (action === "delete" && event)
+          return client.calendar.delete({ id: event.id, ...occurrence, ...notification });
+        return event
+          ? client.calendar.update({ id: event.id, ...occurrence, fields, ...notification })
+          : client.calendar.create({ calendarId: draft.calendarId, fields, ...notification });
+      }, ask);
+      if (result === null) return;
+      await announceRestore({ module: "calendar", restoreId: result.restoreId }).catch((err: unknown) =>
         console.warn("announce event restore", err),
       );
       closeWindow();
@@ -190,7 +201,7 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
     }
   };
   const request = (action: "change" | "delete") => {
-    if (busy || readOnly || (action === "change" && invalid) || (action === "delete" && invited)) return;
+    if (busy || readOnly || (action === "change" && cannotSave) || (action === "delete" && invited)) return;
     setClosing(false);
     if (action === "change" && event && !dirty) {
       closeWindow();
@@ -222,6 +233,7 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
               locale={navigator.language}
               readOnly={readOnly}
               invited={invited}
+              suggest={(prefix) => client.address.suggest({ prefix, limit: 8 })}
             />
           </fieldset>
           {failure && (
@@ -251,7 +263,7 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
                 <button type="button" className={BUTTON} disabled={busy} onClick={close}>
                   Cancel
                 </button>
-                <button type="submit" className={PRIMARY_BUTTON} disabled={busy || invalid}>
+                <button type="submit" className={PRIMARY_BUTTON} disabled={busy || cannotSave}>
                   Save
                 </button>
               </>
@@ -270,11 +282,12 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
       {closing && (
         <CloseSheet
           title={title}
-          canSave={!busy && !invalid}
+          canSave={!busy && !cannotSave}
           onSave={() => request("change")}
           onCancel={() => setClosing(false)}
         />
       )}
+      {sheet}
     </div>
   );
 }

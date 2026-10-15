@@ -52,10 +52,10 @@ type Event struct {
 
 // Attendee is an ORGANIZER or ATTENDEE.
 type Attendee struct {
-	Email    string // lowercased, without mailto:
-	Name     string // CN
-	Role     string // chair, required, optional, none
-	PartStat string // needsaction, accepted, declined, tentative, delegated
+	Email    string `json:"email"`             // lowercased, without mailto:
+	Name     string `json:"name,omitzero"`     // CN
+	Role     string `json:"role,omitzero"`     // chair, required, optional, none
+	PartStat string `json:"partStat,omitzero"` // needsaction, accepted, declined, tentative, delegated
 }
 
 // Alarm is a DISPLAY or AUDIO VALARM.
@@ -240,7 +240,7 @@ func recurrenceLines(c *contentline.Component, raw []byte) string {
 func readPeople(c *contentline.Component, event *Event, emails []string) {
 	if p := c.Prop("ORGANIZER"); p != nil {
 		event.Organizer = &Attendee{
-			Email: personEmail(p.Value), Name: p.Param("CN"), Role: "chair", PartStat: "accepted",
+			Email: PersonEmail(*p), Name: p.Param("CN"), Role: "chair", PartStat: "accepted",
 		}
 	}
 	for _, p := range c.PropsNamed("ATTENDEE") {
@@ -261,16 +261,22 @@ func readPeople(c *contentline.Component, event *Event, emails []string) {
 	}
 }
 
-func personEmail(value string) string {
-	value = strings.TrimSpace(value)
+// PersonEmail is an organizer's or attendee's address, lowercased: the
+// mailto: value, else the EMAIL parameter (RFC 7986), which iCloud gives
+// the principal URL it writes for the account's own addresses.
+func PersonEmail(p contentline.Prop) string {
+	value := strings.TrimSpace(p.Value)
 	if len(value) >= len("mailto:") && strings.EqualFold(value[:len("mailto:")], "mailto:") {
-		value = value[len("mailto:"):]
+		return strings.ToLower(strings.TrimSpace(value[len("mailto:"):]))
 	}
-	return strings.ToLower(strings.TrimSpace(value))
+	if email := strings.TrimSpace(p.Param("EMAIL")); email != "" {
+		return strings.ToLower(email)
+	}
+	return strings.ToLower(value)
 }
 
 func readAttendee(p contentline.Prop) Attendee {
-	attendee := Attendee{Email: personEmail(p.Value), Name: p.Param("CN"), Role: "required", PartStat: "needsaction"}
+	attendee := Attendee{Email: PersonEmail(p), Name: p.Param("CN"), Role: "required", PartStat: "needsaction"}
 	switch strings.ToUpper(p.Param("ROLE")) {
 	case "CHAIR":
 		attendee.Role = "chair"

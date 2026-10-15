@@ -50,6 +50,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0032 — Undo restores what a change replaced](adr/0032-undo-restores-what-a-change-replaced.md)
 - [0033 — Write new events with their zone's VTIMEZONE](adr/0033-write-new-events-with-their-zones-vtimezone.md)
 - [0034 — Invite from the organizer's copy, and ask before telling invitees](adr/0034-invite-from-the-organizers-copy-and-ask-before-telling-invitees.md)
+- [0035 — Invite through the provider's scheduling, and confirm before it sends](adr/0035-invite-through-the-providers-scheduling.md)
 
 ### Design
 
