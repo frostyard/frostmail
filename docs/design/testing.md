@@ -127,6 +127,22 @@ against their recorded sessions (plan 0007, Phase 5).
    `internal/pimsync/testdata/replay/` to a new account and checks the
    store: collections, contacts, events and their instances, tasks.
 
+**Write sessions** are scripted, so the replay can send exactly what the
+recording did. `internal/davsession` holds the scripts: each step is one
+write through the engine and the pass that sends it. `tools/davsession`
+runs one against the provider as one of maild's accounts: it reads the
+account's credentials from a snapshot of maild's database and the
+keyring, syncs into a new store of its own (so the trace starts with a
+first sync), stops pimsync's clock at the start, and writes the raw
+trace for `davrec`, with the start as a `# recorded` line. The replay test
+runs the same script on that clock. The engine's `Deps.NewUID` gives new
+objects the names the recording's creating PUTs used (`If-None-Match: *`),
+in order. The script finds what it made again by what scrubbing keeps,
+times and IDs, never by summaries or names. `TestGoogleSessionOnDavtest`
+runs each script against `davtest` first, so a broken script fails before
+it reaches a provider. Only the throwaway Gmail account is recorded: the
+repository is public, and a scrubbed trace keeps dates and counts.
+
 ## Planned layers
 
 - **Fault injection (M1):** a `faultconn` that drops, delays and truncates;
