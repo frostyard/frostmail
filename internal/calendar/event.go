@@ -52,10 +52,10 @@ type Event struct {
 
 // Attendee is an ORGANIZER or ATTENDEE.
 type Attendee struct {
-	Email    string // lowercased, without mailto:
-	Name     string // CN
-	Role     string // chair, required, optional, none
-	PartStat string // needsaction, accepted, declined, tentative, delegated
+	Email    string `json:"email"`             // lowercased, without mailto:
+	Name     string `json:"name,omitzero"`     // CN
+	Role     string `json:"role,omitzero"`     // chair, required, optional, none
+	PartStat string `json:"partStat,omitzero"` // needsaction, accepted, declined, tentative, delegated
 }
 
 // Alarm is a DISPLAY or AUDIO VALARM.
