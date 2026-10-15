@@ -138,6 +138,7 @@ export class MockTransport implements Transport {
       data.calendar ?? { events: [], now: new Date().toISOString() },
       pim.collections,
       (e) => this.emit(e),
+      () => this.accounts,
     );
     this.tasks = new MockTasks(data.tasks ?? { tasks: [], now: new Date().toISOString() }, pim.collections, (e) =>
       this.emit(e),
