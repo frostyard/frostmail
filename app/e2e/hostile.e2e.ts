@@ -2,17 +2,31 @@
 // 3): every corpus message, pointed at a canary server, must make zero
 // requests, both raw in the reader's frame (sandbox and CSP alone) and
 // through maild's sanitizer in the real reader, with remote content allowed.
+// Nor may it open anything in the system browser: only a click on a link
+// does that (ADR-0036).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { type App, type Canary, canary, fixture, hostileFiles, launch, tempDir } from "./harness";
+import {
+  type App,
+  type Canary,
+  canary,
+  fakeOpener,
+  fixture,
+  hostileFiles,
+  launch,
+  type Opener,
+  tempDir,
+} from "./harness";
 
 let app: App | undefined;
 let trap: Canary | undefined;
+let opener: Opener | undefined;
 
 beforeAll(async () => {
   trap = await canary();
   const dir = tempDir("hostile");
-  app = await launch(dir, fixture(dir, 5, { canaryOrigin: trap.origin }));
+  opener = fakeOpener(dir);
+  app = await launch(dir, fixture(dir, 5, { canaryOrigin: trap.origin }), opener.env);
   const s = app.session;
   await s.waitFor("the app", async () => (await s.findAll('[role="tree"]')).length > 0, 30_000);
 });
@@ -34,7 +48,7 @@ describe("hostile HTML", () => {
       await app.session.executeAsync(
         `const [html, done] = arguments;
          const frame = document.createElement("iframe");
-         frame.setAttribute("sandbox", "allow-same-origin");
+         frame.setAttribute("sandbox", "allow-same-origin allow-popups");
          frame.srcdoc = html;
          document.body.appendChild(frame);
          setTimeout(() => { frame.remove(); done(); }, 400);`,
@@ -43,6 +57,7 @@ describe("hostile HTML", () => {
     }
     await settle(2000);
     expect(trap.hits).toEqual([]);
+    expect(opener?.opened()).toEqual([]);
   });
 
   it("makes no requests through maild's sanitizer, even with remote content loaded", async () => {
@@ -85,11 +100,12 @@ describe("hostile HTML", () => {
       const frames = await s.execute<string[]>(
         `return [...document.querySelectorAll('section[aria-label="Message"] iframe')].map((f) => f.getAttribute("sandbox"))`,
       );
-      expect(frames.every((sb) => sb === "allow-same-origin")).toBe(true);
+      expect(frames.every((sb) => sb === "allow-same-origin allow-popups")).toBe(true);
     }
     await settle(2000);
     // Every corpus message was opened, not the first one again and again.
     expect(shown.size).toBe(count);
     expect(trap.hits).toEqual([]);
+    expect(opener?.opened()).toEqual([]);
   });
 });

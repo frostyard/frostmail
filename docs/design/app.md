@@ -78,18 +78,24 @@ client.
   Each message gets `message.get` (headers, parts) and `message.render`.
   Selecting marks the message seen with `message.setFlags`.
 - **The frame** (`features/reader/MessageFrame.tsx`, planner): an `iframe`
-  with `sandbox="allow-same-origin"` and `srcdoc` set to a fixed template
-  around `Rendering.html`: a charset meta, a light `color-scheme`, a white
-  page with 20px padding, `overflow-wrap: anywhere`, and images limited to
-  the frame's width. In dev builds the template rewrites
-  `mailpart://localhost/` to `/mailpart/`.
+  with `sandbox="allow-same-origin allow-popups"` and `srcdoc` set to a
+  fixed template around `Rendering.html`: a charset meta, a light
+  `color-scheme`, `<base target="_blank">`, a white page with 20px padding,
+  `overflow-wrap: anywhere`, and images limited to the frame's width. In
+  dev builds the template rewrites `mailpart://localhost/` to `/mailpart/`.
   - After load, a `ResizeObserver` on the frame document's root (reachable
     because the frame is same-origin) sets the frame's height to its content,
-    so the reader scrolls as one page.
-  - A capturing click listener on the frame document cancels every
-    navigation; for links it calls the `open_link` command, which opens
-    `http`, `https` and `mailto` URLs in the system browser and ignores the
-    rest.
+    so the reader scrolls as one page. A frame that loaded before the
+    component attached its listener is measured at once.
+  - A click on a link asks for a new window, since every link targets
+    `_blank`. The main window's `on_new_window` handler
+    (`commands::open_new_window`) opens `http`, `https` and `mailto` URLs
+    with the system's default handler, logs the rest, and never creates a
+    window ([ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)).
+    WebKitGTK runs no listener inside the frame, the parent's included.
+  - Browsers on the dev gateway do run listeners there: a capturing click
+    listener on the frame document cancels every navigation and opens
+    `http`, `https` and `mailto` links in a browser tab.
   - Text-only messages render as React elements (`PlainText`), not in a
     frame.
 - **Remote content:** the banner's button calls `message.render` again with

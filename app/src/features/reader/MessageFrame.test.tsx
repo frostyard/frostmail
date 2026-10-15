@@ -11,6 +11,10 @@ describe("frameDocument", () => {
     expect(doc).toContain("<body><p>x</p></body>");
   });
 
+  it("makes every link ask for a new window, which the app shell opens in the browser", () => {
+    expect(frameDocument('<a href="https://example.test">x</a>', false)).toContain('<base target="_blank">');
+  });
+
   it("rewrites mailpart URLs to the dev server only in dev", () => {
     const html = '<img src="mailpart://localhost/m/1/2.png">';
     expect(frameDocument(html, true)).toContain('src="/mailpart/m/1/2.png"');
@@ -43,10 +47,10 @@ describe("linkTarget", () => {
 });
 
 describe("MessageFrame", () => {
-  it("is a sandboxed srcdoc frame without scripts", () => {
+  it("is a sandboxed srcdoc frame without scripts, whose links may ask for a window", () => {
     const { container } = render(<MessageFrame html="<p>hello</p>" onOpenLink={() => {}} />);
     const frame = container.querySelector("iframe");
-    expect(frame?.getAttribute("sandbox")).toBe("allow-same-origin");
+    expect(frame?.getAttribute("sandbox")).toBe("allow-same-origin allow-popups");
     expect(frame?.getAttribute("srcdoc")).toContain("<p>hello</p>");
     expect(frame?.getAttribute("referrerpolicy")).toBe("no-referrer");
   });

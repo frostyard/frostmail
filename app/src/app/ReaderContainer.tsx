@@ -56,7 +56,7 @@ export interface ReaderHandle {
 
 /** openLink opens a URL in the system browser. */
 export function openLink(url: string): void {
-  if (isTauri()) void invoke("open_link", { url }).catch(() => {});
+  if (isTauri()) void invoke("open_link", { url }).catch((err: unknown) => console.warn("open link", err));
   else window.open(url, "_blank", "noopener,noreferrer");
 }
 

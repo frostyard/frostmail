@@ -98,6 +98,30 @@ export async function smtpSink(dir: string): Promise<Sink> {
   };
 }
 
+/** Opener stands in for the launchers the app shell opens links with. */
+export interface Opener {
+  /** env puts the stand-ins first on the app's PATH; pass it to launch. */
+  env: Record<string, string>;
+  /** opened returns the URLs the app asked to open, oldest first. */
+  opened: () => string[];
+}
+
+/** fakeOpener writes xdg-open and gio stand-ins into dir/bin that record their last argument. */
+export function fakeOpener(dir: string): Opener {
+  const bin = join(dir, "bin");
+  const log = join(dir, "opened");
+  mkdirSync(bin, { recursive: true });
+  for (const name of ["xdg-open", "gio"]) {
+    writeFileSync(join(bin, name), `#!/bin/sh\nfor a; do last=$a; done\nprintf '%s\\n' "$last" >> '${log}'\n`, {
+      mode: 0o755,
+    });
+  }
+  return {
+    env: { PATH: `${bin}:${process.env.PATH ?? ""}` },
+    opened: () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []),
+  };
+}
+
 /** FixtureOptions add to the fixture: the hostile corpus pointed at a canary, an SMTP server to send through, or other HTML messages for the Hostile mailbox; or replace it with a showcase directory (tools/uifixture -showcase). */
 export interface FixtureOptions {
   canaryOrigin?: string;

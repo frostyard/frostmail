@@ -116,6 +116,16 @@ export class Session {
     await this.do("POST", "/window", { handle });
   }
 
+  /** frame makes an iframe's document current, so find and click reach inside it. */
+  async frame(el: Element): Promise<void> {
+    await this.do("POST", "/frame", { id: { [ELEMENT]: el.id } });
+  }
+
+  /** parentFrame makes the current frame's parent current again. */
+  async parentFrame(): Promise<void> {
+    await this.do("POST", "/frame/parent", {});
+  }
+
   /** screenshot returns the window as base64 PNG. */
   screenshot(): Promise<string> {
     return this.do<string>("GET", "/screenshot");

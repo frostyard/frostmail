@@ -51,6 +51,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0033 — Write new events with their zone's VTIMEZONE](adr/0033-write-new-events-with-their-zones-vtimezone.md)
 - [0034 — Invite from the organizer's copy, and ask before telling invitees](adr/0034-invite-from-the-organizers-copy-and-ask-before-telling-invitees.md)
 - [0035 — Invite through the provider's scheduling, and confirm before it sends](adr/0035-invite-through-the-providers-scheduling.md)
+- [0036 — Links in the reader's frame open as new-window requests](adr/0036-reader-links-open-as-new-window-requests.md)
 
 ### Design
 
