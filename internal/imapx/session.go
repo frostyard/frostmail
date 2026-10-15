@@ -267,6 +267,9 @@ func (s *Session) Select(ctx context.Context, path string) (Selected, error) {
 	return Selected{UIDValidity: d.UIDValidity, UIDNext: uint32(d.UIDNext), HighestModSeq: d.HighestModSeq, Messages: d.NumMessages}, nil
 }
 
+// Mailbox is the selected mailbox's path; "" when none is.
+func (s *Session) Mailbox() string { return s.selected }
+
 // Status reports a mailbox's state without selecting it.
 func (s *Session) Status(ctx context.Context, path string) (Selected, error) {
 	var d *imap.StatusData

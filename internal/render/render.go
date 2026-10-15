@@ -64,6 +64,10 @@ func (e *embedder) url(rel string) string {
 // ErrNoPart means a message has no part with the requested path.
 var ErrNoPart = errors.New("render: no such part")
 
+// ErrOmitted means the message is a display copy (ADR-0037) that left the
+// part's content out: render the part from the whole message.
+var ErrOmitted = errors.New("render: the part's content was left out")
+
 // Rendering is a message prepared for the reader (api.Rendering).
 type Rendering struct {
 	HTML     string
@@ -211,7 +215,7 @@ type inlinePart struct {
 func inlineParts(raw []byte) (map[string]inlinePart, error) {
 	parts := map[string]inlinePart{}
 	err := mimex.WalkParts(raw, func(p mimex.PartInfo, body io.Reader) error {
-		if p.ContentID == "" || !strings.HasPrefix(p.ContentType, "image/") {
+		if p.ContentID == "" || p.Omitted || !strings.HasPrefix(p.ContentType, "image/") {
 			return nil
 		}
 		data, err := io.ReadAll(body)
@@ -255,6 +259,9 @@ func (r *Renderer) Part(messageID int64, raw []byte, path string) (PartFile, err
 	err := mimex.WalkParts(raw, func(p mimex.PartInfo, body io.Reader) error {
 		if p.Path != path {
 			return nil
+		}
+		if p.Omitted {
+			return fmt.Errorf("%w: %q", ErrOmitted, path)
 		}
 		data, err := io.ReadAll(body)
 		if err != nil {

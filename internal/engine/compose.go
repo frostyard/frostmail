@@ -131,7 +131,12 @@ func storedKind(k api.DraftKind) string {
 // startFrom fills a reply or forward from its source message and returns
 // the source's attachments to carry over (forwards only).
 func (d drafts) startFrom(ctx context.Context, dr *store.Draft, src store.MessageDetail, ident store.Identity, kind api.DraftKind) ([]mimePart, error) {
-	raw, err := messages(d).raw(ctx, src.ID)
+	// A reply quotes what a reader shows; a forward carries attachments.
+	read := messages(d).display
+	if kind == api.DraftKindForward || kind == api.DraftKindAttached {
+		read = messages(d).raw
+	}
+	raw, err := read(ctx, src.ID)
 	if err != nil {
 		return nil, err
 	}

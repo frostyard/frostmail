@@ -28,6 +28,9 @@ type Config struct {
 	// BodyIdle closes the body connection (C3) after this long without a
 	// request [2m].
 	BodyIdle time.Duration
+	// NoPrefetch turns off C3's prefetch of recent INBOX and VIP bodies
+	// (ADR-0037), for tests that watch the body connection.
+	NoPrefetch bool
 	// GmailPoll is the Gmail accounts' polling interval [1m]: Gmail's IDLE
 	// reports new mail but not label or flag changes made elsewhere.
 	GmailPoll  time.Duration
@@ -199,7 +202,7 @@ func (m *Manager) startLocked(acct store.Account) {
 	ctx, cancel := context.WithCancel(m.ctx)
 	a := &actor{
 		m: m, acct: acct, cancel: cancel, done: make(chan struct{}),
-		wake: make(chan struct{}, 1), ops: make(chan struct{}, 1), bodies: make(chan bodyRequest),
+		wake: make(chan struct{}, 1), ops: make(chan struct{}, 1), bodies: make(chan bodyRequest), prefetch: make(chan struct{}, 1),
 		outbox: make(chan struct{}, 1), drafts: make(chan struct{}, 1), unsaved: map[int64]time.Time{},
 		status: api.SyncStatus{AccountID: acct.ID, Phase: api.SyncPhaseConnecting},
 	}
@@ -241,17 +244,28 @@ func (m *Manager) SyncNow(accountID int64) error {
 	return nil
 }
 
-// FetchBody makes sure a message's raw body is in the blob store, asking its
-// account's actor to fetch it if needed, and returns the blob ID.
+// FetchBody makes sure a message's whole raw body is in the blob store,
+// asking its account's actor to fetch it if needed, and returns the blob
+// ID.
 func (m *Manager) FetchBody(ctx context.Context, messageID int64) (string, error) {
+	return m.fetchBody(ctx, messageID, true)
+}
+
+// FetchDisplay makes sure what a reader shows of a message is in the blob
+// store, its whole body or else its display copy (ADR-0037), asking its
+// account's actor to fetch the display copy if needed, and returns the
+// blob ID.
+func (m *Manager) FetchDisplay(ctx context.Context, messageID int64) (string, error) {
+	return m.fetchBody(ctx, messageID, false)
+}
+
+func (m *Manager) fetchBody(ctx context.Context, messageID int64, whole bool) (string, error) {
 	detail, err := m.db.GetMessage(ctx, messageID)
 	if err != nil {
 		return "", err
 	}
-	if detail.BlobID != "" {
-		if ok, _ := m.blobs.Has(detail.BlobID); ok {
-			return detail.BlobID, nil
-		}
+	if id := m.stored(detail, whole); id != "" {
+		return id, nil
 	}
 	a := m.actor(detail.AccountID)
 	if a == nil {
@@ -259,7 +273,7 @@ func (m *Manager) FetchBody(ctx context.Context, messageID int64) (string, error
 	}
 	reply := make(chan bodyResult, 1)
 	select {
-	case a.bodies <- bodyRequest{id: messageID, reply: reply}:
+	case a.bodies <- bodyRequest{id: messageID, whole: whole, reply: reply}:
 	case <-ctx.Done():
 		return "", ctx.Err()
 	case <-a.done:
@@ -271,6 +285,25 @@ func (m *Manager) FetchBody(ctx context.Context, messageID int64) (string, error
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+}
+
+// stored is the blob that answers a request for a message's body now: its
+// whole body, or unless whole is asked for, its display copy; "" when the
+// blob store has neither.
+func (m *Manager) stored(d store.MessageDetail, whole bool) string {
+	ids := []string{d.BlobID}
+	if !whole {
+		ids = append(ids, d.DisplayBlobID)
+	}
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		if ok, _ := m.blobs.Has(id); ok {
+			return id
+		}
+	}
+	return ""
 }
 
 // ErrOffline means the account is not connected, so a body that is not

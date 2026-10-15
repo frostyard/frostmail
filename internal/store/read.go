@@ -305,6 +305,7 @@ type MessageDetail struct {
 	AuthResults     string // the first Authentication-Results header
 	Parts           []Part
 	BlobID          string // the raw message in the blob store; "" until fetched
+	DisplayBlobID   string // its display copy in the blob store (ADR-0037); "" until fetched
 }
 
 // Location is where to fetch a message from on the server.
@@ -504,14 +505,14 @@ func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
 		m                   MessageDetail
 		toJSON, ccJSON      string
 		replyJSON, refsJSON string
-		blobSHA             sql.NullString
+		blobSHA, displaySHA sql.NullString
 	)
 	r := d.db.QueryRowContext(ctx, `SELECT `+summaryCols+`,
 		to_json, cc_json, reply_to_json, msgid_hdr, in_reply_to, refs_json,
-		list_id, list_unsubscribe, auth_results, blob_sha
+		list_id, list_unsubscribe, auth_results, blob_sha, display_sha
 		FROM messages WHERE id = ?`, id)
 	s, err := scanSummary(r, &toJSON, &ccJSON, &replyJSON, &m.MessageID, &m.InReplyTo,
-		&refsJSON, &m.ListID, &m.ListUnsubscribe, &m.AuthResults, &blobSHA)
+		&refsJSON, &m.ListID, &m.ListUnsubscribe, &m.AuthResults, &blobSHA, &displaySHA)
 	if errors.Is(err, sql.ErrNoRows) {
 		return MessageDetail{}, ErrNotFound
 	}
@@ -520,6 +521,7 @@ func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
 	}
 	m.Summary = s
 	m.BlobID = blobSHA.String
+	m.DisplayBlobID = displaySHA.String
 	mbs, err := d.mailboxIDsOf(ctx, id)
 	if err != nil {
 		return MessageDetail{}, err
@@ -602,6 +604,52 @@ func (d *DB) MessageLocation(ctx context.Context, id int64) (Location, error) {
 		return Location{}, fmt.Errorf("message location %d: %w", id, err)
 	}
 	return loc, nil
+}
+
+// SetDisplay records that a message's display copy (ADR-0037) is stored
+// in the blob store under blobID. A missing message is ErrNotFound.
+func (t *Tx) SetDisplay(ctx context.Context, id int64, blobID string) error {
+	res, err := t.ExecContext(ctx, `UPDATE messages SET display_sha = ? WHERE id = ?`, blobID, id)
+	if err != nil {
+		return fmt.Errorf("set display copy %d: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set display copy %d: %w", id, err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// PrefetchCandidates are the newest messages of an account, at most
+// limit, that arrived at or after since, are in its INBOX or from a VIP,
+// can be fetched (a mailbox holds them by UID), and have neither their
+// whole body nor a display copy stored (ADR-0037).
+func (d *DB) PrefetchCandidates(ctx context.Context, accountID int64, since time.Time, limit int) ([]int64, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT m.id FROM messages m
+		WHERE m.account_id = ? AND m.internal_date >= ? AND m.deleted = 0
+		  AND m.blob_sha IS NULL AND m.display_sha IS NULL
+		  AND (EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes b ON b.id = mm.mailbox_id
+		               WHERE mm.message_id = m.id AND b.role = 'inbox')
+		       OR lower(m.from_addr) IN (SELECT address FROM vips))
+		  AND EXISTS (SELECT 1 FROM message_mailbox mm WHERE mm.message_id = m.id AND mm.uid IS NOT NULL)
+		ORDER BY m.internal_date DESC, m.id DESC LIMIT ?`,
+		accountID, since.UTC().Format(TimeFormat), limit)
+	if err != nil {
+		return nil, fmt.Errorf("prefetch candidates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("prefetch candidates: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // SetBody records that a message's raw body is stored in the blob store

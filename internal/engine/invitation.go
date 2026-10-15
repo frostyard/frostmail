@@ -48,7 +48,7 @@ func (c calendarService) Invitation(ctx context.Context, p *api.CalendarInvitati
 }
 
 func (c calendarService) readInvitation(ctx context.Context, id int64, emails []string) (*itip.Message, error) {
-	raw, err := messages(c).raw(ctx, id)
+	raw, err := messages(c).display(ctx, id)
 	if err != nil {
 		return nil, err
 	}

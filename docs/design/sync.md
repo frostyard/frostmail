@@ -17,9 +17,11 @@ Code: `internal/mailsync` (`Manager`, `actor`, `reconcile`, `ops`) over
 - Connections per account (Gmail allows 15): C1 runs commands and
   polling; C2 IDLEs on INBOX (All Mail on Gmail), re-issuing IDLE every 25
   minutes and treating 10 silent minutes as dead; C3 fetches the bodies the
-  user opens (`internal/mailsync/bodies.go`), so reading never waits behind
-  a long pass on C1. C3 opens on demand, examines mailboxes read-only and
-  closes after two idle minutes. Provider profiles can lower the count.
+  user opens and prefetches others (`internal/mailsync/bodies.go`), so
+  reading never waits behind a long pass on C1. C3 opens on demand,
+  examines mailboxes read-only, keeps the mailbox it examined for the next
+  request, and closes after two minutes with nothing to fetch. Provider
+  profiles can lower the count.
 - Connect: CAPABILITY, ID; CONDSTORE needs no ENABLE because
   `SELECT … (CONDSTORE)` turns it on (RFC 7162 3.1);
   `LIST "" "*" RETURN (SPECIAL-USE SUBSCRIBED)`, with role fallback by name
@@ -34,9 +36,36 @@ BODY.PEEK[HEADER.FIELDS (References In-Reply-To List-Id List-Unsubscribe
 Authentication-Results)]`, plus `X-GM-MSGID X-GM-THRID X-GM-LABELS` on
 Gmail. The preview comes from a partial fetch of the first text part chosen
 from BODYSTRUCTURE: `BINARY.PEEK[part]<0.2048>` with BINARY, else
-`BODY.PEEK[part]<0.2048>` decoded locally (`mimex.DecodePart`). Bodies are
-fetched when opened (P0) and prefetched for INBOX and VIPs within 90 days
-(P4).
+`BODY.PEEK[part]<0.2048>` decoded locally (`mimex.DecodePart`).
+
+## Bodies
+
+Opening a message (P0) fetches what the reader shows
+([ADR-0037](../adr/0037-fetch-what-the-reader-shows.md)):
+
+- **The display copy** (`imapx.Session.FetchDisplay`): one `UID FETCH` of
+  `BODYSTRUCTURE` and `BODY.PEEK[HEADER]`, then one of each part's
+  `[path.MIME]` header and the content of the parts a reader shows: body
+  text, invitations, images with a Content-ID or shown inline (up to 4 MB),
+  attached messages (up to 1 MB). The parts are reassembled between the
+  original boundaries. Other parts keep their header, with
+  `X-Frostmail-Omitted: <size>`, and an empty body. It is stored in the
+  blob store as `messages.display_sha`.
+- **Small messages whole:** a message of 256 KB or less (`RFC822.SIZE`) is
+  fetched whole, since one round trip is quicker than the display copy's
+  two. So is a message whose structure has no boundary to rebuild.
+- **The whole message** (`BODY.PEEK[]`, `messages.blob_sha`, `body_state
+  = 'full'`) is fetched for Raw Source, Save, forwarding, redirecting,
+  reopening a draft, and opening an attachment the display copy left out.
+  `message.get`'s `bodyFetched` reports it.
+
+C3 checks the store before each fetch, so a body two requests asked for is
+fetched once. When a pass settles, C3 prefetches (P4) the bodies of
+messages within 90 days in INBOX or from a VIP that have neither copy,
+newest first and one at a time, by the same rules; a request from the user
+goes before the next prefetch. A message that fails is not tried again
+until maild restarts, and a connection failure stops prefetch until the
+next pass.
 
 **The sync window** ([ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md)):
 an account keeps the messages that arrived in its last `syncDays` days (0

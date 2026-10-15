@@ -6,7 +6,9 @@ package imapx_test
 // make engine-it sets FROSTMAIL_IT_HOST and restores the clean snapshot.
 
 import (
+	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -179,5 +181,47 @@ func TestDovecotIdleWakesOnDelivery(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("IDLE did not wake on another client's flag change")
+	}
+}
+
+func TestDovecotFetchDisplay(t *testing.T) {
+	ctx := t.Context()
+	s, err := imapx.Open(ctx, dovecot(t, api.TLSModeTLS, 993))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	const box = "Display copies"
+	if err := s.Create(ctx, box); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Delete(context.WithoutCancel(ctx), box) })
+	uid, err := s.Append(ctx, box, []byte(mixed), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Select(ctx, box); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := s.FetchDisplay(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept, omitted []string
+	for _, l := range leaves(t, raw) {
+		if l.omitted != "" {
+			omitted = append(omitted, l.typ)
+		} else {
+			kept = append(kept, l.typ)
+		}
+	}
+	if got := strings.Join(kept, " "); got != "text/plain text/html image/png text/calendar" {
+		t.Errorf("kept %s", got)
+	}
+	if got := strings.Join(omitted, " "); got != "application/pdf text/csv" {
+		t.Errorf("omitted %s", got)
+	}
+	if len(raw) > len(mixed)/10 {
+		t.Errorf("the copy is %d bytes of %d", len(raw), len(mixed))
 	}
 }

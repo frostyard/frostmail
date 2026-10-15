@@ -13,6 +13,10 @@ import (
 	"github.com/emersion/go-message/charset"
 )
 
+// OmittedHeader marks a part whose content a display copy (ADR-0037)
+// leaves out; its value is the part's size in octets on the server.
+const OmittedHeader = "X-Frostmail-Omitted"
+
 // PartInfo describes one leaf part of a message.
 type PartInfo struct {
 	Path        string // IMAP part specifier, as in BODYSTRUCTURE: "1", "2.1"
@@ -20,6 +24,9 @@ type PartInfo struct {
 	Disposition string // lowercase; "" when absent
 	Filename    string // decoded from RFC 2231 and RFC 2047 forms
 	ContentID   string // without angle brackets
+	// Omitted is set when the message is a display copy that left the
+	// part's content out (OmittedHeader): its body is empty.
+	Omitted bool
 }
 
 // WalkParts calls fn for every leaf part of a raw message in tree order, with
@@ -62,6 +69,7 @@ func WalkParts(raw []byte, fn func(p PartInfo, body io.Reader) error) error {
 			Disposition: strings.ToLower(disp),
 			Filename:    name,
 			ContentID:   strings.Trim(strings.TrimSpace(part.Header.Get("Content-Id")), "<>"),
+			Omitted:     part.Header.Get(OmittedHeader) != "",
 		}
 		if err := fn(info, part.Body); err != nil {
 			stop = err

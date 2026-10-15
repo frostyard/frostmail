@@ -311,7 +311,7 @@ func TestReplayGmailOperations(t *testing.T) {
 	full(1)
 	welcome = e.uid(gAll, 1)
 	replayed(e.a.m.SetFlags(ctx, []int64{welcome}, store.FlagChange{Seen: new(true)}))
-	if _, err := e.a.fetchBody(ctx, s, welcome); err != nil {
+	if _, err := e.a.fetchBody(ctx, s, welcome, true); err != nil {
 		t.Fatal(err)
 	}
 	done()

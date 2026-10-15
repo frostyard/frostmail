@@ -1,7 +1,6 @@
 package mailsync
 
 import (
-	"bytes"
 	"context"
 	"encoding/json/v2"
 	"fmt"
@@ -252,30 +251,4 @@ func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.Fl
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
 	})
-}
-
-// fetchBody downloads a message into the blob store on C1.
-func (a *actor) fetchBody(ctx context.Context, cmd *imapx.Session, id int64) (string, error) {
-	loc, err := a.m.db.MessageLocation(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	if _, err := cmd.Select(ctx, loc.MailboxPath); err != nil {
-		return "", err
-	}
-	raw, err := cmd.FetchRaw(ctx, loc.UID)
-	if err != nil {
-		return "", err
-	}
-	blobID, err := a.m.blobs.Put(ctx, bytes.NewReader(raw))
-	if err != nil {
-		return "", err
-	}
-	err = a.m.db.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.SetBody(ctx, id, blobID); err != nil {
-			return err
-		}
-		return tx.Emit(ctx, api.MessageChanged{AccountID: a.acct.ID, IDs: []int64{id}})
-	})
-	return blobID, err
 }

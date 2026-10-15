@@ -40,7 +40,7 @@ func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Messag
 }
 
 func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body, error) {
-	raw, err := m.raw(ctx, p.ID)
+	raw, err := m.display(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -91,34 +91,56 @@ func (m messages) Save(ctx context.Context, p *api.MessageSaveParams) error {
 	return nil
 }
 
-// storedBody is the blob of a message's stored body, or "" when there is
-// none yet.
-func (m messages) storedBody(ctx context.Context, id int64) (string, error) {
+// storedBody is the blob of a message's stored body, the whole message or
+// unless whole is asked for its display copy, or "" when there is none yet.
+func (m messages) storedBody(ctx context.Context, id int64, whole bool) (string, error) {
 	detail, err := m.DB.GetMessage(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	if detail.BlobID != "" {
-		if ok, _ := m.Blobs.Has(detail.BlobID); ok {
-			return detail.BlobID, nil
+	ids := []string{detail.BlobID}
+	if !whole {
+		ids = append(ids, detail.DisplayBlobID)
+	}
+	for _, blobID := range ids {
+		if blobID == "" {
+			continue
+		}
+		if ok, _ := m.Blobs.Has(blobID); ok {
+			return blobID, nil
 		}
 	}
 	return "", nil
 }
 
-// raw returns a message as stored, fetching it from the server first if
-// needed: notFound for an unknown message, unavailable when it cannot be
-// fetched now.
+// raw returns a whole message as stored, fetching it from the server first
+// if needed: notFound for an unknown message, unavailable when it cannot
+// be fetched now.
 func (m messages) raw(ctx context.Context, id int64) ([]byte, error) {
+	return m.read(ctx, id, true)
+}
+
+// display returns what a reader shows of a message: the whole message
+// when it is stored, else its display copy (ADR-0037), whose omitted parts
+// have no content. It fetches the display copy first if needed.
+func (m messages) display(ctx context.Context, id int64) ([]byte, error) {
+	return m.read(ctx, id, false)
+}
+
+func (m messages) read(ctx context.Context, id int64, whole bool) ([]byte, error) {
 	if m.Blobs == nil {
 		return nil, api.Unavailable("sync is not running")
 	}
-	blobID, err := m.storedBody(ctx, id)
+	blobID, err := m.storedBody(ctx, id, whole)
 	if err == nil && blobID == "" {
 		if m.Sync == nil {
 			return nil, api.Unavailable("message %d is not stored locally and sync is not running", id)
 		}
-		blobID, err = m.Sync.FetchBody(ctx, id)
+		if whole {
+			blobID, err = m.Sync.FetchBody(ctx, id)
+		} else {
+			blobID, err = m.Sync.FetchDisplay(ctx, id)
+		}
 	}
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, api.NotFound("message %d does not exist", id)
