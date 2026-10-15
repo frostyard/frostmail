@@ -33,7 +33,7 @@ func (p people) Create(ctx context.Context, params *api.PeopleCreateParams) (*ap
 	if err != nil {
 		return nil, err
 	}
-	uid, err := newUUID()
+	uid, err := p.newUID()
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (p people) restoreObject(ctx context.Context, tx *store.Tx, o store.Restore
 			next.ETag = deleted.IfMatch
 			break
 		}
-		name, err := newUUID()
+		name, err := p.newUID()
 		if err != nil {
 			return err
 		}

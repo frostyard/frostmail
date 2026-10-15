@@ -277,7 +277,7 @@ func (p people) Add(ctx context.Context, params *api.PeopleAddParams) (*api.Pers
 	} else if name, err = p.DB.SeenName(ctx, email); err != nil {
 		return nil, err
 	}
-	uid, err := newUUID()
+	uid, err := p.newUID()
 	if err != nil {
 		return nil, err
 	}

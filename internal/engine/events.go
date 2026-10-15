@@ -52,7 +52,7 @@ func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams
 		}
 		change.Attendees, change.Organizer = people.Attendees, people.Organizer
 	}
-	uid, err := newUUID()
+	uid, err := c.newUID()
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams
 		}
 		target = &col
 	}
-	raw, split, err := t.apply(&edit, c.DB.Now())
+	raw, split, err := t.apply(&edit, c.DB.Now(), c.newUID)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +391,7 @@ func (t eventTarget) edit(recurrenceID *string, scope *api.EventScope) (pimsync.
 
 // apply patches the object: the patched source, and a split's new series
 // (whose UID it sets in the edit).
-func (t eventTarget) apply(edit *pimsync.EventEdit, now time.Time) ([]byte, []byte, error) {
+func (t eventTarget) apply(edit *pimsync.EventEdit, now time.Time, newUID func() (string, error)) ([]byte, []byte, error) {
 	if edit.Change == (calendar.EventChange{}) {
 		return t.obj.Raw, nil, nil
 	}
@@ -404,7 +404,7 @@ func (t eventTarget) apply(edit *pimsync.EventEdit, now time.Time) ([]byte, []by
 	}
 	scope, _ := pimsync.Scope(edit.Scope)
 	if scope == calendar.ScopeFuture {
-		uid, err := newUUID()
+		uid, err := newUID()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -647,7 +647,7 @@ func (c calendarService) restoreEvent(ctx context.Context, tx *store.Tx, o store
 			next.ETag = deleted.IfMatch
 			break
 		}
-		name, err := newUUID()
+		name, err := c.newUID()
 		if err != nil {
 			return 0, err
 		}

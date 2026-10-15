@@ -283,7 +283,7 @@ func (c calendarService) answerMessage(ctx context.Context, r *response, mail *b
 				return 0, err
 			}
 		}
-		uid, err := newUUID()
+		uid, err := c.newUID()
 		if err != nil {
 			return 0, err
 		}
