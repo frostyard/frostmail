@@ -13,7 +13,9 @@ import {
   ruleOf,
   withEnd,
 } from "../../lib/repeat";
+import type { Address } from "../../rpc/gen/api";
 import { FIELD } from "../settings/labels";
+import { InviteesField } from "./InviteesField";
 import { RepeatSheet } from "./RepeatSheet";
 
 /** CalendarChoice names a writable calendar and its account. */
@@ -22,6 +24,7 @@ export interface CalendarChoice {
   name: string;
   color: string;
   account: string;
+  invites?: boolean;
 }
 
 /** EventEditorProps supplies the controlled draft and available choices. */
@@ -34,6 +37,7 @@ export interface EventEditorProps {
   locale: string;
   readOnly?: boolean;
   invited?: boolean;
+  suggest?: (prefix: string) => Promise<Address[]>;
 }
 
 /** TIMED_ALERTS lists the timed event alert presets in menu order. */
@@ -280,6 +284,7 @@ export function EventEditor({
   locale,
   readOnly,
   invited,
+  suggest = async () => [],
 }: EventEditorProps) {
   const [repeatOpen, setRepeatOpen] = useState(false);
   const zoneErrorId = useId();
@@ -372,6 +377,16 @@ export function EventEditor({
       </Row>
       {draft.rrule && <EndRepeat {...controls} />}
       <CalendarSelect {...controls} calendars={calendars} />
+      <Row label="Invitees">
+        <InviteesField
+          invitees={draft.invitees ?? []}
+          onChange={(invitees) => onChange({ ...draft, invitees })}
+          suggest={suggest}
+          available={Boolean(calendars.find((calendar) => calendar.id === draft.calendarId)?.invites)}
+          disabled={disabled}
+        />
+        {errors.invitees && <p className={MESSAGE}>{errors.invitees}</p>}
+      </Row>
       <Alerts {...controls} disabled={readOnly} />
       <Row label="Show as">
         <select
