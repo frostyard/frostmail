@@ -397,7 +397,8 @@ function fixtureCalendars(): Collection[] {
     readOnly,
     enabled: true,
     isDefault: id === CALENDARS.work,
-    invites: !readOnly,
+    // As on an IMAP account's server; tests of invitations turn it on.
+    invites: false,
   });
   return [
     calendar(CALENDARS.work, "Work", "#3366cc", false),

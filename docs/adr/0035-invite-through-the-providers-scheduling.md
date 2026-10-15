@@ -67,9 +67,10 @@ only other CalDAV servers.
   for every path: the editor, a drag, a delete and an undo.
 - **No Don't Send** on Google and iCloud: their servers send whatever
   the copy says. `notify: false` is `invalidParams` there.
-- **An event with invitees stays in its calendar.** A move is a put in
-  one calendar and a delete in the other, which the servers announce as
-  a new invitation and a cancellation.
+- **An event with invitees stays in its calendar,** where the calendar
+  takes invitees. A move is a put in one calendar and a delete in the
+  other, which those servers announce as a new invitation and a
+  cancellation.
 - **Answers.** The servers apply invitees' answers to the organizer's
   copy, and maild shows them after its next pass.
 - **Invited events** change only as

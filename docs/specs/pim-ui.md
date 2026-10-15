@@ -543,8 +543,8 @@ and draws its own 32-high title strip with a Close button.
       input), or After (with a count field and "times");
     - **calendar**: a select of the writable calendars, grouped by
       account, each with its color's 8px dot, starting on the event's own.
-      An event saved with invitees offers only its own calendar
-      (ADR-0035);
+      An event saved with invitees, in a calendar that invites, offers
+      only its own calendar (ADR-0035);
     - **invitees** (M5.5, Phase 5): the invitees, one 28-high row each:
       the name, else the address, 13/18 (tooltip "Name <address>"); the
       answer icon as the event pane draws it (nothing for no answer); an

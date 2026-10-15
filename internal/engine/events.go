@@ -117,7 +117,11 @@ func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams
 	}
 	var target *store.Collection
 	if move != nil && *move != t.col.ID {
-		if hasInvitees(t.obj.Raw, t.emails) || change.Attendees != nil && len(*change.Attendees) > 0 {
+		acct, err := c.DB.GetAccount(ctx, t.col.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		if invites(acct) && (hasInvitees(t.obj.Raw, t.emails) || change.Attendees != nil && len(*change.Attendees) > 0) {
 			return nil, api.InvalidParams("an event with invitees stays in its calendar: its server would cancel and invite again")
 		}
 		col, err := c.writableCalendar(ctx, move)

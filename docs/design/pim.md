@@ -352,7 +352,7 @@ contacts and events writable through `people.create`, `update`, `delete`,
   with `notifyRequired`, whose data is that `InviteNotice`, and the app
   asks and repeats it; nothing is written until then. `notify: false` is
   `invalidParams`, since neither server can be kept quiet. An event with
-  invitees does not move between calendars. Invitees' answers reach the
+  invitees in such a calendar does not move to another. Invitees' answers reach the
   organizer's copy through the server. maild mailing iTIP itself, for
   servers that do not schedule, is Later.
 
