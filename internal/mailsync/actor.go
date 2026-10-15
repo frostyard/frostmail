@@ -28,6 +28,8 @@ type actor struct {
 	outbox chan struct{} // a message was queued for sending
 	drafts chan struct{} // a draft changed
 	bodies chan bodyRequest
+	// prefetch asks C3 to prefetch bodies, after a pass settles.
+	prefetch chan struct{}
 
 	// unsaved holds drafts whose copy the server refused, by the updated_at
 	// that was refused; only the IMAP loop touches it.
@@ -51,7 +53,10 @@ type actor struct {
 }
 
 type bodyRequest struct {
-	id    int64
+	id int64
+	// whole asks for the whole message, not only what a reader shows
+	// (ADR-0037).
+	whole bool
 	reply chan bodyResult
 }
 
@@ -320,11 +325,17 @@ func (a *actor) syncCopies(ctx context.Context, cmd *imapx.Session) (bool, error
 }
 
 // settled runs the rules on the new inbox mail of the work just done,
-// announces the new mail, and goes idle.
+// announces the new mail, goes idle, and has C3 prefetch bodies.
 func (a *actor) settled(ctx context.Context) {
 	a.runRules(ctx)
 	a.announceNew(ctx)
 	a.idlePhase()
+	if !a.m.cfg.NoPrefetch {
+		select {
+		case a.prefetch <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func (a *actor) idlePhase() {

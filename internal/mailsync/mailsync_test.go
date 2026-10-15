@@ -30,7 +30,9 @@ type harness struct {
 	events []api.EventEnvelope
 }
 
-var testConfig = mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, MinBackoff: 50 * time.Millisecond, Chunk: 2}
+// testConfig leaves prefetch off: bodies come when a test asks for them.
+var testConfig = mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, MinBackoff: 50 * time.Millisecond, Chunk: 2,
+	NoPrefetch: true}
 
 // newHarness starts maild with sync, subscribes, and adds an account for
 // opts with password.

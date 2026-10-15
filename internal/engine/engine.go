@@ -31,6 +31,9 @@ type Syncer interface {
 	Status(accountID int64) []api.SyncStatus
 	SyncNow(accountID int64) error
 	FetchBody(ctx context.Context, messageID int64) (string, error)
+	// FetchDisplay is FetchBody for a reader: the whole body when it is
+	// stored, else the display copy (ADR-0037).
+	FetchDisplay(ctx context.Context, messageID int64) (string, error)
 	SetFlags(ctx context.Context, ids []int64, c store.FlagChange) error
 	Move(ctx context.Context, ids []int64, from, to int64) error
 	Copy(ctx context.Context, ids []int64, to int64) error

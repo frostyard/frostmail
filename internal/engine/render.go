@@ -13,7 +13,7 @@ func (m messages) Render(ctx context.Context, p *api.MessageRenderParams) (*api.
 	if m.Deps.Render == nil {
 		return nil, api.Unavailable("rendering is not running")
 	}
-	raw, err := m.raw(ctx, p.ID)
+	raw, err := m.display(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -29,11 +29,18 @@ func (m messages) Part(ctx context.Context, p *api.MessagePartParams) (*api.Part
 	if m.Deps.Render == nil {
 		return nil, api.Unavailable("rendering is not running")
 	}
-	raw, err := m.raw(ctx, p.ID)
+	raw, err := m.display(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
 	f, err := m.Deps.Render.Part(p.ID, raw, p.Path)
+	if errors.Is(err, render.ErrOmitted) {
+		// An attachment the display copy left out: fetch the whole message.
+		if raw, err = m.raw(ctx, p.ID); err != nil {
+			return nil, err
+		}
+		f, err = m.Deps.Render.Part(p.ID, raw, p.Path)
+	}
 	if errors.Is(err, render.ErrNoPart) {
 		return nil, api.NotFound("message %d has no part %q", p.ID, p.Path)
 	}

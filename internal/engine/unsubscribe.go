@@ -32,7 +32,7 @@ func (m messages) unsubscribeOf(ctx context.Context, id int64) (store.MessageDet
 	if detail.ListUnsubscribe == "" {
 		return detail, unsubscribe.Info{}, nil
 	}
-	raw, err := m.raw(ctx, id)
+	raw, err := m.display(ctx, id)
 	if err != nil {
 		return store.MessageDetail{}, unsubscribe.Info{}, err
 	}

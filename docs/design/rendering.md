@@ -13,7 +13,12 @@ without touching the network: sanitized HTML whose images are embedded as
 frame, [ADR-0014](../adr/0014-images-embedded-in-the-reader-frame.md)),
 plus the readable text. Decoded parts also land in maild's parts cache,
 which the app reads as `mailpart://localhost/` for attachments. `internal/render` does the work; the engine calls it after the sync
-engine has fetched the body.
+engine has fetched the body: the whole message when it is stored, else its
+display copy, which leaves attachments out
+([ADR-0037](../adr/0037-fetch-what-the-reader-shows.md),
+[sync.md](sync.md#bodies)). An inline image the display copy omitted (over
+4 MB) is left out as a missing `cid:` image, and `message.part` of an
+omitted part (`render.ErrOmitted`) fetches the whole message first.
 
 ```
 blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite URLs ─► Rendering
@@ -88,7 +93,8 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
 ## Operational notes
 
 - `render` needs the body: like `message.body`, it fails with
-  `unavailable` while the account is offline and the body was never fetched.
+  `unavailable` while the account is offline and neither the display copy
+  nor the whole message was ever fetched.
 - Tests: golden files for the sanitizer (`internal/render/testdata/*.html`
   and `*.golden.html`); a fuzz test asserting that output reparses to
   allowlisted elements and attributes only; fetcher tests against

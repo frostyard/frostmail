@@ -188,16 +188,7 @@ S: T23 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
 C: T24 UID STORE 1 +FLAGS.SILENT (\Seen)
 S: * 1 FETCH (UID 1 MODSEQ (1588) FLAGS (\Seen))
 S: T24 OK Success
-C: T25 SELECT "[Gmail]/All Mail" (CONDSTORE)
-S: * FLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing)
-S: * OK [PERMANENTFLAGS (\Answered \Flagged \Draft \Deleted \Seen $NotPhishing $Phishing \*)] Flags permitted.
-S: * OK [UIDVALIDITY 12] UIDs valid.
-S: * 1 EXISTS
-S: * 0 RECENT
-S: * OK [UIDNEXT 2] Predicted next UID.
-S: * OK [HIGHESTMODSEQ 1678]
-S: T25 OK [READ-WRITE] [Gmail]/All Mail selected. (Success)
-C: T26 UID FETCH 1 (UID BODY.PEEK[])
+C: T25 UID FETCH 1 (UID BODY.PEEK[])
 S: * 1 FETCH (UID 1 MODSEQ (1588) BODY[] {26941}
 S: Delivered-To: ejorkqyhqoq@gmail.com
 S: Received: to 4999:d86:2954:44ai:q9:892:9q4f:7v65 with SMTP id qe67sct6867957hej;
@@ -689,4 +680,4 @@ S: </body>
 S: </html>
 S: --133095523336936143051v89n898--
 S: )
-S: T26 OK Success
+S: T25 OK Success
