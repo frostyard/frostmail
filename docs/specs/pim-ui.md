@@ -551,15 +551,17 @@ and draws its own 32-high title strip with a Close button.
       "Optional" text toggle 12/16 (`aria-pressed`, `--accent` when on);
       and a 20 × 20 Remove button (`X` 14px, named "Remove <name or
       address>"). An address that does not parse is drawn in `--flag-1`
-      with the tooltip "<address> is not a valid address". Under the
-      rows, an input named "Add Invitee" (placeholder "Add Invitee")
-      that behaves as compose's recipient field (docs/specs/compose-ui.md,
-      Recipients): typing, committing, pasting and the suggestion list
-      (`address.suggest`), and an address already invited is not added
-      again. When the chosen calendar's server does not send invitations
-      (`Collection.invites` false), the input is absent and a line 12/16
-      `--text-tertiary` says "Invitations aren't available in this
-      calendar."; Save stays disabled while invitees are listed there.
+      with the tooltip "<address> is not a valid address", and keeps Save
+      disabled with "Check the invitees' addresses" under the row. Under
+      the rows, an input named "Add Invitee" that behaves as compose's
+      recipient field (docs/specs/compose-ui.md, Recipients): typing,
+      committing, pasting and the suggestion list (`address.suggest`),
+      leaving out those already invited, and an address already invited
+      is not added again. When the chosen calendar's server does not send
+      invitations (`Collection.invites` false), the input is absent, the
+      rows cannot change, and a line 12/16 `--text-tertiary` says
+      "Invitations aren't available in this calendar."; Save stays
+      disabled while the draft would write invitees there.
     - **alerts**: a select per alert and an "add alert" text button.
       Timed events offer None, At time of event, 5, 10, 15 and 30 minutes
       before, 1 and 2 hours before, and 1 day, 2 days and 1 week before.
