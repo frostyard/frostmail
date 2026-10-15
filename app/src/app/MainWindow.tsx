@@ -5,6 +5,7 @@ import { useClient } from "../data/session";
 import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
 import type { ViewModel } from "../data/view";
+import { useNotify } from "../features/calendar/NotifySheet";
 import { FilterBar } from "../features/list/FilterBar";
 import { SortMenu } from "../features/list/SortMenu";
 import { ScopeBar } from "../features/search/SearchField";
@@ -12,7 +13,7 @@ import { addDays, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
 import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
-import type { Client } from "../rpc/gen/api";
+import type { Client, InviteNotice } from "../rpc/gen/api";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { newEventAt, openEvent } from "./eventWindow";
@@ -47,6 +48,7 @@ function inTextField(target: EventTarget | null): boolean {
 }
 
 interface WindowHandles {
+  ask: (notice: InviteNotice) => Promise<boolean>;
   list: RefObject<ListHandle | null>;
   reader: RefObject<ReaderHandle | null>;
   people: RefObject<PeopleHandle | null>;
@@ -177,7 +179,7 @@ function calendarCommand(command: Command, client: Client, frame: CalendarData, 
   const date = ui.calendarDate || frame.today;
   switch (command) {
     case "undo":
-      void undoPim(client, "calendar").catch((err: unknown) => console.warn("undo calendar", err));
+      void undoPim(client, "calendar", handles.ask).catch((err: unknown) => console.warn("undo calendar", err));
       break;
     case "compose":
       if (!canCreateEvent(frame)) return false;
@@ -421,12 +423,14 @@ function useMailModel() {
 /** MainWindow lays out the active module and owns Mail's view and People's data. */
 export function MainWindow() {
   const client = useClient();
+  const { ask, sheet } = useNotify();
   const module = useUI((state) => state.module);
   const people = usePeople();
   const calendar = useCalendar();
   const tasks = useTasks();
   const model = useMailModel();
   const handles: WindowHandles = {
+    ask,
     list: useRef<ListHandle>(null),
     reader: useRef<ReaderHandle>(null),
     people: useRef<PeopleHandle>(null),
@@ -470,6 +474,7 @@ export function MainWindow() {
       <UndoToasts />
       <RefusedNotices />
       <SmartSheetContainer />
+      {sheet}
     </div>
   );
 }

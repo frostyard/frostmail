@@ -6,9 +6,11 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 
 import { useClient } from "../data/session";
 import { type CalendarChoice, EventEditor } from "../features/calendar/EventEditor";
+import { useNotify } from "../features/calendar/NotifySheet";
 import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { ALERT, BUTTON, PRIMARY_BUTTON } from "../features/settings/labels";
 import { changedFields, draftOf, type EventDraft, newDraft, validate } from "../lib/eventDraft";
+import { withNotify } from "../lib/notify";
 import type { CalendarEvent, Client, EventScope } from "../rpc/gen/api";
 import type { EditorTarget } from "./eventWindow";
 import { announceRestore } from "./pimUndo";
@@ -126,6 +128,7 @@ function TitleStrip({ title, onClose, busy }: { title: string; onClose: () => vo
 }
 
 function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: LoadedEvent; appZone: string }) {
+  const { ask, sheet } = useNotify();
   const { event, initial, calendars, readOnly } = loaded;
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -169,17 +172,18 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
     try {
       const occurrence =
         event?.recurring && event.recurrenceId && scope ? { recurrenceId: event.recurrenceId, scope } : {};
-      let restoreId: string;
-      if (action === "delete") {
-        if (!event) return;
-        ({ restoreId } = await client.calendar.delete({ id: event.id, ...occurrence }));
-      } else {
-        const fields = changedFields(original, draft);
-        ({ restoreId } = event
-          ? await client.calendar.update({ id: event.id, ...occurrence, fields })
-          : await client.calendar.create({ calendarId: draft.calendarId, fields }));
-      }
-      await announceRestore({ module: "calendar", restoreId }).catch((err: unknown) =>
+      if (action === "delete" && !event) return;
+      const fields = action === "change" ? changedFields(original, draft) : {};
+      const result = await withNotify((notify) => {
+        const notification = notify ? { notify } : {};
+        if (action === "delete" && event)
+          return client.calendar.delete({ id: event.id, ...occurrence, ...notification });
+        return event
+          ? client.calendar.update({ id: event.id, ...occurrence, fields, ...notification })
+          : client.calendar.create({ calendarId: draft.calendarId, fields, ...notification });
+      }, ask);
+      if (result === null) return;
+      await announceRestore({ module: "calendar", restoreId: result.restoreId }).catch((err: unknown) =>
         console.warn("announce event restore", err),
       );
       closeWindow();
@@ -275,6 +279,7 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
           onCancel={() => setClosing(false)}
         />
       )}
+      {sheet}
     </div>
   );
 }

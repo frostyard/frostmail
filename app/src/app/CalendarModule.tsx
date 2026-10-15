@@ -5,11 +5,13 @@ import { type Pane, useUI } from "../data/stores";
 import { CalendarSidebar } from "../features/calendar/CalendarSidebar";
 import { EventPane } from "../features/calendar/EventPane";
 import { MonthGrid } from "../features/calendar/MonthGrid";
+import { useNotify } from "../features/calendar/NotifySheet";
 import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { TimeGrid } from "../features/calendar/TimeGrid";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { addDays, monthGrid, viewRange, zoned } from "../lib/calendarDates";
 import { canMove, dropFields, type Range, shiftedDays } from "../lib/eventDrag";
+import { withNotify } from "../lib/notify";
 import type {
   CalendarDeleteParams,
   CalendarEvent,
@@ -50,6 +52,7 @@ function useMonthLines(view: RefObject<HTMLElement | null>, month: boolean) {
 
 function useCalendarDrag(data: CalendarData) {
   const client = useClient();
+  const { ask, sheet } = useNotify();
   const [changing, setChanging] = useState<{ event: CalendarEvent; fields: EventFields } | null>(null);
   const writable = new Set(
     data.sections.flatMap((section) =>
@@ -57,9 +60,10 @@ function useCalendarDrag(data: CalendarData) {
     ),
   );
   const update = (params: CalendarUpdateParams) => {
-    void client.calendar
-      .update(params)
-      .then(({ restoreId }) => rememberRestore({ module: "calendar", restoreId }))
+    void withNotify((notify) => client.calendar.update({ ...params, ...(notify ? { notify } : {}) }), ask)
+      .then((result) => {
+        if (result !== null) rememberRestore({ module: "calendar", restoreId: result.restoreId });
+      })
       .catch((err: unknown) => console.warn("move event", err));
   };
   const drop = (occurrence: Occurrence, fieldsIn: (zone: string) => EventFields) => {
@@ -77,6 +81,7 @@ function useCalendarDrag(data: CalendarData) {
       .catch((err: unknown) => console.warn("move event", err));
   };
   return {
+    notifySheet: sheet,
     canMove: (occurrence: Occurrence) => canMove(occurrence, writable),
     onMove: (occurrence: Occurrence, range: Range) => drop(occurrence, (zone) => dropFields(range, zone)),
     onMoveDays: (occurrence: Occurrence, days: number) =>
@@ -107,7 +112,7 @@ function useCalendarDrag(data: CalendarData) {
 
 function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: RefObject<HTMLElement | null> }) {
   const ui = useUI();
-  const { scopeSheet, onMove, onDraw, ...drag } = useCalendarDrag(data);
+  const { scopeSheet, notifySheet, onMove, onDraw, ...drag } = useCalendarDrag(data);
   const lines = useMonthLines(elementRef, ui.calendarView === "month");
   const range = viewRange(ui.calendarView, data.date, data.weekStart);
   const days =
@@ -141,6 +146,7 @@ function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: Re
         <TimeGrid {...props} now={data.now} onMove={onMove} onDraw={onDraw} />
       )}
       {scopeSheet}
+      {notifySheet}
     </>
   );
 }
@@ -155,6 +161,7 @@ interface CalendarModuleProps {
 export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(function CalendarModule(props, ref) {
   const ui = useUI();
   const client = useClient();
+  const { ask, sheet } = useNotify();
   const sidebar = useRef<HTMLFieldSetElement>(null);
   const view = useRef<HTMLElement>(null);
   const reader = useRef<HTMLElement>(null);
@@ -176,10 +183,10 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
     return true;
   };
   const deleteEvent = (params: CalendarDeleteParams) => {
-    void client.calendar
-      .delete(params)
-      .then(({ restoreId }) => {
-        rememberRestore({ module: "calendar", restoreId });
+    void withNotify((notify) => client.calendar.delete({ ...params, ...(notify ? { notify } : {}) }), ask)
+      .then((result) => {
+        if (result === null) return;
+        rememberRestore({ module: "calendar", restoreId: result.restoreId });
         ui.selectOccurrence(null);
       })
       .catch((err: unknown) => console.warn("delete event", err));
@@ -288,6 +295,7 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
           onCancel={() => setDeleting(null)}
         />
       )}
+      {sheet}
     </div>
   );
 });
