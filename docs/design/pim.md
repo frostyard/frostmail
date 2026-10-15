@@ -63,7 +63,10 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   objects on the first run), then a `multiget` for the changed hrefs in
   batches of 100. A server without sync-collection is compared by ETag
   (`PROPFIND` depth 1). An invalid token (`valid-sync-token` error) resyncs
-  the collection. Each batch is one transaction with events.
+  the collection. Each batch is one transaction with events. On a server
+  whose sync calls objects deleted that it still serves (Google's; the
+  profile's `ServesDeleted`), the multiget also asks for every href the
+  sync calls deleted: what comes back is stored, the rest removed.
 - **The Tasks loop.** For Google accounts with tasks on: `tasklists.list`,
   then per list `tasks.list` with `updatedMin` (the stored high-water mark),
   `showDeleted` and `showHidden`.
@@ -414,12 +417,15 @@ contacts and events writable through `people.create`, `update`, `delete`,
   missing locally and leaves out what the server cannot serve (Google's
   listing keeps objects its sync calls deleted).
 - Google's sync-collection also calls some objects deleted that its
-  listing and a multiget do serve and Google Calendar shows: on the
-  user's account in 2026-10, two single occurrences from 2020 stored
-  without their series. Sync follows sync-collection, so they stay
-  missing locally and verify lists them. A single occurrence accepted
-  now syncs normally; a Google-only listing check on changed calendars
-  would fetch them if more turn up.
+  listing, a multiget and a GET do serve and Google Calendar shows: on
+  the user's account in 2026-10, two single occurrences from 2020 whose
+  series is gone (a VEVENT with a `RECURRENCE-ID` and no master), called
+  deleted from no token as well and again whenever the occurrence
+  changes. A Gmail pass asks for every object its sync calls deleted
+  (above) and keeps what comes back; a multiget of Google's other
+  tombstones finds nothing. Migration 0016 lists Gmail calendars again
+  once to fetch those missed before. `tools/davprobe` compares, read-only,
+  what sync-collection, `PROPFIND` and a multiget say of a collection.
 - A collection whose objects fail to parse keeps the source and its
   `parse_error`, so a parser fix can rebuild the index without a resync.
 - Reminders for a series far in the future come from the instances window;

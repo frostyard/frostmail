@@ -6,16 +6,17 @@ import (
 	"testing"
 )
 
-// TestMigration12KeepsQueuedOps: rebuilding pending_ops for the mailbox op
-// kinds keeps the queued actions of a database at schema 11, and the
-// messages they cover, and takes the new kinds.
-func TestMigration12KeepsQueuedOps(t *testing.T) {
+// schemaAt returns a new database at schema version n, opened without
+// Open, so a test can fill it before the later migrations run.
+func schemaAt(t *testing.T, n int) (string, *sql.DB) {
+	t.Helper()
 	ctx := t.Context()
 	path := filepath.Join(t.TempDir(), "frostmail.db")
 	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = raw.Close() })
 	ms, err := loadMigrations()
 	if err != nil {
 		t.Fatal(err)
@@ -24,7 +25,7 @@ func TestMigration12KeepsQueuedOps(t *testing.T) {
 		version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL) STRICT`); err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range ms[:11] {
+	for _, m := range ms[:n] {
 		if _, err := raw.ExecContext(ctx, m.sql); err != nil {
 			t.Fatalf("%s: %v", m.name, err)
 		}
@@ -32,6 +33,15 @@ func TestMigration12KeepsQueuedOps(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	return path, raw
+}
+
+// TestMigration12KeepsQueuedOps: rebuilding pending_ops for the mailbox op
+// kinds keeps the queued actions of a database at schema 11, and the
+// messages they cover, and takes the new kinds.
+func TestMigration12KeepsQueuedOps(t *testing.T) {
+	ctx := t.Context()
+	path, raw := schemaAt(t, 11)
 	for _, q := range []string{
 		`INSERT INTO accounts (id, kind, email, display_name, auth, imap_host, imap_port, imap_tls, imap_username,
 			smtp_host, smtp_port, smtp_tls, smtp_username, created_at)
@@ -75,5 +85,47 @@ func TestMigration12KeepsQueuedOps(t *testing.T) {
 	}
 	if err := d.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pending_op_messages`).Scan(&covered); err != nil || covered != 0 {
 		t.Fatalf("covered messages after the delete = %d, %v", covered, err)
+	}
+}
+
+// TestMigration16ListsGmailCalendarsAgain: Gmail accounts' calendars lose
+// their sync state, so the next pass lists them again; their objects, and
+// other collections and accounts, are left as they are.
+func TestMigration16ListsGmailCalendarsAgain(t *testing.T) {
+	ctx := t.Context()
+	path, raw := schemaAt(t, 15)
+	for _, q := range []string{
+		`INSERT INTO accounts (id, kind, email, display_name, auth, imap_host, imap_port, imap_tls, imap_username,
+			smtp_host, smtp_port, smtp_tls, smtp_username, created_at)
+			VALUES (1, 'gmail', 'a@gmail.test', '', 'oauth2', 'h', 993, 'tls', 'u', 'h', 465, 'tls', 'u', 'x'),
+			(2, 'icloud', 'b@icloud.test', '', 'password', 'h', 993, 'tls', 'u', 'h', 465, 'tls', 'u', 'x')`,
+		`INSERT INTO collections (id, account_id, kind, href, sync_token, ctag, synced_at) VALUES
+			(1, 1, 'calendar', '/events/', 'token-1', 'ctag-1', 'x'),
+			(2, 1, 'addressbook', '/book/', 'token-2', 'ctag-2', 'x'),
+			(3, 2, 'calendar', '/home/', 'token-3', 'ctag-3', 'x')`,
+		`INSERT INTO objects (collection_id, href, etag, kind, raw, updated_at) VALUES (1, '/events/a.ics', '"1"', 'vevent', x'00', 'x')`,
+	} {
+		if _, err := raw.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	_ = raw.Close()
+
+	d, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	want := map[int64]string{1: "||x", 2: "token-2|ctag-2|x", 3: "token-3|ctag-3|x"}
+	for id, w := range want {
+		var got string
+		err := d.db.QueryRowContext(ctx, `SELECT sync_token || '|' || ctag || '|' || synced_at FROM collections WHERE id = ?`, id).Scan(&got)
+		if err != nil || got != w {
+			t.Errorf("collection %d's sync state = %q, %v; want %q", id, got, err, w)
+		}
+	}
+	var objects int
+	if err := d.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM objects`).Scan(&objects); err != nil || objects != 1 {
+		t.Errorf("objects after the migration = %d, %v", objects, err)
 	}
 }
