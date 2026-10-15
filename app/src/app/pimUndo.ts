@@ -7,7 +7,8 @@ import { isTauri } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 
-import type { Client } from "../rpc/gen/api";
+import { withNotify } from "../lib/notify";
+import type { Client, InviteNotice } from "../rpc/gen/api";
 import { UNDO_LIMIT } from "./undo";
 
 /** PimModule is a module with its own undo list. */
@@ -30,14 +31,30 @@ export function rememberRestore({ module, restoreId }: PimRestore): void {
   usePimUndo.setState((state) => ({ [module]: [...state[module], restoreId].slice(-UNDO_LIMIT) }));
 }
 
-/** undoPim restores a module's newest write and forgets it; false when there is none. */
-export async function undoPim(client: Client, module: PimModule): Promise<boolean> {
+/**
+ * undoPim restores a module's newest write and forgets it; false when there
+ * is none. A calendar restore that would tell invitees asks first with ask
+ * (ADR-0035): when the user cancels, or there is no ask, the write stays on
+ * the list and undoPim returns false.
+ */
+export async function undoPim(
+  client: Client,
+  module: PimModule,
+  ask: (notice: InviteNotice) => Promise<boolean> = async () => false,
+): Promise<boolean> {
   const restoreId = usePimUndo.getState()[module].at(-1);
   if (restoreId === undefined) return false;
   usePimUndo.setState((state) => ({ [module]: state[module].slice(0, -1) }));
-  if (module === "calendar") await client.calendar.restore({ restoreId });
-  else await client.people.restore({ restoreId });
-  return true;
+  if (module === "people") {
+    await client.people.restore({ restoreId });
+    return true;
+  }
+  const restored = await withNotify(async (notify) => {
+    await client.calendar.restore({ restoreId, ...(notify ? { notify } : {}) });
+    return true;
+  }, ask);
+  if (restored === null) rememberRestore({ module, restoreId });
+  return restored === true;
 }
 
 /** announceRestore hands a write made in another window to the main window's undo list. */

@@ -33,6 +33,24 @@ describe("pimUndo", () => {
     expect(mock.calls.filter((c) => c.method === "calendar.restore")).toHaveLength(1);
   });
 
+  it("asks before a restore tells invitees, and keeps it when the user cancels", async () => {
+    const data = mockData({ inbox: 5, now: new Date("2026-10-08T12:00:00Z") });
+    for (const col of data.pim?.collections ?? []) col.invites = col.kind === "calendar" && !col.readOnly;
+    const mock = new MockTransport(data);
+    const client = new Client(mock);
+    const w = await client.calendar.update({ id: 302, fields: { summary: "Review" }, notify: true });
+    rememberRestore({ module: "calendar", restoreId: w.restoreId });
+    const ask = vi.fn(async () => false);
+    expect(await undoPim(client, "calendar", ask)).toBe(false);
+    expect(ask).toHaveBeenCalledWith({ kind: "updates", count: 2 });
+    expect(usePimUndo.getState().calendar).toEqual([w.restoreId]);
+    expect(await undoPim(client, "calendar")).toBe(false);
+    expect(usePimUndo.getState().calendar).toEqual([w.restoreId]);
+    expect(await undoPim(client, "calendar", async () => true)).toBe(true);
+    expect((await client.calendar.event({ id: 302 })).summary).toBe("Design review");
+    expect(usePimUndo.getState().calendar).toEqual([]);
+  });
+
   it("takes restores another window announces", async () => {
     const stop = watchRestores();
     await announceRestore({ module: "calendar", restoreId: "r-from-editor" });
