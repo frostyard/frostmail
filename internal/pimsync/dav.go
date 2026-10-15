@@ -9,6 +9,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -91,6 +92,9 @@ func (p *pass) syncCollection(ctx context.Context, c *davx.Client, kind davx.Kin
 	if err != nil {
 		return fmt.Errorf("list dav changes: %w", err)
 	}
+	if providers.ForKind(p.acct.Kind).DAV.ServesDeleted {
+		delta = askForDeleted(delta)
+	}
 	fetch, deleted := davHrefs(delta, full, etags, pending)
 	if err := p.fetchDAV(ctx, c, kind, col, fetch); err != nil {
 		return err
@@ -154,6 +158,17 @@ func refusedSync(err error) bool {
 		return true
 	}
 	return false
+}
+
+// askForDeleted makes the objects a sync calls deleted changes without an
+// ETag, which are fetched: the server sends those it still has and
+// fetchDAV removes the rest (providers.DAV.ServesDeleted).
+func askForDeleted(delta davx.Delta) davx.Delta {
+	for _, href := range delta.Deleted {
+		delta.Changed = append(delta.Changed, davx.Change{Href: href})
+	}
+	delta.Deleted = nil
+	return delta
 }
 
 func davHrefs(delta davx.Delta, full bool, etags map[string]string, pending map[string]bool) (fetch, deleted []string) {

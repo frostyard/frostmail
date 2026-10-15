@@ -70,6 +70,12 @@ type DAV struct {
 	// copy a client creates from an emailed invitation: Google does
 	// (verified 2026-10-09), iCloud does not.
 	SchedulesCopies bool
+	// ServesDeleted is a server whose sync-collection calls some objects
+	// deleted, from no token as well, that its listing, a multiget and a
+	// GET still serve: Google's, for a single occurrence whose series is
+	// gone (found on the user's account, 2026-10-14). Sync asks for every
+	// object a sync calls deleted and keeps what the server sends.
+	ServesDeleted bool
 	// Trusted are the domains, with their subdomains, that discovery may
 	// send credentials to besides the one it started at: a principal or
 	// home set on another host.
@@ -94,6 +100,7 @@ var profiles = []Profile{
 			Tasks:           "google",
 			Schedules:       true,
 			SchedulesCopies: true,
+			ServesDeleted:   true,
 			Trusted:         []string{"googleapis.com", "googleusercontent.com"},
 		},
 	},

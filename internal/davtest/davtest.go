@@ -108,6 +108,8 @@ type collection struct {
 	// phantoms are listed by a PROPFIND of the collection, with an ETag,
 	// and nowhere else (Phantom).
 	phantoms map[string]string
+	// hidden are objects a sync-collection calls deleted (HideFromSync).
+	hidden map[string]bool
 }
 
 type object struct {
@@ -187,6 +189,23 @@ func (s *Server) Phantom(path string) {
 		c.phantoms = map[string]string{}
 	}
 	c.phantoms[path] = fmt.Sprintf(`"phantom-%d"`, len(c.phantoms)+1)
+}
+
+// HideFromSync makes a sync-collection call the object at path deleted,
+// from no token as well, whenever it reports a change to path, while a
+// PROPFIND, a multiget and a GET still serve it: Google does so for a
+// single occurrence whose series is gone.
+func (s *Server) HideFromSync(path string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.parent(path)
+	if c == nil {
+		panic("davtest: no collection for " + path)
+	}
+	if c.hidden == nil {
+		c.hidden = map[string]bool{}
+	}
+	c.hidden[path] = true
 }
 
 // Put stores data at path, a decoded path inside a collection, as another
