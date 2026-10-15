@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +17,7 @@ type calFieldOptions struct {
 	summary, location, notes, repeat string
 	start, end, zone, date, endDate  string
 	alerts                           []int
+	invite, inviteOptional           []string
 }
 
 func (o *calFieldOptions) flags(cmd *cobra.Command) {
@@ -24,6 +27,8 @@ func (o *calFieldOptions) flags(cmd *cobra.Command) {
 	f.StringVar(&o.notes, "notes", "", "event description")
 	f.StringVar(&o.repeat, "repeat", "", "recurrence rule (RRULE value)")
 	f.IntSliceVar(&o.alerts, "alert", nil, "minutes before the start (repeatable)")
+	f.StringArrayVar(&o.invite, "invite", nil, "required invitee address (repeatable)")
+	f.StringArrayVar(&o.inviteOptional, "invite-optional", nil, "optional invitee address (repeatable)")
 	f.StringVar(&o.start, "start", "", "start time (YYYY-MM-DD HH:MM or YYYY-MM-DDTHH:MM)")
 	f.StringVar(&o.end, "end", "", "end time (default: an hour after the start)")
 	f.StringVar(&o.zone, "zone", "", "time zone (IANA; default: the local zone)")
@@ -58,6 +63,12 @@ func (o *calFieldOptions) fields(cmd *cobra.Command) (api.EventFields, error) {
 		for i, alert := range o.alerts {
 			fields.Alarms[i] = int64(alert)
 		}
+	}
+	for _, email := range o.invite {
+		fields.Attendees = append(fields.Attendees, api.Invitee{Email: email, Role: new(api.AttendeeRoleRequired)})
+	}
+	for _, email := range o.inviteOptional {
+		fields.Attendees = append(fields.Attendees, api.Invitee{Email: email, Role: new(api.AttendeeRoleOptional)})
 	}
 	if f.Changed("date") {
 		if f.Changed("end") || f.Changed("zone") {
@@ -146,6 +157,7 @@ func calLocalZone() string {
 
 func newCalAddCmd(opts *rootOptions) *cobra.Command {
 	var calendar string
+	var notify bool
 	var fields calFieldOptions
 	cmd := &cobra.Command{
 		Use: "add [flags]", Short: "Add an event", Args: cobra.NoArgs,
@@ -164,9 +176,13 @@ func newCalAddCmd(opts *rootOptions) *cobra.Command {
 				return err
 			}
 			defer c.Close()
-			result, err := c.Calendar().Create(ctx, &api.CalendarCreateParams{CalendarID: calendarID, Fields: patch})
+			p := &api.CalendarCreateParams{CalendarID: calendarID, Fields: patch}
+			if notify {
+				p.Notify = new(true)
+			}
+			result, err := c.Calendar().Create(ctx, p)
 			if err != nil {
-				return err
+				return calWriteError(err)
 			}
 			if written, err := clix.OutputJSON(result); err != nil || written {
 				return err
@@ -176,6 +192,7 @@ func newCalAddCmd(opts *rootOptions) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&calendar, "calendar", "", "calendar ID")
+	cmd.Flags().BoolVar(&notify, "notify", false, "send notifications to invitees")
 	fields.flags(cmd)
 	return cmd
 }
@@ -206,6 +223,7 @@ func calDeleteParams(cmd *cobra.Command, id, occurrence, scope string) (*api.Cal
 
 func newCalRmCmd(opts *rootOptions) *cobra.Command {
 	var occurrence, scope string
+	var notify bool
 	cmd := &cobra.Command{
 		Use: "rm EVENT_ID", Short: "Delete an event", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -219,9 +237,12 @@ func newCalRmCmd(opts *rootOptions) *cobra.Command {
 				return err
 			}
 			defer c.Close()
+			if notify {
+				p.Notify = new(true)
+			}
 			result, err := c.Calendar().Delete(ctx, p)
 			if err != nil {
-				return err
+				return calWriteError(err)
 			}
 			if written, err := clix.OutputJSON(result); err != nil || written {
 				return err
@@ -232,5 +253,18 @@ func newCalRmCmd(opts *rootOptions) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&occurrence, "occurrence", "", "recurrence ID from agenda --ids")
 	cmd.Flags().StringVar(&scope, "scope", "", "deletion scope: this, future or all (requires --occurrence)")
+	cmd.Flags().BoolVar(&notify, "notify", false, "send notifications to invitees")
 	return cmd
+}
+
+func calWriteError(err error) error {
+	var rpcErr *api.Error
+	if !errors.As(err, &rpcErr) || rpcErr.Code != api.CodeNotifyRequired {
+		return err
+	}
+	var notice api.InviteNotice
+	if decodeErr := json.Unmarshal(rpcErr.Data, &notice); decodeErr != nil {
+		return err
+	}
+	return fmt.Errorf("the change sends %s to %d invitees: run it again with --notify to send them", notice.Kind, notice.Count)
 }
