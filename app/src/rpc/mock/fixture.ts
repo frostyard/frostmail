@@ -338,6 +338,7 @@ function fixtureTaskLists(): Collection[] {
     enabled: true,
     readOnly: id === TASK_LISTS.team,
     isDefault: id === TASK_LISTS.tasks,
+    invites: false,
   }));
 }
 
@@ -396,6 +397,7 @@ function fixtureCalendars(): Collection[] {
     readOnly,
     enabled: true,
     isDefault: id === CALENDARS.work,
+    invites: !readOnly,
   });
   return [
     calendar(CALENDARS.work, "Work", "#3366cc", false),
@@ -571,6 +573,7 @@ function fixturePeople(now: Date): MockPeopleData {
       readOnly: false,
       enabled: true,
       isDefault: true,
+      invites: false,
     },
     {
       id: BOOKS.shared,
@@ -583,6 +586,7 @@ function fixturePeople(now: Date): MockPeopleData {
       readOnly: true,
       enabled: true,
       isDefault: false,
+      invites: false,
     },
   ];
   let next = 201;

@@ -19,6 +19,7 @@ Generated from [schema/rpc](../../schema/rpc). Framing, connection setup and eve
 | `notReady` | 1004 | The connection has not completed rpc.hello. |
 | `unavailable` | 1005 | The operation cannot run now, for example while offline; retrying later can succeed. |
 | `authRequired` | 1006 | The account's credentials were rejected or have expired; the user must sign in again. |
+| `notifyRequired` | 1007 | The change would tell invitees: ask the user, then repeat it with notify (ADR-0035). The error's data is an InviteNotice. |
 
 ## account
 
@@ -289,6 +290,7 @@ An address book, calendar or task list.
 | `readOnly` | `bool` | The server refuses changes, or the account is read-only. |
 | `enabled` | `bool` | Synced and shown. |
 | `isDefault` | `bool` | Where the account's new contacts, events or tasks go. |
+| `invites` | `bool` | A calendar whose server tells invitees about the events Frostmail writes, so its events may have invitees (ADR-0035). |
 
 ### Type `CollectionCheck`
 
@@ -445,7 +447,7 @@ One blocked address.
 
 ## calendar
 
-Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits (ADR-0030 to ADR-0034).
+Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits (ADR-0030 to ADR-0033, ADR-0035).
 
 ### `calendar.range`
 
@@ -538,13 +540,14 @@ Add an event and write it to the server (ADR-0030). The views show it at once.
 | --- | --- | --- |
 | `calendarId` | `int` (optional) | Default: the default calendar of the first account with the calendar service on. |
 | `fields` | `EventFields` | With start, end and timeZone, or startDate and endDate. |
+| `notify` | `bool` (optional) | true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035). |
 
 Result: `EventWrite`.
-Errors: `invalidParams`, `notFound`, `conflict`.
+Errors: `invalidParams`, `notFound`, `conflict`, `notifyRequired`.
 
 ### `calendar.update`
 
-Change an event, an occurrence, or a series from an occurrence on (ADR-0031). An event the user is invited to takes only alarms.
+Change an event, an occurrence, or a series from an occurrence on (ADR-0031). An event the user is invited to takes only alarms. A change that tells invitees needs notify (ADR-0035).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -552,9 +555,10 @@ Change an event, an occurrence, or a series from an occurrence on (ADR-0031). An
 | `recurrenceId` | `string` (optional) | The occurrence, for an event that repeats. |
 | `scope` | `EventScope` (optional) | Required with recurrenceId. |
 | `fields` | `EventFields` |  |
+| `notify` | `bool` (optional) | true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035). |
 
 Result: `EventWrite`.
-Errors: `invalidParams`, `notFound`, `conflict`.
+Errors: `invalidParams`, `notFound`, `conflict`, `notifyRequired`.
 
 ### `calendar.delete`
 
@@ -565,9 +569,10 @@ Delete an event, an occurrence, or a series from an occurrence on.
 | `id` | `int` |  |
 | `recurrenceId` | `string` (optional) |  |
 | `scope` | `EventScope` (optional) | Required with recurrenceId. |
+| `notify` | `bool` (optional) | true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035). |
 
 Result: `EventWrite`.
-Errors: `invalidParams`, `notFound`, `conflict`.
+Errors: `invalidParams`, `notFound`, `conflict`, `notifyRequired`.
 
 ### `calendar.restore`
 
@@ -576,9 +581,10 @@ Undo a create, update or delete by writing back what it replaced (ADR-0032).
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `restoreId` | `string` |  |
+| `notify` | `bool` (optional) | true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035). |
 
 Result: none (`null`).
-Errors: `notFound`, `conflict`.
+Errors: `invalidParams`, `notFound`, `conflict`, `notifyRequired`.
 
 ### Event `calendar.changed` (durable)
 
@@ -688,6 +694,25 @@ An iTIP message in mail, matched against the stored events (ADR-0019).
 | `conflicts` | `[]Occurrence` | Busy occurrences overlapping the event's first occurrence. |
 | `adjacent` | `[]Occurrence` | The occurrences just before and after it on the same day. |
 
+### Type `Invitee`
+
+An invitee to set on an event the user organizes (ADR-0035).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `email` | `string` |  |
+| `name` | `string` (optional) |  |
+| `role` | `AttendeeRole` (optional) | required (the default) or optional. |
+
+### Type `InviteNotice`
+
+What a change would tell invitees; notifyRequired's data (ADR-0035).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `NoticeKind` |  |
+| `count` | `int` | How many invitees it tells. |
+
 ### Type `EventFields`
 
 What an edit sets; absent fields keep their values. A timed event has start, end and timeZone; an all-day one has startDate and endDate.
@@ -706,7 +731,8 @@ What an edit sets; absent fields keep their values. A timed event has start, end
 | `rrule` | `string` (optional) | The RRULE value, such as FREQ=WEEKLY;BYDAY=MO,WE; empty for no repeat. |
 | `alarms` | `[]int` (optional) | The user's alerts, as minutes before the start (negative: after); replaces them all. |
 | `transparent` | `bool` (optional) | Does not count as busy. |
-| `calendarId` | `int` (optional) | Move the event to this calendar (ADR-0030). |
+| `calendarId` | `int` (optional) | Move the event to this calendar (ADR-0030); not an event with invitees (ADR-0035). |
+| `attendees` | `[]Invitee` (optional) | The invitees, replacing them all; empty removes them. Only in a calendar that invites (Collection.invites); the user's own addresses are left out (ADR-0035). |
 
 ### Type `EventWrite`
 
@@ -778,6 +804,16 @@ What an invitation message asks (iTIP METHOD).
 | `reply` | An attendee answered the user's invitation. |
 | `publish` | An event to add; no answer expected. |
 | `other` | ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on. |
+
+### Enum `NoticeKind`
+
+What a change tells invitees, through the calendar's server (ADR-0035).
+
+| Value | Meaning |
+| --- | --- |
+| `invitations` | A new event with invitees, invitees added, or a deleted event restored. |
+| `updates` | Something invitees see changed: title, location, notes, times, recurrence or status. |
+| `cancellations` | The event, an occurrence or the rest of a series deleted, or invitees removed. |
 
 ### Enum `EventScope`
 

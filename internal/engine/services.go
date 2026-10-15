@@ -230,15 +230,22 @@ func (a accounts) afterServiceChange(ctx context.Context, accountID int64) {
 	a.PIM.Poll(accountID, true)
 }
 
-func toAPICollection(c store.Collection, acctReadOnly bool) api.Collection {
+func toAPICollection(c store.Collection, acct store.Account) api.Collection {
 	out := api.Collection{
 		ID: c.ID, AccountID: c.AccountID, Kind: c.Kind, Name: c.Name, Color: c.Color,
-		ReadOnly: c.ReadOnly || acctReadOnly, Enabled: c.Enabled, IsDefault: c.IsDefault,
+		ReadOnly: c.ReadOnly || acct.ReadOnly, Enabled: c.Enabled, IsDefault: c.IsDefault,
 		Events: c.Kind == api.CollectionKindCalendar && (len(c.Components) == 0 || slices.Contains(c.Components, "VEVENT")),
 		Tasks: c.Kind == api.CollectionKindTasklist ||
 			c.Kind == api.CollectionKindCalendar && (len(c.Components) == 0 || slices.Contains(c.Components, "VTODO")),
 	}
+	out.Invites = out.Events && !out.ReadOnly && invites(acct)
 	return out
+}
+
+// invites reports whether the account's calendars take invitees: their
+// server tells invitees itself (ADR-0035).
+func invites(acct store.Account) bool {
+	return providers.ForKind(acct.Kind).DAV.SchedulesOrganizer
 }
 
 func (a accounts) Collections(ctx context.Context, p *api.AccountCollectionsParams) ([]api.Collection, error) {
@@ -253,25 +260,25 @@ func (a accounts) Collections(ctx context.Context, p *api.AccountCollectionsPara
 	if err != nil {
 		return nil, err
 	}
-	readOnly, err := a.readOnlyAccounts(ctx)
+	accts, err := a.accountsByID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]api.Collection, 0, len(list))
 	for _, c := range list {
-		out = append(out, toAPICollection(c, readOnly[c.AccountID]))
+		out = append(out, toAPICollection(c, accts[c.AccountID]))
 	}
 	return out, nil
 }
 
-func (a accounts) readOnlyAccounts(ctx context.Context) (map[int64]bool, error) {
+func (a accounts) accountsByID(ctx context.Context) (map[int64]store.Account, error) {
 	list, err := a.DB.ListAccounts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := map[int64]bool{}
+	out := map[int64]store.Account{}
 	for _, acct := range list {
-		out[acct.ID] = acct.ReadOnly
+		out[acct.ID] = acct
 	}
 	return out, nil
 }
@@ -299,7 +306,7 @@ func (a accounts) SetCollection(ctx context.Context, p *api.AccountSetCollection
 	if p.Enabled != nil && *p.Enabled && a.PIM != nil {
 		a.PIM.Poll(c.AccountID, true)
 	}
-	out := toAPICollection(c, acct.ReadOnly)
+	out := toAPICollection(c, acct)
 	return &out, nil
 }
 

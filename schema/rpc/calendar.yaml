@@ -2,7 +2,7 @@ domain: calendar
 doc: >-
   Events from the accounts' calendars, their occurrences, invitations and
   reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits
-  (ADR-0030 to ADR-0034).
+  (ADR-0030 to ADR-0033, ADR-0035).
 enums:
   - name: PartStat
     doc: An attendee's answer to an invitation (iCalendar PARTSTAT).
@@ -33,6 +33,12 @@ enums:
       - {name: reply, doc: "An attendee answered the user's invitation."}
       - {name: publish, doc: "An event to add; no answer expected."}
       - {name: other, doc: "ADD, REFRESH, COUNTER or DECLINECOUNTER: shown, not acted on."}
+  - name: NoticeKind
+    doc: What a change tells invitees, through the calendar's server (ADR-0035).
+    values:
+      - {name: invitations, doc: "A new event with invitees, invitees added, or a deleted event restored."}
+      - {name: updates, doc: "Something invitees see changed: title, location, notes, times, recurrence or status."}
+      - {name: cancellations, doc: "The event, an occurrence or the rest of a series deleted, or invitees removed."}
   - name: EventScope
     doc: What a change to an occurrence of a series changes (ADR-0031).
     values:
@@ -105,6 +111,17 @@ types:
       - {name: outdated, type: bool, doc: "The stored event has a later SEQUENCE than the message."}
       - {name: conflicts, type: "[]Occurrence", doc: "Busy occurrences overlapping the event's first occurrence."}
       - {name: adjacent, type: "[]Occurrence", doc: "The occurrences just before and after it on the same day."}
+  - name: Invitee
+    doc: An invitee to set on an event the user organizes (ADR-0035).
+    fields:
+      - {name: email, type: string}
+      - {name: name, type: string, optional: true}
+      - {name: role, type: AttendeeRole, optional: true, doc: "required (the default) or optional."}
+  - name: InviteNotice
+    doc: What a change would tell invitees; notifyRequired's data (ADR-0035).
+    fields:
+      - {name: kind, type: NoticeKind}
+      - {name: count, type: int, doc: "How many invitees it tells."}
   - name: EventFields
     doc: >-
       What an edit sets; absent fields keep their values. A timed event has
@@ -122,7 +139,8 @@ types:
       - {name: rrule, type: string, optional: true, doc: "The RRULE value, such as FREQ=WEEKLY;BYDAY=MO,WE; empty for no repeat."}
       - {name: alarms, type: "[]int", optional: true, doc: "The user's alerts, as minutes before the start (negative: after); replaces them all."}
       - {name: transparent, type: bool, optional: true, doc: "Does not count as busy."}
-      - {name: calendarId, type: int, optional: true, doc: "Move the event to this calendar (ADR-0030)."}
+      - {name: calendarId, type: int, optional: true, doc: "Move the event to this calendar (ADR-0030); not an event with invitees (ADR-0035)."}
+      - {name: attendees, type: "[]Invitee", optional: true, doc: "The invitees, replacing them all; empty removes them. Only in a calendar that invites (Collection.invites); the user's own addresses are left out (ADR-0035)."}
   - name: EventWrite
     doc: What a change wrote, and how to undo it (ADR-0032).
     fields:
@@ -202,32 +220,37 @@ methods:
     params:
       - {name: calendarId, type: int, optional: true, doc: "Default: the default calendar of the first account with the calendar service on."}
       - {name: fields, type: EventFields, doc: "With start, end and timeZone, or startDate and endDate."}
+      - {name: notify, type: bool, optional: true, doc: "true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035)."}
     result: EventWrite
-    errors: [invalidParams, notFound, conflict]
+    errors: [invalidParams, notFound, conflict, notifyRequired]
   - name: update
     doc: >-
       Change an event, an occurrence, or a series from an occurrence on
-      (ADR-0031). An event the user is invited to takes only alarms.
+      (ADR-0031). An event the user is invited to takes only alarms. A
+      change that tells invitees needs notify (ADR-0035).
     params:
       - {name: id, type: int}
       - {name: recurrenceId, type: string, optional: true, doc: "The occurrence, for an event that repeats."}
       - {name: scope, type: EventScope, optional: true, doc: "Required with recurrenceId."}
       - {name: fields, type: EventFields}
+      - {name: notify, type: bool, optional: true, doc: "true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035)."}
     result: EventWrite
-    errors: [invalidParams, notFound, conflict]
+    errors: [invalidParams, notFound, conflict, notifyRequired]
   - name: delete
     doc: Delete an event, an occurrence, or a series from an occurrence on.
     params:
       - {name: id, type: int}
       - {name: recurrenceId, type: string, optional: true}
       - {name: scope, type: EventScope, optional: true, doc: "Required with recurrenceId."}
+      - {name: notify, type: bool, optional: true, doc: "true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035)."}
     result: EventWrite
-    errors: [invalidParams, notFound, conflict]
+    errors: [invalidParams, notFound, conflict, notifyRequired]
   - name: restore
     doc: Undo a create, update or delete by writing back what it replaced (ADR-0032).
     params:
       - {name: restoreId, type: string}
-    errors: [notFound, conflict]
+      - {name: notify, type: bool, optional: true, doc: "true sends what the change tells invitees; required when it tells any (notifyRequired). false is invalidParams where the server cannot be kept quiet (ADR-0035)."}
+    errors: [invalidParams, notFound, conflict, notifyRequired]
 events:
   - name: changed
     doc: An account's calendars or events changed; views refetch their ranges.

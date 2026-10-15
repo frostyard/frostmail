@@ -32,6 +32,9 @@ type eventTarget struct {
 
 // Create adds an event to a calendar.
 func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams) (*api.EventWrite, error) {
+	if p.Fields.Attendees != nil {
+		return nil, api.InvalidParams("invitees are not written yet")
+	}
 	change, move := eventChangeOf(p.Fields)
 	id := p.CalendarID
 	if id == nil {
@@ -78,6 +81,9 @@ func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams
 // Update changes an event, one occurrence of a series, or a series from
 // an occurrence on (ADR-0031), and moves it to another calendar.
 func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams) (*api.EventWrite, error) {
+	if p.Fields.Attendees != nil {
+		return nil, api.InvalidParams("invitees are not written yet")
+	}
 	change, move := eventChangeOf(p.Fields)
 	t, err := c.writableEvent(ctx, p.ID)
 	if err != nil {

@@ -46,6 +46,9 @@ const (
 	// The account's credentials were rejected or have expired; the user must sign
 	// in again.
 	CodeAuthRequired ErrorCode = 1006
+	// The change would tell invitees: ask the user, then repeat it with notify
+	// (ADR-0035). The error's data is an InviteNotice.
+	CodeNotifyRequired ErrorCode = 1007
 )
 
 // Sentinels for errors.Is: an *Error matches the sentinel with its code.
@@ -61,6 +64,7 @@ var (
 	ErrNotReady         = &Error{Code: CodeNotReady}
 	ErrUnavailable      = &Error{Code: CodeUnavailable}
 	ErrAuthRequired     = &Error{Code: CodeAuthRequired}
+	ErrNotifyRequired   = &Error{Code: CodeNotifyRequired}
 )
 
 // String is the code's schema name.
@@ -88,6 +92,8 @@ func (c ErrorCode) String() string {
 		return "unavailable"
 	case CodeAuthRequired:
 		return "authRequired"
+	case CodeNotifyRequired:
+		return "notifyRequired"
 	}
 	return fmt.Sprintf("ErrorCode(%d)", int(c))
 }
@@ -133,6 +139,11 @@ func Unavailable(format string, args ...any) *Error { return Errorf(CodeUnavaila
 // AuthRequired returns an error with CodeAuthRequired.
 func AuthRequired(format string, args ...any) *Error {
 	return Errorf(CodeAuthRequired, format, args...)
+}
+
+// NotifyRequired returns an error with CodeNotifyRequired.
+func NotifyRequired(format string, args ...any) *Error {
+	return Errorf(CodeNotifyRequired, format, args...)
 }
 
 // ---- account ----
@@ -378,6 +389,9 @@ type Collection struct {
 	Enabled bool `json:"enabled"`
 	// Where the account's new contacts, events or tasks go.
 	IsDefault bool `json:"isDefault"`
+	// A calendar whose server tells invitees about the events Frostmail writes,
+	// so its events may have invitees (ADR-0035).
+	Invites bool `json:"invites"`
 }
 
 // CollectionCheck: How one synced address book, calendar or task list
@@ -1005,6 +1019,30 @@ func (v ITIPMethod) Valid() bool {
 	return false
 }
 
+// NoticeKind: What a change tells invitees, through the calendar's server
+// (ADR-0035).
+type NoticeKind string
+
+const (
+	// A new event with invitees, invitees added, or a deleted event restored.
+	NoticeKindInvitations NoticeKind = "invitations"
+	// Something invitees see changed: title, location, notes, times, recurrence
+	// or status.
+	NoticeKindUpdates NoticeKind = "updates"
+	// The event, an occurrence or the rest of a series deleted, or invitees
+	// removed.
+	NoticeKindCancellations NoticeKind = "cancellations"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v NoticeKind) Valid() bool {
+	switch v {
+	case NoticeKindInvitations, NoticeKindUpdates, NoticeKindCancellations:
+		return true
+	}
+	return false
+}
+
 // EventScope: What a change to an occurrence of a series changes (ADR-0031).
 type EventScope string
 
@@ -1129,6 +1167,22 @@ type Invitation struct {
 	Adjacent []Occurrence `json:"adjacent"`
 }
 
+// Invitee: An invitee to set on an event the user organizes (ADR-0035).
+type Invitee struct {
+	Email string  `json:"email"`
+	Name  *string `json:"name,omitzero"`
+	// required (the default) or optional.
+	Role *AttendeeRole `json:"role,omitzero"`
+}
+
+// InviteNotice: What a change would tell invitees; notifyRequired's data
+// (ADR-0035).
+type InviteNotice struct {
+	Kind NoticeKind `json:"kind"`
+	// How many invitees it tells.
+	Count int64 `json:"count"`
+}
+
 // EventFields: What an edit sets; absent fields keep their values. A timed
 // event has start, end and timeZone; an all-day one has startDate and
 // endDate.
@@ -1154,8 +1208,13 @@ type EventFields struct {
 	Alarms []int64 `json:"alarms,omitzero"`
 	// Does not count as busy.
 	Transparent *bool `json:"transparent,omitzero"`
-	// Move the event to this calendar (ADR-0030).
+	// Move the event to this calendar (ADR-0030); not an event with invitees
+	// (ADR-0035).
 	CalendarID *int64 `json:"calendarId,omitzero"`
+	// The invitees, replacing them all; empty removes them. Only in a calendar
+	// that invites (Collection.invites); the user's own addresses are left out
+	// (ADR-0035).
+	Attendees []Invitee `json:"attendees,omitzero"`
 }
 
 // EventWrite: What a change wrote, and how to undo it (ADR-0032).
@@ -1239,6 +1298,10 @@ type CalendarCreateParams struct {
 	CalendarID *int64 `json:"calendarId,omitzero"`
 	// With start, end and timeZone, or startDate and endDate.
 	Fields EventFields `json:"fields"`
+	// true sends what the change tells invitees; required when it tells any
+	// (notifyRequired). false is invalidParams where the server cannot be kept
+	// quiet (ADR-0035).
+	Notify *bool `json:"notify,omitzero"`
 }
 
 // CalendarUpdateParams holds the params of calendar.update.
@@ -1249,6 +1312,10 @@ type CalendarUpdateParams struct {
 	// Required with recurrenceId.
 	Scope  *EventScope `json:"scope,omitzero"`
 	Fields EventFields `json:"fields"`
+	// true sends what the change tells invitees; required when it tells any
+	// (notifyRequired). false is invalidParams where the server cannot be kept
+	// quiet (ADR-0035).
+	Notify *bool `json:"notify,omitzero"`
 }
 
 // CalendarDeleteParams holds the params of calendar.delete.
@@ -1257,16 +1324,24 @@ type CalendarDeleteParams struct {
 	RecurrenceID *string `json:"recurrenceId,omitzero"`
 	// Required with recurrenceId.
 	Scope *EventScope `json:"scope,omitzero"`
+	// true sends what the change tells invitees; required when it tells any
+	// (notifyRequired). false is invalidParams where the server cannot be kept
+	// quiet (ADR-0035).
+	Notify *bool `json:"notify,omitzero"`
 }
 
 // CalendarRestoreParams holds the params of calendar.restore.
 type CalendarRestoreParams struct {
 	RestoreID string `json:"restoreId"`
+	// true sends what the change tells invitees; required when it tells any
+	// (notifyRequired). false is invalidParams where the server cannot be kept
+	// quiet (ADR-0035).
+	Notify *bool `json:"notify,omitzero"`
 }
 
 // CalendarService: Events from the accounts' calendars, their occurrences,
 // invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019), and
-// their edits (ADR-0030 to ADR-0034).
+// their edits (ADR-0030 to ADR-0033, ADR-0035).
 type CalendarService interface {
 	// Range implements calendar.range. The occurrences that overlap the days from
 	// to to, in start order, from enabled calendars of accounts with the calendar
@@ -1295,7 +1370,7 @@ type CalendarService interface {
 	Create(ctx context.Context, p *CalendarCreateParams) (*EventWrite, error)
 	// Update implements calendar.update. Change an event, an occurrence, or a
 	// series from an occurrence on (ADR-0031). An event the user is invited to
-	// takes only alarms.
+	// takes only alarms. A change that tells invitees needs notify (ADR-0035).
 	Update(ctx context.Context, p *CalendarUpdateParams) (*EventWrite, error)
 	// Delete implements calendar.delete. Delete an event, an occurrence, or a
 	// series from an occurrence on.

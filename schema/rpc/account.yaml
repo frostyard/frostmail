@@ -109,6 +109,7 @@ types:
       - {name: readOnly, type: bool, doc: "The server refuses changes, or the account is read-only."}
       - {name: enabled, type: bool, doc: "Synced and shown."}
       - {name: isDefault, type: bool, doc: "Where the account's new contacts, events or tasks go."}
+      - {name: invites, type: bool, doc: "A calendar whose server tells invitees about the events Frostmail writes, so its events may have invitees (ADR-0035)."}
   - name: CollectionCheck
     doc: How one synced address book, calendar or task list compares with the server.
     fields:

@@ -37,6 +37,11 @@ export const ErrorCode = {
    * sign in again.
    */
   authRequired: 1006,
+  /**
+   * The change would tell invitees: ask the user, then repeat it with notify
+   * (ADR-0035). The error's data is an InviteNotice.
+   */
+  notifyRequired: 1007,
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -195,6 +200,11 @@ export interface Collection {
   enabled: boolean;
   /** Where the account's new contacts, events or tasks go. */
   isDefault: boolean;
+  /**
+   * A calendar whose server tells invitees about the events Frostmail writes,
+   * so its events may have invitees (ADR-0035).
+   */
+  invites: boolean;
 }
 
 /**
@@ -505,6 +515,10 @@ export const AttendeeRoleValues: readonly AttendeeRole[] = ["chair", "required",
 export type ITIPMethod = "request" | "cancel" | "reply" | "publish" | "other";
 export const ITIPMethodValues: readonly ITIPMethod[] = ["request", "cancel", "reply", "publish", "other"];
 
+/** What a change tells invitees, through the calendar's server (ADR-0035). */
+export type NoticeKind = "invitations" | "updates" | "cancellations";
+export const NoticeKindValues: readonly NoticeKind[] = ["invitations", "updates", "cancellations"];
+
 /** What a change to an occurrence of a series changes (ADR-0031). */
 export type EventScope = "this" | "future" | "all";
 export const EventScopeValues: readonly EventScope[] = ["this", "future", "all"];
@@ -629,6 +643,21 @@ export interface Invitation {
   adjacent: Occurrence[];
 }
 
+/** An invitee to set on an event the user organizes (ADR-0035). */
+export interface Invitee {
+  email: string;
+  name?: string;
+  /** required (the default) or optional. */
+  role?: AttendeeRole;
+}
+
+/** What a change would tell invitees; notifyRequired's data (ADR-0035). */
+export interface InviteNotice {
+  kind: NoticeKind;
+  /** How many invitees it tells. */
+  count: number;
+}
+
 /**
  * What an edit sets; absent fields keep their values. A timed event has
  * start, end and timeZone; an all-day one has startDate and endDate.
@@ -657,8 +686,17 @@ export interface EventFields {
   alarms?: number[];
   /** Does not count as busy. */
   transparent?: boolean;
-  /** Move the event to this calendar (ADR-0030). */
+  /**
+   * Move the event to this calendar (ADR-0030); not an event with invitees
+   * (ADR-0035).
+   */
   calendarId?: number;
+  /**
+   * The invitees, replacing them all; empty removes them. Only in a calendar
+   * that invites (Collection.invites); the user's own addresses are left out
+   * (ADR-0035).
+   */
+  attendees?: Invitee[];
 }
 
 /** What a change wrote, and how to undo it (ADR-0032). */
@@ -746,6 +784,12 @@ export interface CalendarCreateParams {
   calendarId?: number;
   /** With start, end and timeZone, or startDate and endDate. */
   fields: EventFields;
+  /**
+   * true sends what the change tells invitees; required when it tells any
+   * (notifyRequired). false is invalidParams where the server cannot be kept
+   * quiet (ADR-0035).
+   */
+  notify?: boolean;
 }
 
 /** Params of calendar.update. */
@@ -756,6 +800,12 @@ export interface CalendarUpdateParams {
   /** Required with recurrenceId. */
   scope?: EventScope;
   fields: EventFields;
+  /**
+   * true sends what the change tells invitees; required when it tells any
+   * (notifyRequired). false is invalidParams where the server cannot be kept
+   * quiet (ADR-0035).
+   */
+  notify?: boolean;
 }
 
 /** Params of calendar.delete. */
@@ -764,11 +814,23 @@ export interface CalendarDeleteParams {
   recurrenceId?: string;
   /** Required with recurrenceId. */
   scope?: EventScope;
+  /**
+   * true sends what the change tells invitees; required when it tells any
+   * (notifyRequired). false is invalidParams where the server cannot be kept
+   * quiet (ADR-0035).
+   */
+  notify?: boolean;
 }
 
 /** Params of calendar.restore. */
 export interface CalendarRestoreParams {
   restoreId: string;
+  /**
+   * true sends what the change tells invitees; required when it tells any
+   * (notifyRequired). false is invalidParams where the server cannot be kept
+   * quiet (ADR-0035).
+   */
+  notify?: boolean;
 }
 
 /** An account's calendars or events changed; views refetch their ranges. */
@@ -801,7 +863,7 @@ export interface CalendarRefused {
 /**
  * Events from the accounts' calendars, their occurrences, invitations and
  * reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits
- * (ADR-0030 to ADR-0034).
+ * (ADR-0030 to ADR-0033, ADR-0035).
  */
 export interface CalendarClient {
   /**
@@ -837,7 +899,8 @@ export interface CalendarClient {
   create(params: CalendarCreateParams): Promise<EventWrite>;
   /**
    * Change an event, an occurrence, or a series from an occurrence on
-   * (ADR-0031). An event the user is invited to takes only alarms.
+   * (ADR-0031). An event the user is invited to takes only alarms. A change
+   * that tells invitees needs notify (ADR-0035).
    */
   update(params: CalendarUpdateParams): Promise<EventWrite>;
   /** Delete an event, an occurrence, or a series from an occurrence on. */
