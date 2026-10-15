@@ -32,9 +32,6 @@ type eventTarget struct {
 
 // Create adds an event to a calendar.
 func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams) (*api.EventWrite, error) {
-	if p.Fields.Attendees != nil {
-		return nil, api.InvalidParams("invitees are not written yet")
-	}
 	change, move := eventChangeOf(p.Fields)
 	id := p.CalendarID
 	if id == nil {
@@ -44,6 +41,17 @@ func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams
 	if err != nil {
 		return nil, err
 	}
+	emails, err := c.eventUserEmails(ctx, col.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	if p.Fields.Attendees != nil {
+		people, err := c.inviteesOf(ctx, col, p.Fields.Attendees, emails)
+		if err != nil {
+			return nil, err
+		}
+		change.Attendees, change.Organizer = people.Attendees, people.Organizer
+	}
 	uid, err := newUUID()
 	if err != nil {
 		return nil, err
@@ -51,6 +59,9 @@ func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams
 	raw, err := calendar.NewEvent(uid, change, c.DB.Now())
 	if err != nil {
 		return nil, api.InvalidParams("%v", err)
+	}
+	if err := c.checkNotify(ctx, col, nil, [][]byte{raw}, emails, false, p.Notify); err != nil {
+		return nil, err
 	}
 	restoreID, err := newRestoreID()
 	if err != nil {
@@ -81,13 +92,17 @@ func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams
 // Update changes an event, one occurrence of a series, or a series from
 // an occurrence on (ADR-0031), and moves it to another calendar.
 func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams) (*api.EventWrite, error) {
-	if p.Fields.Attendees != nil {
-		return nil, api.InvalidParams("invitees are not written yet")
-	}
 	change, move := eventChangeOf(p.Fields)
 	t, err := c.writableEvent(ctx, p.ID)
 	if err != nil {
 		return nil, err
+	}
+	if p.Fields.Attendees != nil {
+		people, err := c.inviteesOf(ctx, t.col, p.Fields.Attendees, t.emails)
+		if err != nil {
+			return nil, err
+		}
+		change.Attendees, change.Organizer = people.Attendees, people.Organizer
 	}
 	edit, err := t.edit(p.RecurrenceID, p.Scope)
 	if err != nil {
@@ -102,6 +117,9 @@ func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams
 	}
 	var target *store.Collection
 	if move != nil && *move != t.col.ID {
+		if hasInvitees(t.obj.Raw, t.emails) || change.Attendees != nil && len(*change.Attendees) > 0 {
+			return nil, api.InvalidParams("an event with invitees stays in its calendar: its server would cancel and invite again")
+		}
 		col, err := c.writableCalendar(ctx, move)
 		if err != nil {
 			return nil, err
@@ -110,6 +128,9 @@ func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams
 	}
 	raw, split, err := t.apply(&edit, c.DB.Now())
 	if err != nil {
+		return nil, err
+	}
+	if err := c.checkNotify(ctx, t.col, [][]byte{t.obj.Raw}, [][]byte{raw, split}, t.emails, false, p.Notify); err != nil {
 		return nil, err
 	}
 	restoreID, err := newRestoreID()
@@ -146,6 +167,9 @@ func (c calendarService) Delete(ctx context.Context, p *api.CalendarDeleteParams
 			return nil, api.InvalidParams("%v", err)
 		}
 	}
+	if err := c.checkNotify(ctx, t.col, [][]byte{t.obj.Raw}, [][]byte{raw}, t.emails, true, p.Notify); err != nil {
+		return nil, err
+	}
 	restoreID, err := newRestoreID()
 	if err != nil {
 		return nil, err
@@ -171,6 +195,11 @@ func (c calendarService) Restore(ctx context.Context, p *api.CalendarRestorePara
 		if err != nil {
 			return err
 		}
+		// A refused notify returns before anything is written, and the
+		// transaction keeps the restore.
+		if err := c.checkRestoreNotify(ctx, r, p.Notify); err != nil {
+			return err
+		}
 		for _, o := range r.Objects {
 			accountID, err := c.restoreEvent(ctx, tx, o)
 			if err != nil {
@@ -194,6 +223,47 @@ func (c calendarService) Restore(ctx context.Context, p *api.CalendarRestorePara
 		}
 	}
 	return nil
+}
+
+// checkNotify refuses a write in col that would tell invitees without
+// the user's yes (ADR-0035). Only calendars that take invitees tell them.
+func (c calendarService) checkNotify(ctx context.Context, col store.Collection, before, after [][]byte, emails []string, deleting bool, notify *bool) error {
+	acct, err := c.DB.GetAccount(ctx, col.AccountID)
+	if err != nil {
+		return err
+	}
+	if !invites(acct) {
+		return nil
+	}
+	return requireNotify(inviteNotice(before, after, emails, deleting), notify)
+}
+
+// checkRestoreNotify is checkNotify for a restore: the objects as they
+// are now, and as it writes them back.
+func (c calendarService) checkRestoreNotify(ctx context.Context, r store.Restore, notify *bool) error {
+	acct, err := c.DB.GetAccount(ctx, r.AccountID)
+	if err != nil {
+		return err
+	}
+	if !invites(acct) {
+		return nil
+	}
+	emails, err := c.eventUserEmails(ctx, r.AccountID)
+	if err != nil {
+		return err
+	}
+	var before, after [][]byte
+	for _, o := range r.Objects {
+		current, err := c.DB.ObjectByHref(ctx, o.CollectionID, o.Href)
+		switch {
+		case err == nil:
+			before = append(before, current.Raw)
+		case !errors.Is(err, store.ErrNotFound):
+			return err
+		}
+		after = append(after, o.Raw)
+	}
+	return requireNotify(inviteNotice(before, after, emails, false), notify)
 }
 
 // eventWrite is an update or delete, stored in one transaction: the

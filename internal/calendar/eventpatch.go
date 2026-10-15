@@ -30,6 +30,14 @@ type EventChange struct {
 	RRule       *string    `json:"rrule,omitzero"`       // the RRULE value; "" removes RRULE
 	Alarms      *[]int     `json:"alarms,omitzero"`      // minutes before the start (negative: after); replaces the DISPLAY and AUDIO alarms
 	Transparent *bool      `json:"transparent,omitzero"` // TRANSP:TRANSPARENT, or OPAQUE when false
+	// Attendees replaces the invitees (ADR-0035): an address that stays
+	// keeps its line, its answer included, with ROLE from Role (required,
+	// optional, chair or none; "" is required); a new one gets a line with
+	// NEEDS-ACTION and RSVP. The organizer's own ATTENDEE line stays.
+	// Organizer is written as ORGANIZER when the event then has invitees
+	// and no organizer, which it needs.
+	Attendees *[]Attendee `json:"attendees,omitzero"`
+	Organizer *Attendee   `json:"organizer,omitzero"`
 }
 
 // PatchEvent applies c to the single event, or the master of the series,
@@ -56,11 +64,18 @@ func patchEventComponent(src []byte, cal, event *contentline.Component, c EventC
 	if err != nil {
 		return nil, fmt.Errorf("patch event: %w", err)
 	}
-	if len(fields) == 0 && c.Alarms == nil {
+	if len(fields) == 0 && c.Alarms == nil && c.Attendees == nil {
+		return src, nil
+	}
+	eol := contentline.LineEnding(src)
+	people, err := eventAttendeeEdits(src, event, c, eol)
+	if err != nil {
+		return nil, fmt.Errorf("patch event: %w", err)
+	}
+	if len(fields) == 0 && c.Alarms == nil && len(people) == 0 {
 		return src, nil
 	}
 	fields = append(fields, eventRevisionFields(event, now, len(timing) > 0 || c.RRule != nil)...)
-	eol := contentline.LineEnding(src)
 	zone, err := eventNewZone(cal, c, eol)
 	if err != nil {
 		return nil, fmt.Errorf("patch event: %w", err)
@@ -74,6 +89,7 @@ func patchEventComponent(src []byte, cal, event *contentline.Component, c EventC
 		edits = append(edits, contentline.Edit{Start: at, End: at, Text: zone})
 	}
 	edits = append(edits, eventAlarmEdits(src, event, c, eol)...)
+	edits = append(edits, people...)
 	out, err := contentline.Apply(src, edits...)
 	if err != nil {
 		return nil, fmt.Errorf("patch event: %w", err)
@@ -122,6 +138,11 @@ func NewEvent(uid string, c EventChange, now time.Time) ([]byte, error) {
 			out.WriteString(field.Encode(eol))
 		}
 	}
+	people, err := newEventPeople(c, eol)
+	if err != nil {
+		return nil, fmt.Errorf("new event: %w", err)
+	}
+	out.WriteString(people)
 	out.WriteString(eventAlarms(c, "", eol))
 	out.WriteString(encodeEventProps(eol, contentline.Prop{Name: "END", Value: "VEVENT"},
 		contentline.Prop{Name: "END", Value: "VCALENDAR"}))
