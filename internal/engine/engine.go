@@ -78,6 +78,18 @@ type Deps struct {
 	// Unsubscriber sends one-click unsubscribe requests (ADR-0027); nil
 	// makes oneclick unavailable.
 	Unsubscriber Unsubscriber
+	// NewUID names the contacts, events and tasks maild creates: their
+	// UIDs, and the hrefs made from them. Nil makes random UUIDs; replay
+	// tests give the names a recorded session used.
+	NewUID func() (string, error)
+}
+
+// newUID is a name for a new object (NewUID).
+func (d Deps) newUID() (string, error) {
+	if d.NewUID != nil {
+		return d.NewUID()
+	}
+	return newUUID()
 }
 
 // Engine owns the domain services.

@@ -64,7 +64,7 @@ func replayEnv(t *testing.T, trace string, kind api.AccountKind, scopes string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	recorded := time.Date(2026, 10, 9, 17, 37, 0, 0, time.UTC)
+	recorded := traceRecorded(t, trace)
 	newYork, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +72,30 @@ func replayEnv(t *testing.T, trace string, kind api.AccountKind, scopes string) 
 	e.m = pimsync.New(db, secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json")), slog.New(slog.NewTextHandler(io.Discard, nil)),
 		pimsync.Config{Tokens: &tokens{token: "token"}, AllowHTTP: true, Now: func() time.Time { return recorded }, Local: newYork})
 	return e, srv
+}
+
+// traceRecorded is when a trace was recorded, from its "# recorded" line,
+// which sets the replay's clock; a trace without one was recorded at
+// 2026-10-09T17:37Z.
+func traceRecorded(t *testing.T, path string) time.Time {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for line := range strings.Lines(string(data)) {
+		if !strings.HasPrefix(line, "#") {
+			break
+		}
+		if at, ok := strings.CutPrefix(strings.TrimSpace(line), "# recorded "); ok {
+			recorded, err := time.Parse(time.RFC3339, at)
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			return recorded
+		}
+	}
+	return time.Date(2026, 10, 9, 17, 37, 0, 0, time.UTC)
 }
 
 // traceAccount is the address a scrubbed trace's "# account" line names.

@@ -179,7 +179,7 @@ func createChange(p *api.TasksCreateParams) (store.TaskChange, error) {
 // createLocal stores a new task under a local href, at the top of its
 // list, and queues its insert.
 func (t tasksService) createLocal(ctx context.Context, col store.Collection, c store.TaskChange, parentUID string) (int64, error) {
-	uid, err := newUUID()
+	uid, err := t.newUID()
 	if err != nil {
 		return 0, err
 	}
@@ -363,7 +363,7 @@ func todoChange(c store.TaskChange) calendar.TodoChange {
 
 // createDAV stores a new VTODO in a CalDAV list and queues its creation.
 func (t tasksService) createDAV(ctx context.Context, col store.Collection, c store.TaskChange, parentUID string) (int64, error) {
-	uid, err := newUUID()
+	uid, err := t.newUID()
 	if err != nil {
 		return 0, err
 	}
