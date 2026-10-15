@@ -305,8 +305,8 @@ func (s *Server) syncCollection(w http.ResponseWriter, r *http.Request, body []b
 	var rs []msResponse
 	for _, p := range paths {
 		o := c.objects[p]
-		if o == nil {
-			if since > 0 {
+		if o == nil || c.hidden[p] {
+			if since > 0 || c.hidden[p] {
 				rs = append(rs, msResponse{href: p, status: http.StatusNotFound})
 			}
 			continue
