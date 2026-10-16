@@ -22,7 +22,7 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.PersistentFlags().StringVar(&opts.socket, "socket", "", "maild socket (default: $XDG_RUNTIME_DIR/frostmail/maild.sock)")
+	root.PersistentFlags().StringVar(&opts.socket, "socket", "", `maild socket (default: $FROSTMAIL_SOCKET, else $XDG_RUNTIME_DIR/frostmail/maild.sock; on Windows \\.\pipe\frostmail-<your SID>)`)
 	root.AddCommand(
 		newHelloCmd(opts),
 		newAccountCmd(opts),
