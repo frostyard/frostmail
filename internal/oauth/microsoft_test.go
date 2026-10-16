@@ -2,12 +2,14 @@ package oauth
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +29,10 @@ type fakeMicrosoft struct {
 	challenge string
 	refresh   string // the one that is current
 	issued    int
+	// graphScope is what a Graph request must name; consented false
+	// refuses it as Microsoft does without consent.
+	graphScope string
+	consented  bool
 }
 
 func (p *fakeMicrosoft) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +48,17 @@ func (p *fakeMicrosoft) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fail("invalid_client")
 		return
 	}
-	if r.Form.Get("scope") != strings.Join(Microsoft.TokenScopes, " ") {
+	prefix := "at-"
+	switch r.Form.Get("scope") {
+	case strings.Join(Microsoft.TokenScopes, " "):
+	case p.graphScope:
+		if !p.consented {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application."}`)
+			return
+		}
+		prefix = "graph-"
+	default:
 		p.t.Errorf("token request scope = %q", r.Form.Get("scope"))
 		fail("invalid_scope")
 		return
@@ -65,7 +81,7 @@ func (p *fakeMicrosoft) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	p.issued++
 	p.refresh = "rt-" + string(rune('0'+p.issued))
-	b, _ := json.Marshal(map[string]any{"access_token": "at-" + string(rune('0'+p.issued)), "expires_in": 3600,
+	b, _ := json.Marshal(map[string]any{"access_token": prefix + string(rune('0'+p.issued)), "expires_in": 3600,
 		"refresh_token": p.refresh, "scope": strings.Join(Microsoft.Scopes[:2], " "), "token_type": "Bearer"})
 	_, _ = w.Write(b)
 }
@@ -147,5 +163,81 @@ func TestMicrosoftSignInWithTheBuiltInClient(t *testing.T) {
 		if rt, _ := sec.Get(ctx, secrets.RefreshToken(acct)); rt != "rt-"+want[3:] {
 			t.Fatalf("refresh %d: stored refresh token = %q", i+1, rt)
 		}
+	}
+}
+
+// Graph's token comes from the same refresh token as mail's, for the
+// granted Graph scopes, cached apart from mail's (ADR-0039).
+func TestMicrosoftGraphAudience(t *testing.T) {
+	ctx := t.Context()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "f.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	sec := secrets.NewFile(filepath.Join(t.TempDir(), "secrets.json"))
+	p := &fakeMicrosoft{t: t, refresh: "rt-0", graphScope: MicrosoftCalendarScope + " offline_access"}
+	srv := httptest.NewServer(p)
+	t.Cleanup(srv.Close)
+	ms := Microsoft
+	ms.TokenURL = srv.URL
+	m := &Manager{DB: db, Secrets: sec, Log: slog.New(slog.DiscardHandler), Endpoints: map[string]Endpoint{"microsoft": ms}}
+	var acct int64
+	if err := db.Tx(ctx, func(tx *store.Tx) error {
+		a, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindMicrosoft, Email: "cy@hotmail.com", Auth: api.AuthKindOAuth2,
+			IMAP: store.ServerConfig{Host: "outlook.office365.com", Port: 993, TLS: api.TLSModeTLS, Username: "cy@hotmail.com"},
+			SMTP: store.ServerConfig{Host: "smtp-mail.outlook.com", Port: 587, TLS: api.TLSModeStartTLS, Username: "cy@hotmail.com"}})
+		acct = a.ID
+		if err != nil {
+			return err
+		}
+		return tx.SetGrantedScopes(ctx, a.ID, strings.Join(append(slices.Clone(Microsoft.Scopes), MicrosoftCalendarScope), " "))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sec.Set(ctx, secrets.RefreshToken(acct), "rt-0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without consent for Graph, mail goes on and the account stays signed in.
+	if _, err := m.AccessTokenFor(ctx, acct, AudienceGraph); !errors.Is(err, ErrNoScope) {
+		t.Fatalf("Graph without consent = %v, want ErrNoScope", err)
+	}
+	if a, _ := db.GetAccount(ctx, acct); a.NeedsReauth {
+		t.Fatal("a Graph refusal signed the account out")
+	}
+	p.consented = true
+	mail, err := m.AccessToken(ctx, acct)
+	if err != nil || mail != "at-1" {
+		t.Fatalf("mail = %q, %v", mail, err)
+	}
+	graph, err := m.AccessTokenFor(ctx, acct, AudienceGraph)
+	if err != nil || graph != "graph-2" {
+		t.Fatalf("graph = %q, %v", graph, err)
+	}
+	// Each audience is cached; the refresh token rotated on both.
+	if again, _ := m.AccessToken(ctx, acct); again != "at-1" {
+		t.Errorf("mail again = %q", again)
+	}
+	if again, _ := m.AccessTokenFor(ctx, acct, AudienceGraph); again != "graph-2" {
+		t.Errorf("graph again = %q", again)
+	}
+	if rt, _ := sec.Get(ctx, secrets.RefreshToken(acct)); rt != "rt-2" {
+		t.Errorf("stored refresh token = %q", rt)
+	}
+	m.Invalidate(acct)
+	if again, _ := m.AccessTokenFor(ctx, acct, AudienceGraph); again != "graph-3" {
+		t.Errorf("graph after Invalidate = %q", again)
+	}
+
+	// A grant without a Graph scope asks no one.
+	if err := db.Tx(ctx, func(tx *store.Tx) error {
+		return tx.SetGrantedScopes(ctx, acct, strings.Join(Microsoft.Scopes, " "))
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m.Invalidate(acct)
+	if _, err := m.AccessTokenFor(ctx, acct, AudienceGraph); !errors.Is(err, ErrNoScope) {
+		t.Errorf("Graph with no Graph scope = %v, want ErrNoScope", err)
 	}
 }
