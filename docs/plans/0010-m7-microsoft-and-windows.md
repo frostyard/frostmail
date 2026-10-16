@@ -331,6 +331,19 @@ records how Graph's events and contacts are stored.
   account over the pipe, and the CSP admits `http://mailpart.localhost`
   and blocks loopback and `mailpart:`.
 
+  Trial in `frostmail-win11` (2026-10-16), with the CI installer and the
+  user's Outlook.com account, made read-write: installing, upgrading over
+  a running install and uninstalling did what the hooks say; the app read
+  the account, sent from its compose window (to Sent and back to the
+  Inbox), and marked read, flagged and archived, which `mailctl verify`
+  found on the server. With the app closed, a new message raised a toast
+  whose click started the app on it, and a Remind Me reminder raised its
+  "Reminder:" toast. The VM's grant lacks the Graph scopes, so contacts,
+  calendar and a calendar reminder's Snooze and Dismiss wait for the
+  user to consent again, and the Gmail and iCloud accounts for their
+  sign-in. That run found the deadlock of windows opened from synchronous
+  commands.
+
 ## Phase 6 — Trial and hand-off
 
 - The user runs the Windows build for a week with Outlook.com (and Gmail
