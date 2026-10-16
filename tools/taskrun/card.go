@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -41,7 +42,7 @@ func (c *Card) Dir() string { return strings.TrimSuffix(c.Path, ".md") }
 
 // GivenSource is where a given file is kept before the task starts.
 func (c *Card) GivenSource(repoPath string) string {
-	return filepath.Join(c.Dir(), "_given", repoPath)
+	return path.Join(c.Dir(), "_given", repoPath) // a repository path, slash-separated
 }
 
 // ParseCard reads front matter and body.
@@ -79,7 +80,8 @@ func (c *Card) validate() error {
 		errs = append(errs, errors.New("touch must list at least one file"))
 	}
 	for _, p := range append(slices.Clone(c.Touch), c.Given...) {
-		if filepath.IsAbs(p) || strings.Contains(p, "..") || filepath.Clean(p) != p {
+		// Card paths are slash-separated on every OS.
+		if path.IsAbs(p) || strings.Contains(p, "..") || path.Clean(p) != p {
 			errs = append(errs, fmt.Errorf("path %q must be clean and repository-relative", p))
 		}
 	}
@@ -114,6 +116,7 @@ func FindCard(root, id string) (*Card, error) {
 		}
 		c.State = state
 		c.Path, _ = filepath.Rel(root, matches[0])
+		c.Path = filepath.ToSlash(c.Path) // repository paths are slash-separated
 		return c, nil
 	}
 	return nil, fmt.Errorf("no card %s in docs/tasks/{todo,doing,done}", id)
