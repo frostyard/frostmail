@@ -90,6 +90,12 @@ func transitions(loc *time.Location, from, to time.Time) []transition {
 	t := from.In(loc)
 	for {
 		_, end := t.ZoneBounds()
+		if !end.IsZero() && !end.After(t) {
+			// Go's rule-based periods (the slim tzdata it embeds and reads
+			// on Windows) end the last day of a leap year before it begins
+			// (Go 1.27): step over that day an hour at a time.
+			end = t.Add(time.Hour)
+		}
 		if end.IsZero() || !end.Before(to) {
 			return out
 		}
