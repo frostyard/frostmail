@@ -327,7 +327,12 @@ async function confirmRemove(email: string): Promise<boolean> {
 
 // Keyed by the selected ID so requests and field state cannot follow the
 // user to another account, including one created before the list reloads.
-function AccountServices(props: { id: number; onSignIn: () => void; onError: (error: string) => void }) {
+function AccountServices(props: {
+  id: number;
+  provider: string;
+  onSignIn: () => void;
+  onError: (error: string) => void;
+}) {
   const client = useClient();
   const { id, onError } = props;
   const [services, setServices] = useState<ServiceSettings[]>([]);
@@ -381,6 +386,7 @@ function AccountServices(props: { id: number; onSignIn: () => void; onError: (er
       now={new Date()}
       onToggle={(service, enabled, url) => void toggle(service, enabled, url)}
       onSignIn={props.onSignIn}
+      provider={props.provider}
     />
   );
 }
@@ -506,7 +512,13 @@ function AccountsPane() {
           onSignIn={authorize}
           services={
             typeof selected === "number" && (
-              <AccountServices key={selected} id={selected} onSignIn={authorize} onError={setError} />
+              <AccountServices
+                key={selected}
+                id={selected}
+                provider={account?.kind === "microsoft" ? "Microsoft" : "Google"}
+                onSignIn={authorize}
+                onError={setError}
+              />
             )
           }
           busy={busy}

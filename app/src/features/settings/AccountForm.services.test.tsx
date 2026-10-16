@@ -50,7 +50,7 @@ describe("services by kind", () => {
     expect(offeredServices("gmail")).toEqual(["contacts", "calendar", "tasks"]);
     expect(offeredServices("imap")).toEqual(["contacts", "calendar", "tasks"]);
     expect(offeredServices("icloud")).toEqual(["contacts", "calendar"]);
-    expect(offeredServices("microsoft")).toEqual([]);
+    expect(offeredServices("microsoft")).toEqual(["contacts", "calendar"]);
   });
 
   it("checks them for Gmail and iCloud, and none for IMAP", () => {

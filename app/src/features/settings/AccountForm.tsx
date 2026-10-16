@@ -28,14 +28,13 @@ export interface AccountFormValue {
 
 /** offeredServices are the services an account kind can turn on, in order. */
 export function offeredServices(kind: AccountKind): ServiceKind[] {
-  if (kind === "microsoft") return [];
-  if (kind === "icloud") return ["contacts", "calendar"];
+  if (kind === "icloud" || kind === "microsoft") return ["contacts", "calendar"];
   return ["contacts", "calendar", "tasks"];
 }
 
 /** defaultServices are the services a new account of a kind starts with checked. */
 export function defaultServices(kind: AccountKind): ServiceKind[] {
-  return kind === "gmail" || kind === "icloud" ? offeredServices(kind) : [];
+  return kind === "gmail" || kind === "icloud" || kind === "microsoft" ? offeredServices(kind) : [];
 }
 
 /** DiscoveryState is how far finding a new account's servers got. */
@@ -336,7 +335,7 @@ function AddServices(props: { value: AccountFormValue; busy: boolean; onChange: 
         ))}
         <p className="text-[12px] leading-4 text-secondary">
           {props.value.auth === "oauth2"
-            ? "Google asks once for mail and the services checked here."
+            ? `${PROVIDER[props.value.kind] ?? "Google"} asks once for mail and the services checked here.`
             : "Frostmail finds them with the account's password."}
         </p>
       </div>
