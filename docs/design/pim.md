@@ -88,6 +88,123 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   object moves there, or gives way to the copy a pass already brought,
   and without an ETag in the answer it is read back from there.
 
+### Microsoft Graph
+
+Microsoft accounts (Outlook.com, Hotmail) have no CardDAV or CalDAV:
+their contacts and calendars sync over Microsoft Graph
+([ADR-0039](../adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)),
+stored as iCalendar and vCard that maild derives from Graph's JSON
+([ADR-0040](../adr/0040-graph-events-and-contacts-as-derived-sources.md)).
+Everything after the store reads them as it reads a DAV source. Plan
+0010's Phase 3 builds it, reading first (3a), then writing (3b).
+
+- **Services and sign-in.** The profile's `DAV.Graph` offers contacts and
+  calendar (no tasks; Microsoft To Do is Later) at
+  `https://graph.microsoft.com/v1.0/`, with no discovery. Turning one on
+  adds `https://graph.microsoft.com/Contacts.ReadWrite` or
+  `.../Calendars.ReadWrite` to the account's sign-in, as Google's scopes
+  are; the account signs in again once. Graph's access token comes from
+  the same refresh token as Outlook's IMAP and SMTP token, for Graph's
+  audience (`oauth.Manager.AccessTokenFor`, `oauth.AudienceGraph`), cached
+  apart from it. Every request asks for immutable IDs
+  (`Prefer: IdType="ImmutableId"`) and UTC times
+  (`Prefer: outlook.timezone="UTC"`).
+- **Collections.** Every calendar in `/me/calendars`: the name, `hexColor`
+  (else the named color's hex), read-only from `canEdit`, and the default
+  from `isDefaultCalendar`. Birthdays, holidays and group calendars
+  included. The address book is the default contact folder (href
+  `contacts`), with any `/me/contactFolders` beside it. Until Phase 3b's
+  writes, every Graph collection is stored read-only.
+- **Objects.** An event that does not recur, or a series (its master with
+  its exceptions), is one object, and so is a contact. The href is the
+  Graph ID (the master's for a series), the ETag Graph's `@odata.etag`,
+  and the UID the event's `iCalUId` or the contact's ID. `objects.raw` is
+  the derived source, which local edits patch as they patch a DAV source.
+  `objects.remote` (migration 0018) is Graph's JSON as last read: the
+  event, a series' master with its exceptions in it
+  (`$expand=exceptionOccurrences`), or the contact.
+- **Reading a calendar.** `/me/calendars/{id}/calendarView/delta` over a
+  window: from the instance window's first day less a month to its last
+  day plus a month. Its delta link and window are the collection's sync
+  token. A round returns masters, single events, exceptions and bare
+  occurrences, and `@removed` entries with only an ID:
+  - a single event is stored, or removed when it is `@removed`;
+  - anything else that names a series (a master, an exception, an
+    occurrence through its `seriesMasterId`, or an `@removed` ID that is
+    a stored series' master or exception) marks the series. Each marked
+    series is read again whole, its master with
+    `$expand=exceptionOccurrences` and its `cancelledOccurrences`, and
+    replaced. A 404 removes it.
+  - When the instance window has left the delta's window, or Graph refuses
+    the link (410, `syncStateNotFound`), the collection is listed again
+    with a new window, and what the listing lacks is removed.
+- **Reading contacts.** `/me/contacts/delta`, or
+  `/me/contactFolders/{id}/contacts/delta`, with the delta link as the
+  sync token. A changed contact's photo is read from `photo/$value` (404:
+  none) and kept as the vCard's `PHOTO`.
+- **Events into iCalendar.** One `VEVENT` per master, single event or
+  exception, the exceptions with `RECURRENCE-ID`:
+  - `UID` from `iCalUId`; `SUMMARY` from `subject`; `LOCATION` from
+    `location.displayName`; `DESCRIPTION` from `body` (HTML turned to
+    text); `CATEGORIES`, `CLASS` (`sensitivity`), `STATUS:CANCELLED`
+    (`isCancelled`), `TRANSP` (`showAs` free is `TRANSPARENT`), `URL`
+    (`onlineMeeting.joinUrl`), `LAST-MODIFIED` and `DTSTAMP`;
+  - `DTSTART` and `DTEND` in the IANA zone `originalStartTimeZone`
+    names, a Windows name mapped through the zone table; all-day events
+    as dates;
+  - `RRULE` from the pattern and range (`daily`, `weekly` with its days and
+    `WKST`, `absoluteMonthly`, `relativeMonthly`, `absoluteYearly` and
+    `relativeYearly` with their index, day and month; `COUNT`, `UNTIL` or
+    neither), in `recurrenceTimeZone`; `EXDATE` from
+    `cancelledOccurrences`;
+  - `ORGANIZER` and an `ATTENDEE` per attendee, with `ROLE` from `type`
+    and `PARTSTAT` from `status.response`; the user's own answer is the
+    event's `responseStatus`;
+  - a `VALARM` (`DISPLAY`, `TRIGGER:-PT<n>M`) when `isReminderOn`.
+- **Contacts into vCard 4.0.**
+  - **Names:** `FN` from `displayName` (else the parts); `N` from
+    `surname`, `givenName`, `middleName`, `title` and `generation`;
+    `NICKNAME`.
+  - **Work:** `ORG` from `companyName` and `department`; `TITLE` from
+    `jobTitle`.
+  - **Addresses:** `EMAIL` per `emailAddresses`; `TEL` with `TYPE=work`,
+    `home` and `cell` from `businessPhones`, `homePhones` and
+    `mobilePhone`; `ADR` from `homeAddress`, `businessAddress` and
+    `otherAddress`; `IMPP`; `URL` from `businessHomePage`.
+  - **Other:** `BDAY`; `NOTE` from `personalNotes`; `CATEGORIES`; `PHOTO`
+    as a JPEG data URI.
+- **Writes (3b).** Graph objects replay through the same `put` and
+  `delete` as DAV objects, against a Graph object server with DAV's
+  `Get`, `Put` and `Delete`. `Put` compares the new source's Graph
+  projection with the stored JSON's and sends only what changed:
+  - a new object is a `POST` to the collection, which moves the object
+    to Graph's ID;
+  - changed master or contact fields are a `PATCH` with `If-Match`;
+  - a new `EXDATE` is a `DELETE` of that occurrence, a new or changed
+    override a `PATCH` of it, both found through the master's
+    `instances` for that day;
+  - a contact's new or removed `PHOTO` is a `PUT` or `DELETE` of
+    `photo/$value`;
+  - the user's new `PARTSTAT` on an invitation is `accept`,
+    `tentativelyAccept` or `decline` with `sendResponse`.
+
+  `Put` returns no ETag, so `put` reads the object back and stores
+  Graph's version. A 412 is `davx.ErrPrecondition`, which re-applies an
+  edit that still fits (Editing, below), and a refusal is
+  `davx.StatusError`. `Delete` deletes the event or contact. A deleted
+  object's restore is a creation from its source, under a new ID.
+- **Verify** lists each calendar's events through `calendarView` over its
+  delta's window (single events with their ETags, series by their
+  masters' IDs without ETags) and each contact folder's contacts with
+  their ETags, and compares them with the store as DAV's verify does.
+- **What Graph does** (the user's Outlook.com account, 2026-10-16):
+  - a delta's next and delta links name the calendar in OData's key form,
+    `calendars('<id>')`, and are followed as Graph gives them;
+  - `$expand=exceptionOccurrences` works on a master;
+  - the Birthday calendar's events and US Holidays' recurring days are
+    yearly series, and the rest of US Holidays are single all-day events;
+  - a contact without a photo answers `photo/$value` with 404.
+
 ### Storage
 
 - `collections`: account, service, href, name, color, kind (address book,
@@ -427,6 +544,14 @@ contacts and events writable through `people.create`, `update`, `delete`,
   (`MAILD_DAV_TRACE`, `internal/httprec`), scrubbed by `tools/davrec` and
   replayed in `internal/pimsync/replay_test.go` (testing.md, DAV and Tasks
   recordings).
+- `internal/graphtest`: an in-process Microsoft Graph with calendars,
+  contact folders, paged delta rounds, series with their exceptions,
+  photos and other clients' changes, for `internal/pimsync/graph_test.go`.
+  The derivations have golden tests in `internal/graph`, run through
+  `calendar.Parse` and `Expand` and `vcardx.Parse`. A scrubbed recording
+  of the user's Outlook.com account replays in `graph_replay_test.go`;
+  `davrec` scrubs Graph's names, addresses, subjects, bodies, notes,
+  numbers and links.
 
 ## Operational notes
 

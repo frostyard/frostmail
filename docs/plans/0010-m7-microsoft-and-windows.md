@@ -161,7 +161,7 @@ records how Graph's events and contacts are stored.
   their own addresses, survives a restart and a sign-out, and verifies
   clean for three days, with `make check` green.
 
-## Phase 3 — Outlook contacts and calendars (large)
+## Phase 3 — Outlook contacts and calendars (large) — 3a done
 
 - `internal/graph`: a small Graph client (delta, paging, `$batch`
   if Phase 1 shows it is needed, throttling with `Retry-After`) and
@@ -183,6 +183,29 @@ records how Graph's events and contacts are stored.
   shows as a "Retrieval using the IMAP4 protocol failed" message (found in
   Phase 2). Decide whether deletes use Graph's `permanentDelete`, given
   that undo restores by posting again.
+- **3a, reading (2026-10-16):** Graph's audience in `oauth`
+  (`AccessTokenFor`, `ErrNoScope` for a missing consent, which leaves mail
+  signed in); `internal/graph` (the client and the derivations);
+  `internal/graphtest`; migration 0018 (`objects.remote`); pimsync's Graph
+  sync and verify; contacts and calendars offered for Microsoft accounts
+  in the engine and Settings.
+
+  Evidence: a dev maild with its own store, holding the user's
+  Outlook.com account read-only with contacts and calendars on:
+  - it synced four calendars and the contact folder, with no source that
+    failed to parse;
+  - US Holidays' 32 objects (13 yearly series) and Birthdays' two series
+    expand to the occurrences Graph's own `calendarView` lists for 2026;
+  - `mailctl verify` was clean for both services;
+  - its three passes, scrubbed, replay in `make check`
+    (`TestGraphReplayFirstSync`).
+
+  The default calendar's two events from 2017 are outside the window, as
+  designed.
+- **3b, writing:** what remains of the list above. Writes, recurring
+  scopes, invitations and photos go through the Graph object server; the
+  collections become writable; the write session is recorded and
+  replayed.
 - **Done when:** the user's Outlook.com calendar and contacts show in
   Frostmail, and edits from either side reach the other within a pass,
   with clean verifies. An invitation between the user's Outlook.com and
