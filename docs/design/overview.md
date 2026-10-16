@@ -84,6 +84,8 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 | `FROSTMAIL_NOTIFIER` | `frostmail-notify.exe` beside maild | maild on Windows: the toast notifier ([desktop.md](desktop.md#windows)) |
 | `FROSTMAIL_APP` | `frostmail` on `PATH`; Windows: `frostmail.exe` beside the notifier | maild on Linux, the notifier on Windows: the app a notification's click runs |
 | `FROSTMAIL_WEBKIT_SAFE=1` | unset | the app: WebKitGTK CPU-rendering workarounds |
+| `FROSTMAIL_DEVTOOLS_PORT` | unset | the app on Windows: open WebView2's DevTools on this loopback port (the end-to-end tests) |
+| `FROSTMAIL_OPEN_LOG` | unset | the app: append what it would open to this file instead (the end-to-end tests on Windows) |
 | `FROSTMAIL_INSECURE_TLS=1` | unset | maild: accept any IMAP certificate (test servers only) |
 | `FROSTMAIL_IT_HOST` | set by `make engine-it` | integration tests |
 | `FROSTMAIL_EXECUTOR_MODEL` | `EXECUTOR_MODEL` in the Makefile | `taskrun` |

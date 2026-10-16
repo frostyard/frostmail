@@ -136,7 +136,11 @@ the notifier and the installer.
   on Windows only, the app rewrites maild's `mailpart://localhost/` URLs
   to `http://mailpart.localhost/` in what it shows and back in what it
   saves (`app/src/lib/partURL.ts`), and the Windows CSP
-  (`tauri.windows.conf.json`) allows images from it. The bridge opens the
+  (`tauri.windows.conf.json`) allows images from it. The commands that
+  open windows (compose, event, settings, reminders) are async, since a
+  window built in a synchronous command deadlocks WebView2's app; every
+  window shares one WebView2 environment, so all take the same browser
+  arguments (`main.rs`, `window`). The bridge opens the
   pipe at the identification level and starts `maild.exe` from beside the
   app when no pipe is there. The attachment types that never open
   (`open_part`) include Windows' own (`.lnk`, `.url`, `.hta`, `.reg` and

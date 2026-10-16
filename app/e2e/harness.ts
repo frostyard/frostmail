@@ -218,7 +218,7 @@ async function reachable(url: string): Promise<boolean> {
  * TAURI_WEBVIEW_AUTOMATION is set (all tauri-driver does on Linux).
  * msedgedriver, which would look for the WebView2 DevTools port in a data
  * folder of its own while Tauri gives WebView2 the app's, attaches instead
- * to the port the app opens when asked through WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS.
+ * to the port the app opens when FROSTMAIL_DEVTOOLS_PORT names one.
  */
 async function startApp(port: number, env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<Record<string, unknown>> {
   const stdio: ["ignore", "inherit", "inherit"] = ["ignore", "inherit", "inherit"];
@@ -230,7 +230,7 @@ async function startApp(port: number, env: NodeJS.ProcessEnv, procs: ChildProces
   }
   const devtools = await freePort();
   const app = spawn(bin("frostmail-app"), [], {
-    env: { ...env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${devtools}` },
+    env: { ...env, FROSTMAIL_DEVTOOLS_PORT: String(devtools) },
     stdio: ["ignore", "pipe", "pipe"],
   });
   procs.push(app);

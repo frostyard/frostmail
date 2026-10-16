@@ -45,7 +45,7 @@ fn main() {
         })
         .setup(|app| {
             let links = app.handle().clone();
-            let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            let main = window(app, "main")
                 .title("Frostmail")
                 .inner_size(1200.0, 780.0)
                 .min_inner_size(800.0, 500.0)
@@ -61,6 +61,32 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("frostmail failed to start");
+}
+
+/// A builder for one of the app's windows, all of which load the app. On
+/// Windows they share one WebView2 environment, which takes only windows
+/// with the same browser arguments: wry's defaults, and the end-to-end
+/// tests' DevTools port when FROSTMAIL_DEVTOOLS_PORT names one (as
+/// TAURI_WEBVIEW_AUTOMATION allows automation on Linux). WebView2 lets an
+/// app's arguments override WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, which
+/// wry always sets. The commands that open windows are async: on Windows a
+/// window built in a synchronous command deadlocks the app (WebView2).
+pub(crate) fn window<'a, R: tauri::Runtime, M: Manager<R>>(manager: &'a M, label: &str) -> WebviewWindowBuilder<'a, R, M> {
+    let builder = WebviewWindowBuilder::new(manager, label, WebviewUrl::default());
+    #[cfg(windows)]
+    if let Some(args) = browser_args(std::env::var("FROSTMAIL_DEVTOOLS_PORT").ok().as_deref()) {
+        return builder.additional_browser_args(&args);
+    }
+    builder
+}
+
+/// wry's default WebView2 arguments with a DevTools port, if port is one.
+#[cfg(any(windows, test))]
+fn browser_args(port: Option<&str>) -> Option<String> {
+    let port: u16 = port?.parse().ok().filter(|&p| p != 0)?;
+    Some(format!(
+        "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required --remote-debugging-port={port}"
+    ))
 }
 
 /// Windows start hidden and the page shows its own window once it has
@@ -110,7 +136,18 @@ fn apply_webkit_workarounds() {}
 
 #[cfg(test)]
 mod tests {
-    use super::allowed_navigation;
+    use super::{allowed_navigation, browser_args};
+
+    #[test]
+    fn a_devtools_port_only_when_one_is_named() {
+        assert_eq!(browser_args(None), None);
+        for bad in ["", "x", "0", "65536", "-1", "9222 --foo"] {
+            assert_eq!(browser_args(Some(bad)), None, "{bad}");
+        }
+        let args = browser_args(Some("9222")).unwrap();
+        assert!(args.starts_with("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection "), "{args}");
+        assert!(args.ends_with(" --remote-debugging-port=9222"), "{args}");
+    }
 
     fn allowed(url: &str) -> bool {
         allowed_navigation(&tauri::Url::parse(url).unwrap())

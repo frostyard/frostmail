@@ -6,7 +6,7 @@
 use std::sync::Mutex;
 
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::protocol;
@@ -99,13 +99,13 @@ pub async fn open_part(app: AppHandle, path: String) -> Result<(), String> {
 /// it was just created (fresh: discarded when closed untouched), from an
 /// initialization script, so the app's URL stays the same.
 #[tauri::command]
-pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), String> {
+pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), String> {
     let label = format!("compose-{draft_id}");
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.unminimize();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
+    crate::window(&app, &label)
         .title("New Message")
         .inner_size(720.0, 560.0)
         .min_inner_size(480.0, 360.0)
@@ -126,7 +126,7 @@ pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), St
 /// or focus the window that already shows it. The window learns what it
 /// edits from an initialization script, so the app's URL stays the same.
 #[tauri::command]
-pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, title: String) -> Result<(), String> {
+pub async fn open_event(app: AppHandle, label: String, target: serde_json::Value, title: String) -> Result<(), String> {
     let valid = label
         .strip_prefix("event-")
         .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
@@ -139,7 +139,7 @@ pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, titl
         return w.set_focus().map_err(|e| e.to_string());
     }
     let target = serde_json::to_string(&target).map_err(|e| e.to_string())?;
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
+    crate::window(&app, &label)
         .title(title)
         .inner_size(480.0, 600.0)
         .min_inner_size(420.0, 480.0)
@@ -156,13 +156,13 @@ pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, titl
 /// Open the settings window, labeled settings, or focus it when it is open.
 /// It learns that it is the settings window from an initialization script.
 #[tauri::command]
-pub fn open_settings(app: AppHandle) -> Result<(), String> {
+pub async fn open_settings(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.unminimize();
         let _ = w.show();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, "settings", WebviewUrl::default())
+    crate::window(&app, "settings")
         .title("Settings")
         .inner_size(760.0, 560.0)
         .min_inner_size(640.0, 440.0)
@@ -180,13 +180,13 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
 /// (docs/specs/pim-ui.md, Reminder window). It floats over the other
 /// windows and learns its role from an initialization script.
 #[tauri::command]
-pub fn open_reminders(app: AppHandle) -> Result<(), String> {
+pub async fn open_reminders(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("reminders") {
         let _ = w.unminimize();
         let _ = w.show();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, "reminders", WebviewUrl::default())
+    crate::window(&app, "reminders")
         .title("Reminders")
         .inner_size(380.0, 300.0)
         .min_inner_size(320.0, 160.0)

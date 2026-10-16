@@ -56,10 +56,12 @@ too:
   nsis`, which it uploads as the `frostmail-windows-installer` artifact
   (kept 14 days). It then runs hostile, links, smoke and remote on that
   app in WebView2: the harness starts the app with a DevTools port
-  (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`) and attaches the runner's
+  (`FROSTMAIL_DEVTOOLS_PORT`, which the app adds to every window's
+  WebView2 arguments, since WebView2 lets an app's arguments override
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`) and attaches the runner's
   msedgedriver, which matches the runner's WebView2, to it
-  (`debuggerAddress`), since a session msedgedriver launched would look
-  for that port in a data folder of its own. `FROSTMAIL_OPEN_LOG` stands
+  (`debuggerAddress`); a session msedgedriver launched would look for that
+  port in a data folder of its own. `FROSTMAIL_OPEN_LOG` stands
   in for the Linux opener stand-ins. Installs and trials take that installer to the VM
   or one of the user's machines.
 - Tests that need a socket take one from `rpctest.SocketPath`: a short
