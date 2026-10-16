@@ -77,11 +77,12 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 
 | Variable | Default | Used by |
 | --- | --- | --- |
-| `FROSTMAIL_DATA_DIR` | `$XDG_DATA_HOME/frostmail` (`~/.local/share/frostmail`); Windows: `%LOCALAPPDATA%\Frostmail` | maild: `frostmail.db`, `blobs/`, on Windows `logs\` |
-| `FROSTMAIL_CACHE_DIR` | `$XDG_CACHE_HOME/frostmail`; Windows: `%LOCALAPPDATA%\Frostmail\Cache` | maild writes `parts/`; the app serves it as `mailpart://` |
+| `FROSTMAIL_DATA_DIR` | `$XDG_DATA_HOME/frostmail` (`~/.local/share/frostmail`); Windows: `%LOCALAPPDATA%\Frostmail\Data` | maild: `frostmail.db`, `blobs/`, on Windows `logs\` and `secrets.dpapi` |
+| `FROSTMAIL_CACHE_DIR` | `$XDG_CACHE_HOME/frostmail`; Windows: `%LOCALAPPDATA%\Frostmail\Cache` | maild writes `parts/`; the app serves it as `mailpart://` (`http://mailpart.localhost` on WebView2) |
 | `FROSTMAIL_SOCKET` | `$XDG_RUNTIME_DIR/frostmail/maild.sock`; Windows: `\\.\pipe\frostmail-<user SID>` | maild, mailctl, the app |
 | `FROSTMAIL_SECRETS=file` | unset | maild: keep secrets in a plain file, not the Secret Service or DPAPI (development) |
 | `FROSTMAIL_NOTIFIER` | `frostmail-notify.exe` beside maild | maild on Windows: the toast notifier ([desktop.md](desktop.md#windows)) |
+| `FROSTMAIL_APP` | `frostmail` on `PATH`; Windows: `frostmail.exe` beside the notifier | maild on Linux, the notifier on Windows: the app a notification's click runs |
 | `FROSTMAIL_WEBKIT_SAFE=1` | unset | the app: WebKitGTK CPU-rendering workarounds |
 | `FROSTMAIL_INSECURE_TLS=1` | unset | maild: accept any IMAP certificate (test servers only) |
 | `FROSTMAIL_IT_HOST` | set by `make engine-it` | integration tests |

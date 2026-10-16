@@ -83,7 +83,11 @@ and normal components; anything else is 400. A path that resolves outside
 `parts/` (through a symlink) is 403. Responses carry `nosniff` and
 `Content-Security-Policy: default-src 'none'; img-src data:; style-src
 'unsafe-inline'; sandbox`. WebKitGTK loads the scheme only from
-`tauri://localhost` pages, not from the `tauri dev` http origin.
+`tauri://localhost` pages, not from the `tauri dev` http origin. WebView2
+serves it as `http://mailpart.localhost/<path>` instead: maild still
+writes `mailpart://localhost/`, and the app rewrites the one form to the
+other in the HTML it shows and back in the HTML it saves
+(`app/src/lib/partURL.ts`).
 
 ## Clients
 

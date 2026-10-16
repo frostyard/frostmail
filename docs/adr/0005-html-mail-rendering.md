@@ -27,6 +27,8 @@ Three independent layers:
 3. **Forbid the network in CSP:** the app CSP
    (`app/src-tauri/tauri.conf.json`) allows images only from `'self'`,
    `mailpart:` and `data:`, and has no `https:`. A srcdoc iframe inherits it.
+   On WebView2 the scheme is `http://mailpart.localhost`, which
+   `tauri.windows.conf.json` allows in its place.
 
 Remote images are fetched only by maild, without cookies or a referer, once
 the user allows a message or sender. Message parts reach the webview through

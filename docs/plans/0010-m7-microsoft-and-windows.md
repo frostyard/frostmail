@@ -315,6 +315,22 @@ records how Graph's events and contacts are stored.
   accounts. The hostile-mail suite makes zero requests on WebView2, and a
   reminder and a new-mail notification arrive with the app closed.
 
+  Built so far ([desktop.md](../design/desktop.md#windows)): maild's data
+  moved into `%LOCALAPPDATA%\Frostmail\Data`, out of the per-user install
+  directory Tauri's installer uses; the notifier (`app/notify`), whose
+  clicks are `frostmail-toast:` URIs it handles itself; the Windows
+  config (`tauri.windows.conf.json`: CSP, NSIS per user, sidecars) and
+  the installer hooks; WebView2's `http://tauri.localhost` origin in the
+  navigation guard and its `http://mailpart.localhost` parts; the
+  harness on tauri-driver; and CI's Windows app job, which builds the
+  installer and runs hostile, links, smoke and remote on WebView2.
+  Checked in `frostmail-win11` with a local MinGW build: toasts show,
+  replace and go under the AppUserModelID, a reminder carries Snooze and
+  Dismiss, Windows hands `frostmail-toast:` URIs to the notifier verbatim,
+  and Dismiss reaches maild over the pipe; the app reads the Outlook.com
+  account over the pipe, and the CSP admits `http://mailpart.localhost`
+  and blocks loopback and `mailpart:`.
+
 ## Phase 6 — Trial and hand-off
 
 - The user runs the Windows build for a week with Outlook.com (and Gmail

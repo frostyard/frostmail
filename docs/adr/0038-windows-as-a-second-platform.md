@@ -50,19 +50,23 @@ work on Linux only:
   rejects remote clients. maild checks each client's user SID, as
   `SO_PEERCRED` does on Linux. The bridge connects with tokio's named-pipe
   client and moves the same lines.
-- **Paths:** the database, blobs and logs go under
-  `%LOCALAPPDATA%\Frostmail`, and the parts cache under its `Cache`
-  folder. Local app data does not roam, so SQLite stays on a local disk.
+- **Paths:** the installer puts the programs in `%LOCALAPPDATA%\Frostmail`;
+  the database, blobs, secrets and logs go in its `Data` folder, and the
+  parts cache in its `Cache` folder, apart from what an install replaces.
+  Local app data does not roam, so SQLite stays on a local disk.
   `FROSTMAIL_SOCKET` and the other overrides work as on Linux.
 - **Secrets:** a file encrypted with DPAPI for the user
   (`CryptProtectData`) behind `secrets.Store`. It has no size cap, and only
   the user's Windows sign-in can decrypt it. The plain file stays a
   development fallback.
 - **Notifications:** Windows toasts carry Frostmail's AppUserModelID,
-  which the installer's Start Menu shortcut registers. maild runs a small
-  notifier that the app's build ships (`frostmail-notify.exe`, in Rust,
-  using WinRT) once per notification. A click opens the message in the
-  running app or starts it (single instance, as on Linux).
+  which the installer's Start Menu shortcut and a registry key register.
+  maild runs a small notifier that the app's build ships
+  (`frostmail-notify.exe`, in Rust, using WinRT) once per notification.
+  A click, and a reminder's Snooze and Dismiss, are `frostmail-toast:`
+  URIs that Windows hands back to the notifier, which opens the message in
+  the running app or starts it (single instance, as on Linux), or calls
+  maild.
 - **Background running:** maild starts when the user signs in to Windows
   (the per-user `Run` key), and the app starts it when it is not running.
   It is not a Windows service: it is per user, like its secrets.
@@ -98,6 +102,10 @@ work on Linux only:
 - A toast is posted by a separate small program, not by maild itself,
   because WinRT toasts from Go would need COM bindings that maild does not
   have.
+- Toast clicks need no running process and no COM activator, but the
+  `frostmail-toast:` scheme is open to every program the user runs. It
+  can do only what a click can: open the app or a message, or snooze or
+  dismiss a reminder whose opaque id it knows.
 
 ## Alternatives considered
 
