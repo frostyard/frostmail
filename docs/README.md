@@ -53,6 +53,8 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0035 — Invite through the provider's scheduling, and confirm before it sends](adr/0035-invite-through-the-providers-scheduling.md)
 - [0036 — Links in the reader's frame open as new-window requests](adr/0036-reader-links-open-as-new-window-requests.md)
 - [0037 — Fetch what the reader shows, and prefetch it](adr/0037-fetch-what-the-reader-shows.md)
+- [0038 — Windows is a second platform, with maild and the app as on Linux](adr/0038-windows-as-a-second-platform.md)
+- [0039 — Microsoft accounts: mail over IMAP and SMTP, contacts and calendars over Graph](adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)
 
 ### Design
 
@@ -92,6 +94,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md)
 - [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md), done, with its evidence
 - [0009 — M5.5 edit events and contacts](plans/0009-m5.5-edit-events-and-contacts.md)
+- [0010 — M7 Microsoft accounts and Windows](plans/0010-m7-microsoft-and-windows.md)
 
 ## Conventions
 
