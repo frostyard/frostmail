@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -183,7 +184,11 @@ func TestSafeFilename(t *testing.T) {
 
 func TestPartsCacheStaysInside(t *testing.T) {
 	c := &PartsCache{Root: t.TempDir()}
-	for _, rel := range []string{"../x", "/etc/x", "", "a/../../x"} {
+	bad := []string{"../x", "/etc/x", "", "a/../../x"}
+	if runtime.GOOS == "windows" {
+		bad = append(bad, `\etc\x`, `C:x`, `C:\x`, `\\host\share\x`, "NUL", `a\..\..\x`)
+	}
+	for _, rel := range bad {
 		if err := c.Write(rel, []byte("x")); err == nil {
 			t.Errorf("Write(%q) succeeded", rel)
 		}
