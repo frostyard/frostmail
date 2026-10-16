@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
@@ -252,7 +253,7 @@ func newReminders(ctx context.Context, db *store.DB, cal api.CalendarService, sr
 // certificates and plain HTTP only with FROSTMAIL_INSECURE_TLS=1, and every
 // exchange recorded to trace when it is set (MAILD_DAV_TRACE).
 func pimConfig(insecure bool, tokens pimsync.TokenSource, trace io.Writer, logger *slog.Logger) pimsync.Config {
-	cfg := pimsync.Config{Tokens: tokens, UserAgent: "Frostmail/" + version, AllowHTTP: insecure}
+	cfg := pimsync.Config{Tokens: tokens, UserAgent: "Frostmail/" + version, AllowHTTP: insecure, Local: localZone()}
 	var transport http.RoundTripper
 	if insecure {
 		transport = &http.Transport{
@@ -268,6 +269,22 @@ func pimConfig(insecure bool, tokens pimsync.TokenSource, trace io.Writer, logge
 		cfg.HTTP = &http.Client{Timeout: time.Minute, Transport: transport}
 	}
 	return cfg
+}
+
+// localZone is the system's zone under its IANA name ($TZ, else the
+// /etc/localtime link), which Graph's writes name for all-day events;
+// time.Local when neither names one.
+func localZone() *time.Location {
+	name := strings.TrimPrefix(os.Getenv("TZ"), ":")
+	if name == "" {
+		if target, err := os.Readlink("/etc/localtime"); err == nil {
+			_, name, _ = strings.Cut(target, "zoneinfo/")
+		}
+	}
+	if loc, err := time.LoadLocation(name); err == nil && name != "" && name != "Local" {
+		return loc
+	}
+	return time.Local
 }
 
 // davTraceFile creates this run's DAV and Tasks trace in dir

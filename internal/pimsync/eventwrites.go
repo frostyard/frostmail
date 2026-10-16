@@ -17,7 +17,7 @@ import (
 // refusedPut handles an event put the server refused: a 412 on an edit
 // is applied again to the server's version when it fits; anything else
 // leaves the server's version and tells the app.
-func (p *pass) refusedPut(ctx context.Context, c *davx.Client, col store.Collection, op store.PIMOp, err error) error {
+func (p *pass) refusedPut(ctx context.Context, c objectServer, col store.Collection, op store.PIMOp, err error) error {
 	payload, edit := ParseEventPayload(op.Payload)
 	precondition := errors.Is(err, davx.ErrPrecondition)
 	if precondition && edit && !payload.Whole {
@@ -35,7 +35,7 @@ func (p *pass) refusedPut(ctx context.Context, c *davx.Client, col store.Collect
 // replaced, so that it replaces the local one at once: a later listing
 // would not fetch it, its ETag being the one the local copy already has.
 // It is nil for a creation, or when the server does not answer.
-func serverCopy(ctx context.Context, c *davx.Client, op store.PIMOp) *davx.Object {
+func serverCopy(ctx context.Context, c objectServer, op store.PIMOp) *davx.Object {
 	if op.IfMatch == "" {
 		return nil
 	}
@@ -47,7 +47,7 @@ func serverCopy(ctx context.Context, c *davx.Client, op store.PIMOp) *davx.Objec
 }
 
 // reapplyEvent is reapply for an event edit.
-func (p *pass) reapplyEvent(ctx context.Context, c *davx.Client, col store.Collection, op store.PIMOp, payload EventPayload) error {
+func (p *pass) reapplyEvent(ctx context.Context, c objectServer, col store.Collection, op store.PIMOp, payload EventPayload) error {
 	for range reapplyAttempts {
 		server, err := c.Get(ctx, op.Href)
 		if errors.Is(err, davx.ErrNotFound) {
@@ -159,7 +159,7 @@ func (p *pass) eventOf(ctx context.Context, op store.PIMOp) (string, *int64) {
 // put to the other calendar is queued, and is dropped, the event coming
 // back here, if the server refused that put. A 412 or another refusal
 // brings the server's version back; a 404 is a delete already done.
-func (p *pass) deleteEvent(ctx context.Context, c *davx.Client, col store.Collection, op store.PIMOp) error {
+func (p *pass) deleteEvent(ctx context.Context, c objectServer, col store.Collection, op store.PIMOp) error {
 	payload, _ := ParseEventPayload(op.Payload)
 	if _, queued, err := p.m.db.PIMOpState(ctx, op.ID); err != nil || !queued {
 		return err // dropped earlier in this pass, with the move's refused put

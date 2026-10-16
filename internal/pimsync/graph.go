@@ -103,9 +103,8 @@ func (p *pass) syncGraphCalendars(ctx context.Context, c *graph.Client) error {
 	list := make([]store.RemoteCollection, 0, len(cals))
 	defaultHref := ""
 	for _, cal := range cals {
-		// Read-only until Graph's writes (plan 0010, Phase 3b).
 		list = append(list, store.RemoteCollection{Href: cal.ID, Name: collectionName(cal.Name, api.CollectionKindCalendar),
-			Color: calendarColor(cal), Components: []string{"VEVENT"}, ReadOnly: true})
+			Color: calendarColor(cal), Components: []string{"VEVENT"}, ReadOnly: !cal.CanEdit})
 		if cal.IsDefaultCalendar {
 			defaultHref = cal.ID
 		}
@@ -386,10 +385,9 @@ func (p *pass) syncGraphContacts(ctx context.Context, c *graph.Client) error {
 	if err != nil {
 		return fmt.Errorf("list graph contact folders: %w", err)
 	}
-	// Read-only until Graph's writes (plan 0010, Phase 3b).
-	list := []store.RemoteCollection{{Href: graph.DefaultFolder, Name: "Contacts", ReadOnly: true}}
+	list := []store.RemoteCollection{{Href: graph.DefaultFolder, Name: "Contacts"}}
 	for _, f := range folders {
-		list = append(list, store.RemoteCollection{Href: f.ID, Name: collectionName(f.DisplayName, api.CollectionKindAddressbook), ReadOnly: true})
+		list = append(list, store.RemoteCollection{Href: f.ID, Name: collectionName(f.DisplayName, api.CollectionKindAddressbook)})
 	}
 	var cols []store.Collection
 	err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
