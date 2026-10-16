@@ -40,7 +40,7 @@ const onePixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYA
 // end, and a last pass finds nothing changed. Each write is followed by
 // one pass, which sends it.
 func Google(ctx context.Context, s Session) error {
-	r := run{ctx: ctx, s: s}
+	r := run{ctx: ctx, s: s, zone: GoogleZone}
 	r.pass("first sync")
 	before := r.contacts()
 
@@ -115,9 +115,10 @@ func Google(ctx context.Context, s Session) error {
 
 // run keeps the first error: after it, every step is skipped.
 type run struct {
-	ctx context.Context
-	s   Session
-	err error
+	ctx  context.Context
+	s    Session
+	zone string // the zone the session's events are written in
+	err  error
 }
 
 // step runs one write and the pass that sends it.
@@ -193,14 +194,14 @@ func (r *run) event(start time.Time) int64 {
 	if r.err != nil {
 		return 0
 	}
-	loc, err := time.LoadLocation(GoogleZone)
+	loc, err := time.LoadLocation(r.zone)
 	if err != nil {
 		r.err = err
 		return 0
 	}
 	day := start.In(loc).Format(time.DateOnly)
 	next := start.In(loc).AddDate(0, 0, 1).Format(time.DateOnly)
-	zone := GoogleZone
+	zone := r.zone
 	occ, err := r.s.Calendar.Range(r.ctx, &api.CalendarRangeParams{From: day, To: next, TimeZone: &zone})
 	if err != nil {
 		r.err = err

@@ -144,6 +144,12 @@ var profiles = []Profile{
 			Graph:   true,
 			Tasks:   "none",
 			NoTasks: "Microsoft To Do isn't supported yet.",
+			// Graph's answers tell the organizer; an answer to an emailed
+			// invitation goes to the copy Outlook put in the calendar; an
+			// organizer's meeting tells its attendees of every change.
+			Schedules:          true,
+			SchedulesCopies:    true,
+			SchedulesOrganizer: true,
 		},
 	},
 	{

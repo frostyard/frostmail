@@ -8,6 +8,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
+	"github.com/frostyard/frostmail/internal/graph"
 	"github.com/frostyard/frostmail/internal/store"
 	"github.com/frostyard/frostmail/internal/vcardx"
 )
@@ -23,7 +24,7 @@ const restoresKept = 24 * time.Hour
 // when another client left the properties it touches alone, it is applied
 // again to the server's version and written on that ETag; otherwise the
 // server's version stands and the app hears so.
-func (p *pass) reapply(ctx context.Context, c *davx.Client, col store.Collection, op store.PIMOp, payload ContactPayload) error {
+func (p *pass) reapply(ctx context.Context, c objectServer, col store.Collection, op store.PIMOp, payload ContactPayload) error {
 	for range reapplyAttempts {
 		server, err := c.Get(ctx, op.Href)
 		if errors.Is(err, davx.ErrNotFound) {
@@ -100,10 +101,13 @@ func (p *pass) refusedContact(ctx context.Context, op store.PIMOp, col store.Col
 }
 
 // refusal reports whether the server refused a change itself (412, or
-// another 4xx), so that trying again would not help.
+// another 4xx; or a source Outlook cannot store), so that trying again
+// would not help.
 func refusal(err error) bool {
 	var se *davx.StatusError
-	return errors.Is(err, davx.ErrPrecondition) || errors.As(err, &se) && se.Code/100 == 4
+	var ge *graph.StatusError
+	return errors.Is(err, davx.ErrPrecondition) || errors.As(err, &se) && se.Code/100 == 4 ||
+		errors.As(err, &ge) && ge.Status/100 == 4 || errors.Is(err, errUnstorable)
 }
 
 // refusedDelete ends a contact delete the server refused, most often

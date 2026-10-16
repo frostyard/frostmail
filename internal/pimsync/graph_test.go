@@ -208,20 +208,6 @@ func TestGraphSyncsCalendarsAndContacts(t *testing.T) {
 	}
 }
 
-func TestGraphCollectionsAreReadOnlyUntilWrites(t *testing.T) {
-	e := newGraphEnv(t, allGraphScopes)
-	e.pass()
-	cols, err := e.db.Collections(t.Context(), store.CollectionFilter{AccountID: e.acct.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range cols {
-		if !c.ReadOnly {
-			t.Errorf("%s %q can be written before Graph's writes (Phase 3b)", c.Kind, c.Name)
-		}
-	}
-}
-
 func TestGraphRetriesThrottledRequests(t *testing.T) {
 	e := newGraphEnv(t, allGraphScopes)
 	e.srv.PutEvent("cal-1", graphSingle)

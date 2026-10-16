@@ -14,8 +14,10 @@ import (
 )
 
 // indexDAV stores the original source and indexes it according to its collection.
+// A Graph object read in this pass keeps the JSON it was derived from.
 func (p *pass) indexDAV(ctx context.Context, tx *store.Tx, col store.Collection, remote davx.Object) error {
-	return p.indexObject(ctx, tx, col, store.Object{CollectionID: col.ID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data})
+	return p.indexObject(ctx, tx, col, store.Object{CollectionID: col.ID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data,
+		Remote: p.remotes[remote.Href]})
 }
 
 // indexObject stores a source, with Graph's JSON when it is derived, and

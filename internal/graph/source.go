@@ -1,13 +1,17 @@
 package graph
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/contentline"
@@ -64,10 +68,7 @@ func zoneLocation(name string) (*time.Location, error) {
 // recur, or of a series: its master and exceptions. userEmail is the
 // account's address, whose answer is the event's responseStatus.
 func EventSource(master Event, exceptions []Event, userEmail string) ([]byte, error) {
-	zone := ianaZone(master.OriginalStartTimeZone)
-	if master.Recurrence != nil {
-		zone = ianaZone(master.Recurrence.Range.RecurrenceTimeZone, master.OriginalStartTimeZone)
-	}
+	zone := seriesZone(master)
 	loc, err := time.LoadLocation(zone)
 	if err != nil {
 		return nil, err
@@ -101,7 +102,11 @@ func EventSource(master Event, exceptions []Event, userEmail string) ([]byte, er
 			out.WriteString(vtz)
 		}
 	}
-	main, err := eventProps(master, userEmail)
+	uid := SourceUID(master.ICalUID)
+	if uid == "" {
+		uid = master.ID
+	}
+	main, err := eventProps(master, uid, userEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -124,11 +129,13 @@ func EventSource(master Event, exceptions []Event, userEmail string) ([]byte, er
 	write(alarm(master)...)
 	write(prop("END", "VEVENT"))
 	for _, ex := range exceptions {
-		at, err := occurrenceStart(ex.OccurrenceID, ex.OriginalStart, start, loc)
+		at, err := exceptionStart(ex, start, loc, master.IsAllDay)
 		if err != nil {
 			return nil, err
 		}
-		props, err := eventProps(ex, userEmail)
+		// Outlook gives an exception an iCalUId of its own (the master's with
+		// the day in it); in iCalendar an override has its series' UID.
+		props, err := eventProps(ex, uid, userEmail)
 		if err != nil {
 			return nil, err
 		}
@@ -140,6 +147,39 @@ func EventSource(master Event, exceptions []Event, userEmail string) ([]byte, er
 	}
 	write(prop("END", "VCALENDAR"))
 	return []byte(out.String()), nil
+}
+
+// goidClass starts the iCalUId Outlook gives an event (Exchange's
+// GlobalObjectId, hex). One that came from outside, as an invitation from
+// Google does, carries the UID it came with after vCalUID.
+const goidClass = "040000008200E00074C5B7101A82E008"
+
+var vCalUID = []byte("vCal-Uid\x01\x00\x00\x00")
+
+// SourceUID is the iCalendar UID of an event with Outlook's iCalUId: the
+// UID an invitation came with, else the iCalUId itself.
+func SourceUID(iCalUID string) string {
+	b, err := hex.DecodeString(iCalUID)
+	if err != nil || len(b) < 40 || !strings.EqualFold(iCalUID[:len(goidClass)], goidClass) {
+		return iCalUID
+	}
+	uid, ok := bytes.CutPrefix(b[40:], vCalUID)
+	uid = bytes.TrimRight(uid, "\x00")
+	if !ok || len(uid) == 0 || !utf8.Valid(uid) {
+		return iCalUID
+	}
+	return string(uid)
+}
+
+// OutlookUID is the iCalUId Outlook gives an invitation that came with
+// uid: the class, an instance date, a time and reserved bytes left zero,
+// and the data's size and the data.
+func OutlookUID(uid string) string {
+	class, _ := hex.DecodeString(goidClass)
+	data := append(append(slices.Clone(vCalUID), uid...), 0)
+	b := append(class, make([]byte, 20)...)
+	b = binary.LittleEndian.AppendUint32(b, uint32(len(data)))
+	return strings.ToUpper(hex.EncodeToString(append(b, data...)))
 }
 
 func prop(name, value string) contentline.Prop { return contentline.Prop{Name: name, Value: value} }
@@ -163,8 +203,8 @@ func instantProp(name string, t time.Time, loc *time.Location, allDay bool) cont
 }
 
 // eventProps are a VEVENT's properties but its RRULE, EXDATE,
-// RECURRENCE-ID and alarm.
-func eventProps(e Event, userEmail string) ([]contentline.Prop, error) {
+// RECURRENCE-ID and alarm, under the series' UID.
+func eventProps(e Event, uid, userEmail string) ([]contentline.Prop, error) {
 	start, err := parseGraphTime(e.Start)
 	if err != nil {
 		return nil, err
@@ -181,10 +221,6 @@ func eventProps(e Event, userEmail string) ([]contentline.Prop, error) {
 	if err != nil {
 		return nil, err
 	}
-	uid := e.ICalUID
-	if uid == "" {
-		uid = e.ID
-	}
 	props := []contentline.Prop{text("UID", uid)}
 	if stamp, ok := stampOf(e.LastModifiedDateTime); ok {
 		props = append(props, prop("DTSTAMP", stamp), prop("LAST-MODIFIED", stamp))
@@ -194,7 +230,8 @@ func eventProps(e Event, userEmail string) ([]contentline.Prop, error) {
 	}
 	if e.IsAllDay {
 		// All-day events run from midnight to midnight in their own zone.
-		props = append(props, instantProp("DTSTART", start, time.UTC, true), instantProp("DTEND", end, time.UTC, true))
+		props = append(props, instantProp("DTSTART", allDayDate(start, loc), time.UTC, true),
+			instantProp("DTEND", allDayDate(end, endLoc), time.UTC, true))
 	} else {
 		props = append(props, instantProp("DTSTART", start, loc, false), instantProp("DTEND", end, endLoc, false))
 	}
@@ -232,6 +269,18 @@ func eventProps(e Event, userEmail string) ([]contentline.Prop, error) {
 		props = append(props, prop("URL", e.OnlineMeeting.JoinURL))
 	}
 	return append(props, people(e, userEmail)...), nil
+}
+
+// allDayDate is the day an all-day event's start or end falls on, as
+// midnight UTC: Graph gives midnight in the event's zone, which a UTC
+// time read in that zone gives back; a time already at midnight UTC is
+// that day.
+func allDayDate(t time.Time, loc *time.Location) time.Time {
+	if u := t.UTC(); u.Hour() == 0 && u.Minute() == 0 && u.Second() == 0 {
+		return u
+	}
+	d := t.In(loc)
+	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 // stampOf turns Graph's timestamp into iCalendar's UTC form.
@@ -319,6 +368,24 @@ func alarm(e Event) []contentline.Prop {
 		prop("BEGIN", "VALARM"), prop("ACTION", "DISPLAY"), text("DESCRIPTION", "Reminder"),
 		prop("TRIGGER", "-PT"+strconv.Itoa(max(e.ReminderMinutesBeforeStart, 0))+"M"), prop("END", "VALARM"),
 	}
+}
+
+// seriesZone is the IANA zone of an event or a series.
+func seriesZone(master Event) string {
+	if master.Recurrence != nil {
+		return ianaZone(master.Recurrence.Range.RecurrenceTimeZone, master.OriginalStartTimeZone)
+	}
+	return ianaZone(master.OriginalStartTimeZone)
+}
+
+// exceptionStart is the original start of a series' exception, an
+// all-day series' as its day.
+func exceptionStart(ex Event, seriesStart time.Time, loc *time.Location, allDay bool) (time.Time, error) {
+	at, err := occurrenceStart(ex.OccurrenceID, ex.OriginalStart, seriesStart, loc)
+	if err == nil && allDay {
+		at = allDayDate(at, loc)
+	}
+	return at, err
 }
 
 // occurrenceStart is the start of the occurrence an occurrence ID names

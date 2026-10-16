@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -81,6 +82,7 @@ func TestGraphReplayFirstSync(t *testing.T) {
 	}
 	type counts struct{ objects, series, broken int }
 	got := map[api.CollectionKind][]counts{}
+	var readOnly []string
 	for _, c := range cols {
 		var k counts
 		if err := db.Tx(ctx, func(tx *store.Tx) error {
@@ -90,9 +92,15 @@ func TestGraphReplayFirstSync(t *testing.T) {
 			t.Fatal(err)
 		}
 		got[c.Kind] = append(got[c.Kind], k)
-		if !c.ReadOnly {
-			t.Errorf("%s %q is writable before Phase 3b", c.Kind, c.Name)
+		if c.ReadOnly {
+			readOnly = append(readOnly, string(c.Kind)+" "+c.Name)
 		}
+	}
+	// Outlook's calendar and the family calendar take writes, and the
+	// address book; Birthdays and US Holidays do not (canEdit).
+	slices.Sort(readOnly)
+	if !slices.Equal(readOnly, []string{"calendar Birthday calendar", "calendar US Xzhbbqya"}) {
+		t.Errorf("read-only = %v", readOnly)
 	}
 	// Calendar (2017's events are outside the window), Birthdays, US
 	// Holidays, the family calendar; one address book.

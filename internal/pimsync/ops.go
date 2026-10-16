@@ -1,6 +1,7 @@
 package pimsync
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
 	"github.com/frostyard/frostmail/internal/gtasks"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -59,9 +61,19 @@ func (p *pass) replayOne(ctx context.Context, op store.PIMOp, services []store.S
 	if !ok || p.scope(service) != nil {
 		return nil // waits until the service is on and signed in
 	}
-	c, err := p.home(ctx, svc, kind)
-	if err != nil {
-		return p.failed(ctx, op, err)
+	var c objectServer
+	if providers.ForKind(p.acct.Kind).DAV.Graph {
+		gc, err := p.graphClient()
+		if err != nil {
+			return err
+		}
+		c = graphObjects{p: p, c: gc, col: col, op: op}
+	} else {
+		home, err := p.home(ctx, svc, kind)
+		if err != nil {
+			return p.failed(ctx, op, err)
+		}
+		c = home
 	}
 	switch op.Kind {
 	case "put":
@@ -82,6 +94,15 @@ func (p *pass) replayOne(ctx context.Context, op store.PIMOp, services []store.S
 	return p.failed(ctx, op, fmt.Errorf("pimsync: no replay for %q", op.Kind))
 }
 
+// objectServer is where a collection's objects are read and written by
+// href: a DAV server, or Microsoft Graph through graphObjects, which takes
+// and gives the sources maild derives (ADR-0040).
+type objectServer interface {
+	Get(ctx context.Context, href string) (davx.Object, error)
+	Put(ctx context.Context, href string, data []byte, kind davx.Kind, ifMatch string) (davx.Written, error)
+	Delete(ctx context.Context, href, ifMatch string) error
+}
+
 func enabledService(services []store.Service, kind api.ServiceKind) (store.Service, bool) {
 	for _, s := range services {
 		if s.Service == kind && s.Enabled {
@@ -93,10 +114,11 @@ func enabledService(services []store.Service, kind api.ServiceKind) (store.Servi
 
 // put writes an object as stored here, conditional on op.IfMatch, and
 // records the server's ETag; a server that sends none is asked for the
-// object, whose version then replaces the local one. A new object the
-// server stored under a name of its own moves there, or gives way to the
-// object a pass already brought from there.
-func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col store.Collection, op store.PIMOp) error {
+// object, whose version then replaces the local one, or whose absence
+// removes it. A new object the server stored under a name of its own
+// moves there, or gives way to the object a pass already brought from
+// there.
+func (p *pass) put(ctx context.Context, c objectServer, kind davx.Kind, col store.Collection, op store.PIMOp) error {
 	if op.ObjectID == nil {
 		return p.done(ctx, op, nil)
 	}
@@ -124,9 +146,8 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 		}
 		return p.failed(ctx, op, err)
 	}
-	moved := w.Href != op.Href
 	there := false
-	if moved {
+	if w.Href != op.Href {
 		_, err := p.m.db.ObjectByHref(ctx, col.ID, w.Href)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
@@ -134,35 +155,87 @@ func (p *pass) put(ctx context.Context, c *davx.Client, kind davx.Kind, col stor
 		there = err == nil
 	}
 	var fetched *davx.Object
+	gone := false
 	if w.ETag == "" || there {
 		got, err := c.Get(ctx, w.Href)
-		if err != nil {
-			return p.failed(ctx, op, err)
-		}
-		fetched = &got
-	}
-	return p.done(ctx, op, func(tx *store.Tx) error {
 		switch {
-		case there:
-			if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
-				return err
-			}
-		case moved:
-			if err := tx.SetObjectHref(ctx, obj.ID, w.Href); err != nil {
-				return err
-			}
+		case errors.Is(err, davx.ErrNotFound):
+			// The server took the change and has no object since: Outlook
+			// removes an invitation the user declined.
+			gone = true
+		case err != nil:
+			return p.failed(ctx, op, err)
+		default:
+			fetched = &got
 		}
-		if fetched != nil {
-			if err := p.indexDAV(ctx, tx, col, *fetched); err != nil {
-				return err
-			}
-			if kind == davx.AddressBooks {
-				return tx.RelinkPeople(ctx)
-			}
-			return nil
+	}
+	return p.m.db.Tx(ctx, func(tx *store.Tx) error {
+		finished, err := p.settlePut(ctx, tx, kind, col, op, obj, w, fetched, gone, there)
+		if err != nil || !finished {
+			return err
 		}
-		return tx.SetObjectETag(ctx, obj.ID, w.ETag)
+		return tx.DonePIMOp(ctx, op.ID)
 	})
+}
+
+// settlePut stores what a put left, and reports whether the change is
+// done. An object changed here while it was written is not: the change
+// goes on from the version the write left, which the waiting changes made
+// on the same version follow, and the local source, which has the later
+// edits too, stays for the next pass to write.
+func (p *pass) settlePut(ctx context.Context, tx *store.Tx, kind davx.Kind, col store.Collection, op store.PIMOp,
+	obj store.Object, w davx.Written, fetched *davx.Object, gone, there bool) (bool, error) {
+	if gone {
+		if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
+			return false, err
+		}
+		if kind == davx.AddressBooks {
+			return true, tx.RelinkPeople(ctx)
+		}
+		return true, tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID})
+	}
+	switch {
+	case there:
+		if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
+			return false, err
+		}
+	case w.Href != op.Href:
+		if err := tx.SetObjectHref(ctx, obj.ID, w.Href); err != nil {
+			return false, err
+		}
+	}
+	etag := w.ETag
+	if fetched != nil {
+		etag = fetched.ETag
+	}
+	if !there {
+		now, err := tx.GetObject(ctx, obj.ID)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return false, err
+		}
+		if err == nil && !bytes.Equal(now.Raw, obj.Raw) {
+			if err := tx.SetObjectETag(ctx, obj.ID, etag); err != nil {
+				return false, err
+			}
+			if raw, ok := p.remotes[w.Href]; ok && fetched != nil {
+				if err := tx.SetObjectRemote(ctx, obj.ID, raw); err != nil {
+					return false, err
+				}
+			}
+			_, err := tx.RebasePIMOps(ctx, col.ID, op.Href, op.IfMatch, w.Href, etag)
+			return false, err
+		}
+	}
+	if fetched == nil {
+		return true, tx.SetObjectETag(ctx, obj.ID, w.ETag)
+	}
+	if err := p.indexDAV(ctx, tx, col, *fetched); err != nil {
+		return false, err
+	}
+	if kind == davx.AddressBooks {
+		return true, tx.RelinkPeople(ctx)
+	}
+	return true, nil
 }
 
 // done removes a change the server took (or that no longer applies),
@@ -190,10 +263,11 @@ func retryAfter(attempts int) time.Duration {
 
 // failed records a failed write. The server's refusal of the change itself
 // (412, or any 4xx) fails it for good, and the next full listing restores
-// the server's version; other failures retry later. A refused credential
-// ends the pass.
+// the server's version; other failures retry later. A refused credential,
+// or a sign-in to do again, ends the pass.
 func (p *pass) failed(ctx context.Context, op store.PIMOp, err error) error {
-	if errors.Is(err, davx.ErrUnauthorized) || errors.Is(err, gtasks.ErrUnauthorized) {
+	if errors.Is(err, davx.ErrUnauthorized) || errors.Is(err, gtasks.ErrUnauthorized) ||
+		errors.Is(err, errSignIn) || errors.Is(err, errScope) {
 		return err
 	}
 	p.m.log.Warn("pim change not written", "account", p.acct.ID, "href", op.Href, "err", err)

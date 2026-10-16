@@ -161,7 +161,7 @@ records how Graph's events and contacts are stored.
   their own addresses, survives a restart and a sign-out, and verifies
   clean for three days, with `make check` green.
 
-## Phase 3 — Outlook contacts and calendars (large) — 3a done
+## Phase 3 — Outlook contacts and calendars (large) — done
 
 - `internal/graph`: a small Graph client (delta, paging, `$batch`
   if Phase 1 shows it is needed, throttling with `Retry-After`) and
@@ -181,8 +181,9 @@ records how Graph's events and contacts are stored.
 - Verify for Graph accounts, and recordings replayed in `make check`.
 - Deleting an event through Graph moves it to Deleted Items, which IMAP
   shows as a "Retrieval using the IMAP4 protocol failed" message (found in
-  Phase 2). Decide whether deletes use Graph's `permanentDelete`, given
-  that undo restores by posting again.
+  Phase 2). Deletes stay plain `DELETE`s, not `permanentDelete`: undo
+  restores by creating the event again either way, and Outlook keeps its
+  own recovery (ADR-0040).
 - **3a, reading (2026-10-16):** Graph's audience in `oauth`
   (`AccessTokenFor`, `ErrNoScope` for a missing consent, which leaves mail
   signed in); `internal/graph` (the client and the derivations);
@@ -206,6 +207,43 @@ records how Graph's events and contacts are stored.
   scopes, invitations and photos go through the Graph object server; the
   collections become writable; the write session is recorded and
   replayed.
+
+  Done (2026-10-16): `graph`'s projections (`ProjectEvent`,
+  `ProjectContact`, `RecurrenceFromRule`, `Diff`) and writes; the Graph
+  object server in pimsync (`graphObjects`), routed from the replay;
+  calendars writable as `canEdit` says, contact folders writable;
+  Microsoft accounts schedule as Google's do (`Schedules`,
+  `SchedulesCopies`, `SchedulesOrganizer`); maild names its local zone
+  for all-day writes; graphtest's writes; `davsession.Microsoft` and its
+  recording.
+
+  Evidence, on the user's Outlook.com account with a dev maild, FM items
+  only, everything deleted after:
+  - every write took: events and a series made, changed in each scope,
+    deleted and restored; a contact made, changed, given a photo, deleted
+    and restored; `mailctl verify` clean after;
+  - the session, recorded with `tools/davsession` and scrubbed, replays
+    in `make check` (`TestMicrosoftWriteReplay`, 252 exchanges);
+  - an FM meeting from Outlook.com to the throwaway Gmail made exactly one
+    invitation, one update and one cancellation there; the throwaway's FM
+    invitation to Outlook.com, accepted and then declined in the dev maild
+    from its message, sent one acceptance and one decline, through
+    Outlook, with nothing in maild's outbox.
+
+  Found and fixed on the way:
+  - an edit made while its object's put was in flight was lost (DAV
+    too): the change now goes on from the version the put left;
+  - exceptions had Outlook's own `iCalUId`, so their series showed them
+    twice; outside invitations had Outlook's wrapped `iCalUId`, so their
+    mail did not match the calendar's copy;
+  - the fake's guesses replaced by what Outlook does (all-day times,
+    exceptions kept or dropped, photos not deletable, declined
+    invitations removed; pim.md, Microsoft Graph).
+
+  bketelsen@gmail.com is an alias of the Outlook.com account, so Outlook
+  invites nobody at it; the throwaway stood in, as the user chose. An
+  editor that offers Outlook calendars one reminder, and hides a photo's
+  removal for Outlook contacts, are Later.
 - **Done when:** the user's Outlook.com calendar and contacts show in
   Frostmail, and edits from either side reach the other within a pass,
   with clean verifies. An invitation between the user's Outlook.com and

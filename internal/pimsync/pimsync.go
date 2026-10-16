@@ -333,6 +333,9 @@ type pass struct {
 	acct       store.Account
 	userEmails []string
 	from, to   time.Time
+	// remotes holds, by href, the Graph JSON of objects graphObjects read
+	// in this pass, for indexDAV to keep beside their sources.
+	remotes map[string][]byte
 }
 
 // service syncs one service, retrying once with a new access token when

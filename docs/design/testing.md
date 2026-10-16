@@ -137,11 +137,15 @@ first sync), stops pimsync's clock at the start, and writes the raw
 trace for `davrec`, with the start as a `# recorded` line. The replay test
 runs the same script on that clock. The engine's `Deps.NewUID` gives new
 objects the names the recording's creating PUTs used (`If-None-Match: *`),
-in order. The script finds what it made again by what scrubbing keeps,
+in order; Graph's creations are POSTs to the collection, whose paths name
+none. The script finds what it made again by what scrubbing keeps,
 times and IDs, never by summaries or names. `TestGoogleSessionOnDavtest`
-runs each script against `davtest` first, so a broken script fails before
-it reaches a provider. Only the throwaway Gmail account is recorded: the
-repository is public, and a scrubbed trace keeps dates and counts.
+and `TestMicrosoftSessionOnTheFake` run each script against `davtest` or
+`graphtest` first, so a broken script fails before it reaches a
+provider. Only the throwaway Gmail account and the user's Outlook.com
+test account are recorded: the repository is public, and a scrubbed
+trace keeps dates and counts. A dev maild that keeps its secrets in a
+file (`FROSTMAIL_SECRETS=file`) lends `tools/davsession` its sign-in.
 
 ## Planned layers
 

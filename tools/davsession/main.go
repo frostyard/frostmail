@@ -11,6 +11,7 @@
 // what it makes; when it fails partway, it says what may be left.
 //
 //	go run ./tools/davsession -account 6 -o /tmp/session.trace google
+//	go run ./tools/davsession -account 7 -o /tmp/session.trace microsoft
 package main
 
 import (
@@ -50,9 +51,11 @@ func main() {
 // sessions are the scripts by name, with the account kind each needs.
 var sessions = map[string]struct {
 	kind   api.AccountKind
+	zone   string
 	script func(context.Context, davsession.Session) error
 }{
-	"google": {api.AccountKindGmail, davsession.Google},
+	"google":    {api.AccountKindGmail, davsession.GoogleZone, davsession.Google},
+	"microsoft": {api.AccountKindMicrosoft, davsession.MicrosoftZone, davsession.Microsoft},
 }
 
 func run(ctx context.Context, args []string, out io.Writer) error {
@@ -64,7 +67,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	session, ok := sessions[fs.Arg(0)]
 	if *account == 0 || *trace == "" || fs.NArg() != 1 || !ok {
-		return errors.New("usage: davsession -account ID -o TRACE google")
+		return errors.New("usage: davsession -account ID -o TRACE google|microsoft")
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	tmp, err := os.MkdirTemp("", "davsession-")
@@ -94,6 +97,13 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("account %d is %s with %s sign-in; the session needs %s with OAuth", acct.ID, acct.Kind, acct.Auth, session.kind)
 	}
 	// The secrets file is the snapshot's: the user's keyring is only read.
+	// A maild that keeps its secrets in a file (FROSTMAIL_SECRETS=file, a
+	// dev maild's) has them copied.
+	if os.Getenv("FROSTMAIL_SECRETS") == "file" {
+		if err := copyFile(filepath.Join(paths.DataDir, "secrets.json"), filepath.Join(tmp, "secrets.json")); err != nil {
+			return err
+		}
+	}
 	sec, err := secrets.Open(ctx, filepath.Join(tmp, "secrets.json"), log)
 	if err != nil {
 		return err
@@ -116,7 +126,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	defer func() { _ = f.Close() }()
 	start := time.Now().UTC().Truncate(time.Second)
-	newYork, err := time.LoadLocation(davsession.GoogleZone)
+	local, err := time.LoadLocation(session.zone)
 	if err != nil {
 		return err
 	}
@@ -126,7 +136,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		HTTP:      &http.Client{Timeout: time.Minute, Transport: transport},
 		UserAgent: "Frostmail/davsession",
 		Now:       func() time.Time { return start },
-		Local:     newYork,
+		Local:     local,
 	})
 	eng := engine.New(engine.Deps{DB: db, PIM: m})
 	fmt.Fprintf(out, "recording %s as %s, the clock at %s\n", fs.Arg(0), acct.Email, start.Format(time.RFC3339))
@@ -154,10 +164,15 @@ func (a signedIn) AccessToken(ctx context.Context, _ int64) (string, error) {
 	return a.m.AccessToken(ctx, a.id)
 }
 
+func (a signedIn) AccessTokenFor(ctx context.Context, _ int64, audience string) (string, error) {
+	return a.m.AccessTokenFor(ctx, a.id, audience)
+}
+
 func (a signedIn) Invalidate(int64) { a.m.Invalidate(a.id) }
 
 // newAccount adds the account to the session's store with its services on
-// at the provider's URLs and not yet discovered, as a replay test's is.
+// at the provider's URLs (Graph's for a Microsoft account) and not yet
+// discovered, as a replay test's is.
 func newAccount(ctx context.Context, db *store.DB, from store.Account) (int64, error) {
 	dav := providers.ForKind(from.Kind).DAV
 	var id int64
@@ -172,6 +187,9 @@ func newAccount(ctx context.Context, db *store.DB, from store.Account) (int64, e
 			return err
 		}
 		starts := map[api.ServiceKind]string{api.ServiceKindContacts: dav.Contacts, api.ServiceKindCalendar: dav.Calendar}
+		if dav.Graph {
+			starts = map[api.ServiceKind]string{api.ServiceKindContacts: providers.GraphURL, api.ServiceKindCalendar: providers.GraphURL}
+		}
 		if dav.Tasks == "google" {
 			starts[api.ServiceKindTasks] = providers.GoogleTasksURL
 		}
@@ -183,6 +201,14 @@ func newAccount(ctx context.Context, db *store.DB, from store.Account) (int64, e
 		return nil
 	})
 	return id, err
+}
+
+func copyFile(from, to string) error {
+	data, err := os.ReadFile(from)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(to, data, 0o600)
 }
 
 // snapshot copies the live database with VACUUM INTO over a read-only
