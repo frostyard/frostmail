@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -168,6 +169,11 @@ func compareTasks(a, b TaskRow) int {
 	}
 	if order := cmp.Compare(a.Position, b.Position); order != 0 {
 		return order
+	}
+	if strings.HasPrefix(a.Position, "0/") {
+		// Tasks made here in one clock tick (Windows' clock is coarse)
+		// share a local position: the later one first, as it would be.
+		return cmp.Compare(b.ObjectID, a.ObjectID)
 	}
 	if order := cmp.Compare(a.Title, b.Title); order != 0 {
 		return order
