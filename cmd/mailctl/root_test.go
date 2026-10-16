@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -20,11 +21,21 @@ func TestDialUsesSocketFlag(t *testing.T) {
 	}
 }
 
-func TestDialDefaultNeedsRuntimeDir(t *testing.T) {
+func TestDialDefaultSocket(t *testing.T) {
 	t.Setenv("FROSTMAIL_SOCKET", "")
 	t.Setenv("XDG_RUNTIME_DIR", "")
-	_, _, err := (&rootOptions{}).dial(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "XDG_RUNTIME_DIR") {
-		t.Fatalf("dial without a socket = %v", err)
+	c, _, err := (&rootOptions{}).dial(t.Context())
+	// Linux needs XDG_RUNTIME_DIR; Windows dials the user's own pipe,
+	// where a maild of the user's may answer.
+	want := "XDG_RUNTIME_DIR"
+	if runtime.GOOS == "windows" {
+		if err == nil {
+			_ = c.Close()
+			return
+		}
+		want = `\\.\pipe\frostmail-S-1-`
+	}
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("dial without a socket = %v, want an error naming %s", err, want)
 	}
 }
