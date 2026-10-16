@@ -79,7 +79,7 @@ func (c *Client) url(path string) string {
 
 // Do sends one request and returns the response's body, retrying throttled
 // and failing requests after Graph's Retry-After. headers may carry
-// If-Match and Content-Type.
+// If-Match and Content-Type (JSON's when body is set).
 func (c *Client) Do(ctx context.Context, method, path string, body []byte, headers map[string]string) ([]byte, http.Header, error) {
 	for attempt := 0; ; attempt++ {
 		tok, err := c.Token(ctx)
@@ -118,8 +118,10 @@ func (c *Client) Do(ctx context.Context, method, path string, body []byte, heade
 		if resp.StatusCode < 300 {
 			return data, resp.Header, nil
 		}
-		retry := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable ||
-			resp.StatusCode == http.StatusGatewayTimeout
+		// A POST that failed may have been done: only a throttled one,
+		// which Graph did not start, is sent again.
+		retry := resp.StatusCode == http.StatusTooManyRequests || method != http.MethodPost &&
+			(resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout)
 		if retry && attempt < maxRetries {
 			if err := c.wait(ctx, retryAfter(resp.Header, attempt)); err != nil {
 				return nil, nil, err
