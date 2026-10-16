@@ -208,6 +208,34 @@ jobs:
           path: build/cargo-target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 14
+      # Temporary: what the app's WebView2 does on the runner, which the
+      # end-to-end step cannot see.
+      - name: Diagnose the app's WebView2
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build | Out-Null
+          Copy-Item "$env:CARGO_TARGET_DIR/release/frostmail.exe" build/diag-app.exe
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9399'
+          $p = Start-Process -PassThru build/diag-app.exe -RedirectStandardError build/diag-err.txt -RedirectStandardOutput build/diag-out.txt
+          Start-Sleep 30
+          "app running: $(-not $p.HasExited) $(if ($p.HasExited) { $p.ExitCode })"
+          Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'msedgewebview2.exe', 'diag-app.exe' } | ForEach-Object { "$($_.ProcessId) <- $($_.ParentProcessId): $($_.CommandLine)" }
+          Get-ChildItem "$env:LOCALAPPDATA\org.frostyard.Frostmail" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 40 -ExpandProperty FullName
+          try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9399/json/version -TimeoutSec 5).Content } catch { "no port: $_" }
+          Get-Content build/diag-err.txt, build/diag-out.txt -ErrorAction SilentlyContinue
+          Get-ChildItem env: | Where-Object Name -like 'WEBVIEW2*' | ForEach-Object { "$($_.Name)=$($_.Value)" }
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$PWD/build/diag.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: webview2-diagnosis
+          path: build/diag.png
+          retention-days: 3
       # The reader on WebView2 (ADR-0038): the hostile-mail suite, links,
       # remote images and the smoke test drive the app the installer holds,
       # with the runner's msedgedriver attached to it.
