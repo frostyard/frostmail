@@ -259,3 +259,30 @@ func TestContact(t *testing.T) {
 		t.Errorf("an empty business address was written:\n%s", src)
 	}
 }
+
+// Outlook keeps an invitation from outside under an iCalUId of its own
+// with the UID it came with inside (the user's Outlook.com account,
+// 2026-10-16); the source has that UID, and its own events keep theirs.
+func TestOutsideInvitationsKeepTheirUID(t *testing.T) {
+	const uid = "1f0e2d3c-4b5a-4968-8776-655443322110"
+	wrapped := "040000008200E00074C5B7101A82E0080000000000000000000000000000000000000000310000007643616C2D556964010000003166306532643363" +
+		"2D346235612D343936382D383737362D36353534343333323231313000"
+	if got := OutlookUID(uid); got != wrapped {
+		t.Errorf("OutlookUID = %s\nwant         %s", got, wrapped)
+	}
+	if got := SourceUID(wrapped); got != uid {
+		t.Errorf("SourceUID = %q", got)
+	}
+	own := "040000008200E00074C5B7101A82E0080000000027420EEE6B5DDD0100000000000000001000000031121C765B569F43B7DB9CF091D78F29"
+	if got := SourceUID(own); got != own {
+		t.Errorf("an Outlook event's UID = %q", got)
+	}
+	e := event(t, strings.Replace(single, `"iCalUId": "040000008200E00074C5B7101A82E008-single"`, `"iCalUId": "`+wrapped+`"`, 1))
+	src, err := EventSource(e, nil, "cy@hotmail.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev := parse(t, src); ev[0].UID != uid {
+		t.Errorf("UID = %q", ev[0].UID)
+	}
+}
