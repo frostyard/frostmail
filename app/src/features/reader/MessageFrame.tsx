@@ -6,6 +6,7 @@
 // one (ADR-0036): WebKit runs no event listener, not even the parent's,
 // inside a frame sandboxed without scripts.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toPageParts } from "../../lib/partURL";
 
 /** MessageFrameProps are the frame's inputs. */
 export interface MessageFrameProps {
@@ -29,8 +30,9 @@ const PAGE_STYLE = [
 /** frameDocument wraps sanitized HTML in the frame's page. */
 export function frameDocument(html: string, dev = import.meta.env.DEV): string {
   // WebKitGTK does not load mailpart: into the dev server's page; Vite
-  // serves the same files under /mailpart/ (vite.config.ts).
-  const body = dev ? html.replaceAll("mailpart://localhost/", "/mailpart/") : html;
+  // serves the same files under /mailpart/ (vite.config.ts). WebView2 has
+  // its own form of the URL (lib/partURL.ts).
+  const body = dev ? html.replaceAll("mailpart://localhost/", "/mailpart/") : toPageParts(html);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><base target="_blank"><style>${PAGE_STYLE}</style></head><body>${body}</body></html>`;
 }
 

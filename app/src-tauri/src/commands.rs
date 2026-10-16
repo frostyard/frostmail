@@ -6,16 +6,23 @@
 use std::sync::Mutex;
 
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::protocol;
 
-/// File types that run code when opened; Frostmail never opens them.
+/// File types that run code when opened, on Linux or Windows; Frostmail
+/// never opens them. Windows' list follows the types its shell runs or
+/// hands to a script host: links and shortcuts, installers, scripts,
+/// Control Panel and console snap-ins, HTML applications and help.
 const UNSAFE_EXTENSIONS: &[&str] = &[
     "desktop", "sh", "bash", "zsh", "fish", "csh", "run", "bin", "appimage", "flatpakref", "flatpakrepo",
     "deb", "rpm", "exe", "msi", "bat", "cmd", "com", "scr", "ps1", "vbs", "jar", "py", "pl", "rb", "js",
-    "so", "elf", "x86_64", "apk", "dmg", "pkg",
+    "so", "elf", "x86_64", "apk", "dmg", "pkg", //
+    "lnk", "url", "pif", "scf", "appref-ms", "application", "settingcontent-ms", "library-ms", "msix",
+    "msixbundle", "appx", "appxbundle", "msp", "mst", "reg", "inf", "cpl", "msc", "hta", "chm", "hlp",
+    "psm1", "psd1", "ps1xml", "vbe", "jse", "wsf", "wsh", "ws", "wsc", "sct", "gadget", "xll", "jnlp",
+    "dll", "sys", "drv", "ocx",
 ];
 
 /// Open an http, https or mailto URL in the system's default handler.
@@ -29,7 +36,28 @@ pub fn open_link(app: AppHandle, url: String) -> Result<(), String> {
 /// asks the OpenURI portal. Only http, https and mailto URLs open.
 pub(crate) fn open_url(app: &AppHandle, url: &tauri::Url) -> Result<(), String> {
     openable(url)?;
+    if logged(url.as_str())? {
+        return Ok(());
+    }
     app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// With FROSTMAIL_OPEN_LOG set, what the app would open is appended to
+/// that file instead, a line each: the end-to-end tests' stand-in on
+/// Windows, whose handlers are the shell's rather than programs on PATH
+/// (docs/design/testing.md).
+fn logged(target: &str) -> Result<bool, String> {
+    use std::io::Write;
+    let Some(log) = std::env::var_os("FROSTMAIL_OPEN_LOG").filter(|l| !l.is_empty()) else {
+        return Ok(false);
+    };
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log)
+        .and_then(|mut f| writeln!(f, "{target}"))
+        .map_err(|e| format!("FROSTMAIL_OPEN_LOG: {e}"))?;
+    Ok(true)
 }
 
 fn openable(url: &tauri::Url) -> Result<(), String> {
@@ -60,6 +88,9 @@ pub async fn open_part(app: AppHandle, path: String) -> Result<(), String> {
     if UNSAFE_EXTENSIONS.contains(&ext.as_str()) {
         return Err(format!("Frostmail does not open .{ext} files"));
     }
+    if logged(&full.to_string_lossy())? {
+        return Ok(());
+    }
     app.opener().open_path(full.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
 }
 
@@ -68,13 +99,13 @@ pub async fn open_part(app: AppHandle, path: String) -> Result<(), String> {
 /// it was just created (fresh: discarded when closed untouched), from an
 /// initialization script, so the app's URL stays the same.
 #[tauri::command]
-pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), String> {
+pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), String> {
     let label = format!("compose-{draft_id}");
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.unminimize();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
+    crate::window(&app, &label)
         .title("New Message")
         .inner_size(720.0, 560.0)
         .min_inner_size(480.0, 360.0)
@@ -95,7 +126,7 @@ pub fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), St
 /// or focus the window that already shows it. The window learns what it
 /// edits from an initialization script, so the app's URL stays the same.
 #[tauri::command]
-pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, title: String) -> Result<(), String> {
+pub async fn open_event(app: AppHandle, label: String, target: serde_json::Value, title: String) -> Result<(), String> {
     let valid = label
         .strip_prefix("event-")
         .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
@@ -108,7 +139,7 @@ pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, titl
         return w.set_focus().map_err(|e| e.to_string());
     }
     let target = serde_json::to_string(&target).map_err(|e| e.to_string())?;
-    WebviewWindowBuilder::new(&app, &label, WebviewUrl::default())
+    crate::window(&app, &label)
         .title(title)
         .inner_size(480.0, 600.0)
         .min_inner_size(420.0, 480.0)
@@ -125,13 +156,13 @@ pub fn open_event(app: AppHandle, label: String, target: serde_json::Value, titl
 /// Open the settings window, labeled settings, or focus it when it is open.
 /// It learns that it is the settings window from an initialization script.
 #[tauri::command]
-pub fn open_settings(app: AppHandle) -> Result<(), String> {
+pub async fn open_settings(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.unminimize();
         let _ = w.show();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, "settings", WebviewUrl::default())
+    crate::window(&app, "settings")
         .title("Settings")
         .inner_size(760.0, 560.0)
         .min_inner_size(640.0, 440.0)
@@ -149,13 +180,13 @@ pub fn open_settings(app: AppHandle) -> Result<(), String> {
 /// (docs/specs/pim-ui.md, Reminder window). It floats over the other
 /// windows and learns its role from an initialization script.
 #[tauri::command]
-pub fn open_reminders(app: AppHandle) -> Result<(), String> {
+pub async fn open_reminders(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("reminders") {
         let _ = w.unminimize();
         let _ = w.show();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, "reminders", WebviewUrl::default())
+    crate::window(&app, "reminders")
         .title("Reminders")
         .inner_size(380.0, 300.0)
         .min_inner_size(320.0, 160.0)

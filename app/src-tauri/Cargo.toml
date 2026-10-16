@@ -19,6 +19,14 @@ tauri-plugin-opener = "2.5.5"
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-single-instance = "2.5.2"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_Threading",
+] }
+
 [profile.release]
 lto = true
 codegen-units = 1

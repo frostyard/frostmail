@@ -309,11 +309,40 @@ records how Graph's events and contacts are stored.
 - The reader on WebView2: the zero-network hostile-mail suite, links
   ([ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)),
   embedded images, and the window chrome and keyboard map, run by
-  tauri-driver with msedgedriver in the Windows CI job.
+  msedgedriver in the Windows CI job.
 - **Done when:** a clean install from the installer on one of the user's
   Windows machines reads, sends and edits all three of the user's test
   accounts. The hostile-mail suite makes zero requests on WebView2, and a
   reminder and a new-mail notification arrive with the app closed.
+
+  Built so far ([desktop.md](../design/desktop.md#windows)): maild's data
+  moved into `%LOCALAPPDATA%\Frostmail\Data`, out of the per-user install
+  directory Tauri's installer uses; the notifier (`app/notify`), whose
+  clicks are `frostmail-toast:` URIs it handles itself; the Windows
+  config (`tauri.windows.conf.json`: CSP, NSIS per user, sidecars) and
+  the installer hooks; WebView2's `http://tauri.localhost` origin in the
+  navigation guard and its `http://mailpart.localhost` parts; the
+  harness on msedgedriver; and CI's Windows app job, which builds the
+  installer and runs hostile, links, smoke and remote on WebView2.
+  Checked in `frostmail-win11` with a local MinGW build: toasts show,
+  replace and go under the AppUserModelID, a reminder carries Snooze and
+  Dismiss, Windows hands `frostmail-toast:` URIs to the notifier verbatim,
+  and Dismiss reaches maild over the pipe; the app reads the Outlook.com
+  account over the pipe, and the CSP admits `http://mailpart.localhost`
+  and blocks loopback and `mailpart:`.
+
+  Trial in `frostmail-win11` (2026-10-16), with the CI installer and the
+  user's Outlook.com account, made read-write: installing, upgrading over
+  a running install and uninstalling did what the hooks say; the app read
+  the account, sent from its compose window (to Sent and back to the
+  Inbox), and marked read, flagged and archived, which `mailctl verify`
+  found on the server. With the app closed, a new message raised a toast
+  whose click started the app on it, and a Remind Me reminder raised its
+  "Reminder:" toast. The VM's grant lacks the Graph scopes, so contacts,
+  calendar and a calendar reminder's Snooze and Dismiss wait for the
+  user to consent again, and the Gmail and iCloud accounts for their
+  sign-in. That run found the deadlock of windows opened from synchronous
+  commands.
 
 ## Phase 6 — Trial and hand-off
 

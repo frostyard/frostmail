@@ -38,7 +38,8 @@ apt-get update -q
 apt-get install -y -q --no-install-recommends \
 	build-essential ca-certificates curl file git make pkg-config wget xz-utils \
 	libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev \
-	librsvg2-dev webkit2gtk-driver xvfb xauth
+	librsvg2-dev webkit2gtk-driver xvfb xauth \
+	llvm # llvm-rc: the Windows resource step of `make app-check-windows`
 
 if [[ "$(/opt/node/bin/node --version 2>/dev/null)" != "v$NODE_VERSION" ]]; then
 	fetch "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.xz" \
@@ -69,6 +70,9 @@ if [[ ! -x /opt/cargo/bin/rustup ]]; then
 fi
 runuser -u "$TARGET_USER" -- env RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo \
 	/opt/cargo/bin/rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+# The app is type-checked for Windows here; Windows CI builds it (ADR-0038).
+runuser -u "$TARGET_USER" -- env RUSTUP_HOME=/opt/rustup CARGO_HOME=/opt/cargo \
+	/opt/cargo/bin/rustup target add --toolchain "$RUST_TOOLCHAIN" x86_64-pc-windows-msvc
 
 # Build output and package stores stay machine-local: virtiofs is slow for them
 # and SQLite WAL must not live on /mnt/host (docs/adr/0006-development-environment.md).

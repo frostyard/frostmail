@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { instantAt } from "../lib/calendarDates";
-import { editorTarget, newEventAt, openEvent, windowLabel } from "./eventWindow";
+import { editorTarget, newEventAt, openEvent, windowLabel } from "./openEvent";
 
 afterEach(() => {
   window.location.hash = "";
@@ -9,7 +9,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("eventWindow", () => {
+describe("openEvent", () => {
   it("reads its target from the hash a browser tab opens", () => {
     window.location.hash = "#/event/302?recurrenceId=2026-10-08T09%3A00%3A00.000Z";
     expect(editorTarget()).toEqual({ kind: "edit", id: 302, recurrenceId: "2026-10-08T09:00:00.000Z" });

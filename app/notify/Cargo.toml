@@ -1,0 +1,27 @@
+[package]
+name = "frostmail-notify"
+version = "0.0.0"
+description = "Frostmail's toast notifier for Windows: shows and removes toasts for maild, and handles their clicks"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Data_Xml_Dom", "UI_Notifications", "Foundation"] }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Threading",
+] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

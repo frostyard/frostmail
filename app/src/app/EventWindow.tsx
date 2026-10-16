@@ -12,7 +12,7 @@ import { ALERT, BUTTON, PRIMARY_BUTTON } from "../features/settings/labels";
 import { changedFields, draftOf, type EventDraft, newDraft, sendsInvitees, validate } from "../lib/eventDraft";
 import { withNotify } from "../lib/notify";
 import type { CalendarEvent, Client, EventScope } from "../rpc/gen/api";
-import type { EditorTarget } from "./eventWindow";
+import type { EditorTarget } from "./openEvent";
 import { announceRestore } from "./pimUndo";
 
 interface LoadedEvent {

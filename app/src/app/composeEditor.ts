@@ -7,6 +7,7 @@ import type { Editor, Extensions } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 
 import type { FormatCommand, FormatKey } from "../features/compose/ComposeToolbar";
+import { isPartURL, toMaildParts, toPageParts } from "../lib/partURL";
 
 /** LINK_PROTOCOLS are the only link targets the editor keeps. */
 const LINK_URL = /^(https?:\/\/|mailto:)/i;
@@ -17,7 +18,7 @@ export function isAllowedLink(url: string): boolean {
 }
 
 /**
- * SafeImage keeps only quoted inline images (mailpart:) and data: images.
+ * SafeImage keeps only quoted inline images (the parts cache) and data: images.
  * Any other image, such as one pasted from a web page, is dropped when the
  * HTML is parsed, so the compose window never fetches remote content
  * (ADR-0005); the app's CSP would block it anyway.
@@ -27,7 +28,10 @@ export const SafeImage = Image.extend({
     return [
       {
         tag: "img[src]",
-        getAttrs: (el: HTMLElement) => (/^(mailpart:|data:image\/)/i.test(el.getAttribute("src") ?? "") ? null : false),
+        getAttrs: (el: HTMLElement) => {
+          const src = el.getAttribute("src") ?? "";
+          return isPartURL(src) || /^data:image\//i.test(src) ? null : false;
+        },
       },
     ];
   },
@@ -118,16 +122,18 @@ export function isBlank(editor: Editor): boolean {
 /**
  * toEditorHTML prepares maild's HTML for the editor: mail marks an empty
  * line as <p><br></p>, which the editor would read as a paragraph holding a
- * line break, so the text typed into it would start on a second line.
+ * line break, so the text typed into it would start on a second line; and
+ * quoted images take the page's parts URLs (lib/partURL.ts).
  */
 export function toEditorHTML(html: string): string {
-  return html.replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, "<p></p>");
+  return toPageParts(html).replace(/<p>\s*<br\s*\/?>\s*<\/p>/gi, "<p></p>");
 }
 
 /**
  * toMailHTML is the editor's HTML as it is saved and sent: an empty
- * paragraph gets a <br>, without which mail clients draw no line at all.
+ * paragraph gets a <br>, without which mail clients draw no line at all;
+ * and quoted images get maild's parts URLs back.
  */
 export function toMailHTML(html: string): string {
-  return html.replace(/<p><\/p>/g, "<p><br></p>");
+  return toMaildParts(html).replace(/<p><\/p>/g, "<p><br></p>");
 }

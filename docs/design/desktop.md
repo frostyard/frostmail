@@ -89,8 +89,13 @@ the notifier and the installer.
   the app starts maild when it is not running. maild is not a service: it
   is per user, like its secrets and its pipe.
 - **One maild:** a second maild finds the user's pipe taken and exits.
-- **Logs:** `%LOCALAPPDATA%\Frostmail\logs\maild.log`, rotated at start
-  past 10 MB (one old file kept), and stderr too when maild has a console.
+- **Where things are:** the installer puts the app and its sidecars in
+  `%LOCALAPPDATA%\Frostmail`; maild keeps its database, blobs, sealed
+  secrets and logs in its `Data` folder and decoded parts in `Cache`, so
+  an install never touches them.
+- **Logs:** `%LOCALAPPDATA%\Frostmail\Data\logs\maild.log`, rotated at
+  start past 10 MB (one old file kept), and stderr too when maild has a
+  console.
 - **Notifications:** maild runs `frostmail-notify.exe`, from beside
   `maild.exe` or `FROSTMAIL_NOTIFIER`, once per change, with one JSON
   object on stdin:
@@ -102,10 +107,63 @@ the notifier and the installer.
   Mail goes in group `mail`, with tag `m<message id>`, or `a<account id>`
   for a group note, which the next replaces. Reminders go in group
   `reminders` with tag `r` and a hash of the reminder's id, since a tag
-  holds at most 64 characters. Clicking a toast, and its Snooze and
-  Dismiss, are the notifier's and the app's: they open the message or call
-  `calendar.snooze` and `calendar.dismiss` over the pipe. maild without
-  the notifier sends no notifications.
+  holds at most 64 characters. maild without the notifier sends no
+  notifications.
+
+  The notifier (`app/notify`, Rust with WinRT) posts toasts under the
+  AppUserModelID `org.frostyard.Frostmail`, which Windows knows from the
+  Start Menu shortcut and the installer's
+  `HKCU\Software\Classes\AppUserModelId` key. Every activation is a
+  `frostmail-toast:` URI, which the installer registers for the user as
+  `frostmail-notify.exe --activate "%1"`, so a click works whether or not
+  anything of Frostmail's is running:
+  - a mail toast is `frostmail-toast:open?message=<id>`, and a group note
+    `frostmail-toast:open`, which run `frostmail.exe --open-message <id>`
+    (or `frostmail.exe`) from beside the notifier, or `FROSTMAIL_APP`;
+  - a reminder (`scenario="reminder"`, on screen until acted on) opens the
+    app on a click, and its Snooze and Dismiss are
+    `frostmail-toast:snooze?reminder=<id>` and `…dismiss?…`, which call
+    `calendar.snooze` (ten minutes, at the minute, as maild's own Snooze)
+    and `calendar.dismiss` over the pipe, starting maild first if it is
+    not running.
+
+  Any program the user runs can send such a URI; each does only what the
+  user could with a click, and a reminder's id is opaque. Without a
+  console the notifier's errors reach only maild's log (when maild ran it).
+- **The app on WebView2:** a release build is a GUI program. WebView2
+  serves the app at `http://tauri.localhost` and custom schemes as
+  `http://<scheme>.localhost`, so the navigation guard allows that origin
+  on Windows only, the app rewrites maild's `mailpart://localhost/` URLs
+  to `http://mailpart.localhost/` in what it shows and back in what it
+  saves (`app/src/lib/partURL.ts`), and the Windows CSP
+  (`tauri.windows.conf.json`) allows images from it. The commands that
+  open windows (compose, event, settings, reminders) are async, since a
+  window built in a synchronous command deadlocks WebView2's app; every
+  window shares one WebView2 environment, so all take the same browser
+  arguments (`main.rs`, `window`). The bridge opens the
+  pipe at the identification level and starts `maild.exe` from beside the
+  app when no pipe is there. The attachment types that never open
+  (`open_part`) include Windows' own (`.lnk`, `.url`, `.hta`, `.reg` and
+  the like).
+- **The installer:** Tauri's NSIS installer, per user (no administrator
+  rights), built by the Windows CI job (`frostmail-windows-installer`).
+  It installs `frostmail.exe` with `maild.exe`, `mailctl.exe` and
+  `frostmail-notify.exe` beside it, a Start Menu shortcut, and
+  `frostmail.png` for the toasts' icon. Its hooks
+  (`app/src-tauri/windows/hooks.nsh`):
+  - before copying, rename each running sidecar aside (Windows lets a
+    running file be renamed, not replaced) and stop the user's maild, so
+    an app still open cannot restart the old maild;
+  - after copying, delete the renamed files, register the AppUserModelID
+    and `frostmail-toast:`, run `maild -autostart on`, and start maild as
+    the user;
+  - on uninstall, stop maild and remove both registrations (the template
+    removes the Run value); "Delete the application data" also removes
+    `Data` and `Cache`. An upgrade runs the old uninstaller in update
+    mode, which keeps the data, the Run value and the registrations.
+
+  Releases are unsigned (ADR-0038): SmartScreen asks once per release
+  ("More info", "Run anyway").
 
 ## One app instance
 

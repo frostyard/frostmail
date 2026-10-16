@@ -3,8 +3,10 @@
 # and jobs get only the permissions they need (frostyard/core ADR-0021,
 # checked by internal/workflowcheck); tools come from go.mod, mise.lock and
 # the app's manifests (ADR-0043). The app targets normally run in the nsl
-# machine; here IN_NSL runs them on the runner. The Windows job runs the Go
-# suite on Windows (ADR-0038), which `make verify` only vets.
+# machine; here IN_NSL runs them on the runner. The Windows jobs run the Go
+# suite on Windows, which `make verify` only vets, and build the Windows app
+# and its installer, which `make app-check-windows` only type-checks
+# (ADR-0038).
 name: CI
 
 on:
@@ -138,9 +140,87 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             build/cargo-target
-          key: cargo-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('app/src-tauri/Cargo.lock') }}
+          key: cargo-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('app/src-tauri/Cargo.lock', 'app/notify/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-
       - name: Release build of the app
         run: make app-build IN_NSL='sh -c'
       - name: The app shell's Rust tests
         run: make app-test IN_NSL='sh -c'
+
+  windows-app:
+    name: Windows app (installer, WebView2 e2e)
+    runs-on: windows-2025
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/build/cargo-target
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - name: Rust ${{ env.RUST_TOOLCHAIN }}
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            build/cargo-target
+          key: cargo-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('app/src-tauri/Cargo.lock', 'app/notify/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-
+      # Tauri bundles each beside the app (bundle.externalBin), named for
+      # the target.
+      - name: The sidecars (maild, mailctl, frostmail-notify)
+        run: |
+          set -euo pipefail
+          bin=app/src-tauri/binaries
+          triple=x86_64-pc-windows-msvc
+          ldflags="-s -w -X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse --short HEAD)"
+          mkdir -p "$bin"
+          CGO_ENABLED=0 go build -trimpath -ldflags "$ldflags -H=windowsgui" -o "$bin/maild-$triple.exe" ./cmd/maild
+          CGO_ENABLED=0 go build -trimpath -ldflags "$ldflags" -o "$bin/mailctl-$triple.exe" ./cmd/mailctl
+          cd app/notify
+          cargo test --release --locked
+          cargo build --release --locked
+          cp "$CARGO_TARGET_DIR/release/frostmail-notify.exe" "../../$bin/frostmail-notify-$triple.exe"
+      - name: The app shell's Rust tests
+        run: cd app/src-tauri && cargo test --release --locked
+      - name: The installer
+        run: cd app && pnpm install --frozen-lockfile && pnpm tauri build --bundles nsis
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frostmail-windows-installer
+          path: build/cargo-target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+      # The reader on WebView2 (ADR-0038): the hostile-mail suite, links,
+      # remote images and the smoke test drive the app the installer holds,
+      # with the runner's msedgedriver attached to it.
+      - name: The app's end-to-end tests on WebView2
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go build -o build/ ./cmd/maild ./tools/uifixture ./tools/smtpsink
+          cp "$CARGO_TARGET_DIR/release/frostmail.exe" build/frostmail-app.exe
+          # The image installs msedgedriver for its Edge, at the path its
+          # EDGEWEBDRIVER names, which the job's environment may lack.
+          edge="${EDGEWEBDRIVER:-C:/SeleniumWebDrivers/EdgeDriver}/msedgedriver.exe"
+          "$edge" --version || { ls -la C:/SeleniumWebDrivers/* || true; exit 1; }
+          MSYS_NO_PATHCONV=1 reg query 'HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' /v pv || true
+          # WebView2 needs a window, so an interactive desktop session.
+          powershell -NoProfile -Command '"session " + (Get-Process -Id $PID).SessionId + ", interactive " + [Environment]::UserInteractive'
+          cd app && FROSTMAIL_EDGEDRIVER="$edge" pnpm exec vitest run -c vitest.e2e.config.ts hostile links smoke remote

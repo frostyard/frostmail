@@ -82,7 +82,9 @@ client.
   fixed template around `Rendering.html`: a charset meta, a light
   `color-scheme`, `<base target="_blank">`, a white page with 20px padding,
   `overflow-wrap: anywhere`, and images limited to the frame's width. In
-  dev builds the template rewrites `mailpart://localhost/` to `/mailpart/`.
+  dev builds the template rewrites `mailpart://localhost/` to `/mailpart/`,
+  and on WebView2 to `http://mailpart.localhost/` (`lib/partURL.ts`; the
+  compose editor does the same and undoes it when saving).
   - After load, a `ResizeObserver` on the frame document's root (reachable
     because the frame is same-origin) sets the frame's height to its content,
     so the reader scrolls as one page. A frame that loaded before the
