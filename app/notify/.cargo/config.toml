@@ -1,0 +1,5 @@
+# The C runtime is linked in, as Tauri does for the app, so the notifier
+# needs no Visual C++ redistributable. Cargo reads this when run from
+# app/notify.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
