@@ -1,6 +1,6 @@
-// Microsoft accounts in the account form (plan 0010, Phase 2): Outlook.com
-// signs in only with Microsoft, in the browser, and offers no services
-// until Graph's contacts and calendars land.
+// Microsoft accounts in the account form (plan 0010, Phases 2 and 3):
+// Outlook.com signs in only with Microsoft, in the browser, once for mail
+// and the contacts and calendars it offers over Graph.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -24,7 +24,7 @@ const microsoft: AccountFormValue = {
   auth: "oauth2",
   imap: { host: "outlook.office365.com", port: 993, tls: "tls", username: "cy@hotmail.com" },
   smtp: { host: "smtp-mail.outlook.com", port: 587, tls: "starttls", username: "cy@hotmail.com" },
-  services: [],
+  services: ["contacts", "calendar"],
 };
 
 function form(over: Partial<AccountFormProps> = {}) {
@@ -47,10 +47,15 @@ function form(over: Partial<AccountFormProps> = {}) {
 }
 
 describe("Microsoft accounts", () => {
-  it("switch to Microsoft sign-in with no services", () => {
+  it("switch to Microsoft sign-in with contacts and calendars checked", () => {
     const { onChange } = form();
     fireEvent.change(screen.getByLabelText("Account Type:"), { target: { value: "microsoft" } });
-    expect(onChange).toHaveBeenLastCalledWith({ ...value, kind: "microsoft", auth: "oauth2", services: [] });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...value,
+      kind: "microsoft",
+      auth: "oauth2",
+      services: ["contacts", "calendar"],
+    });
   });
 
   it("offer Microsoft sign-in only, and explain it when adding", () => {
@@ -59,8 +64,12 @@ describe("Microsoft accounts", () => {
     expect(Array.from(auth.options).map((o) => [o.value, o.text])).toEqual([["oauth2", "Microsoft sign-in"]]);
     expect(screen.queryByLabelText("Password:")).toBeNull();
     expect(screen.getByText("Microsoft:")).toBeTruthy();
-    expect(screen.getByText("After adding the account, sign in with Microsoft in your browser.")).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Contacts, Calendars and Tasks" })).toBeNull();
+    expect(
+      screen.getByText(
+        "After adding the account, sign in with Microsoft in your browser, once for mail and the services checked below.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Microsoft asks once for mail and the services checked here.")).toBeTruthy();
   });
 
   it("go back to a password when the kind changes away", () => {

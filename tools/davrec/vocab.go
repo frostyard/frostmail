@@ -26,6 +26,7 @@ var vocabulary = func() map[string]bool {
  depth content length transfer accept authorization proxy cookie redacted etag host connection keep alive
  found not ok charset encoding error status tasks task tasklist tasklists lists users items kind id notes links link
  selflink webviewlink updated position hidden deleted maxresults showcompleted showdeleted showhidden updatedmin
+ microsoft graph outlook odata birthday
  com net edu gov io example vcf ics the from of and or`
 	m := map[string]bool{}
 	for _, w := range strings.Fields(words) {

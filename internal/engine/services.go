@@ -42,11 +42,8 @@ func serviceOrder() []api.ServiceKind {
 }
 
 // serviceAvailable reports whether the account's provider offers a
-// service Frostmail can reach: Microsoft has no DAV, iCloud no tasks.
+// service Frostmail can reach: iCloud and Microsoft have no tasks for it.
 func serviceAvailable(acct store.Account, s api.ServiceKind) bool {
-	if acct.Kind == api.AccountKindMicrosoft {
-		return false
-	}
 	return s != api.ServiceKindTasks || providers.ForKind(acct.Kind).DAV.Tasks != "none"
 }
 
@@ -55,12 +52,14 @@ func googleTasks(acct store.Account, s api.ServiceKind) bool {
 	return s == api.ServiceKindTasks && providers.ForKind(acct.Kind).DAV.Tasks == "google"
 }
 
-// serviceSignedIn reports whether the account's sign-in covers a service.
+// serviceSignedIn reports whether the account's sign-in covers a service:
+// Google's and Microsoft Graph's need their own scopes.
 func serviceSignedIn(acct store.Account, s api.ServiceKind) bool {
-	if acct.Auth != api.AuthKindOAuth2 || providers.ForKind(acct.Kind).OAuth != "google" {
+	if acct.Auth != api.AuthKindOAuth2 {
 		return true
 	}
-	return acct.HasScope(oauth.GoogleScope(s))
+	scope := oauth.ServiceScope(providers.ForKind(acct.Kind).OAuth, s)
+	return scope == "" || acct.HasScope(scope)
 }
 
 func toAPIService(acct store.Account, kind api.ServiceKind, row *store.Service) api.ServiceSettings {
@@ -170,6 +169,9 @@ func (a accounts) SetService(ctx context.Context, p *api.AccountSetServiceParams
 func (a accounts) locateService(ctx context.Context, acct store.Account, p *api.AccountSetServiceParams, had string) (start, home string, err error) {
 	if googleTasks(acct, p.Service) {
 		return providers.GoogleTasksURL, "", nil
+	}
+	if providers.ForKind(acct.Kind).DAV.Graph {
+		return providers.GraphURL, "", nil // Graph needs no discovery
 	}
 	var starts []string
 	switch {

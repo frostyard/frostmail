@@ -57,6 +57,9 @@ func exchangeText(x httprec.Exchange) []string {
 
 func (s *scrubber) collectEmails(text string) {
 	for _, email := range emailPattern.FindAllString(decoded(text), -1) {
+		if at := strings.IndexByte(email, '@'); strings.HasPrefix(strings.ToLower(email[at+1:]), "odata.") {
+			continue // Graph's annotations, such as calendar@odata.navigationLink
+		}
 		// A resource extension is not part of the address in a DAV href.
 		email = strings.TrimSuffix(strings.TrimSuffix(email, ".vcf"), ".ics")
 		dot := strings.LastIndexByte(email, '.')
@@ -120,13 +123,37 @@ func (s *scrubber) jsonValues(v any, links bool) {
 				s.syntax(kind)
 			}
 			if text, ok := item.(string); ok && (k == "title" || k == "notes" || links && (k == "description" || k == "link") ||
-				list && k == "id") {
+				list && k == "id" || graphText[k]) {
 				s.collectValue(text)
+			}
+			if values, ok := item.([]any); ok && graphLists[k] {
+				for _, value := range values {
+					if text, ok := value.(string); ok {
+						s.collectValue(text)
+					}
+				}
 			}
 			s.jsonValues(item, k == "links" || links)
 		}
 	}
 }
+
+// graphText are the keys of Microsoft Graph's events, contacts and
+// calendars whose strings say something about the account or the people
+// in it (ADR-0040): names, addresses, subjects, bodies, notes, numbers
+// and links. Protocol values (types, zones, change keys) and dates stay.
+var graphText = map[string]bool{
+	"subject": true, "bodyPreview": true, "content": true, "displayName": true, "name": true, "address": true,
+	"givenName": true, "surname": true, "middleName": true, "nickName": true, "initials": true, "fileAs": true,
+	"companyName": true, "department": true, "jobTitle": true, "officeLocation": true, "profession": true,
+	"assistantName": true, "manager": true, "spouseName": true, "personalNotes": true, "businessHomePage": true,
+	"mobilePhone": true, "street": true, "city": true, "state": true, "postalCode": true, "countryOrRegion": true,
+	"yomiCompanyName": true, "yomiGivenName": true, "yomiSurname": true, "uniqueId": true, "webLink": true,
+	"onlineMeetingUrl": true, "joinUrl": true,
+}
+
+// graphLists are Graph's keys whose values are lists of such strings.
+var graphLists = map[string]bool{"businessPhones": true, "homePhones": true, "imAddresses": true, "children": true, "categories": true}
 
 // XML token offsets let us patch embedded content without reserializing
 // the envelope: request bodies must retain the client's exact formatting.

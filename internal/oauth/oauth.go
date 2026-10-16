@@ -23,11 +23,25 @@ type Endpoint struct {
 	// Loopback is the redirect's host: "127.0.0.1" ("" too), or
 	// "localhost" for a client registered with it (Microsoft's).
 	Loopback string
-	// TokenScopes are sent with every token request. Microsoft grants a
-	// token for one audience, the one these scopes name (ADR-0039);
-	// Google needs none.
+	// TokenScopes are sent with every token request for mail. Microsoft
+	// grants a token for one audience, the one these scopes name
+	// (ADR-0039); Google needs none.
 	TokenScopes []string
+	// Audiences are the provider's audiences besides mail's, by name, with
+	// the prefix of their scopes: a token for one names the granted scopes
+	// with that prefix (Microsoft's Graph).
+	Audiences map[string]string
 }
+
+// AudienceGraph is Microsoft Graph's audience: contacts and calendars
+// (ADR-0039, ADR-0040).
+const AudienceGraph = "graph"
+
+// Microsoft Graph's scopes for the services besides mail.
+const (
+	MicrosoftContactsScope = "https://graph.microsoft.com/Contacts.ReadWrite"
+	MicrosoftCalendarScope = "https://graph.microsoft.com/Calendars.ReadWrite"
+)
 
 // Google is Google's endpoint for Gmail over IMAP and SMTP.
 var Google = Endpoint{
@@ -59,6 +73,7 @@ var Microsoft = Endpoint{
 	ClientID:    MicrosoftClientID,
 	Loopback:    "localhost",
 	TokenScopes: []string{MicrosoftIMAPScope, MicrosoftSMTPScope, "offline_access"},
+	Audiences:   map[string]string{AudienceGraph: "https://graph.microsoft.com/"},
 }
 
 // The Google scopes of the services besides mail (ADR-0017).

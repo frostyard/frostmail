@@ -153,15 +153,17 @@ export class MockPeople {
     this.data.services ??= {};
     const known = this.data.services[accountId];
     if (known) return known;
-    const google = account.kind === "gmail" && account.auth === "oauth2";
+    const google = (account.kind === "gmail" || account.kind === "microsoft") && account.auth === "oauth2";
     const fresh = SERVICE_KINDS.map(
       (service): ServiceSettings => ({
         service,
-        available: account.kind !== "microsoft" && !(account.kind === "icloud" && service === "tasks"),
+        available: !((account.kind === "icloud" || account.kind === "microsoft") && service === "tasks"),
         reason:
           account.kind === "icloud" && service === "tasks"
             ? "Apple Reminders can't be reached by apps outside Apple's (since iOS 13)."
-            : undefined,
+            : account.kind === "microsoft" && service === "tasks"
+              ? "Microsoft To Do isn't supported yet."
+              : undefined,
         enabled: false,
         url: "",
         signedIn: !google,

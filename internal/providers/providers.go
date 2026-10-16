@@ -62,6 +62,9 @@ type Profile struct {
 
 // DAV is a provider's contacts, calendar and tasks endpoints (ADR-0017).
 type DAV struct {
+	// Graph is a provider whose contacts and calendars are reached over
+	// Microsoft Graph (GraphURL) instead of CardDAV and CalDAV (ADR-0039).
+	Graph bool
 	// Contacts and Calendar are where CardDAV and CalDAV discovery start;
 	// "" when the provider has none (or for generic accounts, which
 	// discover from the address's domain).
@@ -97,6 +100,9 @@ type DAV struct {
 	// home set on another host.
 	Trusted []string
 }
+
+// GraphURL is Microsoft Graph's base URL (ADR-0039).
+const GraphURL = "https://graph.microsoft.com/v1.0/"
 
 // GoogleTasksURL is the Google Tasks API's base URL.
 const GoogleTasksURL = "https://tasks.googleapis.com/tasks/v1/"
@@ -134,6 +140,11 @@ var profiles = []Profile{
 		Domains: microsoftDomains,
 		Quirks: Quirks{SavesSent: true, NoQResync: true, NoKeywords: true,
 			OriginalMessageID: "X-Microsoft-Original-Message-ID"},
+		DAV: DAV{
+			Graph:   true,
+			Tasks:   "none",
+			NoTasks: "Microsoft To Do isn't supported yet.",
+		},
 	},
 	{
 		Kind:    api.AccountKindICloud,

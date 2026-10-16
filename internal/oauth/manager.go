@@ -32,7 +32,17 @@ var (
 	// ErrReauth means the provider refused the stored grant, or there is
 	// none: the user must sign in again.
 	ErrReauth = errors.New("oauth: sign in again")
+	// ErrNoScope means the grant covers no scope of the audience asked
+	// for: the user signs in again with the service on.
+	ErrNoScope = errors.New("oauth: the sign-in covers no scope for this service")
 )
+
+// tokenKey names a cached access token: an account's, for an audience
+// ("" for mail's).
+type tokenKey struct {
+	account  int64
+	audience string
+}
 
 // Manager signs accounts in (the authorization-code flow with PKCE and a
 // loopback redirect) and keeps their access tokens fresh
@@ -57,7 +67,7 @@ type Manager struct {
 	Rand io.Reader
 
 	mu         sync.Mutex
-	tokens     map[int64]Token
+	tokens     map[tokenKey]Token
 	flows      map[int64]context.CancelFunc
 	refreshing map[int64]*sync.Mutex
 }
@@ -222,11 +232,13 @@ func listenLoopback(host string) ([]net.Listener, string, error) {
 	return lns, fmt.Sprintf("http://localhost:%d", port), nil
 }
 
-// scopes are what a sign-in asks for: the endpoint's (mail), and for a
-// Google account the scopes of its services that are on (ADR-0017).
+// scopes are what a sign-in asks for: the endpoint's (mail), and the
+// scopes of the account's services that are on (Google's, ADR-0017, and
+// Microsoft Graph's, ADR-0039).
 func (m *Manager) scopes(ctx context.Context, c creds) ([]string, error) {
 	out := slices.Clone(c.endpoint.Scopes)
-	if providers.ForKind(c.acct.Kind).OAuth != "google" {
+	provider := providers.ForKind(c.acct.Kind).OAuth
+	if provider != "google" && provider != "microsoft" {
 		return out, nil
 	}
 	services, err := m.DB.Services(ctx, c.acct.ID)
@@ -234,11 +246,27 @@ func (m *Manager) scopes(ctx context.Context, c creds) ([]string, error) {
 		return nil, err
 	}
 	for _, s := range services {
-		if scope := GoogleScope(s.Service); s.Enabled && scope != "" {
+		if scope := ServiceScope(provider, s.Service); s.Enabled && scope != "" {
 			out = append(out, scope)
 		}
 	}
 	return out, nil
+}
+
+// ServiceScope is the scope a provider's service needs ("" for none).
+func ServiceScope(provider string, service api.ServiceKind) string {
+	switch provider {
+	case "google":
+		return GoogleScope(service)
+	case "microsoft":
+		switch service {
+		case api.ServiceKindContacts:
+			return MicrosoftContactsScope
+		case api.ServiceKindCalendar:
+			return MicrosoftCalendarScope
+		}
+	}
+	return ""
 }
 
 // GoogleScope is the Google scope a service needs.
@@ -327,9 +355,11 @@ func (f *flow) finish(ctx context.Context, code string) error {
 	if err := m.Secrets.Set(ctx, secrets.RefreshToken(c.acct.ID), tok.Refresh); err != nil {
 		return err
 	}
-	m.remember(c.acct.ID, tok)
+	m.remember(tokenKey{account: c.acct.ID}, tok)
 	granted := tok.Scope
-	if granted == "" { // the provider granted what was asked
+	if granted == "" || len(c.endpoint.Audiences) > 0 {
+		// The provider granted what was asked; Microsoft names only the
+		// first audience's scopes, but the consent covered them all.
 		granted = strings.Join(f.scopes, " ")
 	}
 	err = m.DB.Tx(ctx, func(tx *store.Tx) error {
@@ -353,7 +383,7 @@ func (m *Manager) exchange(ctx context.Context, c creds, form url.Values) (Token
 	if c.secret != "" {
 		form.Set("client_secret", c.secret)
 	}
-	if len(c.endpoint.TokenScopes) > 0 {
+	if len(c.endpoint.TokenScopes) > 0 && !form.Has("scope") {
 		form.Set("scope", strings.Join(c.endpoint.TokenScopes, " "))
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint.TokenURL, strings.NewReader(form.Encode()))
@@ -376,7 +406,7 @@ func (m *Manager) exchange(ctx context.Context, c creds, form url.Values) (Token
 
 // remember caches an access token; a token without a lifetime is kept for
 // 50 minutes.
-func (m *Manager) remember(accountID int64, tok Token) {
+func (m *Manager) remember(key tokenKey, tok Token) {
 	if tok.Expiry.IsZero() {
 		tok.Expiry = m.now().Add(50 * time.Minute)
 	}
@@ -384,27 +414,57 @@ func (m *Manager) remember(accountID int64, tok Token) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.tokens == nil {
-		m.tokens = map[int64]Token{}
+		m.tokens = map[tokenKey]Token{}
 	}
-	m.tokens[accountID] = tok
+	m.tokens[key] = tok
 }
 
-// AccessToken returns a token valid for at least 5 more minutes,
+// AccessToken returns a token for mail valid for at least 5 more minutes,
 // refreshing it when needed. It returns ErrReauth when there is no grant
 // or the provider refuses it (and marks the account so).
 func (m *Manager) AccessToken(ctx context.Context, accountID int64) (string, error) {
-	if tok, ok := m.cached(accountID); ok {
-		return tok, nil
-	}
-	lock := m.refreshLock(accountID)
-	lock.Lock()
-	defer lock.Unlock()
-	if tok, ok := m.cached(accountID); ok { // refreshed while we waited
+	return m.AccessTokenFor(ctx, accountID, "")
+}
+
+// AccessTokenFor is AccessToken for one of the provider's audiences besides
+// mail's (AudienceGraph), from the same refresh token; "" is mail's. A
+// provider with one audience (Google) gives its token for any. The lock
+// is the account's, so two audiences never redeem a rotating refresh
+// token at once. ErrNoScope means the grant has no scope of the audience.
+func (m *Manager) AccessTokenFor(ctx context.Context, accountID int64, audience string) (string, error) {
+	if tok, ok := m.cached(tokenKey{account: accountID, audience: audience}); ok {
 		return tok, nil
 	}
 	c, err := m.creds(ctx, accountID)
 	if err != nil {
 		return "", err
+	}
+	prefix, multi := c.endpoint.Audiences[audience]
+	if !multi {
+		audience = ""
+	}
+	key := tokenKey{account: accountID, audience: audience}
+	if tok, ok := m.cached(key); ok {
+		return tok, nil
+	}
+	lock := m.refreshLock(accountID)
+	lock.Lock()
+	defer lock.Unlock()
+	if tok, ok := m.cached(key); ok { // refreshed while we waited
+		return tok, nil
+	}
+	form := url.Values{"grant_type": {"refresh_token"}}
+	if multi {
+		var scopes []string
+		for _, s := range strings.Fields(c.acct.GrantedScopes) {
+			if strings.HasPrefix(s, prefix) {
+				scopes = append(scopes, s)
+			}
+		}
+		if len(scopes) == 0 {
+			return "", fmt.Errorf("%w (%s)", ErrNoScope, audience)
+		}
+		form.Set("scope", strings.Join(append(scopes, "offline_access"), " "))
 	}
 	refresh, err := m.Secrets.Get(ctx, secrets.RefreshToken(accountID))
 	if errors.Is(err, secrets.ErrNotFound) {
@@ -413,8 +473,14 @@ func (m *Manager) AccessToken(ctx context.Context, accountID int64) (string, err
 	if err != nil {
 		return "", err
 	}
-	tok, err := m.exchange(ctx, c, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {refresh}})
+	form.Set("refresh_token", refresh)
+	tok, err := m.exchange(ctx, c, form)
 	var te *TokenError
+	if multi && errors.As(err, &te) && strings.Contains(te.Description, "AADSTS65001") {
+		// No consent for this audience's scopes: the service waits for a
+		// sign-in, and mail goes on.
+		return "", fmt.Errorf("%w (%s): %w", ErrNoScope, audience, err)
+	}
 	if errors.As(err, &te) && te.Code == "invalid_grant" {
 		return "", m.needsReauth(ctx, accountID, fmt.Errorf("%w: %w", ErrReauth, err))
 	}
@@ -426,14 +492,14 @@ func (m *Manager) AccessToken(ctx context.Context, accountID int64) (string, err
 			return "", err
 		}
 	}
-	m.remember(accountID, tok)
+	m.remember(key, tok)
 	return tok.Access, nil
 }
 
-func (m *Manager) cached(accountID int64) (string, bool) {
+func (m *Manager) cached(key tokenKey) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	tok, ok := m.tokens[accountID]
+	tok, ok := m.tokens[key]
 	if !ok || tok.Expiry.Sub(m.now()) < refreshMargin {
 		return "", false
 	}
@@ -462,10 +528,14 @@ func (m *Manager) needsReauth(ctx context.Context, accountID int64, err error) e
 	return err
 }
 
-// Invalidate drops an account's cached access token (the server refused
-// it), so the next AccessToken refreshes.
+// Invalidate drops an account's cached access tokens (a server refused
+// one), so the next AccessToken or AccessTokenFor refreshes.
 func (m *Manager) Invalidate(accountID int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	delete(m.tokens, accountID)
+	for key := range m.tokens {
+		if key.account == accountID {
+			delete(m.tokens, key)
+		}
+	}
 }
