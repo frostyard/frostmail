@@ -36,7 +36,8 @@ account needed them. Facts checked 2026-10-15:
 
 ## Decision
 
-- **An `outlook` account kind** with a provider profile: Outlook.com's IMAP
+- **The `microsoft` account kind** (already in the API) with a provider
+  profile: Outlook.com's IMAP
   and SMTP hosts, OAuth only, `hotmail.com`, `outlook.com`, `live.com` and
   `msn.com` addresses, and whatever quirks Phase 1's probe finds. Mail
   syncs over IMAP and sends over SMTP with XOAUTH2, through the same

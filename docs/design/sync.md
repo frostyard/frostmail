@@ -54,6 +54,19 @@ Opening a message (P0) fetches what the reader shows
 - **Small messages whole:** a message of 256 KB or less (`RFC822.SIZE`) is
   fetched whole, since one round trip is quicker than the display copy's
   two. So is a message whose structure has no boundary to rebuild.
+- **Exchange's sections** (Outlook.com) carry the CRLF of the boundary
+  after a part, two bytes more than BODYSTRUCTURE's size. The display copy
+  cuts a part to its size when that is all there is more, which changes
+  nothing on other servers. Exchange also lists its header lines in
+  another order in `BODY[HEADER]` than in `BODY[]`; nothing reads that
+  order. On 2026-10-16 the 37 display copies of the user's Outlook.com
+  test account gave the same text, HTML and inline images as the whole
+  messages.
+- **Exchange's stand-ins:** a deleted calendar item lands in Deleted Items,
+  which IMAP shows as a "Retrieval using the IMAP4 protocol failed"
+  message. Exchange once answered the first FETCH of three such UIDs, which
+  its SEARCH had listed, with no data. The next pass fetched them, so the
+  store caught up within a pass.
 - **The whole message** (`BODY.PEEK[]`, `messages.blob_sha`, `body_state
   = 'full'`) is fetched for Raw Source, Save, forwarding, redirecting,
   reopening a draft, and opening an attachment the display copy left out.
@@ -172,6 +185,13 @@ to a thread; a message referencing two threads merges them. Subject grouping
 that has a `Re:` prefix and no references, within 7 days.
 
 ## Offline actions
+
+A server that keeps no keywords (Outlook.com, the profile's `NoKeywords`)
+answers OK to a `STORE` of `$MailFlagBit0-2` or another keyword and stores
+nothing. Such an account sends only system flags, `$Forwarded` and
+`$MDNSent`, so a color reaches the server as `\Flagged` alone. Its passes
+read flags back with `UpdateSystemFlags`, which keeps the stored keywords,
+and the stored color while the server has the message flagged.
 
 M1 implements flags (`\Seen`, `\Flagged`, `\Answered`, Mail.app color bits),
 moves, and deletes (to Trash; expunge when already in Trash or when the
