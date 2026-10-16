@@ -5,6 +5,7 @@ import (
 	"net"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
@@ -51,9 +52,27 @@ func TestPipeGrantsOnlyTheUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "D:P(A;;FA;;;" + user.User.Sid.String() + ")"
-	if got := sd.String(); got != want {
-		t.Errorf("pipe DACL = %s, want %s", got, want)
+	// Compared as an ACE, not as SDDL text, which writes well-known SIDs as
+	// aliases (the built-in Administrator, as CI runs, is LA).
+	control, _, err := sd.Control()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if control&windows.SE_DACL_PROTECTED == 0 || dacl == nil || dacl.AceCount != 1 {
+		t.Fatalf("pipe DACL = %s: want one entry, protected from inheritance", sd)
+	}
+	var ace *windows.ACCESS_ALLOWED_ACE
+	if err := windows.GetAce(dacl, 0, &ace); err != nil {
+		t.Fatal(err)
+	}
+	sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+	if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || !sid.Equals(user.User.Sid) ||
+		ace.Mask&windows.FILE_GENERIC_READ != windows.FILE_GENERIC_READ || ace.Mask&windows.FILE_GENERIC_WRITE != windows.FILE_GENERIC_WRITE {
+		t.Errorf("pipe DACL = %s: want full access for %s alone", sd, user.User.Sid)
 	}
 }
 
