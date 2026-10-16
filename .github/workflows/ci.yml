@@ -158,7 +158,6 @@ jobs:
         shell: bash
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/build/cargo-target
-      TAURI_DRIVER_VERSION: "2.1.0"
     steps:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -211,9 +210,7 @@ jobs:
           retention-days: 14
       # The reader on WebView2 (ADR-0038): the hostile-mail suite, links,
       # remote images and the smoke test drive the app the installer holds,
-      # through tauri-driver and the runner's msedgedriver.
-      - name: tauri-driver ${{ env.TAURI_DRIVER_VERSION }}
-        run: cargo install tauri-driver --version "$TAURI_DRIVER_VERSION" --locked
+      # with the runner's msedgedriver attached to it.
       - name: The app's end-to-end tests on WebView2
         run: |
           set -euo pipefail

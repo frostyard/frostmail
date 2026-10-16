@@ -2,8 +2,8 @@
 // HTTP server that records every request, fixture data directories built by
 // tools/uifixture, and the built app driven through WebKitWebDriver against a
 // maild on that data. Run with make ui-e2e, which builds the binaries first.
-// On Windows (CI's Windows app job) the app runs in WebView2, driven through
-// tauri-driver and msedgedriver (docs/design/testing.md).
+// On Windows (CI's Windows app job) the app runs in WebView2, driven by
+// msedgedriver attached to it (docs/design/testing.md).
 import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -200,24 +200,54 @@ function pipeUp(path: string): Promise<boolean> {
   });
 }
 
-/** driver starts the WebDriver server for the platform's webview on port. */
-async function driver(port: number, env: NodeJS.ProcessEnv): Promise<ChildProcess> {
-  if (WINDOWS) {
-    // tauri-driver hands the session to msedgedriver, on a port of its own
-    // so that one left over from an earlier run cannot answer instead.
-    const edge = process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe";
-    const args = ["--port", String(port), "--native-port", String(await freePort()), "--native-driver", edge];
-    return spawn("tauri-driver", args, { env, stdio: ["ignore", "inherit", "inherit"] });
+/** reachable reports whether an HTTP endpoint answers with success. */
+async function reachable(url: string): Promise<boolean> {
+  try {
+    return (await fetch(url)).ok;
+  } catch {
+    return false;
   }
-  // WebKitWebDriver launches the app; Tauri allows automation when
-  // TAURI_WEBVIEW_AUTOMATION is set (what tauri-driver does on Linux).
-  return spawn("WebKitWebDriver", [`--port=${port}`], {
-    env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" },
-    stdio: ["ignore", "inherit", "inherit"],
-  });
 }
 
-/** stopProcess ends a process and, on Windows, what it started (tauri-driver's msedgedriver). */
+/**
+ * startApp starts the app and the WebDriver server that drives it on port,
+ * and returns them with the session's capabilities.
+ *
+ * WebKitWebDriver launches the app itself; Tauri allows automation when
+ * TAURI_WEBVIEW_AUTOMATION is set (all tauri-driver does on Linux).
+ * msedgedriver, which would look for the WebView2 DevTools port in a data
+ * folder of its own while Tauri gives WebView2 the app's, attaches instead
+ * to the port the app opens when asked through WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS.
+ */
+async function startApp(
+  port: number,
+  env: NodeJS.ProcessEnv,
+): Promise<{ procs: ChildProcess[]; capabilities: Record<string, unknown> }> {
+  const stdio: ["ignore", "inherit", "inherit"] = ["ignore", "inherit", "inherit"];
+  if (!WINDOWS) {
+    const driver = spawn("WebKitWebDriver", [`--port=${port}`], {
+      env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" },
+      stdio,
+    });
+    return {
+      procs: [driver],
+      capabilities: { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } },
+    };
+  }
+  const devtools = await freePort();
+  const app = spawn(bin("frostmail-app"), [], {
+    env: { ...env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${devtools}` },
+    stdio,
+  });
+  await until("the app's DevTools port", () => reachable(`http://127.0.0.1:${devtools}/json/version`), 60_000);
+  const driver = spawn(process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe", [`--port=${port}`], { env, stdio });
+  return {
+    procs: [app, driver],
+    capabilities: { browserName: "webview2", "ms:edgeOptions": { debuggerAddress: `127.0.0.1:${devtools}` } },
+  };
+}
+
+/** stopProcess ends a process and, on Windows, what it started (the app's WebView2 processes). */
 function stopProcess(p: ChildProcess): Promise<void> {
   return new Promise<void>((done) => {
     if (p.exitCode !== null || p.signalCode !== null) return done();
@@ -242,35 +272,27 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
     ...extraEnv,
   };
   const procs: ChildProcess[] = [];
-  const maild = spawn(bin("maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] });
-  procs.push(maild);
-  await until("maild's socket", () => (WINDOWS ? pipeUp(socket) : existsSync(socket)));
-
-  const port = await freePort();
-  procs.push(await driver(port, env));
-  const url = `http://127.0.0.1:${port}`;
-  await until("the WebDriver server", async () => {
-    try {
-      return (await fetch(`${url}/status`)).ok;
-    } catch {
-      return false;
-    }
-  });
-  const session = await Session.start(
-    url,
-    WINDOWS
-      ? { browserName: "wry", "tauri:options": { application: bin("frostmail-app") } }
-      : { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } },
-  );
-  return {
-    session,
-    cache,
-    stop: async () => {
-      await session.quit().catch(() => {});
-      await Promise.all(procs.reverse().map(stopProcess));
-      // The run's data (fixtures reach 500 MB) lives in the machine's small
-      // /tmp. Windows may hold a file of a process just ended for a moment.
-      rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
-    },
+  let session: Session | undefined;
+  const stop = async () => {
+    await session?.quit().catch(() => {});
+    await Promise.all(procs.reverse().map(stopProcess));
+    // The run's data (fixtures reach 500 MB) lives in the machine's small
+    // /tmp. Windows may hold a file of a process just ended for a moment.
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
   };
+  try {
+    procs.push(spawn(bin("maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] }));
+    await until("maild's socket", () => (WINDOWS ? pipeUp(socket) : existsSync(socket)));
+    const port = await freePort();
+    const started = await startApp(port, env);
+    procs.push(...started.procs);
+    const url = `http://127.0.0.1:${port}`;
+    await until("the WebDriver server", () => reachable(`${url}/status`));
+    session = await Session.start(url, started.capabilities);
+    return { session, cache, stop };
+  } catch (err) {
+    // A single-instance app left running would take the next launch.
+    await stop();
+    throw err;
+  }
 }

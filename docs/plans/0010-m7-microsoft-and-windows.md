@@ -309,7 +309,7 @@ records how Graph's events and contacts are stored.
 - The reader on WebView2: the zero-network hostile-mail suite, links
   ([ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)),
   embedded images, and the window chrome and keyboard map, run by
-  tauri-driver with msedgedriver in the Windows CI job.
+  msedgedriver in the Windows CI job.
 - **Done when:** a clean install from the installer on one of the user's
   Windows machines reads, sends and edits all three of the user's test
   accounts. The hostile-mail suite makes zero requests on WebView2, and a
@@ -322,7 +322,7 @@ records how Graph's events and contacts are stored.
   config (`tauri.windows.conf.json`: CSP, NSIS per user, sidecars) and
   the installer hooks; WebView2's `http://tauri.localhost` origin in the
   navigation guard and its `http://mailpart.localhost` parts; the
-  harness on tauri-driver; and CI's Windows app job, which builds the
+  harness on msedgedriver; and CI's Windows app job, which builds the
   installer and runs hostile, links, smoke and remote on WebView2.
   Checked in `frostmail-win11` with a local MinGW build: toasts show,
   replace and go under the AppUserModelID, a reminder carries Snooze and
