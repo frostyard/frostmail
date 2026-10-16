@@ -219,7 +219,9 @@ jobs:
           set -euo pipefail
           CGO_ENABLED=0 go build -o build/ ./cmd/maild ./tools/uifixture ./tools/smtpsink
           cp "$CARGO_TARGET_DIR/release/frostmail.exe" build/frostmail-app.exe
-          edge="$EDGEWEBDRIVER/msedgedriver.exe"
-          "$edge" --version
+          # The image installs msedgedriver for its Edge, at the path its
+          # EDGEWEBDRIVER names, which the job's environment may lack.
+          edge="${EDGEWEBDRIVER:-C:/SeleniumWebDrivers/EdgeDriver}/msedgedriver.exe"
+          "$edge" --version || { ls -la C:/SeleniumWebDrivers/* || true; exit 1; }
           MSYS_NO_PATHCONV=1 reg query 'HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' /v pv || true
           cd app && FROSTMAIL_EDGEDRIVER="$edge" pnpm exec vitest run -c vitest.e2e.config.ts hostile links smoke remote
