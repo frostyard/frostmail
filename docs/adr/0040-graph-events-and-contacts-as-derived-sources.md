@@ -68,33 +68,49 @@ Plan 0010's Phase 1 probed the user's Outlook.com account on 2026-10-15:
   - **Contacts:** contacts delta per folder. Photos are fetched when a
     contact with a photo changes.
   - **Expired links:** an expired delta link resyncs the collection.
-- **Writes** replay `pim_ops` as Graph requests built from the edits in the
-  op's payload, not from the source:
+- **Writes** replay `pim_ops` as Graph requests built from the source,
+  never sending it: the edited source and the source derived from the
+  JSON the edit was made on are both projected into Graph's fields, and
+  only the fields that differ are sent. One path serves every put, the
+  ones without edits in their payload too (creations, answers,
+  restores).
   - **Edits:** a `PATCH` of the changed fields with `If-Match`.
-  - **Creations:** a `POST`, after which the object moves to the returned
-    ID (as with a DAV server's `Location`).
+  - **Creations:** a `POST` with a `transactionId`, after which the
+    object moves to the returned ID (as with a DAV server's `Location`).
   - **This Event:** a `PATCH` or `DELETE` of the occurrence, found through
-    the master's `instances`.
+    the master's `instances`, or of its exception.
   - **All Future Events:** ends the series' range and creates the new
-    series, as on DAV.
+    series, as on DAV. Exceptions Outlook drops with the range are
+    written again.
   - **All Events:** a `PATCH` of the master.
   - **A 412:** re-read the object and derive it again. The edit is
     re-applied when it still fits (ADR-0030).
-  - **Contact photos:** `PUT .../photo/$value`.
+  - **Contact photos:** a `PUT` of `.../photo/$value`. Graph cannot
+    delete one (405), so removing a photo is refused.
+  - **Deletes:** a `DELETE`, which Outlook moves to Deleted Items, not
+    `permanentDelete`: undo restores by creating the event again either
+    way, and Outlook keeps its own recovery.
 - **Undo:** an edit is undone by patching back the old values. A deleted
-  object is restored by posting its stored JSON again, without the
-  read-only fields, under a new ID.
+  object is restored by posting its source's projection, under a new ID.
 - **Invitations go through Outlook's scheduling.** Graph's
   `accept`, `tentativelyAccept` and `decline` (with `sendResponse`)
   answer an invitation, found by `iCalUId`. Invitees added to an event the
   user organizes are told by Outlook, as Google and iCloud do (ADR-0035).
 - **Limits:**
-  - **Reminders:** one per event. The editor offers one for Outlook
-    calendars.
-  - **Recurrence:** rules Graph's patterns cannot express are read-only.
+  - **Reminders:** one per event, before its start. Outlook keeps an
+    edit's first, and the read after the write shows the event with
+    that one.
+  - **Recurrence:** a rule Graph's patterns cannot express (and `RDATE`)
+    is refused when written; every pattern Graph has reads as an
+    `RRULE`.
   - **Notes:** an edited description replaces an HTML body with text.
+  - **Undo in a series:** an exception cannot become an occurrence again,
+    so undoing This Event writes it back to the series' values; a
+    cancelled occurrence cannot come back, so undoing its delete is
+    refused.
   - **Zones:** Windows zone names are mapped to IANA with the existing
-    table, and times are written with IANA names.
+    table, and times are written under the Windows names Outlook uses
+    (IANA names where the table has none).
 
 ## Consequences
 

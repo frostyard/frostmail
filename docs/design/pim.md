@@ -173,26 +173,63 @@ Everything after the store reads them as it reads a DAV source. Plan
     `otherAddress`; `IMPP`; `URL` from `businessHomePage`.
   - **Other:** `BDAY`; `NOTE` from `personalNotes`; `CATEGORIES`; `PHOTO`
     as a JPEG data URI.
-- **Writes (3b).** Graph objects replay through the same `put` and
-  `delete` as DAV objects, against a Graph object server with DAV's
-  `Get`, `Put` and `Delete`. `Put` compares the new source's Graph
-  projection with the stored JSON's and sends only what changed:
-  - a new object is a `POST` to the collection, which moves the object
-    to Graph's ID;
-  - changed master or contact fields are a `PATCH` with `If-Match`;
-  - a new `EXDATE` is a `DELETE` of that occurrence, a new or changed
-    override a `PATCH` of it, both found through the master's
-    `instances` for that day;
-  - a contact's new or removed `PHOTO` is a `PUT` or `DELETE` of
-    `photo/$value`;
-  - the user's new `PARTSTAT` on an invitation is `accept`,
-    `tentativelyAccept` or `decline` with `sendResponse`.
+- **Writes.** Graph objects replay through the same `put` and `delete`
+  as DAV objects, against a Graph object server (`graphObjects`) with
+  DAV's `Get`, `Put` and `Delete`. `Put` projects the edited source into
+  Graph's fields (`graph.ProjectEvent`, `graph.ProjectContact`), projects
+  the source derived from the JSON of the version the edit was made on
+  (the one whose ETag is the op's `If-Match`), and sends only the fields
+  that differ, so an HTML body, categories or a tentative `showAs` stay
+  as Outlook has them:
+  - a new event or series is a `POST` to its calendar with a
+    `transactionId` (the source's UID and the op's ID), so a create sent
+    again makes no second event; the object moves to Graph's ID;
+  - a new copy of an invitation the user does not organize (an answer to
+    an emailed invitation) is not created: Outlook put the invitation in
+    the calendar when it came, so the answer goes to the event with that
+    UID (as Outlook wraps it), and the copy moves there;
+  - changed master or contact fields are a `PATCH` with `If-Match`; a
+    write that cannot carry the change key (an answer, an occurrence)
+    reads it first;
+  - a new or changed override is a `PATCH` of its exception, or of the
+    occurrence the master's `instances` list for its start; a new
+    `EXDATE` is a `DELETE` of that occurrence. A new override is
+    compared with the occurrence the series makes. A master whose
+    pattern or times changed is read again before its occurrences, as
+    Outlook drops a series' exceptions and cancellations then, and they
+    are written again. An override undone here (This Event's undo) is
+    written back to the occurrence the series makes, since Graph cannot
+    undo an exception; a cancellation undone is refused, as Graph cannot
+    bring the occurrence back. Overrides and cancellations the series no
+    longer makes (past a split's end) are left to Outlook;
+  - the user's new `PARTSTAT` on an invitation, or on one occurrence, is
+    `accept`, `tentativelyAccept` or `decline` with `sendResponse`, so
+    Outlook tells the organizer and maild mails no reply
+    (`Schedules`); invitees on the user's own events are written as
+    `attendees`, which Outlook invites, updates and cancels
+    (`SchedulesOrganizer`);
+  - a contact's new `PHOTO`, compared with Graph's photo, is a `PUT` of
+    `photo/$value`; a removed one is refused, after the rest of the
+    change, as Graph cannot delete a photo.
+
+  Times are written in the event's zone under its Windows name (its IANA
+  name when it has none, UTC for a fixed offset); all-day events at
+  midnight in maild's zone, which maild finds by name (`$TZ`, else
+  `/etc/localtime`). Graph's end date is a day: an `UNTIL` before the
+  series' time of day ends on the day before. A source Outlook cannot
+  store (an `RRULE` outside Graph's patterns, `RDATE`, a birthday
+  without its year) is refused, as a 4xx is, and never sent.
 
   `Put` returns no ETag, so `put` reads the object back and stores
-  Graph's version. A 412 is `davx.ErrPrecondition`, which re-applies an
-  edit that still fits (Editing, below), and a refusal is
-  `davx.StatusError`. `Delete` deletes the event or contact. A deleted
+  Graph's version and JSON; an object gone by then (a declined
+  invitation) is removed here. A 412 is `davx.ErrPrecondition`, which
+  re-applies an edit that still fits (Editing, below). `Delete` deletes
+  the event or contact with `If-Match`; Outlook moves it to Deleted
+  Items, where Exchange's IMAP shows it as a "Retrieval using the IMAP4
+  protocol failed" message (the user empties Deleted Items). A deleted
   object's restore is a creation from its source, under a new ID.
+  Calendars take writes as Graph's `canEdit` says (not Birthdays or
+  subscribed holidays); contact folders do.
 - **Verify** lists each calendar's events through `calendarView` over its
   delta's window (single events with their ETags, series by their
   masters' IDs without ETags) and each contact folder's contacts with
@@ -204,6 +241,29 @@ Everything after the store reads them as it reads a DAV source. Plan
   - the Birthday calendar's events and US Holidays' recurring days are
     yearly series, and the rest of US Holidays are single all-day events;
   - a contact without a photo answers `photo/$value` with 404.
+
+  And its writes (the 3b write session, 2026-10-16):
+  - Windows zone names are taken, and Outlook.com keeps an all-day event
+    at midnight UTC with its zone `UTC`, whatever zone it was written in;
+  - a stale `If-Match` on `PATCH` is 412, and `DELETE` takes `If-Match`
+    too;
+  - a series keeps its exceptions and cancellations when only its end
+    changes, and loses them when its time or pattern changes;
+  - an exception has an `iCalUId` of its own (its master's with the day
+    in it): the source gives an override its series' UID;
+  - an invitation from outside has an `iCalUId` that wraps the UID it
+    came with (Exchange's GlobalObjectId, the UID after `vCal-Uid`): the
+    source has that UID, so the invitation mail and the calendar's copy
+    match, and a copy is looked up in Outlook by the wrapped form;
+  - an answer is mailed by Outlook (`sendResponse`), and a declined
+    invitation leaves the calendar;
+  - an invitee whose address is an alias of the account (bketelsen@gmail.com
+    on the user's) is the organizer, and gets nothing;
+  - a contact's photo can be replaced (Outlook stores its own JPEG) but
+    not deleted (405), so removing one is refused while the rest of the
+    change is written; undoing an occurrence's delete is refused, as
+    Graph cannot bring a cancelled occurrence back, and undoing This
+    Event writes the exception back to the occurrence the series makes.
 
 ### Storage
 
@@ -365,6 +425,13 @@ contacts and events writable through `people.create`, `update`, `delete`,
   the source as it is then. A restore's put is `{"whole": true}`, which
   is never applied again, and a contact's delete carries `{"name": …}`
   for the app should the server refuse it.
+- **During a write.** An edit made while its object's put is in flight
+  is not added to that put, which sends the source as it was when it
+  began. When the put is answered and the local source has changed since,
+  the change is not done: it and the waiting changes made on the same
+  version move to the version the put left (its href and ETag), the local
+  source stays, and the next pass writes what is left (found by the 3b
+  write session, 2026-10-16).
 - **After a 412**, the pass fetches the object (`GET`). When every base
   entry matches the server's lines, it applies the changes in order to
   the server's source, stores that with the server's ETag, and puts it
