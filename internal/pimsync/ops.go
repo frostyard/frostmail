@@ -1,6 +1,7 @@
 package pimsync
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -145,9 +146,8 @@ func (p *pass) put(ctx context.Context, c objectServer, kind davx.Kind, col stor
 		}
 		return p.failed(ctx, op, err)
 	}
-	moved := w.Href != op.Href
 	there := false
-	if moved {
+	if w.Href != op.Href {
 		_, err := p.m.db.ObjectByHref(ctx, col.ID, w.Href)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
@@ -169,37 +169,73 @@ func (p *pass) put(ctx context.Context, c objectServer, kind davx.Kind, col stor
 			fetched = &got
 		}
 	}
-	return p.done(ctx, op, func(tx *store.Tx) error {
-		if gone {
-			if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
-				return err
-			}
-			if kind == davx.AddressBooks {
-				return tx.RelinkPeople(ctx)
-			}
-			return tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID})
+	return p.m.db.Tx(ctx, func(tx *store.Tx) error {
+		finished, err := p.settlePut(ctx, tx, kind, col, op, obj, w, fetched, gone, there)
+		if err != nil || !finished {
+			return err
 		}
-		switch {
-		case there:
-			if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
-				return err
-			}
-		case moved:
-			if err := tx.SetObjectHref(ctx, obj.ID, w.Href); err != nil {
-				return err
-			}
-		}
-		if fetched != nil {
-			if err := p.indexDAV(ctx, tx, col, *fetched); err != nil {
-				return err
-			}
-			if kind == davx.AddressBooks {
-				return tx.RelinkPeople(ctx)
-			}
-			return nil
-		}
-		return tx.SetObjectETag(ctx, obj.ID, w.ETag)
+		return tx.DonePIMOp(ctx, op.ID)
 	})
+}
+
+// settlePut stores what a put left, and reports whether the change is
+// done. An object changed here while it was written is not: the change
+// goes on from the version the write left, which the waiting changes made
+// on the same version follow, and the local source, which has the later
+// edits too, stays for the next pass to write.
+func (p *pass) settlePut(ctx context.Context, tx *store.Tx, kind davx.Kind, col store.Collection, op store.PIMOp,
+	obj store.Object, w davx.Written, fetched *davx.Object, gone, there bool) (bool, error) {
+	if gone {
+		if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
+			return false, err
+		}
+		if kind == davx.AddressBooks {
+			return true, tx.RelinkPeople(ctx)
+		}
+		return true, tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID})
+	}
+	switch {
+	case there:
+		if _, err := tx.DeleteObjects(ctx, col.ID, []string{obj.Href}); err != nil {
+			return false, err
+		}
+	case w.Href != op.Href:
+		if err := tx.SetObjectHref(ctx, obj.ID, w.Href); err != nil {
+			return false, err
+		}
+	}
+	etag := w.ETag
+	if fetched != nil {
+		etag = fetched.ETag
+	}
+	if !there {
+		now, err := tx.GetObject(ctx, obj.ID)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			return false, err
+		}
+		if err == nil && !bytes.Equal(now.Raw, obj.Raw) {
+			if err := tx.SetObjectETag(ctx, obj.ID, etag); err != nil {
+				return false, err
+			}
+			if raw, ok := p.remotes[w.Href]; ok && fetched != nil {
+				if err := tx.SetObjectRemote(ctx, obj.ID, raw); err != nil {
+					return false, err
+				}
+			}
+			_, err := tx.RebasePIMOps(ctx, col.ID, op.Href, op.IfMatch, w.Href, etag)
+			return false, err
+		}
+	}
+	if fetched == nil {
+		return true, tx.SetObjectETag(ctx, obj.ID, w.ETag)
+	}
+	if err := p.indexDAV(ctx, tx, col, *fetched); err != nil {
+		return false, err
+	}
+	if kind == davx.AddressBooks {
+		return true, tx.RelinkPeople(ctx)
+	}
+	return true, nil
 }
 
 // done removes a change the server took (or that no longer applies),

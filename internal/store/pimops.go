@@ -102,6 +102,19 @@ func (t *Tx) RetryPIMOp(ctx context.Context, id int64, next time.Time, errText s
 	return nil
 }
 
+// RebasePIMOps moves the waiting changes made on one version of an object
+// (its href and the ETag they were made on) to the version a write left,
+// the change written among them, and returns how many it moved.
+func (t *Tx) RebasePIMOps(ctx context.Context, collectionID int64, href, ifMatch, newHref, newETag string) (int64, error) {
+	res, err := t.ExecContext(ctx, `UPDATE pim_ops SET href = ?, if_match = ?
+		WHERE collection_id = ? AND href = ? AND if_match = ? AND state = 'queued'`,
+		newHref, newETag, collectionID, href, ifMatch)
+	if err != nil {
+		return 0, fmt.Errorf("rebase pim ops: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // SetObjectETag records the ETag the server gave an object Frostmail wrote.
 func (t *Tx) SetObjectETag(ctx context.Context, id int64, etag string) error {
 	if _, err := t.ExecContext(ctx, `UPDATE objects SET etag = ? WHERE id = ?`, etag, id); err != nil {

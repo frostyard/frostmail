@@ -76,6 +76,20 @@ func (d *DB) GetObject(ctx context.Context, id int64) (Object, error) {
 	return readObject(d.db.QueryRowContext(ctx, "SELECT "+objectColumns+" FROM objects WHERE id = ?", id))
 }
 
+// GetObject returns one object as the transaction sees it, or ErrNotFound.
+func (t *Tx) GetObject(ctx context.Context, id int64) (Object, error) {
+	return readObject(t.QueryRowContext(ctx, "SELECT "+objectColumns+" FROM objects WHERE id = ?", id))
+}
+
+// SetObjectRemote records the JSON of the server's version of an object
+// derived from it (Graph's), beside a local source that stays.
+func (t *Tx) SetObjectRemote(ctx context.Context, id int64, remote []byte) error {
+	if _, err := t.ExecContext(ctx, `UPDATE objects SET remote = ? WHERE id = ?`, remote, id); err != nil {
+		return fmt.Errorf("set object remote: %w", err)
+	}
+	return nil
+}
+
 // ObjectByHref returns the object at the exact href, or ErrNotFound.
 func (d *DB) ObjectByHref(ctx context.Context, collectionID int64, href string) (Object, error) {
 	return readObject(d.db.QueryRowContext(ctx, "SELECT "+objectColumns+" FROM objects WHERE collection_id = ? AND href = ?", collectionID, href))
