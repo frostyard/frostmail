@@ -15,9 +15,9 @@ func TestResolveDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := Paths{
-		DataDir: `C:\Users\u\AppData\Local\Frostmail`, CacheDir: `C:\Users\u\AppData\Local\Frostmail\Cache`,
+		DataDir: `C:\Users\u\AppData\Local\Frostmail\Data`, CacheDir: `C:\Users\u\AppData\Local\Frostmail\Cache`,
 		Socket: `\\.\pipe\frostmail-` + sid,
-		DB:     `C:\Users\u\AppData\Local\Frostmail\frostmail.db`, Blobs: `C:\Users\u\AppData\Local\Frostmail\blobs`,
+		DB:     `C:\Users\u\AppData\Local\Frostmail\Data\frostmail.db`, Blobs: `C:\Users\u\AppData\Local\Frostmail\Data\blobs`,
 	}
 	if p != want {
 		t.Fatalf("Resolve = %+v\nwant %+v", p, want)

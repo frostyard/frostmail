@@ -8,8 +8,10 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// localAppData is %LOCALAPPDATA%\Frostmail. Local app data does not roam,
-// so SQLite stays on a local disk (ADR-0038).
+// localAppData is %LOCALAPPDATA%\Frostmail, where the app is installed
+// (Tauri's per-user default), with maild's data in its Data folder and
+// parts in its Cache folder. Local app data does not roam, so SQLite stays
+// on a local disk (ADR-0038).
 func localAppData(getenv func(string) string) (string, error) {
 	dir := getenv("LOCALAPPDATA")
 	if !filepath.IsAbs(dir) {
@@ -19,7 +21,8 @@ func localAppData(getenv func(string) string) (string, error) {
 }
 
 func defaultDataDir(getenv func(string) string) (string, error) {
-	return localAppData(getenv)
+	dir, err := localAppData(getenv)
+	return filepath.Join(dir, "Data"), err
 }
 
 func defaultCacheDir(getenv func(string) string) (string, error) {
