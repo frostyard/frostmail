@@ -1,6 +1,7 @@
 // Package secrets keeps account credentials out of the database
-// (docs/design/storage.md#credentials). M1 uses File; Secret Service over
-// D-Bus replaces it in M4 behind the same interface.
+// (docs/design/storage.md#credentials): the Secret Service over D-Bus on
+// Linux, a file sealed with DPAPI on Windows, and a plain File for
+// development.
 package secrets
 
 import (
@@ -46,10 +47,13 @@ func Credential(accountID int64, oauth bool) string {
 
 // File is a Store kept in one JSON object ({"key": "value", ...}) in a file
 // with mode 0600. It is the M1 development store: plain text on disk, guarded
-// only by file permissions.
+// only by file permissions. On Windows, NewDPAPIFile seals the same object
+// for the user (ADR-0038).
 type File struct {
 	mu   sync.Mutex
 	path string
+	// seal and unseal wrap the file's bytes; nil keeps them plain.
+	seal, unseal func([]byte) ([]byte, error)
 }
 
 var _ Store = (*File)(nil)
@@ -109,8 +113,8 @@ func (f *File) Delete(ctx context.Context, key string) error {
 }
 
 // read loads the whole map. A missing file is an empty map; a file readable
-// by group or other, or one that is not a JSON object of strings, is an
-// error.
+// by group or other (on Unix), or one that is not a JSON object of strings,
+// is an error.
 func (f *File) read() (map[string]string, error) {
 	fi, err := os.Stat(f.path)
 	if err != nil {
@@ -119,12 +123,17 @@ func (f *File) read() (map[string]string, error) {
 		}
 		return nil, fmt.Errorf("secrets: stat %s: %w", f.path, err)
 	}
-	if fi.Mode().Perm()&0o077 != 0 {
-		return nil, fmt.Errorf("secrets: %s has mode 0%o, want 0600", f.path, fi.Mode().Perm())
+	if err := checkMode(f.path, fi); err != nil {
+		return nil, err
 	}
 	data, err := os.ReadFile(f.path)
 	if err != nil {
 		return nil, fmt.Errorf("secrets: read %s: %w", f.path, err)
+	}
+	if f.unseal != nil {
+		if data, err = f.unseal(data); err != nil {
+			return nil, fmt.Errorf("secrets: unseal %s: %w", f.path, err)
+		}
 	}
 	var m map[string]string
 	if err := json.Unmarshal(data, &m); err != nil {
@@ -143,6 +152,11 @@ func (f *File) write(m map[string]string) error {
 	data, err := json.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("secrets: encode %s: %w", f.path, err)
+	}
+	if f.seal != nil {
+		if data, err = f.seal(data); err != nil {
+			return fmt.Errorf("secrets: seal %s: %w", f.path, err)
+		}
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(f.path), ".secrets-*")
 	if err != nil {
@@ -193,4 +207,23 @@ func (f *File) Remove() error {
 		return fmt.Errorf("secrets: remove %s: %w", f.path, err)
 	}
 	return nil
+}
+
+// migrate moves every secret from the file store into another store,
+// reading each back before the file is removed.
+func migrate(ctx context.Context, from *File, to Store) error {
+	all, err := from.All()
+	if err != nil || len(all) == 0 {
+		return err
+	}
+	for key, value := range all {
+		if err := to.Set(ctx, key, value); err != nil {
+			return fmt.Errorf("secrets: move %s: %w", key, err)
+		}
+		got, err := to.Get(ctx, key)
+		if err != nil || got != value {
+			return fmt.Errorf("secrets: %s did not read back: %v", key, err)
+		}
+	}
+	return from.Remove()
 }
