@@ -1,14 +1,15 @@
 domain: oauth
 doc: >-
-  The OAuth clients maild signs in with. Until Frostmail ships verified
-  clients (M6) the user registers their own (docs/design/accounts.md). The
-  client secret is write-only.
+  The OAuth clients maild signs in with. Microsoft's is built in
+  (ADR-0039); for Google, until Frostmail ships a verified client (M6), the
+  user registers their own (docs/design/accounts.md). The client secret is
+  write-only.
 enums:
   - name: OAuthProvider
     doc: An OAuth identity provider maild knows the endpoints of.
     values:
       - {name: google, doc: "Google accounts (Gmail)."}
-      - {name: microsoft, doc: "Microsoft accounts (not yet used)."}
+      - {name: microsoft, doc: "Microsoft accounts (Outlook.com, Hotmail); maild has a built-in client, which setClient replaces."}
 types:
   - name: OAuthClient
     doc: A registered OAuth client.

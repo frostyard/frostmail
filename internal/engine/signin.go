@@ -44,7 +44,7 @@ func (a accounts) Authorize(ctx context.Context, p *api.AccountAuthorizeParams) 
 	case errors.Is(err, oauth.ErrNotOAuth):
 		return nil, api.InvalidParams("account %d does not sign in with OAuth", p.ID)
 	case errors.Is(err, oauth.ErrNoClient):
-		return nil, api.Unavailable("no Google client is set: add one in Settings or with mailctl oauth set-client")
+		return nil, api.Unavailable("no OAuth client is set for this provider: add one in Settings or with mailctl oauth set-client")
 	case err != nil:
 		return nil, err
 	}

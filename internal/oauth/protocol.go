@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -40,8 +41,8 @@ func Challenge(verifier string) string {
 
 // AuthURL is the authorization URL the user opens: e.AuthURL with the
 // authorization-code and PKCE parameters, the endpoint's scopes joined by a
-// space, offline access with consent, and login_hint only when it is not
-// empty.
+// space, the endpoint's own parameters (Google's offline access with
+// consent), and login_hint only when it is not empty.
 func AuthURL(e Endpoint, clientID, redirectURI, state, challenge, loginHint string) string {
 	q := url.Values{
 		"response_type":         {"code"},
@@ -51,8 +52,9 @@ func AuthURL(e Endpoint, clientID, redirectURI, state, challenge, loginHint stri
 		"state":                 {state},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
-		"access_type":           {"offline"},
-		"prompt":                {"consent"},
+	}
+	for k, v := range e.Params {
+		q[k] = slices.Clone(v)
 	}
 	if loginHint != "" {
 		q.Set("login_hint", loginHint)

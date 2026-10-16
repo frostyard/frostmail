@@ -344,7 +344,7 @@ Where account.discover found server settings.
 
 | Value | Meaning |
 | --- | --- |
-| `profile` | Frostmail's own profile for the provider (Gmail, iCloud). |
+| `profile` | Frostmail's own profile for the provider (Gmail, iCloud, Outlook.com). |
 | `autoconfig` | The domain's Mozilla autoconfig file. |
 | `ispdb` | Thunderbird's ISP database. |
 | `srv` | The domain's RFC 6186 SRV records. |
@@ -1577,7 +1577,7 @@ How a list message can be left (ADR-0027), best first.
 
 ## oauth
 
-The OAuth clients maild signs in with. Until Frostmail ships verified clients (M6) the user registers their own (docs/design/accounts.md). The client secret is write-only.
+The OAuth clients maild signs in with. Microsoft's is built in (ADR-0039); for Google, until Frostmail ships a verified client (M6), the user registers their own (docs/design/accounts.md). The client secret is write-only.
 
 ### `oauth.setClient`
 
@@ -1620,7 +1620,7 @@ An OAuth identity provider maild knows the endpoints of.
 | Value | Meaning |
 | --- | --- |
 | `google` | Google accounts (Gmail). |
-| `microsoft` | Microsoft accounts (not yet used). |
+| `microsoft` | Microsoft accounts (Outlook.com, Hotmail); maild has a built-in client, which setClient replaces. |
 
 ## outbox
 
