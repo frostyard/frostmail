@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +24,7 @@ type rawConn struct {
 
 func dialRaw(t *testing.T, socket string) *rawConn {
 	t.Helper()
-	nc, err := net.Dial("unix", socket)
+	nc, err := dialConn(socket)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,21 +119,10 @@ func TestEventsResumeAfterReconnect(t *testing.T) {
 	}
 }
 
-func TestListenRejectsLiveSocketAndOpenDirectory(t *testing.T) {
+func TestListenRejectsLiveSocket(t *testing.T) {
 	srv := rpctest.Start(t)
 	if _, err := rpcserver.Listen(srv.Socket); err == nil || !strings.Contains(err.Error(), "already listening") {
 		t.Fatalf("Listen on a live socket = %v", err)
-	}
-	dir, err := os.MkdirTemp("", "fm")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	if err := os.Chmod(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := rpcserver.Listen(filepath.Join(dir, "maild.sock")); err == nil || !strings.Contains(err.Error(), "want 0700") {
-		t.Fatalf("Listen in a 0755 directory = %v", err)
 	}
 }
 

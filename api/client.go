@@ -54,10 +54,10 @@ type Client struct {
 	done   chan struct{}
 }
 
-// Dial connects to the maild socket and completes rpc.hello.
+// Dial connects to the maild socket (a named pipe on Windows) and completes
+// rpc.hello.
 func Dial(ctx context.Context, socketPath, clientName string) (*Client, *Hello, error) {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "unix", socketPath)
+	conn, err := dialSocket(ctx, socketPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect to maild: %w", err)
 	}
