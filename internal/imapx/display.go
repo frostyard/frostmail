@@ -191,11 +191,22 @@ func (p *displayPlan) write(out *bytes.Buffer, bs imap.BodyStructure, path []int
 			return nil
 		}
 		out.Write(header)
-		out.Write(found(sec))
+		out.Write(trimmed(found(sec), part.Size))
 	default:
 		return fmt.Errorf("part %q has an unknown structure", key)
 	}
 	return nil
+}
+
+// trimmed is a part's content without the line break Exchange adds: its
+// sections carry the CRLF that belongs to the boundary after the part,
+// two bytes more than BODYSTRUCTURE's size (Outlook.com, 2026-10-15).
+// Other servers' sections are the size, so this changes nothing there.
+func trimmed(content []byte, size uint32) []byte {
+	if n := int(size); len(content) == n+2 && bytes.HasSuffix(content, []byte("\r\n")) {
+		return content[:n]
+	}
+	return content
 }
 
 // omitted is a part's header with the omitted mark before its blank line.

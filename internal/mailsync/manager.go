@@ -31,6 +31,10 @@ type Config struct {
 	// NoPrefetch turns off C3's prefetch of recent INBOX and VIP bodies
 	// (ADR-0037), for tests that watch the body connection.
 	NoPrefetch bool
+	// Now is the sync window's clock (ADR-0016): the day a pass searches
+	// SINCE and its sync state's time [time.Now]. Replay tests stop it at
+	// the recording's time.
+	Now func() time.Time
 	// GmailPoll is the Gmail accounts' polling interval [1m]: Gmail's IDLE
 	// reports new mail but not label or flag changes made elsewhere.
 	GmailPoll  time.Duration
@@ -304,6 +308,14 @@ func (m *Manager) stored(d store.MessageDetail, whole bool) string {
 		}
 	}
 	return ""
+}
+
+// windowNow is the time a pass's sync window is computed from.
+func (m *Manager) windowNow() time.Time {
+	if m.cfg.Now != nil {
+		return m.cfg.Now()
+	}
+	return time.Now()
 }
 
 // ErrOffline means the account is not connected, so a body that is not

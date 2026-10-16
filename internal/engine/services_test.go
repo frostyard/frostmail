@@ -134,7 +134,7 @@ func TestServicesByProvider(t *testing.T) {
 		t.Errorf("Google tasks = %+v, %v", tasks, err)
 	}
 	ms, err := c.Account().Create(ctx, &api.AccountCreateParams{Kind: api.AccountKindMicrosoft, Email: "ann@outlook.com",
-		Auth: api.AuthKindPassword, IMAP: createParams("x").IMAP, SMTP: createParams("x").SMTP})
+		Auth: api.AuthKindOAuth2})
 	if err != nil {
 		t.Fatal(err)
 	}

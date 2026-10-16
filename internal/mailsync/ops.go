@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -172,6 +174,14 @@ func flaggedChange(c store.FlagChange) (flagged, ok bool) {
 		return *c.Flagged, true
 	}
 	return false, false
+}
+
+// systemFlags are the flags of names a server without keywords keeps
+// (providers.Quirks.NoKeywords): system flags, $Forwarded and $MDNSent.
+func systemFlags(names []string) []string {
+	return slices.DeleteFunc(slices.Clone(names), func(name string) bool {
+		return !strings.HasPrefix(name, `\`) && !strings.EqualFold(name, "$Forwarded") && !strings.EqualFold(name, "$MDNSent")
+	})
 }
 
 // imapFlagChange maps a FlagChange to IMAP flags to add and remove,
@@ -628,11 +638,18 @@ func (a *actor) replayOne(ctx context.Context, cmd conn, op store.Op) error {
 				byPath[mem.MailboxPath] = append(byPath[mem.MailboxPath], mem.UID)
 			}
 		}
+		add, remove := p.Add, p.Remove
+		if providers.ForKind(a.acct.Kind).Quirks.NoKeywords {
+			add, remove = systemFlags(add), systemFlags(remove)
+			if len(add) == 0 && len(remove) == 0 {
+				return nil // a color or a keyword only: it stays local
+			}
+		}
 		for path, uids := range byPath {
 			if _, err := cmd.Select(ctx, path); err != nil {
 				return err
 			}
-			if err := cmd.StoreFlags(ctx, uids, p.Add, p.Remove); err != nil {
+			if err := cmd.StoreFlags(ctx, uids, add, remove); err != nil {
 				return err
 			}
 		}

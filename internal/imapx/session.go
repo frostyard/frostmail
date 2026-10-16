@@ -363,15 +363,21 @@ func (s *Session) SearchGmailRaw(ctx context.Context, raw string, since time.Tim
 // SearchMessageID returns the UIDs in the selected mailbox whose Message-ID
 // header contains msgid (given without angle brackets), ascending.
 func (s *Session) SearchMessageID(ctx context.Context, msgid string) ([]uint32, error) {
+	return s.SearchHeader(ctx, "Message-ID", msgid)
+}
+
+// SearchHeader returns the UIDs in the selected mailbox whose header field
+// contains value, ascending.
+func (s *Session) SearchHeader(ctx context.Context, field, value string) ([]uint32, error) {
 	var d *imap.SearchData
 	err := s.run(ctx, func() error {
-		criteria := &imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: msgid}}}
+		criteria := &imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: field, Value: value}}}
 		var err error
 		d, err = s.c.UIDSearch(criteria, nil).Wait()
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("uid search message-id: %w", err)
+		return nil, fmt.Errorf("uid search %s: %w", strings.ToLower(field), err)
 	}
 	all := d.AllUIDs()
 	out := make([]uint32, len(all))

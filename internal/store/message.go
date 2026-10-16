@@ -196,6 +196,17 @@ func (d *DB) MailboxUIDs(ctx context.Context, mailboxID int64) ([]uint32, error)
 // action covers (QueueOp), whose local state stands until the replay. It
 // emits nothing.
 func (t *Tx) UpdateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate) ([]int64, error) {
+	return t.updateFlags(ctx, mailboxID, ups, false)
+}
+
+// UpdateSystemFlags is UpdateFlags for a server that keeps no keywords
+// (providers.Quirks.NoKeywords): a message keeps its stored keywords, and
+// its stored flag color while the server has it flagged.
+func (t *Tx) UpdateSystemFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate) ([]int64, error) {
+	return t.updateFlags(ctx, mailboxID, ups, true)
+}
+
+func (t *Tx) updateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate, keepLocal bool) ([]int64, error) {
 	var changed []int64
 	for _, u := range ups {
 		var msgID int64
@@ -229,6 +240,12 @@ func (t *Tx) UpdateFlags(ctx context.Context, mailboxID int64, ups []FlagUpdate)
 				&stored.draft, &stored.deleted, &stored.color, &stored.keywords)
 		if err != nil {
 			return nil, fmt.Errorf("read flags uid %d: %w", u.UID, err)
+		}
+		if keepLocal {
+			want.keywords = stored.keywords
+			if want.flagged == 1 && stored.color > 0 {
+				want.color = stored.color
+			}
 		}
 		if stored == want {
 			continue

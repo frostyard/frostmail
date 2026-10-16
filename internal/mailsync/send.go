@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/smtpx"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -277,9 +278,9 @@ func blobSize(r io.Reader) (int64, error) {
 
 // accepted records that the server took a message: the row moves to
 // accepted, the draft and its server copy go, the recipients are counted
-// for suggestions, and the Sent copy is queued (Gmail files its own, so its
-// rows are sent at once). appendCopy false means the copy is known to be in
-// Sent already.
+// for suggestions, and the Sent copy is queued (Gmail and Outlook.com file
+// their own, the profile's SavesSent, so their rows are sent at once).
+// appendCopy false means the copy is known to be in Sent already.
 func (a *actor) accepted(ctx context.Context, it store.OutboxItem, appendCopy bool) error {
 	err := a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		if err := tx.MoveOutbox(ctx, it.ID, "sending", "accepted"); err != nil {
@@ -307,7 +308,7 @@ func (a *actor) accepted(ctx context.Context, it store.OutboxItem, appendCopy bo
 		if err := tx.RecordAddresses(ctx, seen, tx.Now()); err != nil {
 			return err
 		}
-		if !appendCopy || a.acct.Kind == api.AccountKindGmail {
+		if !appendCopy || providers.ForKind(a.acct.Kind).Quirks.SavesSent {
 			if err := tx.MoveOutbox(ctx, it.ID, "accepted", "sent"); err != nil {
 				return err
 			}
@@ -332,8 +333,10 @@ func emitOutbox(ctx context.Context, tx *store.Tx, it store.OutboxItem, state ap
 
 // settleInterrupted decides the rows a stopped sender left in sending, once
 // a full pass has brought Sent up to date: a message found there was
-// accepted; any other is queued again at once.
-func (a *actor) settleInterrupted(ctx context.Context) error {
+// accepted; any other is queued again at once. Where the server files its
+// copy under a Message-ID of its own (Quirks.OriginalMessageID), Sent is
+// searched on cmd for the header that keeps the message's.
+func (a *actor) settleInterrupted(ctx context.Context, cmd conn) error {
 	ids := a.m.takeInterrupted(a.acct.ID)
 	if len(ids) == 0 {
 		return nil
@@ -359,7 +362,10 @@ func (a *actor) settleInterrupted(ctx context.Context) error {
 		}
 		found := false
 		if hasSent {
-			if found, err = a.m.db.HasMessageIn(ctx, sent.ID, it.MessageID); err != nil {
+			if found, err = a.m.db.HasMessageIn(ctx, sent.ID, it.MessageID); err == nil && !found {
+				found, err = a.filedUnderItsOwnID(ctx, cmd, sent, it.MessageID)
+			}
+			if err != nil {
 				a.m.addInterrupted(a.acct.ID, ids[i:]...)
 				return err
 			}
@@ -385,6 +391,21 @@ func (a *actor) settleInterrupted(ctx context.Context) error {
 		a.m.OutboxChanged(a.acct.ID)
 	}
 	return nil
+}
+
+// filedUnderItsOwnID reports whether the server's Sent holds a copy of
+// message msgid filed under a Message-ID of the server's, by the header the
+// profile names; false where the server keeps the Message-ID.
+func (a *actor) filedUnderItsOwnID(ctx context.Context, cmd conn, sent store.Mailbox, msgid string) (bool, error) {
+	field := providers.ForKind(a.acct.Kind).Quirks.OriginalMessageID
+	if field == "" {
+		return false, nil
+	}
+	if _, err := cmd.Select(ctx, sent.Path); err != nil {
+		return false, err
+	}
+	uids, err := cmd.SearchHeader(ctx, field, msgid)
+	return len(uids) > 0, err
 }
 
 // replayAppendSent writes a sent message's copy into Sent, unless a copy
