@@ -20,7 +20,7 @@ import type {
   Occurrence,
 } from "../rpc/gen/api";
 import { ContactCardContainer, type ContactCardContainerProps } from "./ContactCardContainer";
-import { openEvent } from "./eventWindow";
+import { openEvent } from "./openEvent";
 import { rememberRestore } from "./pimUndo";
 import { Splitter } from "./Splitter";
 import type { CalendarData } from "./useCalendar";

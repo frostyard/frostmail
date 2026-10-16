@@ -7,7 +7,7 @@ import { Client } from "../rpc/gen/api";
 import { CALENDARS, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { EventWindow } from "./EventWindow";
-import type { EditorTarget } from "./eventWindow";
+import type { EditorTarget } from "./openEvent";
 
 // The fixture's day is 2026-10-08 (UTC): 302 Design review, the user's;
 // 303 Lunch with Ann, an invitation; 304 Holiday, read-only. A test that

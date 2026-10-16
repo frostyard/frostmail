@@ -7,7 +7,7 @@ import { Session } from "../data/session";
 import { CALENDARS, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { EventWindow } from "./EventWindow";
-import type { EditorTarget } from "./eventWindow";
+import type { EditorTarget } from "./openEvent";
 
 // The fixture's day is 2026-10-08 (UTC): 302 Design review is the user's
 // in Work and invites Carmen Lindqvist (accepted) and Ines Kim (maybe,
