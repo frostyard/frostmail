@@ -17,13 +17,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
+	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/devgw"
 	"github.com/frostyard/frostmail/internal/engine"
@@ -57,9 +57,10 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string) (err error) {
 	fs := flag.NewFlagSet("maild", flag.ContinueOnError)
 	showVersion := fs.Bool("version", false, "print the version and exit")
+	autostart := fs.String("autostart", "", "on or off: start maild when the user signs in to Windows (the per-user Run key), then exit")
 	debug := fs.Bool("debug", false, "log at debug level")
 	devgwAddr := fs.String("devgw", "", "also serve the API over a WebSocket on this loopback address, for UI development "+
 		"(needs FROSTMAIL_DEVGW_TOKEN; docs/design/app.md)")
@@ -70,11 +71,13 @@ func run(ctx context.Context, args []string) error {
 		fmt.Printf("maild %s (%s)\n", version, commit)
 		return nil
 	}
-	level := slog.LevelInfo
-	if *debug {
-		level = slog.LevelDebug
+	switch *autostart {
+	case "":
+	case "on", "off":
+		return setAutostart(*autostart == "on")
+	default:
+		return fmt.Errorf("-autostart is on or off, not %q", *autostart)
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 
 	paths, err := config.Resolve(os.Getenv)
 	if err != nil {
@@ -85,6 +88,21 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 	}
+	level := slog.LevelInfo
+	if *debug {
+		level = slog.LevelDebug
+	}
+	out, closeLog, err := logOutput(paths.DataDir)
+	if err != nil {
+		return err
+	}
+	defer closeLog()
+	logger := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: level}))
+	defer func() {
+		if err != nil && out != io.Writer(os.Stderr) {
+			logger.Error("maild stopped", "err", err) // main prints it to stderr too
+		}
+	}()
 	db, err := store.Open(ctx, paths.DB)
 	if err != nil {
 		return err
@@ -253,7 +271,7 @@ func newReminders(ctx context.Context, db *store.DB, cal api.CalendarService, sr
 // certificates and plain HTTP only with FROSTMAIL_INSECURE_TLS=1, and every
 // exchange recorded to trace when it is set (MAILD_DAV_TRACE).
 func pimConfig(insecure bool, tokens pimsync.TokenSource, trace io.Writer, logger *slog.Logger) pimsync.Config {
-	cfg := pimsync.Config{Tokens: tokens, UserAgent: "Frostmail/" + version, AllowHTTP: insecure, Local: localZone()}
+	cfg := pimsync.Config{Tokens: tokens, UserAgent: "Frostmail/" + version, AllowHTTP: insecure, Local: calendar.LocalZone()}
 	var transport http.RoundTripper
 	if insecure {
 		transport = &http.Transport{
@@ -269,22 +287,6 @@ func pimConfig(insecure bool, tokens pimsync.TokenSource, trace io.Writer, logge
 		cfg.HTTP = &http.Client{Timeout: time.Minute, Transport: transport}
 	}
 	return cfg
-}
-
-// localZone is the system's zone under its IANA name ($TZ, else the
-// /etc/localtime link), which Graph's writes name for all-day events;
-// time.Local when neither names one.
-func localZone() *time.Location {
-	name := strings.TrimPrefix(os.Getenv("TZ"), ":")
-	if name == "" {
-		if target, err := os.Readlink("/etc/localtime"); err == nil {
-			_, name, _ = strings.Cut(target, "zoneinfo/")
-		}
-	}
-	if loc, err := time.LoadLocation(name); err == nil && name != "" && name != "Local" {
-		return loc
-	}
-	return time.Local
 }
 
 // davTraceFile creates this run's DAV and Tasks trace in dir
