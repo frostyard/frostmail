@@ -45,7 +45,7 @@ type Manager struct {
 	// HTTP talks to token endpoints; nil means a client with a 30 s
 	// timeout.
 	HTTP *http.Client
-	// Endpoints by provider; nil means Google's.
+	// Endpoints by provider; nil means Google's and Microsoft's.
 	Endpoints map[string]Endpoint
 	// SignedIn runs after a sign-in stored its token (maild reconnects the
 	// account).
@@ -90,8 +90,11 @@ func (m *Manager) endpoint(provider string) (Endpoint, bool) {
 		e, ok := m.Endpoints[provider]
 		return e, ok
 	}
-	if provider == "google" {
+	switch provider {
+	case "google":
 		return Google, true
+	case "microsoft":
+		return Microsoft, true
 	}
 	return Endpoint{}, false
 }
@@ -118,6 +121,9 @@ func (m *Manager) creds(ctx context.Context, accountID int64) (creds, error) {
 		return creds{}, fmt.Errorf("%w: %s accounts have no OAuth provider", ErrNoClient, acct.Kind)
 	}
 	id, err := m.DB.OAuthClientID(ctx, provider)
+	if errors.Is(err, store.ErrNotFound) && e.ClientID != "" {
+		id, err = e.ClientID, nil // the provider's built-in client
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		return creds{}, fmt.Errorf("%w for %s", ErrNoClient, provider)
 	}
@@ -153,11 +159,10 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 		return "", fmt.Errorf("oauth: state: %w", err)
 	}
 	state := hex.EncodeToString(stateBytes)
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	lns, redirect, err := listenLoopback(c.endpoint.Loopback)
 	if err != nil {
-		return "", fmt.Errorf("oauth: listen for the redirect: %w", err)
+		return "", err
 	}
-	redirect := fmt.Sprintf("http://127.0.0.1:%d/", ln.Addr().(*net.TCPAddr).Port)
 
 	timeout := m.FlowTimeout
 	if timeout == 0 {
@@ -174,9 +179,11 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 	m.flows[accountID] = cancel
 	m.mu.Unlock()
 
-	f := &flow{m: m, c: c, ln: ln, state: state, verifier: verifier, redirect: redirect, scopes: scopes, done: make(chan struct{})}
+	f := &flow{m: m, c: c, lns: lns, state: state, verifier: verifier, redirect: redirect, scopes: scopes, done: make(chan struct{})}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second}
-	go func() { _ = srv.Serve(ln) }()
+	for _, ln := range lns {
+		go func() { _ = srv.Serve(ln) }()
+	}
 	go func() {
 		select {
 		case <-fctx.Done():
@@ -193,6 +200,26 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 	e := c.endpoint
 	e.Scopes = scopes
 	return AuthURL(e, c.clientID, redirect, state, Challenge(verifier), c.acct.Email), nil
+}
+
+// listenLoopback listens for a sign-in's redirect on a random loopback
+// port and returns the redirect URI. "localhost" (Microsoft's
+// registration) listens on IPv4 and, when it can, on the same port over
+// IPv6, since a browser may try either; anything else is 127.0.0.1.
+func listenLoopback(host string) ([]net.Listener, string, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, "", fmt.Errorf("oauth: listen for the redirect: %w", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	if host != "localhost" {
+		return []net.Listener{ln}, fmt.Sprintf("http://127.0.0.1:%d/", port), nil
+	}
+	lns := []net.Listener{ln}
+	if ln6, err := net.Listen("tcp", fmt.Sprintf("[::1]:%d", port)); err == nil {
+		lns = append(lns, ln6)
+	}
+	return lns, fmt.Sprintf("http://localhost:%d", port), nil
 }
 
 // scopes are what a sign-in asks for: the endpoint's (mail), and for a
@@ -231,7 +258,7 @@ func GoogleScope(service api.ServiceKind) string {
 type flow struct {
 	m                         *Manager
 	c                         creds
-	ln                        net.Listener // the redirect's port
+	lns                       []net.Listener // the redirect's port
 	state, verifier, redirect string
 	scopes                    []string // what the sign-in asked for
 	once                      sync.Once
@@ -251,7 +278,9 @@ func (f *flow) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The flow ends with this answer: the port stops answering before
 		// the browser has the page, and this connection closes after it.
 		// Shutdown, once done is closed, waits for the page to go out.
-		_ = f.ln.Close()
+		for _, ln := range f.lns {
+			_ = ln.Close()
+		}
 		w.Header().Set("Connection", "close")
 		if e := q.Get("error"); e != "" {
 			f.m.Log.Warn("sign-in refused", "account", f.c.acct.ID, "error", e)
@@ -323,6 +352,9 @@ func (m *Manager) exchange(ctx context.Context, c creds, form url.Values) (Token
 	form.Set("client_id", c.clientID)
 	if c.secret != "" {
 		form.Set("client_secret", c.secret)
+	}
+	if len(c.endpoint.TokenScopes) > 0 {
+		form.Set("scope", strings.Join(c.endpoint.TokenScopes, " "))
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {

@@ -322,3 +322,14 @@ func TestKeyFileSharesFakes(t *testing.T) {
 		t.Error("a five-byte key file was accepted")
 	}
 }
+
+func TestSearchKeepsDatesAndScrubsText(t *testing.T) {
+	sc := newScrubber(key)
+	got, err := sc.command(`T8 UID SEARCH SINCE "16-Sep-2026" SUBJECT "Whitcombe" LARGER 1000`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, `SINCE "16-Sep-2026"`) || !strings.Contains(got, "LARGER 1000") || strings.Contains(got, "Whitcombe") {
+		t.Errorf("command = %s", got)
+	}
+}

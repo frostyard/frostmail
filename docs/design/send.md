@@ -129,8 +129,9 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   and queues its server copy's deletion, counts the recipients for
   suggestions, and queues the Sent copy as an offline op. The IMAP actor
   replays it: unless Sent already holds the Message-ID, it APPENDs the
-  message with `\Seen`, then marks the row `sent`. Gmail files sent mail
-  itself, so its rows go straight to `sent`; without a Sent mailbox, or when
+  message with `\Seen`, then marks the row `sent`. Gmail and Outlook.com
+  file sent mail themselves (the profile's `SavesSent`), so their rows go
+  straight to `sent`; without a Sent mailbox, or when
   the server refuses the copy, the row is marked `sent` too (the message did
   go out).
 - **Errors:** an unreachable server or broken connection retries after a
@@ -143,7 +144,13 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   Sent copy is a durable op. Rows left in `sending` (found at startup, or
   stopped mid-send by an account restart) are settled after the account's
   next full pass has synced Sent: found there by Message-ID, they are
-  accepted without a new copy; otherwise they are queued again at once. A
+  accepted without a new copy; otherwise they are queued again at once.
+  Outlook.com gives what it sends a Message-ID of its own and keeps the
+  client's in `X-Microsoft-Original-Message-ID` (the profile's
+  `OriginalMessageID`). There, a row the store does not find is looked for
+  in Sent on the server by that header (`UID SEARCH HEADER`) before it is
+  queued again. Replies thread on Outlook's Message-ID, which its Sent copy
+  carries. A
   crash between the server's acceptance and maild's commit can therefore
   send twice on servers that do not file sent mail themselves; the window
   is the time to commit one transaction.

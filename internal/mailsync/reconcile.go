@@ -5,10 +5,10 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx"
+	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -51,7 +51,7 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		return err
 	}
 	server := local
-	if now := time.Now(); a.mustSearch(ok, st, sel, len(local), now) {
+	if now := a.m.windowNow(); a.mustSearch(ok, st, sel, len(local), now) {
 		if server, err = cmd.UIDsSince(ctx, windowAt(a.acct.SyncDays, now)); err != nil {
 			return err
 		}
@@ -103,7 +103,7 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 
 	return a.storeSyncState(ctx, mb.ID, store.SyncState{
 		UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
-		ServerCount: sel.Messages, LastSyncAt: time.Now(),
+		ServerCount: sel.Messages, LastSyncAt: a.m.windowNow(),
 	})
 }
 
@@ -229,13 +229,18 @@ func (a *actor) remove(ctx context.Context, mb store.Mailbox, uids []uint32) err
 }
 
 // applyFlags stores flags the server reports and emits the messages whose
-// flags changed.
+// flags changed. On a server that keeps no keywords, a message's keywords
+// and color stay as they are here.
 func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.FlagUpdate) error {
 	if len(ups) == 0 {
 		return nil
 	}
+	update := (*store.Tx).UpdateFlags
+	if providers.ForKind(a.acct.Kind).Quirks.NoKeywords {
+		update = (*store.Tx).UpdateSystemFlags
+	}
 	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
-		changed, err := tx.UpdateFlags(ctx, mb.ID, ups)
+		changed, err := update(tx, ctx, mb.ID, ups)
 		if err != nil || len(changed) == 0 {
 			return err
 		}

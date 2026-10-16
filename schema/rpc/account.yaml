@@ -16,7 +16,7 @@ enums:
   - name: DiscoverySource
     doc: Where account.discover found server settings.
     values:
-      - {name: profile, doc: "Frostmail's own profile for the provider (Gmail, iCloud)."}
+      - {name: profile, doc: "Frostmail's own profile for the provider (Gmail, iCloud, Outlook.com)."}
       - {name: autoconfig, doc: "The domain's Mozilla autoconfig file."}
       - {name: ispdb, doc: "Thunderbird's ISP database."}
       - {name: srv, doc: "The domain's RFC 6186 SRV records."}

@@ -214,11 +214,22 @@ func (s *scrubber) command(line string) (string, error) {
 			s.storeItems(args[1].upper(), args[2])
 		}
 	case "SEARCH", "UID SEARCH":
-		for _, a := range args {
-			s.any(a)
+		for i := 0; i < len(args); i++ {
+			if args[i].kind == atom && searchArgKept[strings.ToUpper(args[i].text)] {
+				i++ // the criterion's date or size is protocol
+				continue
+			}
+			s.any(args[i])
 		}
 	}
 	return tag + " " + format(nodes), nil
+}
+
+// searchArgKept are the SEARCH criteria whose argument is a date or a
+// size: a windowed sync's SINCE is part of what a replay must match.
+var searchArgKept = map[string]bool{
+	"SINCE": true, "BEFORE": true, "ON": true, "SENTSINCE": true, "SENTBEFORE": true, "SENTON": true,
+	"LARGER": true, "SMALLER": true,
 }
 
 // storeItems scrubs the values of a STORE: labels or keywords.
@@ -496,6 +507,8 @@ re fwd fw aw wg sv vs antw tr rif enc
 seen answered flagged recent forwarded mdnsent notjunk nonjunk phishing notphishing redirected
 mailflagbit0 mailflagbit1 mailflagbit2 icloudcleanup label1 label2 label3 label4 label5
 submitpending submitted
+microsoft exchange imap4 service backendauthenticate authenticate clientaccessrules
+clientnetworkpresencelocation tcpproxy signing off sync issues conflicts local failures
 frostmail frostyard
 `
 	m := map[string]bool{}

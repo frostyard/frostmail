@@ -1743,9 +1743,10 @@ export interface OauthGetClientParams {
 }
 
 /**
- * The OAuth clients maild signs in with. Until Frostmail ships verified
- * clients (M6) the user registers their own (docs/design/accounts.md). The
- * client secret is write-only.
+ * The OAuth clients maild signs in with. Microsoft's is built in (ADR-0039);
+ * for Google, until Frostmail ships a verified client (M6), the user
+ * registers their own (docs/design/accounts.md). The client secret is
+ * write-only.
  */
 export interface OauthClient {
   /**

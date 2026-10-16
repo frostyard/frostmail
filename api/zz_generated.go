@@ -195,7 +195,7 @@ func (v AuthKind) Valid() bool {
 type DiscoverySource string
 
 const (
-	// Frostmail's own profile for the provider (Gmail, iCloud).
+	// Frostmail's own profile for the provider (Gmail, iCloud, Outlook.com).
 	DiscoverySourceProfile DiscoverySource = "profile"
 	// The domain's Mozilla autoconfig file.
 	DiscoverySourceAutoconfig DiscoverySource = "autoconfig"
@@ -2973,7 +2973,8 @@ type OAuthProvider string
 const (
 	// Google accounts (Gmail).
 	OAuthProviderGoogle OAuthProvider = "google"
-	// Microsoft accounts (not yet used).
+	// Microsoft accounts (Outlook.com, Hotmail); maild has a built-in client,
+	// which setClient replaces.
 	OAuthProviderMicrosoft OAuthProvider = "microsoft"
 )
 
@@ -3007,9 +3008,10 @@ type OauthGetClientParams struct {
 	Provider OAuthProvider `json:"provider"`
 }
 
-// OauthService: The OAuth clients maild signs in with. Until Frostmail ships
-// verified clients (M6) the user registers their own
-// (docs/design/accounts.md). The client secret is write-only.
+// OauthService: The OAuth clients maild signs in with. Microsoft's is built
+// in (ADR-0039); for Google, until Frostmail ships a verified client (M6),
+// the user registers their own (docs/design/accounts.md). The client secret
+// is write-only.
 type OauthService interface {
 	// SetClient implements oauth.setClient. Store the client maild signs in to a
 	// provider with, replacing any previous one.

@@ -293,6 +293,13 @@ func (g *gmailModel) SearchMessageID(_ context.Context, msgid string) ([]uint32,
 	return out, nil
 }
 
+func (g *gmailModel) SearchHeader(ctx context.Context, field, value string) ([]uint32, error) {
+	if strings.EqualFold(field, "Message-ID") {
+		return g.SearchMessageID(ctx, value)
+	}
+	return nil, nil // the model's messages have no other headers
+}
+
 func (g *gmailModel) Append(context.Context, string, []byte, []string) (uint32, error) {
 	return 0, errors.New("append: not modeled")
 }

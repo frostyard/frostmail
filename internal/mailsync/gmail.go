@@ -24,6 +24,7 @@ type conn interface {
 	Status(ctx context.Context, path string) (imapx.Selected, error)
 	UIDsSince(ctx context.Context, since time.Time) ([]uint32, error)
 	SearchMessageID(ctx context.Context, msgid string) ([]uint32, error)
+	SearchHeader(ctx context.Context, field, value string) ([]uint32, error)
 	FetchFlags(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
 	FetchGmailHeaders(ctx context.Context, uids []uint32) ([]store.MessageHeader, error)
 	FetchGmailChanges(ctx context.Context, uids []uint32, changedSince uint64) ([]store.FlagUpdate, error)
@@ -145,7 +146,7 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 		return err
 	}
 	server := local
-	if now := time.Now(); a.mustSearch(ok, st, sel, len(local), now) {
+	if now := a.m.windowNow(); a.mustSearch(ok, st, sel, len(local), now) {
 		if server, err = conn.UIDsSince(ctx, windowAt(a.acct.SyncDays, now)); err != nil {
 			return err
 		}
@@ -193,7 +194,7 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 	}
 	return a.storeSyncState(ctx, mb.ID, store.SyncState{
 		UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
-		ServerCount: sel.Messages, LastSyncAt: time.Now(),
+		ServerCount: sel.Messages, LastSyncAt: a.m.windowNow(),
 	})
 }
 

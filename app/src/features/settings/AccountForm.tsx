@@ -2,7 +2,8 @@
 // (docs/specs/settings-ui.md, AccountForm): it adds a new account (its
 // address, Find Settings, the sign-in, both servers and the options) and
 // edits an existing one (its name, servers, options, a new password, or
-// signing in to Google again), reporting every edit as a new value.
+// signing in to Google or Microsoft again), reporting every edit as a new
+// value.
 import { type ChangeEvent, type FormEvent, type ReactNode, useId } from "react";
 
 import type { AccountKind, AuthKind, DiscoverySource, ServerConfig, ServiceKind } from "../../rpc/gen/api";
@@ -54,7 +55,7 @@ export interface AccountFormProps {
   onDiscover: () => void;
   /** Edit mode: whether the stored credential works. */
   signedIn: boolean;
-  /** Edit mode, Google sign-in: starts it in the browser. */
+  /** Edit mode, Google or Microsoft sign-in: starts it in the browser. */
   onSignIn: () => void;
   /** A request is running. */
   busy: boolean;
@@ -65,7 +66,17 @@ export interface AccountFormProps {
   services?: ReactNode;
 }
 
-const KINDS: readonly AccountKind[] = ["imap", "gmail", "icloud"];
+const KINDS: readonly AccountKind[] = ["imap", "gmail", "microsoft", "icloud"];
+
+/** authFor is the sign-in a new kind starts with: Gmail keeps the one
+ * chosen, Microsoft signs in only with OAuth, the rest with a password. */
+function authFor(kind: AccountKind, current: AuthKind): AuthKind {
+  if (kind === "gmail") return current;
+  return kind === "microsoft" ? "oauth2" : "password";
+}
+
+/** PROVIDER names the OAuth provider of the kinds that sign in with one. */
+const PROVIDER: Partial<Record<AccountKind, string>> = { gmail: "Google", microsoft: "Microsoft" };
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
 function headingFor(mode: "add" | "edit", value: AccountFormValue): string {
@@ -130,13 +141,21 @@ function PasswordRow(props: { value: AccountFormValue; editing: boolean; onChang
   );
 }
 
-function GoogleRow(props: { mode: "add" | "edit"; signedIn: boolean; busy: boolean; onSignIn: () => void }) {
+function SignInRow(props: {
+  kind: AccountKind;
+  mode: "add" | "edit";
+  signedIn: boolean;
+  busy: boolean;
+  onSignIn: () => void;
+}) {
+  const provider = PROVIDER[props.kind] ?? "Google";
+  const covers = offeredServices(props.kind).length > 0 ? ", once for mail and the services checked below" : "";
   return (
     <>
-      <span className={LABEL}>Google:</span>
+      <span className={LABEL}>{provider}:</span>
       {props.mode === "add" ? (
         <p className="text-[12px] leading-4 text-secondary">
-          After adding the account, sign in with Google in your browser, once for mail and the services checked below.
+          After adding the account, sign in with {provider} in your browser{covers}.
         </p>
       ) : (
         <div className="flex items-center">
@@ -212,7 +231,7 @@ function KindRows(props: AccountFormProps) {
             onChange({
               ...value,
               kind,
-              auth: kind === "gmail" ? value.auth : "password",
+              auth: authFor(kind, value.auth),
               ...(editing ? {} : { services: defaultServices(kind) }),
             });
         }}
@@ -236,8 +255,9 @@ function KindRows(props: AccountFormProps) {
           onChange({ ...value, auth });
         }}
       >
-        <option value="password">Password</option>
+        {value.kind !== "microsoft" && <option value="password">Password</option>}
         {value.kind === "gmail" && <option value="oauth2">Google sign-in</option>}
+        {value.kind === "microsoft" && <option value="oauth2">Microsoft sign-in</option>}
       </select>
     </>
   );
@@ -293,6 +313,7 @@ function AddServices(props: { value: AccountFormValue; busy: boolean; onChange: 
   const heading = useId();
   const offered = offeredServices(props.value.kind);
   const selected = props.value.services ?? [];
+  if (offered.length === 0) return null;
   return (
     <section aria-labelledby={heading}>
       <h3 id={heading} className="mt-5 mb-2 text-[13px] leading-[18px] font-semibold">
@@ -356,7 +377,7 @@ export function AccountForm(props: AccountFormProps) {
         {value.auth === "password" ? (
           <PasswordRow value={value} editing={mode === "edit"} onChange={onChange} />
         ) : (
-          <GoogleRow mode={mode} signedIn={props.signedIn} busy={busy} onSignIn={props.onSignIn} />
+          <SignInRow kind={value.kind} mode={mode} signedIn={props.signedIn} busy={busy} onSignIn={props.onSignIn} />
         )}
       </div>
       <ServerRows value={value} onChange={onChange} busy={busy} />

@@ -32,6 +32,16 @@ type Quirks struct {
 	// MaxConnections caps the account's simultaneous connections (0: the
 	// engine's default).
 	MaxConnections int
+	// OriginalMessageID names the header in which the server's own Sent
+	// copy keeps a sent message's Message-ID, when SMTP submission gives the
+	// message a new one (Outlook.com's X-Microsoft-Original-Message-ID,
+	// found 2026-10-16). "" for servers that keep the Message-ID.
+	OriginalMessageID string
+	// NoKeywords: the server keeps only system flags, $Forwarded and
+	// $MDNSent, and answers OK to others without storing them. Keywords and
+	// Mail.app's color bits stay local: maild sends none, and flags read
+	// from the server leave them as they are.
+	NoKeywords bool
 }
 
 // Profile is one provider's settings.
@@ -112,6 +122,20 @@ var profiles = []Profile{
 		},
 	},
 	{
+		// Outlook.com and Hotmail, probed 2026-10-15 (plan 0010, Phase 1).
+		// IMAP has IDLE, MOVE and UIDPLUS, but no CONDSTORE or SPECIAL-USE;
+		// LIST marks Sent, Drafts, Deleted and Junk anyway, and Archive
+		// goes by its name.
+		Kind:    api.AccountKindMicrosoft,
+		IMAP:    Server{Host: "outlook.office365.com", Port: 993, TLS: api.TLSModeTLS},
+		SMTP:    Server{Host: "smtp-mail.outlook.com", Port: 587, TLS: api.TLSModeStartTLS},
+		Auth:    []api.AuthKind{api.AuthKindOAuth2},
+		OAuth:   "microsoft",
+		Domains: microsoftDomains,
+		Quirks: Quirks{SavesSent: true, NoQResync: true, NoKeywords: true,
+			OriginalMessageID: "X-Microsoft-Original-Message-ID"},
+	},
+	{
 		Kind:    api.AccountKindICloud,
 		IMAP:    Server{Host: "imap.mail.me.com", Port: 993, TLS: api.TLSModeTLS},
 		SMTP:    Server{Host: "smtp.mail.me.com", Port: 587, TLS: api.TLSModeStartTLS},
@@ -133,6 +157,15 @@ var profiles = []Profile{
 			Trusted:            []string{"icloud.com"},
 		},
 	},
+}
+
+// microsoftDomains are the address domains of Microsoft's personal
+// accounts, which sign in to Outlook.com.
+var microsoftDomains = []string{
+	"outlook.com", "hotmail.com", "live.com", "msn.com", "passport.com", "windowslive.com",
+	"outlook.co.uk", "outlook.de", "outlook.es", "outlook.fr", "outlook.it",
+	"hotmail.ca", "hotmail.co.uk", "hotmail.de", "hotmail.es", "hotmail.fr", "hotmail.it",
+	"live.ca", "live.co.uk", "live.de", "live.fr", "live.it",
 }
 
 // ForKind returns the profile of an account kind; generic IMAP accounts

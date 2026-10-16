@@ -222,7 +222,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 	if err := a.replay(ctx, cmd); err != nil {
 		return false, err
 	}
-	if err := a.settleInterrupted(ctx); err != nil {
+	if err := a.settleInterrupted(ctx, cmd); err != nil {
 		return false, err
 	}
 	if err := a.saveDrafts(ctx, cmd); err != nil {

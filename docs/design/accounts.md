@@ -13,6 +13,7 @@ Living document. Rationale: [ADR-0011](../adr/0011-sign-in-and-credentials.md)
 | --- | --- | --- | --- | --- |
 | `gmail` | imap.gmail.com:993 TLS | smtp.gmail.com:465 TLS | `oauth2` or `password` (app password) | the Gmail sync path (ADR-0012); no Sent append; no QRESYNC; at most 15 connections |
 | `icloud` | imap.mail.me.com:993 TLS | smtp.mail.me.com:587 STARTTLS | `password` (app-specific) | `ENABLE` gets no `ENABLED` reply (treat as enabled only if `CONDSTORE` answers); QRESYNC off; LIST marks "Sent Messages" and "Deleted Messages" with `\Sent` and `\Trash` though SPECIAL-USE is not offered, so other clients' "Sent Items" and "Trash" stay plain folders; EXAMINE answers `[READ-WRITE]`; empty folders report HIGHESTMODSEQ 0; the IMAP user name is the address |
+| `microsoft` | outlook.office365.com:993 TLS | smtp-mail.outlook.com:587 STARTTLS | `oauth2` with Frostmail's own client | Outlook.com and Hotmail ([ADR-0039](../adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)): no Sent append; no CONDSTORE or SPECIAL-USE, but LIST marks Sent, Drafts, Deleted (`\Trash`) and Junk, and Archive goes by its name; keeps no keywords (`NoKeywords`), so flag colors stay local; SMTP gives a sent message a Message-ID of its own and keeps the client's in `X-Microsoft-Original-Message-ID` (`OriginalMessageID`); Outlook's own folders (Notes, Outbox, Sync Issues) are plain folders |
 | `imap` | discovered or entered | discovered or entered | `password` | none |
 
 The sync engine reads quirks from the profile, never from host names. A
@@ -47,6 +48,17 @@ caps responses at 64 KB, and never sends the password anywhere.
   (`account/<id>/refresh-token`) and restarts the account. The app opens
   the URL with `open_link` and shows "Waiting for Google…" until
   `account.changed` reports the account signed in.
+- **OAuth** (Microsoft): maild has Frostmail's public client built in
+  (`oauth.MicrosoftClientID`, no secret); `oauth.setClient` can replace
+  it. The sign-in runs at the `common` authority with the scopes
+  `https://outlook.office.com/IMAP.AccessAsUser.All`, `.../SMTP.Send` and
+  `offline_access` and `prompt=select_account`. The redirect is
+  `http://localhost:<port>`, as the client is registered, and maild
+  listens on that port over IPv4 and IPv6. Every token request names
+  Outlook's scopes, since Microsoft grants a token per audience (Graph's
+  joins in Phase 3 of [plan 0010](../plans/0010-m7-microsoft-and-windows.md)).
+  Microsoft rotates the refresh token on every use; maild stores the new
+  one before it uses the access token.
 - **Tokens:** `internal/oauth` keeps access tokens in memory, refreshes
   them when less than 5 minutes remain, and once after `AUTHENTICATE`
   fails. `invalid_grant` makes the account `unauthorized` with "Sign in
@@ -111,8 +123,8 @@ are already redacted, every word of the mail becomes a stable fake, and big
 sessions are trimmed to a few messages per mailbox; the result is checked
 into `internal/mailsync/testdata/replay/`. `internal/imapx/replay` is a
 server that plays a script back and fails the test on any command the
-script does not expect. Replay tests cover the Gmail and iCloud paths no
-local server can imitate; [testing.md](testing.md#recorded-sessions) has
+script does not expect. Replay tests cover the Gmail, iCloud and
+Outlook.com paths no local server can imitate; [testing.md](testing.md#recorded-sessions) has
 the details.
 
 ## Setting up a personal Google client

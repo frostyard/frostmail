@@ -278,10 +278,10 @@ interface AccountFormProps {
 | --- | --- | --- | --- |
 | `Email Address:` | `input type="email"` | `account-email` | `readOnly` in edit mode |
 | `Full Name:` | `input type="text"` | `account-name` | `displayName` |
-| `Account Type:` | `select` | `account-kind` | options `imap` "IMAP", `gmail` "Gmail", `icloud` "iCloud"; `disabled` in edit mode |
-| `Sign In:` | `select` | `account-auth` | options `password` "Password", and `oauth2` "Google sign-in" only when the kind is `gmail`; `disabled` in edit mode |
+| `Account Type:` | `select` | `account-kind` | options `imap` "IMAP", `gmail` "Gmail", `microsoft` "Microsoft", `icloud` "iCloud"; `disabled` in edit mode |
+| `Sign In:` | `select` | `account-auth` | options `password` "Password" except for `microsoft`, `oauth2` "Google sign-in" only when the kind is `gmail`, and `oauth2` "Microsoft sign-in" only when it is `microsoft`; `disabled` in edit mode |
 | `Password:` | `input type="password"`, `autoComplete="new-password"` | `account-password` | only when auth is `password`; placeholder "Unchanged" in edit mode |
-| `Google:` | see below | | only when auth is `oauth2`; the label is a `span` |
+| `Google:` or `Microsoft:` | see below | | only when auth is `oauth2`, named for the kind's provider; the label is a `span` |
 
 - **Add mode, after the email row:** a row whose second column holds a
   `button type="button"` "Find Settings" (secondary style) calling
@@ -292,9 +292,13 @@ interface AccountFormProps {
   found; enter the servers below.` (`text-secondary`); found otherwise:
   `Found settings for this address.` (`text-secondary`); failed: the
   message (`text-flag-1`); idle: no span.
-- **Changing the kind** to anything but `gmail` also sets auth to
-  `password`, and sets `services` to the new kind's defaults
-  (`defaultServices`).
+- **Changing the kind** to `microsoft` sets auth to `oauth2`, and to
+  anything but `gmail` or `microsoft` sets it to `password`; it also sets
+  `services` to the new kind's defaults (`defaultServices`).
+- **The sign-in row, add mode:** "After adding the account, sign in with
+  Google (or Microsoft) in your browser", followed by ", once for mail and
+  the services checked below" when the kind offers services, then a
+  period. The Services section is left out when the kind offers none.
 - **Services by kind:** `offeredServices(kind)` is contacts, calendar and
   tasks for `imap` and `gmail`, contacts and calendar for `icloud` (and
   none for `microsoft`); `defaultServices(kind)` is all of them for

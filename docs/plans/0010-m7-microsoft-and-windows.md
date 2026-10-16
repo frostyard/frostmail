@@ -1,7 +1,7 @@
 # Plan 0010: M7 Microsoft accounts and Windows
 
 M7 makes Frostmail usable by the user's friend: Hotmail mail, contacts and
-calendar, in Frostmail on Windows. It adds the `outlook` account kind with
+calendar, in Frostmail on Windows. It adds the `microsoft` account kind with
 Microsoft sign-in (mail over IMAP and SMTP, contacts and calendars over
 Microsoft Graph, [ADR-0039](../adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md))
 and a Windows build of maild, mailctl and the app with an installer
@@ -121,18 +121,42 @@ records how Graph's events and contacts are stored.
 
 ## Phase 2 — Outlook mail (large)
 
-- The `outlook` account kind (`schema/rpc`, additive), its provider
-  profile, and discovery for Microsoft's domains.
-- `oauth`: the Microsoft endpoint with the built-in client ID, scopes per
-  service, one refresh token per account stored on every rotation before
-  it is used, and an access token per audience. `AccessToken` takes the
-  audience. Google's path does not change.
-- The engine with Outlook's quirks from Phase 1: flag sync without
-  CONDSTORE if it lacks it, folder roles, the Sent copy, connection count.
-- The account sheet and Settings sign in with Microsoft
-  ([specs/settings-ui.md](../specs/settings-ui.md)).
+- The `microsoft` account kind, which the API and the store already had,
+  its provider profile, and discovery for Microsoft's domains. Done.
+- `oauth`: the Microsoft endpoint with the built-in client ID, the
+  `localhost` redirect, Outlook's scopes on every token request, and the
+  refresh token stored on every rotation before it is used. Google's path
+  does not change. An access token per audience comes with Graph in
+  Phase 3. Done.
+- The engine with Outlook's quirks: flags without CONDSTORE (the generic
+  path), folder roles by attribute and name, no Sent append, and
+  `NoKeywords`, since Outlook.com drops keywords and flag colors (found
+  2026-10-15 on the probe's own message). Done.
+- The account form signs in with Microsoft
+  ([specs/settings-ui.md](../specs/settings-ui.md)). Done.
 - Recordings of the user's Outlook.com account, scrubbed, replayed in
-  `make check`.
+  `make check` (`TestReplayOutlook`). Done.
+- **Evidence so far (2026-10-16):**
+  - **Sign-in:** a dev maild with its own store signed the user's
+    Outlook.com account in through `mailctl account connect --oauth`.
+  - **Sync and verify:** it synced 30 days, and verify was clean once a
+    pass had taken Deleted's three stand-ins.
+  - **Recorded ops:** mailctl's flag, color, unread, move to Archive and
+    back were recorded and replay as they ran. The color reached Outlook.com
+    as `\Flagged` alone.
+  - **Display copies:** the 37 display copies matched the whole messages
+    after the Exchange CRLF fix ([sync.md](../design/sync.md#bodies)).
+  - **Sending:** a message from the account to the user's Gmail arrived
+    there. It also turned up two bugs, now fixed with tests:
+    - maild appended a Sent copy, since only Gmail's kind skipped it, so
+      Sent held two. The profile's `SavesSent` now decides.
+    - Outlook.com rewrites the Message-ID, keeping the client's in
+      `X-Microsoft-Original-Message-ID`, so a send interrupted after
+      delivery would have gone out again. The profile's
+      `OriginalMessageID` now finds it.
+  - **Restart:** the dev maild restarted on its stored, rotated refresh
+    token without asking to sign in.
+  - **Still to do:** three days on the user's own maild, and a sign-out.
 - **Done when:** on Linux, the user's Outlook.com account syncs, sends to
   their own addresses, survives a restart and a sign-out, and verifies
   clean for three days, with `make check` green.
@@ -155,6 +179,10 @@ records how Graph's events and contacts are stored.
     events the user organizes);
   - contact photos.
 - Verify for Graph accounts, and recordings replayed in `make check`.
+- Deleting an event through Graph moves it to Deleted Items, which IMAP
+  shows as a "Retrieval using the IMAP4 protocol failed" message (found in
+  Phase 2). Decide whether deletes use Graph's `permanentDelete`, given
+  that undo restores by posting again.
 - **Done when:** the user's Outlook.com calendar and contacts show in
   Frostmail, and edits from either side reach the other within a pass,
   with clean verifies. An invitation between the user's Outlook.com and
@@ -225,6 +253,8 @@ nobody else has to:
 ## Later / ideas
 
 - macOS (ADR-0038 left the seams for it).
+- Hiding Outlook's own folders (Outbox, Sync Issues and its children),
+  which Exchange's IMAP lists like any other.
 - Work and school Microsoft 365 accounts: tenant admin consent, SMTP AUTH
   or Graph `sendMail`, publisher verification.
 - Microsoft To Do lists and tasks over Graph.
