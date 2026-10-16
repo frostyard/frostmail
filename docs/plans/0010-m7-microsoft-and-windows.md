@@ -34,7 +34,7 @@ The user chose these on 2026-10-15:
 - **The user's Windows machines** are for installs, trials and checks that
   CI cannot make.
 
-## Phase 1 — Probe Outlook.com (planner, small)
+## Phase 1 — Probe Outlook.com (planner, small) — done
 
 - The user registers Frostmail's public client in Microsoft Entra (setup
   below) and gives its client ID. Done 2026-10-15.
@@ -55,6 +55,69 @@ The user chose these on 2026-10-15:
 - **Done when:** the findings are recorded here, the profile's quirks are
   known, and an ADR (0040) decides how Graph's events and contacts are
   stored, synced, edited and undone.
+
+**Findings (2026-10-15).** The probe signed in once as the user's
+Outlook.com account and ran `imap`, `smtp`, `graph`, `writes` and `send`.
+The user allowed the probe items and the one message. Everything the
+probe made was deleted, and a last listing found none left.
+
+- **Sign-in:**
+  - One authorization at the `common` authority, with the resource-prefixed
+    scopes (`https://outlook.office.com/IMAP.AccessAsUser.All`,
+    `.../SMTP.Send`, `https://graph.microsoft.com/Calendars.ReadWrite`,
+    `.../Contacts.ReadWrite`, `.../User.Read`) plus `offline_access`,
+    consents to both audiences.
+  - The code is redeemed with the Outlook scopes, and the refresh token is
+    redeemed again for Graph's.
+  - The refresh token rotates on every redemption (457–501 bytes), and
+    access tokens last an hour.
+  - The redirect `http://localhost:<port>` matches the registered
+    `http://localhost`. The ID token's `email` claim names the account.
+- **IMAP:**
+  - `outlook.office365.com:993` and `imap-mail.outlook.com:993` are
+    identical, with XOAUTH2 as the account's address.
+  - Capabilities: `IMAP4rev1 IDLE MOVE UIDPLUS NAMESPACE CHILDREN LITERAL+
+    SASL-IR UNSELECT ID AUTH=XOAUTH2`. There is no CONDSTORE, QRESYNC,
+    SPECIAL-USE, ESEARCH, BINARY or LIST-STATUS.
+  - LIST still marks `Sent`, `Drafts`, `Deleted` (`\Trash`) and `Junk`.
+    `Archive` has no attribute.
+  - Outlook's own folders show too: `Notes`, `Outbox`, and `Sync Issues`
+    with three children.
+  - `HIGHESTMODSEQ` is 0 everywhere, and INBOX's UIDs are sparse (1,808
+    messages, `UIDNEXT` 13485).
+  - It held six connections at once.
+- **SMTP:** `smtp-mail.outlook.com:587` and `smtp.office365.com:587` take
+  XOAUTH2 after STARTTLS, with `SIZE` 157286400. A message sent to the
+  account itself was in `Sent` and INBOX within 5 seconds. Outlook.com
+  saves the Sent copy itself (`SavesSent`).
+- **Graph calendars:**
+  - The account has `Calendar` (the default), `Birthday calendar` and
+    `US Holidays` (read-only), and `Your family`, a group calendar that can
+    be edited.
+  - `/me/calendars/{id}/calendarView/delta` works on each of them over a
+    window, and returns masters, singles, exceptions and bare occurrences.
+    A deletion is `@removed` with only the ID, once per series.
+  - Default IDs equal the immutable IDs.
+  - A stale `If-Match` gets 412.
+  - Zones are kept as written, IANA or Windows. All-day events run from
+    midnight to midnight. Each event has one reminder.
+  - Masters list `cancelledOccurrences` and `exceptionOccurrences` (v1.0).
+    Renaming a master renamed its moved occurrence.
+  - Filtering events by `seriesMasterId` is unsupported (501).
+- **Graph contacts:**
+  - The account has the default folder only.
+  - `/me/contacts/delta` works for a personal account.
+  - A photo is `PUT .../photo/$value`, and comes back as JPEG.
+- **To Do:** 401 without its scope, as expected (Later).
+
+The probe also left these for Phase 2:
+- what `SELECT` (not `EXAMINE`) gives as `PERMANENTFLAGS`, which decides
+  whether keywords and flag colors reach the server;
+- whether Outlook.com's `\Recent` and sparse UIDs need anything;
+- how a deleted occurrence alone shows in delta.
+
+[ADR-0040](../adr/0040-graph-events-and-contacts-as-derived-sources.md)
+records how Graph's events and contacts are stored.
 
 ## Phase 2 — Outlook mail (large)
 
@@ -173,15 +236,12 @@ nobody else has to:
 - **Reaching a Windows machine from the planner's side:** OpenSSH on one
   of the user's machines, or CI plus the user running installers. By
   Phase 4.
-- **Does Outlook.com's IMAP lack CONDSTORE?** It decides how flags sync.
-  Phase 1.
-- **Does contacts delta work for personal accounts?** It decides how
-  contacts sync. Phase 1.
 
 ## References
 
 - Implements: [ADR-0038](../adr/0038-windows-as-a-second-platform.md),
-  [ADR-0039](../adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)
+  [ADR-0039](../adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md),
+  [ADR-0040](../adr/0040-graph-events-and-contacts-as-derived-sources.md)
 - Shapes: [design/accounts.md](../design/accounts.md),
   [design/pim.md](../design/pim.md),
   [design/sync.md](../design/sync.md),

@@ -55,6 +55,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0037 — Fetch what the reader shows, and prefetch it](adr/0037-fetch-what-the-reader-shows.md)
 - [0038 — Windows is a second platform, with maild and the app as on Linux](adr/0038-windows-as-a-second-platform.md)
 - [0039 — Microsoft accounts: mail over IMAP and SMTP, contacts and calendars over Graph](adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)
+- [0040 — Store Graph's events and contacts as iCalendar and vCard derived from its JSON](adr/0040-graph-events-and-contacts-as-derived-sources.md)
 
 ### Design
 
