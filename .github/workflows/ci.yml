@@ -3,7 +3,8 @@
 # and jobs get only the permissions they need (frostyard/core ADR-0021,
 # checked by internal/workflowcheck); tools come from go.mod, mise.lock and
 # the app's manifests (ADR-0043). The app targets normally run in the nsl
-# machine; here IN_NSL runs them on the runner.
+# machine; here IN_NSL runs them on the runner. The Windows job runs the Go
+# suite on Windows (ADR-0038), which `make verify` only vets.
 name: CI
 
 on:
@@ -69,6 +70,23 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test -race ./...
+
+  windows:
+    name: Windows (go test)
+    runs-on: windows-2025
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      # Fixtures and golden files are byte-exact: no CRLF on checkout.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
 
   ui:
     name: App UI (make ui-check)
