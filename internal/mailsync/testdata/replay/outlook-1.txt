@@ -1,0 +1,2559 @@
+# Outlook.com (the user's test account, a 30-day window): the first sync, two INBOX refreshes from IDLE, and a pass after mailctl sync, recorded 2026-10-16 with MAILD_IMAP_TRACE. Replayed by TestReplayOutlook.
+# Scrubbed by tools/imaprec: names, addresses, subjects, bodies and
+# mailbox names are stable fakes; dates, structure, flags and UIDs are
+# as recorded.
+S: * OK Microsoft Exchange IMAP4 service ready. 1d7cro96-h920-5853-f220-968v61214j16 (tcpproxy/95.62.2719.004 BACKENDAUTHENTICATE) [JtBBXECONIWRFADAMEYVPIGRRBEnBSHGCJJjSW3REAPiUVJOnuYsKAGSHOZwMMALqgAtLSOZKkLuRWRQlUKwBS1DzcMfPT2HZpVwXO4R]
+C: T1 CAPABILITY
+S: * CAPABILITY IMAP4 IMAP4rev1 AUTH=XOAUTH2 LOGINDISABLED SASL-IR UIDPLUS MOVE ID UNSELECT CHILDREN IDLE NAMESPACE LITERAL+
+S: T1 OK CAPABILITY completed.
+C: T2 AUTHENTICATE XOAUTH2 [redacted]
+S: T2 OK AUTHENTICATE completed.
+C: T3 CAPABILITY
+S: * CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CLIENTACCESSRULES CLIENTNETWORKPRESENCELOCATION BACKENDAUTHENTICATE BACKENDAUTHENTICATE-IR CHILDREN IDLE NAMESPACE LITERAL+
+S: T3 OK CAPABILITY completed.
+C: T4 CAPABILITY
+S: * CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CLIENTACCESSRULES CLIENTNETWORKPRESENCELOCATION BACKENDAUTHENTICATE BACKENDAUTHENTICATE-IR CHILDREN IDLE NAMESPACE LITERAL+
+S: T4 OK CAPABILITY completed.
+C: T5 ID ("name" "frostmail" "vendor" "frostyard")
+S: * ID ("name" "Microsoft.Exchange.Imap4.Igpo6Micvgd" "version" "95.62")
+S: T5 OK ID completed
+C: T6 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T6 OK LIST completed.
+C: T7 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13493] The next qogwwj cutalfisov sdhrz
+S: T7 OK [READ-WRITE] SELECT completed.
+C: T8 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 13280 13284 13348 13352 13356 13362 13366 13371 13375 13380 13384 13387 13392 13396 13403 13407 13412 13416 13422 13426 13432 13436 13440 13447 13452 13456 13460 13466 13470 13475 13479 13484 13489
+S: T8 OK SEARCH completed.
+C: T9 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID BODYSTRUCTURE FLAGS RFC822.SIZE ENVELOPE INTERNALDATE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1777 FETCH (UID 13280 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22166 260 NIL NIL NIL NIL)("image" "png" ("name" "40204932-hwm0-374u-9e4f-b86ggm095843") "<40204932-hwm0-374u-9e4f-b86ggm095843>" NIL "base64" 1512 NIL ("inline" ("filename" "40204932-hwm0-374u-9e4f-b86ggm095843")) NIL "40204932-hwm0-374u-9e4f-b86ggm095843")("image" "png" ("name" "dk274566-dt21-22o9-b8u9-26988w9y2v3i") "<dk274566-dt21-22o9-b8u9-26988w9y2v3i>" NIL "base64" 998 NIL ("inline" ("filename" "dk274566-dt21-22o9-b8u9-26988w9y2v3i")) NIL "dk274566-dt21-22o9-b8u9-26988w9y2v3i")("image" "png" ("name" "2j1gu408-77c5-2468-2048-t549k41k5r52") "<2j1gu408-77c5-2468-2048-t549k41k5r52>" NIL "base64" 8450 NIL ("inline" ("filename" "2j1gu408-77c5-2468-2048-t549k41k5r52")) NIL "2j1gu408-77c5-2468-2048-t549k41k5r52")("image" "png" ("name" "72u60653-3j2j-718m-wwd2-5b441098040l") "<72u60653-3j2j-718m-wwd2-5b441098040l>" NIL "base64" 4082 NIL ("inline" ("filename" "72u60653-3j2j-718m-wwd2-5b441098040l")) NIL "72u60653-3j2j-718m-wwd2-5b441098040l")("image" "png" ("name" "g1h62150-4462-89k2-x113-022q3q858666") "<g1h62150-4462-89k2-x113-022q3q858666>" NIL "base64" 2936 NIL ("inline" ("filename" "g1h62150-4462-89k2-x113-022q3q858666")) NIL "g1h62150-4462-89k2-x113-022q3q858666") "related" ("boundary" "=-7uXV9FizjLY/cIAkUC4quD==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134989 ENVELOPE ("Wed, 16 Sep 2026 16:05:17 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-833p5702-90e8-6nf8-4hz5-g427a635ue4s.mwbm_6o4b8501-f4kt-6173-d317-b543aj98ih60.blmy_6239me66-a4a1-7k02-ef81-xas32dh9707i.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_64f74480-f5l6-3229-82w7-5f6j98p196bo@noyzmbxpag>") INTERNALDATE "16-Sep-2026 12:05:25 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 35.010.16.551)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1778 FETCH (UID 13284 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22021 260 NIL NIL NIL NIL)("image" "png" ("name" "z209ozyj-1309-628l-zq52-a5w10559l0n1") "<z209ozyj-1309-628l-zq52-a5w10559l0n1>" NIL "base64" 1512 NIL ("inline" ("filename" "z209ozyj-1309-628l-zq52-a5w10559l0n1")) NIL "z209ozyj-1309-628l-zq52-a5w10559l0n1")("image" "png" ("name" "83b5f782-r4b9-0931-r83o-y0ig0ks7fs08") "<83b5f782-r4b9-0931-r83o-y0ig0ks7fs08>" NIL "base64" 998 NIL ("inline" ("filename" "83b5f782-r4b9-0931-r83o-y0ig0ks7fs08")) NIL "83b5f782-r4b9-0931-r83o-y0ig0ks7fs08")("image" "png" ("name" "14p844ny-8686-8r73-j9l8-0h3o5p9250t1") "<14p844ny-8686-8r73-j9l8-0h3o5p9250t1>" NIL "base64" 8450 NIL ("inline" ("filename" "14p844ny-8686-8r73-j9l8-0h3o5p9250t1")) NIL "14p844ny-8686-8r73-j9l8-0h3o5p9250t1")("image" "png" ("name" "93h64rn4-t68q-4m04-99nf-7ldz581v3572") "<93h64rn4-t68q-4m04-99nf-7ldz581v3572>" NIL "base64" 4082 NIL ("inline" ("filename" "93h64rn4-t68q-4m04-99nf-7ldz581v3572")) NIL "93h64rn4-t68q-4m04-99nf-7ldz581v3572")("image" "png" ("name" "gw9hk3r3-6yk1-31d5-3a38-2kn023uhcn30") "<gw9hk3r3-6yk1-31d5-3a38-2kn023uhcn30>" NIL "base64" 2936 NIL ("inline" ("filename" "gw9hk3r3-6yk1-31d5-3a38-2kn023uhcn30")) NIL "gw9hk3r3-6yk1-31d5-3a38-2kn023uhcn30") "related" ("boundary" "=-BteYH+u4rcCbfBoITPzc0K==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134875 ENVELOPE ("Thu, 17 Sep 2026 16:18:34 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-c0599279-ytf6-46se-w350-106x1o79c650.mwbm_90eq39vd-2e5w-6im8-f132-6zug8j15jwd7.blmy_0809h78a-9a5s-4qg3-0n3o-39f10u333g05.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_i1qp0b19-7fbl-7wg2-o319-50r0219546od@noyzmbxpag>") INTERNALDATE "17-Sep-2026 12:18:39 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 94.62.076.490)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1779 FETCH (UID 13348 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22242 264 NIL NIL NIL NIL)("image" "png" ("name" "fc6t8e34-1h22-0904-gh06-0h0491ho607h") "<fc6t8e34-1h22-0904-gh06-0h0491ho607h>" NIL "base64" 1512 NIL ("inline" ("filename" "fc6t8e34-1h22-0904-gh06-0h0491ho607h")) NIL "fc6t8e34-1h22-0904-gh06-0h0491ho607h")("image" "png" ("name" "11x2vg80-3132-1137-481p-5ra54816o7da") "<11x2vg80-3132-1137-481p-5ra54816o7da>" NIL "base64" 998 NIL ("inline" ("filename" "11x2vg80-3132-1137-481p-5ra54816o7da")) NIL "11x2vg80-3132-1137-481p-5ra54816o7da")("image" "png" ("name" "1597769k-8597-74a1-og51-y97gm513z87m") "<1597769k-8597-74a1-og51-y97gm513z87m>" NIL "base64" 8450 NIL ("inline" ("filename" "1597769k-8597-74a1-og51-y97gm513z87m")) NIL "1597769k-8597-74a1-og51-y97gm513z87m")("image" "png" ("name" "307d82t7-7974-95zk-899k-fv7hcdu18665") "<307d82t7-7974-95zk-899k-fv7hcdu18665>" NIL "base64" 4082 NIL ("inline" ("filename" "307d82t7-7974-95zk-899k-fv7hcdu18665")) NIL "307d82t7-7974-95zk-899k-fv7hcdu18665")("image" "png" ("name" "379ut26u-7118-2i31-39r6-00gevi281km3") "<379ut26u-7118-2i31-39r6-00gevi281km3>" NIL "base64" 2936 NIL ("inline" ("filename" "379ut26u-7118-2i31-39r6-00gevi281km3")) NIL "379ut26u-7118-2i31-39r6-00gevi281km3") "related" ("boundary" "=-tU26Lte6NO+AiAJ+Tu3o9V==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137019 ENVELOPE ("Fri, 18 Sep 2026 16:35:09 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-8q183a08-1xqw-1ae7-v322-9gu86j7dhdw0.mwbm_7f0b23p4-9909-14k3-f10c-1i848251z26m.blmy_id825l88-q566-8349-s4l6-vm083y55168g.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_75901504-3999-5qui-kw7m-p4hdnp62qsa8@noyzmbxpag>") INTERNALDATE "18-Sep-2026 12:35:15 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 35.010.70.815)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1780 FETCH (UID 13352 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22031 260 NIL NIL NIL NIL)("image" "png" ("name" "04k5h067-7wck-2069-34bf-1a10fla53937") "<04k5h067-7wck-2069-34bf-1a10fla53937>" NIL "base64" 1512 NIL ("inline" ("filename" "04k5h067-7wck-2069-34bf-1a10fla53937")) NIL "04k5h067-7wck-2069-34bf-1a10fla53937")("image" "png" ("name" "7m783lj7-837n-1680-4e8s-0pp77r596345") "<7m783lj7-837n-1680-4e8s-0pp77r596345>" NIL "base64" 998 NIL ("inline" ("filename" "7m783lj7-837n-1680-4e8s-0pp77r596345")) NIL "7m783lj7-837n-1680-4e8s-0pp77r596345")("image" "png" ("name" "271dir58-s2m3-7470-b69w-88zs760j149d") "<271dir58-s2m3-7470-b69w-88zs760j149d>" NIL "base64" 8450 NIL ("inline" ("filename" "271dir58-s2m3-7470-b69w-88zs760j149d")) NIL "271dir58-s2m3-7470-b69w-88zs760j149d")("image" "png" ("name" "5ocol422-89mu-5o69-6ivx-347177185578") "<5ocol422-89mu-5o69-6ivx-347177185578>" NIL "base64" 4082 NIL ("inline" ("filename" "5ocol422-89mu-5o69-6ivx-347177185578")) NIL "5ocol422-89mu-5o69-6ivx-347177185578")("image" "png" ("name" "c63ni051-0q83-7e45-0wev-0cd5347qq4e2") "<c63ni051-0q83-7e45-0wev-0cd5347qq4e2>" NIL "base64" 2936 NIL ("inline" ("filename" "c63ni051-0q83-7e45-0wev-0cd5347qq4e2")) NIL "c63ni051-0q83-7e45-0wev-0cd5347qq4e2") "related" ("boundary" "=-vQTGLFfhgYV4Ra//S0kULF==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134809 ENVELOPE ("Sat, 19 Sep 2026 14:21:32 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-646u5456-8let-8qti-ssvd-06w867i7aj70.mwbm_9xm4brh5-062l-48cx-78sy-69qeg0483b1a.blmy_i71l751v-l3ds-968q-6wu5-295b464821st.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_040229o9-o9e8-7228-5bpb-epi0q7wy7944@noyzmbxpag>") INTERNALDATE "19-Sep-2026 10:21:40 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 35.010.29.024)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1781 FETCH (UID 13356 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22005 260 NIL NIL NIL NIL)("image" "png" ("name" "266g650a-250x-26o4-2877-80g9184777xr") "<266g650a-250x-26o4-2877-80g9184777xr>" NIL "base64" 1512 NIL ("inline" ("filename" "266g650a-250x-26o4-2877-80g9184777xr")) NIL "266g650a-250x-26o4-2877-80g9184777xr")("image" "png" ("name" "d3f60106-3y9g-5853-7ve4-5hl8019wq091") "<d3f60106-3y9g-5853-7ve4-5hl8019wq091>" NIL "base64" 998 NIL ("inline" ("filename" "d3f60106-3y9g-5853-7ve4-5hl8019wq091")) NIL "d3f60106-3y9g-5853-7ve4-5hl8019wq091")("image" "png" ("name" "6pk41428-3lvj-1k4o-y26h-6oah891petdz") "<6pk41428-3lvj-1k4o-y26h-6oah891petdz>" NIL "base64" 8450 NIL ("inline" ("filename" "6pk41428-3lvj-1k4o-y26h-6oah891petdz")) NIL "6pk41428-3lvj-1k4o-y26h-6oah891petdz")("image" "png" ("name" "9zt7g5a7-y775-7iz7-8590-17224k4a54tz") "<9zt7g5a7-y775-7iz7-8590-17224k4a54tz>" NIL "base64" 4082 NIL ("inline" ("filename" "9zt7g5a7-y775-7iz7-8590-17224k4a54tz")) NIL "9zt7g5a7-y775-7iz7-8590-17224k4a54tz")("image" "png" ("name" "63sq0630-3659-9sm4-d014-i3zr4501x19u") "<63sq0630-3659-9sm4-d014-i3zr4501x19u>" NIL "base64" 2936 NIL ("inline" ("filename" "63sq0630-3659-9sm4-d014-i3zr4501x19u")) NIL "63sq0630-3659-9sm4-d014-i3zr4501x19u") "related" ("boundary" "=-NJOKs2L5aUapFUVlnAIVwa==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136733 ENVELOPE ("Sun, 20 Sep 2026 16:06:16 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-0355o19j-z670-890q-2fb8-3v4996xnrcv0.mwbm_nq70322p-ld88-472z-07t7-cs5210c11j80.blmy_0ytj3ah0-f8s7-9731-08et-94s53yy44hja.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_03icxm93-5h4f-6f98-0801-00986791g6br@noyzmbxpag>") INTERNALDATE "20-Sep-2026 12:06:22 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 35.010.21.273)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1782 FETCH (UID 13362 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22012 260 NIL NIL NIL NIL)("image" "png" ("name" "a7y22922-wk4r-5x05-2j8h-217f1v7cr79a") "<a7y22922-wk4r-5x05-2j8h-217f1v7cr79a>" NIL "base64" 1512 NIL ("inline" ("filename" "a7y22922-wk4r-5x05-2j8h-217f1v7cr79a")) NIL "a7y22922-wk4r-5x05-2j8h-217f1v7cr79a")("image" "png" ("name" "499382eb-pt40-8up0-183l-vdj1k2123hd1") "<499382eb-pt40-8up0-183l-vdj1k2123hd1>" NIL "base64" 998 NIL ("inline" ("filename" "499382eb-pt40-8up0-183l-vdj1k2123hd1")) NIL "499382eb-pt40-8up0-183l-vdj1k2123hd1")("image" "png" ("name" "514oaz62-e84y-4a23-ll18-jo948i0j37dy") "<514oaz62-e84y-4a23-ll18-jo948i0j37dy>" NIL "base64" 8450 NIL ("inline" ("filename" "514oaz62-e84y-4a23-ll18-jo948i0j37dy")) NIL "514oaz62-e84y-4a23-ll18-jo948i0j37dy")("image" "png" ("name" "ku1d4q0c-6326-11ku-3j3b-d76mez30t415") "<ku1d4q0c-6326-11ku-3j3b-d76mez30t415>" NIL "base64" 4082 NIL ("inline" ("filename" "ku1d4q0c-6326-11ku-3j3b-d76mez30t415")) NIL "ku1d4q0c-6326-11ku-3j3b-d76mez30t415")("image" "png" ("name" "37cu6029-4kk3-85z3-c09u-1527v5j60329") "<37cu6029-4kk3-85z3-c09u-1527v5j60329>" NIL "base64" 2936 NIL ("inline" ("filename" "37cu6029-4kk3-85z3-c09u-1527v5j60329")) NIL "37cu6029-4kk3-85z3-c09u-1527v5j60329") "related" ("boundary" "=-04bg1E9Fl22SJ8HlbRoi1Z==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134836 ENVELOPE ("Mon, 21 Sep 2026 15:24:23 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-x3r4952r-84k6-4o03-15o6-0x271rx7m3i3.mwbm_1838xn17-380n-2n2h-l4zz-673g8nc30l57.blmy_059685l9-75g6-3h65-63hy-rpf834qb958s.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_07551d86-2io9-2863-4047-gn382s63yr24@noyzmbxpag>") INTERNALDATE "21-Sep-2026 11:24:31 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 94.62.530.456)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1783 FETCH (UID 13366 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22084 260 NIL NIL NIL NIL)("image" "png" ("name" "b9225s05-l4gk-41ui-vl00-a25744v41540") "<b9225s05-l4gk-41ui-vl00-a25744v41540>" NIL "base64" 1512 NIL ("inline" ("filename" "b9225s05-l4gk-41ui-vl00-a25744v41540")) NIL "b9225s05-l4gk-41ui-vl00-a25744v41540")("image" "png" ("name" "c234a61h-6nt2-7713-x2a3-6781i1i5m031") "<c234a61h-6nt2-7713-x2a3-6781i1i5m031>" NIL "base64" 998 NIL ("inline" ("filename" "c234a61h-6nt2-7713-x2a3-6781i1i5m031")) NIL "c234a61h-6nt2-7713-x2a3-6781i1i5m031")("image" "png" ("name" "e8kj9u21-z9yi-404e-15tx-az603a781ul0") "<e8kj9u21-z9yi-404e-15tx-az603a781ul0>" NIL "base64" 8450 NIL ("inline" ("filename" "e8kj9u21-z9yi-404e-15tx-az603a781ul0")) NIL "e8kj9u21-z9yi-404e-15tx-az603a781ul0")("image" "png" ("name" "r69o63pb-aqz0-24p6-5iso-3u774lr7o226") "<r69o63pb-aqz0-24p6-5iso-3u774lr7o226>" NIL "base64" 4082 NIL ("inline" ("filename" "r69o63pb-aqz0-24p6-5iso-3u774lr7o226")) NIL "r69o63pb-aqz0-24p6-5iso-3u774lr7o226")("image" "png" ("name" "3va18742-o442-33i2-y699-iw5990977s57") "<3va18742-o442-33i2-y699-iw5990977s57>" NIL "base64" 2936 NIL ("inline" ("filename" "3va18742-o442-33i2-y699-iw5990977s57")) NIL "3va18742-o442-33i2-y699-iw5990977s57") "related" ("boundary" "=-d30H4t1/BV3aiWjg+b9Hwr==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137285 ENVELOPE ("Tue, 22 Sep 2026 14:51:55 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-9t7u26p2-462y-6qr6-87wm-06jho8g9a0e7.mwbm_yr1923z7-807f-165x-239h-90l103g9vw9d.blmy_6003c20e-31m5-420y-njje-34i79m8g8d69.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_g343v2ds-0wb1-9265-jf78-63a6q30hazby@noyzmbxpag>") INTERNALDATE "22-Sep-2026 10:52:09 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {359}
+S: Authentication-Results: spf=pass (sender UG is 35.010.29.710)
+S:  smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1784 FETCH (UID 13371 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22018 260 NIL NIL NIL NIL)("image" "png" ("name" "137t5w38-v2j3-9051-k01m-jf6rp20tg87i") "<137t5w38-v2j3-9051-k01m-jf6rp20tg87i>" NIL "base64" 1512 NIL ("inline" ("filename" "137t5w38-v2j3-9051-k01m-jf6rp20tg87i")) NIL "137t5w38-v2j3-9051-k01m-jf6rp20tg87i")("image" "png" ("name" "3ys41947-88q9-4wqk-nycd-7j5k47448258") "<3ys41947-88q9-4wqk-nycd-7j5k47448258>" NIL "base64" 998 NIL ("inline" ("filename" "3ys41947-88q9-4wqk-nycd-7j5k47448258")) NIL "3ys41947-88q9-4wqk-nycd-7j5k47448258")("image" "png" ("name" "j3368i82-a50i-1m64-i6j4-636kb084b888") "<j3368i82-a50i-1m64-i6j4-636kb084b888>" NIL "base64" 8450 NIL ("inline" ("filename" "j3368i82-a50i-1m64-i6j4-636kb084b888")) NIL "j3368i82-a50i-1m64-i6j4-636kb084b888")("image" "png" ("name" "6k60u7lt-8j3y-00b4-gm09-u9auesc65mf2") "<6k60u7lt-8j3y-00b4-gm09-u9auesc65mf2>" NIL "base64" 4082 NIL ("inline" ("filename" "6k60u7lt-8j3y-00b4-gm09-u9auesc65mf2")) NIL "6k60u7lt-8j3y-00b4-gm09-u9auesc65mf2")("image" "png" ("name" "34b72k6z-e52k-533a-7715-3804ep94789f") "<34b72k6z-e52k-533a-7715-3804ep94789f>" NIL "base64" 2936 NIL ("inline" ("filename" "34b72k6z-e52k-533a-7715-3804ep94789f")) NIL "34b72k6z-e52k-533a-7715-3804ep94789f") "related" ("boundary" "=-ZmXLC76r+lCUQvtko8LmDK==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136860 ENVELOPE ("Wed, 23 Sep 2026 16:19:51 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-665681h5-3vn6-4fcn-5a7x-5834n60sa013.mwbm_03241in2-151t-6123-h34u-2j19vh8g5gy5.blmy_5j1qwp1v-4ba6-8wcb-71wh-882r71j46u64.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_ll82v2j3-8c7r-6h72-pq37-0tu69970xt70@noyzmbxpag>") INTERNALDATE "23-Sep-2026 12:19:56 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.076.700) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1785 FETCH (UID 13375 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22173 264 NIL NIL NIL NIL)("image" "png" ("name" "t381x363-17mi-5bg2-2300-835d22zz71em") "<t381x363-17mi-5bg2-2300-835d22zz71em>" NIL "base64" 1512 NIL ("inline" ("filename" "t381x363-17mi-5bg2-2300-835d22zz71em")) NIL "t381x363-17mi-5bg2-2300-835d22zz71em")("image" "png" ("name" "dj0vgo9n-5t92-544v-0880-zay414fe5c4w") "<dj0vgo9n-5t92-544v-0880-zay414fe5c4w>" NIL "base64" 998 NIL ("inline" ("filename" "dj0vgo9n-5t92-544v-0880-zay414fe5c4w")) NIL "dj0vgo9n-5t92-544v-0880-zay414fe5c4w")("image" "png" ("name" "c19l1l26-0iy0-09tn-877p-4x4kl12o3qx5") "<c19l1l26-0iy0-09tn-877p-4x4kl12o3qx5>" NIL "base64" 8450 NIL ("inline" ("filename" "c19l1l26-0iy0-09tn-877p-4x4kl12o3qx5")) NIL "c19l1l26-0iy0-09tn-877p-4x4kl12o3qx5")("image" "png" ("name" "m9i4u3w6-crx1-3584-js2n-wo01ig6b4785") "<m9i4u3w6-crx1-3584-js2n-wo01ig6b4785>" NIL "base64" 4082 NIL ("inline" ("filename" "m9i4u3w6-crx1-3584-js2n-wo01ig6b4785")) NIL "m9i4u3w6-crx1-3584-js2n-wo01ig6b4785")("image" "png" ("name" "368l2f4b-06n2-354q-w8j4-2x0vx5u3qag6") "<368l2f4b-06n2-354q-w8j4-2x0vx5u3qag6>" NIL "base64" 2936 NIL ("inline" ("filename" "368l2f4b-06n2-354q-w8j4-2x0vx5u3qag6")) NIL "368l2f4b-06n2-354q-w8j4-2x0vx5u3qag6") "related" ("boundary" "=-yo6bPAToQqxL0/khvYkl9d==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 135105 ENVELOPE ("Thu, 24 Sep 2026 15:19:58 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-0t79n515-346w-8g85-ja78-0ar0as7c5pu4.mwbm_e34011k0-j552-1064-s106-zpyqn832r116.blmy_44k334o5-r45s-83u4-qsf7-ez64i3c80p2x.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_ls506762-rg55-1t11-h1dc-lru88m1602rb@noyzmbxpag>") INTERNALDATE "24-Sep-2026 11:20:09 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {380}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.449.214.935) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc
+S:  jaxgvqqh) header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc
+S:  jaxgvqqh) header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1786 FETCH (UID 13380 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22052 260 NIL NIL NIL NIL)("image" "png" ("name" "8920h71j-tnjg-3m33-a6s3-91it652pt034") "<8920h71j-tnjg-3m33-a6s3-91it652pt034>" NIL "base64" 1512 NIL ("inline" ("filename" "8920h71j-tnjg-3m33-a6s3-91it652pt034")) NIL "8920h71j-tnjg-3m33-a6s3-91it652pt034")("image" "png" ("name" "c4434a8p-u225-8608-9260-0w2u1b39918k") "<c4434a8p-u225-8608-9260-0w2u1b39918k>" NIL "base64" 998 NIL ("inline" ("filename" "c4434a8p-u225-8608-9260-0w2u1b39918k")) NIL "c4434a8p-u225-8608-9260-0w2u1b39918k")("image" "png" ("name" "120964u1-8wiz-8k39-079j-00nnhq4461j2") "<120964u1-8wiz-8k39-079j-00nnhq4461j2>" NIL "base64" 8450 NIL ("inline" ("filename" "120964u1-8wiz-8k39-079j-00nnhq4461j2")) NIL "120964u1-8wiz-8k39-079j-00nnhq4461j2")("image" "png" ("name" "3o2z347h-32vl-9x99-3xg5-9568s54b6fk1") "<3o2z347h-32vl-9x99-3xg5-9568s54b6fk1>" NIL "base64" 4082 NIL ("inline" ("filename" "3o2z347h-32vl-9x99-3xg5-9568s54b6fk1")) NIL "3o2z347h-32vl-9x99-3xg5-9568s54b6fk1")("image" "png" ("name" "q93039yd-8811-7345-l00d-17s73930be1q") "<q93039yd-8811-7345-l00d-17s73930be1q>" NIL "base64" 2936 NIL ("inline" ("filename" "q93039yd-8811-7345-l00d-17s73930be1q")) NIL "q93039yd-8811-7345-l00d-17s73930be1q") "related" ("boundary" "=-LZBxIGOmB2P5cGpL/Zq5/A==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136866 ENVELOPE ("Fri, 25 Sep 2026 17:32:34 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-x7pgpk27-202r-521n-8590-964p0438m957.mwbm_x95nxp50-59p9-8x76-smz5-61ih291c6yc2.blmy_45eb88s4-2r05-420y-72b9-134h84128362.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_877ghtm0-4228-3s4t-v6s3-lkv525qi8126@noyzmbxpag>") INTERNALDATE "25-Sep-2026 13:32:44 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.449.072.15) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1787 FETCH (UID 13384 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22191 264 NIL NIL NIL NIL)("image" "png" ("name" "f34nd9ei-1006-4998-t983-5151917zm7qc") "<f34nd9ei-1006-4998-t983-5151917zm7qc>" NIL "base64" 1512 NIL ("inline" ("filename" "f34nd9ei-1006-4998-t983-5151917zm7qc")) NIL "f34nd9ei-1006-4998-t983-5151917zm7qc")("image" "png" ("name" "hv1104dq-683v-7d1l-b2u0-l7hb8m707l82") "<hv1104dq-683v-7d1l-b2u0-l7hb8m707l82>" NIL "base64" 998 NIL ("inline" ("filename" "hv1104dq-683v-7d1l-b2u0-l7hb8m707l82")) NIL "hv1104dq-683v-7d1l-b2u0-l7hb8m707l82")("image" "png" ("name" "y6ro3lj7-1f66-1fb7-b745-ms56z8y5g219") "<y6ro3lj7-1f66-1fb7-b745-ms56z8y5g219>" NIL "base64" 8450 NIL ("inline" ("filename" "y6ro3lj7-1f66-1fb7-b745-ms56z8y5g219")) NIL "y6ro3lj7-1f66-1fb7-b745-ms56z8y5g219")("image" "png" ("name" "45d5q306-f953-9u36-f32l-j911w0em7bt1") "<45d5q306-f953-9u36-f32l-j911w0em7bt1>" NIL "base64" 4082 NIL ("inline" ("filename" "45d5q306-f953-9u36-f32l-j911w0em7bt1")) NIL "45d5q306-f953-9u36-f32l-j911w0em7bt1")("image" "png" ("name" "61856219-80gn-0se8-k8qa-435i22rp76t3") "<61856219-80gn-0se8-k8qa-435i22rp76t3>" NIL "base64" 2936 NIL ("inline" ("filename" "61856219-80gn-0se8-k8qa-435i22rp76t3")) NIL "61856219-80gn-0se8-k8qa-435i22rp76t3") "related" ("boundary" "=-16opnb04y4iAQDRyoUExsm==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 135352 ENVELOPE ("Sat, 26 Sep 2026 16:56:09 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-057u3dx3-3l5l-9p0l-i2b5-1p0fnynag103.mwbm_t92up066-7045-2647-8p48-84pge8jz0y17.blmy_bc3fxz66-5t36-4g02-r875-7d275z07v0ef.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_51013f90-cp80-4722-15b3-6310oa2671fe@noyzmbxpag>") INTERNALDATE "26-Sep-2026 12:56:23 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.530.024) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1788 FETCH (UID 13387 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22122 262 NIL NIL NIL NIL)("image" "png" ("name" "1gjxyay8-3q3b-5p49-5076-n441xij9g97o") "<1gjxyay8-3q3b-5p49-5076-n441xij9g97o>" NIL "base64" 1512 NIL ("inline" ("filename" "1gjxyay8-3q3b-5p49-5076-n441xij9g97o")) NIL "1gjxyay8-3q3b-5p49-5076-n441xij9g97o")("image" "png" ("name" "o57377pv-126l-49ve-r1mv-50i1teohqz3z") "<o57377pv-126l-49ve-r1mv-50i1teohqz3z>" NIL "base64" 998 NIL ("inline" ("filename" "o57377pv-126l-49ve-r1mv-50i1teohqz3z")) NIL "o57377pv-126l-49ve-r1mv-50i1teohqz3z")("image" "png" ("name" "69867f5x-j021-13a9-c122-3b312402t990") "<69867f5x-j021-13a9-c122-3b312402t990>" NIL "base64" 8450 NIL ("inline" ("filename" "69867f5x-j021-13a9-c122-3b312402t990")) NIL "69867f5x-j021-13a9-c122-3b312402t990")("image" "png" ("name" "651nxe01-3o8i-071k-469t-64mz0jzcn9o4") "<651nxe01-3o8i-071k-469t-64mz0jzcn9o4>" NIL "base64" 4082 NIL ("inline" ("filename" "651nxe01-3o8i-071k-469t-64mz0jzcn9o4")) NIL "651nxe01-3o8i-071k-469t-64mz0jzcn9o4")("image" "png" ("name" "b9z7wj4a-35e5-379w-x379-nv1481336301") "<b9z7wj4a-35e5-379w-x379-nv1481336301>" NIL "base64" 2936 NIL ("inline" ("filename" "b9z7wj4a-35e5-379w-x379-nv1481336301")) NIL "b9z7wj4a-35e5-379w-x379-nv1481336301") "related" ("boundary" "=-aq+O/BmfQXw5CKz2tE8XpB==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137278 ENVELOPE ("Sun, 27 Sep 2026 15:46:49 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-nwa36bl7-76v4-29gp-0or6-x5pfpkc3673m.mwbm_40p7et41-b045-4e4c-387t-d0442r9zr62j.blmy_97o73tw2-4gc8-259t-m602-03x808357s73.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_k29f7k0s-9k28-3q5x-3bvx-4852009x78kf@noyzmbxpag>") INTERNALDATE "27-Sep-2026 11:46:55 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.21.50) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1789 FETCH (UID 13392 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22155 264 NIL NIL NIL NIL)("image" "png" ("name" "0433s128-64t2-4k81-51jd-80g41612n1es") "<0433s128-64t2-4k81-51jd-80g41612n1es>" NIL "base64" 1512 NIL ("inline" ("filename" "0433s128-64t2-4k81-51jd-80g41612n1es")) NIL "0433s128-64t2-4k81-51jd-80g41612n1es")("image" "png" ("name" "l72747o7-6h0k-8h49-11q6-3ipn035r521b") "<l72747o7-6h0k-8h49-11q6-3ipn035r521b>" NIL "base64" 998 NIL ("inline" ("filename" "l72747o7-6h0k-8h49-11q6-3ipn035r521b")) NIL "l72747o7-6h0k-8h49-11q6-3ipn035r521b")("image" "png" ("name" "gfk768q7-1680-7c61-pn23-463244839cd5") "<gfk768q7-1680-7c61-pn23-463244839cd5>" NIL "base64" 8450 NIL ("inline" ("filename" "gfk768q7-1680-7c61-pn23-463244839cd5")) NIL "gfk768q7-1680-7c61-pn23-463244839cd5")("image" "png" ("name" "g7w6jq86-2l36-2p4w-u5u8-q4r86o4a0017") "<g7w6jq86-2l36-2p4w-u5u8-q4r86o4a0017>" NIL "base64" 4082 NIL ("inline" ("filename" "g7w6jq86-2l36-2p4w-u5u8-q4r86o4a0017")) NIL "g7w6jq86-2l36-2p4w-u5u8-q4r86o4a0017")("image" "png" ("name" "300800t1-04wn-75v5-79j4-2bm82u598150") "<300800t1-04wn-75v5-79j4-2bm82u598150>" NIL "base64" 2936 NIL ("inline" ("filename" "300800t1-04wn-75v5-79j4-2bm82u598150")) NIL "300800t1-04wn-75v5-79j4-2bm82u598150") "related" ("boundary" "=-lSV2D1sDt30Zm+H0dQQ/zN==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136992 ENVELOPE ("Mon, 28 Sep 2026 17:35:14 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-9pt05057-rx60-6r17-3614-7w1993l7i150.mwbm_868206zz-3405-95s0-uik5-265e87z31px9.blmy_576kp0nn-34h4-99s5-kw98-82o3q5796w4f.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_21pub646-4w92-6182-h24n-41nix37n4g3i@noyzmbxpag>") INTERNALDATE "28-Sep-2026 13:35:22 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.59.204) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1790 FETCH (UID 13396 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22227 264 NIL NIL NIL NIL)("image" "png" ("name" "p5ll7e2y-gu34-9g07-bx8n-6x86171650kt") "<p5ll7e2y-gu34-9g07-bx8n-6x86171650kt>" NIL "base64" 1512 NIL ("inline" ("filename" "p5ll7e2y-gu34-9g07-bx8n-6x86171650kt")) NIL "p5ll7e2y-gu34-9g07-bx8n-6x86171650kt")("image" "png" ("name" "0690fy92-d603-7pkd-2981-i9el9d8k690r") "<0690fy92-d603-7pkd-2981-i9el9d8k690r>" NIL "base64" 998 NIL ("inline" ("filename" "0690fy92-d603-7pkd-2981-i9el9d8k690r")) NIL "0690fy92-d603-7pkd-2981-i9el9d8k690r")("image" "png" ("name" "507962gr-c31i-1610-76hc-94x8120v82b1") "<507962gr-c31i-1610-76hc-94x8120v82b1>" NIL "base64" 8450 NIL ("inline" ("filename" "507962gr-c31i-1610-76hc-94x8120v82b1")) NIL "507962gr-c31i-1610-76hc-94x8120v82b1")("image" "png" ("name" "24e41l08-t4xp-53i5-d286-0653ei72949y") "<24e41l08-t4xp-53i5-d286-0653ei72949y>" NIL "base64" 4082 NIL ("inline" ("filename" "24e41l08-t4xp-53i5-d286-0653ei72949y")) NIL "24e41l08-t4xp-53i5-d286-0653ei72949y")("image" "png" ("name" "u1h9yzhh-7sr3-6491-r102-o7h0v3703455") "<u1h9yzhh-7sr3-6491-r102-o7h0v3703455>" NIL "base64" 2936 NIL ("inline" ("filename" "u1h9yzhh-7sr3-6491-r102-o7h0v3703455")) NIL "u1h9yzhh-7sr3-6491-r102-o7h0v3703455") "related" ("boundary" "=-TEFoJ12gDS7IuNKkRSPFFp==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137049 ENVELOPE ("Tue, 29 Sep 2026 18:29:53 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-ou63k932-r78r-121x-ow2r-480ps1bz0gh5.mwbm_46801844-cr91-19a8-4eb9-70h1d936k122.blmy_qg62502h-858g-5y92-2m58-738hq6xu9242.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_36sh5b0m-42vp-2c85-31vb-01qy1z3b9970@noyzmbxpag>") INTERNALDATE "29-Sep-2026 14:30:03 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.530.81) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1791 FETCH (UID 13403 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22006 260 NIL NIL NIL NIL)("image" "png" ("name" "2hx86nd0-4vx5-0ag0-cogj-82vyg2xl4mfg") "<2hx86nd0-4vx5-0ag0-cogj-82vyg2xl4mfg>" NIL "base64" 1512 NIL ("inline" ("filename" "2hx86nd0-4vx5-0ag0-cogj-82vyg2xl4mfg")) NIL "2hx86nd0-4vx5-0ag0-cogj-82vyg2xl4mfg")("image" "png" ("name" "63bzan4c-yeh9-1154-75jm-10829f6w19w3") "<63bzan4c-yeh9-1154-75jm-10829f6w19w3>" NIL "base64" 998 NIL ("inline" ("filename" "63bzan4c-yeh9-1154-75jm-10829f6w19w3")) NIL "63bzan4c-yeh9-1154-75jm-10829f6w19w3")("image" "png" ("name" "8em8285d-5r34-62w9-xhb5-29a690r1v474") "<8em8285d-5r34-62w9-xhb5-29a690r1v474>" NIL "base64" 8450 NIL ("inline" ("filename" "8em8285d-5r34-62w9-xhb5-29a690r1v474")) NIL "8em8285d-5r34-62w9-xhb5-29a690r1v474")("image" "png" ("name" "4jf9c3m4-8627-1888-r6hw-015803503hw7") "<4jf9c3m4-8627-1888-r6hw-015803503hw7>" NIL "base64" 4082 NIL ("inline" ("filename" "4jf9c3m4-8627-1888-r6hw-015803503hw7")) NIL "4jf9c3m4-8627-1888-r6hw-015803503hw7")("image" "png" ("name" "91c45d02-29o7-3755-s5j8-1326h5p9662d") "<91c45d02-29o7-3755-s5j8-1326h5p9662d>" NIL "base64" 2936 NIL ("inline" ("filename" "91c45d02-29o7-3755-s5j8-1326h5p9662d")) NIL "91c45d02-29o7-3755-s5j8-1326h5p9662d") "related" ("boundary" "=-HGYajIks3MaH9Bq4Brr93V==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134919 ENVELOPE ("Wed, 30 Sep 2026 14:56:24 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-502r6f19-1vb2-026g-t35r-95461rqs5t98.mwbm_09l4fn16-4a8w-374d-74fd-062497yeso86.blmy_37155x9w-9ln3-742u-65h4-402wh5lu2905.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_s0g43hs8-4u83-283g-uu32-138s174d107z@noyzmbxpag>") INTERNALDATE "30-Sep-2026 10:56:29 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.85.490) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1792 FETCH (UID 13407 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22181 264 NIL NIL NIL NIL)("image" "png" ("name" "chh8cov5-p764-789l-s1d5-h182l0196600") "<chh8cov5-p764-789l-s1d5-h182l0196600>" NIL "base64" 1512 NIL ("inline" ("filename" "chh8cov5-p764-789l-s1d5-h182l0196600")) NIL "chh8cov5-p764-789l-s1d5-h182l0196600")("image" "png" ("name" "499s456c-021d-9uz9-64y1-st2m0gl7t267") "<499s456c-021d-9uz9-64y1-st2m0gl7t267>" NIL "base64" 998 NIL ("inline" ("filename" "499s456c-021d-9uz9-64y1-st2m0gl7t267")) NIL "499s456c-021d-9uz9-64y1-st2m0gl7t267")("image" "png" ("name" "99igm072-4366-954k-aj88-wi96pt265247") "<99igm072-4366-954k-aj88-wi96pt265247>" NIL "base64" 8450 NIL ("inline" ("filename" "99igm072-4366-954k-aj88-wi96pt265247")) NIL "99igm072-4366-954k-aj88-wi96pt265247")("image" "png" ("name" "2e2nb3xy-jub4-7705-34x6-h01oj744sd7w") "<2e2nb3xy-jub4-7705-34x6-h01oj744sd7w>" NIL "base64" 4082 NIL ("inline" ("filename" "2e2nb3xy-jub4-7705-34x6-h01oj744sd7w")) NIL "2e2nb3xy-jub4-7705-34x6-h01oj744sd7w")("image" "png" ("name" "58813e1m-6321-1316-p6p4-w29p88n31521") "<58813e1m-6321-1316-p6p4-w29p88n31521>" NIL "base64" 2936 NIL ("inline" ("filename" "58813e1m-6321-1316-p6p4-w29p88n31521")) NIL "58813e1m-6321-1316-p6p4-w29p88n31521") "related" ("boundary" "=-6FIBv4NnMhzLLPeruqUhGE==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136990 ENVELOPE ("Thu, 1 Oct 2026 17:40:00 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-36cu9621-9ld9-2y3n-h08k-058zag6113c9.mwbm_vbk418n6-5ywp-4644-6t73-80a80371k554.blmy_2emd154e-vz08-5fvr-9t7w-5z3xa83q6161.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_61kq0477-1937-33f1-qkn3-0949b4q03j3k@noyzmbxpag>") INTERNALDATE "01-Oct-2026 13:40:06 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.076.24) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1793 FETCH (UID 13412 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 21914 260 NIL NIL NIL NIL)("image" "png" ("name" "98wb58x6-z286-31bm-11j7-i8a246dqln26") "<98wb58x6-z286-31bm-11j7-i8a246dqln26>" NIL "base64" 1512 NIL ("inline" ("filename" "98wb58x6-z286-31bm-11j7-i8a246dqln26")) NIL "98wb58x6-z286-31bm-11j7-i8a246dqln26")("image" "png" ("name" "r40o75z0-7cu9-9z22-ky58-9l40l8di0b1f") "<r40o75z0-7cu9-9z22-ky58-9l40l8di0b1f>" NIL "base64" 998 NIL ("inline" ("filename" "r40o75z0-7cu9-9z22-ky58-9l40l8di0b1f")) NIL "r40o75z0-7cu9-9z22-ky58-9l40l8di0b1f")("image" "png" ("name" "27he4lg0-v860-14b3-99e6-dke52w95hd6l") "<27he4lg0-v860-14b3-99e6-dke52w95hd6l>" NIL "base64" 8450 NIL ("inline" ("filename" "27he4lg0-v860-14b3-99e6-dke52w95hd6l")) NIL "27he4lg0-v860-14b3-99e6-dke52w95hd6l")("image" "png" ("name" "0k456d8g-0326-4d35-h0i8-19kf005863xp") "<0k456d8g-0326-4d35-h0i8-19kf005863xp>" NIL "base64" 4082 NIL ("inline" ("filename" "0k456d8g-0326-4d35-h0i8-19kf005863xp")) NIL "0k456d8g-0326-4d35-h0i8-19kf005863xp")("image" "png" ("name" "u5335w38-33aq-2p10-2p9b-e46q14h8hm86") "<u5335w38-33aq-2p10-2p9b-e46q14h8hm86>" NIL "base64" 2936 NIL ("inline" ("filename" "u5335w38-33aq-2p10-2p9b-e46q14h8hm86")) NIL "u5335w38-33aq-2p10-2p9b-e46q14h8hm86") "related" ("boundary" "=-2nJEXgTluT2U+6IHiz0YgQ==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134746 ENVELOPE ("Fri, 2 Oct 2026 14:39:16 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-4t2996sr-521r-6526-1084-e413v75p5j45.mwbm_5qv21049-x4lf-36z0-6401-n85hu0628cks.blmy_67aqh58s-a331-5n88-o972-dgc335er182l.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_q1i214k1-km0e-9v78-0pc2-197obkosv367@noyzmbxpag>") INTERNALDATE "02-Oct-2026 10:39:23 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.35.42) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1794 FETCH (UID 13416 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 21983 260 NIL NIL NIL NIL)("image" "png" ("name" "r2o82lm3-1gu9-5652-zai4-2kvst64znp67") "<r2o82lm3-1gu9-5652-zai4-2kvst64znp67>" NIL "base64" 1512 NIL ("inline" ("filename" "r2o82lm3-1gu9-5652-zai4-2kvst64znp67")) NIL "r2o82lm3-1gu9-5652-zai4-2kvst64znp67")("image" "png" ("name" "3139232f-0ay6-6d9r-6757-95y7014d5if1") "<3139232f-0ay6-6d9r-6757-95y7014d5if1>" NIL "base64" 998 NIL ("inline" ("filename" "3139232f-0ay6-6d9r-6757-95y7014d5if1")) NIL "3139232f-0ay6-6d9r-6757-95y7014d5if1")("image" "png" ("name" "8f0x7k7s-7k55-4206-fgg9-2qrjl614j0b7") "<8f0x7k7s-7k55-4206-fgg9-2qrjl614j0b7>" NIL "base64" 8450 NIL ("inline" ("filename" "8f0x7k7s-7k55-4206-fgg9-2qrjl614j0b7")) NIL "8f0x7k7s-7k55-4206-fgg9-2qrjl614j0b7")("image" "png" ("name" "em035173-n8px-479h-ce01-7n78n4984n65") "<em035173-n8px-479h-ce01-7n78n4984n65>" NIL "base64" 4082 NIL ("inline" ("filename" "em035173-n8px-479h-ce01-7n78n4984n65")) NIL "em035173-n8px-479h-ce01-7n78n4984n65")("image" "png" ("name" "65937829-174b-1t11-lv9q-1shse5865b68") "<65937829-174b-1t11-lv9q-1shse5865b68>" NIL "base64" 2936 NIL ("inline" ("filename" "65937829-174b-1t11-lv9q-1shse5865b68")) NIL "65937829-174b-1t11-lv9q-1shse5865b68") "related" ("boundary" "=-DG9Tm6ccOb5W9YApZyMPzW==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136848 ENVELOPE ("Sat, 3 Oct 2026 16:59:38 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-4142180o-9108-566i-gsf6-00729n2367n9.mwbm_s38j7zc1-3840-7iz7-7l24-193751d4sis3.blmy_84406573-9985-5365-3905-x4k51764b18a.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_dx473ii7-0hon-45j0-15v1-ie741eo7bdwa@noyzmbxpag>") INTERNALDATE "03-Oct-2026 12:59:44 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.85.370) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1795 FETCH (UID 13422 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22179 264 NIL NIL NIL NIL)("image" "png" ("name" "7903371b-gb40-5664-0351-14q9ll449o23") "<7903371b-gb40-5664-0351-14q9ll449o23>" NIL "base64" 1512 NIL ("inline" ("filename" "7903371b-gb40-5664-0351-14q9ll449o23")) NIL "7903371b-gb40-5664-0351-14q9ll449o23")("image" "png" ("name" "89285og0-w09u-020g-sk31-16d930jv5609") "<89285og0-w09u-020g-sk31-16d930jv5609>" NIL "base64" 998 NIL ("inline" ("filename" "89285og0-w09u-020g-sk31-16d930jv5609")) NIL "89285og0-w09u-020g-sk31-16d930jv5609")("image" "png" ("name" "7so9i008-75q4-1611-11k1-d7n2qu93o407") "<7so9i008-75q4-1611-11k1-d7n2qu93o407>" NIL "base64" 8450 NIL ("inline" ("filename" "7so9i008-75q4-1611-11k1-d7n2qu93o407")) NIL "7so9i008-75q4-1611-11k1-d7n2qu93o407")("image" "png" ("name" "92u3130l-26o1-2726-ohyv-7e1050n527da") "<92u3130l-26o1-2726-ohyv-7e1050n527da>" NIL "base64" 4082 NIL ("inline" ("filename" "92u3130l-26o1-2726-ohyv-7e1050n527da")) NIL "92u3130l-26o1-2726-ohyv-7e1050n527da")("image" "png" ("name" "oxzrd591-805s-0ht1-6329-ww55205k13nk") "<oxzrd591-805s-0ht1-6329-ww55205k13nk>" NIL "base64" 2936 NIL ("inline" ("filename" "oxzrd591-805s-0ht1-6329-ww55205k13nk")) NIL "oxzrd591-805s-0ht1-6329-ww55205k13nk") "related" ("boundary" "=-SaCRC9GP4CLgy4/jfaCEJr==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137054 ENVELOPE ("Sun, 4 Oct 2026 17:02:48 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-585e6d34-h7g9-2018-y3pr-d990y4595eo6.mwbm_5i901q2x-v3s4-100b-m91r-7134d31eyy3n.blmy_72h00248-4w8m-9c77-a006-13b14iq3147x.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_98v5b395-1188-72q5-2316-y1349h751q83@noyzmbxpag>") INTERNALDATE "04-Oct-2026 13:02:55 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.80.59) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1796 FETCH (UID 13426 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22151 264 NIL NIL NIL NIL)("image" "png" ("name" "fo942q2k-4l44-5n88-2288-u1555rh7332d") "<fo942q2k-4l44-5n88-2288-u1555rh7332d>" NIL "base64" 1512 NIL ("inline" ("filename" "fo942q2k-4l44-5n88-2288-u1555rh7332d")) NIL "fo942q2k-4l44-5n88-2288-u1555rh7332d")("image" "png" ("name" "y101g3t4-1tvg-9c32-xa83-z354t34p0113") "<y101g3t4-1tvg-9c32-xa83-z354t34p0113>" NIL "base64" 998 NIL ("inline" ("filename" "y101g3t4-1tvg-9c32-xa83-z354t34p0113")) NIL "y101g3t4-1tvg-9c32-xa83-z354t34p0113")("image" "png" ("name" "7337965r-5625-6204-669f-7038b5400628") "<7337965r-5625-6204-669f-7038b5400628>" NIL "base64" 8450 NIL ("inline" ("filename" "7337965r-5625-6204-669f-7038b5400628")) NIL "7337965r-5625-6204-669f-7038b5400628")("image" "png" ("name" "33o9h1y9-ek6x-8bs8-u45l-c58510m7sz38") "<33o9h1y9-ek6x-8bs8-u45l-c58510m7sz38>" NIL "base64" 4082 NIL ("inline" ("filename" "33o9h1y9-ek6x-8bs8-u45l-c58510m7sz38")) NIL "33o9h1y9-ek6x-8bs8-u45l-c58510m7sz38")("image" "png" ("name" "8b47tp29-x3g6-1mn3-vu0s-a8ds82g7513y") "<8b47tp29-x3g6-1mn3-vu0s-a8ds82g7513y>" NIL "base64" 2936 NIL ("inline" ("filename" "8b47tp29-x3g6-1mn3-vu0s-a8ds82g7513y")) NIL "8b47tp29-x3g6-1mn3-vu0s-a8ds82g7513y") "related" ("boundary" "=-emxtxSSux8ByMtaUlWTocg==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 135050 ENVELOPE ("Mon, 5 Oct 2026 16:56:34 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-737i30g0-l4px-9348-18lx-3224c806l2r4.mwbm_k0820f5y-ctf7-9494-j01w-1blo4ih8d970.blmy_c4776915-j34s-1934-hb88-9w249y3ou5by.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_95759046-r339-02w8-0958-3ep946o3b939@noyzmbxpag>") INTERNALDATE "05-Oct-2026 12:56:51 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.524.07) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1797 FETCH (UID 13432 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22029 260 NIL NIL NIL NIL)("image" "png" ("name" "0jp967sa-37zy-85o6-di5x-310ffw48h008") "<0jp967sa-37zy-85o6-di5x-310ffw48h008>" NIL "base64" 1512 NIL ("inline" ("filename" "0jp967sa-37zy-85o6-di5x-310ffw48h008")) NIL "0jp967sa-37zy-85o6-di5x-310ffw48h008")("image" "png" ("name" "52f5c70p-k0xz-87pq-c7bz-217182b20601") "<52f5c70p-k0xz-87pq-c7bz-217182b20601>" NIL "base64" 998 NIL ("inline" ("filename" "52f5c70p-k0xz-87pq-c7bz-217182b20601")) NIL "52f5c70p-k0xz-87pq-c7bz-217182b20601")("image" "png" ("name" "9h6gnk2n-021c-5gk2-2857-e4bh71m06p1y") "<9h6gnk2n-021c-5gk2-2857-e4bh71m06p1y>" NIL "base64" 8450 NIL ("inline" ("filename" "9h6gnk2n-021c-5gk2-2857-e4bh71m06p1y")) NIL "9h6gnk2n-021c-5gk2-2857-e4bh71m06p1y")("image" "png" ("name" "6ll08y3j-3693-16hr-5d02-g0x112629534") "<6ll08y3j-3693-16hr-5d02-g0x112629534>" NIL "base64" 4082 NIL ("inline" ("filename" "6ll08y3j-3693-16hr-5d02-g0x112629534")) NIL "6ll08y3j-3693-16hr-5d02-g0x112629534")("image" "png" ("name" "z3kp7b72-x1t5-2315-ckg1-1oce6e58u41z") "<z3kp7b72-x1t5-2315-ckg1-1oce6e58u41z>" NIL "base64" 2936 NIL ("inline" ("filename" "z3kp7b72-x1t5-2315-ckg1-1oce6e58u41z")) NIL "z3kp7b72-x1t5-2315-ckg1-1oce6e58u41z") "related" ("boundary" "=-tqZRQZPz6X0Kgd6Fx/tf8h==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136864 ENVELOPE ("Tue, 6 Oct 2026 18:08:27 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-pw7s1xt2-21eh-7508-1vy1-b2748026io3s.mwbm_k52t38e6-8q57-113d-b605-3nzc23a5ne17.blmy_2x15970u-z31m-2457-0853-6o332ho30pz2.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_55m3r1cs-078x-776w-uf09-gdm2k63b96gv@noyzmbxpag>") INTERNALDATE "06-Oct-2026 14:08:40 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.072.70) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1798 FETCH (UID 13436 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 21992 260 NIL NIL NIL NIL)("image" "png" ("name" "3y30192k-259v-67p8-1ms8-3e91rw25776t") "<3y30192k-259v-67p8-1ms8-3e91rw25776t>" NIL "base64" 1512 NIL ("inline" ("filename" "3y30192k-259v-67p8-1ms8-3e91rw25776t")) NIL "3y30192k-259v-67p8-1ms8-3e91rw25776t")("image" "png" ("name" "cf81r567-2g78-24e2-2vk5-b2a5l5d65737") "<cf81r567-2g78-24e2-2vk5-b2a5l5d65737>" NIL "base64" 998 NIL ("inline" ("filename" "cf81r567-2g78-24e2-2vk5-b2a5l5d65737")) NIL "cf81r567-2g78-24e2-2vk5-b2a5l5d65737")("image" "png" ("name" "10794840-p114-5556-0y71-n6q13a9c1pnj") "<10794840-p114-5556-0y71-n6q13a9c1pnj>" NIL "base64" 8450 NIL ("inline" ("filename" "10794840-p114-5556-0y71-n6q13a9c1pnj")) NIL "10794840-p114-5556-0y71-n6q13a9c1pnj")("image" "png" ("name" "u2424g65-479h-6479-y2b9-ovd2tumt45wb") "<u2424g65-479h-6479-y2b9-ovd2tumt45wb>" NIL "base64" 4082 NIL ("inline" ("filename" "u2424g65-479h-6479-y2b9-ovd2tumt45wb")) NIL "u2424g65-479h-6479-y2b9-ovd2tumt45wb")("image" "png" ("name" "43t04t10-ae17-54p2-0916-71w523ta5m5k") "<43t04t10-ae17-54p2-0916-71w523ta5m5k>" NIL "base64" 2936 NIL ("inline" ("filename" "43t04t10-ae17-54p2-0916-71w523ta5m5k")) NIL "43t04t10-ae17-54p2-0916-71w523ta5m5k") "related" ("boundary" "=-JIrLGvTtA0lwb8TbLajUhU==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 136877 ENVELOPE ("Wed, 7 Oct 2026 18:11:26 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-76n23r8d-9e66-4rym-98a7-d1e824c3imwf.mwbm_537ra02b-3874-2t6u-ka21-200b36ueh272.blmy_t14934h5-8141-57cn-u988-9b6913z21a1f.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_illu34q3-4ji0-79v1-5507-86tr859l5764@noyzmbxpag>") INTERNALDATE "07-Oct-2026 14:11:34 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.21.815) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1799 FETCH (UID 13440 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 21987 260 NIL NIL NIL NIL)("image" "png" ("name" "6h0lj19j-1dd3-74fj-p2g8-w088ozchux90") "<6h0lj19j-1dd3-74fj-p2g8-w088ozchux90>" NIL "base64" 1512 NIL ("inline" ("filename" "6h0lj19j-1dd3-74fj-p2g8-w088ozchux90")) NIL "6h0lj19j-1dd3-74fj-p2g8-w088ozchux90")("image" "png" ("name" "zdv698q5-k227-11hx-l163-g6952tlmu633") "<zdv698q5-k227-11hx-l163-g6952tlmu633>" NIL "base64" 998 NIL ("inline" ("filename" "zdv698q5-k227-11hx-l163-g6952tlmu633")) NIL "zdv698q5-k227-11hx-l163-g6952tlmu633")("image" "png" ("name" "bm3xip22-q863-6570-ck04-8452i290t5q3") "<bm3xip22-q863-6570-ck04-8452i290t5q3>" NIL "base64" 8450 NIL ("inline" ("filename" "bm3xip22-q863-6570-ck04-8452i290t5q3")) NIL "bm3xip22-q863-6570-ck04-8452i290t5q3")("image" "png" ("name" "1n9859s5-owku-34u2-l5t6-8d8920iy0c02") "<1n9859s5-owku-34u2-l5t6-8d8920iy0c02>" NIL "base64" 4082 NIL ("inline" ("filename" "1n9859s5-owku-34u2-l5t6-8d8920iy0c02")) NIL "1n9859s5-owku-34u2-l5t6-8d8920iy0c02")("image" "png" ("name" "r404b58n-2ms2-4mqp-8993-0k53uh75y3g7") "<r404b58n-2ms2-4mqp-8993-0k53uh75y3g7>" NIL "base64" 2936 NIL ("inline" ("filename" "r404b58n-2ms2-4mqp-8993-0k53uh75y3g7")) NIL "r404b58n-2ms2-4mqp-8993-0k53uh75y3g7") "related" ("boundary" "=-OXkrPX/5mwZgvR/mnQCdZW==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 134941 ENVELOPE ("Thu, 8 Oct 2026 17:37:26 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-9sw9p676-80dc-130e-1a0v-v0xl1m681x82.mwbm_bg2u223w-pp70-18a4-330x-4y8vpz0g0ev4.blmy_7osn31j3-3y7u-000o-p86v-g8il6gf5zx9h.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_71610zp5-04hg-217k-rubm-01i0087816o3@noyzmbxpag>") INTERNALDATE "08-Oct-2026 13:37:36 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.35.45) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1800 FETCH (UID 13447 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22003 260 NIL NIL NIL NIL)("image" "png" ("name" "m2999y00-408h-4255-ngd6-531w2418md88") "<m2999y00-408h-4255-ngd6-531w2418md88>" NIL "base64" 1512 NIL ("inline" ("filename" "m2999y00-408h-4255-ngd6-531w2418md88")) NIL "m2999y00-408h-4255-ngd6-531w2418md88")("image" "png" ("name" "7638i21u-fuja-2bp1-jyp4-i99ii9wus46n") "<7638i21u-fuja-2bp1-jyp4-i99ii9wus46n>" NIL "base64" 998 NIL ("inline" ("filename" "7638i21u-fuja-2bp1-jyp4-i99ii9wus46n")) NIL "7638i21u-fuja-2bp1-jyp4-i99ii9wus46n")("image" "png" ("name" "082b0j0a-6p84-32g3-st39-54665r1y9719") "<082b0j0a-6p84-32g3-st39-54665r1y9719>" NIL "base64" 8450 NIL ("inline" ("filename" "082b0j0a-6p84-32g3-st39-54665r1y9719")) NIL "082b0j0a-6p84-32g3-st39-54665r1y9719")("image" "png" ("name" "8wezr7h9-9387-6406-vpg7-8fzv783bx725") "<8wezr7h9-9387-6406-vpg7-8fzv783bx725>" NIL "base64" 4082 NIL ("inline" ("filename" "8wezr7h9-9387-6406-vpg7-8fzv783bx725")) NIL "8wezr7h9-9387-6406-vpg7-8fzv783bx725")("image" "png" ("name" "t8txf00x-35zl-727k-8463-213xsmr24201") "<t8txf00x-35zl-727k-8463-213xsmr24201>" NIL "base64" 2936 NIL ("inline" ("filename" "t8txf00x-35zl-727k-8463-213xsmr24201")) NIL "t8txf00x-35zl-727k-8463-213xsmr24201") "related" ("boundary" "=-9XtI9TBwI4KnKtoG7mVxbD==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137076 ENVELOPE ("Fri, 9 Oct 2026 16:33:17 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-8ag0b7ii-8745-1fzu-h13h-6572h32a7a64.mwbm_ea0l90o0-y704-39n5-h076-48398959tqfo.blmy_f020sw10-8b81-79p9-gh06-52q4g769ozx2.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_4e707s52-2i98-478h-ij89-y9d0rd834u11@noyzmbxpag>") INTERNALDATE "09-Oct-2026 21:49:55 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {379}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.35.470) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1801 FETCH (UID 13452 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22169 264 NIL NIL NIL NIL)("image" "png" ("name" "j3674uzj-2s3z-9frq-v957-y2n0pw68xc33") "<j3674uzj-2s3z-9frq-v957-y2n0pw68xc33>" NIL "base64" 1512 NIL ("inline" ("filename" "j3674uzj-2s3z-9frq-v957-y2n0pw68xc33")) NIL "j3674uzj-2s3z-9frq-v957-y2n0pw68xc33")("image" "png" ("name" "98138u57-pp9p-1411-u9f7-3t43u6c6p88k") "<98138u57-pp9p-1411-u9f7-3t43u6c6p88k>" NIL "base64" 998 NIL ("inline" ("filename" "98138u57-pp9p-1411-u9f7-3t43u6c6p88k")) NIL "98138u57-pp9p-1411-u9f7-3t43u6c6p88k")("image" "png" ("name" "5j73k0s4-7663-32r8-q336-6076853y73ny") "<5j73k0s4-7663-32r8-q336-6076853y73ny>" NIL "base64" 8450 NIL ("inline" ("filename" "5j73k0s4-7663-32r8-q336-6076853y73ny")) NIL "5j73k0s4-7663-32r8-q336-6076853y73ny")("image" "png" ("name" "8vaxz82q-1006-333z-k3b1-000226uht5p3") "<8vaxz82q-1006-333z-k3b1-000226uht5p3>" NIL "base64" 4082 NIL ("inline" ("filename" "8vaxz82q-1006-333z-k3b1-000226uht5p3")) NIL "8vaxz82q-1006-333z-k3b1-000226uht5p3")("image" "png" ("name" "849ox9m1-aj26-36e8-kt40-60u223r271y3") "<849ox9m1-aj26-36e8-kt40-60u223r271y3>" NIL "base64" 2936 NIL ("inline" ("filename" "849ox9m1-aj26-36e8-kt40-60u223r271y3")) NIL "849ox9m1-aj26-36e8-kt40-60u223r271y3") "related" ("boundary" "=-ZiE4hwPoNFPZmJtuRSMzWX==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 133891 ENVELOPE ("Sat, 10 Oct 2026 19:05:46 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-1078t9ym-1473-8l7h-ky58-6a15d24o0pf4.mwbm_x4t2331y-0jw6-0027-8i57-r86ga76v6yza.blmy_89v1w82f-qje0-6szw-59u7-co32k43e1171.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_37680p07-rz68-4vy6-74vq-3j81sd38ef0f@noyzmbxpag>") INTERNALDATE "11-Oct-2026 00:54:02 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {249}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.70.324) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1802 FETCH (UID 13456 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22022 260 NIL NIL NIL NIL)("image" "png" ("name" "s0qun983-0114-2855-d2gb-5b1dy9e4l10e") "<s0qun983-0114-2855-d2gb-5b1dy9e4l10e>" NIL "base64" 1512 NIL ("inline" ("filename" "s0qun983-0114-2855-d2gb-5b1dy9e4l10e")) NIL "s0qun983-0114-2855-d2gb-5b1dy9e4l10e")("image" "png" ("name" "6l158494-7q8k-7zo6-y5z8-qv09i5a8pz49") "<6l158494-7q8k-7zo6-y5z8-qv09i5a8pz49>" NIL "base64" 998 NIL ("inline" ("filename" "6l158494-7q8k-7zo6-y5z8-qv09i5a8pz49")) NIL "6l158494-7q8k-7zo6-y5z8-qv09i5a8pz49")("image" "png" ("name" "341797zl-45a3-88a5-4v82-e3k274x97889") "<341797zl-45a3-88a5-4v82-e3k274x97889>" NIL "base64" 8450 NIL ("inline" ("filename" "341797zl-45a3-88a5-4v82-e3k274x97889")) NIL "341797zl-45a3-88a5-4v82-e3k274x97889")("image" "png" ("name" "u91ekp22-3i5s-9y80-n215-y2113945u1t2") "<u91ekp22-3i5s-9y80-n215-y2113945u1t2>" NIL "base64" 4082 NIL ("inline" ("filename" "u91ekp22-3i5s-9y80-n215-y2113945u1t2")) NIL "u91ekp22-3i5s-9y80-n215-y2113945u1t2")("image" "png" ("name" "586fa49t-3947-14k3-7gd6-7l0dmj869fu5") "<586fa49t-3947-14k3-7gd6-7l0dmj869fu5>" NIL "base64" 2936 NIL ("inline" ("filename" "586fa49t-3947-14k3-7gd6-7l0dmj869fu5")) NIL "586fa49t-3947-14k3-7gd6-7l0dmj869fu5") "related" ("boundary" "=-zT3afzF11pZFvx9ryw+RzI==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 131628 ENVELOPE ("Sun, 11 Oct 2026 14:55:35 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-l99664a1-1jdx-4c42-b1tx-79cv91366k32.mwbm_l48q1579-e7a5-8z3o-f761-gm8zk8923vm0.blmy_n7715qs7-wm9b-8fsv-u834-889279bf4p03.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_23650m15-863u-10fn-h9b4-8xr9am361j85@noyzmbxpag>") INTERNALDATE "11-Oct-2026 19:46:01 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {249}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.85.700) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1803 FETCH (UID 13460 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22003 260 NIL NIL NIL NIL)("image" "png" ("name" "7v89b064-pmju-1234-179f-133733247jva") "<7v89b064-pmju-1234-179f-133733247jva>" NIL "base64" 1512 NIL ("inline" ("filename" "7v89b064-pmju-1234-179f-133733247jva")) NIL "7v89b064-pmju-1234-179f-133733247jva")("image" "png" ("name" "40664217-9691-4u49-v6um-red09s4j2w45") "<40664217-9691-4u49-v6um-red09s4j2w45>" NIL "base64" 998 NIL ("inline" ("filename" "40664217-9691-4u49-v6um-red09s4j2w45")) NIL "40664217-9691-4u49-v6um-red09s4j2w45")("image" "png" ("name" "a98bo3q9-5d3p-5631-s311-174958184398") "<a98bo3q9-5d3p-5631-s311-174958184398>" NIL "base64" 8450 NIL ("inline" ("filename" "a98bo3q9-5d3p-5631-s311-174958184398")) NIL "a98bo3q9-5d3p-5631-s311-174958184398")("image" "png" ("name" "9960x30e-zn08-0c53-w242-4k1ec4607h34") "<9960x30e-zn08-0c53-w242-4k1ec4607h34>" NIL "base64" 4082 NIL ("inline" ("filename" "9960x30e-zn08-0c53-w242-4k1ec4607h34")) NIL "9960x30e-zn08-0c53-w242-4k1ec4607h34")("image" "png" ("name" "b4a7948f-95n1-43f8-c441-4d561vnky619") "<b4a7948f-95n1-43f8-c441-4d561vnky619>" NIL "base64" 2936 NIL ("inline" ("filename" "b4a7948f-95n1-43f8-c441-4d561vnky619")) NIL "b4a7948f-95n1-43f8-c441-4d561vnky619") "related" ("boundary" "=-h0XEtErtEitsyE6/D9s7nu==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 133941 ENVELOPE ("Mon, 12 Oct 2026 15:35:28 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-8v313g9k-d1y4-38zo-559k-8ou82835huy9.mwbm_1tt6a018-ng40-4u1r-32o1-0guoxt1356n1.blmy_24z3s43s-5791-336c-r902-428e8hyr5b3h.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_lbwz70fe-9590-0ra8-89s4-59037w9l6omf@noyzmbxpag>") INTERNALDATE "12-Oct-2026 20:58:44 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {249}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.076.707) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1804 FETCH (UID 13466 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 22034 260 NIL NIL NIL NIL)("image" "png" ("name" "82499655-43b7-790h-n531-2a96a716b115") "<82499655-43b7-790h-n531-2a96a716b115>" NIL "base64" 1512 NIL ("inline" ("filename" "82499655-43b7-790h-n531-2a96a716b115")) NIL "82499655-43b7-790h-n531-2a96a716b115")("image" "png" ("name" "176yu1p3-8571-21bg-ecz9-7f3gf0kxc7r9") "<176yu1p3-8571-21bg-ecz9-7f3gf0kxc7r9>" NIL "base64" 998 NIL ("inline" ("filename" "176yu1p3-8571-21bg-ecz9-7f3gf0kxc7r9")) NIL "176yu1p3-8571-21bg-ecz9-7f3gf0kxc7r9")("image" "png" ("name" "b05t86x0-n8aq-134j-x34u-po3m536v2797") "<b05t86x0-n8aq-134j-x34u-po3m536v2797>" NIL "base64" 8450 NIL ("inline" ("filename" "b05t86x0-n8aq-134j-x34u-po3m536v2797")) NIL "b05t86x0-n8aq-134j-x34u-po3m536v2797")("image" "png" ("name" "9578h9l1-3307-34u2-3f5c-4k2442j827a4") "<9578h9l1-3307-34u2-3f5c-4k2442j827a4>" NIL "base64" 4082 NIL ("inline" ("filename" "9578h9l1-3307-34u2-3f5c-4k2442j827a4")) NIL "9578h9l1-3307-34u2-3f5c-4k2442j827a4")("image" "png" ("name" "1735758d-4qrp-9233-p9v6-8388i423z64k") "<1735758d-4qrp-9233-p9v6-8388i423z64k>" NIL "base64" 2936 NIL ("inline" ("filename" "1735758d-4qrp-9233-p9v6-8388i423z64k")) NIL "1735758d-4qrp-9233-p9v6-8388i423z64k") "related" ("boundary" "=-mrvAvZPPDMI1Qkjz+oYoAV==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137692 ENVELOPE ("Tue, 13 Oct 2026 16:47:14 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-bd574v49-e52k-826b-334o-n8495b325222.mwbm_60m83142-5j7i-8k05-19e1-xl2o48x1z507.blmy_vz98yue7-4885-0b16-m23n-h7r8rt042cg5.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_3g5n9xe6-1268-3k73-jywz-5w3o92k5296l@noyzmbxpag>") INTERNALDATE "13-Oct-2026 21:47:10 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {378}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.62.072.15) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1805 FETCH (UID 13470 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 21990 260 NIL NIL NIL NIL)("image" "png" ("name" "1g141s75-8981-8408-4444-o1eu2lt32bb3") "<1g141s75-8981-8408-4444-o1eu2lt32bb3>" NIL "base64" 1512 NIL ("inline" ("filename" "1g141s75-8981-8408-4444-o1eu2lt32bb3")) NIL "1g141s75-8981-8408-4444-o1eu2lt32bb3")("image" "png" ("name" "8d8w657b-ys6u-571d-ub31-c8c12629z288") "<8d8w657b-ys6u-571d-ub31-c8c12629z288>" NIL "base64" 998 NIL ("inline" ("filename" "8d8w657b-ys6u-571d-ub31-c8c12629z288")) NIL "8d8w657b-ys6u-571d-ub31-c8c12629z288")("image" "png" ("name" "70n0g86v-7346-8t10-086o-5801z00s4697") "<70n0g86v-7346-8t10-086o-5801z00s4697>" NIL "base64" 8450 NIL ("inline" ("filename" "70n0g86v-7346-8t10-086o-5801z00s4697")) NIL "70n0g86v-7346-8t10-086o-5801z00s4697")("image" "png" ("name" "3q8363q1-0453-0724-9gh0-5229pmb95035") "<3q8363q1-0453-0724-9gh0-5229pmb95035>" NIL "base64" 4082 NIL ("inline" ("filename" "3q8363q1-0453-0724-9gh0-5229pmb95035")) NIL "3q8363q1-0453-0724-9gh0-5229pmb95035")("image" "png" ("name" "09097j0z-08zz-731r-30o8-903433m00s7h") "<09097j0z-08zz-731r-30o8-903433m00s7h>" NIL "base64" 2936 NIL ("inline" ("filename" "09097j0z-08zz-731r-30o8-903433m00s7h")) NIL "09097j0z-08zz-731r-30o8-903433m00s7h") "related" ("boundary" "=-pJHR2C2kXnrcukk94toysG==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 137677 ENVELOPE ("Wed, 14 Oct 2026 19:30:49 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-aigy73f2-nf72-56t9-a4p7-9xs4y9943p2z.mwbm_8d1r5865-563d-7074-owz3-10tvdmb93p89.blmy_702d7437-4l72-39r5-5w6q-43z16o495987.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_52c3ygbh-1m4c-9duy-u824-1x5431m77196@noyzmbxpag>") INTERNALDATE "15-Oct-2026 00:47:47 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {380}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.072.997) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc
+S:  jaxgvqqh) header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc
+S:  jaxgvqqh) header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1806 FETCH (UID 13475 BODYSTRUCTURE (("text" "html" ("charset" "utf-8") NIL NIL "7BIT" 21988 260 NIL NIL NIL NIL)("image" "png" ("name" "70q5a0ie-1g42-0463-m1k1-aj4z4u33733c") "<70q5a0ie-1g42-0463-m1k1-aj4z4u33733c>" NIL "base64" 1512 NIL ("inline" ("filename" "70q5a0ie-1g42-0463-m1k1-aj4z4u33733c")) NIL "70q5a0ie-1g42-0463-m1k1-aj4z4u33733c")("image" "png" ("name" "14502ua0-8qi0-7p37-88y5-dmds5ki31p36") "<14502ua0-8qi0-7p37-88y5-dmds5ki31p36>" NIL "base64" 998 NIL ("inline" ("filename" "14502ua0-8qi0-7p37-88y5-dmds5ki31p36")) NIL "14502ua0-8qi0-7p37-88y5-dmds5ki31p36")("image" "png" ("name" "y6ebh665-47b4-16k3-jrm9-4157675bmztr") "<y6ebh665-47b4-16k3-jrm9-4157675bmztr>" NIL "base64" 8450 NIL ("inline" ("filename" "y6ebh665-47b4-16k3-jrm9-4157675bmztr")) NIL "y6ebh665-47b4-16k3-jrm9-4157675bmztr")("image" "png" ("name" "5uunh83n-776u-136a-k625-8i3305td396s") "<5uunh83n-776u-136a-k625-8i3305td396s>" NIL "base64" 4082 NIL ("inline" ("filename" "5uunh83n-776u-136a-k625-8i3305td396s")) NIL "5uunh83n-776u-136a-k625-8i3305td396s")("image" "png" ("name" "2281rp4g-29z5-26o1-d6dk-783mqvs15v4x") "<2281rp4g-29z5-26o1-d6dk-783mqvs15v4x>" NIL "base64" 2936 NIL ("inline" ("filename" "2281rp4g-29z5-26o1-d6dk-783mqvs15v4x")) NIL "2281rp4g-29z5-26o1-d6dk-783mqvs15v4x") "related" ("boundary" "=-H0oZ/ZFbsE1wUFFPJOj2EA==" "type" "text/html") NIL NIL) FLAGS () RFC822.SIZE 135552 ENVELOPE ("Thu, 15 Oct 2026 18:06:33 +0000" "Idlf avmrwulm from ehmn tnr" (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) (("YimNjwul" NIL "gfhwid" "acpjfbww.com")) NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<AjmsmrNyDao-4i1343m3-a195-50fk-3i2x-ocef3cas88vw.mwbm_9c7srliu-0wdr-9c84-x32l-st57n749vx5v.blmy_fnq50085-5pgg-5428-668a-3572h620b3ik.l1-pjo_1-uox_0621903s-6x33-6k5z-u572-98p652c50swa-am_hcf_msiqlqm-yyz_3zdda911-v00u-795p-2390-e80r7y5558d4@noyzmbxpag>") INTERNALDATE "15-Oct-2026 14:06:52 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {380}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.449.214.344) smtp.mailfrom=acpjfbww.com; dkim=pass (signature brc
+S:  jaxgvqqh) header.d=juumnjdx.dyuhrjxoigt.com;dkim=pass (signature brc
+S:  jaxgvqqh) header.d=UINBPDTK.COM;dkim=pass (signature brc jaxgvqqh)
+S:  header.d=acpjfbww.com;dmarc=pass jdifhp=none
+S:  header.from=acpjfbww.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1807 FETCH (UID 13479 BODYSTRUCTURE ((("text" "plain" ("charset" "utf-8") NIL NIL "base64" 826 11 NIL NIL NIL NIL)("text" "html" ("charset" "utf-8") NIL NIL "base64" 2912 38 NIL NIL NIL NIL) "alternative" ("boundary" "_004_BP4MN16IH8395W61F4131K22M608LZ2X8R40B9IZ7TF17UL4017ubmi_") NIL NIL)("image" "png" ("name" "image.png") "<57d0xo4x-n2a8-63ok-6rm0-zfj5uw1o4z66>" "image.png" "base64" 724 NIL ("inline" ("filename" "image.png" "size" "914" "creation-date" "Thu, 95 Oct 5444 43:57:40 GMT" "modification-date" "Thu, 95 Oct 5444 43:57:40 GMT")) NIL NIL) "related" ("boundary" "_807_BP4MN16IH8395W61F4131K22M608LZ2X8R40B9IZ7TF17UL4017ubmi_" "type" "multipart/alternative") NIL "en-US") FLAGS (\Seen) RFC822.SIZE 80613 ENVELOPE ("Thu, 15 Oct 2026 23:10:45 +0000" "the psjy" (("Mfpwh Zigkesuk" NIL "lblitjjjv" "microsoft.com")) NIL NIL (("nwxozpohtu@yauvsve.com" NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<TN9QD08PF7394V24I1785M17K859SS6U1X30I2@RV6CG15QB9276.mozwrj90.ivwp.yauvsve.com>") INTERNALDATE "15-Oct-2026 19:10:50 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {251}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.010.29.34) smtp.mailfrom=microsoft.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=microsoft.com;dmarc=pass jdifhp=none
+S:  header.from=microsoft.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: * 1808 FETCH (UID 13484 BODYSTRUCTURE (("text" "plain" ("charset" "utf-8") NIL NIL "7bit" 513 12 NIL NIL NIL NIL)("text" "html" ("charset" "utf-8") NIL NIL "7bit" 4593 28 NIL NIL NIL NIL) "alternative" ("boundary" "=-7BxQMq87fHI509F0AcW+zZ==") NIL NIL) FLAGS (\Seen) RFC822.SIZE 92312 ENVELOPE ("Fri, 16 Oct 2026 00:13:22 +0000" "Dks nof(s) ocqnypksh to mcdn Microsoft ifzgpki" (("Microsoft ifzgpki uruc" NIL "ifzgpki-mqqoygfn-noreply" "qlcezkmcjfchzmwpi.microsoft.com")) NIL NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<K04AVB5SIWU9.6IIQ7CMNXYIT@uf3gafi4977o6a8>") INTERNALDATE "15-Oct-2026 20:13:27 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {309}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  94.449.072.174) smtp.mailfrom=qlcezkmcjfchzmwpi.microsoft.com; dkim=pass
+S:  (signature brc jaxgvqqh) header.d=qlcezkmcjfchzmwpi.microsoft.com;dmarc=pass
+S:  jdifhp=none header.from=qlcezkmcjfchzmwpi.microsoft.com;xqlufkvv=pass
+S:  dpozol=3D0
+S: 
+S: )
+S: * 1809 FETCH (UID 13489 BODYSTRUCTURE ("text" "plain" ("charset" "utf-8") NIL NIL "7BIT" 60 1 NIL NIL NIL NIL) FLAGS (\Seen) RFC822.SIZE 73173 ENVELOPE ("Fri, 16 Oct 2026 00:17:43 +0000" "NG qjntt 5444-57-32P33:76:26O" ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<OV2EH25BK1546XQ40366R3912BZ92FNZRVF5I8@VP3QV73DJ8378.wovucm13.ivwp.yauvsve.com>") INTERNALDATE "15-Oct-2026 20:17:50 -0400" BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {244}
+S: Authentication-Results: mx.microsoft.com 1; spf=pass (sender UG is
+S:  35.752.2.80) smtp.mailfrom=yauvsve.com; dkim=pass (signature brc jaxgvqqh)
+S:  header.d=yauvsve.com;dmarc=pass jdifhp=none
+S:  header.from=yauvsve.com;xqlufkvv=pass dpozol=3D0
+S: 
+S: )
+S: T9 OK FETCH completed.
+C: T10 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13484,13489 (UID BODY.PEEK[1]<0.2048>)
+S: * 1777 FETCH (UID 13280 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:40204932-hwm0-374u-9e4f-b86ggm095843">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1778 FETCH (UID 13284 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:z209ozyj-1309-628l-zq52-a5w10559l0n1">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1779 FETCH (UID 13348 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:fc6t8e34-1h22-0904-gh06-0h0491ho607h">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1780 FETCH (UID 13352 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:04k5h067-7wck-2069-34bf-1a10fla53937">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1781 FETCH (UID 13356 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:266g650a-250x-26o4-2877-80g9184777xr">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1782 FETCH (UID 13362 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:a7y22922-wk4r-5x05-2j8h-217f1v7cr79a">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1783 FETCH (UID 13366 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:b9225s05-l4gk-41ui-vl00-a25744v41540">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1784 FETCH (UID 13371 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:137t5w38-v2j3-9051-k01m-jf6rp20tg87i">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1785 FETCH (UID 13375 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:t381x363-17mi-5bg2-2300-835d22zz71em">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1786 FETCH (UID 13380 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:8920h71j-tnjg-3m33-a6s3-91it652pt034">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1787 FETCH (UID 13384 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:f34nd9ei-1006-4998-t983-5151917zm7qc">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1788 FETCH (UID 13387 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:1gjxyay8-3q3b-5p49-5076-n441xij9g97o">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1789 FETCH (UID 13392 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:0433s128-64t2-4k81-51jd-80g41612n1es">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1790 FETCH (UID 13396 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:p5ll7e2y-gu34-9g07-bx8n-6x86171650kt">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1791 FETCH (UID 13403 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:2hx86nd0-4vx5-0ag0-cogj-82vyg2xl4mfg">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1792 FETCH (UID 13407 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:chh8cov5-p764-789l-s1d5-h182l0196600">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1793 FETCH (UID 13412 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:98wb58x6-z286-31bm-11j7-i8a246dqln26">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1794 FETCH (UID 13416 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:r2o82lm3-1gu9-5652-zai4-2kvst64znp67">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1795 FETCH (UID 13422 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:7903371b-gb40-5664-0351-14q9ll449o23">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1796 FETCH (UID 13426 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:fo942q2k-4l44-5n88-2288-u1555rh7332d">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1797 FETCH (UID 13432 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:0jp967sa-37zy-85o6-di5x-310ffw48h008">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1798 FETCH (UID 13436 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:3y30192k-259v-67p8-1ms8-3e91rw25776t">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1799 FETCH (UID 13440 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:6h0lj19j-1dd3-74fj-p2g8-w088ozchux90">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1800 FETCH (UID 13447 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:m2999y00-408h-4255-ngd6-531w2418md88">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1801 FETCH (UID 13452 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:j3674uzj-2s3z-9frq-v957-y2n0pw68xc33">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1802 FETCH (UID 13456 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:s0qun983-0114-2855-d2gb-5b1dy9e4l10e">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1803 FETCH (UID 13460 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:7v89b064-pmju-1234-179f-133733247jva">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1804 FETCH (UID 13466 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:82499655-43b7-790h-n531-2a96a716b115">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1805 FETCH (UID 13470 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:1g141s75-8981-8408-4444-o1eu2lt32bb3">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1806 FETCH (UID 13475 BODY[1]<0> {2048}
+S: <!THUKMTC html CELCBS "-//Y9S//ILK RXQVS 1.0 Iouqhcyrxyaq//KF" "http://www.j9.org/TR/uuaii3/ILK/uuaii3-ocjudcxnryjn.fyx"><html ppivj="http://www.j9.org/0961/ygvpz" ppivj:v="jsc:cbotwag-microsoft-com:vgt" ppivj:o="jsc:cbotwag-microsoft-com:yzgwyh:yzgwyh"><nfvm>
+S: <wntl http-ouqit="Content-Type" content="text/html; charset=utf-8">
+S: <wntl name="embkwfns" content="wsfpv=lhvgkk-wsfpv, npbbtmi-vdzop=1">
+S: <!--[tr wfe]>
+S: <xml>
+S:     <o:FpxdakPttgmlfdMkvvhsid>
+S:         <o:ZudwqICI/>
+S:         <o:EbhgsvGjzItjn>34</o:EbhgsvGjzItjn>
+S:     </o:FpxdakPttgmlfdMkvvhsid>
+S: </xml>
+S: <![ddqdl]-->
+S: 
+S: <!--[tr wfe]>
+S: <vfyhg type="text/xux">
+S:    body, rqdwi, fy { fcvk-tyddfn: 'Tligg RP', asbi-ijivt !important; }
+S: </vfyhg>
+S: <![ddqdl]-->
+S: 
+S: </nfvm>
+S: <body vfyhg="-hhyclk-text-uwua-dcdezl: 204%; -ms-text-uwua-dcdezl: 204%; wbkvco: 0; yacevde: 0;">
+S: <enb pszms="aocnby">
+S:         <!--[tr wfe]>
+S:         <rqdwi wsfpv="535" cxwdvg="0" nhwnnxxtznx="0" pvunzakjlbt="0" fzui="ypllezmoplou" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <![ddqdl]-->
+S:         <!--[tr !wfe]>
+S:         <!---->
+S: 
+S:         <rqdwi pszms="aocnby" fzui="ypllezmoplou" cxwdvg="0" nhwnnxxtznx="0" wsfpv="427" pvunzakjlbt="0" vfyhg="wbkvco:0 dzwg;xlu-wsfpv:920xi;">
+S:             <!--
+S:             <![ddqdl]-->
+S:             <!--[tr wfe]>
+S:             <tr>
+S:                 <fy yiodkq="knr" wsfpv="427">&rbad;</fy>
+S:             </tr>
+S:             <![ddqdl]-->
+S: 
+S:             <yufksdqm>
+S:                 <!--[tr !wfe]>
+S:                 <!---->
+S:                 <agq wsfpv="427">
+S:                 <!--
+S:                 <![ddqdl]-->
+S: 
+S:             </yufksdqm>
+S: 
+S:             
+S: 
+S: <qpesi>
+S:     <tr vfyhg="vgwgyw:74tj"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby">
+S:             <gou afi="Rhsnd" wsfpv="94" vgwgyw="94" vfyhg="xpubdb-pfn:vrsqkqz;" daa="sgd:70q5a0ie-1g42-0463-m1k1-aj4z4u33733c">
+S:         </fy>
+S:     </tr>
+S:     <tr vfyhg="vgwgyw:9qo"></tr>
+S:     <tr>
+S:         <fy galjled="3" pszms="aocnby" vfyhg="cxwdvg-xgrthihj:xgrthihj">
+S:             <gwih vfyhg="fcvk-tyddfn:'Tligg RP Bocmpvr)
+S: * 1808 FETCH (UID 13484 BODY[1]<0> {513}
+S: Frostmail ocqnypksh to the Microsoft ifzgpki sf**n@yauvsve.com.
+S: 
+S: Sp iph lguw't eztsb ehmn jyecab, dzdrby hfhcpv the nof(s) from mcdn ifzgpki.
+S: 
+S: Eznbut mcdn qdmd https://ifzgpki.gfan.com/imtbtem/Eznbut?xt=pgzti.
+S: 
+S: For qdd bbhi wja put https://ifzgpki.gfan.com/XmaghokbRcbigrddshovy/Tjhxuj or jcqffk olcbp iph xyziidx mqqoygfn oocnkeuuxylmg.
+S: 
+S: Xzcxqp,
+S: The Microsoft ifzgpki uruc 
+S: Swfqwak Uwalbwskc: https://hk.microsoft.com/feauxq/?TelvBf=3D4787
+S: Microsoft Mgipqiiueyk, Fvr Microsoft Ujf, Ioekeja, KW 45067
+S: )
+S: * 1809 FETCH (UID 13489 BODY[1]<0> {60}
+S: Frostmail's Humjdmh.com qjntt (pykb 9531). Nfrm to xeektk.
+S: )
+S: T10 OK FETCH completed.
+C: T11 UID FETCH 13479 (UID BODY.PEEK[1.1]<0.2048>)
+S: * 1807 FETCH (UID 13479 BODY[1.1]<0> {826}
+S: 1bHZ2lPG4aKS6cDOxYM9mZJ3Ym6iFAO7cS8fRzBtC2JzI73uWa75r0otykjjo3d2KhNAYPP8SQg0
+S: DuA8WgdMXPA1ANTVJIrcTWe9QDM0G1IeBFHLAKM3VveQEZvCBcW4NAYTVUHeX1GAMKX3VuE3PHV9
+S: ZSW9CHN7U0F8UtU2OqB3B1NSP0RKEkpPLOB2ThN5KucPENW3CoZ2JJT8CMO5JbT7XgzhDKKcGnX1
+S: VnM0KoMlRNWMEiXwEZIrBTT2C4ZERFNUAYK5QvFEIct2YzF6BBxwPkXSUdoTPiq2AVGbPKGDBvXm
+S: H0UfTWU8PAZRF0GrUaU4uTW1BCYsMIDqWENgDSmxPR39AdIaNUKaXKHvCGFpHML8BLksK6FsALrW
+S: JwnjmZJ2MmArQhHcBMVhMagkPY02HKWdBOawDdOeQBImYMQcVDZ6CiI9GPodoZZqwxecD831gGzo
+S: v9olw1PxzUFtAtDmeW0wk11tr9l7gF0nH2ZhIKRbH5TzWdX2JMFkOJO6QNr9B6NcPlE8Wgd5TgXm
+S: CmCuJZWMuWayzr7pl9T2YpFsoO9zsm4hsT1mmPRpOVO5ZqarVH1tyEiJyXlrCDO4aiJ+WWdAu72l
+S: FMUejGLurX7esSSeiTT3lWZeKW6xQGd0eQDsTs7uh9J6nR5jcn6xSfRnQ6LlU41uM0Gru4t6gWTq
+S: xGXhsUOuns30WVXbGZN3XjNqPmk0OkVoZIP3UjryXUzpNSF3P6RfQbDkuLGci9JrBiGaM32eA9Fy
+S: x814dB45tvNjxM1fl36PvLDuzWCzI37kyWTiMC5BCp==
+S: )
+S: T11 OK FETCH completed.
+C: T12 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T12 OK [READ-WRITE] SELECT completed.
+C: T13 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T13 OK SEARCH completed.
+C: T14 SELECT "Sent"
+S: * 18 EXISTS
+S: * 18 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 83] The next qogwwj cutalfisov sdhrz
+S: T14 OK [READ-WRITE] SELECT completed.
+C: T15 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 78
+S: T15 OK SEARCH completed.
+C: T16 UID FETCH 78 (UID BODYSTRUCTURE FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 18 FETCH (UID 78 BODYSTRUCTURE ("text" "plain" ("charset" "utf-8") NIL NIL "7BIT" 60 1 NIL NIL NIL NIL) FLAGS (\Seen \Recent) INTERNALDATE "15-Oct-2026 20:17:46 -0400" RFC822.SIZE 18494 ENVELOPE ("Fri, 16 Oct 2026 00:17:43 +0000" "NG qjntt 5444-57-32P33:76:26O" ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL ((NIL NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL "<OV2EH25BK1546XQ40366R3912BZ92FNZRVF5I8@VP3QV73DJ8378.wovucm13.ivwp.yauvsve.com>") BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: T16 OK FETCH completed.
+C: T17 UID FETCH 78 (UID BODY.PEEK[1]<0.2048>)
+S: * 18 FETCH (UID 78 BODY[1]<0> {60}
+S: Frostmail's Humjdmh.com qjntt (pykb 9531). Nfrm to xeektk.
+S: )
+S: T17 OK FETCH completed.
+C: T18 SELECT "Archive"
+S: * 6 EXISTS
+S: * 6 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 7] The next qogwwj cutalfisov sdhrz
+S: T18 OK [READ-WRITE] SELECT completed.
+C: T19 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T19 OK SEARCH completed.
+C: T20 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T20 OK [READ-WRITE] SELECT completed.
+C: T21 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T21 OK SEARCH completed.
+C: T22 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 3 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1379] The next qogwwj cutalfisov sdhrz
+S: T22 OK [READ-WRITE] SELECT completed.
+C: T23 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 1375 1376 1377
+S: T23 OK SEARCH completed.
+C: T24 UID FETCH 1375:1377 (UID ENVELOPE INTERNALDATE RFC822.SIZE BODYSTRUCTURE FLAGS BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: T24 OK FETCH completed.
+C: T25 SELECT "Notes"
+S: * 1 EXISTS
+S: * 1 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T25 OK [READ-WRITE] SELECT completed.
+C: T26 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T26 OK SEARCH completed.
+C: T27 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T27 OK [READ-WRITE] SELECT completed.
+C: T28 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T28 OK SEARCH completed.
+C: T29 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T29 OK [READ-WRITE] SELECT completed.
+C: T30 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T30 OK SEARCH completed.
+C: T31 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T31 OK [READ-WRITE] SELECT completed.
+C: T32 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T32 OK SEARCH completed.
+C: T33 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T33 OK [READ-WRITE] SELECT completed.
+C: T34 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T34 OK SEARCH completed.
+C: T35 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T35 OK [READ-WRITE] SELECT completed.
+C: T36 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T36 OK SEARCH completed.
+C: T37 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13493] The next qogwwj cutalfisov sdhrz
+S: T37 OK [READ-WRITE] SELECT completed.
+C: T38 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS ())
+S: * 1789 FETCH (UID 13392 FLAGS ())
+S: * 1790 FETCH (UID 13396 FLAGS ())
+S: * 1791 FETCH (UID 13403 FLAGS ())
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T38 OK FETCH completed.
+C: T39 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13493] The next qogwwj cutalfisov sdhrz
+S: T39 OK [READ-WRITE] SELECT completed.
+C: T40 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS ())
+S: * 1789 FETCH (UID 13392 FLAGS ())
+S: * 1790 FETCH (UID 13396 FLAGS ())
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T40 OK FETCH completed.
+C: T41 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\Marked \HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T41 OK LIST completed.
+C: T42 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13493] The next qogwwj cutalfisov sdhrz
+S: T42 OK [READ-WRITE] SELECT completed.
+C: T43 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS ())
+S: * 1789 FETCH (UID 13392 FLAGS ())
+S: * 1790 FETCH (UID 13396 FLAGS ())
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T43 OK FETCH completed.
+C: T44 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T44 OK [READ-WRITE] SELECT completed.
+C: T45 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 83] The next qogwwj cutalfisov sdhrz
+S: T45 OK [READ-WRITE] SELECT completed.
+C: T46 UID FETCH 78 (UID FLAGS)
+S: * 18 FETCH (UID 78 FLAGS (\Seen))
+S: T46 OK FETCH completed.
+C: T47 SELECT "Archive"
+S: * 6 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 7] The next qogwwj cutalfisov sdhrz
+S: T47 OK [READ-WRITE] SELECT completed.
+C: T48 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T48 OK [READ-WRITE] SELECT completed.
+C: T49 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T49 OK [READ-WRITE] SELECT completed.
+C: T50 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 1375 1376 1377
+S: T50 OK SEARCH completed.
+C: T51 UID FETCH 1375:1377 (UID BODYSTRUCTURE ENVELOPE FLAGS INTERNALDATE RFC822.SIZE BODY.PEEK[HEADER.FIELDS ("References" "List-Id" "List-Unsubscribe" "Authentication-Results")])
+S: * 1 FETCH (UID 1375 BODYSTRUCTURE ("text" "plain" ("charset" "us-ascii") NIL NIL "quoted-printable" 1 1 NIL NIL NIL NIL) ENVELOPE (NIL "Isalsumcj orahi the IMAP4 protocol slobtn for the cwwnkbvdu message: 4953" (("Microsoft Exchange Server" NIL NIL ".JWRAIQU-HOST-NAME.")) NIL NIL (("nwxozpohtu@yauvsve.com" NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "15-Oct-2026 20:16:41 -0400" RFC822.SIZE 6711 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 2 FETCH (UID 1376 BODYSTRUCTURE ("text" "plain" ("charset" "us-ascii") NIL NIL "quoted-printable" 1 1 NIL NIL NIL NIL) ENVELOPE (NIL "Isalsumcj orahi the IMAP4 protocol slobtn for the cwwnkbvdu message: 5304" (("Microsoft Exchange Server" NIL NIL ".JWRAIQU-HOST-NAME.")) NIL NIL (("nwxozpohtu@yauvsve.com" NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "15-Oct-2026 20:16:41 -0400" RFC822.SIZE 4027 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: * 3 FETCH (UID 1377 BODYSTRUCTURE ("text" "plain" ("charset" "us-ascii") NIL NIL "quoted-printable" 1 1 NIL NIL NIL NIL) ENVELOPE (NIL "Isalsumcj orahi the IMAP4 protocol slobtn for the cwwnkbvdu message: 3497" (("Microsoft Exchange Server" NIL NIL ".JWRAIQU-HOST-NAME.")) NIL NIL (("nwxozpohtu@yauvsve.com" NIL "nwxozpohtu" "yauvsve.com")) NIL NIL NIL NIL) FLAGS (\Seen) INTERNALDATE "15-Oct-2026 20:16:40 -0400" RFC822.SIZE 6710 BODY[HEADER.FIELDS (References List-Id List-Unsubscribe Authentication-Results)] {2}
+S: 
+S: )
+S: T51 OK FETCH completed.
+C: T52 UID FETCH 1375:1377 (UID BODY.PEEK[1]<0.2048>)
+S: * 1 FETCH (UID 1375 BODY[1]<0> {451}
+S: The server onrlqf't tyniegxh the cwwnkbvdu message:
+S: 
+S: Subject: "NG qjntt femrib, jdctomn"
+S: From: "Mfpwh Zigkesuk" ("/O=3DVZEPW XALZDTIOHEQN/DQ=3DEXCHANGE ITAZFFNJBOBK=
+S: LI FVXMT(VZPBKAFB05LBJZC)/GD=3DKSWYDTSUIZ/GD=3D5762KXPF993DPG6L")
+S: Sent date: 57/95/5444 8:07:17 FC
+S: 
+S: The message grye't jrrn deleted. For qmiju be dxys to vwhl gc orahi lpvati =
+S: Humjdmh or Humjdmh Gxh Gcc. For qdd bbhi tygbtzb the sender to gaqh put nwm=
+S: t the message aamt.=
+S: )
+S: * 2 FETCH (UID 1376 BODY[1]<0> {443}
+S: The server onrlqf't tyniegxh the cwwnkbvdu message:
+S: 
+S: Subject: "NG qjntt all tnr"
+S: From: "Mfpwh Zigkesuk" ("/O=3DVZEPW XALZDTIOHEQN/DQ=3DEXCHANGE ITAZFFNJBOBK=
+S: LI FVXMT(VZPBKAFB05LBJZC)/GD=3DKSWYDTSUIZ/GD=3D5762KXPF993DPG6L")
+S: Sent date: 57/95/5444 8:07:17 FC
+S: 
+S: The message grye't jrrn deleted. For qmiju be dxys to vwhl gc orahi lpvati =
+S: Humjdmh or Humjdmh Gxh Gcc. For qdd bbhi tygbtzb the sender to gaqh put nwm=
+S: t the message aamt.=
+S: )
+S: * 3 FETCH (UID 1377 BODY[1]<0> {442}
+S: The server onrlqf't tyniegxh the cwwnkbvdu message:
+S: 
+S: Subject: "NG qjntt mznzpx"
+S: From: "Mfpwh Zigkesuk" ("/O=3DVZEPW XALZDTIOHEQN/DQ=3DEXCHANGE ITAZFFNJBOBK=
+S: LI FVXMT(VZPBKAFB05LBJZC)/GD=3DKSWYDTSUIZ/GD=3D5762KXPF993DPG6L")
+S: Sent date: 57/95/5444 8:07:94 FC
+S: 
+S: The message grye't jrrn deleted. For qmiju be dxys to vwhl gc orahi lpvati =
+S: Humjdmh or Humjdmh Gxh Gcc. For qdd bbhi tygbtzb the sender to gaqh put nwm=
+S: t the message aamt.=
+S: )
+S: T52 OK FETCH completed.
+C: T53 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T53 OK [READ-WRITE] SELECT completed.
+C: T54 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T54 OK [READ-WRITE] SELECT completed.
+C: T55 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T55 OK [READ-WRITE] SELECT completed.
+C: T56 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T56 OK [READ-WRITE] SELECT completed.
+C: T57 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T57 OK [READ-WRITE] SELECT completed.
+C: T58 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T58 OK [READ-WRITE] SELECT completed.

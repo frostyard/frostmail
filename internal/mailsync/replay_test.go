@@ -29,6 +29,13 @@ import (
 // newReplayEnv makes a store holding one account, for replays.
 func newReplayEnv(t *testing.T, acct store.Account) *gmailEnv {
 	t.Helper()
+	return newReplayEnvWith(t, acct, Config{})
+}
+
+// newReplayEnvWith is newReplayEnv with a sync configuration (a stopped
+// clock for an account with a window).
+func newReplayEnvWith(t *testing.T, acct store.Account, cfg Config) *gmailEnv {
+	t.Helper()
 	ctx := t.Context()
 	dir := t.TempDir()
 	db, err := store.Open(ctx, filepath.Join(dir, "mail.db"))
@@ -45,7 +52,7 @@ func newReplayEnv(t *testing.T, acct store.Account) *gmailEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := New(db, nil, blob.New(filepath.Join(dir, "blobs")), slog.New(slog.DiscardHandler), Config{}, func([]api.EventEnvelope) {})
+	m := New(db, nil, blob.New(filepath.Join(dir, "blobs")), slog.New(slog.DiscardHandler), cfg, func([]api.EventEnvelope) {})
 	return &gmailEnv{t: t, db: db, a: &actor{m: m, acct: acct, unsaved: map[int64]time.Time{}}, mbs: map[string]int64{}}
 }
 

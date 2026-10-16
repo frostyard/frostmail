@@ -1,0 +1,1075 @@
+# Outlook.com (the user's test account): the next session, with mailctl flag, mv and sync on the probe's own message in Sent, recorded 2026-10-16 with MAILD_IMAP_TRACE. Replayed by TestReplayOutlook.
+# Scrubbed by tools/imaprec: names, addresses, subjects, bodies and
+# mailbox names are stable fakes; dates, structure, flags and UIDs are
+# as recorded.
+S: * OK Microsoft Exchange IMAP4 service ready. ix304eg0-943k-0jr7-2420-99o02dxe57p0 (tcpproxy/95.62.6877.595 BACKENDAUTHENTICATE) [JeBGBBTEZPBVISMKRnBQQEHCNFKbTLTLUsWfAR5OIQXxLGCUipQlMQVTAgGeNQUOrtNqIDOGBsOeXHZBoICmYM6HmpWeSW0GBzPvDX6M]
+C: T1 CAPABILITY
+S: * CAPABILITY IMAP4 IMAP4rev1 AUTH=XOAUTH2 LOGINDISABLED SASL-IR UIDPLUS MOVE ID UNSELECT CHILDREN IDLE NAMESPACE LITERAL+
+S: T1 OK CAPABILITY completed.
+C: T2 AUTHENTICATE XOAUTH2 [redacted]
+S: T2 OK AUTHENTICATE completed.
+C: T3 CAPABILITY
+S: * CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CLIENTACCESSRULES CLIENTNETWORKPRESENCELOCATION BACKENDAUTHENTICATE BACKENDAUTHENTICATE-IR CHILDREN IDLE NAMESPACE LITERAL+
+S: T3 OK CAPABILITY completed.
+C: T4 CAPABILITY
+S: * CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CLIENTACCESSRULES CLIENTNETWORKPRESENCELOCATION BACKENDAUTHENTICATE BACKENDAUTHENTICATE-IR CHILDREN IDLE NAMESPACE LITERAL+
+S: T4 OK CAPABILITY completed.
+C: T5 ID ("name" "frostmail" "vendor" "frostyard")
+S: * ID ("name" "Microsoft.Exchange.Imap4.Igpo6Micvgd" "version" "95.62")
+S: T5 OK ID completed
+C: T6 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T6 OK LIST completed.
+C: T7 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T7 OK [READ-WRITE] SELECT completed.
+C: T8 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 13280 13284 13348 13352 13356 13362 13366 13371 13375 13380 13384 13387 13392 13396 13403 13407 13412 13416 13422 13426 13432 13436 13440 13447 13452 13456 13460 13466 13470 13475 13479 13484 13489
+S: T8 OK SEARCH completed.
+C: T9 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T9 OK FETCH completed.
+C: T10 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T10 OK [READ-WRITE] SELECT completed.
+C: T11 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 83] The next qogwwj cutalfisov sdhrz
+S: T11 OK [READ-WRITE] SELECT completed.
+C: T12 UID FETCH 78 (UID FLAGS)
+S: * 18 FETCH (UID 78 FLAGS (\Seen))
+S: T12 OK FETCH completed.
+C: T13 SELECT "Archive"
+S: * 6 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 7] The next qogwwj cutalfisov sdhrz
+S: T13 OK [READ-WRITE] SELECT completed.
+C: T14 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T14 OK [READ-WRITE] SELECT completed.
+C: T15 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T15 OK [READ-WRITE] SELECT completed.
+C: T16 UID FETCH 1375:1377 (UID FLAGS)
+S: * 1 FETCH (UID 1375 FLAGS (\Seen))
+S: * 2 FETCH (UID 1376 FLAGS (\Seen))
+S: * 3 FETCH (UID 1377 FLAGS (\Seen))
+S: T16 OK FETCH completed.
+C: T17 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T17 OK [READ-WRITE] SELECT completed.
+C: T18 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T18 OK [READ-WRITE] SELECT completed.
+C: T19 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T19 OK [READ-WRITE] SELECT completed.
+C: T20 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T20 OK [READ-WRITE] SELECT completed.
+C: T21 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T21 OK [READ-WRITE] SELECT completed.
+C: T22 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T22 OK [READ-WRITE] SELECT completed.
+C: T23 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T23 OK [READ-WRITE] SELECT completed.
+C: T24 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T24 OK FETCH completed.
+C: T25 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 83] The next qogwwj cutalfisov sdhrz
+S: T25 OK [READ-WRITE] SELECT completed.
+C: T26 UID STORE 78 +FLAGS.SILENT (\Flagged)
+S: T26 OK STORE completed.
+C: T27 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\Marked \HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T27 OK LIST completed.
+C: T28 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T28 OK [READ-WRITE] SELECT completed.
+C: T29 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T29 OK FETCH completed.
+C: T30 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T30 OK [READ-WRITE] SELECT completed.
+C: T31 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 84] The next qogwwj cutalfisov sdhrz
+S: T31 OK [READ-WRITE] SELECT completed.
+C: T32 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 78
+S: T32 OK SEARCH completed.
+C: T33 UID FETCH 78 (UID FLAGS)
+S: * 18 FETCH (UID 78 FLAGS (\Seen \Flagged))
+S: T33 OK FETCH completed.
+C: T34 SELECT "Archive"
+S: * 6 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 7] The next qogwwj cutalfisov sdhrz
+S: T34 OK [READ-WRITE] SELECT completed.
+C: T35 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T35 OK [READ-WRITE] SELECT completed.
+C: T36 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T36 OK [READ-WRITE] SELECT completed.
+C: T37 UID FETCH 1375:1377 (UID FLAGS)
+S: * 1 FETCH (UID 1375 FLAGS (\Seen))
+S: * 2 FETCH (UID 1376 FLAGS (\Seen))
+S: * 3 FETCH (UID 1377 FLAGS (\Seen))
+S: T37 OK FETCH completed.
+C: T38 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T38 OK [READ-WRITE] SELECT completed.
+C: T39 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T39 OK [READ-WRITE] SELECT completed.
+C: T40 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T40 OK [READ-WRITE] SELECT completed.
+C: T41 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T41 OK [READ-WRITE] SELECT completed.
+C: T42 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T42 OK [READ-WRITE] SELECT completed.
+C: T43 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T43 OK [READ-WRITE] SELECT completed.
+C: T44 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 84] The next qogwwj cutalfisov sdhrz
+S: T44 OK [READ-WRITE] SELECT completed.
+C: T45 UID STORE 78 -FLAGS.SILENT (\Seen)
+S: T45 OK STORE completed.
+C: T46 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T46 OK LIST completed.
+C: T47 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T47 OK [READ-WRITE] SELECT completed.
+C: T48 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T48 OK FETCH completed.
+C: T49 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T49 OK [READ-WRITE] SELECT completed.
+C: T50 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 18] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 84] The next qogwwj cutalfisov sdhrz
+S: T50 OK [READ-WRITE] SELECT completed.
+C: T51 UID FETCH 78 (UID FLAGS)
+S: * 18 FETCH (UID 78 FLAGS (\Flagged))
+S: T51 OK FETCH completed.
+C: T52 SELECT "Archive"
+S: * 6 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 7] The next qogwwj cutalfisov sdhrz
+S: T52 OK [READ-WRITE] SELECT completed.
+C: T53 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T53 OK [READ-WRITE] SELECT completed.
+C: T54 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T54 OK [READ-WRITE] SELECT completed.
+C: T55 UID FETCH 1375:1377 (UID FLAGS)
+S: * 1 FETCH (UID 1375 FLAGS (\Seen))
+S: * 2 FETCH (UID 1376 FLAGS (\Seen))
+S: * 3 FETCH (UID 1377 FLAGS (\Seen))
+S: T55 OK FETCH completed.
+C: T56 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T56 OK [READ-WRITE] SELECT completed.
+C: T57 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T57 OK [READ-WRITE] SELECT completed.
+C: T58 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T58 OK [READ-WRITE] SELECT completed.
+C: T59 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T59 OK [READ-WRITE] SELECT completed.
+C: T60 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T60 OK [READ-WRITE] SELECT completed.
+C: T61 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T61 OK [READ-WRITE] SELECT completed.
+C: T62 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 18] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 84] The next qogwwj cutalfisov sdhrz
+S: T62 OK [READ-WRITE] SELECT completed.
+C: T63 UID MOVE 78 "Archive"
+S: * OK [COPYUID 469 78 7]
+S: * 18 EXPUNGE
+S: * 17 EXISTS
+S: T63 OK MOVE completed.
+C: T64 LIST "" "*"
+S: * LIST (\Marked \HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T64 OK LIST completed.
+C: T65 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T65 OK [READ-WRITE] SELECT completed.
+C: T66 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T66 OK FETCH completed.
+C: T67 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T67 OK [READ-WRITE] SELECT completed.
+C: T68 SELECT "Sent"
+S: * 17 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 84] The next qogwwj cutalfisov sdhrz
+S: T68 OK [READ-WRITE] SELECT completed.
+C: T69 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T69 OK SEARCH completed.
+C: T70 SELECT "Archive"
+S: * 7 EXISTS
+S: * 1 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 7] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 9] The next qogwwj cutalfisov sdhrz
+S: T70 OK [READ-WRITE] SELECT completed.
+C: T71 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 7
+S: T71 OK SEARCH completed.
+C: T72 UID FETCH 7 (UID FLAGS)
+S: * 7 FETCH (UID 7 FLAGS (\Flagged \Recent))
+S: T72 OK FETCH completed.
+C: T73 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T73 OK [READ-WRITE] SELECT completed.
+C: T74 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T74 OK [READ-WRITE] SELECT completed.
+C: T75 UID FETCH 1375:1377 (UID FLAGS)
+S: * 1 FETCH (UID 1375 FLAGS (\Seen))
+S: * 2 FETCH (UID 1376 FLAGS (\Seen))
+S: * 3 FETCH (UID 1377 FLAGS (\Seen))
+S: T75 OK FETCH completed.
+C: T76 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T76 OK [READ-WRITE] SELECT completed.
+C: T77 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T77 OK [READ-WRITE] SELECT completed.
+C: T78 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T78 OK [READ-WRITE] SELECT completed.
+C: T79 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T79 OK [READ-WRITE] SELECT completed.
+C: T80 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T80 OK [READ-WRITE] SELECT completed.
+C: T81 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T81 OK [READ-WRITE] SELECT completed.
+C: T82 SELECT "Archive"
+S: * 7 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 7] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 9] The next qogwwj cutalfisov sdhrz
+S: T82 OK [READ-WRITE] SELECT completed.
+C: T83 UID MOVE 7 "Sent"
+S: * OK [COPYUID 11 7 84]
+S: * 7 EXPUNGE
+S: * 6 EXISTS
+S: T83 OK MOVE completed.
+C: T84 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\Marked \HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T84 OK LIST completed.
+C: T85 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T85 OK [READ-WRITE] SELECT completed.
+C: T86 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T86 OK FETCH completed.
+C: T87 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T87 OK [READ-WRITE] SELECT completed.
+C: T88 SELECT "Sent"
+S: * 18 EXISTS
+S: * 1 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 18] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 85] The next qogwwj cutalfisov sdhrz
+S: T88 OK [READ-WRITE] SELECT completed.
+C: T89 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 84
+S: T89 OK SEARCH completed.
+C: T90 UID FETCH 84 (UID FLAGS)
+S: * 18 FETCH (UID 84 FLAGS (\Flagged \Recent))
+S: T90 OK FETCH completed.
+C: T91 SELECT "Archive"
+S: * 6 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 9] The next qogwwj cutalfisov sdhrz
+S: T91 OK [READ-WRITE] SELECT completed.
+C: T92 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH
+S: T92 OK SEARCH completed.
+C: T93 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T93 OK [READ-WRITE] SELECT completed.
+C: T94 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T94 OK [READ-WRITE] SELECT completed.
+C: T95 UID FETCH 1375:1377 (UID FLAGS)
+S: * 1 FETCH (UID 1375 FLAGS (\Seen))
+S: * 2 FETCH (UID 1376 FLAGS (\Seen))
+S: * 3 FETCH (UID 1377 FLAGS (\Seen))
+S: T95 OK FETCH completed.
+C: T96 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T96 OK [READ-WRITE] SELECT completed.
+C: T97 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T97 OK [READ-WRITE] SELECT completed.
+C: T98 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T98 OK [READ-WRITE] SELECT completed.
+C: T99 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T99 OK [READ-WRITE] SELECT completed.
+C: T100 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T100 OK [READ-WRITE] SELECT completed.
+C: T101 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T101 OK [READ-WRITE] SELECT completed.
+C: T102 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 18] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 85] The next qogwwj cutalfisov sdhrz
+S: T102 OK [READ-WRITE] SELECT completed.
+C: T103 UID STORE 84 +FLAGS.SILENT (\Seen)
+S: T103 OK STORE completed.
+C: T104 UID STORE 84 -FLAGS.SILENT (\Flagged)
+S: T104 OK STORE completed.
+C: T105 LIST "" "*"
+S: * LIST (\HasNoChildren) "/" Archive
+S: * LIST (\HasNoChildren \Trash) "/" Deleted
+S: * LIST (\HasNoChildren \Drafts) "/" Drafts
+S: * LIST (\Marked \HasNoChildren) "/" Inbox
+S: * LIST (\HasNoChildren \Junk) "/" Junk
+S: * LIST (\HasNoChildren) "/" Notes
+S: * LIST (\HasNoChildren) "/" Outbox
+S: * LIST (\Marked \HasNoChildren \Sent) "/" Sent
+S: * LIST (\HasChildren) "/" "Sync Issues"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Conflicts"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Local Failures"
+S: * LIST (\HasNoChildren) "/" "Sync Issues/Server Failures"
+S: T105 OK LIST completed.
+C: T106 SELECT INBOX
+S: * 1809 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UNSEEN 813] Is the ngjng udpacb message
+S: * OK [UIDVALIDITY 14] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 13494] The next qogwwj cutalfisov sdhrz
+S: T106 OK [READ-WRITE] SELECT completed.
+C: T107 UID FETCH 13280,13284,13348,13352,13356,13362,13366,13371,13375,13380,13384,13387,13392,13396,13403,13407,13412,13416,13422,13426,13432,13436,13440,13447,13452,13456,13460,13466,13470,13475,13479,13484,13489 (UID FLAGS)
+S: * 1777 FETCH (UID 13280 FLAGS ())
+S: * 1778 FETCH (UID 13284 FLAGS ())
+S: * 1779 FETCH (UID 13348 FLAGS ())
+S: * 1780 FETCH (UID 13352 FLAGS ())
+S: * 1781 FETCH (UID 13356 FLAGS ())
+S: * 1782 FETCH (UID 13362 FLAGS ())
+S: * 1783 FETCH (UID 13366 FLAGS ())
+S: * 1784 FETCH (UID 13371 FLAGS ())
+S: * 1785 FETCH (UID 13375 FLAGS ())
+S: * 1786 FETCH (UID 13380 FLAGS ())
+S: * 1787 FETCH (UID 13384 FLAGS ())
+S: * 1788 FETCH (UID 13387 FLAGS (\Seen))
+S: * 1789 FETCH (UID 13392 FLAGS (\Seen))
+S: * 1790 FETCH (UID 13396 FLAGS (\Seen))
+S: * 1791 FETCH (UID 13403 FLAGS (\Seen))
+S: * 1792 FETCH (UID 13407 FLAGS ())
+S: * 1793 FETCH (UID 13412 FLAGS ())
+S: * 1794 FETCH (UID 13416 FLAGS ())
+S: * 1795 FETCH (UID 13422 FLAGS ())
+S: * 1796 FETCH (UID 13426 FLAGS ())
+S: * 1797 FETCH (UID 13432 FLAGS ())
+S: * 1798 FETCH (UID 13436 FLAGS ())
+S: * 1799 FETCH (UID 13440 FLAGS ())
+S: * 1800 FETCH (UID 13447 FLAGS ())
+S: * 1801 FETCH (UID 13452 FLAGS ())
+S: * 1802 FETCH (UID 13456 FLAGS ())
+S: * 1803 FETCH (UID 13460 FLAGS ())
+S: * 1804 FETCH (UID 13466 FLAGS ())
+S: * 1805 FETCH (UID 13470 FLAGS ())
+S: * 1806 FETCH (UID 13475 FLAGS ())
+S: * 1807 FETCH (UID 13479 FLAGS (\Seen))
+S: * 1808 FETCH (UID 13484 FLAGS (\Seen))
+S: * 1809 FETCH (UID 13489 FLAGS (\Seen))
+S: T107 OK FETCH completed.
+C: T108 SELECT "Drafts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 485] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 41] The next qogwwj cutalfisov sdhrz
+S: T108 OK [READ-WRITE] SELECT completed.
+C: T109 SELECT "Sent"
+S: * 18 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 11] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 86] The next qogwwj cutalfisov sdhrz
+S: T109 OK [READ-WRITE] SELECT completed.
+C: T110 UID SEARCH SINCE "16-Sep-2026"
+S: * SEARCH 84
+S: T110 OK SEARCH completed.
+C: T111 UID FETCH 84 (UID FLAGS)
+S: * 18 FETCH (UID 84 FLAGS (\Seen))
+S: T111 OK FETCH completed.
+C: T112 SELECT "Archive"
+S: * 6 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 469] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 9] The next qogwwj cutalfisov sdhrz
+S: T112 OK [READ-WRITE] SELECT completed.
+C: T113 SELECT "Junk"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 489] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 63] The next qogwwj cutalfisov sdhrz
+S: T113 OK [READ-WRITE] SELECT completed.
+C: T114 SELECT "Deleted"
+S: * 3 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 12] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1382] The next qogwwj cutalfisov sdhrz
+S: T114 OK [READ-WRITE] SELECT completed.
+C: T115 UID FETCH 1375:1377 (UID FLAGS)
+S: * 1 FETCH (UID 1375 FLAGS (\Seen))
+S: * 2 FETCH (UID 1376 FLAGS (\Seen))
+S: * 3 FETCH (UID 1377 FLAGS (\Seen))
+S: T115 OK FETCH completed.
+C: T116 SELECT "Notes"
+S: * 1 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 491] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 5] The next qogwwj cutalfisov sdhrz
+S: T116 OK [READ-WRITE] SELECT completed.
+C: T117 SELECT "Outbox"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 13] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 3] The next qogwwj cutalfisov sdhrz
+S: T117 OK [READ-WRITE] SELECT completed.
+C: T118 SELECT "Sync Issues"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 495] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T118 OK [READ-WRITE] SELECT completed.
+C: T119 SELECT "Sync Issues/Conflicts"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 496] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T119 OK [READ-WRITE] SELECT completed.
+C: T120 SELECT "Sync Issues/Local Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 497] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T120 OK [READ-WRITE] SELECT completed.
+C: T121 SELECT "Sync Issues/Server Failures"
+S: * 0 EXISTS
+S: * 0 RECENT
+S: * FLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)
+S: * OK [PERMANENTFLAGS (\Seen \Answered \Flagged \Deleted \Draft $MDNSent $Forwarded)] Permanent flags
+S: * OK [UIDVALIDITY 498] UIDVALIDITY sdhrz
+S: * OK [UIDNEXT 1] The next qogwwj cutalfisov sdhrz
+S: T121 OK [READ-WRITE] SELECT completed.
+C: T122 LOGOUT
+S: * BYE Microsoft Exchange Server IMAP4 server signing off.
+S: T122 OK LOGOUT completed.
