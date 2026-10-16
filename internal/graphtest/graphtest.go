@@ -2,7 +2,7 @@
 // sync (docs/design/pim.md, Microsoft Graph), as davtest is for DAV: the
 // account's calendars and contact folders in memory, delta rounds with
 // tokens and pages, series read with their exceptions, contact photos,
-// and hooks that play another client's changes. It answers as Graph did
+// Graph's writes, and hooks that play another client's changes. It answers as Graph did
 // the probe of an Outlook.com account (plan 0010, Phase 1).
 package graphtest
 
@@ -25,12 +25,17 @@ const PageSize = 2
 type Server struct {
 	URL   string // the base URL, as graph.BaseURL
 	Token string // the bearer token it accepts
+	// User is the account's address, the organizer of the events it
+	// creates; "" names none.
+	User string
 
 	mu        sync.Mutex
 	version   int
 	calendars []*calendar
 	folders   []*folder
 	throttle  int // requests left to answer 429
+	writes    []Write
+	onWrite   func(method, path string)
 	// Requests counts requests by method and path, without the query.
 	Requests map[string]int
 }
@@ -174,7 +179,22 @@ func (s *Server) folder(id string) *folder {
 	panic("graphtest: no folder " + id)
 }
 
+// OnWrite calls f before each write the server answers, as another
+// client's change or the user's next edit would come; nil stops it. f runs
+// without the server's lock.
+func (s *Server) OnWrite(f func(method, path string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onWrite = f
+}
+
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	hook := s.onWrite
+	s.mu.Unlock()
+	if hook != nil && r.Method != http.MethodGet {
+		hook(r.Method, strings.TrimPrefix(r.URL.Path, "/v1.0/"))
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	path := strings.TrimPrefix(r.URL.Path, "/v1.0/")
@@ -222,7 +242,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && len(parts) == 5 && parts[1] == "contacts" && parts[3] == "photo" && parts[4] == "$value":
 		s.photo(w, parts[2])
 	default:
-		fail(w, http.StatusBadRequest, "BadRequest", "graphtest does not serve "+r.Method+" "+path)
+		if !s.serveWrite(w, r, parts) {
+			fail(w, http.StatusBadRequest, "BadRequest", "graphtest does not serve "+r.Method+" "+path)
+		}
 	}
 }
 
