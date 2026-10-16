@@ -4,12 +4,12 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/frostyard/clix"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/spf13/cobra"
 )
 
@@ -141,16 +141,10 @@ func calTime(value string, loc *time.Location) (time.Time, error) {
 	return parsed, nil
 }
 
+// calLocalZone is the system's IANA zone, UTC when it has none.
 func calLocalZone() string {
-	if zone := strings.TrimPrefix(os.Getenv("TZ"), ":"); zone != "" {
-		if _, err := time.LoadLocation(zone); err == nil {
-			return zone
-		}
-	}
-	if target, err := os.Readlink("/etc/localtime"); err == nil {
-		if _, zone, ok := strings.Cut(target, "zoneinfo/"); ok {
-			return zone
-		}
+	if name := calendar.LocalZone().String(); name != "Local" {
+		return name
 	}
 	return "UTC"
 }

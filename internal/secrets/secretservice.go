@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
-	"os"
 	"sync"
 
 	"github.com/godbus/dbus/v5"
@@ -189,47 +187,4 @@ func (s *SecretService) prompt(ctx context.Context, path dbus.ObjectPath) error 
 			return nil
 		}
 	}
-}
-
-// Open picks maild's secret store: the Secret Service on the session bus,
-// unless FROSTMAIL_SECRETS=file or no service answers, in which case the
-// file store at file (with a warning). With the Secret Service, secrets
-// still in the file are moved over and the file is removed.
-func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
-	fs := NewFile(file)
-	if os.Getenv("FROSTMAIL_SECRETS") == "file" {
-		return fs, nil
-	}
-	conn, err := dbus.ConnectSessionBus(dbus.WithContext(ctx))
-	if err == nil {
-		var ss *SecretService
-		if ss, err = OpenSecretService(ctx, conn); err == nil {
-			if err := migrate(ctx, fs, ss); err != nil {
-				return nil, err
-			}
-			return ss, nil
-		}
-		_ = conn.Close()
-	}
-	log.Warn("no Secret Service; keeping secrets in a file", "file", file, "err", err)
-	return fs, nil
-}
-
-// migrate moves every secret from the file store into the Secret Service,
-// reading each back before the file is removed.
-func migrate(ctx context.Context, from *File, to Store) error {
-	all, err := from.All()
-	if err != nil || len(all) == 0 {
-		return err
-	}
-	for key, value := range all {
-		if err := to.Set(ctx, key, value); err != nil {
-			return fmt.Errorf("secrets: move %s to the Secret Service: %w", key, err)
-		}
-		got, err := to.Get(ctx, key)
-		if err != nil || got != value {
-			return fmt.Errorf("secrets: %s did not read back from the Secret Service: %v", key, err)
-		}
-	}
-	return from.Remove()
 }

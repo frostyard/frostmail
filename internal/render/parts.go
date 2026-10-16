@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // PartsCache is the directory the app reads as mailpart://localhost/
@@ -18,9 +17,12 @@ type PartsCache struct {
 // errBadPath means a relative path tried to leave the cache.
 var errBadPath = errors.New("render: path outside the parts cache")
 
+// abs is rel's path in the cache. rel must be local: not empty, not
+// absolute or rooted, not leaving the cache with "..", and on Windows not
+// naming a drive or a reserved device such as NUL.
 func (c *PartsCache) abs(rel string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(rel))
-	if rel == "" || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	if rel == "" || !filepath.IsLocal(clean) {
 		return "", fmt.Errorf("%w: %q", errBadPath, rel)
 	}
 	return filepath.Join(c.Root, clean), nil

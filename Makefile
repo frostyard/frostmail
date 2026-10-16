@@ -1,4 +1,4 @@
-.PHONY: help build install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
+.PHONY: help build build-windows install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -32,6 +32,10 @@ help: ## List targets
 build: ## Build maild and mailctl into build/
 	CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o build/ ./cmd/maild ./cmd/mailctl
 
+build-windows: ## Cross-compile maild.exe (a GUI program: no console at sign-in) and mailctl.exe into build/windows/
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS) -H=windowsgui' -o build/windows/maild.exe ./cmd/maild
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o build/windows/mailctl.exe ./cmd/mailctl
+
 PREFIX ?= $(HOME)/.local
 UNIT_DIR ?= $(HOME)/.config/systemd/user
 
@@ -60,8 +64,9 @@ gen: ## Regenerate the RPC contract from schema/rpc
 gen-check: ## Fail if generated RPC files are stale
 	go run ./tools/rpcgen -check
 
-lint: lint-version-check ## Run the pinned golangci-lint
+lint: lint-version-check ## Run the pinned golangci-lint, on the Linux and the Windows build
 	golangci-lint run
+	GOOS=windows golangci-lint run
 
 lint-version-check:
 	@test -n "$(GOLANGCI_LINT_VERSION)" || { echo "mise.toml pins no golangci-lint"; exit 1; }
@@ -84,10 +89,11 @@ engine-it: ## Run integration tests against the mailtest container (reset first)
 # The gate triad (frostyard/core ADR-0043, ADR-0044). verify is credential-free
 # and leaves a clean checkout clean; check formats first; ci adds the race
 # detector and the app checks, which need the nsl machine.
-verify: ## Tidy, generated files, vet, format, lint and unit tests
+verify: ## Tidy, generated files, vet (Linux and Windows), format, lint and unit tests
 	go mod tidy -diff
 	$(MAKE) --no-print-directory gen-check
 	go vet ./...
+	GOOS=windows go vet ./...
 	test -z "$$(gofmt -l $(GO_FILES))"
 	$(MAKE) --no-print-directory lint
 	go test ./...

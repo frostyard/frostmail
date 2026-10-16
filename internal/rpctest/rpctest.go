@@ -6,7 +6,6 @@ package rpctest
 import (
 	"context"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -83,8 +82,8 @@ type Server struct {
 // Start runs a server without the sync engine.
 func Start(t testing.TB) *Server { return StartWith(t, Options{}) }
 
-// StartWith runs a server with a fresh database. The socket lives in a short
-// private directory because Unix socket paths are limited to 108 bytes.
+// StartWith runs a server with a fresh database, on a socket of its own
+// (SocketPath).
 func StartWith(t testing.TB, o Options) *Server {
 	t.Helper()
 	log := o.Log
@@ -143,11 +142,11 @@ func StartWith(t testing.TB, o Options) *Server {
 		srv.OAuth.SignedIn = func(id int64) { _ = srv.Sync.Restart(context.Background(), id) }
 	}
 
-	dir, err := os.MkdirTemp("", "fm")
+	socket, cleanup, err := SocketPath()
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.Socket = filepath.Join(dir, "maild.sock")
+	srv.Socket = socket
 	ln, err := rpcserver.Listen(srv.Socket)
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +195,7 @@ func StartWith(t testing.TB, o Options) *Server {
 			srv.PIM.Wait()
 		}
 		_ = db.Close()
-		_ = os.RemoveAll(dir)
+		cleanup()
 	})
 	t.Cleanup(srv.stop)
 	return srv

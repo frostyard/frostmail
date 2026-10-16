@@ -1,10 +1,7 @@
 // Package config resolves where maild keeps its files (docs/design/overview.md#configuration).
 package config
 
-import (
-	"errors"
-	"path/filepath"
-)
+import "path/filepath"
 
 // AppID is the reverse-DNS application ID (frostyard/core ADR-0016).
 const AppID = "org.frostyard.Frostmail"
@@ -13,45 +10,32 @@ const AppID = "org.frostyard.Frostmail"
 type Paths struct {
 	DataDir  string // database and blob store; must be on a local filesystem
 	CacheDir string // decoded message parts served to the UI
-	Socket   string // the RPC socket
+	Socket   string // the RPC socket (a named pipe on Windows)
 	DB       string // DataDir/frostmail.db
 	Blobs    string // DataDir/blobs
 }
 
-// Resolve computes Paths from the environment, following the XDG base
-// directory spec. FROSTMAIL_DATA_DIR, FROSTMAIL_CACHE_DIR and FROSTMAIL_SOCKET
+// Resolve computes Paths from the environment: the XDG base directories on
+// Linux, the user's local app data and a per-user named pipe on Windows
+// (ADR-0038). FROSTMAIL_DATA_DIR, FROSTMAIL_CACHE_DIR and FROSTMAIL_SOCKET
 // override the defaults, for tests and for running a second maild.
 func Resolve(getenv func(string) string) (Paths, error) {
-	home := getenv("HOME")
-	xdg := func(name, fallback string) (string, error) {
-		if v := getenv(name); filepath.IsAbs(v) {
-			return v, nil
-		}
-		if home == "" {
-			return "", errors.New("HOME is not set")
-		}
-		return filepath.Join(home, fallback), nil
-	}
 	var p Paths
 	var err error
 	if p.DataDir = getenv("FROSTMAIL_DATA_DIR"); p.DataDir == "" {
-		if p.DataDir, err = xdg("XDG_DATA_HOME", ".local/share"); err != nil {
+		if p.DataDir, err = defaultDataDir(getenv); err != nil {
 			return Paths{}, err
 		}
-		p.DataDir = filepath.Join(p.DataDir, "frostmail")
 	}
 	if p.CacheDir = getenv("FROSTMAIL_CACHE_DIR"); p.CacheDir == "" {
-		if p.CacheDir, err = xdg("XDG_CACHE_HOME", ".cache"); err != nil {
+		if p.CacheDir, err = defaultCacheDir(getenv); err != nil {
 			return Paths{}, err
 		}
-		p.CacheDir = filepath.Join(p.CacheDir, "frostmail")
 	}
 	if p.Socket = getenv("FROSTMAIL_SOCKET"); p.Socket == "" {
-		run := getenv("XDG_RUNTIME_DIR")
-		if !filepath.IsAbs(run) {
-			return Paths{}, errors.New("XDG_RUNTIME_DIR is not set; set FROSTMAIL_SOCKET")
+		if p.Socket, err = DefaultSocket(getenv); err != nil {
+			return Paths{}, err
 		}
-		p.Socket = filepath.Join(run, "frostmail", "maild.sock")
 	}
 	p.DB = filepath.Join(p.DataDir, "frostmail.db")
 	p.Blobs = filepath.Join(p.DataDir, "blobs")

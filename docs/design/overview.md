@@ -27,7 +27,10 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 ```
 
 - **maild** (`cmd/maild`) wires the store, the broker, the engine and the
-  socket server, and stops cleanly on SIGINT or SIGTERM.
+  socket server, and stops cleanly on SIGINT or SIGTERM. Platform code
+  sits in per-OS files behind the same seams (ADR-0038): the socket
+  (`rpcserver`, `api.Dial`), paths (`config`), secrets (`secrets.Open`),
+  notifications (`notify`) and the local zone (`calendar.LocalZone`).
 - **api** is the contract ([ADR-0007](../adr/0007-rpc-contract.md)): generated
   types, services, router and client over a hand-written runtime.
 - **rpcserver** frames messages, checks the peer UID, rejects calls before
@@ -74,17 +77,21 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 
 | Variable | Default | Used by |
 | --- | --- | --- |
-| `FROSTMAIL_DATA_DIR` | `$XDG_DATA_HOME/frostmail` (`~/.local/share/frostmail`) | maild: `frostmail.db`, `blobs/` |
-| `FROSTMAIL_CACHE_DIR` | `$XDG_CACHE_HOME/frostmail` | maild writes `parts/`; the app serves it as `mailpart://` |
-| `FROSTMAIL_SOCKET` | `$XDG_RUNTIME_DIR/frostmail/maild.sock` | maild, mailctl, the app |
+| `FROSTMAIL_DATA_DIR` | `$XDG_DATA_HOME/frostmail` (`~/.local/share/frostmail`); Windows: `%LOCALAPPDATA%\Frostmail` | maild: `frostmail.db`, `blobs/`, on Windows `logs\` |
+| `FROSTMAIL_CACHE_DIR` | `$XDG_CACHE_HOME/frostmail`; Windows: `%LOCALAPPDATA%\Frostmail\Cache` | maild writes `parts/`; the app serves it as `mailpart://` |
+| `FROSTMAIL_SOCKET` | `$XDG_RUNTIME_DIR/frostmail/maild.sock`; Windows: `\\.\pipe\frostmail-<user SID>` | maild, mailctl, the app |
+| `FROSTMAIL_SECRETS=file` | unset | maild: keep secrets in a plain file, not the Secret Service or DPAPI (development) |
+| `FROSTMAIL_NOTIFIER` | `frostmail-notify.exe` beside maild | maild on Windows: the toast notifier ([desktop.md](desktop.md#windows)) |
 | `FROSTMAIL_WEBKIT_SAFE=1` | unset | the app: WebKitGTK CPU-rendering workarounds |
 | `FROSTMAIL_INSECURE_TLS=1` | unset | maild: accept any IMAP certificate (test servers only) |
 | `FROSTMAIL_IT_HOST` | set by `make engine-it` | integration tests |
 | `FROSTMAIL_EXECUTOR_MODEL` | `EXECUTOR_MODEL` in the Makefile | `taskrun` |
 
-`internal/config/paths.go` and `app/src-tauri/src/paths.rs` resolve the same
-paths and must agree. The socket directory must be private (0700, owned by
-the user); the socket is 0600.
+`internal/config` and `app/src-tauri/src/paths.rs` resolve the same paths
+and must agree (the app's Windows paths come in plan 0010's Phase 5). The
+socket directory must be private (0700, owned by the user); the socket is
+0600. On Windows the named pipe's DACL grants only the user
+([rpc-protocol.md](../specs/rpc-protocol.md#transport)).
 
 ## Status
 

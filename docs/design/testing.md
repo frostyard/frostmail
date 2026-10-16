@@ -19,7 +19,8 @@
 `main`, every pull request and merge-queue entry, and nightly (so upstream
 drift shows within a day): **Verify** (`make verify`, with golangci-lint
 from `mise.lock`), **Race detector** (`go test -race ./...`), **App UI**
-(`make ui-check`) and **App shell** (`make app-build`, `make app-test`).
+(`make ui-check`) and **App shell** (`make app-build`, `make app-test`),
+and **Windows** (`go test ./...` on Windows; see below).
 The app targets normally run in the nsl machine; CI installs the same
 Node, pnpm (corepack, from `app/package.json`), Rust and system libraries
 as `dev/nsl/provision.sh` and runs them with `IN_NSL='sh -c'`. CI sets
@@ -29,6 +30,26 @@ pinned to full commit SHAs, `permissions: {}`, checkouts without
 persisted credentials), which `internal/workflowcheck` tests. Integration
 tests against the mail server, `make ui-e2e` and `make e2e` need incus or
 a display and stay local.
+
+## Windows
+
+maild and mailctl run on Windows (ADR-0038), so the Go suite runs there
+too:
+
+- `make verify` vets the module for Windows (`GOOS=windows go vet ./...`),
+  which compiles every Windows file and test.
+- CI's Windows job runs `go test ./...` on `windows-2025`, after turning
+  off `core.autocrlf`, since fixtures and golden files are byte-exact.
+- On the developer's machine, an incus Windows VM reached over SSH stands
+  in: `dev/windows/vm.sh setup` installs the pinned Go into it, `sync`
+  copies the worktree, and `go test ./...` runs the suite there. Its work
+  directory (`C:\fm`) is outside the Windows user's profile.
+- Tests that need a socket take one from `rpctest.SocketPath`: a short
+  private path on Linux, a fresh named pipe on Windows. Contract tests
+  that check Unix file modes (the blob store, the plain secrets file) or
+  Maildir names (`tools/mailgen`) are skipped on Windows by a `TestMain`
+  in a `_windows_test.go` file, which leaves the contract tests as they
+  are; the DPAPI store has Windows tests of its own.
 
 ## The mail server
 

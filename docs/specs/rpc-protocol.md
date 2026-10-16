@@ -11,6 +11,18 @@ generated [rpc-api.md](rpc-api.md). Rationale: [ADR-0007](../adr/0007-rpc-contra
   socket is 0600 and removed on shutdown. A stale socket is replaced; a live
   one makes a second maild exit.
 - maild closes connections whose peer UID (`SO_PEERCRED`) is not its own.
+- On Windows ([ADR-0038](../adr/0038-windows-as-a-second-platform.md)),
+  a named pipe at `$FROSTMAIL_SOCKET`, default
+  `\\.\pipe\frostmail-<the user's SID>`, in byte mode. Its DACL is
+  `D:P(A;;GA;;;<SID>)`, granting only the user, and it refuses remote
+  clients (`PIPE_REJECT_REMOTE_CLIENTS`). A pipe already there makes a
+  second maild exit; a pipe goes with the process that made it, so none is
+  stale. maild closes connections whose client runs as another
+  SID, read from the client's token while impersonating it
+  (`ImpersonateNamedPipeClient`), which works across logon sessions.
+  Clients therefore connect at the identification level
+  (`SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION`), which lets maild
+  read their token but not act as them; an anonymous client is refused.
 - Each message is one line: a JSON object followed by `\n`, at most 16 MiB
   (`api.MaxMessageSize`). JSON escapes newlines in strings, so a message is
   never split.

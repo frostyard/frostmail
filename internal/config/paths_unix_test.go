@@ -1,8 +1,8 @@
+//go:build !windows
+
 package config
 
 import "testing"
-
-func env(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func TestResolveDefaults(t *testing.T) {
 	p, err := Resolve(env(map[string]string{"HOME": "/home/u", "XDG_RUNTIME_DIR": "/run/user/1000"}))

@@ -1,6 +1,10 @@
 package calendar
 
 import (
+	"archive/zip"
+	"io"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -133,4 +137,54 @@ func observed(t *testing.T, o *contentline.Component, loc *time.Location) []time
 		out = append(out, at.UTC())
 	}
 	return out
+}
+
+// slimZone loads a zone from Go's own zoneinfo.zip, the slim tzdata Go
+// embeds and reads on Windows, whose later transitions come from a
+// rule.
+func slimZone(t *testing.T, name string) *time.Location {
+	t.Helper()
+	root, err := exec.Command("go", "env", "GOROOT").Output()
+	if err != nil {
+		t.Skipf("no go command: %v", err)
+	}
+	zr, err := zip.OpenReader(filepath.Join(strings.TrimSpace(string(root)), "lib", "time", "zoneinfo.zip"))
+	if err != nil {
+		t.Skipf("no zoneinfo.zip in GOROOT: %v", err)
+	}
+	defer func() { _ = zr.Close() }()
+	f, err := zr.Open(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loc, err := time.LoadLocationFromTZData(name, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loc
+}
+
+// Go's rule-based zone periods end the last day of a leap year before it
+// begins (Go 1.27, found on Windows): the walk steps over it, and still
+// finds New York's two changes a year.
+func TestTransitionsWithSlimTzdata(t *testing.T) {
+	loc := slimZone(t, "America/New_York")
+	from := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	ts := transitions(loc, from, vtimezoneEnd)
+	if want := 2 * (vtimezoneEnd.Year() - 2025); len(ts) != want {
+		t.Fatalf("%d transitions, want %d", len(ts), want)
+	}
+	for _, tr := range ts {
+		if m := tr.at.Month(); m != time.March && m != time.November {
+			t.Errorf("a transition at %s", tr.at)
+		}
+	}
+	if _, err := VTimezone("America/New_York", from, "\r\n"); err != nil {
+		t.Fatal(err)
+	}
 }

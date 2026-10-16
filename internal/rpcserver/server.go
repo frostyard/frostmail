@@ -12,11 +12,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/events"
@@ -90,32 +88,6 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener, r *api.Router) erro
 func (s *Server) ServeConn(ctx context.Context, nc net.Conn, r *api.Router) {
 	c := &conn{s: s, r: r, nc: nc, sem: make(chan struct{}, MaxInFlight)}
 	c.serve(ctx)
-}
-
-// checkPeer admits only processes of the user running maild.
-func checkPeer(nc net.Conn) error {
-	uc, ok := nc.(*net.UnixConn)
-	if !ok {
-		return fmt.Errorf("not a unix connection: %T", nc)
-	}
-	raw, err := uc.SyscallConn()
-	if err != nil {
-		return err
-	}
-	var cred *syscall.Ucred
-	var credErr error
-	if err := raw.Control(func(fd uintptr) {
-		cred, credErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
-	}); err != nil {
-		return err
-	}
-	if credErr != nil {
-		return fmt.Errorf("peer credentials: %w", credErr)
-	}
-	if int(cred.Uid) != os.Getuid() {
-		return fmt.Errorf("peer uid %d is not %d", cred.Uid, os.Getuid())
-	}
-	return nil
 }
 
 type ctxKey struct{}

@@ -1,3 +1,5 @@
+//go:build !windows
+
 package rpcserver
 
 import (
@@ -58,6 +60,32 @@ func checkPrivateDir(dir string) error {
 		return fmt.Errorf("socket directory %s is not owned by uid %d", dir, os.Getuid())
 	case fi.Mode().Perm()&0o077 != 0:
 		return fmt.Errorf("socket directory %s has mode %v; want 0700", dir, fi.Mode().Perm())
+	}
+	return nil
+}
+
+// checkPeer admits only processes of the user running maild.
+func checkPeer(nc net.Conn) error {
+	uc, ok := nc.(*net.UnixConn)
+	if !ok {
+		return fmt.Errorf("not a unix connection: %T", nc)
+	}
+	raw, err := uc.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var cred *syscall.Ucred
+	var credErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, credErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	}); err != nil {
+		return err
+	}
+	if credErr != nil {
+		return fmt.Errorf("peer credentials: %w", credErr)
+	}
+	if int(cred.Uid) != os.Getuid() {
+		return fmt.Errorf("peer uid %d is not %d", cred.Uid, os.Getuid())
 	}
 	return nil
 }

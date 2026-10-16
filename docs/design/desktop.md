@@ -49,7 +49,7 @@ desktop icon.
 ## Notifications
 
 - maild notifies through `org.freedesktop.Notifications` (godbus,
-  `internal/notify/desktop.go`) when new unread mail arrives in an inbox
+  `internal/notify/desktop_unix.go`) when new unread mail arrives in an inbox
   (Gmail: the `\Inbox` label). Only folders synced before collect new
   mail, so an account's first sync, and a folder resynced after a
   UIDVALIDITY change, announce nothing; mail that arrived while maild was
@@ -73,6 +73,39 @@ desktop icon.
   ask for a notification whatever the scope ([organize.md](organize.md#notifications)).
 - A Remind Me reminder notifies when it fires, with "Reminder" before the
   subject ([organize.md](organize.md#remind-me)).
+
+## Windows
+
+ADR-0038; plan 0010's Phase 4 builds maild's side, and Phase 5 the app,
+the notifier and the installer.
+
+- **Builds:** `make build-windows` cross-compiles `maild.exe`, a GUI
+  program (`-H windowsgui`) so that no console window opens at sign-in,
+  and `mailctl.exe`, a console program, into `build/windows/`.
+- **Starting at sign-in:** `maild -autostart on` names the running
+  executable in the per-user Run key
+  (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value
+  `Frostmail`), and `-autostart off` removes it. The installer calls it;
+  the app starts maild when it is not running. maild is not a service: it
+  is per user, like its secrets and its pipe.
+- **One maild:** a second maild finds the user's pipe taken and exits.
+- **Logs:** `%LOCALAPPDATA%\Frostmail\logs\maild.log`, rotated at start
+  past 10 MB (one old file kept), and stderr too when maild has a console.
+- **Notifications:** maild runs `frostmail-notify.exe`, from beside
+  `maild.exe` or `FROSTMAIL_NOTIFIER`, once per change, with one JSON
+  object on stdin:
+  - `{"op":"show","tag":…,"group":…,"title":…,"body":…}`, with `"open":
+    <message id>` for mail and `"reminder": <calendar.reminders id>` for a
+    reminder, shows a toast, replacing one with the same tag and group;
+  - `{"op":"remove","tag":…,"group":…}` removes one.
+
+  Mail goes in group `mail`, with tag `m<message id>`, or `a<account id>`
+  for a group note, which the next replaces. Reminders go in group
+  `reminders` with tag `r` and a hash of the reminder's id, since a tag
+  holds at most 64 characters. Clicking a toast, and its Snooze and
+  Dismiss, are the notifier's and the app's: they open the message or call
+  `calendar.snooze` and `calendar.dismiss` over the pipe. maild without
+  the notifier sends no notifications.
 
 ## One app instance
 
