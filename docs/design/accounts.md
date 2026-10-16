@@ -80,6 +80,13 @@ caps responses at 64 KB, and never sends the password anywhere.
 - Migration: on start with the Secret Service, every key of an existing
   `secrets.json` is copied in, verified by reading it back, and the file is
   removed.
+- On Windows (ADR-0038) the store is `secrets.dpapi` beside the database:
+  the same JSON object, sealed for the user with `CryptProtectData`, which
+  only the user's Windows sign-in can unseal and which has no size cap,
+  unlike Credential Manager's 2,560 bytes. `FROSTMAIL_SECRETS=file` keeps
+  the plain file there too, and a plain `secrets.json` left over is moved
+  in on start, as above. Windows has no file modes, so the plain file's
+  0600 check is Unix-only.
 - Keys: `account/<id>/password`, `account/<id>/refresh-token`,
   `oauth/<provider>/client-secret`. Deleting an account deletes its keys.
 

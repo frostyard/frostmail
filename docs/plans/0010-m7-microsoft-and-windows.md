@@ -250,7 +250,7 @@ records how Graph's events and contacts are stored.
   Gmail accounts gets exactly one invitation, update and cancellation
   each.
 
-## Phase 4 — maild and mailctl on Windows (medium)
+## Phase 4 — maild and mailctl on Windows (medium) — built
 
 - Per-OS files ([ADR-0038](../adr/0038-windows-as-a-second-platform.md)):
   - the named pipe with its DACL and client SID check;
@@ -264,6 +264,39 @@ records how Graph's events and contacts are stored.
 - **Done when:** the Windows job passes the Go suite, and on one of the
   user's Windows machines maild syncs the Outlook.com and Gmail accounts,
   which `mailctl ls` and `mailctl show` read.
+- **Built (2026-10-16):** the named pipe (go-winio: a DACL for the user's
+  SID alone, remote clients refused, each client's SID checked) in
+  `rpcserver` and `api.Dial`; `%LOCALAPPDATA%\Frostmail` paths and the
+  per-user pipe in `config`; the DPAPI-sealed secrets file; embedded
+  tzdata and `calendar.LocalZone` (the registry's zone through the Windows
+  table); `maild -autostart on|off` (the Run key), a log file, and a GUI
+  build (`make build-windows`); maild's side of the notifier (one JSON
+  operation per run of `frostmail-notify.exe`); `rpctest.SocketPath`; the
+  Windows CI job and a Windows vet in `make verify`; `dev/windows/vm.sh`
+  for an incus Windows 11 VM (`frostmail-win11`), where the whole Go
+  suite passes.
+
+  Found on the way:
+  - Go's rule-based zone periods end the last day of a leap year before
+    it begins (Go 1.27, with the slim tzdata Go embeds and reads on
+    Windows), so `VTimezone`'s walk never ended: any event written in a
+    zone would have hung maild on Windows. The walk steps over that day.
+  - Local task positions tie within one clock tick, which Windows' clock
+    makes common: ties now put the later task first, as intended.
+  - The parts cache's path check takes `filepath.IsLocal`, which on
+    Windows also refuses rooted, drive-relative and device names.
+  - The pipe's client check impersonates the client to read its token:
+    opening the client's process fails across logon sessions (mailctl
+    over SSH, maild in the desktop). Clients connect at the
+    identification level, since go-winio dials anonymously by default.
+
+  Evidence, in `frostmail-win11`: the Go suite passes (43 packages);
+  `maild.exe` (the GUI build) runs in the desktop session from its Run
+  key's path, with the default paths and DPAPI-sealed secrets, and a
+  second maild exits; the user's Outlook.com account, signed in read-only,
+  syncs its twelve folders, which `mailctl ls` and `mailctl show` read
+  over SSH from another logon session. The Gmail half waits for Phase 5's
+  trial, as the user chose; the Windows CI job proves itself on the PR.
 
 ## Phase 5 — The app on Windows (large)
 
@@ -324,9 +357,10 @@ nobody else has to:
 
 ## Open questions
 
-- **Reaching a Windows machine from the planner's side:** OpenSSH on one
-  of the user's machines, or CI plus the user running installers. By
-  Phase 4.
+- **Reaching a Windows machine from the planner's side:** answered
+  2026-10-16: an incus Windows 11 VM on the user's machine, reached over
+  SSH with a dedicated key (`dev/windows/vm.sh`); the incus agent's
+  `exec` does not work there yet (its vsock server never starts).
 
 ## References
 
