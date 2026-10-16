@@ -97,7 +97,7 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 		return err
 	}
 	if *statePath == "" || fs.NArg() != 1 {
-		return errors.New("usage: msprobe -state FILE signin|imap|smtp|graph|writes|send")
+		return errors.New("usage: msprobe -state FILE signin|imap|smtp|graph|writes|send|follow|flags|unflag")
 	}
 	p := &probe{statePath: *statePath, trace: *trace, out: *out, w: w, http: &http.Client{Timeout: time.Minute}}
 	switch fs.Arg(0) {
@@ -119,6 +119,10 @@ func run(ctx context.Context, args []string, w io.Writer) error {
 		return p.send(ctx)
 	case "follow":
 		return p.follow(ctx, *link)
+	case "flags":
+		return p.flags(ctx, false)
+	case "unflag":
+		return p.flags(ctx, true)
 	}
 	return fmt.Errorf("unknown command %q", fs.Arg(0))
 }
@@ -460,6 +464,73 @@ func (p *probe) imapHost(ctx context.Context, opts imapx.DialOptions) error {
 		extra = append(extra, c2)
 	}
 	p.printf("  held %d connections at once\n", len(extra)+1)
+	return nil
+}
+
+// flags selects INBOX read-write and tries the flags Frostmail writes on
+// the probe's own message (subject "FM probe"): \Flagged with a color
+// ($MailFlagBit0), $Forwarded and a keyword, reading each back, then
+// restores the message's flags.
+//
+// unflag only removes \Flagged and $Forwarded from that message.
+func (p *probe) flags(ctx context.Context, unflag bool) error {
+	tok, s, err := p.access(ctx, outlookScopes[:1])
+	if err != nil {
+		return err
+	}
+	c, err := imapx.Dial(ctx, imapx.DialOptions{Host: imapHosts[0], Port: 993, TLS: api.TLSModeTLS, Username: s.Email, Password: tok, OAuth: true})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = c.Logout().Wait() }()
+	sel, err := c.Select("INBOX", nil).Wait()
+	if err != nil {
+		return err
+	}
+	var perm []string
+	for _, f := range sel.PermanentFlags {
+		perm = append(perm, string(f))
+	}
+	p.printf("SELECT INBOX: flags [%v] permanent flags [%s]\n", sel.Flags, strings.Join(perm, " "))
+	found, err := c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Subject", Value: "FM probe"}}}, nil).Wait()
+	if err != nil {
+		return err
+	}
+	uids := found.AllUIDs()
+	if len(uids) == 0 {
+		return errors.New("no FM probe message in INBOX")
+	}
+	uid := uids[len(uids)-1]
+	set := imap.UIDSetNum(uid)
+	read := func(step string) []imap.Flag {
+		msgs, err := c.Fetch(set, &imap.FetchOptions{UID: true, Flags: true}).Collect()
+		if err != nil || len(msgs) == 0 {
+			p.printf("  %s: fetch: %v\n", step, err)
+			return nil
+		}
+		p.printf("  %s: %v\n", step, msgs[0].Flags)
+		return msgs[0].Flags
+	}
+	before := read("before")
+	if unflag {
+		err := c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsDel, Silent: true, Flags: []imap.Flag{imap.FlagFlagged, "$Forwarded"}}, nil).Close()
+		if err != nil {
+			return err
+		}
+		read("unflagged")
+		return nil
+	}
+	for _, try := range [][]imap.Flag{{imap.FlagFlagged, "$MailFlagBit0"}, {"$Forwarded"}, {"FMProbeKeyword"}} {
+		err := c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: try}, nil).Close()
+		p.printf("  STORE +FLAGS %v: %v\n", try, err)
+		read("after")
+	}
+	// Restore what the message had; \Recent belongs to the server.
+	keep := slices.DeleteFunc(slices.Clone(before), func(f imap.Flag) bool { return strings.EqualFold(string(f), `\Recent`) })
+	if err := c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsSet, Silent: true, Flags: keep}, nil).Close(); err != nil {
+		return fmt.Errorf("restore flags: %w", err)
+	}
+	read("restored")
 	return nil
 }
 
