@@ -19,6 +19,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/davx"
+	"github.com/frostyard/frostmail/internal/graph"
 	"github.com/frostyard/frostmail/internal/gtasks"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/providers"
@@ -49,6 +50,8 @@ type Config struct {
 	Now func() time.Time
 	// Local is the zone of floating event times; nil means time.Local.
 	Local *time.Location
+	// GraphURL replaces Microsoft Graph's URL, for test servers.
+	GraphURL string
 }
 
 func (c Config) withDefaults() Config {
@@ -336,7 +339,7 @@ type pass struct {
 // the server refuses an OAuth account's.
 func (p *pass) service(ctx context.Context, s store.Service) error {
 	err := p.serviceOnce(ctx, s)
-	unauthorized := errors.Is(err, davx.ErrUnauthorized) || errors.Is(err, gtasks.ErrUnauthorized)
+	unauthorized := errors.Is(err, davx.ErrUnauthorized) || errors.Is(err, gtasks.ErrUnauthorized) || errors.Is(err, graph.ErrUnauthorized)
 	if unauthorized && p.acct.Auth == api.AuthKindOAuth2 && p.m.cfg.Tokens != nil {
 		p.m.cfg.Tokens.Invalidate(p.acct.ID)
 		err = p.serviceOnce(ctx, s)
@@ -347,6 +350,9 @@ func (p *pass) service(ctx context.Context, s store.Service) error {
 func (p *pass) serviceOnce(ctx context.Context, s store.Service) error {
 	if err := p.scope(s.Service); err != nil {
 		return err
+	}
+	if providers.ForKind(p.acct.Kind).DAV.Graph {
+		return p.syncGraph(ctx, s.Service)
 	}
 	switch s.Service {
 	case api.ServiceKindContacts:
@@ -378,16 +384,17 @@ func (p *pass) serviceOnce(ctx context.Context, s store.Service) error {
 	return fmt.Errorf("pimsync: unknown service %q", s.Service)
 }
 
-// errScope means a Google account's grant lacks a service's scope: the user
-// signs in again (account.authorize asks for it).
-var errScope = errors.New("sign in to Google again to let Frostmail reach this service")
+// errScope means an OAuth account's grant lacks a service's scope: the
+// user signs in again (account.authorize asks for it).
+var errScope = errors.New("sign in again to let Frostmail reach this service")
 
 // scope checks that an OAuth account's grant covers the service.
 func (p *pass) scope(service api.ServiceKind) error {
 	if p.acct.Auth != api.AuthKindOAuth2 {
 		return nil
 	}
-	if want := oauth.GoogleScope(service); providers.ForKind(p.acct.Kind).OAuth == "google" && !p.acct.HasScope(want) {
+	want := oauth.ServiceScope(providers.ForKind(p.acct.Kind).OAuth, service)
+	if want != "" && !p.acct.HasScope(want) {
 		return errScope
 	}
 	return nil

@@ -15,7 +15,12 @@ import (
 
 // indexDAV stores the original source and indexes it according to its collection.
 func (p *pass) indexDAV(ctx context.Context, tx *store.Tx, col store.Collection, remote davx.Object) error {
-	o := store.Object{CollectionID: col.ID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data}
+	return p.indexObject(ctx, tx, col, store.Object{CollectionID: col.ID, Href: remote.Href, ETag: remote.ETag, Raw: remote.Data})
+}
+
+// indexObject stores a source, with Graph's JSON when it is derived, and
+// indexes it according to its collection.
+func (p *pass) indexObject(ctx context.Context, tx *store.Tx, col store.Collection, o store.Object) error {
 	switch col.Kind {
 	case api.CollectionKindCalendar:
 		return p.indexCalendar(ctx, tx, o)

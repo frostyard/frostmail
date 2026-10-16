@@ -34,6 +34,14 @@ func (m *Manager) Verify(ctx context.Context, accountID int64) ([]api.Collection
 	p := &pass{m: m, acct: acct}
 	out := []api.CollectionCheck{}
 	for _, s := range services {
+		if s.Enabled && providers.ForKind(acct.Kind).DAV.Graph {
+			checks, err := p.verifyGraph(ctx, s.Service)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, checks...)
+			continue
+		}
 		google := s.Service == api.ServiceKindTasks && providers.ForKind(acct.Kind).DAV.Tasks == "google"
 		if !s.Enabled || !google && s.Home == "" {
 			continue

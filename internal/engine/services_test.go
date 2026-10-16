@@ -138,8 +138,15 @@ func TestServicesByProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if list, _ := c.Account().Services(ctx, &api.AccountServicesParams{ID: ms.ID}); list[0].Available || list[1].Available || list[2].Reason != nil {
+	// Contacts and calendars over Graph, without To Do; Graph's scopes
+	// wait for a sign-in.
+	list, _ = c.Account().Services(ctx, &api.AccountServicesParams{ID: ms.ID})
+	if !list[0].Available || !list[1].Available || list[2].Available || list[2].Reason == nil || list[0].SignedIn {
 		t.Errorf("Microsoft services = %+v", list)
+	}
+	cal, err := c.Account().SetService(ctx, &api.AccountSetServiceParams{ID: ms.ID, Service: api.ServiceKindCalendar, Enabled: true})
+	if err != nil || cal.URL != "https://graph.microsoft.com/v1.0/" || cal.SignedIn {
+		t.Errorf("Microsoft calendar = %+v, %v", cal, err)
 	}
 }
 
