@@ -3,6 +3,10 @@
 //! mailpart:// protocol. All mail logic lives in maild; see
 //! docs/design/overview.md and docs/specs/rpc-protocol.md.
 
+// A release build is a GUI program on Windows: no console window opens
+// with it.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod bridge;
 mod commands;
 mod paths;
@@ -72,18 +76,23 @@ pub(crate) fn show_soon(window: tauri::WebviewWindow) {
 }
 
 /// Only the app itself may load in a window's main frame; links in messages
-/// open in the system browser instead (commands::open_new_window).
+/// open in the system browser instead (commands::open_new_window). WebKitGTK
+/// serves the app at tauri://localhost, WebView2 at http://tauri.localhost
+/// (a name that reaches the loopback interface on Linux).
 pub(crate) fn allowed_navigation(url: &tauri::Url) -> bool {
+    let at = |host: &str, port: Option<u16>| url.host_str() == Some(host) && url.port() == port;
     match url.scheme() {
         "tauri" | "about" => true,
-        "http" => cfg!(debug_assertions) && url.host_str() == Some("127.0.0.1") && url.port() == Some(5173),
+        "http" => (cfg!(windows) && at("tauri.localhost", None)) || (cfg!(debug_assertions) && at("127.0.0.1", Some(5173))),
         _ => false,
     }
 }
 
 /// WebKitGTK 2.52+ has GPU rendering bugs on some AMD (radv) and NVIDIA
 /// setups (docs/adr/0006-development-environment.md). FROSTMAIL_WEBKIT_SAFE=1
-/// selects the CPU paths unless the variables are already set.
+/// selects the CPU paths unless the variables are already set. Linux only:
+/// Windows has WebView2.
+#[cfg(target_os = "linux")]
 fn apply_webkit_workarounds() {
     if std::env::var_os("FROSTMAIL_WEBKIT_SAFE").is_none_or(|v| v != "1") {
         return;
@@ -92,6 +101,36 @@ fn apply_webkit_workarounds() {
         if std::env::var_os(key).is_none() {
             // SAFETY: called first in main, before any other thread exists.
             unsafe { std::env::set_var(key, "1") };
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn apply_webkit_workarounds() {}
+
+#[cfg(test)]
+mod tests {
+    use super::allowed_navigation;
+
+    fn allowed(url: &str) -> bool {
+        allowed_navigation(&tauri::Url::parse(url).unwrap())
+    }
+
+    #[test]
+    fn only_the_app_loads() {
+        assert!(allowed("tauri://localhost/"));
+        assert!(allowed("about:blank"));
+        assert_eq!(allowed("http://tauri.localhost/index.html"), cfg!(windows));
+        for url in [
+            "http://tauri.localhost:8080/",
+            "http://evil.localhost/",
+            "https://tauri.localhost/",
+            "http://example.test/",
+            "mailpart://localhost/m/1/2.png",
+            "http://mailpart.localhost/m/1/2.png",
+            "file:///C:/Windows/win.ini",
+        ] {
+            assert!(!allowed(url), "{url}");
         }
     }
 }

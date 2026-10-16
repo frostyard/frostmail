@@ -384,7 +384,8 @@ function MailPanes(props: {
       )}
       <div className="flex h-full shrink-0 flex-col" style={{ width: ui.listWidth }}>
         <div className="flex h-[32px] shrink-0 items-center border-b border-separator bg-window pr-3">
-          <div className="min-w-0 flex-1 overflow-x-auto [&>div]:w-max [&>div]:border-b-0">
+          {/* Scrolls when the list is narrow, without a bar: WebView2 would draw one. */}
+          <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&>div]:w-max [&>div]:border-b-0">
             <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
           </div>
           <SortMenu

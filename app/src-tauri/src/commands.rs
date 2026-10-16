@@ -11,11 +11,18 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::protocol;
 
-/// File types that run code when opened; Frostmail never opens them.
+/// File types that run code when opened, on Linux or Windows; Frostmail
+/// never opens them. Windows' list follows the types its shell runs or
+/// hands to a script host: links and shortcuts, installers, scripts,
+/// Control Panel and console snap-ins, HTML applications and help.
 const UNSAFE_EXTENSIONS: &[&str] = &[
     "desktop", "sh", "bash", "zsh", "fish", "csh", "run", "bin", "appimage", "flatpakref", "flatpakrepo",
     "deb", "rpm", "exe", "msi", "bat", "cmd", "com", "scr", "ps1", "vbs", "jar", "py", "pl", "rb", "js",
-    "so", "elf", "x86_64", "apk", "dmg", "pkg",
+    "so", "elf", "x86_64", "apk", "dmg", "pkg", //
+    "lnk", "url", "pif", "scf", "appref-ms", "application", "settingcontent-ms", "library-ms", "msix",
+    "msixbundle", "appx", "appxbundle", "msp", "mst", "reg", "inf", "cpl", "msc", "hta", "chm", "hlp",
+    "psm1", "psd1", "ps1xml", "vbe", "jse", "wsf", "wsh", "ws", "wsc", "sct", "gadget", "xll", "jnlp",
+    "dll", "sys", "drv", "ocx",
 ];
 
 /// Open an http, https or mailto URL in the system's default handler.
@@ -29,7 +36,28 @@ pub fn open_link(app: AppHandle, url: String) -> Result<(), String> {
 /// asks the OpenURI portal. Only http, https and mailto URLs open.
 pub(crate) fn open_url(app: &AppHandle, url: &tauri::Url) -> Result<(), String> {
     openable(url)?;
+    if logged(url.as_str())? {
+        return Ok(());
+    }
     app.opener().open_url(url.as_str(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// With FROSTMAIL_OPEN_LOG set, what the app would open is appended to
+/// that file instead, a line each: the end-to-end tests' stand-in on
+/// Windows, whose handlers are the shell's rather than programs on PATH
+/// (docs/design/testing.md).
+fn logged(target: &str) -> Result<bool, String> {
+    use std::io::Write;
+    let Some(log) = std::env::var_os("FROSTMAIL_OPEN_LOG").filter(|l| !l.is_empty()) else {
+        return Ok(false);
+    };
+    std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log)
+        .and_then(|mut f| writeln!(f, "{target}"))
+        .map_err(|e| format!("FROSTMAIL_OPEN_LOG: {e}"))?;
+    Ok(true)
 }
 
 fn openable(url: &tauri::Url) -> Result<(), String> {
@@ -59,6 +87,9 @@ pub async fn open_part(app: AppHandle, path: String) -> Result<(), String> {
     let ext = full.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     if UNSAFE_EXTENSIONS.contains(&ext.as_str()) {
         return Err(format!("Frostmail does not open .{ext} files"));
+    }
+    if logged(&full.to_string_lossy())? {
+        return Ok(());
     }
     app.opener().open_path(full.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
 }
