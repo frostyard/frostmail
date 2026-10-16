@@ -2,10 +2,13 @@
 // HTTP server that records every request, fixture data directories built by
 // tools/uifixture, and the built app driven through WebKitWebDriver against a
 // maild on that data. Run with make ui-e2e, which builds the binaries first.
-import { type ChildProcess, execFileSync, spawn } from "node:child_process";
+// On Windows (CI's Windows app job) the app runs in WebView2, driven through
+// tauri-driver and msedgedriver (docs/design/testing.md).
+import { type ChildProcess, execFileSync, spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHTTPServer } from "node:http";
-import { createServer as createNetServer } from "node:net";
+import { connect as connectNet, createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -14,6 +17,14 @@ import { Session } from "./webdriver";
 /** ROOT is the repository; BUILD holds maild, uifixture and frostmail-app. */
 export const ROOT = resolve(import.meta.dirname, "../..");
 export const BUILD = join(ROOT, "build");
+
+/** WINDOWS is true when the app under test runs in WebView2. */
+export const WINDOWS = process.platform === "win32";
+
+/** bin is a program in BUILD, with Windows' .exe. */
+export function bin(name: string): string {
+  return join(BUILD, WINDOWS ? `${name}.exe` : name);
+}
 
 /** Canary records every HTTP request made to it. */
 export interface Canary {
@@ -75,7 +86,7 @@ export interface Sink {
 /** smtpSink starts tools/smtpsink, writing into dir/sink. */
 export async function smtpSink(dir: string): Promise<Sink> {
   const out = join(dir, "sink");
-  const proc = spawn(join(BUILD, "smtpsink"), ["-dir", out], { stdio: ["ignore", "pipe", "inherit"] });
+  const proc = spawn(bin("smtpsink"), ["-dir", out], { stdio: ["ignore", "pipe", "inherit"] });
   const addr = await new Promise<string>((done, fail) => {
     let buf = "";
     proc.stdout?.on("data", (chunk: Buffer) => {
@@ -106,20 +117,23 @@ export interface Opener {
   opened: () => string[];
 }
 
-/** fakeOpener writes xdg-open and gio stand-ins into dir/bin that record their last argument. */
+/**
+ * fakeOpener writes xdg-open and gio stand-ins into dir/bin that record
+ * their last argument. Windows opens through the shell, not a program on
+ * PATH, so there the app logs what it would open (FROSTMAIL_OPEN_LOG).
+ */
 export function fakeOpener(dir: string): Opener {
-  const bin = join(dir, "bin");
+  const stand = join(dir, "bin");
   const log = join(dir, "opened");
-  mkdirSync(bin, { recursive: true });
+  const opened = () => (existsSync(log) ? readFileSync(log, "utf8").split(/\r?\n/).filter(Boolean) : []);
+  if (WINDOWS) return { env: { FROSTMAIL_OPEN_LOG: log }, opened };
+  mkdirSync(stand, { recursive: true });
   for (const name of ["xdg-open", "gio"]) {
-    writeFileSync(join(bin, name), `#!/bin/sh\nfor a; do last=$a; done\nprintf '%s\\n' "$last" >> '${log}'\n`, {
+    writeFileSync(join(stand, name), `#!/bin/sh\nfor a; do last=$a; done\nprintf '%s\\n' "$last" >> '${log}'\n`, {
       mode: 0o755,
     });
   }
-  return {
-    env: { PATH: `${bin}:${process.env.PATH ?? ""}` },
-    opened: () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []),
-  };
+  return { env: { PATH: `${stand}:${process.env.PATH ?? ""}` }, opened };
 }
 
 /** FixtureOptions add to the fixture: the hostile corpus pointed at a canary, an SMTP server to send through, or other HTML messages for the Hostile mailbox; or replace it with a showcase directory (tools/uifixture -showcase). */
@@ -143,7 +157,7 @@ export function fixture(dir: string, n: number, opts: FixtureOptions = {}): stri
     for (const f of files) writeFileSync(join(copy, f.name), f.html);
     args.push("-hostile", copy);
   }
-  execFileSync(join(BUILD, "uifixture"), args, { stdio: "inherit" });
+  execFileSync(bin("uifixture"), args, { stdio: "inherit" });
   return join(dir, "data");
 }
 
@@ -174,60 +188,89 @@ export interface App {
   stop: () => Promise<void>;
 }
 
-/** launch starts maild on the data directory (with extra environment) and the app through WebKitWebDriver. */
+/** pipeUp reports whether a named pipe accepts a connection. */
+function pipeUp(path: string): Promise<boolean> {
+  return new Promise((done) => {
+    const c = connectNet(path);
+    c.once("connect", () => {
+      c.destroy();
+      done(true);
+    });
+    c.once("error", () => done(false));
+  });
+}
+
+/** driver starts the WebDriver server for the platform's webview on port. */
+async function driver(port: number, env: NodeJS.ProcessEnv): Promise<ChildProcess> {
+  if (WINDOWS) {
+    // tauri-driver hands the session to msedgedriver, on a port of its own
+    // so that one left over from an earlier run cannot answer instead.
+    const edge = process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe";
+    const args = ["--port", String(port), "--native-port", String(await freePort()), "--native-driver", edge];
+    return spawn("tauri-driver", args, { env, stdio: ["ignore", "inherit", "inherit"] });
+  }
+  // WebKitWebDriver launches the app; Tauri allows automation when
+  // TAURI_WEBVIEW_AUTOMATION is set (what tauri-driver does on Linux).
+  return spawn("WebKitWebDriver", [`--port=${port}`], {
+    env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" },
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+}
+
+/** stopProcess ends a process and, on Windows, what it started (tauri-driver's msedgedriver). */
+function stopProcess(p: ChildProcess): Promise<void> {
+  return new Promise<void>((done) => {
+    if (p.exitCode !== null || p.signalCode !== null) return done();
+    p.once("exit", () => done());
+    if (WINDOWS && p.pid !== undefined) spawnSync("taskkill", ["/T", "/F", "/PID", String(p.pid)], { stdio: "ignore" });
+    else p.kill("SIGTERM");
+  });
+}
+
+/** launch starts maild on the data directory (with extra environment) and the app through WebDriver. */
 export async function launch(dir: string, data: string, extraEnv: Record<string, string> = {}): Promise<App> {
   const cache = join(dir, "cache");
   const run = join(dir, "run");
   mkdirSync(cache, { recursive: true, mode: 0o700 });
   mkdirSync(run, { recursive: true, mode: 0o700 });
+  const socket = WINDOWS ? `\\\\.\\pipe\\frostmail-e2e-${randomBytes(8).toString("hex")}` : join(run, "maild.sock");
   const env = {
     ...process.env,
     FROSTMAIL_DATA_DIR: data,
     FROSTMAIL_CACHE_DIR: cache,
-    FROSTMAIL_SOCKET: join(run, "maild.sock"),
+    FROSTMAIL_SOCKET: socket,
     ...extraEnv,
   };
   const procs: ChildProcess[] = [];
-  const maild = spawn(join(BUILD, "maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] });
+  const maild = spawn(bin("maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] });
   procs.push(maild);
-  await until("maild's socket", () => existsSync(env.FROSTMAIL_SOCKET));
+  await until("maild's socket", () => (WINDOWS ? pipeUp(socket) : existsSync(socket)));
 
   const port = await freePort();
-  // WebKitWebDriver launches the app; Tauri allows automation when
-  // TAURI_WEBVIEW_AUTOMATION is set (what tauri-driver does on Linux).
-  const driver = spawn("WebKitWebDriver", [`--port=${port}`], {
-    env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" },
-    stdio: ["ignore", "inherit", "inherit"],
-  });
-  procs.push(driver);
+  procs.push(await driver(port, env));
   const url = `http://127.0.0.1:${port}`;
-  await until("WebKitWebDriver", async () => {
+  await until("the WebDriver server", async () => {
     try {
       return (await fetch(`${url}/status`)).ok;
     } catch {
       return false;
     }
   });
-  const session = await Session.start(url, {
-    "webkitgtk:browserOptions": { binary: join(BUILD, "frostmail-app"), args: ["--automation"] },
-  });
+  const session = await Session.start(
+    url,
+    WINDOWS
+      ? { browserName: "wry", "tauri:options": { application: bin("frostmail-app") } }
+      : { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } },
+  );
   return {
     session,
     cache,
     stop: async () => {
       await session.quit().catch(() => {});
-      await Promise.all(
-        procs.reverse().map(
-          (p) =>
-            new Promise<void>((done) => {
-              if (p.exitCode !== null) return done();
-              p.once("exit", () => done());
-              p.kill("SIGTERM");
-            }),
-        ),
-      );
-      // The run's data (fixtures reach 500 MB) lives in the machine's small /tmp.
-      rmSync(dir, { recursive: true, force: true });
+      await Promise.all(procs.reverse().map(stopProcess));
+      // The run's data (fixtures reach 500 MB) lives in the machine's small
+      // /tmp. Windows may hold a file of a process just ended for a moment.
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
     },
   };
 }

@@ -1,5 +1,5 @@
 .PHONY: help build build-windows install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -129,8 +129,13 @@ ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 app-build: ## Build the release app binary into build/frostmail-app (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm tauri build && mkdir -p ../build && cp "$$CARGO_TARGET_DIR/release/frostmail" ../build/frostmail-app'
 
-app-test: ## Run the app shell's Rust tests (nsl)
-	$(IN_NSL) 'cd app/src-tauri && cargo test --release'
+app-test: ## Run the app shell's and the Windows notifier's Rust tests (nsl)
+	$(IN_NSL) 'cd app/src-tauri && cargo test --release && cd ../notify && cargo test --release'
+
+# Windows CI builds the Windows app (ADR-0038); here it is only type-checked,
+# without the sidecars its bundle takes.
+app-check-windows: ## Type-check the app shell and the notifier for Windows (nsl)
+	$(IN_NSL) 'export CARGO_TARGET_DIR="$$CARGO_TARGET_DIR-windows" && cd app/src-tauri && TAURI_CONFIG="{\"bundle\":{\"externalBin\":null}}" cargo check --release --target x86_64-pc-windows-msvc --all-targets && cd ../notify && cargo check --release --target x86_64-pc-windows-msvc --all-targets'
 
 app-dev: build ## Run maild and tauri dev in the nsl machine
 	$(IN_NSL) 'scripts/dev-app.sh'
