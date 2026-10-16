@@ -221,4 +221,6 @@ jobs:
           edge="${EDGEWEBDRIVER:-C:/SeleniumWebDrivers/EdgeDriver}/msedgedriver.exe"
           "$edge" --version || { ls -la C:/SeleniumWebDrivers/* || true; exit 1; }
           MSYS_NO_PATHCONV=1 reg query 'HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' /v pv || true
+          # WebView2 needs a window, so an interactive desktop session.
+          powershell -NoProfile -Command '"session " + (Get-Process -Id $PID).SessionId + ", interactive " + [Environment]::UserInteractive'
           cd app && FROSTMAIL_EDGEDRIVER="$edge" pnpm exec vitest run -c vitest.e2e.config.ts hostile links smoke remote

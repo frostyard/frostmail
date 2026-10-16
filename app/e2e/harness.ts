@@ -211,7 +211,8 @@ async function reachable(url: string): Promise<boolean> {
 
 /**
  * startApp starts the app and the WebDriver server that drives it on port,
- * and returns them with the session's capabilities.
+ * adding them to procs as they start, and returns the session's
+ * capabilities.
  *
  * WebKitWebDriver launches the app itself; Tauri allows automation when
  * TAURI_WEBVIEW_AUTOMATION is set (all tauri-driver does on Linux).
@@ -219,32 +220,35 @@ async function reachable(url: string): Promise<boolean> {
  * folder of its own while Tauri gives WebView2 the app's, attaches instead
  * to the port the app opens when asked through WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS.
  */
-async function startApp(
-  port: number,
-  env: NodeJS.ProcessEnv,
-): Promise<{ procs: ChildProcess[]; capabilities: Record<string, unknown> }> {
+async function startApp(port: number, env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<Record<string, unknown>> {
   const stdio: ["ignore", "inherit", "inherit"] = ["ignore", "inherit", "inherit"];
   if (!WINDOWS) {
-    const driver = spawn("WebKitWebDriver", [`--port=${port}`], {
-      env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" },
-      stdio,
-    });
-    return {
-      procs: [driver],
-      capabilities: { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } },
-    };
+    procs.push(
+      spawn("WebKitWebDriver", [`--port=${port}`], { env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" }, stdio }),
+    );
+    return { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } };
   }
   const devtools = await freePort();
   const app = spawn(bin("frostmail-app"), [], {
     env: { ...env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${devtools}` },
-    stdio,
+    stdio: ["ignore", "pipe", "pipe"],
   });
-  await until("the app's DevTools port", () => reachable(`http://127.0.0.1:${devtools}/json/version`), 60_000);
-  const driver = spawn(process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe", [`--port=${port}`], { env, stdio });
-  return {
-    procs: [app, driver],
-    capabilities: { browserName: "webview2", "ms:edgeOptions": { debuggerAddress: `127.0.0.1:${devtools}` } },
-  };
+  procs.push(app);
+  let output = "";
+  for (const stream of [app.stdout, app.stderr]) {
+    stream?.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+      process.stderr.write(chunk);
+    });
+  }
+  try {
+    await until("the app's DevTools port", () => reachable(`http://127.0.0.1:${devtools}/json/version`), 60_000);
+  } catch (err) {
+    const state = app.exitCode === null ? "is still running" : `exited with ${app.exitCode}`;
+    throw new Error(`${String(err)}; the app ${state}${output ? `: ${output.trim()}` : ""}`);
+  }
+  procs.push(spawn(process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe", [`--port=${port}`], { env, stdio }));
+  return { browserName: "webview2", "ms:edgeOptions": { debuggerAddress: `127.0.0.1:${devtools}` } };
 }
 
 /** stopProcess ends a process and, on Windows, what it started (the app's WebView2 processes). */
@@ -284,11 +288,10 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
     procs.push(spawn(bin("maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] }));
     await until("maild's socket", () => (WINDOWS ? pipeUp(socket) : existsSync(socket)));
     const port = await freePort();
-    const started = await startApp(port, env);
-    procs.push(...started.procs);
+    const capabilities = await startApp(port, env, procs);
     const url = `http://127.0.0.1:${port}`;
     await until("the WebDriver server", () => reachable(`${url}/status`));
-    session = await Session.start(url, started.capabilities);
+    session = await Session.start(url, capabilities);
     return { session, cache, stop };
   } catch (err) {
     // A single-instance app left running would take the next launch.
