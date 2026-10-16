@@ -55,6 +55,7 @@ describe("AccountForm", () => {
     expect(Array.from(kind.options).map((o) => [o.value, o.text])).toEqual([
       ["imap", "IMAP"],
       ["gmail", "Gmail"],
+      ["microsoft", "Microsoft"],
       ["icloud", "iCloud"],
     ]);
     expect(kind.disabled).toBe(false);
