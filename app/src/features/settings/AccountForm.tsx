@@ -4,7 +4,7 @@
 // edits an existing one (its name, servers, options, a new password, or
 // signing in to Google or Microsoft again), reporting every edit as a new
 // value.
-import { type ChangeEvent, type FormEvent, type ReactNode, useId } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useId, useRef } from "react";
 
 import type { AccountKind, AuthKind, DiscoverySource, ServerConfig, ServiceKind } from "../../rpc/gen/api";
 import { ALERT, BUTTON, FIELD, GRID, KIND_LABEL, LABEL, PRIMARY_BUTTON } from "./labels";
@@ -358,6 +358,23 @@ function ButtonRow(props: { mode: "add" | "edit"; busy: boolean; onSubmit: () =>
   );
 }
 
+/**
+ * FormAlert shows the last request's error and scrolls it into view: it
+ * sits below the services, out of sight when the window is shorter than
+ * the form, where a failed Sign In… seemed to do nothing.
+ */
+function FormAlert({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (text) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [text]);
+  return (
+    <p ref={ref} className={ALERT} role="alert">
+      {text}
+    </p>
+  );
+}
+
 /** AccountForm edits a new or an existing account. */
 export function AccountForm(props: AccountFormProps) {
   const { mode, value, onChange, busy, error } = props;
@@ -393,11 +410,7 @@ export function AccountForm(props: AccountFormProps) {
         />
       </div>
       {mode === "add" ? <AddServices value={value} busy={busy} onChange={onChange} /> : props.services}
-      {error && (
-        <p className={ALERT} role="alert">
-          {error}
-        </p>
-      )}
+      {error && <FormAlert text={error} />}
       <ButtonRow mode={mode} busy={busy} onSubmit={props.onSubmit} onCancel={props.onCancel} />
     </form>
   );
