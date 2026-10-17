@@ -338,11 +338,21 @@ records how Graph's events and contacts are stored.
   Inbox), and marked read, flagged and archived, which `mailctl verify`
   found on the server. With the app closed, a new message raised a toast
   whose click started the app on it, and a Remind Me reminder raised its
-  "Reminder:" toast. The VM's grant lacks the Graph scopes, so contacts,
-  calendar and a calendar reminder's Snooze and Dismiss wait for the
-  user to consent again, and the Gmail and iCloud accounts for their
-  sign-in. That run found the deadlock of windows opened from synchronous
-  commands.
+  "Reminder:" toast. That run found the deadlock of windows opened from
+  synchronous commands.
+
+  Then, with the user's consent to Graph and their Gmail and iCloud
+  accounts signed in: the app read all three; iCloud and Gmail sent
+  through maild; on each, a contact was added, edited and deleted and an
+  event added, renamed and deleted, which `mailctl verify` found on the
+  Outlook.com and iCloud servers (Gmail's first sync of 690,000 messages
+  had not finished, and verify waits for it). With the app closed, an
+  Outlook.com event's reminder raised its toast on time; Snooze, through
+  the `frostmail-toast:` URI a click sends, cleared it in maild, which
+  withdrew the toast and showed it again ten minutes later; Dismiss
+  cleared it for good. New mail on iCloud and Gmail raised toasts too.
+  Gmail's sign-in found that the account form showed its error out of
+  sight. Left: the clean install on one of the user's machines.
 
 ## Phase 6 — Trial and hand-off
 
