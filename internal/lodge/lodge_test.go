@@ -192,7 +192,7 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 func lodgeSocket(t *testing.T, srv *rpctest.Server) *kittest.Lodge {
 	t.Helper()
 	return kittest.Start(t, lodge.ID, lodge.NewServer(lodge.Options{
-		Version: "test", RPC: srv.RPC, Router: srv.Router, Content: srv.Content, Log: discard(),
+		Ctx: t.Context(), Version: "test", RPC: srv.RPC, Router: srv.Router, Content: srv.Content, Log: discard(),
 	}))
 }
 
