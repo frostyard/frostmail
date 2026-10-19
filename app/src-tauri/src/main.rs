@@ -11,6 +11,7 @@ mod bridge;
 mod commands;
 mod paths;
 mod protocol;
+mod remote;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -34,7 +35,9 @@ fn main() {
             commands::open_event,
             commands::open_settings,
             commands::open_reminders,
-            commands::startup_message
+            commands::startup_message,
+            commands::app_config_get,
+            commands::app_config_set
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
