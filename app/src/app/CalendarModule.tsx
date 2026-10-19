@@ -20,6 +20,7 @@ import type {
   Occurrence,
 } from "../rpc/gen/api";
 import { ContactCardContainer, type ContactCardContainerProps } from "./ContactCardContainer";
+import { useNarrow } from "./narrow";
 import { openEvent } from "./openEvent";
 import { rememberRestore } from "./pimUndo";
 import { Splitter } from "./Splitter";
@@ -160,6 +161,7 @@ interface CalendarModuleProps {
 /** CalendarModule shows calendars, occurrences and the selected event. */
 export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(function CalendarModule(props, ref) {
   const ui = useUI();
+  const narrow = useNarrow();
   const client = useClient();
   const { ask, sheet } = useNotify();
   const sidebar = useRef<HTMLFieldSetElement>(null);
@@ -245,7 +247,13 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
                 }}
               />
             </div>
-            <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
+            {!narrow && (
+              <ModuleBar
+                modules={["mail", "calendar", "people", "tasks"]}
+                current={ui.module}
+                onSelect={ui.setModule}
+              />
+            )}
           </fieldset>
           <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
         </>

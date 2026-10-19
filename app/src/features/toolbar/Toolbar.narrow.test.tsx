@@ -61,9 +61,14 @@ describe("a narrow window's toolbar", () => {
     expect(props.onCommand).toHaveBeenCalledWith({ kind: "settings" });
   });
 
-  it("over another module: Back to Mail", () => {
-    toolbar({ mode: "calendar", narrow: narrow("module") });
-    expect(screen.getByRole("button", { name: "Back to Mail" })).toBeTruthy();
+  it("over another module: its title, and no Back, since the module tabs move between modules", () => {
+    toolbar({
+      mode: "tasks",
+      tasks: { title: "Today", showCompleted: null, paneWidth: 320 },
+      narrow: narrow("module"),
+    });
+    expect(screen.getByText("Today")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Back to/ })).toBeNull();
   });
 });
 

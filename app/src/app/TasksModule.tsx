@@ -7,6 +7,7 @@ import { TaskPane } from "../features/tasks/TaskPane";
 import { TasksSidebar } from "../features/tasks/TasksSidebar";
 import type { Command } from "../lib/keymap";
 import { taskLines } from "../lib/taskText";
+import { useNarrow } from "./narrow";
 import { Splitter } from "./Splitter";
 import type { TasksData } from "./useTasks";
 
@@ -75,6 +76,7 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
   ref,
 ) {
   const ui = useUI();
+  const narrow = useNarrow();
   const sidebar = useRef<HTMLFieldSetElement>(null);
   const list = useRef<HTMLElement>(null);
   const reader = useRef<HTMLElement>(null);
@@ -123,7 +125,13 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
                 onSelect={ui.setTasksSource}
               />
             </div>
-            <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
+            {!narrow && (
+              <ModuleBar
+                modules={["mail", "calendar", "people", "tasks"]}
+                current={ui.module}
+                onSelect={ui.setModule}
+              />
+            )}
           </fieldset>
           <Splitter label="Resize sidebar" onResize={resizeSidebar} onEnd={endDrag} />
         </>

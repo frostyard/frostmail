@@ -31,8 +31,10 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
 └──────────────┘
 ```
 
-- At the bottom of every module's sidebar: 44 high, a 1px `--separator`
-  top border, `--bg-sidebar`. A `toolbar` named "Modules" with one
+- At the bottom of every module's sidebar (a narrow window has the
+  module tabs at its foot instead, [ui.md](ui.md#narrow-windows-m8)):
+  44 high, a 1px `--separator` top border, `--bg-sidebar`. A `toolbar`
+  named "Modules" with one
   `button` per built module, left to right in module order, starting at
   12px with 4px gaps.
 - A button is 36 × 28, rounded 6, an 18px Lucide icon: Mail `Mail`,

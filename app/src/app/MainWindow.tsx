@@ -9,6 +9,7 @@ import { useNotify } from "../features/calendar/NotifySheet";
 import { FilterBar } from "../features/list/FilterBar";
 import { SortMenu } from "../features/list/SortMenu";
 import { ScopeBar } from "../features/search/SearchField";
+import { ModuleTabs } from "../features/sidebar/ModuleTabs";
 import type { ToolbarNarrow } from "../features/toolbar/Toolbar";
 import { addDays, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
@@ -23,6 +24,7 @@ import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { narrowPane, useNarrow } from "./narrow";
+
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
 import { watchOpenRequests } from "./openMessage";
@@ -43,6 +45,9 @@ import { undo, undoableMove } from "./undo";
 import { type CalendarData, useCalendar } from "./useCalendar";
 import { type PeopleData, usePeople } from "./usePeople";
 import { type TasksData, useTasks } from "./useTasks";
+
+/** MODULES are the window's modules, in module order. */
+const MODULES = ["mail", "calendar", "people", "tasks"] as const;
 
 const SIDEBAR = { min: 160, max: 320 };
 const LIST = { min: 280, max: 560 };
@@ -473,7 +478,7 @@ function useNarrowToolbar(narrow: boolean): ToolbarNarrow | undefined {
   const mailboxesOpen = useUI((state) => state.mailboxesOpen);
   const selected = useUI((state) => state.selected);
   if (!narrow) return undefined;
-  if (module !== "mail") return { pane: "module", onBack: () => useUI.getState().setModule("mail") };
+  if (module !== "mail") return { pane: "module", onBack: () => {} };
   const pane = narrowPane(mailboxesOpen, selected);
   const onBack = pane === "reader" ? closeMessage : () => useUI.getState().openMailboxes(true);
   return { pane, onBack };
@@ -548,6 +553,10 @@ export function MainWindow() {
         <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
       )}
       {messageBar && <ToolbarContainer part="bar" model={model} onDelete={onDelete} searchRef={handles.search} />}
+      {/* A narrow window's modules: tabs at its foot, where no message bar is. */}
+      {narrow && !messageBar && (
+        <ModuleTabs modules={MODULES} current={module} onSelect={(m) => useUI.getState().setModule(m)} />
+      )}
       <UndoToasts />
       <RefusedNotices />
       <SmartSheetContainer />
