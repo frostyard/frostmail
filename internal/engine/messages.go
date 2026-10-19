@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/mailsync"
@@ -78,7 +79,39 @@ func (m messages) Source(ctx context.Context, p *api.MessageSourceParams) (*api.
 		raw, out.Truncated = raw[:maxSource], true
 	}
 	out.Text = strings.ToValidUTF8(string(raw), "\uFFFD")
+	if p.Content != nil && *p.Content && m.Content != nil {
+		blobID, err := m.storedBody(ctx, p.ID, true)
+		if err != nil {
+			return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
+		}
+		detail, err := m.DB.GetMessage(ctx, p.ID)
+		if err != nil {
+			return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
+		}
+		if blobID != "" {
+			path := m.Content.SourcePath(blobID, emlName(detail.Subject))
+			out.ContentPath = &path
+		}
+	}
 	return out, nil
+}
+
+// emlName is the file Save As offers for a message: its subject, which
+// the app's own dialog offers too, as a name with no separators.
+func emlName(subject string) string {
+	name := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || unicode.IsControl(r) {
+			return '-'
+		}
+		return r
+	}, strings.TrimSpace(subject))
+	if name == "" {
+		name = "(no subject)"
+	}
+	if len(name) > 200 {
+		name = strings.ToValidUTF8(name[:200], "")
+	}
+	return strings.TrimLeft(name, ".") + ".eml"
 }
 
 // Save implements message.save: the raw message written to a file the user
