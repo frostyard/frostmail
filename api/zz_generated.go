@@ -5424,16 +5424,16 @@ var methodCallers = map[string][]CallerKind{
 	"calendar.update":         {CallerKindLocal, CallerKindSession},
 	"calendar.delete":         {CallerKindLocal, CallerKindSession},
 	"calendar.restore":        {CallerKindLocal, CallerKindSession},
-	"draft.create":            {CallerKindLocal, CallerKindSession},
+	"draft.create":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.open":              {CallerKindLocal, CallerKindSession},
-	"draft.get":               {CallerKindLocal, CallerKindSession},
-	"draft.list":              {CallerKindLocal, CallerKindSession},
-	"draft.update":            {CallerKindLocal, CallerKindSession},
+	"draft.get":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.list":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.update":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.attach":            {CallerKindLocal},
 	"draft.attachData":        {CallerKindLocal, CallerKindSession},
 	"draft.detach":            {CallerKindLocal, CallerKindSession},
-	"draft.delete":            {CallerKindLocal, CallerKindSession},
-	"draft.send":              {CallerKindLocal, CallerKindSession},
+	"draft.delete":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.send":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"events.subscribe":        {CallerKindLocal, CallerKindSession},
 	"identity.list":           {CallerKindLocal, CallerKindSession},
 	"identity.update":         {CallerKindLocal, CallerKindSession},
@@ -5452,8 +5452,8 @@ var methodCallers = map[string][]CallerKind{
 	"message.byMessageId":     {CallerKindLocal, CallerKindSession},
 	"message.render":          {CallerKindLocal, CallerKindSession},
 	"message.part":            {CallerKindLocal, CallerKindSession},
-	"message.setFlags":        {CallerKindLocal, CallerKindSession},
-	"message.move":            {CallerKindLocal, CallerKindSession},
+	"message.setFlags":        {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"message.move":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.copy":            {CallerKindLocal, CallerKindSession},
 	"message.delete":          {CallerKindLocal, CallerKindSession},
 	"message.source":          {CallerKindLocal, CallerKindSession},
@@ -5511,6 +5511,18 @@ var methodCallers = map[string][]CallerKind{
 	"vip.list":                {CallerKindLocal, CallerKindSession},
 	"vip.add":                 {CallerKindLocal, CallerKindSession},
 	"vip.remove":              {CallerKindLocal, CallerKindSession},
+}
+
+// methodNeeds is what each method needs of an agent's scope beyond reading (schema/rpc scope).
+var methodNeeds = map[string]ScopeNeed{
+	"draft.create":     NeedWrite,
+	"draft.get":        NeedWrite,
+	"draft.list":       NeedWrite,
+	"draft.update":     NeedWrite,
+	"draft.delete":     NeedWrite,
+	"draft.send":       NeedSend,
+	"message.setFlags": NeedWrite,
+	"message.move":     NeedWrite,
 }
 
 // Methods is every method's wire name, in schema order.

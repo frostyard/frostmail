@@ -92,6 +92,14 @@ func TestLoadRejects(t *testing.T) {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    callers: []\n"},
 			"callers must name at least one caller",
 		},
+		"bad scope": {
+			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    callers: [agent]\n    scope: delete\n"},
+			`scope "delete" must be write or send`,
+		},
+		"scope without agents": {
+			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    scope: write\n"},
+			`scope "write" needs agent among its callers`,
+		},
 		"generated name collision": {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ntypes:\n  - name: AGetParams\nmethods:\n  - name: get\n"},
 			"collides",
@@ -132,7 +140,8 @@ func TestCallers(t *testing.T) {
 	dir := writeSchema(t, map[string]string{
 		"rpc.yaml": minimalRPC,
 		"a.yaml":   "domain: a\nmethods:\n  - name: open\n  - name: save\n    callers: [local]\n",
-		"b.yaml":   "domain: b\ncallers: [agent]\nmethods:\n  - name: m\n  - name: n\n    callers: [local, session, agent]\n",
+		"b.yaml": "domain: b\ncallers: [agent]\nmethods:\n  - name: m\n  - name: n\n    callers: [local, session, agent]\n" +
+			"  - name: w\n    scope: write\n  - name: s\n    callers: [session, agent]\n    scope: send\n",
 	})
 	s, err := Load(dir)
 	if err != nil {
@@ -149,13 +158,15 @@ func TestCallers(t *testing.T) {
 		`"a.save":{CallerKindLocal},`,                                // narrowed
 		`"b.m":{CallerKindAgent},`,                                   // the domain's own
 		`"b.n":{CallerKindLocal,CallerKindSession,CallerKindAgent},`, // replaced
+		`"b.w":NeedWrite,`, `"b.s":NeedSend,`,                        // scopes
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("generated Go lacks %s", want)
 		}
 	}
 	md := string(genMarkdown(s))
-	for _, want := range []string{"Callers: `local`, `session`.", "Callers of this method: `local`.", "Callers of this method: `local`, `session`, `agent`."} {
+	for _, want := range []string{"Callers: `local`, `session`.", "Callers of this method: `local`.", "Callers of this method: `local`, `session`, `agent`.",
+		"An agent's scope must grant `write`."} {
 		if !strings.Contains(md, want) {
 			t.Errorf("Markdown lacks %q", want)
 		}

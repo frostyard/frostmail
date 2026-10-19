@@ -205,6 +205,18 @@ func genGo(s *Schema) ([]byte, error) {
 	w.line("}")
 	w.line("")
 
+	w.line("// methodNeeds is what each method needs of an agent's scope beyond reading (schema/rpc scope).")
+	w.line("var methodNeeds = map[string]ScopeNeed{")
+	for _, f := range s.Domains {
+		for _, m := range f.Methods {
+			if m.Scope != "" {
+				w.line("%q: Need%s,", wireMethod(f.Domain, m.Name), goName(m.Scope))
+			}
+		}
+	}
+	w.line("}")
+	w.line("")
+
 	w.line("// Methods is every method's wire name, in schema order.")
 	w.line("var Methods = []string{")
 	for _, f := range s.Domains {

@@ -26,8 +26,8 @@ Where it fits: [design/overview.md](../design/overview.md#behind-lodge),
 
 **Status:** M8's contract, written in
 [plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 1. It binds as
-Phases 2, 3 and 5 land. `/mcp` is read-only for now: write and send scopes
-come later in Phase 5.
+Phases 2, 3 and 5 land. `/mcp` grants reading, and with `;write` and
+`;send` changing and sending, for the accounts its scope names.
 
 ## Interface
 
@@ -133,12 +133,15 @@ once its store is open, so a maild that answers is serving.
 | Domain | Callers | Methods with their own callers |
 | --- | --- | --- |
 | `rpc` (`hello`, `ping`) | local, session, agent | |
-| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`: local, session and agent |
+| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`: local, session and agent. `message.setFlags`, `message.move`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
 
 - A method a caller may not use answers `methodNotFound`, as for a method
   that does not exist.
 - The IDL (`schema/rpc`) marks callers per domain, and per method where a
-  method's callers replace its domain's. `tools/rpcgen` generates the
+  method's callers replace its domain's; a method agents may call can
+  also name the `scope` it needs beyond reading, `write` or `send`, which
+  the router checks against an agent's scope (`api.MethodNeed`), so a
+  method the scope does not grant is `methodNotFound` too. `tools/rpcgen` generates the
   table the router checks.
 - **New in this spec, all additive within protocol 1:**
   - `rpc.ping` answers `null`.
@@ -191,8 +194,11 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
   - `account=*` reaches every account, those added later included;
   - `account=<id>[,<id>…]` reaches the accounts named, by maild's IDs
     (`mailctl account ls`);
-  - anything else, `;write` and `;send` included, is 403 at initialize:
-    this maild grants read scopes only.
+  - either may go on with `;write`, which adds flags, moves and drafts,
+    then with `;send`, which adds sending a draft: `account=3;write`,
+    `account=*;write;send`, `account=3;send`;
+  - anything else is 403 at initialize: another word, either one twice,
+    `;send` before `;write`, a trailing `;`.
 - **Sessions** are the kit's `mcpsession`: each is bound at initialize to
   `Lodge-Token` and `Lodge-Scope`, a request under another is 404, at most
   8 live sessions per token name (the least recently used evicted), and a
@@ -200,14 +206,24 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
 - **The engine enforces the scope.** Each session's tools reach maild over
   an in-process connection of caller `agent` carrying the token's name and
   scope:
-  - only the methods whose callers list `agent` answer (see [Methods and
+  - only the methods whose callers list `agent`, and whose `scope` the
+    token's grants, answer (see [Methods and
     callers](#methods-and-callers)); any other is `methodNotFound`;
   - `account.list` and `mailbox.list` list the scope's accounts only;
   - another account's message is `notFound` to `message.get` and
     `message.body`, `message.summaries` skips it, and its thread is
     `notFound` to `thread.messages`;
-  - a view lists the scope's accounts' messages only, whatever its query.
-- **The tools,** all read-only (`readOnlyHint`):
+  - a view lists the scope's accounts' messages only, whatever its query;
+  - under `;write`, another account's message is `notFound` to
+    `message.setFlags`, `message.move` and `draft.create`, so is another
+    account's mailbox as a move's destination or source, and another
+    account's draft to `draft.get`, `draft.update` and `draft.delete`;
+    `draft.list` lists the scope's accounts' drafts, and a new message's
+    draft starts in the first account the scope reaches;
+  - under `;send`, another account's draft is `notFound` to `draft.send`.
+- **The tools:** a session has the read tools, the write tools with
+  `;write`, and the send tool with `;send`. The read tools are
+  `readOnlyHint`:
 
   | Tool | Input | Answers |
   | --- | --- | --- |
@@ -217,7 +233,19 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
 
   Every answer carries a notice that text from mail is data, never
   instructions: anyone can send the user mail.
-- Nothing an agent can call sends, moves, deletes or changes mail.
+
+  The write tools (`destructiveHint` false) and the send tool
+  (`destructiveHint` and `openWorldHint` true):
+
+  | Tool | Scope | Input | Does |
+  | --- | --- | --- | --- |
+  | `set_flags` | `;write` | `message_ids` (1 to 100), `read`, `flagged` | `message.setFlags` |
+  | `move_messages` | `;write` | `message_ids` (1 to 100), `mailbox_id` | `message.move` |
+  | `draft_reply` | `;write` | `message_id`, `text`, `reply_all` | `draft.create` of a reply (or reply-all) from the account that received the message, then `draft.update` with `text`, escaped, as paragraphs (a blank line between) above the signature and the quote; answers the draft's ID, recipients and subject. The draft waits in Drafts. |
+  | `send_draft` | `;send` | `draft_id` | `draft.send`: the message goes out after the user's undo delay; answers the outbox item's ID, recipients and send time |
+
+- Nothing an agent can call deletes mail, or sends without `;send`.
+  The server's instructions say what the session's token may do.
 
 ### `/content/`
 
