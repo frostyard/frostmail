@@ -23,7 +23,7 @@ import { watchAnnouncements } from "./announce";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
-import { narrowPane, useNarrow } from "./narrow";
+import { calendarPane, narrowPane, peoplePane, tasksPane, useNarrow } from "./narrow";
 
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
@@ -456,11 +456,11 @@ function NarrowMailPanes(props: {
         </div>
       </div>
       {pane === "mailboxes" && (
-        <div ref={props.handles.sidebar} className="absolute inset-0 bg-sidebar">
+        <div ref={props.handles.sidebar} className="absolute inset-0 z-10 bg-sidebar">
           <SidebarContainer modules={false} />
         </div>
       )}
-      <div className={pane === "reader" ? "absolute inset-0 bg-window" : "hidden"}>
+      <div className={pane === "reader" ? "absolute inset-0 z-10 bg-window" : "hidden"}>
         <ReaderContainer ref={props.handles.reader} />
       </div>
     </div>
@@ -473,14 +473,52 @@ function closeMessage() {
   useUI.getState().select([], null);
 }
 
-function useNarrowToolbar(narrow: boolean): ToolbarNarrow | undefined {
-  const module = useUI((state) => state.module);
-  const mailboxesOpen = useUI((state) => state.mailboxesOpen);
-  const selected = useUI((state) => state.selected);
+/** dayTitle names a calendar date, YYYY-MM-DD: "Monday, October 19", or with short, "Mon, Oct 19". */
+function dayTitle(date: string, locale: string, short = false): string {
+  const style = short ? "short" : "long";
+  return new Intl.DateTimeFormat(locale, { weekday: style, month: style, day: "numeric", timeZone: "UTC" }).format(
+    new Date(date),
+  );
+}
+
+const noBack = () => {};
+
+// A narrow window's toolbar for the module shown (docs/specs/ui.md, Narrow
+// windows): each module's pane, what Back returns to, and its title.
+function useNarrowToolbar(
+  narrow: boolean,
+  calendar: CalendarData,
+  people: PeopleData,
+  tasks: TasksData,
+): ToolbarNarrow | undefined {
+  const ui = useUI();
   if (!narrow) return undefined;
-  if (module !== "mail") return { pane: "module", onBack: () => {} };
-  const pane = narrowPane(mailboxesOpen, selected);
-  const onBack = pane === "reader" ? closeMessage : () => useUI.getState().openMailboxes(true);
+  switch (ui.module) {
+    case "calendar": {
+      const pane = calendarPane(ui.calendarsOpen, ui.calendarSelected);
+      const day = calendar.date;
+      if (pane === "calendars") return { pane, onBack: noBack };
+      if (pane === "day")
+        return { pane, back: "Calendars", title: dayTitle(day, calendar.locale), onBack: () => ui.openCalendars(true) };
+      return { pane, back: dayTitle(day, calendar.locale, true), onBack: () => ui.selectOccurrence(null) };
+    }
+    case "people": {
+      const pane = peoplePane(ui.booksOpen, ui.peopleSelected, ui.peopleEditing);
+      // A contact being edited ends with its own Save or Cancel.
+      if (pane === "books" || ui.peopleEditing !== null) return { pane, onBack: noBack };
+      if (pane === "people") return { pane, back: "Address Books", onBack: () => ui.openBooks(true) };
+      const list = ui.peopleBook === "all" ? "All Contacts" : (people.books[ui.peopleBook]?.name ?? "Contacts");
+      return { pane, back: list, onBack: () => ui.selectPerson(null) };
+    }
+    case "tasks": {
+      const pane = tasksPane(ui.taskListsOpen, ui.tasksSelected);
+      if (pane === "taskLists") return { pane, onBack: noBack };
+      if (pane === "tasks") return { pane, back: "Lists", onBack: () => ui.openTaskLists(true) };
+      return { pane, back: tasks.title, onBack: () => ui.selectTask(null) };
+    }
+  }
+  const pane = narrowPane(ui.mailboxesOpen, ui.selected);
+  const onBack = pane === "reader" ? closeMessage : () => ui.openMailboxes(true);
   return { pane, onBack };
 }
 
@@ -514,7 +552,8 @@ export function MainWindow() {
   };
   const widths = usePaneWidths();
   const narrow = useNarrow();
-  const narrowToolbar = useNarrowToolbar(narrow);
+  const narrowToolbar = useNarrowToolbar(narrow, calendar, people, tasks);
+  const editingContact = useUI((state) => state.module === "people" && state.peopleEditing !== null);
   // The message bar acts on the selection: the message shown, or the list's.
   const selectedCount = useUI((state) => state.selected.length);
   const messageBar = (narrowToolbar?.pane === "reader" || narrowToolbar?.pane === "list") && selectedCount > 0;
@@ -554,7 +593,7 @@ export function MainWindow() {
       )}
       {messageBar && <ToolbarContainer part="bar" model={model} onDelete={onDelete} searchRef={handles.search} />}
       {/* A narrow window's modules: tabs at its foot, where no message bar is. */}
-      {narrow && !messageBar && (
+      {narrow && !messageBar && !editingContact && (
         <ModuleTabs modules={MODULES} current={module} onSelect={(m) => useUI.getState().setModule(m)} />
       )}
       <UndoToasts />

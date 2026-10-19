@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
-import type { NarrowPane } from "../../app/narrow";
+import type { CalendarPane, NarrowPane, PeoplePane, TasksPane } from "../../app/narrow";
 import type { CalendarView } from "../../lib/calendarDates";
 import { FLAG_NAMES, flagLabel } from "../../lib/flags";
 import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
@@ -100,12 +100,17 @@ export interface ToolbarTasks {
 
 /**
  * ToolbarNarrow is a narrow window's toolbar: the pane it is over, and
- * Back, which returns from the list to Mailboxes and from a message to the
- * list (named by the toolbar's title). Mailboxes and the other modules
- * have no Back: the module tabs at the window's foot move between modules.
+ * Back. Mail's list goes back to Mailboxes, and a message to its list
+ * (named by the toolbar's title); a module's pane names what its Back
+ * returns to in back. A module's top pane has no Back: the module tabs at
+ * the window's foot move between modules.
  */
 export interface ToolbarNarrow {
-  pane: NarrowPane | "module";
+  pane: NarrowPane | CalendarPane | PeoplePane | TasksPane | "module";
+  /** What a module pane's Back returns to; none for a top pane. */
+  back?: string;
+  /** The title, where the toolbar's own does not fit the pane: a calendar day's. */
+  title?: string;
   onBack: () => void;
 }
 
@@ -589,14 +594,19 @@ function BackButton({ label, onBack }: { label: string; onBack: () => void }) {
 // list, the search field on a row of its own under it.
 function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: ToolbarNarrow }) {
   const { pane } = narrow;
-  const title =
-    pane === "mailboxes"
-      ? "Mailboxes"
-      : pane === "module"
-        ? (props.calendar?.title ?? props.tasks?.title ?? props.title)
-        : pane === "list"
-          ? props.title
-          : "";
+  const back = pane === "list" ? "Mailboxes" : pane === "reader" ? props.title : narrow.back;
+  const titles: Partial<Record<ToolbarNarrow["pane"], string>> = {
+    mailboxes: "Mailboxes",
+    list: props.title,
+    module: props.calendar?.title ?? props.tasks?.title ?? props.title,
+    calendars: "Calendars",
+    taskLists: "Lists",
+    tasks: props.tasks?.title,
+    books: "Address Books",
+    people: props.title,
+  };
+  const title = narrow.title ?? titles[pane] ?? "";
+  const subtitle = pane === "list" || pane === "people" ? props.subtitle : "";
   const command = (cmd: ToolbarCommand) => () => props.onCommand(cmd);
   return (
     <>
@@ -605,12 +615,10 @@ function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: Toolbar
         aria-label="Toolbar"
         className="flex h-[52px] shrink-0 items-center gap-1 border-b border-separator bg-toolbar px-1"
       >
-        {(pane === "list" || pane === "reader") && (
-          <BackButton label={pane === "list" ? "Mailboxes" : props.title} onBack={narrow.onBack} />
-        )}
-        <div className={`flex min-w-0 flex-1 flex-col ${pane === "list" || pane === "reader" ? "pl-1" : "pl-3"}`}>
+        {back !== undefined && <BackButton label={back} onBack={narrow.onBack} />}
+        <div className={`flex min-w-0 flex-1 flex-col ${back !== undefined ? "pl-1" : "pl-3"}`}>
           <span className="text-toolbar-title truncate">{title}</span>
-          {pane === "list" && <span className="text-toolbar-subtitle truncate text-secondary">{props.subtitle}</span>}
+          {subtitle && <span className="text-toolbar-subtitle truncate text-secondary">{subtitle}</span>}
         </div>
         {pane === "mailboxes" && (
           <>
@@ -636,8 +644,44 @@ function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: Toolbar
             onClick={command({ kind: "compose" })}
           />
         )}
+        {pane === "day" && (
+          <>
+            <button
+              type="button"
+              className="h-11 shrink-0 rounded-md px-3 text-[15px] leading-5 text-accent hover:bg-selection-inactive"
+              onClick={command({ kind: "today" })}
+            >
+              Today
+            </button>
+            <ToolbarButton
+              label="New Event"
+              className={TOUCH_CLASS}
+              icon={<Plus size={20} />}
+              disabled={props.calendar?.canCreate === false}
+              onClick={command({ kind: "newEvent" })}
+            />
+          </>
+        )}
+        {pane === "people" && (
+          <ToolbarButton
+            label="New Contact"
+            className={TOUCH_CLASS}
+            icon={<UserPlus size={20} />}
+            disabled={!props.people?.canCreate}
+            onClick={command({ kind: "newContact" })}
+          />
+        )}
+        {pane === "tasks" && (
+          <ToolbarButton
+            label="New Task"
+            className={TOUCH_CLASS}
+            icon={<Plus size={20} />}
+            disabled={props.tasks?.canCreate === false}
+            onClick={command({ kind: "newTask" })}
+          />
+        )}
       </div>
-      {pane === "list" && (
+      {(pane === "list" || pane === "people") && (
         <div className="flex h-11 shrink-0 items-center border-b border-separator bg-toolbar px-3">{props.search}</div>
       )}
     </>

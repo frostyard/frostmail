@@ -18,6 +18,8 @@ UI ([ui.md](ui.md)); Mail's own panes are unchanged.
 - Each module keeps its own sidebar, list and detail panes in the main
   window's three columns, with the same widths and splitters as Mail, and
   its own selection; switching back to a module finds it as it was left.
+  A narrow window (a phone) shows each module one pane at a time instead,
+  as [ui.md's Narrow windows](ui.md#narrow-windows-m8) specify.
 - **Keys:** Ctrl+1 shows Mail and selects All Inboxes (as before); Ctrl+2
   Calendar, Ctrl+3 People, Ctrl+4 Tasks. They work anywhere, text fields
   included, like Ctrl+1 today. A module that is not built yet ignores its

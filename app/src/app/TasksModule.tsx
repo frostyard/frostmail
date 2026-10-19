@@ -7,7 +7,7 @@ import { TaskPane } from "../features/tasks/TaskPane";
 import { TasksSidebar } from "../features/tasks/TasksSidebar";
 import type { Command } from "../lib/keymap";
 import { taskLines } from "../lib/taskText";
-import { useNarrow } from "./narrow";
+import { tasksPane, useNarrow } from "./narrow";
 import { Splitter } from "./Splitter";
 import type { TasksData } from "./useTasks";
 
@@ -104,6 +104,88 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
   const task = flagged ? null : (data.shown.find((task) => task.id === ui.tasksSelected) ?? null);
   const message = flagged ? (data.messages.find((message) => message.id === ui.tasksSelected) ?? null) : null;
   const names = new Map(data.lists.map((list) => [list.id, list.name]));
+  const sidebarList = (
+    <TasksSidebar
+      sections={data.sections}
+      counts={data.counts}
+      selected={ui.tasksSource}
+      focused={ui.tasksFocus === "sidebar"}
+      onSelect={ui.setTasksSource}
+    />
+  );
+  const taskList = (
+    <TaskList
+      title={data.title}
+      lines={taskLines(data.shown, typeof ui.tasksSource === "number" ? undefined : names)}
+      messages={flagged ? data.messages : null}
+      selected={ui.tasksSelected}
+      focused={ui.tasksFocus === "list"}
+      canCreate={!flagged && !data.lists.find((list) => list.id === ui.tasksSource)?.readOnly}
+      today={data.today}
+      now={data.now}
+      locale={data.locale}
+      newTaskRef={newTask}
+      onSelect={ui.selectTask}
+      onToggle={flagged ? data.clearFlag : data.toggle}
+      onCreate={data.create}
+    />
+  );
+  const taskPane = (
+    <TaskPane
+      task={task}
+      message={message}
+      list={data.lists.find((list) => list.id === task?.listId) ?? null}
+      timeZone={data.timeZone}
+      locale={data.locale}
+      now={data.now}
+      titleRef={title}
+      onChange={data.edit}
+      onDelete={data.remove}
+      onOpenMessage={data.openMessage}
+      onClearFlag={data.clearFlag}
+    />
+  );
+  if (narrow) {
+    // One pane at a time (docs/specs/ui.md, Narrow windows): the lists or
+    // the task over the tasks, which stay mounted, and inert, under them.
+    const pane = tasksPane(ui.taskListsOpen, ui.tasksSelected);
+    return (
+      <div className="relative flex min-h-0 flex-1 flex-col" data-narrow-pane={pane}>
+        <section
+          ref={list}
+          aria-label="Task list"
+          tabIndex={-1}
+          inert={pane !== "tasks"}
+          {...focus("list")}
+          className="min-h-0 flex-1 outline-none"
+        >
+          {taskList}
+        </section>
+        {pane === "taskLists" && (
+          <fieldset
+            ref={sidebar}
+            aria-label="Task Lists"
+            tabIndex={-1}
+            {...focus("sidebar")}
+            className="absolute inset-0 z-10 m-0 overflow-y-auto border-0 bg-sidebar p-0 outline-none"
+          >
+            {sidebarList}
+          </fieldset>
+        )}
+        {pane === "task" && (
+          <section
+            ref={reader}
+            aria-label="Task details"
+            tabIndex={-1}
+            {...focus("reader")}
+            className="absolute inset-0 z-10 overflow-y-auto bg-window outline-none"
+          >
+            {taskPane}
+          </section>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-0 flex-1">
       {ui.sidebarVisible && (
@@ -116,22 +198,8 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
             className="m-0 flex h-full shrink-0 flex-col border-0 bg-sidebar p-0 outline-none"
             style={{ width: ui.sidebarWidth }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <TasksSidebar
-                sections={data.sections}
-                counts={data.counts}
-                selected={ui.tasksSource}
-                focused={ui.tasksFocus === "sidebar"}
-                onSelect={ui.setTasksSource}
-              />
-            </div>
-            {!narrow && (
-              <ModuleBar
-                modules={["mail", "calendar", "people", "tasks"]}
-                current={ui.module}
-                onSelect={ui.setModule}
-              />
-            )}
+            <div className="min-h-0 flex-1 overflow-y-auto">{sidebarList}</div>
+            <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
           </fieldset>
           <Splitter label="Resize sidebar" onResize={resizeSidebar} onEnd={endDrag} />
         </>
@@ -143,21 +211,7 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
         {...focus("list")}
         className="h-full min-w-0 flex-1 outline-none"
       >
-        <TaskList
-          title={data.title}
-          lines={taskLines(data.shown, typeof ui.tasksSource === "number" ? undefined : names)}
-          messages={flagged ? data.messages : null}
-          selected={ui.tasksSelected}
-          focused={ui.tasksFocus === "list"}
-          canCreate={!flagged && !data.lists.find((list) => list.id === ui.tasksSource)?.readOnly}
-          today={data.today}
-          now={data.now}
-          locale={data.locale}
-          newTaskRef={newTask}
-          onSelect={ui.selectTask}
-          onToggle={flagged ? data.clearFlag : data.toggle}
-          onCreate={data.create}
-        />
+        {taskList}
       </section>
       <section
         ref={reader}
@@ -166,19 +220,7 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
         {...focus("reader")}
         className="h-full w-[320px] shrink-0 border-l border-separator outline-none"
       >
-        <TaskPane
-          task={task}
-          message={message}
-          list={data.lists.find((list) => list.id === task?.listId) ?? null}
-          timeZone={data.timeZone}
-          locale={data.locale}
-          now={data.now}
-          titleRef={title}
-          onChange={data.edit}
-          onDelete={data.remove}
-          onOpenMessage={data.openMessage}
-          onClearFlag={data.clearFlag}
-        />
+        {taskPane}
       </section>
     </div>
   );

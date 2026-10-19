@@ -450,8 +450,9 @@ lodge's frame are.
   Mark, Move), sharing the width, each 44 high with a 20px icon. Flag and
   Move open their menus above it.
 - **The module tabs,** at the foot of the window wherever the message bar
-  is not (Mailboxes, the list without a selection, and Calendar, People
-  and Tasks): a `toolbar` named "Modules", 52 high plus the bottom safe
+  is not (Mailboxes, the list without a selection, and every pane of
+  Calendar, People and Tasks but a contact being edited, which ends with
+  its own Save or Cancel): a `toolbar` named "Modules", 52 high plus the bottom safe
   area, `--bg-toolbar`, 1px `--separator` top, with Mail, Calendar,
   People and Tasks sharing the width, in module order. Each is a 44-high
   target: its module's icon (22px) over its name (10/12), in `--accent`
@@ -471,9 +472,39 @@ lodge's frame are.
   toolbar buttons are 44 × 44 ([compose-ui.md](compose-ui.md)), and
   Settings stacks its lists over their forms
   ([settings-ui.md](settings-ui.md)).
-- **Calendar, People and Tasks** have no narrow layout yet: each shows as
-  a wide window would, under a narrow toolbar with the module's title and
-  no Back, and the module tabs move between them and Mail.
+- **Calendar, People and Tasks** show one pane at a time too, as Mail
+  does: the pane below the top stays mounted, and inert, under the one
+  over it, the toolbar names what Back returns to, and a module's top
+  pane has no Back (the tabs move between modules). Each module keeps its
+  own selection and pane while another is shown.
+  - **Calendar:** the day, under the week strip; Calendars (the month and
+    the calendars, the sidebar's) over it; and the event (the event
+    pane) over it once an occurrence is selected.
+    - The toolbar: over the day, Back ("Calendars"), the date ("Monday,
+      October 19"), Today (15/20 `--accent`, 44 high) and New Event; over
+      the event, Back named by the day ("Mon, Oct 19"); over Calendars,
+      the title "Calendars".
+    - The week strip (a `fieldset` named "Week", 1px `--separator`
+      bottom): Previous Week and Next Week, 44 × 44 at its ends, and the
+      selected date's seven days between, sharing the width, each 56
+      high: the weekday's initial (11/14 `--text-tertiary`) over its
+      number (15/20) in a 32px circle, filled as the small month's
+      selection is, with a dot when the day has occurrences.
+    - The day is the day view's grid for the selected date alone,
+      whatever the wide window's view. A date picked in Calendars shows
+      its day, not an event picked before.
+  - **People:** the list (`role="listbox"` named "Contacts", with the
+    search row under the toolbar as Mail's list has); Address Books (the
+    sidebar) over it; and the person (the contact pane, or its editor)
+    over it. The toolbar: over the list, Back ("Address Books"), the
+    book's title and count, and New Contact; over the person, Back named
+    by the book ("All Contacts"), and no Back while a contact is being
+    edited. A book picked shows its list, not a person picked before.
+  - **Tasks:** the tasks (the task list); Lists (the sidebar) over them;
+    and the task (the task pane) over them once one is selected. The
+    toolbar: over the tasks, Back ("Lists"), the list's title and New
+    Task; over the task, Back named by the list ("Today").
+  - Their sidebars' rows are 44 high, as Mail's are.
 
 ## Behavior
 

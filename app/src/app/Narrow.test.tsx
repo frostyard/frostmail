@@ -113,7 +113,8 @@ describe("a narrow window's Mail", () => {
       fireEvent.click(within(tabs()).getByRole("button", { name: module }));
       expect(useUI.getState().module).toBe(module.toLowerCase());
       expect(screen.getAllByRole("toolbar", { name: "Modules" })).toHaveLength(1);
-      expect(screen.queryByRole("button", { name: /^Back to/ }) === null).toBe(module !== "Mail");
+      // Each module opens a level down from its sidebar's pane, which Back reaches.
+      expect(screen.getByRole("button", { name: /^Back to/ })).toBeTruthy();
     }
     fireEvent.click(screen.getByRole("button", { name: "Back to Mailboxes" }));
     expect(tabs()).toBeTruthy();
