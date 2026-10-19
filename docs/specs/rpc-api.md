@@ -853,6 +853,8 @@ Start a draft: a new message in the account (or the first account), or a reply, 
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.open`
 
@@ -875,6 +877,8 @@ One draft.
 
 Result: `Draft`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.list`
 
@@ -885,6 +889,8 @@ Drafts, most recently changed first.
 | `accountId` | `int` (optional) |  |
 
 Result: `[]Draft`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.update`
 
@@ -897,6 +903,8 @@ Replace a draft's content; maild stores it at once and updates the server copy l
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.attach`
 
@@ -949,6 +957,8 @@ Discard a draft, and its server copy.
 
 Result: none (`null`).
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.send`
 
@@ -961,6 +971,8 @@ Queue a draft for sending after the undo delay, or at sendAt (Send Later). Fails
 
 Result: `OutboxItem`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `send`.
 
 ### Event `draft.changed` (durable)
 
@@ -1343,6 +1355,8 @@ Change flags locally at once and on the server when it can be reached.
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `message.move`
 
@@ -1356,6 +1370,8 @@ Move messages to another mailbox of the same account.
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `message.copy`
 

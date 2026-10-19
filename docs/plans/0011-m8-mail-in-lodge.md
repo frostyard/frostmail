@@ -187,16 +187,17 @@ boundaries, so the planner builds them.
 - **Read-only first (built):** `list_mailboxes`, `search_messages` and
   `read_thread`, under `account=*` or `account=<id>[,<id>…]`, with the
   engine enforcing the scope and the kit's `mcpsession` binding sessions.
-  Write and send scopes are refused until the tools below land.
-- **Tools:** list mailboxes, search, read a thread, draft a reply. Sending
-  is a tool of its own.
-- **The scope grammar,** in `Lodge-Scope`: `account=<id>` or
+- **Tools (built):** list mailboxes, search, read a thread; with
+  `;write`, set flags, move messages and draft a reply; with `;send`,
+  send a draft, a tool of its own.
+- **The scope grammar** (built), in `Lodge-Scope`: `account=<id>` or
   `account=*`, then optionally `;write` (flags, moves, drafts) and
   `;send` (queue a draft to send). Anything else is 403.
-- **The engine enforces it.** Each MCP session reaches maild over an
-  in-process connection of caller `agent` carrying its scope. Another
+- **The engine enforces it** (built). Each MCP session reaches maild over
+  an in-process connection of caller `agent` carrying its scope. Another
   account is `notFound`, and a method the scope does not cover is
-  `methodNotFound`.
+  `methodNotFound`: the IDL's per-method `scope` (`write`, `send`), which
+  the router checks.
 - **Sessions** through the kit's helper: bound to the token's name and
   scope, 8 per token name with the least recently used evicted, an hour
   idle. The manifest gains `mcp: true`.
@@ -204,6 +205,24 @@ boundaries, so the planner builds them.
   with an `account=<id>;write` token on generated mail, a send under that
   scope is `methodNotFound`, another account is `notFound`, and revoking
   the token cuts it off at once.
+  - In the tests, through the kit's `kittest` and the MCP SDK's client
+    (`internal/lodge/mcp_test.go`): under `account=<id>;write`,
+    `draft_reply` drafts Ann's reply above the quote, `send_draft` is not
+    offered, and the other account's message is an error; on the agent's
+    connection `draft.send` is `methodNotFound` and the other account's
+    message, mailbox and draft are `notFound`; under `;write;send`,
+    `send_draft` queues the draft.
+  - Live, 2026-10-19: Claude Code 2.1.300 (`claude -p` with an HTTP MCP
+    server and a bearer token) on an allowed node read showcase mail
+    through LODGE's `/mcp/mail` with an `account=*` token: `list_mailboxes`
+    returned both accounts. It sends no `Origin` and no `Sec-Fetch-*`,
+    and every request was 200 or 202. Evicted by 8 newer sessions on its
+    token, its stream and its next POST were 404, and it initialized a
+    new session and retried by itself. It probes MCP 2026-07-28's
+    `server/discover` first, which the kit answers 400, and falls back to
+    `initialize` at 2025-11-25. Revoking the token made the next request
+    401 (frostyard/lodge#9). Drafting live under `;write` is still to
+    run.
 
 ## Phase 6 — The desktop app as a lodge client (planner, medium)
 

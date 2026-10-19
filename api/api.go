@@ -39,8 +39,9 @@ func NewEnvelope(seq int64, ev Event) (EventEnvelope, error) { return jsonrpc.Ne
 type handlerFunc = jsonrpc.HandlerFunc
 
 // Router maps wire method names to service implementations. Unknown
-// methods, and methods the request's caller (CallerFrom) may not use,
-// return ErrMethodNotFound alike.
+// methods, methods the request's caller (CallerFrom) may not use, and for
+// an agent methods its scope does not grant (MethodNeed), return
+// ErrMethodNotFound alike.
 type Router struct {
 	*jsonrpc.Router[CallerKind, ErrorCode]
 }
@@ -49,6 +50,10 @@ type Router struct {
 func NewRouter(s Services) (*Router, error) {
 	r := &Router{jsonrpc.NewRouter[CallerKind, ErrorCode](jsonrpc.RouterOptions[CallerKind]{
 		Caller: func(ctx context.Context) CallerKind { return CallerFrom(ctx).Kind },
+		Admit: func(ctx context.Context, method string, _ jsonrpc.Route[CallerKind]) bool {
+			c := CallerFrom(ctx)
+			return c.Kind != CallerKindAgent || c.Scope.Grants(MethodNeed(method))
+		},
 	})}
 	if err := s.register(r); err != nil {
 		return nil, err
@@ -57,7 +62,7 @@ func NewRouter(s Services) (*Router, error) {
 }
 
 func (r *Router) handle(method string, h handlerFunc) {
-	r.Handle(method, jsonrpc.Route[CallerKind]{Callers: methodCallers[method], Handler: h})
+	r.Handle(method, jsonrpc.Route[CallerKind]{Callers: methodCallers[method], Writes: MethodNeed(method) != NeedRead, Handler: h})
 }
 
 func decodeParams(raw jsontext.Value, p any, required []string) error {

@@ -57,6 +57,8 @@ methods:
       - {name: to, type: "[]Address", optional: true, doc: "A new message's recipients, such as the person a contact card writes to."}
     result: Draft
     errors: [notFound, invalidParams]
+    callers: [local, session, agent]
+    scope: write
   - name: open
     doc: Turn a message in a Drafts mailbox into a draft, or return the draft it already is.
     params:
@@ -69,11 +71,15 @@ methods:
       - {name: id, type: int}
     result: Draft
     errors: [notFound]
+    callers: [local, session, agent]
+    scope: write
   - name: list
     doc: Drafts, most recently changed first.
     params:
       - {name: accountId, type: int, optional: true}
     result: "[]Draft"
+    callers: [local, session, agent]
+    scope: write
   - name: update
     doc: Replace a draft's content; maild stores it at once and updates the server copy later.
     params:
@@ -81,6 +87,8 @@ methods:
       - {name: content, type: DraftContent}
     result: Draft
     errors: [notFound, invalidParams]
+    callers: [local, session, agent]
+    scope: write
   - name: attach
     doc: Attach a local file; maild copies it, so later changes to the file do not matter.
     params:
@@ -120,6 +128,8 @@ methods:
     params:
       - {name: id, type: int}
     errors: [notFound]
+    callers: [local, session, agent]
+    scope: write
   - name: send
     doc: >-
       Queue a draft for sending after the undo delay, or at sendAt (Send
@@ -130,6 +140,8 @@ methods:
       - {name: sendAt, type: time, optional: true, doc: "Send Later: a time past the undo delay queues the message scheduled, with this time as its Date; an earlier one sends it after the undo delay."}
     result: OutboxItem
     errors: [notFound, invalidParams]
+    callers: [local, session, agent]
+    scope: send
 events:
   - name: changed
     doc: A draft was created, changed or deleted.

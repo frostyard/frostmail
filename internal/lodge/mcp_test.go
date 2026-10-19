@@ -35,16 +35,18 @@ func seedTwoAccounts(t *testing.T) *twoAccounts {
 	t.Helper()
 	srv := rpctest.Start(t)
 	ctx := t.Context()
-	add := func(email, subject, body string) (acct, inbox, msg int64) {
-		raw := []byte("From: Ann <ann@" + email + ">\r\nTo: " + email + "\r\nSubject: " + subject +
-			"\r\nDate: Mon, 12 Oct 2026 09:00:00 +0000\r\nMessage-ID: <" + subject + "@test>\r\n\r\n" + body + "\r\n")
+	add := func(domain, subject, body string) (acct, inbox, msg int64) {
+		email := "me@" + domain
+		msgid := strings.ReplaceAll(subject, " ", "-") + "@test"
+		raw := []byte("From: Ann <ann@" + domain + ">\r\nTo: " + email + "\r\nSubject: " + subject +
+			"\r\nDate: Mon, 12 Oct 2026 09:00:00 +0000\r\nMessage-ID: <" + msgid + ">\r\n\r\n" + body + "\r\n")
 		blobID, err := srv.Blobs.Put(ctx, bytes.NewReader(raw))
 		if err != nil {
 			t.Fatal(err)
 		}
 		date := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
-		h := store.MessageHeader{UID: 1, Size: int64(len(raw)), Subject: subject, From: store.Address{Name: "Ann", Addr: "ann@" + email},
-			Date: date, InternalDate: date, MessageID: subject + "@test", Preview: body}
+		h := store.MessageHeader{UID: 1, Size: int64(len(raw)), Subject: subject, From: store.Address{Name: "Ann", Addr: "ann@" + domain},
+			Date: date, InternalDate: date, MessageID: msgid, Preview: body}
 		err = srv.DB.Tx(ctx, func(tx *store.Tx) error {
 			a, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindIMAP, Email: email, DisplayName: email,
 				Auth: api.AuthKindPassword, IMAP: store.ServerConfig{Host: "127.0.0.1", Port: 1, TLS: api.TLSModeInsecure, Username: email},
@@ -169,6 +171,92 @@ func TestTheEngineEnforcesAnAgentsScope(t *testing.T) {
 	}
 }
 
+// TestTheEngineEnforcesWriteAndSendScopes: ;write admits flags, moves and
+// drafts and ;send sending, each for the scope's accounts alone; another
+// account's message, mailbox or draft does not exist, and a method the
+// scope does not cover does not either.
+func TestTheEngineEnforcesWriteAndSendScopes(t *testing.T) {
+	n := seedTwoAccounts(t)
+	ctx := t.Context()
+	local := n.srv.Dial(t)
+	other, err := local.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindReply, SourceID: &n.msgB})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w, _ := n.srv.DialAs(t, agent("account="+itoa(n.a)+";write"))
+	dr, err := w.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindReply, SourceID: &n.msgA})
+	if err != nil || dr.AccountID != n.a {
+		t.Fatalf("draft.create of a reply in scope = %+v, %v", dr, err)
+	}
+	if _, err := w.Draft().Update(ctx, &api.DraftUpdateParams{ID: dr.ID, Content: dr.Content}); err != nil {
+		t.Errorf("draft.update in scope: %v", err)
+	}
+	if list, err := w.Draft().List(ctx, &api.DraftListParams{}); err != nil || len(list) != 1 || list[0].ID != dr.ID {
+		t.Errorf("draft.list = %v, %v; want draft %d alone", list, err, dr.ID)
+	}
+	fresh, err := w.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	if err != nil || fresh.AccountID != n.a {
+		t.Errorf("a new draft from the scope's first account = %+v, %v; want account %d", fresh, err, n.a)
+	}
+	// Sync is off here: unavailable means the scope let it through.
+	if err := w.Message().SetFlags(ctx, &api.MessageSetFlagsParams{IDs: []int64{n.msgA}, Changes: api.FlagChanges{Seen: new(true)}}); !errors.Is(err, api.ErrUnavailable) {
+		t.Errorf("message.setFlags in scope = %v, want past the scope", err)
+	}
+	notFound := map[string]error{
+		"draft.create of the other account's message": func() error {
+			_, err := w.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindReply, SourceID: &n.msgB})
+			return err
+		}(),
+		"draft.create in the other account": func() error {
+			_, err := w.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew, AccountID: &n.b})
+			return err
+		}(),
+		"draft.get of the other account's": func() error {
+			_, err := w.Draft().Get(ctx, &api.DraftGetParams{ID: other.ID})
+			return err
+		}(),
+		"draft.update of the other account's": func() error {
+			_, err := w.Draft().Update(ctx, &api.DraftUpdateParams{ID: other.ID, Content: other.Content})
+			return err
+		}(),
+		"draft.delete of the other account's": w.Draft().Delete(ctx, &api.DraftDeleteParams{ID: other.ID}),
+		"message.setFlags of the other account's": w.Message().SetFlags(ctx, &api.MessageSetFlagsParams{
+			IDs: []int64{n.msgA, n.msgB}, Changes: api.FlagChanges{Seen: new(true)}}),
+		"message.move to the other account's inbox": w.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{n.msgA}, MailboxID: n.inboxB}),
+	}
+	for what, err := range notFound {
+		if !errors.Is(err, api.ErrNotFound) {
+			t.Errorf("%s = %v, want notFound", what, err)
+		}
+	}
+	if _, err := local.Draft().Get(ctx, &api.DraftGetParams{ID: other.ID}); err != nil {
+		t.Errorf("the other account's draft after the agent's delete: %v, want it kept", err)
+	}
+	for method, params := range map[string]any{
+		"draft.send":     map[string]any{"id": dr.ID},
+		"message.delete": map[string]any{"ids": []int64{n.msgA}},
+		"message.copy":   map[string]any{"ids": []int64{n.msgA}, "mailboxId": n.inboxA},
+		"draft.detach":   map[string]any{"id": dr.ID, "attachmentId": 1},
+	} {
+		if err := w.Call(ctx, method, params, nil); !errors.Is(err, api.ErrMethodNotFound) {
+			t.Errorf("%s under ;write = %v, want methodNotFound", method, err)
+		}
+	}
+
+	s, _ := n.srv.DialAs(t, agent("account="+itoa(n.a)+";send"))
+	if _, err := s.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew}); !errors.Is(err, api.ErrMethodNotFound) {
+		t.Errorf("draft.create under ;send alone = %v, want methodNotFound", err)
+	}
+	if _, err := s.Draft().Send(ctx, &api.DraftSendParams{ID: other.ID}); !errors.Is(err, api.ErrNotFound) {
+		t.Errorf("draft.send of the other account's draft = %v, want notFound", err)
+	}
+	item, err := s.Draft().Send(ctx, &api.DraftSendParams{ID: dr.ID})
+	if err != nil || item.AccountID != n.a {
+		t.Errorf("draft.send in scope = %+v, %v; want it queued", item, err)
+	}
+}
+
 // asLodge sends every request to the socket with c's Lodge-* headers.
 type asLodge struct {
 	c    kit.Caller
@@ -285,10 +373,94 @@ func TestAgentsReadMailThroughLodge(t *testing.T) {
 		t.Errorf("read_thread of the other account's message answered %+v, want an error", thread)
 	}
 
-	for _, scope := range []string{"account=*;write", "account=1;send", "vault=1"} {
-		if _, err := mcpClient(t, l, "claude", scope); err == nil {
-			t.Errorf("a session under scope %q opened, want 403", scope)
+	// A scope maild does not grant is 403 at initialize, before any session.
+	const initialize = `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",` +
+		`"capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`
+	for _, scope := range []string{"vault=1", "account=1;delete", "account=1;send;write", "account=1;"} {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "/mcp", strings.NewReader(initialize))
+		if err != nil {
+			t.Fatal(err)
 		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		resp, err := l.Do(req, kittest.Agent("claude", scope))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("initialize under scope %q = %d, want 403", scope, resp.StatusCode)
+		}
+	}
+}
+
+func toolNames(t *testing.T, cs *sdk.ClientSession) []string {
+	t.Helper()
+	tools, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, tool := range tools.Tools {
+		names = append(names, tool.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// TestAgentsDraftAndSendThroughLodge is plan 0011 Phase 5's done-when
+// through lodge's /mcp: a draft under account=<id>;write, no send under
+// it, nothing of another account; and a send under ;write;send.
+func TestAgentsDraftAndSendThroughLodge(t *testing.T) {
+	n := seedTwoAccounts(t)
+	l := startLodge(t, lodge.NewServer(lodge.Options{Ctx: t.Context(), Version: "test",
+		RPC: n.srv.RPC, Router: n.srv.Router, Log: discard()}))
+	ctx := t.Context()
+	cs, err := mcpClient(t, l, "claude", "account="+itoa(n.a)+";write")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"draft_reply", "list_mailboxes", "move_messages", "read_thread", "search_messages", "set_flags"}
+	if names := toolNames(t, cs); !slices.Equal(names, want) {
+		t.Errorf("tools under ;write = %v, want %v", names, want)
+	}
+	var draft struct {
+		DraftID int64    `json:"draft_id"`
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+	}
+	if call(t, cs, "draft_reply", map[string]any{"message_id": n.msgA, "text": "Thanks, Ann.\n\nSee you <then>."}, &draft) {
+		t.Fatal("draft_reply answered an error")
+	}
+	local := n.srv.Dial(t)
+	dr, err := local.Draft().Get(ctx, &api.DraftGetParams{ID: draft.DraftID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dr.AccountID != n.a || len(dr.Content.To) != 1 || dr.Content.To[0].Address != "ann@a.test" || draft.Subject != "Re: Budget A" ||
+		!strings.HasPrefix(dr.Content.HTML, "<p>Thanks, Ann.</p><p>See you &lt;then&gt;.</p>") || !strings.Contains(dr.Content.HTML, "approved") {
+		t.Errorf("the reply drafted = %+v (%+v), want Ann's reply above the quote", dr, draft)
+	}
+	if !call(t, cs, "draft_reply", map[string]any{"message_id": n.msgB, "text": "x"}, &draft) {
+		t.Error("draft_reply to the other account's message answered no error")
+	}
+	if res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "send_draft", Arguments: map[string]any{"draft_id": dr.ID}}); err == nil && !res.IsError {
+		t.Error("send_draft under ;write ran")
+	}
+
+	sender, err := mcpClient(t, l, "claude-send", "account="+itoa(n.a)+";write;send")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if names := toolNames(t, sender); !slices.Contains(names, "send_draft") {
+		t.Errorf("tools under ;write;send = %v, want send_draft too", names)
+	}
+	var sent struct {
+		OutboxID int64    `json:"outbox_id"`
+		To       []string `json:"to"`
+	}
+	if call(t, sender, "send_draft", map[string]any{"draft_id": dr.ID}, &sent) || sent.OutboxID == 0 || len(sent.To) != 1 {
+		t.Errorf("send_draft = %+v, want it queued to Ann", sent)
 	}
 }
 
