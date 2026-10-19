@@ -1474,6 +1474,12 @@ export interface MessageSource {
   text: string;
   /** The message is longer than text. */
   truncated: boolean;
+  /**
+   * With source's content, on a maild serving lodge: the whole message on
+   * maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with
+   * ?download=1 (docs/specs/lodge-app.md).
+   */
+  contentPath?: string;
 }
 
 /** Everything about a message except its body. */
@@ -1618,6 +1624,11 @@ export interface MessageDeleteParams {
 /** Params of message.source. */
 export interface MessageSourceParams {
   id: number;
+  /**
+   * Also name the whole message on maild's lodge content route, in
+   * contentPath.
+   */
+  content?: boolean;
 }
 
 /** Params of message.save. */
@@ -1723,6 +1734,8 @@ export interface MessageClient {
   /**
    * Raw Source and All Headers: the message as the server holds it, fetched
    * first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+   * With content, also the message's path on maild's lodge content route, for
+   * Save As by download.
    */
   source(params: MessageSourceParams): Promise<MessageSource>;
   /**

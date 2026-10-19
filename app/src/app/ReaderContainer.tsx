@@ -92,6 +92,36 @@ async function reportContext(client: Client, id: number, title: string, stale: (
   l.context({ kind: "message", ref: `mail${route}`, title });
 }
 
+/**
+ * saveMessage is Save As, the message as the server holds it in an .eml
+ * file (docs/specs/lodge-app.md, The web build): in lodge the browser
+ * downloads it from the content route; the desktop app asks where, then
+ * maild writes it there, or on a maild behind lodge the app downloads it
+ * from lodge's content node there.
+ */
+async function saveMessage(client: Client, id: number, subject: string): Promise<void> {
+  const contentPath = async () => {
+    const s = await client.message.source({ id, content: true });
+    if (!s.contentPath) throw new Error("maild did not name the message on lodge's content node");
+    return s.contentPath;
+  };
+  const l = lodge();
+  if (l) {
+    l.open(`${l.contentURL(await contentPath())}?download=1`);
+    return;
+  }
+  if (!isTauri()) return;
+  const name = (subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
+  const path = await save({
+    title: "Save Message",
+    defaultPath: `${name}.eml`,
+    filters: [{ name: "Email Message", extensions: ["eml"] }],
+  });
+  if (path === null) return;
+  if (remoteMaild()) await invoke("save_content", { contentPath: await contentPath(), path });
+  else await client.message.save({ id, path });
+}
+
 /** useReaderHeight sets --reader-height on el to its height: in lodge the
  * message frame fills the reader (ContentFrame). */
 function useReaderHeight(el: RefObject<HTMLElement | null>): void {
@@ -338,14 +368,8 @@ function ConversationMessage({
         else setHeaders((await client.message.source({ id })).headers);
       } else if (action === "source") {
         setSource(await client.message.source({ id }));
-      } else if (action === "save" && isTauri()) {
-        const subject = (summary.subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
-        const path = await save({
-          title: "Save Message",
-          defaultPath: `${subject}.eml`,
-          filters: [{ name: "Email Message", extensions: ["eml"] }],
-        });
-        if (path !== null) await client.message.save({ id, path });
+      } else if (action === "save") {
+        await saveMessage(client, id, summary.subject);
       } else if (action === "print") {
         window.print();
       }
@@ -387,8 +411,7 @@ function ConversationMessage({
             },
             { kind: "item", id: "source", label: "Raw Source…", shortcut: "Ctrl+Alt+U" },
             { kind: "separator" },
-            // Save As writes a path on maild's machine: not through lodge (lodge-app.md).
-            ...(IN_LODGE || remoteMaild() ? [] : [{ kind: "item" as const, id: "save", label: "Save As…" }]),
+            { kind: "item", id: "save", label: "Save As…" },
             { kind: "item", id: "print", label: "Print…", shortcut: "Ctrl+P" },
           ]}
           onSelect={(action) => {
@@ -404,7 +427,18 @@ function ConversationMessage({
           </pre>
         </section>
       )}
-      {source && <RawSourceSheet text={source.text} truncated={source.truncated} onClose={() => setSource(null)} />}
+      {source && (
+        <RawSourceSheet
+          text={source.text}
+          truncated={source.truncated}
+          onClose={() => setSource(null)}
+          onSave={() => {
+            void saveMessage(client, id, summary.subject).catch((err: unknown) =>
+              setError(err instanceof Error ? err.message : String(err)),
+            );
+          }}
+        />
+      )}
       {currentSummary.remindAt && (
         <ReminderBanner
           when={whenText(new Date(currentSummary.remindAt), now, timeZone, locale)}

@@ -411,7 +411,9 @@ export class MockTransport implements Transport {
           "MIME-Version: 1.0",
           "Content-Type: text/plain; charset=utf-8",
         ].join("\r\n");
-        return { headers, text: `${headers}\r\n\r\n${m.text}`, truncated: false };
+        const source = { headers, text: `${headers}\r\n\r\n${m.text}`, truncated: false };
+        // As a maild serving lodge names the message on its content route.
+        return p.content === true ? { ...source, contentPath: `m/mockmac/${m.summary.id}/message.eml` } : source;
       }
       case "message.save":
         this.find(num(p.id));

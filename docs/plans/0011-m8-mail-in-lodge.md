@@ -119,8 +119,11 @@ boundaries, so the planner builds them.
 - **Files.** Attaching sends the file's bytes over the RPC
   (`draft.attachData`, in chunks within the 16 MiB message limit; built),
   and an attachment's Save downloads it from the content route with
-  `?download=1` (built). Save As and Raw Source of a whole message are to
-  download from a content route for the message's source.
+  `?download=1` (built). Save As of a whole message, from the reader's
+  More menu or Raw Source's sheet, downloads the `.eml` from the content
+  route's `m/<mac>/<blob>/<name>`, which `message.source {content: true}`
+  names (built); the desktop app on a maild behind lodge downloads it
+  there through its Rust layer (`save_content`).
 - **Links between apps** (built). A permanent route by Message-ID
   (`/message/<Message-ID>`, resolved by `message.byMessageId`), which
   notes can link to, and which mail's context names. A canonical lodge
@@ -169,7 +172,8 @@ boundaries, so the planner builds them.
 The design is [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge).
 It depends on Phase 4's attaching by bytes and Save As by download.
 Built: `app.json` and the Server pane, the bridge's remote mode with the
-keepalive, `open_part`'s downloads, and the Flatpak's network, with
+keepalive, `open_part`'s downloads and Save As's (`save_content`), and the
+Flatpak's network, with
 `app/e2e/lodge.e2e.ts` replying through lodge's development build.
 Notifications are not built yet.
 

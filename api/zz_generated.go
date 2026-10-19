@@ -2522,6 +2522,10 @@ type MessageSource struct {
 	Text string `json:"text"`
 	// The message is longer than text.
 	Truncated bool `json:"truncated"`
+	// With source's content, on a maild serving lodge: the whole message on
+	// maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with
+	// ?download=1 (docs/specs/lodge-app.md).
+	ContentPath *string `json:"contentPath,omitzero"`
 }
 
 // Message: Everything about a message except its body.
@@ -2656,6 +2660,8 @@ type MessageDeleteParams struct {
 // MessageSourceParams holds the params of message.source.
 type MessageSourceParams struct {
 	ID int64 `json:"id"`
+	// Also name the whole message on maild's lodge content route, in contentPath.
+	Content *bool `json:"content,omitzero"`
 }
 
 // MessageSaveParams holds the params of message.save.
@@ -2738,7 +2744,8 @@ type MessageService interface {
 	Delete(ctx context.Context, p *MessageDeleteParams) error
 	// Source implements message.source. Raw Source and All Headers: the message
 	// as the server holds it, fetched first when it is not stored. Bytes that are
-	// not UTF-8 show as U+FFFD.
+	// not UTF-8 show as U+FFFD. With content, also the message's path on maild's
+	// lodge content route, for Save As by download.
 	Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error)
 	// Save implements message.save. Save As: write the message as the server
 	// holds it (an .eml file) to path, replacing a file there. invalidParams for
