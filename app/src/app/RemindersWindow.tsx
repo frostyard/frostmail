@@ -5,11 +5,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { ReminderPanel } from "../features/calendar/ReminderPanel";
 import { zoned } from "../lib/calendarDates";
+import { closeFrameWindow } from "../lodge/frameWindow";
 import type { Reminder } from "../rpc/gen/api";
 import { openOccurrenceInMain } from "./reminders";
 import { useCalendarColors, useCalendarFrame } from "./useCalendar";
 
 function closeWindow() {
+  if (closeFrameWindow()) return;
   if (isTauri())
     void getCurrentWindow()
       .close()

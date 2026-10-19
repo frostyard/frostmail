@@ -8,6 +8,7 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 
 import { withNotify } from "../lib/notify";
+import { IN_LODGE } from "../lodge/lodge";
 import type { Client, InviteNotice } from "../rpc/gen/api";
 import { UNDO_LIMIT } from "./undo";
 
@@ -59,6 +60,11 @@ export async function undoPim(
 
 /** announceRestore hands a write made in another window to the main window's undo list. */
 export async function announceRestore(restore: PimRestore): Promise<void> {
+  if (IN_LODGE) {
+    // lodge's event editor shares the main window's document.
+    rememberRestore(restore);
+    return;
+  }
   if (isTauri()) {
     await emitTo("main", EVENT, restore);
     return;

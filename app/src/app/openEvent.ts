@@ -7,6 +7,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { addDays, instantAt, zoned } from "../lib/calendarDates";
+import { openFrameWindow } from "../lodge/frameWindow";
 
 /** EditorTarget is what an event editor window edits: a stored event (one
  *  occurrence of a series when recurrenceId is set), or a new event with
@@ -60,6 +61,16 @@ function toHash(target: EditorTarget): string {
   return `#/event/new?${q}`;
 }
 
+/** eventRoute is a target's route in lodge: /event/<id>?… or /event/new?…. */
+export function eventRoute(target: EditorTarget): string {
+  return toHash(target).slice(1);
+}
+
+/** eventFromRoute is the target a lodge route names, or null. */
+export function eventFromRoute(route: string): EditorTarget | null {
+  return fromHash(`#${route}`);
+}
+
 /** editorTarget returns what this window edits, or null when it is not an event editor. */
 export function editorTarget(): EditorTarget | null {
   return window.__frostmailEvent ?? fromHash(window.location.hash);
@@ -74,6 +85,7 @@ export function windowLabel(target: EditorTarget, now = Date.now()): string {
 
 /** openEvent shows an event (or a new one) in its editor window, focusing the window that already shows it. */
 export async function openEvent(target: EditorTarget, title = ""): Promise<void> {
+  if (openFrameWindow({ kind: "event", target })) return;
   const label = windowLabel(target);
   if (isTauri()) {
     await invoke("open_event", { label, target, title: title || (target.kind === "new" ? "New Event" : "Event") });

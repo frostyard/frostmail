@@ -348,7 +348,8 @@ function ConversationMessage({
             },
             { kind: "item", id: "source", label: "Raw Source…", shortcut: "Ctrl+Alt+U" },
             { kind: "separator" },
-            { kind: "item", id: "save", label: "Save As…" },
+            // Save As writes a path on maild's machine: not from lodge (lodge-app.md).
+            ...(IN_LODGE ? [] : [{ kind: "item" as const, id: "save", label: "Save As…" }]),
             { kind: "item", id: "print", label: "Print…", shortcut: "Ctrl+P" },
           ]}
           onSelect={(action) => {

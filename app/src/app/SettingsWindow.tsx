@@ -22,6 +22,7 @@ import { type IdentityChange, IdentityEditor } from "../features/settings/Identi
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
 import { RulesPane } from "../features/settings/RulesPane";
 import { ServicesSection } from "../features/settings/ServicesSection";
+import { closeFrameWindow } from "../lodge/frameWindow";
 import type {
   Account,
   Client,
@@ -54,6 +55,7 @@ export function SettingsWindow() {
     document.title = "Settings";
   }, []);
   const close = () => {
+    if (closeFrameWindow()) return;
     if (isTauri()) void getCurrentWindow().close();
     else window.close();
   };
