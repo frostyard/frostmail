@@ -11,6 +11,7 @@ import { flagLabel } from "../lib/flags";
 import { buildSidebar, vipGroups } from "../lib/mailboxTree";
 import type { Module } from "../lib/modules";
 import type { TasksSource } from "../lib/taskText";
+import { STORAGE_PREFIX } from "../lodge/lodge";
 import type {
   Account,
   BlockedSender,
@@ -234,7 +235,8 @@ export const useUI = create<UIState & UIActions>()(
       setWidths: (w) => set(w),
     }),
     {
-      name: "frostmail.ui",
+      // lodge's apps share one origin's storage (lodge/lodge.ts).
+      name: `${STORAGE_PREFIX}frostmail.ui`,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         sidebarVisible: s.sidebarVisible,
