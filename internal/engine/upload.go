@@ -47,18 +47,17 @@ type upload struct {
 	seen     time.Time
 	f        *os.File
 	done     chan struct{} // closed when the upload ends
+	ending   sync.Once
 }
 
-// end closes and removes the upload's file; it is idempotent.
+// end closes and removes the upload's file, once: the request writing a
+// chunk and the end of its connection may both end it at the same time.
 func (u *upload) end() {
-	select {
-	case <-u.done:
-		return
-	default:
-	}
-	close(u.done)
-	_ = u.f.Close()
-	_ = os.Remove(u.f.Name())
+	u.ending.Do(func() {
+		close(u.done)
+		_ = u.f.Close()
+		_ = os.Remove(u.f.Name())
+	})
 }
 
 // uploads holds the uploads in progress, shared by every connection.

@@ -4,6 +4,8 @@
 | --- | --- | --- |
 | Unit | every `internal/` package; `tools/` | `make test` (in `make verify`) |
 | RPC wire | `internal/rpcserver/server_test.go` over real sockets via `internal/rpctest` | `make test` |
+| lodge's app socket | `internal/lodge/*_test.go`: lodge/kit's `kittest` plays lodge against `maild --lodge`'s handler on a real socket, checking each rule of [lodge-app.md](../specs/lodge-app.md): the peer check, each path's caller kinds and headers, `/health`, an `/api` session, the content route's pages, parts and messages with their headers, and `/mcp` through the MCP SDK's client, its tools, limits and scopes. Linux only: they skip elsewhere, as lodge does | `make test` |
+| Web build | `app/src/lodge/*.test.ts(x)` and the lodge cases of `app/src/app/*.test.tsx` (routes, the shell's history, windows as routes, the narrow layout, Save As, permalinks, notifications) in Vitest, with a fake lodge-client connection; `make web-build` builds the bundle for `/app/mail/`. In lodge's development build, `dev/lodge/run.sh ROOT fixture` serves generated mail to check it in a browser (plan 0011) | `make ui-test`, `make web-build` (nsl) |
 | IMAP, fast | `internal/imapx/imapxtest` (go-imap's in-memory server: no CONDSTORE, QRESYNC or Gmail extensions) | `make test` |
 | IMAP fork | `third_party/go-imap/imapclient/gmail_test.go` (scripted server) | `make test-fork` |
 | IMAP, recorded | `internal/mailsync/replay_test.go`: Gmail and iCloud sessions replayed (below) | `make test` |

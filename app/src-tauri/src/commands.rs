@@ -160,7 +160,7 @@ pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<
         let _ = w.unminimize();
         return w.set_focus().map_err(|e| e.to_string());
     }
-    crate::window(&app, &label)
+    let mut window = crate::window(&app, &label)
         .title("New Message")
         .inner_size(720.0, 560.0)
         .min_inner_size(480.0, 360.0)
@@ -170,10 +170,14 @@ pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<
             "window.__frostmailCompose = {draft_id}; window.__frostmailComposeFresh = {fresh};"
         ))
         .on_navigation(crate::allowed_navigation)
-        .visible(false)
-        .build()
-        .map(crate::show_soon)
-        .map_err(|e| e.to_string())
+        .visible(false);
+    // A maild behind lodge cannot read this machine's paths, so files
+    // dropped on the window reach the webview as files, whose bytes it
+    // sends (draft.attachData), as in a browser.
+    if remote::load().is_ok_and(|c| c.lodge.is_some()) {
+        window = window.disable_drag_drop_handler();
+    }
+    window.build().map(crate::show_soon).map_err(|e| e.to_string())
 }
 
 /// Open an event in its editor window (docs/specs/pim-ui.md, Event editor
