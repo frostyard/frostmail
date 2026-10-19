@@ -944,6 +944,16 @@ export interface DraftAttachment {
   size: number;
 }
 
+/** An attachment arriving in chunks (draft.attachData). */
+export interface DraftUpload {
+  /** Names the upload in its later chunks. */
+  uploadId: string;
+  /** The bytes maild holds: the next chunk's offset. */
+  received: number;
+  /** The attachment, once the last chunk is in. */
+  attachment?: DraftAttachment;
+}
+
 /** What a compose window edits. */
 export interface DraftContent {
   identityId: number;
@@ -1007,6 +1017,24 @@ export interface DraftAttachParams {
   path: string;
 }
 
+/** Params of draft.attachData. */
+export interface DraftAttachDataParams {
+  id: number;
+  /** The file's name, without a directory. */
+  filename: string;
+  /** The whole file's bytes; the draft's attachments may total 25 MB. */
+  size: number;
+  /** Where this chunk starts: 0, then the last result's received. */
+  offset: number;
+  /**
+   * The chunk's bytes, base64 (standard alphabet, padded), 1 byte to 4 MiB
+   * decoded.
+   */
+  data: string;
+  /** The upload, for every chunk after the first. */
+  uploadId?: string;
+}
+
 /** Params of draft.detach. */
 export interface DraftDetachParams {
   id: number;
@@ -1065,6 +1093,18 @@ export interface DraftClient {
    * matter.
    */
   attach(params: DraftAttachParams): Promise<DraftAttachment>;
+  /**
+   * Attach a file by its bytes, for a client that cannot name a path on
+   * maild's machine, such as a browser through lodge: in chunks, in order.
+   * The first chunk (offset 0, without uploadId) starts an upload of size
+   * bytes named filename; each later one names the upload and the offset it
+   * continues at. The chunk that completes size attaches the file as
+   * draft.attach does, and the result carries it. maild checks the name and
+   * the size, names the type from the name and the bytes, and discards an
+   * upload its connection leaves unfinished, or that sends nothing for 10
+   * minutes.
+   */
+  attachData(params: DraftAttachDataParams): Promise<DraftUpload>;
   /** Remove an attachment from a draft. */
   detach(params: DraftDetachParams): Promise<void>;
   /** Discard a draft, and its server copy. */
@@ -1085,6 +1125,7 @@ function draftClient(t: Transport): DraftClient {
     list: (params = {}) => t.call<Draft[]>("draft.list", params),
     update: (params) => t.call<Draft>("draft.update", params),
     attach: (params) => t.call<DraftAttachment>("draft.attach", params),
+    attachData: (params) => t.call<DraftUpload>("draft.attachData", params),
     detach: (params) => t.call<null>("draft.detach", params).then(() => undefined),
     delete: (params) => t.call<null>("draft.delete", params).then(() => undefined),
     send: (params) => t.call<OutboxItem>("draft.send", params),
@@ -2990,6 +3031,7 @@ export const METHODS = [
   "draft.list",
   "draft.update",
   "draft.attach",
+  "draft.attachData",
   "draft.detach",
   "draft.delete",
   "draft.send",

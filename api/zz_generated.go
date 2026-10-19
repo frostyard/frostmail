@@ -1638,6 +1638,16 @@ type DraftAttachment struct {
 	Size int64 `json:"size"`
 }
 
+// DraftUpload: An attachment arriving in chunks (draft.attachData).
+type DraftUpload struct {
+	// Names the upload in its later chunks.
+	UploadID string `json:"uploadId"`
+	// The bytes maild holds: the next chunk's offset.
+	Received int64 `json:"received"`
+	// The attachment, once the last chunk is in.
+	Attachment *DraftAttachment `json:"attachment,omitzero"`
+}
+
 // DraftContent: What a compose window edits.
 type DraftContent struct {
 	IdentityID int64     `json:"identityId"`
@@ -1699,6 +1709,22 @@ type DraftAttachParams struct {
 	Path string `json:"path"`
 }
 
+// DraftAttachDataParams holds the params of draft.attachData.
+type DraftAttachDataParams struct {
+	ID int64 `json:"id"`
+	// The file's name, without a directory.
+	Filename string `json:"filename"`
+	// The whole file's bytes; the draft's attachments may total 25 MB.
+	Size int64 `json:"size"`
+	// Where this chunk starts: 0, then the last result's received.
+	Offset int64 `json:"offset"`
+	// The chunk's bytes, base64 (standard alphabet, padded), 1 byte to 4 MiB
+	// decoded.
+	Data string `json:"data"`
+	// The upload, for every chunk after the first.
+	UploadID *string `json:"uploadId,omitzero"`
+}
+
 // DraftDetachParams holds the params of draft.detach.
 type DraftDetachParams struct {
 	ID           int64 `json:"id"`
@@ -1738,6 +1764,16 @@ type DraftService interface {
 	// Attach implements draft.attach. Attach a local file; maild copies it, so
 	// later changes to the file do not matter.
 	Attach(ctx context.Context, p *DraftAttachParams) (*DraftAttachment, error)
+	// AttachData implements draft.attachData. Attach a file by its bytes, for a
+	// client that cannot name a path on maild's machine, such as a browser
+	// through lodge: in chunks, in order. The first chunk (offset 0, without
+	// uploadId) starts an upload of size bytes named filename; each later one
+	// names the upload and the offset it continues at. The chunk that completes
+	// size attaches the file as draft.attach does, and the result carries it.
+	// maild checks the name and the size, names the type from the name and the
+	// bytes, and discards an upload its connection leaves unfinished, or that
+	// sends nothing for 10 minutes.
+	AttachData(ctx context.Context, p *DraftAttachDataParams) (*DraftUpload, error)
 	// Detach implements draft.detach. Remove an attachment from a draft.
 	Detach(ctx context.Context, p *DraftDetachParams) error
 	// Delete implements draft.delete. Discard a draft, and its server copy.
@@ -1790,6 +1826,13 @@ func registerDraft(r *Router, s DraftService) {
 			return nil, err
 		}
 		return s.Attach(ctx, &p)
+	})
+	r.handle("draft.attachData", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftAttachDataParams
+		if err := decodeParams(raw, &p, []string{"id", "filename", "size", "offset", "data"}); err != nil {
+			return nil, err
+		}
+		return s.AttachData(ctx, &p)
 	})
 	r.handle("draft.detach", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p DraftDetachParams
@@ -1873,6 +1916,16 @@ func (x DraftClient) Update(ctx context.Context, p *DraftUpdateParams) (*Draft, 
 func (x DraftClient) Attach(ctx context.Context, p *DraftAttachParams) (*DraftAttachment, error) {
 	var r DraftAttachment
 	err := x.c.Call(ctx, "draft.attach", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// AttachData calls draft.attachData.
+func (x DraftClient) AttachData(ctx context.Context, p *DraftAttachDataParams) (*DraftUpload, error) {
+	var r DraftUpload
+	err := x.c.Call(ctx, "draft.attachData", p, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -5314,6 +5367,7 @@ var methodCallers = map[string][]CallerKind{
 	"draft.list":              {CallerKindLocal, CallerKindSession},
 	"draft.update":            {CallerKindLocal, CallerKindSession},
 	"draft.attach":            {CallerKindLocal},
+	"draft.attachData":        {CallerKindLocal, CallerKindSession},
 	"draft.detach":            {CallerKindLocal, CallerKindSession},
 	"draft.delete":            {CallerKindLocal, CallerKindSession},
 	"draft.send":              {CallerKindLocal, CallerKindSession},
@@ -5431,6 +5485,7 @@ var Methods = []string{
 	"draft.list",
 	"draft.update",
 	"draft.attach",
+	"draft.attachData",
 	"draft.detach",
 	"draft.delete",
 	"draft.send",
