@@ -1,10 +1,10 @@
 // The settings window (docs/specs/settings-ui.md): the pane tabs and the
 // containers that connect the General, Accounts, Signatures, Rules and Sign-In
 // panes to maild.
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { AtSign, KeyRound, ListFilter, PenLine, Settings2, X } from "lucide-react";
+import { AtSign, KeyRound, ListFilter, PenLine, Server, Settings2, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
@@ -21,6 +21,7 @@ import { GeneralPane } from "../features/settings/GeneralPane";
 import { type IdentityChange, IdentityEditor } from "../features/settings/IdentityEditor";
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
 import { RulesPane } from "../features/settings/RulesPane";
+import { ServerPane } from "../features/settings/ServerPane";
 import { ServicesSection } from "../features/settings/ServicesSection";
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type {
@@ -38,7 +39,7 @@ import { ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 import { openInBrowser } from "./settings";
 
-type Pane = "general" | "accounts" | "signatures" | "rules" | "signin";
+type Pane = "general" | "accounts" | "signatures" | "rules" | "signin" | "server";
 
 const TABS: { pane: Pane; label: string; icon: ReactNode }[] = [
   { pane: "general", label: "General", icon: <Settings2 size={18} /> },
@@ -46,6 +47,9 @@ const TABS: { pane: Pane; label: string; icon: ReactNode }[] = [
   { pane: "signatures", label: "Signatures", icon: <PenLine size={18} /> },
   { pane: "rules", label: "Rules", icon: <ListFilter size={18} /> },
   { pane: "signin", label: "Sign-In", icon: <KeyRound size={18} /> },
+  // Which maild the desktop app asks: not in a browser, which reaches the
+  // maild that served it.
+  ...(isTauri() ? [{ pane: "server" as const, label: "Server", icon: <Server size={18} /> }] : []),
 ];
 
 /** SettingsWindow is the settings window's content. */
@@ -97,6 +101,7 @@ export function SettingsWindow() {
         {pane === "signatures" && <SignaturesPane />}
         {pane === "rules" && <RulesPaneContainer />}
         {pane === "signin" && <SignInPane />}
+        {pane === "server" && <ServerPaneContainer />}
       </div>
     </div>
   );
@@ -581,6 +586,23 @@ function SignaturesPane() {
       onRemove={remove}
     />
   );
+}
+
+function ServerPaneContainer() {
+  const [lodge, setLodge] = useState<string | null>(null);
+  const { busy, error, setError, run } = useRequest();
+  useEffect(() => {
+    invoke<{ lodge?: string }>("app_config_get").then(
+      (c) => setLodge(c.lodge ?? null),
+      (err: unknown) => setError(message(err)),
+    );
+  }, [setError]);
+  const save = (next: string | null) =>
+    void run(async () => {
+      await invoke("app_config_set", { config: next === null ? {} : { lodge: next } });
+      setLodge(next);
+    });
+  return <ServerPane lodge={lodge} busy={busy} error={error} onSave={save} />;
 }
 
 function SignInPane() {

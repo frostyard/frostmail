@@ -181,11 +181,15 @@ A local maild, as above, stays the mode for installs outside the owner's
 tailnet, such as the friend's Windows install.
 
 - **Which maild.** The app reads `$XDG_CONFIG_HOME/frostmail/app.json`
-  (`%APPDATA%\Frostmail\app.json` on Windows): `{"lodge":
+  (the Flatpak's own, `~/.var/app/org.frostyard.Frostmail/config`;
+  `%APPDATA%\Frostmail\app.json` on Windows): `{"lodge":
   "https://lodge.<tailnet>.ts.net"}` reaches maild through lodge, and no
   file, or no `lodge`, means the local socket. It is the app's own, never
-  maild's, since it names which maild to ask. Settings shows the choice,
-  and changing it reconnects every window.
+  maild's, since it names which maild to ask (`src-tauri/src/remote.rs`).
+  lodge's address is https, or http on loopback for lodge's development
+  build. Settings' Server pane shows the choice
+  ([settings-ui.md](../specs/settings-ui.md#server-pane)), and changing it
+  ends every window's connection, which each then reconnects.
 - **The bridge's remote mode.** `bridge.rs` opens
   `wss://LODGE/app/mail/api` in place of the socket and moves the same
   lines, one per text frame. It still never parses them.
@@ -196,8 +200,9 @@ tailnet, such as the friend's Windows install.
     the bridge is not: identity still comes from WhoIs alone, with the
     desktop's node and login on lodge's allow-lists. lodge-http admits
     native clients this way (the lodge program's decision D7).
-  - TLS is lodge's Tailscale certificate, checked against the system's
-    roots.
+  - TLS is lodge's Tailscale certificate: rustls with ring and the web's
+    roots on Linux, the system's TLS (SChannel) on Windows, which builds
+    with no C toolchain for the target.
   - The webview's transport sends `rpc.ping` every 30 s, visible or not,
     since lodge closes a session after 90 s without a frame.
   - Each window has its own connection, as on the socket, so each is a
@@ -216,10 +221,18 @@ tailnet, such as the friend's Windows install.
   caller cannot read or write the desktop's files, so attaching sends the
   file's bytes (`draft.attachData`) and Save As downloads the source from
   the content route, both from plan 0011's Phase 4.
-- **Notifications.** A remote maild has no session bus. It sends each
-  connected client a transient event when an announcement is due, and the
-  desktop app shows it with its own notifier; a click opens the message,
-  as `--open-message` does.
+- **Notifications** (not built yet). A remote maild has no session bus.
+  It is to send each connected client a transient event when an
+  announcement is due, for the desktop app's own notifier; a click opens
+  the message, as `--open-message` does.
+- **What does not change:** with no `lodge` in `app.json`, the bridge,
+  the parts and every window are as above, on maild's own socket or pipe.
+- **Tests:** `src-tauri/src/remote.rs`'s tests (addresses, the
+  configuration, downloads through the content origin `/lodge/apps` names);
+  `app/e2e/lodge.e2e.ts` runs lodge's development build, `maild --lodge` on
+  a fixture and the built app with `app.json` naming lodge, and lists,
+  reads and sends a reply through it. It needs lodge's `make e2e-build`
+  output in `FROSTMAIL_LODGE_E2E`, and skips without it.
 - **The Flatpak** gains `--share=network` for the Rust layer. The
   webview's CSP still forbids every fetch, so ADR-0005's third layer
   holds, though the sandbox no longer cuts the network on its own.

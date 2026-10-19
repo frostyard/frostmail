@@ -45,6 +45,7 @@ import type {
   Unsubscribe,
   UnsubscribeResult,
 } from "../rpc/gen/api";
+import { remoteMaild } from "../rpc/transport/tauri";
 import { ContactCardContainer } from "./ContactCardContainer";
 import { remindMessages } from "./commands";
 import { useCalendarFrame } from "./useCalendar";
@@ -284,7 +285,10 @@ function ConversationMessage({
     (part: Part) => {
       void client.message.part({ id, path: part.path }).then((f) => {
         const l = lodge();
-        if (isTauri()) void invoke("open_part", { path: f.path }).catch(() => {});
+        if (isTauri())
+          void invoke("open_part", { path: f.path, contentPath: f.contentPath ?? null, filename: f.filename }).catch(
+            (err: unknown) => console.warn("open part", err),
+          );
         else if (l && f.contentPath) l.open(l.contentURL(f.contentPath));
         else window.open(`/mailpart/${f.path}`, "_blank", "noopener,noreferrer");
       });
@@ -348,8 +352,8 @@ function ConversationMessage({
             },
             { kind: "item", id: "source", label: "Raw Source…", shortcut: "Ctrl+Alt+U" },
             { kind: "separator" },
-            // Save As writes a path on maild's machine: not from lodge (lodge-app.md).
-            ...(IN_LODGE ? [] : [{ kind: "item" as const, id: "save", label: "Save As…" }]),
+            // Save As writes a path on maild's machine: not through lodge (lodge-app.md).
+            ...(IN_LODGE || remoteMaild() ? [] : [{ kind: "item" as const, id: "save", label: "Save As…" }]),
             { kind: "item", id: "print", label: "Print…", shortcut: "Ctrl+P" },
           ]}
           onSelect={(action) => {

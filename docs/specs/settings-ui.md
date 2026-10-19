@@ -37,7 +37,8 @@ this spec adds no tokens.
   `--selection-inactive` filled with `--text-primary` and
   `aria-pressed="true"`. Tabs: General (`Settings2`, M5), Accounts
   (`AtSign`), Signatures (`PenLine`), Rules (`ListFilter`, M5), Sign-In
-  (`KeyRound`). The window opens on Accounts.
+  (`KeyRound`), and in the desktop app only Server (`Server`, M8). The
+  window opens on Accounts.
 - The pane fills the rest of the window.
 
 ## Shared pieces
@@ -570,9 +571,42 @@ interface OAuthClientFormProps {
   empty. Saving calls `onSave(trimmed ID, secret)`; afterwards the secret
   field is emptied.
 
+## Server pane
+
+The desktop app only: which maild it asks (ADR-0041,
+[design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge)). A
+browser reaches the maild that served it, and shows no Server tab.
+
+### `ServerPane`
+
+```ts
+interface ServerPaneProps {
+  lodge: string | null; // lodge's address, or null for this computer's maild
+  busy: boolean;
+  error: string | null;
+  onSave: (lodge: string | null) => void;
+}
+```
+
+- A `form` with `aria-label="Server"`, laid out as `OAuthClientForm`: an
+  `h2` "Server", then a `p`: "Frostmail reads your mail through maild: the
+  one on this computer, or the one behind lodge on your tailnet, which your
+  phone and browsers use too."
+- Two radios, "maild on this computer" and "maild behind lodge". With the
+  second, the `AccountForm` grid shows `lodge:` (`server-lodge`, `input
+  type="url"`, placeholder `https://lodge.example.ts.net`).
+- An alert as in `AccountForm`, then "Save" (primary), disabled while
+  `busy`, while lodge is chosen with an empty address, and while the
+  choice equals the stored one. Saving calls `onSave` with the trimmed
+  address, or null.
+- The container reads and writes the app's own `app.json` through the
+  `app_config_get` and `app_config_set` commands. The shell checks the
+  address (https, or http on loopback only), saves it, and ends every
+  window's connection, so each reconnects to the maild now chosen.
+
 ## References
 
-- Rationale: [ADR-0011](../adr/0011-sign-in-and-credentials.md)
+- Rationale: [ADR-0011](../adr/0011-sign-in-and-credentials.md), [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md) (Server)
 - Context: [design/accounts.md](../design/accounts.md),
   [plan 0006](../plans/0006-m4-daily-driver.md)
 - Shared conventions: [ui.md](ui.md), [compose-ui.md](compose-ui.md)
