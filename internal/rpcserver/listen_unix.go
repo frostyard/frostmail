@@ -15,4 +15,6 @@ import (
 // socket is replaced; a live one means maild is already running. Accept
 // admits only processes of the user running maild, and closes the rest,
 // logged to log.
-func Listen(path string, log *slog.Logger) (net.Listener, error) { return jsonrpc.Listen(path, log) }
+func Listen(path string, log *slog.Logger) (net.Listener, error) {
+	return jsonrpc.ListenWith(path, jsonrpc.ListenOptions{Name: "maild", Logger: log})
+}
