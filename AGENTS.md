@@ -25,12 +25,15 @@ symlinks to it; edit this file only.
 - `cmd/maild`: the daemon. `cmd/mailctl`: the CLI (clix/cobra; one
   `newXxxCmd(opts)` per file).
 - `api/`: the RPC contract. `zz_generated.go` comes from `schema/rpc/*.yaml`
-  via `tools/rpcgen` (`make gen`); `api.go` and `client.go` are the
-  hand-written runtime. Never edit generated files.
+  via `tools/rpcgen` (`make gen`); `api.go`, `client.go` and `conn.go` name
+  the runtime, which lodge's kit provides (`github.com/frostyard/lodge/kit/jsonrpc`).
+  Never edit generated files.
 - `internal/store`: SQLite (modernc, pure Go): migrations, the single-writer
   `Tx`, the durable `changes` log, queries.
 - `internal/events`: fans committed events out to subscribers and replays
-  the log. `internal/rpcserver`: the socket server. `internal/engine`: the API
+  the log. `internal/rpcserver`: the socket server, on the kit's
+  JSON-RPC server, with its private socket (the kit's on Linux, a named pipe
+  on Windows). `internal/engine`: the API
   domains over the store. `internal/rpctest`: a real server for tests.
 - `internal/lodge`: maild as lodge's `mail` app (`maild --lodge`, on
   lodge/kit): the app socket and its content route

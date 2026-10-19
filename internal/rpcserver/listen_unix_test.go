@@ -23,7 +23,7 @@ func TestListenRejectsOpenDirectory(t *testing.T) {
 	if err := os.Chmod(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rpcserver.Listen(filepath.Join(dir, "maild.sock")); err == nil || !strings.Contains(err.Error(), "want 0700") {
+	if _, err := rpcserver.Listen(filepath.Join(dir, "maild.sock"), nil); err == nil || !strings.Contains(err.Error(), "want 0700") {
 		t.Fatalf("Listen in a 0755 directory = %v", err)
 	}
 }

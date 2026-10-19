@@ -3,6 +3,7 @@ package rpcserver
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"runtime"
 	"time"
@@ -15,8 +16,9 @@ import (
 // ADR-0038). Its DACL grants only the user maild runs as, and remote
 // clients are refused. A pipe already there means maild is running: a
 // named pipe disappears with the process that made it, so none is ever
-// stale.
-func Listen(path string) (net.Listener, error) {
+// stale. Accept admits only clients running as that user, and closes the
+// rest, logged to log: on Linux lodge's kit does the same (listen_unix.go).
+func Listen(path string, log *slog.Logger) (net.Listener, error) {
 	sid, err := ownSID()
 	if err != nil {
 		return nil, err
@@ -36,7 +38,31 @@ func Listen(path string) (net.Listener, error) {
 		}
 		return nil, fmt.Errorf("listen: %w", err)
 	}
-	return ln, nil
+	return &peerChecked{Listener: ln, log: log}, nil
+}
+
+// peerChecked is the pipe's listener: Accept admits only the user's own
+// clients (checkPeer), and closes the rest, logged to log.
+type peerChecked struct {
+	net.Listener
+	log *slog.Logger
+}
+
+func (l *peerChecked) Accept() (net.Conn, error) {
+	for {
+		nc, err := l.Listener.Accept()
+		if err != nil {
+			return nil, err
+		}
+		if err := checkPeer(nc); err != nil {
+			if l.log != nil {
+				l.log.Warn("rejected connection", "err", err)
+			}
+			_ = nc.Close()
+			continue
+		}
+		return nc, nil
+	}
 }
 
 // checkPeer admits only processes of the user running maild: it
