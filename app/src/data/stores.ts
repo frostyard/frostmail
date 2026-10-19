@@ -114,6 +114,8 @@ export interface UIState {
   anchor: number | null;
   focus: Pane;
   sidebarVisible: boolean;
+  /** A narrow window shows Mailboxes in place of the list (docs/specs/ui.md, Narrow windows). */
+  mailboxesOpen: boolean;
   sidebarWidth: number;
   listWidth: number;
   conversations: boolean;
@@ -156,6 +158,7 @@ export interface UIActions {
   select: (ids: number[], anchor?: number | null) => void;
   setFocus: (p: Pane) => void;
   toggleSidebar: () => void;
+  openMailboxes: (open: boolean) => void;
   setWidths: (w: { sidebarWidth?: number; listWidth?: number }) => void;
 }
 
@@ -186,6 +189,7 @@ const initialUI: UIState = {
   anchor: null,
   focus: "list",
   sidebarVisible: true,
+  mailboxesOpen: false,
   sidebarWidth: 220,
   listWidth: 360,
   conversations: true,
@@ -219,7 +223,8 @@ export const useUI = create<UIState & UIActions>()(
       commitPeopleSearch: (peopleSearch) => set({ peopleSearch }),
       clearPeopleSearch: () => set({ peopleSearch: "", peopleSearchDraft: "" }),
       setPeopleFocus: (peopleFocus) => set({ peopleFocus }),
-      setSource: (source) => set({ source, search: "", searchDraft: "", selected: [], anchor: null }),
+      setSource: (source) =>
+        set({ source, search: "", searchDraft: "", selected: [], anchor: null, mailboxesOpen: false }),
       setSearchDraft: (searchDraft) => set({ searchDraft }),
       commitSearch: (search) => set({ search, selected: [], anchor: null }),
       clearSearch: () => set({ search: "", searchDraft: "", selected: [], anchor: null }),
@@ -232,6 +237,7 @@ export const useUI = create<UIState & UIActions>()(
       select: (selected, anchor) => set((s) => ({ selected, anchor: anchor === undefined ? s.anchor : anchor })),
       setFocus: (focus) => set({ focus }),
       toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
+      openMailboxes: (mailboxesOpen) => set({ mailboxesOpen }),
       setWidths: (w) => set(w),
     }),
     {

@@ -224,8 +224,10 @@ tailnet, such as the friend's Windows install.
     `lodge-content` for its first label) only when that request fails.
 - **What a remote maild cannot do for the desktop.** maild's session
   caller cannot read or write the desktop's files, so attaching sends the
-  file's bytes (`draft.attachData`) and Save As downloads the source from
-  the content route, both from plan 0011's Phase 4.
+  file's bytes (`draft.attachData`), and Save As asks where with the
+  native dialog as before, then `save_content` downloads the message
+  `message.source {content: true}` names (`m/…`) from the content node
+  into that file, in the Rust layer as `open_part` downloads parts.
 - **Notifications.** A remote maild has no session bus, so it sends each
   connected client `message.announced` (above, built). The desktop app's
   own notifier is to show them; a click opens the message, as

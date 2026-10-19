@@ -241,6 +241,50 @@ func TestNewMailIsAnnouncedToSessions(t *testing.T) {
 	}
 }
 
+func TestSaveAsDownloadsTheSource(t *testing.T) {
+	srv, c, id := start(t)
+	ctx := t.Context()
+
+	s, err := c.Message().Source(ctx, &api.MessageSourceParams{ID: id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.ContentPath != nil {
+		t.Errorf("source without content named a path: %s", *s.ContentPath)
+	}
+	sess, _ := srv.DialAs(t, api.Caller{Kind: api.CallerKindSession, Login: "e2e@example.com", NodeName: "e2e"})
+	yes := true
+	s, err = sess.Message().Source(ctx, &api.MessageSourceParams{ID: id, Content: &yes})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.ContentPath == nil || !strings.HasPrefix(*s.ContentPath, "m/") || !strings.HasSuffix(*s.ContentPath, "/Pictures.eml") {
+		t.Fatalf("contentPath = %v, want m/<mac>/<blob>/Pictures.eml", s.ContentPath)
+	}
+
+	// lodge-content fetches it for the browser's download.
+	l := lodgeSocket(t, srv)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/content/"+*s.ContentPath+"?download=1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := l.Do(req, kittest.Content())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || string(body) != s.Text {
+		t.Fatalf("the download = %d, %d bytes; want 200 and the source's %d", resp.StatusCode, len(body), len(s.Text))
+	}
+	if got, want := resp.Header.Get("Content-Disposition"), "attachment; filename*=UTF-8''Pictures.eml"; got != want {
+		t.Errorf("Content-Disposition = %q, want %q", got, want)
+	}
+	if code, _ := l.Get(t, "/content/"+*s.ContentPath, kittest.Session()); code != http.StatusForbidden {
+		t.Errorf("the source as a session = %d, want 403", code)
+	}
+}
+
 // onLinux skips a test that drives lodge's app socket off Linux: lodge and
 // its app sockets are Linux-only, and the kit's peer check refuses every
 // connection elsewhere (ADR-0041).

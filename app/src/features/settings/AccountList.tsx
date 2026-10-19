@@ -38,7 +38,10 @@ function statusOf(account: Account): { text: string; className: string } {
 export function AccountList({ accounts, selected, onSelect, onAdd, onRemove }: AccountListProps) {
   const selectedId = typeof selected === "number" ? selected : null;
   return (
-    <nav aria-label="Accounts" className="flex h-full w-[220px] shrink-0 flex-col border-r border-separator bg-sidebar">
+    <nav
+      aria-label="Accounts"
+      className="flex h-full w-[220px] shrink-0 flex-col border-r border-separator bg-sidebar narrow:h-auto narrow:max-h-[35%] narrow:w-full narrow:border-r-0 narrow:border-b"
+    >
       <ul className="flex-1 overflow-y-auto py-2">
         {accounts.map((account) => {
           const isSelected = account.id === selectedId;

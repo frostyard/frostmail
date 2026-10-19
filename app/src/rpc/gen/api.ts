@@ -1490,6 +1490,12 @@ export interface MessageSource {
   text: string;
   /** The message is longer than text. */
   truncated: boolean;
+  /**
+   * With source's content, on a maild serving lodge: the whole message on
+   * maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with
+   * ?download=1 (docs/specs/lodge-app.md).
+   */
+  contentPath?: string;
 }
 
 /** Everything about a message except its body. */
@@ -1578,6 +1584,12 @@ export interface MessageSummariesParams {
   ids: number[];
 }
 
+/** Params of message.byMessageId. */
+export interface MessageByMessageIDParams {
+  /** The Message-ID, with or without its angle brackets. */
+  messageId: string;
+}
+
 /** Params of message.render. */
 export interface MessageRenderParams {
   id: number;
@@ -1628,6 +1640,11 @@ export interface MessageDeleteParams {
 /** Params of message.source. */
 export interface MessageSourceParams {
   id: number;
+  /**
+   * Also name the whole message on maild's lodge content route, in
+   * contentPath.
+   */
+  content?: boolean;
 }
 
 /** Params of message.save. */
@@ -1710,6 +1727,13 @@ export interface MessageClient {
    */
   summaries(params: MessageSummariesParams): Promise<MessageSummary[]>;
   /**
+   * The message a Message-ID names, for lodge's permanent route
+   * /message/<Message-ID> (docs/specs/lodge-app.md): among the stored
+   * messages with that Message-ID, one in an inbox, else one in neither Trash
+   * nor Junk, else any; the earliest stored of those. notFound when none is.
+   */
+  byMessageId(params: MessageByMessageIDParams): Promise<MessageSummary>;
+  /**
    * A message prepared for the reader, fetching it first if it is not stored
    * locally. Remote images are loaded through maild only when remote is true;
    * tracking images never are.
@@ -1737,6 +1761,8 @@ export interface MessageClient {
   /**
    * Raw Source and All Headers: the message as the server holds it, fetched
    * first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+   * With content, also the message's path on maild's lodge content route, for
+   * Save As by download.
    */
   source(params: MessageSourceParams): Promise<MessageSource>;
   /**
@@ -1783,6 +1809,7 @@ function messageClient(t: Transport): MessageClient {
     get: (params) => t.call<Message>("message.get", params),
     body: (params) => t.call<Body>("message.body", params),
     summaries: (params) => t.call<MessageSummary[]>("message.summaries", params),
+    byMessageId: (params) => t.call<MessageSummary>("message.byMessageId", params),
     render: (params) => t.call<Rendering>("message.render", params),
     part: (params) => t.call<PartFile>("message.part", params),
     setFlags: (params) => t.call<null>("message.setFlags", params).then(() => undefined),
@@ -3078,6 +3105,7 @@ export const METHODS = [
   "message.get",
   "message.body",
   "message.summaries",
+  "message.byMessageId",
   "message.render",
   "message.part",
   "message.setFlags",

@@ -193,7 +193,7 @@ func run(ctx context.Context, args []string) (err error) {
 		if lodgeLn, err = lodge.Listen(); err != nil {
 			return fmt.Errorf("lodge socket: %w", err)
 		}
-		if content, err = lodge.NewContent(parts); err != nil {
+		if content, err = lodge.NewContent(parts, blobs); err != nil {
 			return err
 		}
 	}

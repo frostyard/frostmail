@@ -2,17 +2,20 @@ import { useEffect, useId, useRef } from "react";
 
 import { BUTTON } from "../settings/labels";
 
-/** RawSourceSheetProps supplies the source and the sheet's close callback. */
+/** RawSourceSheetProps supplies the source and the sheet's callbacks. */
 export interface RawSourceSheetProps {
   text: string;
   truncated: boolean;
   onClose: () => void;
+  /** Save As: the whole message, however much of it the sheet shows. */
+  onSave?: () => void;
 }
 
 /** RawSourceSheet shows the message as the server holds it. */
-export function RawSourceSheet({ text, truncated, onClose }: RawSourceSheetProps) {
+export function RawSourceSheet({ text, truncated, onClose, onSave }: RawSourceSheetProps) {
   const titleId = useId();
   const close = useRef<HTMLButtonElement>(null);
+  const saveAs = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const previous = document.activeElement;
     close.current?.focus();
@@ -34,8 +37,10 @@ export function RawSourceSheet({ text, truncated, onClose }: RawSourceSheetProps
             event.preventDefault();
             onClose();
           } else if (event.key === "Tab") {
+            // Focus stays on the sheet's buttons.
             event.preventDefault();
-            close.current?.focus();
+            const next = document.activeElement === close.current && saveAs.current ? saveAs : close;
+            next.current?.focus();
           }
         }}
       >
@@ -44,7 +49,12 @@ export function RawSourceSheet({ text, truncated, onClose }: RawSourceSheetProps
         </h2>
         <pre className="h-[480px] overflow-auto select-text font-mono text-[12px] leading-[18px]">{text}</pre>
         {truncated && <p className="mt-3 text-[12px] text-secondary">The message is longer than what is shown.</p>}
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 flex justify-end gap-2">
+          {onSave && (
+            <button ref={saveAs} type="button" className={BUTTON} onClick={onSave}>
+              Save As…
+            </button>
+          )}
           <button ref={close} type="button" className={BUTTON} onClick={onClose}>
             Close
           </button>

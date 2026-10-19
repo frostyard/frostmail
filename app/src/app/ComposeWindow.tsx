@@ -387,6 +387,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         laterChoices={laterChoices}
         onSendAt={(at) => void send(at)}
         onCommand={onCommand}
+        windowControls={isTauri()}
       />
       {sendLater && (
         <TimeSheet

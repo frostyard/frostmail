@@ -63,11 +63,11 @@ export function IdentityEditor({ accounts, identities, busy, error, onSave, onAd
   }
 
   return (
-    <div className="flex h-full">
-      <div className="flex shrink-0 flex-col">
+    <div className="flex h-full narrow:flex-col">
+      <div className="flex shrink-0 flex-col narrow:max-h-[35%]">
         <ul
           aria-label="Identities"
-          className="w-[220px] flex-1 shrink-0 overflow-y-auto border-r border-separator bg-sidebar py-2"
+          className="w-[220px] flex-1 shrink-0 overflow-y-auto border-r border-separator bg-sidebar py-2 narrow:w-full narrow:border-r-0"
         >
           {groups.map((group) => (
             <Fragment key={group.account.id}>
@@ -95,7 +95,7 @@ export function IdentityEditor({ accounts, identities, busy, error, onSave, onAd
             </Fragment>
           ))}
         </ul>
-        <div className="flex h-8 w-[220px] shrink-0 items-center gap-1 border-t border-r border-separator bg-sidebar px-2">
+        <div className="flex h-8 w-[220px] shrink-0 items-center gap-1 border-t border-r border-separator bg-sidebar px-2 narrow:w-full narrow:border-r-0 narrow:border-b">
           <button
             type="button"
             aria-label="Add Address"
@@ -163,7 +163,7 @@ function AddAddressForm({
   const disabled = busy || !/^[^@\s]+@[^@\s]+$/.test(email.trim());
   return (
     <form
-      className="flex flex-1 flex-col px-6 py-5"
+      className="flex flex-1 flex-col px-6 py-5 narrow:min-h-0 narrow:overflow-y-auto narrow:px-4"
       onSubmit={(event) => {
         event.preventDefault();
         if (!disabled) onAdd(accountId, email.trim(), name.trim());
@@ -261,7 +261,10 @@ function IdentityForm({
   };
 
   return (
-    <form className="flex flex-1 flex-col px-6 py-5" onSubmit={submit}>
+    <form
+      className="flex flex-1 flex-col px-6 py-5 narrow:min-h-0 narrow:overflow-y-auto narrow:px-4"
+      onSubmit={submit}
+    >
       <div className={GRID}>
         <label htmlFor="identity-name" className={LABEL}>
           Name:
