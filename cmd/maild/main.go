@@ -213,7 +213,7 @@ func run(ctx context.Context, args []string) (err error) {
 	defer syncer.Wait()
 	defer pim.Wait()
 	if *devgwAddr != "" {
-		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router) }
+		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router, api.Caller{Kind: api.CallerKindLocal}) }
 		go func() {
 			if err := devgw.ListenAndServe(ctx, *devgwAddr, os.Getenv("FROSTMAIL_DEVGW_TOKEN"), serve, logger); err != nil {
 				logger.Error("dev gateway stopped", "err", err)

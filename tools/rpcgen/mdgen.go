@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // genMarkdown renders docs/specs/rpc-api.md, the reference for every method,
 // type and event. The wire rules live in docs/specs/rpc-protocol.md.
@@ -27,6 +30,8 @@ func genMarkdown(s *Schema) []byte {
 			w.line("%s", oneLine(f.Doc))
 			w.line("")
 		}
+		w.line("Callers: `%s`.", strings.Join(f.Callers, "`, `"))
+		w.line("")
 		for _, m := range f.Methods {
 			w.line("### `%s`", wireMethod(f.Domain, m.Name))
 			w.line("")
@@ -47,6 +52,9 @@ func genMarkdown(s *Schema) []byte {
 			w.line("Result: %s.", res)
 			if len(m.Errors) > 0 {
 				w.line("Errors: `%s`.", strings.Join(m.Errors, "`, `"))
+			}
+			if !slices.Equal(m.Callers, f.Callers) {
+				w.line("Callers: `%s` only.", strings.Join(m.Callers, "`, `"))
 			}
 			w.line("")
 		}

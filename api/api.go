@@ -77,10 +77,11 @@ func NewRouter(s Services) (*Router, error) {
 
 func (r *Router) handle(method string, h handlerFunc) { r.handlers[method] = h }
 
-// Dispatch runs one method. Unknown methods return ErrMethodNotFound.
+// Dispatch runs one method. Unknown methods, and methods the request's
+// caller (CallerFrom) may not use, return ErrMethodNotFound alike.
 func (r *Router) Dispatch(ctx context.Context, method string, params jsontext.Value) (any, error) {
 	h, ok := r.handlers[method]
-	if !ok {
+	if !ok || !Admits(method, CallerFrom(ctx).Kind) {
 		return nil, MethodNotFound("method %q does not exist", method)
 	}
 	return h(ctx, params)

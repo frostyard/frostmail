@@ -63,7 +63,7 @@ func TestWireRules(t *testing.T) {
 	// hello and a pipelined call: the call must see the connection ready.
 	r.send(`{"jsonrpc":"2.0","id":2,"method":"rpc.hello","params":{"protocol":1,"client":"t"}}` + "\n" +
 		`{"jsonrpc":"2.0","id":3,"method":"mailbox.list"}`)
-	if got := r.recv(); got != `{"jsonrpc":"2.0","id":2,"result":{"protocol":1,"server":"maild rpctest"}}` {
+	if got := r.recv(); got != `{"jsonrpc":"2.0","id":2,"result":{"protocol":1,"server":"maild rpctest","caller":"local"}}` {
 		t.Fatalf("hello = %s", got)
 	}
 	if got := r.recv(); got != `{"jsonrpc":"2.0","id":3,"result":[]}` {
@@ -173,4 +173,37 @@ func TestAttended(t *testing.T) {
 		t.Fatal("no change when the app left")
 	}
 	_ = cli
+}
+
+func TestSessionCallers(t *testing.T) {
+	srv := rpctest.Start(t)
+	c, h := srv.DialAs(t, api.Caller{Kind: api.CallerKindSession, Login: "e2e@example.com", NodeName: "e2e", Session: "0123456789abcdef"})
+	if h.Caller == nil || *h.Caller != api.CallerKindSession {
+		t.Fatalf("hello caller = %v, want session", h.Caller)
+	}
+	if h.Login == nil || *h.Login != "e2e@example.com" || h.NodeName == nil || *h.NodeName != "e2e" || h.DisplayName != nil {
+		t.Fatalf("hello = %+v, want the session's login and node, and no display name", h)
+	}
+	ctx := t.Context()
+	if err := c.RPC().Ping(ctx, &api.RPCPingParams{}); err != nil {
+		t.Fatalf("rpc.ping: %v", err)
+	}
+	if _, err := c.Mailbox().List(ctx, &api.MailboxListParams{}); err != nil {
+		t.Fatalf("mailbox.list as a session: %v", err)
+	}
+	// Methods that name files on maild's machine are local only, and answer
+	// as a method that does not exist.
+	for method, params := range map[string]any{
+		"draft.attach": map[string]any{"id": 1, "path": "/etc/passwd"},
+		"message.save": map[string]any{"id": 1, "path": "/tmp/x.eml"},
+	} {
+		if err := c.Call(ctx, method, params, nil); !errors.Is(err, api.ErrMethodNotFound) {
+			t.Errorf("%s as a session = %v, want methodNotFound", method, err)
+		}
+	}
+
+	local := srv.Dial(t)
+	if err := local.Call(ctx, "draft.attach", map[string]any{"id": 1, "path": "/nonexistent"}, nil); errors.Is(err, api.ErrMethodNotFound) {
+		t.Errorf("draft.attach as local = %v, want it admitted", err)
+	}
 }

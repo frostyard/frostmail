@@ -18,7 +18,10 @@ func writeSchema(t *testing.T, files map[string]string) string {
 	return dir
 }
 
-const minimalRPC = "domain: rpc\nprotocol: 1\nmethods:\n  - name: hello\n"
+const (
+	callerKindEnum = "enums:\n  - name: CallerKind\n    values:\n      - {name: local}\n      - {name: session}\n      - {name: agent}\n"
+	minimalRPC     = "domain: rpc\nprotocol: 1\n" + callerKindEnum + "methods:\n  - name: hello\n"
+)
 
 func TestGoNames(t *testing.T) {
 	for in, want := range map[string]string{
@@ -73,6 +76,26 @@ func TestLoadRejects(t *testing.T) {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ntypes:\n  - name: Frame\n"},
 			"collides with a hand-written identifier",
 		},
+		"no CallerKind": {
+			map[string]string{"rpc.yaml": "domain: rpc\nprotocol: 1\n"},
+			"no file declares the CallerKind enum",
+		},
+		"CallerKind's values": {
+			map[string]string{"rpc.yaml": "domain: rpc\nprotocol: 1\nenums:\n  - name: CallerKind\n    values:\n      - {name: local}\n"},
+			"enum CallerKind must be",
+		},
+		"unknown caller": {
+			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ncallers: [local, browser]\n"},
+			`caller "browser" must be unique`,
+		},
+		"no callers": {
+			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    callers: []\n"},
+			"callers must name at least one caller",
+		},
+		"method widens its domain": {
+			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    callers: [local, agent]\n"},
+			`caller "agent" is not one of the domain's`,
+		},
 		"generated name collision": {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ntypes:\n  - name: AGetParams\nmethods:\n  - name: get\n"},
 			"collides",
@@ -106,6 +129,39 @@ func TestRepositorySchema(t *testing.T) {
 	}
 	if md := string(genMarkdown(s)); !strings.Contains(md, "### `rpc.hello`") {
 		t.Error("Markdown output lacks rpc.hello")
+	}
+}
+
+func TestCallers(t *testing.T) {
+	dir := writeSchema(t, map[string]string{
+		"rpc.yaml": minimalRPC,
+		"a.yaml":   "domain: a\nmethods:\n  - name: open\n  - name: save\n    callers: [local]\n",
+		"b.yaml":   "domain: b\ncallers: [agent]\nmethods:\n  - name: m\n",
+	})
+	s, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := genGo(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// gofmt aligns the table, so compare without spaces.
+	flat := strings.Join(strings.Fields(string(src)), "")
+	for _, want := range []string{
+		`"a.open":{CallerKindLocal,CallerKindSession},`, // the default
+		`"a.save":{CallerKindLocal},`,                   // narrowed
+		`"b.m":{CallerKindAgent},`,                      // the domain's own
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("generated Go lacks %s", want)
+		}
+	}
+	md := string(genMarkdown(s))
+	for _, want := range []string{"Callers: `local`, `session`.", "Callers: `local` only."} {
+		if !strings.Contains(md, want) {
+			t.Errorf("Markdown lacks %q", want)
+		}
 	}
 }
 

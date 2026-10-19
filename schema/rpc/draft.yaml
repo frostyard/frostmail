@@ -82,6 +82,7 @@ methods:
       - {name: path, type: string, doc: "An absolute path on this machine."}
     result: DraftAttachment
     errors: [notFound, invalidParams]
+    callers: [local]
   - name: detach
     doc: Remove an attachment from a draft.
     params:
