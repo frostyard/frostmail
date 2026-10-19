@@ -133,20 +133,14 @@ web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --mode lodge --base /app/mail/ --outDir ../build/web --emptyOutDir && cp src-tauri/icons/icon.svg ../build/web/icon.svg'
 
 # lodge-package stages maild as lodge's mail app under LODGE_DESTDIR, in
-# lodge's install layout (docs/specs/lodge-app.md): the manifest with this
-# build's version, the web build when make web-build has made one, maild
-# and mailctl, the units and the sysusers.d entry.
+# lodge's install layout (docs/specs/lodge-app.md), with
+# packaging/lodge/stage.sh: the manifest with this build's version, the web
+# build when make web-build has made one, maild and mailctl, the units and
+# the sysusers.d entry. It replaces only mail's own files, so LODGE_DESTDIR
+# may be a lodge root other apps share; it refuses an empty one, or /.
 LODGE_DESTDIR ?= build/lodge-root
 lodge-package: build ## Stage maild, its manifest, units and web build for lodge under LODGE_DESTDIR
-	rm -rf $(LODGE_DESTDIR)
-	install -Dm755 build/maild $(LODGE_DESTDIR)/usr/local/bin/maild
-	install -Dm755 build/mailctl $(LODGE_DESTDIR)/usr/local/bin/mailctl
-	install -d $(LODGE_DESTDIR)/usr/share/lodge/apps/mail
-	sed 's/"version": "[^"]*"/"version": "$(VERSION)"/' packaging/lodge/app.json > $(LODGE_DESTDIR)/usr/share/lodge/apps/mail/app.json
-	if [ -d build/web ]; then cp -R build/web $(LODGE_DESTDIR)/usr/share/lodge/apps/mail/web; fi
-	install -Dm644 packaging/lodge/frostmail.socket $(LODGE_DESTDIR)/usr/lib/systemd/system/frostmail.socket
-	install -Dm644 packaging/lodge/frostmail.service $(LODGE_DESTDIR)/usr/lib/systemd/system/frostmail.service
-	install -Dm644 packaging/lodge/sysusers.d-frostmail.conf $(LODGE_DESTDIR)/usr/lib/sysusers.d/frostmail.conf
+	packaging/lodge/stage.sh "$(LODGE_DESTDIR)" "$(VERSION)" build
 
 app-test: ## Run the app shell's and the Windows notifier's Rust tests (nsl)
 	$(IN_NSL) 'cd app/src-tauri && cargo test --release && cd ../notify && cargo test --release'
