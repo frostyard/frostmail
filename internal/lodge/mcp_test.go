@@ -220,7 +220,7 @@ func call(t *testing.T, cs *sdk.ClientSession, tool string, args map[string]any,
 
 func TestAgentsReadMailThroughLodge(t *testing.T) {
 	n := seedTwoAccounts(t)
-	l := kittest.Start(t, lodge.ID, lodge.NewServer(lodge.Options{Ctx: t.Context(), Version: "test",
+	l := startLodge(t, lodge.NewServer(lodge.Options{Ctx: t.Context(), Version: "test",
 		RPC: n.srv.RPC, Router: n.srv.Router, Log: discard()}))
 	cs, err := mcpClient(t, l, "claude", "account="+itoa(n.a))
 	if err != nil {

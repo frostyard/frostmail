@@ -8,12 +8,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/lodge/kit/kittest"
+	kitlodgeapp "github.com/frostyard/lodge/kit/lodgeapp"
 	"github.com/frostyard/lodge/kit/manifest"
 
 	"github.com/frostyard/frostmail/api"
@@ -188,10 +190,27 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 	}
 }
 
+// onLinux skips a test that drives lodge's app socket off Linux: lodge and
+// its app sockets are Linux-only, and the kit's peer check refuses every
+// connection elsewhere (ADR-0041).
+func onLinux(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("lodge's app sockets are Linux-only; maild serves its local socket on " + runtime.GOOS)
+	}
+}
+
+// startLodge serves srv as mail's lodge socket, with kittest playing lodge.
+func startLodge(t *testing.T, srv *kitlodgeapp.Server) *kittest.Lodge {
+	t.Helper()
+	onLinux(t)
+	return kittest.Start(t, lodge.ID, srv)
+}
+
 // lodgeSocket serves maild's lodge socket for srv, with kittest playing lodge.
 func lodgeSocket(t *testing.T, srv *rpctest.Server) *kittest.Lodge {
 	t.Helper()
-	return kittest.Start(t, lodge.ID, lodge.NewServer(lodge.Options{
+	return startLodge(t, lodge.NewServer(lodge.Options{
 		Ctx: t.Context(), Version: "test", RPC: srv.RPC, Router: srv.Router, Content: srv.Content, Log: discard(),
 	}))
 }
@@ -236,5 +255,16 @@ func TestSessionOverAPI(t *testing.T) {
 	}
 	if err := c.Message().Save(ctx, &api.MessageSaveParams{ID: 1, Path: "/tmp/x.eml"}); !errors.Is(err, api.ErrMethodNotFound) {
 		t.Fatalf("message.save as a session = %v, want methodNotFound", err)
+	}
+}
+
+// TestListenRefusesOffLinux: maild --lodge says why it cannot serve lodge
+// where lodge does not run.
+func TestListenRefusesOffLinux(t *testing.T) {
+	if runtime.GOOS == "linux" {
+		t.Skip("lodge's socket opens on Linux; this checks the refusal elsewhere")
+	}
+	if _, err := lodge.Listen(); err == nil || !strings.Contains(err.Error(), "lodge runs on Linux") {
+		t.Fatalf("Listen on %s = %v, want a refusal naming Linux", runtime.GOOS, err)
 	}
 }

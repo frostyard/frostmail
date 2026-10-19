@@ -71,6 +71,9 @@ come later in Phase 5.
   ignored like any unknown header.
 - Without `--lodge`, maild serves no app socket, and everything else in
   this spec but the IDL's callers is absent.
+- lodge and its app sockets run on Linux. Elsewhere, such as a Windows
+  install, `maild --lodge` refuses at start ("lodge runs on Linux"), and
+  maild serves only its local socket.
 
 ### Requests on the app socket
 
