@@ -13,6 +13,7 @@ import { addDays, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
 import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
+import { frameWindowOpen } from "../lodge/frameWindow";
 import type { Client, InviteNotice } from "../rpc/gen/api";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
@@ -287,8 +288,12 @@ function useWindowEvents(
       else handled = mailCommand(command, client, model, handles);
       if (handled) event.preventDefault();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // In lodge, a window shown in the frame covers this one and takes its keys.
+    const guarded = (event: KeyboardEvent) => {
+      if (!frameWindowOpen()) onKey(event);
+    };
+    window.addEventListener("keydown", guarded);
+    return () => window.removeEventListener("keydown", guarded);
   }, [client, handles, model, people, calendar, tasks]);
   useEffect(() => {
     const block = (event: MouseEvent) => {

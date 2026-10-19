@@ -16,6 +16,7 @@ import { TimeSheet } from "../features/later/TimeSheet";
 import { isValidAddress } from "../lib/addressParse";
 import { appLocale } from "../lib/calendarDates";
 import { sendChoices } from "../lib/later";
+import { closeFrameWindow } from "../lodge/frameWindow";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
 import {
   activeFormats,
@@ -68,6 +69,7 @@ function message(err: unknown): string {
 }
 
 function closeWindow(): void {
+  if (closeFrameWindow()) return;
   if (isTauri()) void getCurrentWindow().close();
   else window.close();
 }

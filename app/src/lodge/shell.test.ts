@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useUI } from "../data/stores";
+import { useFrameWindow } from "./frameWindow";
 import type { Lodge } from "./lodge";
 import { wireShell } from "./shell";
 
@@ -44,6 +45,7 @@ function fakeLodge() {
 describe("wireShell", () => {
   beforeEach(() => {
     useUI.setState({ source: { kind: "allInboxes" }, selected: [] });
+    useFrameWindow.setState({ open: null });
     delete document.documentElement.dataset.theme;
   });
 
@@ -80,5 +82,29 @@ describe("wireShell", () => {
     expect(routes).toHaveLength(1);
     emit("theme", { scheme: "light" });
     expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("pushes a window, pushes the mail back when it closes, and follows Back out of it", () => {
+    const { l, routes, emit } = fakeLodge();
+    wireShell(l, "/mailbox/2/message/5");
+    useFrameWindow.setState({ open: { kind: "compose", draftId: 12, fresh: true } });
+    useFrameWindow.setState({ open: null });
+    expect(routes.slice(1)).toEqual([
+      { path: "/compose/12?fresh", replace: false },
+      { path: "/mailbox/2/message/5", replace: false },
+    ]);
+    emit("navigate", { route: "/settings" });
+    expect(useFrameWindow.getState().open).toEqual({ kind: "settings" });
+    emit("navigate", { route: "/mailbox/2/message/5" });
+    expect(useFrameWindow.getState().open).toBeNull();
+    expect(useUI.getState().selected).toEqual([5]);
+    expect(routes).toHaveLength(3);
+  });
+
+  it("opens the window a frame's route names", () => {
+    const { l, routes } = fakeLodge();
+    wireShell(l, "/compose/7");
+    expect(useFrameWindow.getState().open).toEqual({ kind: "compose", draftId: 7, fresh: false });
+    expect(routes).toEqual([{ path: "/compose/7", replace: true }]);
   });
 });

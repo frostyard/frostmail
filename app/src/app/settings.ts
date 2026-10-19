@@ -4,6 +4,8 @@
 // tab at #/settings.
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+import { openFrameWindow } from "../lodge/frameWindow";
+
 declare global {
   interface Window {
     /** Set by the settings window's initialization script. */
@@ -18,6 +20,7 @@ export function isSettingsWindow(): boolean {
 
 /** openSettings shows the settings window, focusing it when it is open. */
 export async function openSettings(): Promise<void> {
+  if (openFrameWindow({ kind: "settings" })) return;
   if (isTauri()) {
     await invoke("open_settings");
     return;

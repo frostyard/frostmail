@@ -11,6 +11,7 @@ import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { ALERT, BUTTON, PRIMARY_BUTTON } from "../features/settings/labels";
 import { changedFields, draftOf, type EventDraft, newDraft, sendsInvitees, validate } from "../lib/eventDraft";
 import { withNotify } from "../lib/notify";
+import { closeFrameWindow } from "../lodge/frameWindow";
 import type { CalendarEvent, Client, EventScope } from "../rpc/gen/api";
 import type { EditorTarget } from "./openEvent";
 import { announceRestore } from "./pimUndo";
@@ -68,6 +69,7 @@ function message(error: unknown): string {
 }
 
 function closeWindow(): void {
+  if (closeFrameWindow()) return;
   if (isTauri()) void getCurrentWindow().close();
   else window.close();
 }

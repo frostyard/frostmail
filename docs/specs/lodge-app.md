@@ -246,6 +246,20 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   `route` as the source and selection change (a new source pushes, a new
   message replaces), and obeys `navigate`. It never touches the top
   window's history or location.
+- **Windows are routes.** The desktop app's other windows show in the
+  frame in place of the main window, which stays loaded underneath, hidden,
+  and takes no keys while one shows:
+
+  | Route | Shows |
+  | --- | --- |
+  | `/compose/<draft id>`, `/compose/<draft id>?fresh` | the draft in Compose; `fresh` when it was made to open it, so closing it untouched discards it |
+  | `/settings` | Settings |
+  | `/event/<id>`, `/event/<id>?recurrenceId=…`, `/event/new?…` | the event editor, as the desktop's `#/event/…` |
+  | `/reminders` | the reminder window |
+
+  Opening one pushes its route, and closing it (Send, Close, Discard)
+  pushes the main window's route again. Back to a main route closes it.
+  One shows at a time; the reminder window never covers another.
 - **Context.** With a message shown, `context {kind: "message", ref:
   "mail/message/<id>", title: <subject>}`; with none, `context {kind:
   null}`.
@@ -255,8 +269,9 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   (`lodge.storageKey`).
 - **The switcher's chord** (`init.shortcut`, by default Ctrl+\`) is bound
   by nothing in the app.
-- **What a session cannot do** is hidden, not failed: attaching by path
-  and Save As by path are not offered.
+- **What a session cannot do** is not offered: Save As by path. Attaching
+  by path answers that it needs the desktop app, until attaching by bytes
+  ([plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 4) lands.
 
 ### Limits
 
