@@ -3,12 +3,34 @@
 Frostmail is a Linux mail client that works like Apple Mail.app without
 looking like a GNOME or KDE app. A headless Go daemon, `maild`, owns sync,
 storage and the RPC socket. A Tauri v2 app with a React UI and `mailctl`, a
-CLI, are clients of that socket. Start at [docs/README.md](docs/README.md);
+CLI, are clients of that socket. maild also runs as the `mail` app of
+[lodge](https://github.com/frostyard/lodge), frostyard's tailnet web shell,
+where the same UI runs in a browser. Start at [docs/README.md](docs/README.md);
 the architecture entry point is
 [docs/design/overview.md](docs/design/overview.md).
 
 This is the canonical agent instruction file. `CLAUDE.md` and `GEMINI.md` are
 symlinks to it; edit this file only.
+
+## Status
+
+Pre-release. The order of work is the [roadmap](docs/plans/0002-roadmap.md),
+and each milestone's plan carries its own status. M8, mail in lodge
+([plan 0011](docs/plans/0011-m8-mail-in-lodge.md)), is in progress:
+- **Merged on 2026-10-19:**
+  - maild's lodge socket;
+  - the web build;
+  - compose and the other windows as routes;
+  - read-only `/mcp/mail`;
+  - the desktop app as a lodge client;
+  - attachments.
+- **Still to come:**
+  - the narrow layout;
+  - Save As by download;
+  - links by Message-ID;
+  - notifications;
+  - the write and send tools.
+- **Phase 7,** moving the user's mail to lodge's host, waits on the user.
 
 ## Two kinds of agent work
 
@@ -39,7 +61,9 @@ symlinks to it; edit this file only.
   lodge/kit): the app socket and its content route
   ([specs/lodge-app.md](docs/specs/lodge-app.md)). `internal/mcpserver`:
   the read-only MCP tools behind it, the only package that imports the MCP
-  SDK.
+  SDK. `packaging/lodge`: the manifest, units and `stage.sh`
+  (`make lodge-package`); `dev/lodge/run.sh` runs maild behind lodge's
+  development build; `tools/lodgeprobe` checks a lodge socket.
 - `internal/imapx`: the only package that imports go-imap.
   `third_party/go-imap` is a patched fork (Gmail X-GM-EXT-1); see its
   `FROSTMAIL-PATCHES.md` and [ADR-0004](docs/adr/0004-go-imap-fork.md).
@@ -47,8 +71,11 @@ symlinks to it; edit this file only.
 - `internal/compose`: outgoing mail (reply rules, the message builder).
   `internal/smtpx`: the only package that imports go-smtp.
 - `app/`: Tauri v2 + React + TypeScript. `app/src-tauri/src/bridge.rs` only
-  moves lines; JSON-RPC multiplexing is in `app/src/rpc/transport.ts`.
-  `app/src/rpc/gen/api.ts` is generated.
+  moves lines, to the local socket or, in remote mode, to lodge
+  (`remote.rs`); JSON-RPC multiplexing is in `app/src/rpc/transport.ts`.
+  `app/src/rpc/gen/api.ts` is generated. `app/src/lodge/` runs the UI in
+  lodge's frame (routes, windows as routes), over
+  `app/src/rpc/transport/lodge.ts`.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
@@ -75,12 +102,16 @@ symlinks to it; edit this file only.
 - API changes: edit `schema/rpc/*.yaml`, run `make gen`, implement. Changes
   within protocol 1 are additive only. Quote doc strings inside inline YAML
   `{...}` mappings.
-- The app never fetches remote content. Message HTML is rendered only in a
-  `srcdoc` iframe with `sandbox="allow-same-origin allow-popups"` (never
-  `allow-scripts`) under the CSP in `app/src-tauri/tauri.conf.json`
+- The app never fetches remote content. In the desktop app, message HTML is
+  rendered only in a `srcdoc` iframe with
+  `sandbox="allow-same-origin allow-popups"` (never `allow-scripts`) under
+  the CSP in `app/src-tauri/tauri.conf.json`
   ([ADR-0005](docs/adr/0005-html-mail-rendering.md)). Its links open in the
   system browser through the shell's new-window handler, which never makes a
   window ([ADR-0036](docs/adr/0036-reader-links-open-as-new-window-requests.md)).
+  In lodge's web build, the reader frame loads the page from lodge's content
+  origin instead, under its sandbox policy, which allows no script and no
+  same-origin access ([specs/lodge-app.md](docs/specs/lodge-app.md)).
 - SQLite databases never live on `/mnt/host` (WAL needs shared memory).
 - Downloads in scripts are version-pinned and checksum-verified
   (frostyard/core ADR-0023).

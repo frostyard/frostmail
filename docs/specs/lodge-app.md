@@ -25,9 +25,9 @@ Where it fits: [design/overview.md](../design/overview.md#behind-lodge),
 [design/rendering.md](../design/rendering.md).
 
 **Status:** M8's contract, written in
-[plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 1. It binds as
-Phases 2, 3 and 5 land. `/mcp` is read-only for now: write and send scopes
-come later in Phase 5.
+[plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 1 and built in
+Phases 2, 3 and 5 (merged 2026-10-19). `/mcp` is read-only for now: write
+and send scopes come later in Phase 5.
 
 ## Interface
 
@@ -88,7 +88,11 @@ path admits one caller kind, and any other is 403:
 | `GET`, `HEAD` `/content/p/<mac>/<path>` | `content` | a decoded part |
 | `POST`, `GET`, `DELETE` `/mcp` | `agent` | MCP Streamable HTTP |
 
-- Any other path is 404, and any other method on a listed path is 405.
+- A path outside this table is 403, since it admits no caller, as is a
+  caller kind its row does not admit
+  ([lodge's app-contract.md](https://github.com/frostyard/lodge/blob/main/docs/specs/app-contract.md#what-an-app-serves-on-its-socket)).
+  `/x/…` and `/device/…`, which maild does not serve, are 404 to the kind
+  each admits. Any other method on a listed path is 405.
 - Errors are `text/plain; charset=utf-8`, one line saying why.
 - **Required headers:**
   - `session`: `Lodge-Login`, `Lodge-Node-ID`, `Lodge-Node-Name` and

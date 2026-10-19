@@ -9,6 +9,23 @@ and depends on lodge's Phases 1 (the kit) and 2 (lodge v1). It runs after
 and leaves the friend's Windows install on its local maild.
 The contract is [specs/lodge-app.md](../specs/lodge-app.md).
 
+Status (2026-10-19):
+- **Phase 1 is written.** ADR-0041 is still Proposed.
+- **Merged on 2026-10-19, the parts each phase marks built (#60–#68):**
+  - Phase 2's socket;
+  - Phase 3's web build;
+  - Phase 4's routes and attachments;
+  - Phase 5's read-only tools;
+  - Phase 6's remote mode.
+  They pin lodge's `kit/v0.1.0` and `client/v0.1.0`.
+- **Still to come:**
+  - Phase 4: the narrow layout, Save As and Raw Source by download, the
+    route by Message-ID, and notifications;
+  - Phase 5: the write and send tools;
+  - Phase 6: desktop notifications;
+  - each phase's done-when, run in lodge's development build.
+- **Phase 7** waits on the user.
+
 ## Decisions for M8
 
 The user chose these on 2026-10-18:
@@ -202,7 +219,8 @@ Notifications are not built yet.
 - `mailto:` links in a message composing in mail rather than the
   browser's handler.
 - Extracting maild's JSON-RPC server into the kit, with frostnotes'
-  (lodge's Phase 1), once the endpoint works.
+  (lodge's Phase 1), once the endpoint works. Done on 2026-10-19 (#68):
+  maild runs on `kit/jsonrpc`.
 
 ## Open questions
 
