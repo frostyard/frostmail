@@ -57,7 +57,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0039 — Microsoft accounts: mail over IMAP and SMTP, contacts and calendars over Graph](adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)
 - [0040 — Store Graph's events and contacts as iCalendar and vCard derived from its JSON](adr/0040-graph-events-and-contacts-as-derived-sources.md)
 - [0041 — maild runs as a lodge app](adr/0041-maild-runs-as-a-lodge-app.md)
-- [0042 — Agents get calendar, task and contact tools, without event writes](adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md)
+- [0042 — Agents get calendar, task and contact tools](adr/0042-agents-get-calendar-task-and-contact-tools.md)
 
 ### Design
 

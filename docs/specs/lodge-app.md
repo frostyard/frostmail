@@ -18,7 +18,7 @@ The RPC's wire rules are [rpc-protocol.md](rpc-protocol.md), and its
 methods [rpc-api.md](rpc-api.md).
 
 Rationale: [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md),
-[ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md),
+[ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md),
 [ADR-0005](../adr/0005-html-mail-rendering.md),
 [ADR-0014](../adr/0014-images-embedded-in-the-reader-frame.md),
 [ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md).
@@ -258,7 +258,7 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
 
 #### Calendar, tasks and contacts
 
-**Status:** proposed in [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md)
+**Status:** proposed in [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md)
 for [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md),
 and not built. Until it is, `/mcp` serves only the tools above.
 
@@ -605,7 +605,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 
 ## References
 
-- Rationale: [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md), [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md), [ADR-0005](../adr/0005-html-mail-rendering.md), [ADR-0014](../adr/0014-images-embedded-in-the-reader-frame.md), [ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)
+- Rationale: [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md), [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md), [ADR-0005](../adr/0005-html-mail-rendering.md), [ADR-0014](../adr/0014-images-embedded-in-the-reader-frame.md), [ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)
 - Context: [design/overview.md](../design/overview.md#behind-lodge), [design/rendering.md](../design/rendering.md), [design/app.md](../design/app.md)
 - lodge: [app contract](https://github.com/frostyard/lodge/blob/main/docs/specs/app-contract.md), [lodge-http](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-http.md), [lodge-client](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-client.md)
 - Related: [rpc-protocol.md](rpc-protocol.md), [rpc-api.md](rpc-api.md), [ui.md](ui.md); frostnotes' [lodge-app.md](https://github.com/frostyard/frostnotes/blob/main/docs/specs/lodge-app.md)

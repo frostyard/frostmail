@@ -3,7 +3,7 @@
 M8.5 gives agents the user's calendars, tasks and contacts through
 `/mcp/mail`, beside their mail, and two thread queries that maild computes:
 waiting on the user, and waiting on others
-([ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md)).
+([ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md)).
 
 - **What it is for:** frostmail's part of what
   [Porter](https://github.com/frostyard/porter/blob/main/docs/design/overview.md),
@@ -40,7 +40,7 @@ Porter's design:
 
 ## Phase 1 — The decision and the contract (planner, small)
 
-- [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md)
+- [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md)
 - [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts):
   - the methods agents gain, and their scope;
   - the rules for `thread.awaitingReply` and `thread.awaitingOthers`;
@@ -190,7 +190,7 @@ Porter's design:
 
 ## References
 
-- Implements: [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts), [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools-without-event-writes.md)
+- Implements: [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts), [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md)
 - Context: [design/pim.md](../design/pim.md), [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md), [ADR-0025](../adr/0025-maild-keeps-send-later-remind-me-and-undo-send.md), [ADR-0028](../adr/0028-mute-and-block-in-maild-undo-in-the-app.md)
 - Model: [plan 0011](0011-m8-mail-in-lodge.md)'s Phase 5
 - lodge: [ADR-0006](https://github.com/frostyard/lodge/blob/main/docs/adr/0006-agents-reach-each-app-through-its-own-mcp-endpoint.md), [ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md)

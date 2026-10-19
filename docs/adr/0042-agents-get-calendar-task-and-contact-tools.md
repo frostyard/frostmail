@@ -1,4 +1,4 @@
-# 0042 — Agents get calendar, task and contact tools, without event writes
+# 0042 — Agents get calendar, task and contact tools
 
 - **Status:** Proposed
 - **Date:** 2026-10-19
