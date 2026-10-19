@@ -86,14 +86,14 @@ describe("a narrow window's Mail", () => {
     expect(list.closest("[inert]")).toBeNull();
   });
 
-  it("shows Mailboxes, without the module bar, until a mailbox is chosen", async () => {
+  it("shows Mailboxes, with the module tabs rather than the sidebar's bar, until a mailbox is chosen", async () => {
     const { pane } = await setup();
     fireEvent.click(screen.getByRole("button", { name: "Back to Mailboxes" }));
     expect(pane()).toBe("mailboxes");
     const toolbar = screen.getByRole("toolbar", { name: "Toolbar" });
     expect(within(toolbar).getByText("Mailboxes")).toBeTruthy();
     expect(within(toolbar).getByRole("button", { name: "Get Mail" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Calendar" })).toBeNull();
+    expect(screen.getAllByRole("toolbar", { name: "Modules" })).toHaveLength(1);
     const inbox = await screen.findAllByRole("treeitem", { name: /^Inbox/ });
     fireEvent.click(inbox[0] as HTMLElement);
     expect(useUI.getState().mailboxesOpen).toBe(false);
@@ -101,11 +101,27 @@ describe("a narrow window's Mail", () => {
     expect(screen.getByRole("button", { name: "Back to Mailboxes" })).toBeTruthy();
   });
 
-  it("goes back to Mail from another module", async () => {
+  it("moves between the modules with the tabs at its foot, which the message bar replaces", async () => {
     await setup();
-    useUI.getState().setModule("calendar");
-    fireEvent.click(await screen.findByRole("button", { name: "Back to Mail" }));
-    expect(useUI.getState().module).toBe("mail");
+    const tabs = () => screen.getByRole("toolbar", { name: "Modules" });
+    expect(
+      within(tabs())
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual(["Mail", "Calendar", "People", "Tasks"]);
+    for (const module of ["Calendar", "People", "Tasks", "Mail"] as const) {
+      fireEvent.click(within(tabs()).getByRole("button", { name: module }));
+      expect(useUI.getState().module).toBe(module.toLowerCase());
+      expect(screen.getAllByRole("toolbar", { name: "Modules" })).toHaveLength(1);
+      expect(screen.queryByRole("button", { name: /^Back to/ }) === null).toBe(module !== "Mail");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Back to Mailboxes" }));
+    expect(tabs()).toBeTruthy();
+    fireEvent.click((await screen.findAllByRole("treeitem", { name: /^Inbox/ }))[0] as HTMLElement);
+    const list = await screen.findByRole("listbox", { name: "Messages" });
+    fireEvent.click(await waitFor(() => within(list).getAllByRole("option")[0] as HTMLElement));
+    await waitFor(() => expect(screen.getByRole("toolbar", { name: "Message Actions" })).toBeTruthy());
+    expect(screen.queryByRole("toolbar", { name: "Modules" })).toBeNull();
   });
 
   it("keeps the panes side by side in a wide window", async () => {

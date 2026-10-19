@@ -4,7 +4,13 @@ import { Calendar, ListChecks, type LucideIcon, Mail, Users } from "lucide-react
 
 import { MODULE_LABEL, MODULE_SHORTCUT, type Module } from "../../lib/modules";
 
-const ICONS: Record<Module, LucideIcon> = { mail: Mail, calendar: Calendar, people: Users, tasks: ListChecks };
+/** MODULE_ICONS is each module's icon, here and in a narrow window's tabs (ModuleTabs). */
+export const MODULE_ICONS: Record<Module, LucideIcon> = {
+  mail: Mail,
+  calendar: Calendar,
+  people: Users,
+  tasks: ListChecks,
+};
 
 /** ModuleBarProps are the module bar's inputs. */
 export interface ModuleBarProps {
@@ -23,7 +29,7 @@ export function ModuleBar({ modules, current, onSelect }: ModuleBarProps) {
       className="flex h-[44px] shrink-0 items-center gap-1 border-t border-separator bg-sidebar px-3"
     >
       {modules.map((module) => {
-        const Icon = ICONS[module];
+        const Icon = MODULE_ICONS[module];
         return (
           <button
             key={module}

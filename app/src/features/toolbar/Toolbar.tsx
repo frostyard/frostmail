@@ -100,9 +100,9 @@ export interface ToolbarTasks {
 
 /**
  * ToolbarNarrow is a narrow window's toolbar: the pane it is over, and
- * Back, which returns from the list to Mailboxes, from a message to the
- * list (named by the toolbar's title), and from another module to Mail.
- * Mailboxes has no Back.
+ * Back, which returns from the list to Mailboxes and from a message to the
+ * list (named by the toolbar's title). Mailboxes and the other modules
+ * have no Back: the module tabs at the window's foot move between modules.
  */
 export interface ToolbarNarrow {
   pane: NarrowPane | "module";
@@ -605,13 +605,10 @@ function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: Toolbar
         aria-label="Toolbar"
         className="flex h-[52px] shrink-0 items-center gap-1 border-b border-separator bg-toolbar px-1"
       >
-        {pane !== "mailboxes" && (
-          <BackButton
-            label={pane === "list" ? "Mailboxes" : pane === "reader" ? props.title : "Mail"}
-            onBack={narrow.onBack}
-          />
+        {(pane === "list" || pane === "reader") && (
+          <BackButton label={pane === "list" ? "Mailboxes" : props.title} onBack={narrow.onBack} />
         )}
-        <div className={`flex min-w-0 flex-1 flex-col ${pane === "mailboxes" ? "pl-3" : "pl-1"}`}>
+        <div className={`flex min-w-0 flex-1 flex-col ${pane === "list" || pane === "reader" ? "pl-1" : "pl-3"}`}>
           <span className="text-toolbar-title truncate">{title}</span>
           {pane === "list" && <span className="text-toolbar-subtitle truncate text-secondary">{props.subtitle}</span>}
         </div>

@@ -426,7 +426,8 @@ lodge's frame are.
   the whole width. The message shows while exactly one message is
   selected; Mailboxes while asked for; the list otherwise. The list stays
   mounted, and inert, under the other two, so it keeps its scroll. The
-  splitters, the sidebar toggle, the To-Do Bar and the module bar go.
+  splitters, the sidebar toggle and the To-Do Bar go, and the sidebars'
+  module bar gives way to the module tabs (below).
 - **The toolbar** (52, as in a wide window) holds its pane's controls,
   as 44 × 44 targets with 20px icons:
   - Mailboxes: the title "Mailboxes" (13/600), then Get Mail and
@@ -448,6 +449,15 @@ lodge's frame are.
   actions in its order (Delete, Archive, Reply, Reply All, Forward, Flag,
   Mark, Move), sharing the width, each 44 high with a 20px icon. Flag and
   Move open their menus above it.
+- **The module tabs,** at the foot of the window wherever the message bar
+  is not (Mailboxes, the list without a selection, and Calendar, People
+  and Tasks): a `toolbar` named "Modules", 52 high plus the bottom safe
+  area, `--bg-toolbar`, 1px `--separator` top, with Mail, Calendar,
+  People and Tasks sharing the width, in module order. Each is a 44-high
+  target: its module's icon (22px) over its name (10/12), in `--accent`
+  for the module shown and `--text-secondary` for the others, with
+  `aria-pressed`. A tap shows that module; a module keeps its own
+  selection while another is shown.
 - **Choosing a source** in Mailboxes shows its list, even when it is the
   source already shown.
 - **History** in lodge ([lodge-app.md](lodge-app.md#the-web-build), and
@@ -461,9 +471,9 @@ lodge's frame are.
   toolbar buttons are 44 × 44 ([compose-ui.md](compose-ui.md)), and
   Settings stacks its lists over their forms
   ([settings-ui.md](settings-ui.md)).
-- **Calendar, People and Tasks** have no narrow layout yet: what opens one
-  (an invitation's Show in Calendar, a contact card's link) shows it as a
-  wide window would, under a toolbar whose Back ("Mail") returns to Mail.
+- **Calendar, People and Tasks** have no narrow layout yet: each shows as
+  a wide window would, under a narrow toolbar with the module's title and
+  no Back, and the module tabs move between them and Mail.
 
 ## Behavior
 

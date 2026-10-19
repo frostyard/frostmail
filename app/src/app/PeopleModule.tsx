@@ -16,6 +16,7 @@ import type { Command } from "../lib/keymap";
 import { type PeopleRow, peopleRows } from "../lib/peopleRows";
 import { type PhotoChange, photoURL, scalePhoto } from "../lib/photo";
 import type { PersonSummary } from "../rpc/gen/api";
+import { useNarrow } from "./narrow";
 import { revealMessage } from "./openMessage";
 import { rememberRestore } from "./pimUndo";
 import { openLink } from "./ReaderContainer";
@@ -337,6 +338,7 @@ function PeopleDetail({ data }: { data: PeopleData }) {
 
 function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef: Ref<HTMLFieldSetElement> }) {
   const ui = useUI();
+  const narrow = useNarrow();
   return (
     <fieldset
       ref={elementRef}
@@ -357,7 +359,9 @@ function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef:
           }}
         />
       </div>
-      <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
+      {!narrow && (
+        <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
+      )}
     </fieldset>
   );
 }
