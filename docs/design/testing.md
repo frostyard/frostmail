@@ -11,6 +11,7 @@
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | App shell | the M0 spike report (`FROSTMAIL_SPIKE_EXIT=1`) | `make app-run`, or natively from `build/frostmail-app` |
+| Desktop app behind lodge | `app/e2e/lodge.e2e.ts`: lodge's development build, `maild --lodge` and the built app with `app.json` naming lodge (skips without `FROSTMAIL_LODGE_E2E`) | after `make ui-e2e`'s builds, in the nsl machine with `FROSTMAIL_LODGE_E2E` naming a copy of lodge's `make e2e-build` output it can read (under this repository's `build/`), `pnpm exec vitest run -c vitest.e2e.config.ts lodge` under `xvfb-run` |
 | Screenshots | `app/e2e/screenshots.e2e.ts`: the built app on `app/e2e/showcase`'s made-up mail (`tools/uifixture -showcase`, maild with `FROSTMAIL_SYNC=off`), written to `docs/images` for the README | `make screenshots` (nsl) |
 
 ## CI

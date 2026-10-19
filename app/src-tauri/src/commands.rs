@@ -9,7 +9,7 @@ use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::protocol;
+use crate::{bridge, protocol, remote};
 
 /// File types that run code when opened, on Linux or Windows; Frostmail
 /// never opens them. Windows' list follows the types its shell runs or
@@ -79,19 +79,61 @@ pub(crate) fn open_new_window(app: &AppHandle, url: &tauri::Url) -> NewWindowRes
 }
 
 /// Open a part maild decoded into the parts cache (message.part) with the
-/// system's default application. Paths outside the cache, and file types
-/// that run code, are refused.
+/// system's default application. For a maild behind lodge, whose cache is
+/// on lodge's machine, the part is first downloaded from lodge's content
+/// node by its contentPath (docs/design/desktop.md, On a maild behind
+/// lodge). Paths outside the cache, and file types that run code, are
+/// refused.
 #[tauri::command]
-pub async fn open_part(app: AppHandle, path: String) -> Result<(), String> {
-    let full = protocol::resolve(&path, false).await.map_err(|status| format!("cannot open {path}: {status}"))?;
-    let ext = full.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    if UNSAFE_EXTENSIONS.contains(&ext.as_str()) {
-        return Err(format!("Frostmail does not open .{ext} files"));
-    }
+pub async fn open_part(
+    app: AppHandle,
+    path: String,
+    content_path: Option<String>,
+    filename: Option<String>,
+) -> Result<(), String> {
+    let full = match remote::load()?.lodge {
+        Some(url) => {
+            let lodge = remote::Lodge::parse(&url)?;
+            let content_path = content_path.ok_or("maild did not name the part on lodge's content node")?;
+            let name = filename.unwrap_or_else(|| path.rsplit('/').next().unwrap_or("attachment").to_string());
+            refuse_unsafe(&name)?;
+            tauri::async_runtime::spawn_blocking(move || remote::download(&lodge, &content_path, &name))
+                .await
+                .map_err(|e| e.to_string())??
+        }
+        None => protocol::resolve(&path, false).await.map_err(|status| format!("cannot open {path}: {status}"))?,
+    };
+    refuse_unsafe(&full.to_string_lossy())?;
     if logged(&full.to_string_lossy())? {
         return Ok(());
     }
     app.opener().open_path(full.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Refuse a file whose type runs code when opened.
+fn refuse_unsafe(name: &str) -> Result<(), String> {
+    let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    if UNSAFE_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(format!("Frostmail does not open .{ext} files"));
+    }
+    Ok(())
+}
+
+/// The app's choice of maild (docs/design/desktop.md, On a maild behind
+/// lodge): lodge's address, or none for the maild on this machine.
+#[tauri::command]
+pub fn app_config_get() -> Result<remote::AppConfig, String> {
+    remote::load()
+}
+
+/// Change the app's choice of maild, then end every window's connection, so
+/// each reconnects to the maild now chosen.
+#[tauri::command]
+pub async fn app_config_set(bridge: State<'_, bridge::Bridge>, config: remote::AppConfig) -> Result<(), String> {
+    let config = remote::AppConfig { lodge: config.lodge.map(|l| l.trim().to_string()).filter(|l| !l.is_empty()) };
+    remote::save(&config)?;
+    bridge.close_all().await;
+    Ok(())
 }
 
 /// Open a draft in its compose window, labeled compose-<id>, or focus the

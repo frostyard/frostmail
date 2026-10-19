@@ -59,6 +59,47 @@ pub fn cache_dir() -> Result<PathBuf, String> {
         .ok_or_else(|| "LOCALAPPDATA is not set".to_string())
 }
 
+/// The app's own configuration, never maild's: which maild it asks
+/// (docs/design/desktop.md, On a maild behind lodge). $XDG_CONFIG_HOME/frostmail
+/// or ~/.config/frostmail; in a Flatpak, XDG_CONFIG_HOME is the app's own.
+#[cfg(not(windows))]
+pub fn config_dir() -> Result<PathBuf, String> {
+    if let Some(p) = env_abs("XDG_CONFIG_HOME") {
+        return Ok(p.join("frostmail"));
+    }
+    env_abs("HOME")
+        .map(|h| h.join(".config").join("frostmail"))
+        .ok_or_else(|| "HOME is not set".to_string())
+}
+
+/// The app's own configuration: %APPDATA%\Frostmail.
+#[cfg(windows)]
+pub fn config_dir() -> Result<PathBuf, String> {
+    env_abs("APPDATA")
+        .map(|d| d.join("Frostmail"))
+        .ok_or_else(|| "APPDATA is not set".to_string())
+}
+
+/// Where the app keeps attachments it downloads from a maild behind lodge,
+/// apart from maild's own cache: $XDG_CACHE_HOME/frostmail-app/attachments,
+/// the Flatpak's own cache there.
+#[cfg(not(windows))]
+pub fn downloads_dir() -> Result<PathBuf, String> {
+    let base = env_abs("XDG_CACHE_HOME")
+        .or_else(|| env_abs("HOME").map(|h| h.join(".cache")))
+        .ok_or_else(|| "HOME is not set".to_string())?;
+    Ok(base.join("frostmail-app").join("attachments"))
+}
+
+/// Where the app keeps attachments it downloads from a maild behind lodge:
+/// %LOCALAPPDATA%\Frostmail\Attachments.
+#[cfg(windows)]
+pub fn downloads_dir() -> Result<PathBuf, String> {
+    env_abs("LOCALAPPDATA")
+        .map(|d| d.join("Frostmail").join("Attachments"))
+        .ok_or_else(|| "LOCALAPPDATA is not set".to_string())
+}
+
 #[cfg(windows)]
 mod sid {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};

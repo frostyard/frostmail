@@ -161,7 +161,8 @@ export function fixture(dir: string, n: number, opts: FixtureOptions = {}): stri
   return join(dir, "data");
 }
 
-function freePort(): Promise<number> {
+/** freePort is a free TCP port on loopback. */
+export function freePort(): Promise<number> {
   return new Promise((done, fail) => {
     const s = createNetServer();
     s.on("error", fail);
@@ -173,7 +174,8 @@ function freePort(): Promise<number> {
   });
 }
 
-async function until(what: string, ok: () => boolean | Promise<boolean>, timeoutMs = 20_000): Promise<void> {
+/** until waits for ok, failing after timeoutMs. */
+export async function until(what: string, ok: () => boolean | Promise<boolean>, timeoutMs = 20_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!(await ok())) {
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
@@ -287,14 +289,39 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
   try {
     procs.push(spawn(bin("maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] }));
     await until("maild's socket", () => (WINDOWS ? pipeUp(socket) : existsSync(socket)));
-    const port = await freePort();
-    const capabilities = await startApp(port, env, procs);
-    const url = `http://127.0.0.1:${port}`;
-    await until("the WebDriver server", () => reachable(`${url}/status`));
-    session = await Session.start(url, capabilities);
+    session = await driveApp(env, procs);
     return { session, cache, stop };
   } catch (err) {
     // A single-instance app left running would take the next launch.
+    await stop();
+    throw err;
+  }
+}
+
+/** driveApp starts the app and a WebDriver session on it, adding their processes to procs. */
+async function driveApp(env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<Session> {
+  const port = await freePort();
+  const capabilities = await startApp(port, env, procs);
+  const url = `http://127.0.0.1:${port}`;
+  await until("the WebDriver server", () => reachable(`${url}/status`));
+  return Session.start(url, capabilities);
+}
+
+/**
+ * launchApp starts only the app, with env, for a maild the test runs itself
+ * (a maild behind lodge); stop ends the app and procs, then deletes dir.
+ */
+export async function launchApp(dir: string, env: Record<string, string>, procs: ChildProcess[] = []): Promise<App> {
+  let session: Session | undefined;
+  const stop = async () => {
+    await session?.quit().catch(() => {});
+    await Promise.all(procs.reverse().map(stopProcess));
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
+  };
+  try {
+    session = await driveApp({ ...process.env, ...env }, procs);
+    return { session, cache: join(dir, "cache"), stop };
+  } catch (err) {
     await stop();
     throw err;
   }

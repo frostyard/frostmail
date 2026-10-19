@@ -159,6 +159,10 @@ boundaries, so the planner builds them.
 
 The design is [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge).
 It depends on Phase 4's attaching by bytes and Save As by download.
+Built: `app.json` and the Server pane, the bridge's remote mode with the
+keepalive, `open_part`'s downloads, and the Flatpak's network, with
+`app/e2e/lodge.e2e.ts` replying through lodge's development build.
+Notifications are not built yet.
 
 - **Which maild:** the app's own `app.json` names lodge's URL, else the
   local socket. Settings shows and changes it.

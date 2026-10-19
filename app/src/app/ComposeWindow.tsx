@@ -18,6 +18,7 @@ import { appLocale } from "../lib/calendarDates";
 import { sendChoices } from "../lib/later";
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
+import { remoteMaild } from "../rpc/transport/tauri";
 import {
   activeFormats,
   composeExtensions,
@@ -188,7 +189,13 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         client.draft
           .attach({ id, path })
           .then((a) => setAttachments((list) => [...list, a]))
-          .catch((err: unknown) => setError(`${basename(path)} was not attached: ${message(err)}`))
+          .catch((err: unknown) =>
+            setError(
+              remoteMaild()
+                ? `${basename(path)} was not attached: a maild behind lodge cannot read this computer's files yet.`
+                : `${basename(path)} was not attached: ${message(err)}`,
+            ),
+          )
           .finally(() => setPending((p) => p.filter((x) => x.key !== key)));
       }
     },

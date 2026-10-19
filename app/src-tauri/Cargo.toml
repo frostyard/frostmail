@@ -14,12 +14,24 @@ tauri-build = { version = "2.7.1", features = [] }
 tauri = { version = "2.12.1", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.53", features = ["net", "io-util", "sync", "fs", "time"] }
+tokio = { version = "1.53", features = ["net", "io-util", "sync", "fs", "time", "macros"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-single-instance = "2.5.2"
 
+# A maild behind lodge (docs/design/desktop.md): lodge's WebSocket and the
+# content node's downloads, over rustls with ring and the web's roots on
+# Linux, and the system's TLS (SChannel) on Windows, which needs no C
+# toolchain for the target.
+[target.'cfg(not(windows))'.dependencies]
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+ureq = { version = "3.4", default-features = false, features = ["rustls"] }
+
 [target.'cfg(windows)'.dependencies]
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
+ureq = { version = "3.4", default-features = false, features = ["native-tls"] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",
