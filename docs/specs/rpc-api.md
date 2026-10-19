@@ -1482,6 +1482,8 @@ Remind Me: at a time, bring messages back to the top of their account's inbox an
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`, `conflict`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### Event `message.announced` (transient)
 
@@ -2574,6 +2576,8 @@ Add a task at the top of its list, and write it to the server.
 
 Result: `Task`.
 Errors: `invalidParams`, `notFound`, `conflict`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `tasks.update`
 
@@ -2589,6 +2593,8 @@ Change a task; omitted fields keep their values.
 
 Result: `Task`.
 Errors: `invalidParams`, `notFound`, `conflict`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `tasks.delete`
 

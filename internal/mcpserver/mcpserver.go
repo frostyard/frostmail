@@ -7,7 +7,8 @@
 // API. The read tools, for mail (read.go), calendars, tasks and contacts
 // (pim.go) and the conversations waiting on a reply (waiting.go), come
 // with every scope; ;write adds flags, moves and
-// replies drafted, and ;send sending a draft (write.go). It is the only
+// replies drafted, tasks created and completed and Remind Me, and ;send
+// sending a draft (write.go). It is the only
 // package that imports the MCP SDK, and no SDK type is in its exported API.
 package mcpserver
 
@@ -43,17 +44,21 @@ func instructions(scope api.Scope) string {
 	switch {
 	case scope.Write && scope.Send:
 		return reading + ` With this token you may also set flags, move messages, draft
-replies (draft_reply) and send drafts (send_draft); send only what the user
-asked to send. It cannot delete mail.`
+replies (draft_reply), create and complete tasks, set Remind Me
+(remind_me), and send drafts (send_draft); send only what the user asked
+to send. It cannot delete mail or change the calendar.`
 	case scope.Write:
-		return reading + ` With this token you may also set flags, move messages and draft
-replies, which wait in the user's Drafts (draft_reply). It cannot send or
-delete mail.`
+		return reading + ` With this token you may also set flags, move messages, draft
+replies, which wait in the user's Drafts (draft_reply), create and
+complete tasks, and set Remind Me (remind_me). It cannot send or delete
+mail, or change the calendar.`
 	case scope.Send:
 		return reading + ` With this token you may also send drafts the user wrote
-(send_draft), but not change or draft mail.`
+(send_draft), but not change or draft mail, or change tasks or the
+calendar.`
 	}
-	return reading + ` This token is read-only: it cannot send, move, delete or change mail.`
+	return reading + ` This token is read-only: it cannot send, move, delete or change mail,
+or change tasks or the calendar.`
 }
 
 // Options configure a server.

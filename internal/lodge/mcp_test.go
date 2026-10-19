@@ -33,7 +33,13 @@ type twoAccounts struct {
 
 func seedTwoAccounts(t *testing.T) *twoAccounts {
 	t.Helper()
-	srv := rpctest.Start(t)
+	return seedTwoAccountsWith(t, rpctest.Options{})
+}
+
+// seedTwoAccountsWith seeds twoAccounts on a server started with o.
+func seedTwoAccountsWith(t *testing.T, o rpctest.Options) *twoAccounts {
+	t.Helper()
+	srv := rpctest.StartWith(t, o)
 	ctx := t.Context()
 	add := func(domain, subject, body string) (acct, inbox, msg int64) {
 		email := "me@" + domain
@@ -424,7 +430,8 @@ func TestAgentsDraftAndSendThroughLodge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := slices.Sorted(slices.Values(append([]string{"draft_reply", "move_messages", "set_flags"}, readTools...)))
+	want := slices.Sorted(slices.Values(append([]string{"complete_task", "create_task", "draft_reply", "move_messages",
+		"remind_me", "set_flags"}, readTools...)))
 	if names := toolNames(t, cs); !slices.Equal(names, want) {
 		t.Errorf("tools under ;write = %v, want %v", names, want)
 	}

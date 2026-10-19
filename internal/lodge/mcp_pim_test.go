@@ -61,9 +61,14 @@ func (p pimStore) event(cal int64, email, href string, raw []byte) {
 	}
 }
 
+// task stores a CalDAV task: the lists here are of IMAP accounts.
 func (p pimStore) task(list int64, row store.TaskRow) {
-	id, err := p.tx.PutObject(p.t.Context(), store.Object{CollectionID: list, Href: row.UID, Kind: store.ObjectGTask, UID: row.UID,
-		Raw: []byte(`{"title":"x"}`)})
+	c := calendar.TodoChange{Summary: &row.Title, Description: &row.Notes, Completed: &row.Completed}
+	if row.Due != "" {
+		c.Due = &row.Due
+	}
+	id, err := p.tx.PutObject(p.t.Context(), store.Object{CollectionID: list, Href: row.UID + ".ics", ETag: `"1"`,
+		Kind: store.ObjectVTodo, UID: row.UID, Raw: calendar.NewTodo(row.UID, c, "", pimNow)})
 	if err != nil {
 		p.t.Fatal(err)
 	}
@@ -110,7 +115,7 @@ type pim struct {
 
 func seedPIM(t *testing.T) *pim {
 	t.Helper()
-	n := seedTwoAccounts(t)
+	n := seedTwoAccountsWith(t, rpctest.Options{Now: func() time.Time { return pimNow }})
 	p := &pim{twoAccounts: n, events: map[string]int64{}, tasks: map[string]int64{}}
 	ctx := t.Context()
 	err := n.srv.DB.Tx(ctx, func(tx *store.Tx) error {

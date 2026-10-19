@@ -12,12 +12,18 @@ import (
 )
 
 // The write and send tools (docs/specs/lodge-app.md, /mcp), each only for
-// a token whose scope grants it: ;write sets flags, moves messages and
-// drafts replies; ;send queues a draft to send. maild's router and engine
-// enforce the scope whatever the tools offer.
+// a token whose scope grants it: ;write sets flags, moves messages, drafts
+// replies, creates and completes tasks and sets Remind Me (ADR-0042);
+// ;send queues a draft to send. maild's router and engine enforce the
+// scope whatever the tools offer. Nothing here writes an event.
 
-// maxIDs bounds the messages one call changes.
-const maxIDs = 100
+// Limits on what the write tools take.
+const (
+	maxIDs       = 100 // messages one call changes
+	maxTaskTitle = 1024
+	maxTaskNotes = 32 << 10
+	maxRemind    = 365 * 24 * time.Hour
+)
 
 type flagsIn struct {
 	MessageIDs []int64 `json:"message_ids" jsonschema:"the messages, by their IDs from search_messages; at most 100"`
@@ -49,6 +55,40 @@ type draftOut struct {
 	Note      string   `json:"note"`
 }
 
+type createTaskIn struct {
+	Title  string `json:"title" jsonschema:"what to do, 1 to 1,024 bytes"`
+	Notes  string `json:"notes,omitzero" jsonschema:"more about it, at most 32 KiB"`
+	Due    string `json:"due,omitzero" jsonschema:"the day it is due, YYYY-MM-DD"`
+	ListID int64  `json:"list_id,omitzero" jsonschema:"the task list, by its ID from list_collections; default the first account's default list"`
+}
+
+type taskWriteOut struct {
+	TaskID    int64  `json:"task_id"`
+	ListID    int64  `json:"list_id"`
+	List      string `json:"list"`
+	AccountID int64  `json:"account_id"`
+	Title     string `json:"title"`
+	Due       string `json:"due,omitzero"`
+	Completed bool   `json:"completed"`
+	Note      string `json:"note"`
+}
+
+type completeTaskIn struct {
+	TaskID    int64 `json:"task_id" jsonschema:"the task, by its ID from list_tasks"`
+	Completed *bool `json:"completed,omitzero" jsonschema:"true (the default) completes it; false reopens it"`
+}
+
+type remindIn struct {
+	MessageID int64  `json:"message_id" jsonschema:"the message, by its ID from search_messages"`
+	At        string `json:"at,omitzero" jsonschema:"when, RFC 3339 with its offset, after now and at most 365 days ahead; omit to clear the reminder"`
+}
+
+type remindOut struct {
+	MessageID int64  `json:"message_id"`
+	At        string `json:"at,omitzero" jsonschema:"when it comes back, RFC 3339"`
+	Note      string `json:"note"`
+}
+
 type sendIn struct {
 	DraftID int64 `json:"draft_id" jsonschema:"the draft, by its ID from draft_reply"`
 }
@@ -76,6 +116,14 @@ message: text above the quoted message, to its sender (or with reply_all
 to every recipient), from the account that received it. The draft waits
 in the user's Drafts for them to read, change and send; this does not
 send it.`}, t.draftReply)
+		sdk.AddTool(s, &sdk.Tool{Name: "create_task", Annotations: writes, Description: `Add a task to the user's
+Tasks, at the top of a list: by default the default list of the first
+account this token reaches. It is written to the list's server.`}, t.createTask)
+		sdk.AddTool(s, &sdk.Tool{Name: "complete_task", Annotations: writes, Description: `Complete a task, or
+reopen it with completed false. The change reaches the task's server.`}, t.completeTask)
+		sdk.AddTool(s, &sdk.Tool{Name: "remind_me", Annotations: writes, Description: `Remind Me: at a time, bring
+a message back to the top of its inbox and notify the user; without at,
+clear its reminder.`}, t.remindMe)
 	}
 	if scope.Send {
 		sends := &sdk.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: new(true)}
@@ -154,6 +202,73 @@ func replyHTML(text, body string) string {
 		return b.String() + cursor + rest
 	}
 	return b.String() + body
+}
+
+func (t *tools) createTask(ctx context.Context, _ *sdk.CallToolRequest, in createTaskIn) (*sdk.CallToolResult, taskWriteOut, error) {
+	if strings.TrimSpace(in.Title) == "" || len(in.Title) > maxTaskTitle {
+		return nil, taskWriteOut{}, fmt.Errorf("title must be 1 to %d bytes", maxTaskTitle)
+	}
+	if len(in.Notes) > maxTaskNotes {
+		return nil, taskWriteOut{}, fmt.Errorf("notes must be at most %d bytes", maxTaskNotes)
+	}
+	p := &api.TasksCreateParams{Title: in.Title}
+	if in.Notes != "" {
+		p.Notes = &in.Notes
+	}
+	if in.Due != "" {
+		p.Due = &in.Due
+	}
+	if in.ListID != 0 {
+		p.ListID = &in.ListID
+	}
+	task, err := t.o.Client.Tasks().Create(ctx, p)
+	if err != nil {
+		return nil, taskWriteOut{}, err
+	}
+	return t.taskWritten(ctx, task, "The task is in the user's Tasks; it is written to its list's server.")
+}
+
+func (t *tools) completeTask(ctx context.Context, _ *sdk.CallToolRequest, in completeTaskIn) (*sdk.CallToolResult, taskWriteOut, error) {
+	done := in.Completed == nil || *in.Completed
+	task, err := t.o.Client.Tasks().Update(ctx, &api.TasksUpdateParams{ID: in.TaskID, Completed: &done})
+	if err != nil {
+		return nil, taskWriteOut{}, err
+	}
+	note := "The task is completed."
+	if !done {
+		note = "The task is open again."
+	}
+	return t.taskWritten(ctx, task, note)
+}
+
+func (t *tools) taskWritten(ctx context.Context, task *api.Task, note string) (*sdk.CallToolResult, taskWriteOut, error) {
+	names, err := t.collectionNames(ctx, api.CollectionKindTasklist)
+	if err != nil {
+		return nil, taskWriteOut{}, err
+	}
+	return nil, taskWriteOut{TaskID: task.ID, ListID: task.ListID, List: names[task.ListID], AccountID: task.AccountID,
+		Title: task.Title, Due: task.Due, Completed: task.Completed, Note: note}, nil
+}
+
+func (t *tools) remindMe(ctx context.Context, _ *sdk.CallToolRequest, in remindIn) (*sdk.CallToolResult, remindOut, error) {
+	p := &api.MessageRemindParams{IDs: []int64{in.MessageID}}
+	out := remindOut{MessageID: in.MessageID, Note: "The reminder is cleared."}
+	if in.At != "" {
+		at, err := time.Parse(time.RFC3339, in.At)
+		if err != nil {
+			return nil, remindOut{}, fmt.Errorf("at must be RFC 3339 with its offset, such as 2026-10-23T09:00:00+02:00")
+		}
+		now := t.now()
+		if !at.After(now) || at.After(now.Add(maxRemind)) {
+			return nil, remindOut{}, fmt.Errorf("at must be after now and at most 365 days ahead")
+		}
+		p.At, out.At = &at, at.Format(time.RFC3339)
+		out.Note = "At that time the message comes back to the top of its inbox, and the user is notified."
+	}
+	if err := t.o.Client.Message().Remind(ctx, p); err != nil {
+		return nil, remindOut{}, err
+	}
+	return nil, out, nil
 }
 
 func (t *tools) sendDraft(ctx context.Context, _ *sdk.CallToolRequest, in sendIn) (*sdk.CallToolResult, sendOut, error) {

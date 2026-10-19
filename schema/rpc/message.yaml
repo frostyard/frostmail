@@ -270,6 +270,8 @@ methods:
       - {name: ids, type: "[]int"}
       - {name: at, type: time, optional: true, doc: "In the future."}
     errors: [notFound, invalidParams, conflict]
+    callers: [local, session, agent]
+    scope: write
 events:
   - name: announced
     doc: >-

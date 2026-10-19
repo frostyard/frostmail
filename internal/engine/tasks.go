@@ -107,7 +107,8 @@ func (t tasksService) writableList(ctx context.Context, id int64) (store.Collect
 }
 
 // defaultList is the default list of the first account with tasks on, else
-// its first list.
+// its first list; for an agent, of the first such account its scope
+// reaches.
 func (t tasksService) defaultList(ctx context.Context) (int64, error) {
 	rows, err := t.DB.Collections(ctx, store.CollectionFilter{Kind: api.CollectionKindTasklist})
 	if err != nil {
@@ -123,7 +124,7 @@ func (t tasksService) defaultList(ctx context.Context) (int64, error) {
 	}
 	var first int64
 	for _, c := range rows {
-		if !on[c.AccountID] || !c.Enabled {
+		if !on[c.AccountID] || !c.Enabled || !admits(ctx, c.AccountID) {
 			continue
 		}
 		if c.IsDefault {
@@ -147,6 +148,9 @@ func (t tasksService) Create(ctx context.Context, p *api.TasksCreateParams) (*ap
 	listID := int64(0)
 	if p.ListID != nil {
 		listID = *p.ListID
+		if _, err := t.admitCollection(ctx, listID, api.CollectionKindTasklist, "task list"); err != nil {
+			return nil, err
+		}
 	} else if listID, err = t.defaultList(ctx); err != nil {
 		return nil, err
 	}
@@ -156,7 +160,10 @@ func (t tasksService) Create(ctx context.Context, p *api.TasksCreateParams) (*ap
 	}
 	var parent store.TaskRow
 	if p.ParentID != nil {
-		if parent, err = t.DB.Task(ctx, *p.ParentID); err != nil {
+		if parent, err = t.DB.Task(ctx, *p.ParentID); err == nil && !admits(ctx, parent.AccountID) {
+			err = store.ErrNotFound
+		}
+		if err != nil {
 			return nil, apiError(err, "the parent task")
 		}
 		if parent.ListID != col.ID || parent.ParentID != 0 {
@@ -279,6 +286,9 @@ func (t tasksService) after(ctx context.Context, accountID, id int64) (*api.Task
 
 func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*api.Task, error) {
 	row, err := t.DB.Task(ctx, p.ID)
+	if err == nil && !admits(ctx, row.AccountID) {
+		err = store.ErrNotFound
+	}
 	if err != nil {
 		return nil, apiError(err, "the task")
 	}
