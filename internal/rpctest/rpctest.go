@@ -60,6 +60,10 @@ type Options struct {
 	// OnAttended learns when the app connects and leaves
 	// (rpcserver.Options.OnAttended).
 	OnAttended func(attended bool)
+	// Services, when set, may replace the engine's domains with fakes
+	// before the router is built, so a test can run the server against
+	// them.
+	Services func(*api.Services)
 }
 
 // Server is a running test server; it stops when the test ends.
@@ -154,13 +158,17 @@ func StartWith(t testing.TB, o Options) *Server {
 	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log, OnAttended: o.OnAttended})
 	srv.RPC = rpc
 	eng := engine.New(deps)
-	router, err := api.NewRouter(api.Services{
+	services := api.Services{
 		RPC: rpc, Events: rpc, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
 		Settings: eng.Settings(), Vip: eng.Vips(), Block: eng.Blocks(), Smart: eng.Smart(), Rule: eng.Rules(),
-	})
+	}
+	if o.Services != nil {
+		o.Services(&services)
+	}
+	router, err := api.NewRouter(services)
 	if err != nil {
 		t.Fatal(err)
 	}
