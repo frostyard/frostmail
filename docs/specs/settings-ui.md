@@ -59,6 +59,7 @@ container calls maild.
 
 ```
  New message notifications:  [Inbox Only ▾]
+          In this browser:   [Allow Notifications…]     (the web build)
           Undo send delay:   [10 Seconds ▾]
                Flag names:   ⚑ [Red          ]
                              ⚑ [Orange       ]
@@ -68,6 +69,12 @@ container calls maild.
 ```
 
 - A `GRID` of labeled rows, 24px padding, `LABEL` right-aligned.
+- **In this browser** (M8), only where the page can show notifications (the
+  web build; [lodge-app.md](lodge-app.md#the-web-build)): while the
+  browser has not been asked, an Allow Notifications… button (`BUTTON`),
+  which asks it (`Notification.requestPermission`); then "Notifications
+  are on." or "Notifications are blocked in the browser's settings." in
+  13/18 `--text-secondary`.
 - **New message notifications:** a `select`: Inbox Only (`inbox`), VIPs
   (`vips`), Contacts (`contacts`), All Mailboxes (`all`), then, in an
   `optgroup` labeled "Smart Mailboxes", each smart mailbox by name

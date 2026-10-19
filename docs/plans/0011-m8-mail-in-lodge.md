@@ -127,8 +127,10 @@ boundaries, so the planner builds them.
   `lodge.open`, when the link is in mail's own UI.
 - **The narrow layout:** one pane at a time below a width
   [ui.md](../specs/ui.md) sets, for the phone.
-- **Notifications** while lodge is open: the web app shows new mail and
-  reminders with the Notification API. Web Push waits on lodge.
+- **Notifications** while lodge is open (built): maild with no session
+  bus sends connected clients `message.announced`, and the web app shows
+  new mail and, while hidden, reminders with the Notification API, once
+  allowed in Settings → General. Web Push waits on lodge.
 - **Done when,** in lodge's development build: a reply with an attachment
   composed in the frame goes out through `tools/smtpsink`; Save As
   downloads the `.eml`; a note's link to `/mail/message/<id>` opens the
@@ -178,8 +180,8 @@ Notifications are not built yet.
   from `GET https://LODGE/lodge/apps`, into the app's cache and opens the
   file, so the webview still fetches nothing.
 - **Notifications:** an IDL event for announcements, sent to connected
-  clients when maild has no session bus, and shown by the app's own
-  notifier.
+  clients when maild has no session bus (built, `message.announced`), and
+  shown by the app's own notifier.
 - **The Flatpak** gains the network for the Rust layer.
 - **Done when:** with `app.json` naming lodge's development build, the
   desktop app reads, composes with an attachment and sends through a maild
@@ -215,7 +217,17 @@ Notifications are not built yet.
   credentials, a TPM). Decide by Phase 7.
 - **Reminders with no client open:** with no session bus on the server, a
   reminder that fires while no app is attached reaches nobody until one
-  connects. Decide with Phase 4's notifications.
+  connects. Proposed with Phase 4's notifications, for the user to
+  confirm:
+  - a calendar reminder waits: `calendar.reminders` still lists it, so
+    the next client to connect raises the reminder window (a hidden page
+    also notifies it), as a desktop app started late does today;
+  - a Remind Me reminder brings its message back to the inbox when it
+    fires, whoever is connected, and only the announcement is lost;
+  - new mail announced while no client was connected is not replayed:
+    it is unread in the list;
+  - notifying with nothing open is Web Push's, which waits on lodge
+    ([ADR-0008](https://github.com/frostyard/lodge/blob/main/docs/adr/0008-lodge-installs-as-one-home-screen-app.md)).
 
 ## References
 

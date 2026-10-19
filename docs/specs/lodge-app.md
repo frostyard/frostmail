@@ -149,6 +149,9 @@ once its store is open, so a maild that answers is serving.
     `r/<token>.html`. It is absent otherwise.
   - `PartFile` gains `contentPath`, `p/<mac>/<path>`, on a maild serving
     `--lodge`.
+  - The transient event `message.announced {accountId, notes:
+    [Announcement]}`, an `Announcement` being `{title, body, messageId?}`,
+    goes to every connected client when maild has no session bus.
 
 ### Attaching by bytes
 
@@ -320,6 +323,21 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 - **Context.** With a message shown, `context {kind: "message", ref:
   "mail/message/<id>", title: <subject>}`; with none, `context {kind:
   null}`.
+- **Notifications.** maild behind lodge has no session bus, so it sends
+  each connected client the transient `message.announced {accountId,
+  notes}` in place of desktop notifications, with the notes the desktop's
+  would have ([design/desktop.md](../design/desktop.md#notifications)):
+  new mail by the notification scope, and fired Remind Me reminders. The
+  web build shows each note with the Notification API, tagged by account
+  and message so one replaces its own, once the user allows it in
+  Settings → General. A click brings mail forward in the shell
+  (`lodge.open`) at the message, or a group's account's inbox. A
+  calendar reminder raises the reminder window as in the desktop app; a
+  hidden page also notifies each new one, and its click shows the window.
+  A browser with no `Notification` constructor (Android's Chrome) shows
+  them through the page's service worker registration, of which lodge's
+  shell has none yet; with no page open, nothing notifies until lodge
+  decides on Web Push.
 - **Theme.** The app follows `init.theme` and `theme`, not its own
   `prefers-color-scheme` query. The reader page stays white paper.
 - **Storage.** Local-storage keys are prefixed `mail:`

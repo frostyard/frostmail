@@ -15,6 +15,7 @@ import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
 import { frameWindowOpen } from "../lodge/frameWindow";
 import type { Client, InviteNotice } from "../rpc/gen/api";
+import { watchAnnouncements } from "./announce";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
@@ -242,6 +243,7 @@ function useWindowEvents(
 ) {
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
+  useEffect(() => watchAnnouncements(client), [client]);
   useEffect(() => watchReminders(client), [client]);
   useEffect(() => watchRestores(), []);
   useLayoutEffect(() => watchOccurrenceRequests(), []);

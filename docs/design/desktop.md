@@ -71,8 +71,13 @@ desktop icon.
   notifications stay until dismissed.
 - Clicking one (`ActionInvoked`, action `default`) runs
   `frostmail --open-message <id>` (a group runs `frostmail`);
-  `FROSTMAIL_APP` names another binary. Without a session bus maild runs
-  without notifications.
+  `FROSTMAIL_APP` names another binary.
+- **Without a session bus** (behind lodge, or a session with none), maild
+  sends the same notes to every connected client instead, as the
+  transient event `message.announced {accountId, notes: [{title, body,
+  messageId?}]}`, and each client shows them itself: the web build with
+  the Notification API ([lodge-app.md](../specs/lodge-app.md#the-web-build)).
+  Nothing is replayed to a client that connects later.
 - Per account: notifications on or off (`account.update {notify}`); off
   for read-only accounts.
 - Which new mail notifies is the `notifyScope` setting: Inbox only (the
@@ -221,10 +226,10 @@ tailnet, such as the friend's Windows install.
   caller cannot read or write the desktop's files, so attaching sends the
   file's bytes (`draft.attachData`) and Save As downloads the source from
   the content route, both from plan 0011's Phase 4.
-- **Notifications** (not built yet). A remote maild has no session bus.
-  It is to send each connected client a transient event when an
-  announcement is due, for the desktop app's own notifier; a click opens
-  the message, as `--open-message` does.
+- **Notifications.** A remote maild has no session bus, so it sends each
+  connected client `message.announced` (above, built). The desktop app's
+  own notifier is to show them; a click opens the message, as
+  `--open-message` does (not built yet).
 - **What does not change:** with no `lodge` in `app.json`, the bridge,
   the parts and every window are as above, on maild's own socket or pipe.
 - **Tests:** `src-tauri/src/remote.rs`'s tests (addresses, the

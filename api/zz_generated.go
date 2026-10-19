@@ -2514,6 +2514,18 @@ type UnsubscribeResult struct {
 	URL *string `json:"url,omitzero"`
 }
 
+// Announcement: One notification of new mail, as maild's desktop
+// notifications word it (docs/design/desktop.md, Notifications).
+type Announcement struct {
+	// The sender, or "N new messages" for a group.
+	Title string `json:"title"`
+	// The subject (after "Reminder: " for a Remind Me reminder) and a line of
+	// preview, or the senders of a group.
+	Body string `json:"body"`
+	// The message it opens; absent for a group.
+	MessageID *int64 `json:"messageId,omitzero"`
+}
+
 // MessageSource: A message as the server holds it.
 type MessageSource struct {
 	// The header section, up to the blank line.
@@ -3002,6 +3014,21 @@ func (x MessageClient) Mute(ctx context.Context, p *MessageMuteParams) error {
 func (x MessageClient) Remind(ctx context.Context, p *MessageRemindParams) error {
 	return x.c.Call(ctx, "message.remind", p, nil)
 }
+
+// MessageAnnounced: New mail and fired Remind Me reminders to announce, sent
+// live to every connected client when maild has no desktop to notify on (no
+// session bus, as behind lodge, docs/specs/lodge-app.md); each client shows
+// the notes itself. Never replayed.
+type MessageAnnounced struct {
+	AccountID int64          `json:"accountId"`
+	Notes     []Announcement `json:"notes"`
+}
+
+// EventName is the wire name of MessageAnnounced.
+func (MessageAnnounced) EventName() string { return "message.announced" }
+
+// Durable reports whether MessageAnnounced is kept in the changes log.
+func (MessageAnnounced) Durable() bool { return false }
 
 // MessageChanged: Messages were added or changed (flags, mailbox, fetched
 // body).
@@ -5608,6 +5635,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "mailbox.changed":
 		var e MailboxChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "message.announced":
+		var e MessageAnnounced
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}
