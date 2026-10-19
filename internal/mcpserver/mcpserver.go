@@ -37,7 +37,8 @@ list_events and read_event read the calendar, list_tasks and read_task the
 tasks, and search_contacts and read_contact the contacts.
 threads_awaiting_reply lists the conversations waiting on the user, and
 threads_awaiting_others those waiting on others, as maild picks them. IDs
-come from these tools. ` + Notice
+come from these tools. A message's url is its permanent lodge address:
+link the message by it, as it is. ` + Notice
 
 // instructions tell the MCP host what this token may do.
 func instructions(scope api.Scope) string {
@@ -97,7 +98,7 @@ first: all of them, or those matching query in the search field's language
 (words, "a phrase", from:, to:, subject:, has:attachment, is:unread,
 before:YYYY-MM-DD, after:YYYY-MM-DD), optionally in one mailbox. Each
 result has the message's ID, its thread's ID, its date, sender, subject and
-the start of its text. ` + Notice}, t.searchMessages)
+the start of its text, and its url, by which to link it. ` + Notice}, t.searchMessages)
 	sdk.AddTool(s, &sdk.Tool{Name: "read_thread", Annotations: reads, Description: `Read the conversation a
 message belongs to, oldest first: each message's date, sender, recipients,
 subject and text, with its attachments' names, types and sizes. At most

@@ -84,9 +84,11 @@ type remindIn struct {
 }
 
 type remindOut struct {
-	MessageID int64  `json:"message_id"`
-	At        string `json:"at,omitzero" jsonschema:"when it comes back, RFC 3339"`
-	Note      string `json:"note"`
+	MessageID       int64  `json:"message_id"`
+	MessageIDHeader string `json:"message_id_header,omitzero" jsonschema:"the message's Message-ID header, without angle brackets; absent when it has none"`
+	URL             string `json:"url,omitzero" jsonschema:"the message's permanent lodge URL, to link it or for lodge.open; use it as it is"`
+	At              string `json:"at,omitzero" jsonschema:"when it comes back, RFC 3339"`
+	Note            string `json:"note"`
 }
 
 type sendIn struct {
@@ -268,6 +270,11 @@ func (t *tools) remindMe(ctx context.Context, _ *sdk.CallToolRequest, in remindI
 	if err := t.o.Client.Message().Remind(ctx, p); err != nil {
 		return nil, remindOut{}, err
 	}
+	headers, err := t.messageIDHeaders(ctx, p.IDs)
+	if err != nil {
+		return nil, remindOut{}, err
+	}
+	out.MessageIDHeader, out.URL = messageLink(headers[in.MessageID])
 	return nil, out, nil
 }
 

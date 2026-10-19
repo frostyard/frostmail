@@ -455,7 +455,10 @@ type taskFullOut struct {
 	Completed   bool   `json:"completed"`
 	CompletedAt string `json:"completed_at,omitzero" jsonschema:"RFC 3339"`
 	MessageID   int64  `json:"message_id,omitzero" jsonschema:"the message the task was made from, for read_thread"`
-	Notice      string `json:"notice"`
+	// The task's message's link, as other tools answer a message's.
+	MessageIDHeader string `json:"message_id_header,omitzero" jsonschema:"that message's Message-ID header, without angle brackets; absent when it has none"`
+	MessageURL      string `json:"message_url,omitzero" jsonschema:"that message's permanent lodge URL, to link it or for lodge.open; use it as it is"`
+	Notice          string `json:"notice"`
 }
 
 func (t *tools) readTask(ctx context.Context, _ *sdk.CallToolRequest, in taskIn) (*sdk.CallToolResult, taskFullOut, error) {
@@ -478,6 +481,11 @@ func (t *tools) readTask(ctx context.Context, _ *sdk.CallToolRequest, in taskIn)
 	}
 	if task.MessageID != nil {
 		out.MessageID = *task.MessageID
+		headers, err := t.messageIDHeaders(ctx, []int64{out.MessageID})
+		if err != nil {
+			return nil, taskFullOut{}, err
+		}
+		out.MessageIDHeader, out.MessageURL = messageLink(headers[out.MessageID])
 	}
 	return nil, out, nil
 }

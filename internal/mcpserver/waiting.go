@@ -42,19 +42,21 @@ type othersWaitIn struct {
 }
 
 type waitingThreadOut struct {
-	ThreadID    int64    `json:"thread_id"`
-	AccountID   int64    `json:"account_id"`
-	MessageID   int64    `json:"message_id" jsonschema:"the newest message, for read_thread and draft_reply"`
-	Subject     string   `json:"subject"`
-	From        string   `json:"from,omitzero" jsonschema:"who the conversation waits for a reply to"`
-	To          []string `json:"to,omitzero" jsonschema:"the newest message's first 10 recipients"`
-	ToCount     int64    `json:"to_count,omitzero" jsonschema:"how many recipients it has"`
-	Date        string   `json:"date" jsonschema:"the newest message's, RFC 3339 in the answer's zone"`
-	Preview     string   `json:"preview" jsonschema:"the start of its text"`
-	Unread      bool     `json:"unread"`
-	Messages    int64    `json:"messages" jsonschema:"how many messages the conversation has"`
-	VIP         bool     `json:"vip" jsonschema:"the sender, or a recipient, is a VIP"`
-	WaitingDays int64    `json:"waiting_days" jsonschema:"whole days since the newest message"`
+	ThreadID        int64    `json:"thread_id"`
+	AccountID       int64    `json:"account_id"`
+	MessageID       int64    `json:"message_id" jsonschema:"the newest message, for read_thread and draft_reply"`
+	MessageIDHeader string   `json:"message_id_header,omitzero" jsonschema:"the newest message's Message-ID header, without angle brackets; absent when it has none"`
+	URL             string   `json:"url,omitzero" jsonschema:"the newest message's permanent lodge URL, to link it or for lodge.open; use it as it is"`
+	Subject         string   `json:"subject"`
+	From            string   `json:"from,omitzero" jsonschema:"who the conversation waits for a reply to"`
+	To              []string `json:"to,omitzero" jsonschema:"the newest message's first 10 recipients"`
+	ToCount         int64    `json:"to_count,omitzero" jsonschema:"how many recipients it has"`
+	Date            string   `json:"date" jsonschema:"the newest message's, RFC 3339 in the answer's zone"`
+	Preview         string   `json:"preview" jsonschema:"the start of its text"`
+	Unread          bool     `json:"unread"`
+	Messages        int64    `json:"messages" jsonschema:"how many messages the conversation has"`
+	VIP             bool     `json:"vip" jsonschema:"the sender, or a recipient, is a VIP"`
+	WaitingDays     int64    `json:"waiting_days" jsonschema:"whole days since the newest message"`
 }
 
 type waitingOut struct {
@@ -81,7 +83,7 @@ func (t *tools) awaitingReply(ctx context.Context, _ *sdk.CallToolRequest, in re
 	if err != nil {
 		return nil, waitingOut{}, err
 	}
-	return nil, waiting(got, loc, zone, false), nil
+	return t.waiting(ctx, got, loc, zone, false)
 }
 
 func (t *tools) awaitingOthers(ctx context.Context, _ *sdk.CallToolRequest, in othersWaitIn) (*sdk.CallToolResult, waitingOut, error) {
@@ -94,16 +96,25 @@ func (t *tools) awaitingOthers(ctx context.Context, _ *sdk.CallToolRequest, in o
 	if err != nil {
 		return nil, waitingOut{}, err
 	}
-	return nil, waiting(got, loc, zone, true), nil
+	return t.waiting(ctx, got, loc, zone, true)
 }
 
-func waiting(a *api.Awaiting, loc *time.Location, zone string, others bool) waitingOut {
+func (t *tools) waiting(ctx context.Context, a *api.Awaiting, loc *time.Location, zone string, others bool) (*sdk.CallToolResult, waitingOut, error) {
+	ids := make([]int64, 0, len(a.Threads))
+	for _, w := range a.Threads {
+		ids = append(ids, w.Message.ID)
+	}
+	headers, err := t.messageIDHeaders(ctx, ids)
+	if err != nil {
+		return nil, waitingOut{}, err
+	}
 	out := waitingOut{TimeZone: zone, Total: a.Total, Threads: []waitingThreadOut{}, Notice: Notice}
 	for _, w := range a.Threads {
 		m := w.Message
 		o := waitingThreadOut{ThreadID: w.ThreadID, AccountID: w.AccountID, MessageID: m.ID, Subject: m.Subject,
 			Date: m.Date.In(loc).Format(time.RFC3339), Preview: m.Preview, Unread: !m.Flags.Seen, Messages: m.ThreadCount,
 			VIP: w.Vip, WaitingDays: w.WaitingDays}
+		o.MessageIDHeader, o.URL = messageLink(headers[m.ID])
 		if others {
 			o.To, o.ToCount = addresses(w.Recipients), w.RecipientCount
 		} else {
@@ -111,5 +122,5 @@ func waiting(a *api.Awaiting, loc *time.Location, zone string, others bool) wait
 		}
 		out.Threads = append(out.Threads, o)
 	}
-	return out
+	return nil, out, nil
 }

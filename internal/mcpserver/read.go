@@ -55,16 +55,18 @@ type searchIn struct {
 }
 
 type hitOut struct {
-	ID             int64  `json:"id"`
-	ThreadID       int64  `json:"thread_id" jsonschema:"0 for a message in no thread"`
-	AccountID      int64  `json:"account_id"`
-	Date           string `json:"date" jsonschema:"RFC 3339"`
-	From           string `json:"from"`
-	Subject        string `json:"subject"`
-	Preview        string `json:"preview" jsonschema:"the start of the message's text"`
-	Unread         bool   `json:"unread"`
-	Flagged        bool   `json:"flagged"`
-	HasAttachments bool   `json:"has_attachments"`
+	ID              int64  `json:"id"`
+	MessageIDHeader string `json:"message_id_header,omitzero" jsonschema:"the message's Message-ID header, without angle brackets; absent when it has none"`
+	URL             string `json:"url,omitzero" jsonschema:"the message's permanent lodge URL, to link it or for lodge.open; use it as it is"`
+	ThreadID        int64  `json:"thread_id" jsonschema:"0 for a message in no thread"`
+	AccountID       int64  `json:"account_id"`
+	Date            string `json:"date" jsonschema:"RFC 3339"`
+	From            string `json:"from"`
+	Subject         string `json:"subject"`
+	Preview         string `json:"preview" jsonschema:"the start of the message's text"`
+	Unread          bool   `json:"unread"`
+	Flagged         bool   `json:"flagged"`
+	HasAttachments  bool   `json:"has_attachments"`
 }
 
 type searchOut struct {
@@ -84,15 +86,17 @@ type attachmentOut struct {
 }
 
 type messageOut struct {
-	ID          int64           `json:"id"`
-	Date        string          `json:"date" jsonschema:"RFC 3339"`
-	From        string          `json:"from"`
-	To          []string        `json:"to"`
-	Cc          []string        `json:"cc"`
-	Subject     string          `json:"subject"`
-	Text        string          `json:"text" jsonschema:"the message's text, or text made from its HTML"`
-	Truncated   bool            `json:"truncated" jsonschema:"the text was cut at 32 KiB"`
-	Attachments []attachmentOut `json:"attachments"`
+	ID              int64           `json:"id"`
+	MessageIDHeader string          `json:"message_id_header,omitzero" jsonschema:"the message's Message-ID header, without angle brackets; absent when it has none"`
+	URL             string          `json:"url,omitzero" jsonschema:"the message's permanent lodge URL, to link it or for lodge.open; use it as it is"`
+	Date            string          `json:"date" jsonschema:"RFC 3339"`
+	From            string          `json:"from"`
+	To              []string        `json:"to"`
+	Cc              []string        `json:"cc"`
+	Subject         string          `json:"subject"`
+	Text            string          `json:"text" jsonschema:"the message's text, or text made from its HTML"`
+	Truncated       bool            `json:"truncated" jsonschema:"the text was cut at 32 KiB"`
+	Attachments     []attachmentOut `json:"attachments"`
 }
 
 type threadOut struct {
@@ -150,13 +154,23 @@ func (t *tools) searchMessages(ctx context.Context, _ *sdk.CallToolRequest, in s
 	if err != nil {
 		return nil, searchOut{}, err
 	}
+	ids := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	headers, err := t.messageIDHeaders(ctx, ids)
+	if err != nil {
+		return nil, searchOut{}, err
+	}
 	out := searchOut{Total: v.Count, Messages: []hitOut{}, Notice: Notice}
 	for _, r := range rows {
-		out.Messages = append(out.Messages, hitOut{
+		hit := hitOut{
 			ID: r.ID, ThreadID: r.ThreadID, AccountID: r.AccountID, Date: r.Date.UTC().Format(time.RFC3339),
 			From: address(r.From), Subject: r.Subject, Preview: r.Preview, Unread: !r.Flags.Seen,
 			Flagged: r.Flags.Flagged, HasAttachments: r.HasAttachments,
-		})
+		}
+		hit.MessageIDHeader, hit.URL = messageLink(headers[r.ID])
+		out.Messages = append(out.Messages, hit)
 	}
 	return nil, out, nil
 }
@@ -196,6 +210,7 @@ func (t *tools) message(ctx context.Context, r api.MessageSummary) (messageOut, 
 	}
 	out := messageOut{ID: r.ID, Date: r.Date.UTC().Format(time.RFC3339), From: address(r.From), Subject: r.Subject,
 		To: addresses(m.To), Cc: addresses(m.Cc), Attachments: []attachmentOut{}}
+	out.MessageIDHeader, out.URL = messageLink(m.MessageID)
 	for _, p := range m.Parts {
 		if p.Filename != "" {
 			out.Attachments = append(out.Attachments, attachmentOut{Filename: p.Filename, ContentType: p.ContentType, Size: p.Size})
