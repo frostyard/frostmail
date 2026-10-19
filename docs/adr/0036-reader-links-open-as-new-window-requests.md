@@ -87,3 +87,4 @@ sanitizer.
 - Shapes: [design/app.md](../design/app.md) (Reader)
 - Builds on: [ADR-0005](0005-html-mail-rendering.md),
   [ADR-0013](0013-app-as-a-local-flatpak.md)
+- Related: [ADR-0041](0041-maild-runs-as-a-lodge-app.md) (links in lodge's reader page)

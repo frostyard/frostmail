@@ -59,6 +59,32 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
   only through views and renders mail that maild has sanitized
   ([design/app.md](app.md), [design/rendering.md](rendering.md)).
 
+## Behind lodge
+
+On a server, maild is lodge's `mail` app
+([ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md),
+[specs/lodge-app.md](../specs/lodge-app.md)). lodge is the only process
+on the network; maild listens on its app socket, which only lodge's user
+may open, and runs as the system user `frostmail`.
+
+```
+ browser · phone · desktop app ──https──▶ lodge ──Unix socket──▶ maild --lodge (user frostmail)
+   /app/mail/        the web build, served by lodge from disk     ├─ /health
+   /app/mail/api     WebSocket, caller session ─────────────────▶ ├─ /api   JSON-RPC, as above
+   lodge-content     /mail/r/…, /mail/p/…, sandboxed ────────────▶ ├─ /content/  reader pages, parts
+   /mcp/mail         agents, with lodge's tokens (plan 0011) ────▶ └─ /mcp
+                                         mailctl ── private socket ─┘ (caller local)
+```
+
+- **Callers.** The private socket is caller `local`, as on the desktop.
+  lodge's `/api` is caller `session`, and the IDL says which methods each
+  admits: a session never names a file on maild's machine.
+- **The reader's page** comes from lodge's content node, not `srcdoc`
+  ([design/rendering.md](rendering.md#behind-lodge)).
+- **One maild for every client.** The desktop app reaches the server's
+  maild through lodge too, and a local maild stays for installs outside the
+  owner's tailnet ([plan 0011](../plans/0011-m8-mail-in-lodge.md)).
+
 ## Key patterns
 
 - **Contract first.** Change `schema/rpc/*.yaml`, run `make gen`, implement

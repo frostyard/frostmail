@@ -61,3 +61,4 @@ app itself (`on_navigation`); links open in the system browser.
 
 - Shapes: [design/overview.md](../design/overview.md), [specs/rpc-protocol.md](../specs/rpc-protocol.md)
 - Evidence: [plans/0001-m0-foundations.md](../plans/0001-m0-foundations.md)
+- Related: [ADR-0041](0041-maild-runs-as-a-lodge-app.md) (the layers in lodge, with the reader page from lodge-content)

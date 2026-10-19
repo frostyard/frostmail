@@ -23,6 +23,9 @@ generated [rpc-api.md](rpc-api.md). Rationale: [ADR-0007](../adr/0007-rpc-contra
   Clients therefore connect at the identification level
   (`SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION`), which lets maild
   read their token but not act as them; an anonymous client is refused.
+- Behind lodge, `maild --lodge` also serves the protocol on lodge's
+  `/api` WebSocket, one message per text frame, as caller `session`
+  ([lodge-app.md](lodge-app.md#api)).
 - Each message is one line: a JSON object followed by `\n`, at most 16 MiB
   (`api.MaxMessageSize`). JSON escapes newlines in strings, so a message is
   never split.

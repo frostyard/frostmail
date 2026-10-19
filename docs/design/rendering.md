@@ -90,6 +90,25 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
 - **Parts cache** files are written to a temp file in the same directory and
   renamed. In M2 nothing evicts them; M4 adds a size cap with LRU eviction.
 
+## Behind lodge
+
+In lodge ([ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md)), the
+reader's page is served from lodge's content node rather than put in a
+`srcdoc` frame ([specs/lodge-app.md](../specs/lodge-app.md#content)):
+
+- `message.render {content: true}` wraps the sanitized HTML in the reader's
+  template, keeps the page in a bounded in-memory store, and answers
+  `contentPath` (`r/<token>.html`). The web app frames
+  `https://lodge-content.<tailnet>.ts.net/mail/<contentPath>`.
+- The sanitizer, the embedded `data:` images and `<base target="_blank">`
+  are the desktop's. The page's policies (maild's and lodge's) forbid
+  scripts and every load but `data:`, and allow only the popups a link's
+  click opens.
+- The frame is another origin, so the web app cannot size it: it fills the
+  reader below the header and scrolls itself.
+- `message.part` adds `contentPath` (`p/<mac>/<path>`), under a key maild
+  draws at start, for opening and downloading parts from the content node.
+
 ## Operational notes
 
 - `render` needs the body: like `message.body`, it fails with

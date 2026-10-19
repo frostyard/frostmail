@@ -4,6 +4,13 @@ Living document. How Frostmail runs as the user's daily client before
 M6's release packaging: maild as a user service, the app as a local
 Flatpak, notifications, and one app instance. Rationale: [ADR-0002](../adr/0002-daemon-and-thin-clients.md).
 
+On lodge's host, maild runs instead as a system service under the user
+`frostmail`, with no session bus: no Secret Service and no notifications
+of its own. The desktop app then reaches it through lodge
+([ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md),
+[specs/lodge-app.md](../specs/lodge-app.md),
+[plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 6).
+
 ## Installing for one user
 
 No root is needed. maild and mailctl run on the host; the app is a local

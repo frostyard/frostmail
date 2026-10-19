@@ -51,3 +51,4 @@ no earlier test displayed a `mailpart://` image inside the frame.
 
 - Shapes: [design/rendering.md](../design/rendering.md)
 - Builds on: [ADR-0005](0005-html-mail-rendering.md)
+- Related: [ADR-0041](0041-maild-runs-as-a-lodge-app.md) (embedded images in lodge's reader page)

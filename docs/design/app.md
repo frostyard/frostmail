@@ -100,6 +100,10 @@ client.
     `http`, `https` and `mailto` links in a browser tab.
   - Text-only messages render as React elements (`PlainText`), not in a
     frame.
+  - **In lodge** the frame shows the reader page from lodge's content node
+    instead, fills the pane and scrolls itself, and its links open browser
+    tabs ([design/rendering.md](rendering.md#behind-lodge),
+    [specs/lodge-app.md](../specs/lodge-app.md#the-web-build)).
 - **Remote content:** the banner's button calls `message.render` again with
   `remote: true`; the frame is replaced with the new HTML.
 - **Attachments:** a chip calls `message.part`, then the `open_part`
