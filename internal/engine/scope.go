@@ -51,6 +51,49 @@ func (m messages) admitMessage(ctx context.Context, id int64) error {
 	return nil
 }
 
+// admitMessages answers notFound unless an agent's scope reaches every one
+// of ids, as for a message that does not exist.
+func (m messages) admitMessages(ctx context.Context, ids []int64) error {
+	if _, agent := agentScope(ctx); !agent {
+		return nil
+	}
+	sums, err := m.DB.Summaries(ctx, ids)
+	if err != nil {
+		return err
+	}
+	account := make(map[int64]int64, len(sums))
+	for _, s := range sums {
+		account[s.ID] = s.AccountID
+	}
+	for _, id := range ids {
+		if a, ok := account[id]; !ok || !admits(ctx, a) {
+			return api.NotFound("message %d does not exist", id)
+		}
+	}
+	return nil
+}
+
+// admitMailbox answers notFound for a mailbox an agent's scope does not
+// reach.
+func (d Deps) admitMailbox(ctx context.Context, id int64) error {
+	if _, agent := agentScope(ctx); !agent {
+		return nil
+	}
+	mb, err := d.DB.GetMailbox(ctx, id)
+	if err != nil || !admits(ctx, mb.AccountID) {
+		return api.NotFound("mailbox %d does not exist", id)
+	}
+	return nil
+}
+
+// admitDraft answers notFound for a draft an agent's scope does not reach.
+func admitDraft(ctx context.Context, id, accountID int64) error {
+	if !admits(ctx, accountID) {
+		return api.NotFound("draft %d does not exist", id)
+	}
+	return nil
+}
+
 // scoped keeps the summaries an agent's scope reaches.
 func scoped(ctx context.Context, sums []api.MessageSummary) []api.MessageSummary {
 	if _, agent := agentScope(ctx); !agent {

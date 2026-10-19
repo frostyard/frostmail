@@ -177,6 +177,9 @@ func (m messages) Summaries(ctx context.Context, p *api.MessageSummariesParams) 
 }
 
 func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) error {
+	if err := m.admitMessages(ctx, p.IDs); err != nil {
+		return err
+	}
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")
 	}
@@ -193,6 +196,17 @@ func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) er
 }
 
 func (m messages) Move(ctx context.Context, p *api.MessageMoveParams) error {
+	if err := m.admitMessages(ctx, p.IDs); err != nil {
+		return err
+	}
+	if err := m.admitMailbox(ctx, p.MailboxID); err != nil {
+		return err
+	}
+	if p.FromMailboxID != nil {
+		if err := m.admitMailbox(ctx, *p.FromMailboxID); err != nil {
+			return err
+		}
+	}
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")
 	}
