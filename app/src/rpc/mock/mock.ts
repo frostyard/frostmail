@@ -411,13 +411,22 @@ export class MockTransport implements Transport {
           "MIME-Version: 1.0",
           "Content-Type: text/plain; charset=utf-8",
         ].join("\r\n");
-        return { headers, text: `${headers}\r\n\r\n${m.text}`, truncated: false };
+        const source = { headers, text: `${headers}\r\n\r\n${m.text}`, truncated: false };
+        // As a maild serving lodge names the message on its content route.
+        return p.content === true ? { ...source, contentPath: `m/mockmac/${m.summary.id}/message.eml` } : source;
       }
       case "message.save":
         this.find(num(p.id));
         if (!String(p.path ?? "").startsWith("/"))
           throw new RPCError(ErrorCode.invalidParams, `"${String(p.path)}" is not an absolute path`);
         return null;
+      case "message.byMessageId": {
+        // The mock's Message-IDs are mock-<id>@mock.test (get).
+        const id = /^<?mock-([0-9]+)@mock\.test>?$/.exec(String(p.messageId ?? "").trim())?.[1];
+        const m = id === undefined ? undefined : this.messages.get(Number(id));
+        if (!m) throw new RPCError(ErrorCode.notFound, `no message has the Message-ID "${String(p.messageId)}"`);
+        return m.summary;
+      }
       case "message.render":
         return this.render(num(p.id), p.remote === true);
       case "message.part":

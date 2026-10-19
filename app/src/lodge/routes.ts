@@ -1,6 +1,7 @@
 // Mail's routes in lodge (docs/specs/lodge-app.md, The web build): the
-// sidebar's source, then the message shown when exactly one is selected.
-// The canonical URL is /mail followed by the route.
+// sidebar's source, then the message shown when exactly one is selected;
+// and the permanent route of a message by its Message-ID, which maild
+// resolves. The canonical URL is /mail followed by the route.
 
 import type { Source } from "../data/stores";
 import type { MailboxRole } from "../rpc/gen/api";
@@ -9,6 +10,13 @@ import type { MailboxRole } from "../rpc/gen/api";
 export interface Where {
   source: Source;
   message?: number;
+  /** A permanent route's Message-ID, which maild resolves to a message. */
+  messageId?: string;
+}
+
+/** permalink is the permanent route of a message by its Message-ID, without angle brackets. */
+export function permalink(messageId: string): string {
+  return `/message/${encodeURIComponent(messageId)}`;
 }
 
 const ROLES: readonly MailboxRole[] = ["inbox", "drafts", "sent", "archive", "junk", "trash", "all", "flagged"];
@@ -46,6 +54,16 @@ const id = (s: string | undefined): number | undefined => (s && /^[1-9][0-9]{0,1
 export function parseRoute(route: string): Where {
   const path = route.split(/[?#]/, 1)[0] ?? "";
   const segs = path.split("/").filter((s) => s !== "");
+  // /message/<segment> that is no maild ID is a Message-ID.
+  if (segs.length === 2 && segs[0] === "message" && id(segs[1]) === undefined) {
+    let messageId = "";
+    try {
+      messageId = decodeURIComponent(segs[1] ?? "");
+    } catch {
+      // A malformed escape names nothing.
+    }
+    return messageId.trim() === "" ? { source: { kind: "allInboxes" } } : { source: { kind: "allInboxes" }, messageId };
+  }
   let message: number | undefined;
   const at = segs.lastIndexOf("message");
   if (at >= 0 && at === segs.length - 2) {

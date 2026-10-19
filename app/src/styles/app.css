@@ -5,6 +5,10 @@
 @import "@fontsource-variable/inter";
 @import "./tokens.css";
 
+/* A narrow window (docs/specs/ui.md, Narrow windows): the query of
+   app/narrow.ts's NARROW. */
+@custom-variant narrow (@media (max-width: 599px));
+
 @media print {
   body * {
     visibility: hidden;

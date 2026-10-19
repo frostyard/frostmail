@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NARROW } from "../app/narrow";
 import { useUI } from "../data/stores";
 import { useFrameWindow } from "./frameWindow";
 import type { Lodge } from "./lodge";
-import { wireShell } from "./shell";
+import { backToList, wireShell } from "./shell";
 
 type Handler = (m: never) => void;
 
@@ -43,6 +44,11 @@ function fakeLodge() {
 }
 
 describe("wireShell", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     useUI.setState({ source: { kind: "allInboxes" }, selected: [] });
     useFrameWindow.setState({ open: null });
@@ -99,6 +105,38 @@ describe("wireShell", () => {
     expect(useFrameWindow.getState().open).toBeNull();
     expect(useUI.getState().selected).toEqual([5]);
     expect(routes).toHaveLength(3);
+  });
+
+  it("in a narrow window, pushes a message opened from its list, so Back is history's", () => {
+    vi.stubGlobal("matchMedia", (media: string) => ({ matches: media === NARROW, media }));
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { l, routes, emit } = fakeLodge();
+    wireShell(l, "/mailbox/2");
+    useUI.getState().select([5], 5);
+    useUI.getState().select([6], 6);
+    expect(routes.slice(1)).toEqual([
+      { path: "/mailbox/2/message/5", replace: false },
+      { path: "/mailbox/2/message/6", replace: true },
+    ]);
+    expect(backToList()).toBe(true);
+    expect(back).toHaveBeenCalledOnce();
+    emit("navigate", { route: "/mailbox/2" });
+    expect(useUI.getState().selected).toEqual([]);
+    expect(backToList()).toBe(false);
+  });
+
+  it("in a narrow window, does not go back by history from a message it was opened at", () => {
+    vi.stubGlobal("matchMedia", (media: string) => ({ matches: media === NARROW, media }));
+    const back = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const { l, routes, emit } = fakeLodge();
+    wireShell(l, "/mailbox/2/message/5");
+    expect(backToList()).toBe(false);
+    useUI.getState().select([], null);
+    expect(routes.slice(1)).toEqual([{ path: "/mailbox/2", replace: true }]);
+    useUI.getState().select([6], 6);
+    emit("navigate", { route: "/mailbox/2/message/6" });
+    expect(backToList()).toBe(false);
+    expect(back).not.toHaveBeenCalled();
   });
 
   it("opens the window a frame's route names", () => {

@@ -23,6 +23,24 @@ The user chose these on 2026-10-18:
   test, smoke run and deployment uses generated mail (`tools/mailgen`,
   `tools/uifixture`, the mailtest container) and no real account.
 
+Accepted by the user on 2026-10-19, with Phase 4's notifications:
+
+- **Reminders with no client open.** With no session bus on the server, a
+  reminder that fires while no app is attached reaches nobody until one
+  connects, and so:
+  - a calendar reminder waits: `calendar.reminders` still lists it, so
+    the next client to connect raises the reminder window (a hidden page
+    also notifies it), as a desktop app started late does today;
+  - a Remind Me reminder brings its message back to the inbox when it
+    fires, whoever is connected, and only the announcement is lost;
+  - new mail announced while no client was connected is not replayed:
+    it is unread in the list;
+  - notifying with nothing open is Web Push's, which waits on lodge
+    ([ADR-0008](https://github.com/frostyard/lodge/blob/main/docs/adr/0008-lodge-installs-as-one-home-screen-app.md)).
+- **No service worker for now.** Web Push and the phone's notifications
+  are deferred (see Later); where a browser has no `Notification`
+  constructor, as Android's Chrome, mail stays silent.
+
 lodge's decisions that shape mail's side (the lodge program, 2026-10-18):
 
 - **D4:** the frame learns the content origin from lodge-client's `init`,
@@ -119,14 +137,24 @@ boundaries, so the planner builds them.
 - **Files.** Attaching sends the file's bytes over the RPC
   (`draft.attachData`, in chunks within the 16 MiB message limit; built),
   and an attachment's Save downloads it from the content route with
-  `?download=1` (built). Save As and Raw Source of a whole message are to
-  download from a content route for the message's source.
-- **Links between apps.** A permanent route by Message-ID
-  (`/message/<Message-ID>`, resolved by maild), which notes can link to.
-  A canonical lodge URL in a message opens in the shell through
-  `lodge.open`, when the link is in mail's own UI.
-- **The narrow layout:** one pane at a time below a width
-  [ui.md](../specs/ui.md) sets, for the phone.
+  `?download=1` (built). Save As of a whole message, from the reader's
+  More menu or Raw Source's sheet, downloads the `.eml` from the content
+  route's `m/<mac>/<blob>/<name>`, which `message.source {content: true}`
+  names (built); the desktop app on a maild behind lodge downloads it
+  there through its Rust layer (`save_content`).
+- **Links between apps** (built). A permanent route by Message-ID
+  (`/message/<Message-ID>`, resolved by `message.byMessageId`), which
+  notes can link to, and which mail's context names. A canonical lodge
+  URL in mail's own UI opens in the shell through `lodge.open`; one in an
+  HTML message, in the sandboxed reader frame, opens a new tab.
+- **The narrow layout** (built): one pane at a time below 600 CSS
+  pixels wide, for the phone
+  ([ui.md, Narrow windows](../specs/ui.md#narrow-windows-m8)). Mailboxes,
+  the list and the message each take the window, with Back between them
+  and the message actions in a bar at the foot; Compose and Settings fit.
+  In lodge's development build at 390 × 844, a message opened from the
+  list and a reply composed from its bar reached `tools/smtpsink`, and
+  the shell's Back returned from the message to the list.
 - **Notifications** while lodge is open (built): maild with no session
   bus sends connected clients `message.announced`, and the web app shows
   new mail and, while hidden, reminders with the Notification API, once
@@ -164,9 +192,10 @@ boundaries, so the planner builds them.
 The design is [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge).
 It depends on Phase 4's attaching by bytes and Save As by download.
 Built: `app.json` and the Server pane, the bridge's remote mode with the
-keepalive, `open_part`'s downloads, and the Flatpak's network, with
-`app/e2e/lodge.e2e.ts` replying through lodge's development build, and
-the app's notifications from a remote maild (`notify_mail`).
+keepalive, `open_part`'s downloads and Save As's (`save_content`), and the
+Flatpak's network, with `app/e2e/lodge.e2e.ts` replying through lodge's
+development build, and the app's notifications from a remote maild
+(`notify_mail`).
 
 - **Which maild:** the app's own `app.json` names lodge's URL, else the
   local socket. Settings shows and changes it.
@@ -216,19 +245,6 @@ the app's notifications from a remote maild (`notify_mail`).
   handing the grant to the server's maild. Decide by Phase 7.
 - **Secrets on the server:** the file store, or something sealed (systemd
   credentials, a TPM). Decide by Phase 7.
-- **Reminders with no client open:** with no session bus on the server, a
-  reminder that fires while no app is attached reaches nobody until one
-  connects. Proposed with Phase 4's notifications, for the user to
-  confirm:
-  - a calendar reminder waits: `calendar.reminders` still lists it, so
-    the next client to connect raises the reminder window (a hidden page
-    also notifies it), as a desktop app started late does today;
-  - a Remind Me reminder brings its message back to the inbox when it
-    fires, whoever is connected, and only the announcement is lost;
-  - new mail announced while no client was connected is not replayed:
-    it is unread in the list;
-  - notifying with nothing open is Web Push's, which waits on lodge
-    ([ADR-0008](https://github.com/frostyard/lodge/blob/main/docs/adr/0008-lodge-installs-as-one-home-screen-app.md)).
 
 ## References
 

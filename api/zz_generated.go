@@ -2534,6 +2534,10 @@ type MessageSource struct {
 	Text string `json:"text"`
 	// The message is longer than text.
 	Truncated bool `json:"truncated"`
+	// With source's content, on a maild serving lodge: the whole message on
+	// maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with
+	// ?download=1 (docs/specs/lodge-app.md).
+	ContentPath *string `json:"contentPath,omitzero"`
 }
 
 // Message: Everything about a message except its body.
@@ -2616,6 +2620,12 @@ type MessageSummariesParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageByMessageIDParams holds the params of message.byMessageId.
+type MessageByMessageIDParams struct {
+	// The Message-ID, with or without its angle brackets.
+	MessageID string `json:"messageId"`
+}
+
 // MessageRenderParams holds the params of message.render.
 type MessageRenderParams struct {
 	ID     int64 `json:"id"`
@@ -2662,6 +2672,8 @@ type MessageDeleteParams struct {
 // MessageSourceParams holds the params of message.source.
 type MessageSourceParams struct {
 	ID int64 `json:"id"`
+	// Also name the whole message on maild's lodge content route, in contentPath.
+	Content *bool `json:"content,omitzero"`
 }
 
 // MessageSaveParams holds the params of message.save.
@@ -2714,6 +2726,12 @@ type MessageService interface {
 	// Summaries implements message.summaries. Summaries of messages in the order
 	// given; IDs that no longer exist are skipped.
 	Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error)
+	// ByMessageID implements message.byMessageId. The message a Message-ID names,
+	// for lodge's permanent route /message/<Message-ID>
+	// (docs/specs/lodge-app.md): among the stored messages with that Message-ID,
+	// one in an inbox, else one in neither Trash nor Junk, else any; the earliest
+	// stored of those. notFound when none is.
+	ByMessageID(ctx context.Context, p *MessageByMessageIDParams) (*MessageSummary, error)
 	// Render implements message.render. A message prepared for the reader,
 	// fetching it first if it is not stored locally. Remote images are loaded
 	// through maild only when remote is true; tracking images never are.
@@ -2738,7 +2756,8 @@ type MessageService interface {
 	Delete(ctx context.Context, p *MessageDeleteParams) error
 	// Source implements message.source. Raw Source and All Headers: the message
 	// as the server holds it, fetched first when it is not stored. Bytes that are
-	// not UTF-8 show as U+FFFD.
+	// not UTF-8 show as U+FFFD. With content, also the message's path on maild's
+	// lodge content route, for Save As by download.
 	Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error)
 	// Save implements message.save. Save As: write the message as the server
 	// holds it (an .eml file) to path, replacing a file there. invalidParams for
@@ -2791,6 +2810,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return s.Summaries(ctx, &p)
+	})
+	r.handle("message.byMessageId", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageByMessageIDParams
+		if err := decodeParams(raw, &p, []string{"messageId"}); err != nil {
+			return nil, err
+		}
+		return s.ByMessageID(ctx, &p)
 	})
 	r.handle("message.render", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRenderParams
@@ -2918,6 +2944,16 @@ func (x MessageClient) Summaries(ctx context.Context, p *MessageSummariesParams)
 	var r []MessageSummary
 	err := x.c.Call(ctx, "message.summaries", p, &r)
 	return r, err
+}
+
+// ByMessageID calls message.byMessageId.
+func (x MessageClient) ByMessageID(ctx context.Context, p *MessageByMessageIDParams) (*MessageSummary, error) {
+	var r MessageSummary
+	err := x.c.Call(ctx, "message.byMessageId", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // Render calls message.render.
@@ -5413,6 +5449,7 @@ var methodCallers = map[string][]CallerKind{
 	"message.get":             {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.body":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.summaries":       {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"message.byMessageId":     {CallerKindLocal, CallerKindSession},
 	"message.render":          {CallerKindLocal, CallerKindSession},
 	"message.part":            {CallerKindLocal, CallerKindSession},
 	"message.setFlags":        {CallerKindLocal, CallerKindSession},
@@ -5531,6 +5568,7 @@ var Methods = []string{
 	"message.get",
 	"message.body",
 	"message.summaries",
+	"message.byMessageId",
 	"message.render",
 	"message.part",
 	"message.setFlags",

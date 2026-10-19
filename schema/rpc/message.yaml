@@ -75,6 +75,7 @@ types:
       - {name: headers, type: string, doc: "The header section, up to the blank line."}
       - {name: text, type: string, doc: "The whole message, at most 2 MB of it."}
       - {name: truncated, type: bool, doc: "The message is longer than text."}
+      - {name: contentPath, type: string, optional: true, doc: "With source's content, on a maild serving lodge: the whole message on maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with ?download=1 (docs/specs/lodge-app.md)."}
   - name: Message
     doc: Everything about a message except its body.
     fields:
@@ -138,6 +139,17 @@ methods:
       - {name: ids, type: "[]int"}
     result: "[]MessageSummary"
     callers: [local, session, agent]
+  - name: byMessageId
+    doc: >-
+      The message a Message-ID names, for lodge's permanent route
+      /message/<Message-ID> (docs/specs/lodge-app.md): among the stored
+      messages with that Message-ID, one in an inbox, else one in neither
+      Trash nor Junk, else any; the earliest stored of those. notFound when
+      none is.
+    params:
+      - {name: messageId, type: string, doc: "The Message-ID, with or without its angle brackets."}
+    result: MessageSummary
+    errors: [notFound, invalidParams]
   - name: render
     doc: >-
       A message prepared for the reader, fetching it first if it is not stored
@@ -189,9 +201,11 @@ methods:
     doc: >-
       Raw Source and All Headers: the message as the server holds it,
       fetched first when it is not stored. Bytes that are not UTF-8 show as
-      U+FFFD.
+      U+FFFD. With content, also the message's path on maild's lodge
+      content route, for Save As by download.
     params:
       - {name: id, type: int}
+      - {name: content, type: bool, optional: true, doc: "Also name the whole message on maild's lodge content route, in contentPath."}
     result: MessageSource
     errors: [notFound, unavailable]
   - name: save

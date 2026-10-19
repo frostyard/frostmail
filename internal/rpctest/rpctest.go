@@ -137,7 +137,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	if o.Lodge {
-		if srv.Content, err = lodge.NewContent(srv.Parts); err != nil {
+		if srv.Content, err = lodge.NewContent(srv.Parts, srv.Blobs); err != nil {
 			t.Fatal(err)
 		}
 	}

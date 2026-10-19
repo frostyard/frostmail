@@ -86,6 +86,7 @@ path admits one caller kind, and any other is 403:
 | `GET /api`, WebSocket | `session` | JSON-RPC as caller `session` |
 | `GET`, `HEAD` `/content/r/<token>.html` | `content` | a reader page |
 | `GET`, `HEAD` `/content/p/<mac>/<path>` | `content` | a decoded part |
+| `GET`, `HEAD` `/content/m/<mac>/<blob>/<name>` | `content` | a whole message, for Save As |
 | `POST`, `GET`, `DELETE` `/mcp` | `agent` | MCP Streamable HTTP |
 
 - Any other path is 404, and any other method on a listed path is 405.
@@ -149,6 +150,14 @@ once its store is open, so a maild that answers is serving.
     `r/<token>.html`. It is absent otherwise.
   - `PartFile` gains `contentPath`, `p/<mac>/<path>`, on a maild serving
     `--lodge`.
+  - `message.source` gains the optional param `content`. With `content`
+    true, on a maild serving `--lodge`, the result's `contentPath` names
+    the whole message on the content route, `m/<mac>/<blob>/<name>`, for
+    Save As by download. It is absent otherwise.
+  - `message.byMessageId {messageId}` answers the summary of the message
+    a Message-ID names, for the permanent route below: among the stored
+    messages with it, one in an inbox, else one in neither Trash nor Junk,
+    else any, the earliest stored of those; `notFound` when none is.
   - The transient event `message.announced {accountId, notes:
     [Announcement]}`, an `Announcement` being `{title, body, messageId?}`,
     goes to every connected client when maild has no session bus.
@@ -256,6 +265,22 @@ path>`; the web app builds them with lodge-client's `contentURL`.
   - `X-Content-Type-Options: nosniff`;
   - `Cache-Control: private, no-store`.
 
+**Messages,** `GET` or `HEAD /content/m/<mac>/<blob>/<name>`, for Save
+As:
+
+- `blob` is the stored message's blob ID (64 lowercase hex digits), and
+  `name` the file name it saves as, percent-encoded as one segment: the
+  subject with `/`, `\` and control characters as `-`, leading dots
+  dropped, at most 200 bytes, then `.eml`; `(no subject).eml` for none.
+  `message.source {content: true}` fetches the whole message first when
+  only its display copy is stored.
+- `mac` is as a part's, over `m`, a NUL, then `<blob>/<name>`, so a path
+  names one message and one name, and no part's path is a message's.
+- The answer is the message as the server holds it, as
+  `text/plain; charset=utf-8`; with `?download=1`, as `message/rfc822`
+  with `Content-Disposition: attachment; filename*=UTF-8''<name>`.
+- Ranges and the other headers are as a part's.
+
 lodge-content adds its own sandbox policy and cross-origin headers
 ([lodge-http](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-http.md#content-routes)).
 For mail, whose manifest sets `contentLinks`, lodge's sandbox is
@@ -301,11 +326,31 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   | `/flagged`, `/flag/<1–7>` | flagged mail, or one flag color |
   | `/vips` | the VIPs' mail |
   | `…/message/<id>` | that source with one message selected, by maild's ID |
+  | `/message/<Message-ID>` | the message with that Message-ID, which maild resolves (`message.byMessageId`) |
+
+  A Message-ID route is a message's permanent one, which other apps link
+  to (`/mail/message/<Message-ID>`): the Message-ID without its angle
+  brackets, percent-encoded as one segment (`encodeURIComponent`; an `@`
+  may stay as it is), as `/message/gen-1-200%40mailgen.test`. A segment
+  of digits alone is maild's ID, as in All Inboxes' `/message/<id>`. The
+  app opens the message `message.byMessageId` names in its mailbox (the
+  account's inbox when it is there), and that route replaces the
+  permanent one; while maild answers, and when no message has the
+  Message-ID, the window stays as it was.
 
   A route the app does not know shows All Inboxes. The app reports
   `route` as the source and selection change (a new source pushes, a new
-  message replaces), and obeys `navigate`. It never touches the top
-  window's history or location.
+  message replaces), and obeys `navigate`. In a narrow window, where the
+  message shows in place of its list ([ui.md](ui.md#narrow-windows-m8)),
+  a message opened from its list pushes instead, and the toolbar's Back
+  from it calls `history.back()`, which steps the shell's history as its
+  own Back would; the shell's `popstate` then sends `navigate`. It calls
+  it only to undo that entry, which mail pushed itself: from a message
+  the frame was opened at (a link, a reload), the entry before may not be
+  lodge's, so Back reports the list's route with `replace` instead
+  ([lodge-client.md, Routes](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-client.md#routes),
+  frostyard/lodge#9). Otherwise the app never touches the top window's
+  history or location.
 - **Windows are routes.** The desktop app's other windows show in the
   frame in place of the main window, which stays loaded underneath, hidden,
   and takes no keys while one shows:
@@ -321,8 +366,14 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   pushes the main window's route again. Back to a main route closes it.
   One shows at a time; the reminder window never covers another.
 - **Context.** With a message shown, `context {kind: "message", ref:
-  "mail/message/<id>", title: <subject>}`; with none, `context {kind:
-  null}`.
+  "mail/message/<Message-ID>", title: <subject>}`, its permanent route, or
+  `mail/message/<id>` for a message without a Message-ID; with none,
+  `context {kind: null}`.
+- **Links in mail's own UI** (a plain-text body, a contact's URL, an
+  unsubscribe page) go through `lodge.open`, so a canonical lodge URL,
+  another app's or mail's own, opens in the shell in place, and anything
+  else in a new tab. A link inside an HTML message, in the reader's
+  sandboxed frame on `lodge-content`, opens a new tab itself (D6).
 - **Notifications.** maild behind lodge has no session bus, so it sends
   each connected client the transient `message.announced {accountId,
   notes}` in place of desktop notifications, with the notes the desktop's
@@ -336,8 +387,9 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   hidden page also notifies each new one, and its click shows the window.
   A browser with no `Notification` constructor (Android's Chrome) shows
   them through the page's service worker registration, of which lodge's
-  shell has none yet; with no page open, nothing notifies until lodge
-  decides on Web Push.
+  shell has none, and none is planned for now, so it stays silent; with
+  no page open, nothing notifies until lodge decides on Web Push
+  (plan 0011's decisions, 2026-10-19).
 - **Theme.** The app follows `init.theme` and `theme`, not its own
   `prefers-color-scheme` query. The reader page stays white paper.
 - **Storage.** Local-storage keys are prefixed `mail:`
@@ -347,8 +399,11 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 - **Attaching** sends the file's bytes with `draft.attachData`
   ([Attaching by bytes](#attaching-by-bytes)), from Attach Files (a file
   input) or files dropped on the window.
-- **What a session cannot do** is not offered: Save As of a whole message,
-  which writes a path on maild's machine.
+- **Save As** of a whole message downloads it: `message.source {content:
+  true}`, then `lodge.open` of its content URL with `?download=1`, in
+  place of `message.save`, which writes a path on maild's machine and
+  answers a session `methodNotFound`. Raw Source's sheet offers Save As
+  too, for the whole of a message longer than the sheet shows.
 
 ### Limits
 

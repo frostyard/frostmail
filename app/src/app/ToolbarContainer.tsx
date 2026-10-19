@@ -7,7 +7,13 @@ import { useClient } from "../data/session";
 import { listQuery, sourceTitle, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import { SearchField } from "../features/search/SearchField";
-import { type MoveTarget, Toolbar, type ToolbarCommand } from "../features/toolbar/Toolbar";
+import {
+  MessageBar,
+  type MoveTarget,
+  Toolbar,
+  type ToolbarCommand,
+  type ToolbarNarrow,
+} from "../features/toolbar/Toolbar";
 import { step, viewTitle } from "../lib/calendarDates";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
@@ -34,6 +40,10 @@ interface ToolbarContainerProps {
   model: ViewModel | null;
   onDelete: (ids: number[]) => void;
   searchRef: Ref<HTMLInputElement>;
+  /** A narrow window's toolbar (docs/specs/ui.md, Narrow windows). */
+  narrow?: ToolbarNarrow;
+  /** "bar" is the narrow window's message bar at the foot of Mail, in place of the toolbar. */
+  part?: "toolbar" | "bar";
 }
 
 function useMaximized() {
@@ -209,7 +219,7 @@ function useToolbarCommand(props: ToolbarContainerProps) {
   );
 }
 
-function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) {
+function ToolbarSearch({ searchRef, fill }: Pick<ToolbarContainerProps, "searchRef"> & { fill: boolean }) {
   const ui = useUI();
   const inPeople = ui.module === "people";
   const onSearch = (text: string) => {
@@ -221,7 +231,7 @@ function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) 
     else ui.commitSearch(text);
   };
   return (
-    <div inert={inPeople && ui.peopleEditing !== null}>
+    <div inert={inPeople && ui.peopleEditing !== null} className={fill ? "w-full" : undefined}>
       <SearchField
         value={inPeople ? ui.peopleSearchDraft : ui.searchDraft}
         placeholder={inPeople ? "Search Contacts" : "Search"}
@@ -229,6 +239,7 @@ function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) 
         onSearch={onSearch}
         onClear={inPeople ? ui.clearPeopleSearch : ui.clearSearch}
         inputRef={searchRef}
+        fill={fill}
       />
     </div>
   );
@@ -242,8 +253,20 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
   const frame = useCalendarFrame();
   const maximized = useMaximized();
   const onCommand = useToolbarCommand(props);
+  if (props.part === "bar")
+    return (
+      <MessageBar
+        selection={data.selection}
+        flagNames={flagNames}
+        canArchive={data.archive !== undefined}
+        moveTargets={data.moveTargets}
+        onCommand={onCommand}
+      />
+    );
   return (
     <Toolbar
+      narrow={props.narrow}
+      windowControls={isTauri()}
       mode={ui.module}
       people={{ canCreate: Boolean(props.people?.writableBooks.length) && ui.peopleEditing === null }}
       tasks={
@@ -282,7 +305,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
       moveTargets={data.moveTargets}
       maximized={maximized}
       onCommand={onCommand}
-      search={<ToolbarSearch searchRef={props.searchRef} />}
+      search={<ToolbarSearch searchRef={props.searchRef} fill={props.narrow !== undefined} />}
     />
   );
 }
