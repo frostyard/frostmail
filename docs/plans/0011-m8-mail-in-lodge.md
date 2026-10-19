@@ -165,8 +165,8 @@ The design is [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge).
 It depends on Phase 4's attaching by bytes and Save As by download.
 Built: `app.json` and the Server pane, the bridge's remote mode with the
 keepalive, `open_part`'s downloads, and the Flatpak's network, with
-`app/e2e/lodge.e2e.ts` replying through lodge's development build.
-Notifications are not built yet.
+`app/e2e/lodge.e2e.ts` replying through lodge's development build, and
+the app's notifications from a remote maild (`notify_mail`).
 
 - **Which maild:** the app's own `app.json` names lodge's URL, else the
   local socket. Settings shows and changes it.
@@ -179,9 +179,10 @@ Notifications are not built yet.
 - **Parts:** `open_part` downloads from lodge's content origin, read
   from `GET https://LODGE/lodge/apps`, into the app's cache and opens the
   file, so the webview still fetches nothing.
-- **Notifications:** an IDL event for announcements, sent to connected
-  clients when maild has no session bus (built, `message.announced`), and
-  shown by the app's own notifier.
+- **Notifications** (built): an IDL event for announcements, sent to
+  connected clients when maild has no session bus (`message.announced`),
+  and shown by the app's own notifier (`notify_mail`: the session bus on
+  Linux, `frostmail-notify.exe` on Windows).
 - **The Flatpak** gains the network for the Rust layer.
 - **Done when:** with `app.json` naming lodge's development build, the
   desktop app reads, composes with an attachment and sends through a maild

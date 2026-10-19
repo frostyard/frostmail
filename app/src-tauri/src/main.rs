@@ -7,6 +7,7 @@
 // with it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod announce;
 mod bridge;
 mod commands;
 mod paths;
@@ -24,6 +25,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(bridge::Bridge::default())
+        .manage(announce::Notifier::default())
         .manage(commands::Launch(std::sync::Mutex::new(commands::open_request(&args))))
         .register_asynchronous_uri_scheme_protocol("mailpart", protocol::mailpart)
         .invoke_handler(tauri::generate_handler![
@@ -31,6 +33,7 @@ fn main() {
             bridge::maild_send,
             commands::open_link,
             commands::open_part,
+            announce::notify_mail,
             commands::open_compose,
             commands::open_event,
             commands::open_settings,
