@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -207,6 +208,49 @@ func (m messages) Summaries(ctx context.Context, p *api.MessageSummariesParams) 
 		out = append(out, toAPISummary(s))
 	}
 	return scoped(ctx, out), nil
+}
+
+// ByMessageID implements message.byMessageId: lodge's permanent route
+// names a message by its Message-ID, which maild resolves to the copy a
+// reader would want.
+func (m messages) ByMessageID(ctx context.Context, p *api.MessageByMessageIDParams) (*api.MessageSummary, error) {
+	msgid := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(p.MessageID), "<"), ">")
+	if msgid == "" {
+		return nil, api.InvalidParams("a Message-ID is required")
+	}
+	copies, err := m.DB.MessagesByMessageID(ctx, msgid)
+	if err != nil {
+		return nil, err
+	}
+	// An inbox's copy, else one out of Trash and Junk, else any; the
+	// earliest stored within each.
+	rank := func(c store.MessageCopy) int {
+		switch {
+		case slices.Contains(c.Roles, "inbox"):
+			return 0
+		case !slices.Contains(c.Roles, "trash") && !slices.Contains(c.Roles, "junk"):
+			return 1
+		}
+		return 2
+	}
+	best := -1
+	for i, c := range copies {
+		if admits(ctx, c.AccountID) && (best < 0 || rank(c) < rank(copies[best])) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return nil, api.NotFound("no message has the Message-ID %q", msgid)
+	}
+	sums, err := m.DB.Summaries(ctx, []int64{copies[best].ID})
+	if err != nil {
+		return nil, err
+	}
+	if len(sums) == 0 {
+		return nil, api.NotFound("no message has the Message-ID %q", msgid)
+	}
+	s := toAPISummary(sums[0])
+	return &s, nil
 }
 
 func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) error {

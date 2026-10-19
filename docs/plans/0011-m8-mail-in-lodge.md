@@ -142,10 +142,11 @@ boundaries, so the planner builds them.
   route's `m/<mac>/<blob>/<name>`, which `message.source {content: true}`
   names (built); the desktop app on a maild behind lodge downloads it
   there through its Rust layer (`save_content`).
-- **Links between apps.** A permanent route by Message-ID
-  (`/message/<Message-ID>`, resolved by maild), which notes can link to.
-  A canonical lodge URL in a message opens in the shell through
-  `lodge.open`, when the link is in mail's own UI.
+- **Links between apps** (built). A permanent route by Message-ID
+  (`/message/<Message-ID>`, resolved by `message.byMessageId`), which
+  notes can link to, and which mail's context names. A canonical lodge
+  URL in mail's own UI opens in the shell through `lodge.open`; one in an
+  HTML message, in the sandboxed reader frame, opens a new tab.
 - **The narrow layout** (built): one pane at a time below 600 CSS
   pixels wide, for the phone
   ([ui.md, Narrow windows](../specs/ui.md#narrow-windows-m8)). Mailboxes,

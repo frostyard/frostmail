@@ -3,6 +3,7 @@
 // window the frame shows (frameWindow.ts); a navigate message moves them,
 // and the theme follows the shell's.
 import { isNarrow } from "../app/narrow";
+import { permalinkPending, requestPermalink } from "../app/permalink";
 import { type Source, sourceKey, sourceTitle, useMail, useUI } from "../data/stores";
 import { type FrameWindow, useFrameWindow, windowFromRoute, windowRoute } from "./frameWindow";
 import type { Lodge } from "./lodge";
@@ -22,6 +23,11 @@ export function go(route: string): void {
   }
   useFrameWindow.setState({ open: null });
   const where = parseRoute(route);
+  if (where.messageId !== undefined) {
+    // maild resolves it; the window stays as it is until then.
+    requestPermalink(where.messageId);
+    return;
+  }
   const ui = useUI.getState();
   if (sourceKey(ui.source) !== sourceKey(where.source)) ui.setSource(where.source);
   if (useUI.getState().mailboxesOpen) useUI.getState().openMailboxes(false);
@@ -69,6 +75,14 @@ function current(): Place {
   return place(ui.source, ui.selected, useFrameWindow.getState().open);
 }
 
+// While a permanent route resolves, the shell keeps showing it, and the
+// route of the message it opens replaces it.
+const PERMALINK = "permalink";
+
+function shown(route: string): Place {
+  return permalinkPending() ? { route, title: "Mail", key: PERMALINK, depth: 0 } : current();
+}
+
 // Whether the history entry under the shown message is its list's, which
 // a narrow window's report pushed: then Back is history's own.
 let overList = false;
@@ -93,7 +107,7 @@ export function backToList(): boolean {
 export function wireShell(l: Lodge, route: string): () => void {
   applyTheme(l.theme);
   go(route);
-  let last = current();
+  let last = shown(route);
   l.route(last.route, last.title, { replace: true });
   overList = false;
   let navigating = false;
@@ -103,7 +117,7 @@ export function wireShell(l: Lodge, route: string): () => void {
     if (next.route === last.route) return;
     const same = next.key === last.key;
     const deeper = same && next.depth > last.depth;
-    l.route(next.route, next.title, { replace: same && !deeper });
+    l.route(next.route, next.title, { replace: (same && !deeper) || last.key === PERMALINK });
     // Moving from message to message keeps the list under them.
     overList = deeper || (overList && same && next.depth === 1);
     last = next;
@@ -118,7 +132,7 @@ export function wireShell(l: Lodge, route: string): () => void {
     } finally {
       navigating = false;
     }
-    last = current();
+    last = shown(r);
     overList = false;
   });
   const offTheme = l.on("theme", ({ scheme }) => applyTheme(scheme));

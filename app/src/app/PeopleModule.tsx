@@ -1,6 +1,6 @@
 // People panes share Mail's column widths and splitters.
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useClient } from "../data/session";
@@ -18,6 +18,7 @@ import { type PhotoChange, photoURL, scalePhoto } from "../lib/photo";
 import type { PersonSummary } from "../rpc/gen/api";
 import { revealMessage } from "./openMessage";
 import { rememberRestore } from "./pimUndo";
+import { openLink } from "./ReaderContainer";
 import { Splitter } from "./Splitter";
 import { openOccurrence, useCalendarColors, useCalendarFrame } from "./useCalendar";
 import { type PeopleData, writeToPerson } from "./usePeople";
@@ -297,9 +298,7 @@ function PeopleDetail({ data }: { data: PeopleData }) {
       .then(() => useUI.getState().setModule("mail"))
       .catch((err: unknown) => console.warn("open message", err));
   };
-  const openURL = (url: string) => {
-    if (isTauri()) void invoke("open_link", { url }).catch((err: unknown) => console.warn("open link", err));
-  };
+  const openURL = openLink;
   return (
     <PersonPane
       editing={editing}

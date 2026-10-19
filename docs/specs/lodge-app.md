@@ -158,6 +158,10 @@ once its store is open, so a maild that answers is serving.
     true, on a maild serving `--lodge`, the result's `contentPath` names
     the whole message on the content route, `m/<mac>/<blob>/<name>`, for
     Save As by download. It is absent otherwise.
+  - `message.byMessageId {messageId}` answers the summary of the message
+    a Message-ID names, for the permanent route below: among the stored
+    messages with it, one in an inbox, else one in neither Trash nor Junk,
+    else any, the earliest stored of those; `notFound` when none is.
 
 ### Attaching by bytes
 
@@ -323,6 +327,17 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   | `/flagged`, `/flag/<1–7>` | flagged mail, or one flag color |
   | `/vips` | the VIPs' mail |
   | `…/message/<id>` | that source with one message selected, by maild's ID |
+  | `/message/<Message-ID>` | the message with that Message-ID, which maild resolves (`message.byMessageId`) |
+
+  A Message-ID route is a message's permanent one, which other apps link
+  to (`/mail/message/<Message-ID>`): the Message-ID without its angle
+  brackets, percent-encoded as one segment (`encodeURIComponent`; an `@`
+  may stay as it is), as `/message/gen-1-200%40mailgen.test`. A segment
+  of digits alone is maild's ID, as in All Inboxes' `/message/<id>`. The
+  app opens the message `message.byMessageId` names in its mailbox (the
+  account's inbox when it is there), and that route replaces the
+  permanent one; while maild answers, and when no message has the
+  Message-ID, the window stays as it was.
 
   A route the app does not know shows All Inboxes. The app reports
   `route` as the source and selection change (a new source pushes, a new
@@ -352,8 +367,14 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   pushes the main window's route again. Back to a main route closes it.
   One shows at a time; the reminder window never covers another.
 - **Context.** With a message shown, `context {kind: "message", ref:
-  "mail/message/<id>", title: <subject>}`; with none, `context {kind:
-  null}`.
+  "mail/message/<Message-ID>", title: <subject>}`, its permanent route, or
+  `mail/message/<id>` for a message without a Message-ID; with none,
+  `context {kind: null}`.
+- **Links in mail's own UI** (a plain-text body, a contact's URL, an
+  unsubscribe page) go through `lodge.open`, so a canonical lodge URL,
+  another app's or mail's own, opens in the shell in place, and anything
+  else in a new tab. A link inside an HTML message, in the reader's
+  sandboxed frame on `lodge-content`, opens a new tab itself (D6).
 - **Theme.** The app follows `init.theme` and `theme`, not its own
   `prefers-color-scheme` query. The reader page stays white paper.
 - **Storage.** Local-storage keys are prefixed `mail:`
