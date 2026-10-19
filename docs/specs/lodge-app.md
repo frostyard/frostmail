@@ -211,11 +211,13 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 - **Start.**
   1. `connectLodge({app: "mail"})`. Outside a frame, lodge-client moves
      the page to its canonical URL.
-  2. A WebSocket to `lodge.apiURL()`, then
-     `rpc.hello {protocol: 1, client: "frostmail-web <version>"}`.
+  2. A WebSocket to `lodge.apiURL()`, opened only while the page is
+     visible, then `rpc.hello {protocol: 1, client: "frostmail-app"}`, so
+     maild counts the web app as attended, as it counts the desktop app.
 - **Keepalive.** `rpc.ping` every 30 s while `document.visibilityState`
-  is `visible`. When the socket closes, the app reconnects as soon as the
-  page is visible, and resumes events from the last `seq` it saw.
+  is `visible`, and once when the page becomes visible. When the socket
+  closes, the app reconnects once the page is visible and reloads its
+  state, as the desktop app does.
 - **The reader** calls `message.render {id, content: true}` and shows
   `contentURL(contentPath)` in an `<iframe src>` with its own
   `sandbox="allow-popups allow-popups-to-escape-sandbox"`, never
@@ -227,16 +229,22 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   the click that asked, which opens a new tab. Saving one opens the same
   URL with `?download=1`.
 - **Routes,** relative to `/app/mail`, with the canonical URL `/mail`
-  followed by the route:
+  followed by the route: the sidebar's source, then `/message/<id>` when
+  one message is selected.
 
   | Route | Shows |
   | --- | --- |
-  | `/` | the default mailbox |
+  | `/` | All Inboxes |
   | `/mailbox/<id>` | a mailbox, by maild's ID |
-  | `/mailbox/<id>/<message id>` | a message selected in that mailbox |
+  | `/smart/<id>` | a smart mailbox |
+  | `/role/<role>` | every account's mailboxes of a role, such as `/role/sent` |
+  | `/flagged`, `/flag/<1–7>` | flagged mail, or one flag color |
+  | `/vips` | the VIPs' mail |
+  | `…/message/<id>` | that source with one message selected, by maild's ID |
 
-  The app reports `route` as the selection changes (a new mailbox pushes,
-  a new message replaces), and obeys `navigate`. It never touches the top
+  A route the app does not know shows All Inboxes. The app reports
+  `route` as the source and selection change (a new source pushes, a new
+  message replaces), and obeys `navigate`. It never touches the top
   window's history or location.
 - **Context.** With a message shown, `context {kind: "message", ref:
   "mail/message/<id>", title: <subject>}`; with none, `context {kind:

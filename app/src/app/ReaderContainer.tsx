@@ -1,12 +1,22 @@
 // The reader: the selected message's conversation (docs/design/app.md, Reader).
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { ContextMenu } from "../features/menu/ContextMenu";
+import { ContentFrame } from "../features/reader/ContentFrame";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
@@ -23,6 +33,7 @@ import { UnsubscribeBanner } from "../features/reader/UnsubscribeBanner";
 import { zoned } from "../lib/calendarDates";
 import { whenText } from "../lib/later";
 import { isVip, vipSet } from "../lib/vips";
+import { IN_LODGE, lodge, openOutside } from "../lodge/lodge";
 import type {
   Address,
   Invitation,
@@ -54,10 +65,24 @@ export interface ReaderHandle {
   more: (action: "headers" | "source") => void;
 }
 
-/** openLink opens a URL in the system browser. */
+/** openLink opens a URL in the system browser, or in lodge a browser tab. */
 export function openLink(url: string): void {
   if (isTauri()) void invoke("open_link", { url }).catch((err: unknown) => console.warn("open link", err));
-  else window.open(url, "_blank", "noopener,noreferrer");
+  else if (!openOutside(url)) window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/** useReaderHeight sets --reader-height on el to its height: in lodge the
+ * message frame fills the reader (ContentFrame). */
+function useReaderHeight(el: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    const node = el.current;
+    if (!IN_LODGE || !node) return;
+    const set = () => node.style.setProperty("--reader-height", `${node.clientHeight}px`);
+    set();
+    const observer = new ResizeObserver(set);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [el]);
 }
 
 /** ReaderContainer shows the selection in the reader pane. */
@@ -67,8 +92,13 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
   const openContact = useCallback((address: Address, at: { x: number; y: number }) => setContact({ address, at }), []);
   const closeContact = useCallback(() => setContact(null), []);
   const scroller = useRef<HTMLElement>(null);
+  useReaderHeight(scroller);
   const [moreRequest, setMoreRequest] = useState<MoreRequest | null>(null);
   const id = selected.length === 1 ? selected[0] : undefined;
+  useEffect(() => {
+    // lodge's companion learns what is on screen; Conversation names a message.
+    if (id === undefined) lodge()?.context({ kind: null, ref: "", title: "" });
+  }, [id]);
   useImperativeHandle(ref, () => ({
     page: (direction) => {
       const el = scroller.current;
@@ -134,6 +164,7 @@ function Conversation({
     (async () => {
       const [s] = await client.message.summaries({ ids: [id] });
       if (!s || cancelled) return;
+      lodge()?.context({ kind: "message", ref: `mail/message/${id}`, title: s.subject });
       let rows = [s];
       if (s.threadId !== 0) rows = await client.thread.messages({ id: s.threadId });
       const trash = new Set(trashKey === "" ? [] : trashKey.split(",").map(Number));
@@ -204,6 +235,7 @@ function ConversationMessage({
   const { invitation, busy, onAnswer } = useInvitation(id, part !== undefined);
   const unsubscribe = useUnsubscribe(id, !!message?.listUnsubscribe, readOnly);
   const { timeZone, locale, now } = useCalendarFrame();
+  const shell = lodge();
 
   useEffect(() => {
     let stopped = false;
@@ -234,7 +266,7 @@ function ConversationMessage({
       if (!cancelled) setError(err instanceof Error ? err.message : String(err));
     };
     client.message.get({ id }).then((m) => !cancelled && setMessage(m), fail);
-    client.message.render({ id }).then((r) => !cancelled && setRendering(r), fail);
+    client.message.render({ id, content: IN_LODGE || undefined }).then((r) => !cancelled && setRendering(r), fail);
     return () => {
       cancelled = true;
     };
@@ -243,7 +275,7 @@ function ConversationMessage({
   const loadRemote = useCallback(() => {
     setLoadingRemote(true);
     client.message
-      .render({ id, remote: true })
+      .render({ id, remote: true, content: IN_LODGE || undefined })
       .then(setRendering, () => {})
       .finally(() => setLoadingRemote(false));
   }, [client, id]);
@@ -251,7 +283,9 @@ function ConversationMessage({
   const openPart = useCallback(
     (part: Part) => {
       void client.message.part({ id, path: part.path }).then((f) => {
+        const l = lodge();
         if (isTauri()) void invoke("open_part", { path: f.path }).catch(() => {});
+        else if (l && f.contentPath) l.open(l.contentURL(f.contentPath));
         else window.open(`/mailpart/${f.path}`, "_blank", "noopener,noreferrer");
       });
     },
@@ -402,7 +436,11 @@ function ConversationMessage({
       {error && <p className="px-5 py-4 text-reader-meta text-secondary">{error}</p>}
       {rendering &&
         (rendering.html !== "" ? (
-          <MessageFrame html={rendering.html} onOpenLink={openLink} />
+          rendering.contentPath && shell ? (
+            <ContentFrame src={shell.contentURL(rendering.contentPath)} />
+          ) : (
+            <MessageFrame html={rendering.html} onOpenLink={openLink} />
+          )
         ) : (
           <PlainText text={rendering.text} onOpenLink={openLink} />
         ))}
