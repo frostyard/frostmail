@@ -301,8 +301,12 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 
   A route the app does not know shows All Inboxes. The app reports
   `route` as the source and selection change (a new source pushes, a new
-  message replaces), and obeys `navigate`. It never touches the top
-  window's history or location.
+  message replaces), and obeys `navigate`. In a narrow window, where the
+  message shows in place of its list ([ui.md](ui.md#narrow-windows-m8)),
+  a message opened from its list pushes instead, and the toolbar's Back
+  from it calls `history.back()`, which steps the shell's history as its
+  own Back would; the shell's `popstate` then sends `navigate`. Otherwise
+  the app never touches the top window's history or location.
 - **Windows are routes.** The desktop app's other windows show in the
   frame in place of the main window, which stays loaded underneath, hidden,
   and takes no keys while one shows:

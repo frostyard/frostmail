@@ -2,8 +2,10 @@
 // segments aligned with the panes below it, carrying Mail.app's actions,
 // the search field and our own window controls (docs/specs/ui.md, Layout:
 // Toolbar). The strip and its empty space drag the window; double-clicking
-// empty space toggles maximize. The planner's containers decide what each
-// command does.
+// empty space toggles maximize. A narrow window's toolbar holds its one
+// pane's controls instead, with the message actions in a bar at the foot
+// (docs/specs/ui.md, Narrow windows). The planner's containers decide what
+// each command does.
 import {
   Archive,
   ChevronLeft,
@@ -31,6 +33,7 @@ import {
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, useState } from "react";
 
+import type { NarrowPane } from "../../app/narrow";
 import type { CalendarView } from "../../lib/calendarDates";
 import { FLAG_NAMES, flagLabel } from "../../lib/flags";
 import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
@@ -95,8 +98,23 @@ export interface ToolbarTasks {
   paneWidth: number;
 }
 
+/**
+ * ToolbarNarrow is a narrow window's toolbar: the pane it is over, and
+ * Back, which returns from the list to Mailboxes, from a message to the
+ * list (named by the toolbar's title), and from another module to Mail.
+ * Mailboxes has no Back.
+ */
+export interface ToolbarNarrow {
+  pane: NarrowPane | "module";
+  onBack: () => void;
+}
+
 /** ToolbarProps are the toolbar's inputs. */
 export interface ToolbarProps {
+  /** Set in a narrow window. */
+  narrow?: ToolbarNarrow;
+  /** Minimize, Maximize and Close; only the desktop app's windows have them (default true). */
+  windowControls?: boolean;
   flagNames?: readonly string[];
   mode?: "mail" | "people" | "calendar" | "tasks";
   calendar?: ToolbarCalendar;
@@ -128,6 +146,11 @@ interface MenuState {
 
 const BUTTON_CLASS =
   "flex size-7 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
+// A narrow window's buttons are touch targets: 44 high, with 20px icons.
+const TOUCH_CLASS =
+  "flex size-11 shrink-0 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
+const BAR_CLASS =
+  "flex h-11 min-w-0 flex-1 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
 
 // The Flag menu: the seven colors as checkable items, then Clear Flag.
 function flagItems(selection: ToolbarSelection, flagNames?: readonly string[]): MenuItem[] {
@@ -266,6 +289,8 @@ function ListSegment({
 }
 
 interface MessageActionsProps {
+  /** The narrow window's bar: touch-sized buttons sharing its width. */
+  bar?: boolean;
   selection: ToolbarSelection;
   canArchive: boolean;
   moveTargets: MoveTarget[];
@@ -288,8 +313,10 @@ const MESSAGE_ACTIONS: MessageAction[] = [
   { label: "Forward", shortcut: "Ctrl+Shift+F", icon: Forward, kind: "forward" },
 ];
 
-function MessageActions({ selection, canArchive, moveTargets, onCommand, onOpenMenu }: MessageActionsProps) {
+function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, onOpenMenu }: MessageActionsProps) {
   const none = selection.count === 0;
+  const size = bar ? 20 : 16;
+  const className = bar ? BAR_CLASS : undefined;
   return (
     <>
       {MESSAGE_ACTIONS.map(({ label, shortcut, icon: Icon, kind }) => (
@@ -297,7 +324,8 @@ function MessageActions({ selection, canArchive, moveTargets, onCommand, onOpenM
           key={kind}
           label={label}
           shortcut={shortcut}
-          icon={<Icon size={16} />}
+          className={className}
+          icon={<Icon size={size} />}
           disabled={none || (kind === "archive" && !canArchive)}
           onClick={() => onCommand({ kind })}
         />
@@ -305,7 +333,8 @@ function MessageActions({ selection, canArchive, moveTargets, onCommand, onOpenM
       <ToolbarButton
         label="Flag"
         shortcut="Ctrl+Shift+L"
-        icon={<Flag size={16} />}
+        className={className}
+        icon={<Flag size={size} />}
         disabled={none}
         hasMenu
         onClick={onOpenMenu("flag")}
@@ -313,13 +342,15 @@ function MessageActions({ selection, canArchive, moveTargets, onCommand, onOpenM
       <ToolbarButton
         label={selection.seen ? "Mark as Unread" : "Mark as Read"}
         shortcut="Ctrl+Shift+U"
-        icon={selection.seen ? <Mail size={16} /> : <MailOpen size={16} />}
+        className={className}
+        icon={selection.seen ? <Mail size={size} /> : <MailOpen size={size} />}
         disabled={none}
         onClick={() => onCommand({ kind: "toggleRead" })}
       />
       <ToolbarButton
         label="Move"
-        icon={<FolderInput size={16} />}
+        className={className}
+        icon={<FolderInput size={size} />}
         disabled={none || moveTargets.length === 0}
         hasMenu
         onClick={onOpenMenu("move")}
@@ -341,9 +372,11 @@ function ReaderSegment({
   onOpenMenu,
   paneWidth,
   todoBar,
+  windowControls,
 }: {
   paneWidth?: number;
   todoBar?: boolean;
+  windowControls: boolean;
   mode: "mail" | "people" | "calendar" | "tasks";
   selection: ToolbarSelection;
   canArchive: boolean;
@@ -386,13 +419,17 @@ function ReaderSegment({
         shortcut="Ctrl+,"
         onClick={() => onCommand({ kind: "settings" })}
       />
-      <ToolbarButton label="Minimize" icon={<Minus size={16} />} onClick={() => onCommand({ kind: "minimize" })} />
-      <ToolbarButton
-        label={maximized ? "Restore" : "Maximize"}
-        icon={maximized ? <Copy size={16} /> : <Square size={16} />}
-        onClick={() => onCommand({ kind: "toggleMaximize" })}
-      />
-      <ToolbarButton label="Close" icon={<X size={16} />} onClick={() => onCommand({ kind: "close" })} />
+      {windowControls && (
+        <>
+          <ToolbarButton label="Minimize" icon={<Minus size={16} />} onClick={() => onCommand({ kind: "minimize" })} />
+          <ToolbarButton
+            label={maximized ? "Restore" : "Maximize"}
+            icon={maximized ? <Copy size={16} /> : <Square size={16} />}
+            onClick={() => onCommand({ kind: "toggleMaximize" })}
+          />
+          <ToolbarButton label="Close" icon={<X size={16} />} onClick={() => onCommand({ kind: "close" })} />
+        </>
+      )}
     </div>
   );
 }
@@ -528,14 +565,136 @@ function ToolbarSegments({
         search={props.search}
         onCommand={props.onCommand}
         onOpenMenu={onOpenMenu}
+        windowControls={props.windowControls ?? true}
       />
     </>
+  );
+}
+
+function BackButton({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={`Back to ${label}`}
+      onClick={onBack}
+      className="flex h-11 min-w-0 max-w-[45%] shrink-0 items-center rounded-md pr-2 text-[15px] leading-5 text-accent hover:bg-selection-inactive"
+    >
+      <ChevronLeft size={24} className="shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+// A narrow window's toolbar: Back and the pane's own controls, and in the
+// list, the search field on a row of its own under it.
+function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: ToolbarNarrow }) {
+  const { pane } = narrow;
+  const title =
+    pane === "mailboxes"
+      ? "Mailboxes"
+      : pane === "module"
+        ? (props.calendar?.title ?? props.tasks?.title ?? props.title)
+        : pane === "list"
+          ? props.title
+          : "";
+  const command = (cmd: ToolbarCommand) => () => props.onCommand(cmd);
+  return (
+    <>
+      <div
+        role="toolbar"
+        aria-label="Toolbar"
+        className="flex h-[52px] shrink-0 items-center gap-1 border-b border-separator bg-toolbar px-1"
+      >
+        {pane !== "mailboxes" && (
+          <BackButton
+            label={pane === "list" ? "Mailboxes" : pane === "reader" ? props.title : "Mail"}
+            onBack={narrow.onBack}
+          />
+        )}
+        <div className={`flex min-w-0 flex-1 flex-col ${pane === "mailboxes" ? "pl-3" : "pl-1"}`}>
+          <span className="text-toolbar-title truncate">{title}</span>
+          {pane === "list" && <span className="text-toolbar-subtitle truncate text-secondary">{props.subtitle}</span>}
+        </div>
+        {pane === "mailboxes" && (
+          <>
+            <ToolbarButton
+              label="Get Mail"
+              className={TOUCH_CLASS}
+              icon={<RefreshCw size={20} className={props.syncing ? "animate-spin" : undefined} />}
+              onClick={command({ kind: "getMail" })}
+            />
+            <ToolbarButton
+              label="Settings"
+              className={TOUCH_CLASS}
+              icon={<Settings size={20} />}
+              onClick={command({ kind: "settings" })}
+            />
+          </>
+        )}
+        {pane === "list" && (
+          <ToolbarButton
+            label="New Message"
+            className={TOUCH_CLASS}
+            icon={<SquarePen size={20} />}
+            onClick={command({ kind: "compose" })}
+          />
+        )}
+      </div>
+      {pane === "list" && (
+        <div className="flex h-11 shrink-0 items-center border-b border-separator bg-toolbar px-3">{props.search}</div>
+      )}
+    </>
+  );
+}
+
+/** MessageBarProps are the narrow window's message bar's inputs. */
+export type MessageBarProps = Pick<
+  ToolbarProps,
+  "selection" | "canArchive" | "moveTargets" | "flagNames" | "onCommand"
+>;
+
+/** MessageBar is a narrow window's message actions, in a bar at the foot of Mail. */
+export function MessageBar(props: MessageBarProps) {
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const openMenu = (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenu({ kind, x: rect.left, y: rect.top });
+  };
+  const choose = (id: string) => {
+    if (id.startsWith("flag:")) props.onCommand({ kind: "flag", color: Number(id.slice(5)) });
+    else if (id.startsWith("move:")) props.onCommand({ kind: "move", mailboxId: Number(id.slice(5)) });
+  };
+  return (
+    <div
+      role="toolbar"
+      aria-label="Message Actions"
+      className="flex shrink-0 items-center gap-1 border-t border-separator bg-toolbar px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]"
+    >
+      <MessageActions
+        bar
+        selection={props.selection}
+        canArchive={props.canArchive}
+        moveTargets={props.moveTargets}
+        onCommand={props.onCommand}
+        onOpenMenu={openMenu}
+      />
+      {menu && (
+        <ContextMenu
+          items={menu.kind === "flag" ? flagItems(props.selection, props.flagNames) : moveItems(props.moveTargets)}
+          x={menu.x}
+          y={menu.y}
+          onSelect={choose}
+          onClose={() => setMenu(null)}
+        />
+      )}
+    </div>
   );
 }
 
 /** Toolbar is the window's top strip, aligned with the panes. */
 export function Toolbar(props: ToolbarProps) {
   const [menu, setMenu] = useState<MenuState | null>(null);
+  if (props.narrow) return <NarrowToolbar props={props} narrow={props.narrow} />;
 
   const openMenu = (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
