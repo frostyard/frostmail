@@ -117,8 +117,10 @@ boundaries, so the planner builds them.
   A reply composed in lodge's frame goes out through `tools/smtpsink`
   (`dev/lodge/run.sh ROOT fixture`).
 - **Files.** Attaching sends the file's bytes over the RPC
-  (`draft.attachData`, in chunks within the 16 MiB message limit). Save As
-  and Raw Source download from a content route for the message's source.
+  (`draft.attachData`, in chunks within the 16 MiB message limit; built),
+  and an attachment's Save downloads it from the content route with
+  `?download=1` (built). Save As and Raw Source of a whole message are to
+  download from a content route for the message's source.
 - **Links between apps.** A permanent route by Message-ID
   (`/message/<Message-ID>`, resolved by maild), which notes can link to.
   A canonical lodge URL in a message opens in the shell through

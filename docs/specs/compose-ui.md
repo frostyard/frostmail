@@ -182,6 +182,13 @@ the conventions for measurements and shortcuts are those of the reader UI
 - Attach Files (Ctrl+Shift+A) opens the system file dialog; files dropped
   anywhere on the window are attached as well. Each file shows as being
   attached until maild has stored it.
+- In a browser through lodge, and in the desktop app on a maild behind
+  lodge, maild cannot read this computer's files, so the file's bytes go
+  to it in chunks (`draft.attachData`, `lib/upload.ts`;
+  [lodge-app.md](lodge-app.md#attaching-by-bytes)): Attach Files opens the
+  browser's file picker, and files dropped on the window are read there.
+  The desktop app's own drops still name paths, which a maild behind lodge
+  refuses with a note to use Attach Files.
 - Remove takes the file off the draft (`draft.detach`).
 
 ### Entry points

@@ -16,6 +16,7 @@ import { TimeSheet } from "../features/later/TimeSheet";
 import { isValidAddress } from "../lib/addressParse";
 import { appLocale } from "../lib/calendarDates";
 import { sendChoices } from "../lib/later";
+import { uploadFile } from "../lib/upload";
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
 import { remoteMaild } from "../rpc/transport/tauri";
@@ -102,6 +103,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirty = useRef(false);
   const touched = useRef(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const saving = useRef<Promise<void>>(Promise.resolve());
 
   const flush = useCallback((): Promise<void> => {
@@ -192,7 +194,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
           .catch((err: unknown) =>
             setError(
               remoteMaild()
-                ? `${basename(path)} was not attached: a maild behind lodge cannot read this computer's files yet.`
+                ? `${basename(path)} was not attached: a maild behind lodge cannot read this computer's files; use Attach Files.`
                 : `${basename(path)} was not attached: ${message(err)}`,
             ),
           )
@@ -202,7 +204,26 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     [client, id],
   );
 
-  // Files dropped anywhere on the window are attached.
+  // A browser, or the desktop app on a maild behind lodge, sends the
+  // file's bytes: maild cannot read a path on this machine
+  // (docs/specs/compose-ui.md, Attachments).
+  const attachFiles = useCallback(
+    (files: File[]) => {
+      for (const file of files) {
+        const key = `${Date.now()}-${Math.random()}`;
+        touched.current = true;
+        setPending((p) => [...p, { key, filename: file.name }]);
+        uploadFile(client, id, file)
+          .then((a) => setAttachments((list) => [...list, a]))
+          .catch((err: unknown) => setError(`${file.name} was not attached: ${message(err)}`))
+          .finally(() => setPending((p) => p.filter((x) => x.key !== key)));
+      }
+    },
+    [client, id],
+  );
+
+  // Files dropped anywhere on the window are attached: as paths in the
+  // app, as bytes in a browser.
   useEffect(() => {
     if (!isTauri()) return;
     const off = getCurrentWebview().onDragDropEvent((e) => {
@@ -210,10 +231,28 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     });
     return () => void off.then((f) => f());
   }, [attachPaths]);
+  useEffect(() => {
+    if (isTauri()) return;
+    const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes("Files") === true;
+    const over = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      attachFiles([...(e.dataTransfer?.files ?? [])]);
+    };
+    window.addEventListener("dragover", over);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("drop", drop);
+    };
+  }, [attachFiles]);
 
   const pickFiles = useCallback(async () => {
-    if (!isTauri()) {
-      setError("Attaching files needs the Frostmail app.");
+    if (!isTauri() || remoteMaild()) {
+      fileInput.current?.click();
       return;
     }
     const picked = await openFiles({ multiple: true, directory: false, title: "Attach Files" });
@@ -398,6 +437,17 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <EditorContent editor={editor} className="h-full" />
       </div>
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        aria-label="Files to attach"
+        onChange={(e) => {
+          attachFiles([...(e.currentTarget.files ?? [])]);
+          e.currentTarget.value = "";
+        }}
+      />
       <ComposeAttachments
         attachments={attachments}
         pending={pending}
