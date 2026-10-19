@@ -91,8 +91,11 @@ interface MailboxEdit {
   parentId?: number;
 }
 
-/** SidebarContainer connects Sidebar to the stores. */
-export function SidebarContainer() {
+/**
+ * SidebarContainer connects Sidebar to the stores. A narrow window's
+ * Mailboxes leave out the module bar: Mail alone has a narrow layout.
+ */
+export function SidebarContainer({ modules = true }: { modules?: boolean }) {
   const client = useClient();
   const [menu, setMenu] = useState<{ kind: "smart" | "mailbox" | "favorite"; id: number; x: number; y: number } | null>(
     null,
@@ -338,7 +341,7 @@ export function SidebarContainer() {
           onCancel={() => setSheet(null)}
         />
       )}
-      <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={module} onSelect={setModule} />
+      {modules && <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={module} onSelect={setModule} />}
     </div>
   );
 }

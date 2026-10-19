@@ -100,7 +100,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     the list.
     Then the search field (220 wide, 28 high, rounded 6), Settings
     (`Settings`, Ctrl+,) and the window controls (minimize,
-    maximize/restore, close: 28 × 28 targets, 16px icons).
+    maximize/restore, close: 28 × 28 targets, 16px icons). The window
+    controls are the desktop app's: the web build has none, since the
+    browser or lodge's shell holds the window.
   - Buttons are 28 × 28 with 16px Lucide icons in `--text-secondary`;
     hover background `--selection-inactive`; disabled at 40% opacity. Every
     button has a tooltip naming it and its shortcut.
@@ -391,6 +393,73 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   system's default application.
 - **Links** open in the system browser; only `http`, `https` and `mailto`
   open. Others do nothing.
+
+### Narrow windows (M8)
+
+Below 600 CSS pixels wide (frostnotes' measure, a phone in lodge's frame;
+`NARROW` in `app/narrow.ts` and the `narrow:` variant in `app.css`), Mail
+shows one pane at a time, as Mail.app does on a phone
+([plan 0011](../plans/0011-m8-mail-in-lodge.md), Phase 4). The desktop
+app's window is never this narrow (its minimum is 800); a browser and
+lodge's frame are.
+
+```
+┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
+│ Mailboxes          ⟳  ⚙ │  │ ‹ Mailboxes  Inbox     ✎ │  │ ‹ Inbox                  │  toolbar 52
+├──────────────────────────┤  │ 12 messages, 3 unread    │  ├──────────────────────────┤
+│ Favorites                │  ├──────────────────────────┤  │ (A) Sender         date  │
+│  All Inboxes          79 │  │ ⌕ Search                 │  │     Subject              │  search 44
+│  Flagged               9 │  ├──────────────────────────┤  │ body                     │
+│ Account                  │  │ All Unread Flagged  Sort │  │                          │
+│  Inbox                79 │  │ ● Sender           9:41  │  │                          │
+│  …                       │  │   Subject…               │  ├──────────────────────────┤
+│                          │  │   …                      │  │ 🗑 ▣ ↩ ↩↩ ↪ ⚑ ✉ ⇥        │  message bar 52
+└──────────────────────────┘  └──────────────────────────┘  └──────────────────────────┘
+       Mailboxes                       the list                     the message
+```
+
+- **Panes:** Mailboxes (the sidebar), the list, or the message, each
+  the whole width. The message shows while exactly one message is
+  selected; Mailboxes while asked for; the list otherwise. The list stays
+  mounted, and inert, under the other two, so it keeps its scroll. The
+  splitters, the sidebar toggle, the To-Do Bar and the module bar go.
+- **The toolbar** (52, as in a wide window) holds its pane's controls,
+  as 44 × 44 targets with 20px icons:
+  - Mailboxes: the title "Mailboxes" (13/600), then Get Mail and
+    Settings.
+  - The list: Back ("Mailboxes"), the source's title and subtitle, and
+    New Message. The search field takes a row of its own under it (44
+    high, the full width less 12px a side, 32 high, its text 16px so a
+    phone does not zoom in on it); the scope bar shows under that while
+    searching.
+  - The message: Back, named by the list's title ("‹ Inbox", or
+    "‹ Search").
+
+  Back is a chevron (`chevron-left`, 24px) and its label in `--accent`,
+  15/20, named "Back to …". It takes the message to its list by clearing
+  the selection, and the list to Mailboxes.
+- **The message bar,** at the foot of the window while a message is
+  shown or the list has a selection: 52 high plus the bottom safe area,
+  `--bg-toolbar`, 1px `--separator` top, with the toolbar's message
+  actions in its order (Delete, Archive, Reply, Reply All, Forward, Flag,
+  Mark, Move), sharing the width, each 44 high with a 20px icon. Flag and
+  Move open their menus above it.
+- **Choosing a source** in Mailboxes shows its list, even when it is the
+  source already shown.
+- **History** in lodge ([lodge-app.md](lodge-app.md#the-web-build), and
+  lodge-client.md's Routes, which allows it): opening a message from its
+  list pushes its route, so the shell's Back returns to the list, and the
+  toolbar's Back is `history.back()` then, undoing the entry mail pushed.
+  A message opened by its route (a link, a reload) has no list under it:
+  Back replaces its route with the list's, and never calls
+  `history.back()`, whose entry may not be lodge's.
+- **Rows and targets:** the sidebar's rows are 44 high. Compose's
+  toolbar buttons are 44 × 44 ([compose-ui.md](compose-ui.md)), and
+  Settings stacks its lists over their forms
+  ([settings-ui.md](settings-ui.md)).
+- **Calendar, People and Tasks** have no narrow layout yet: what opens one
+  (an invitation's Show in Calendar, a contact card's link) shows it as a
+  wide window would, under a toolbar whose Back ("Mail") returns to Mail.
 
 ## Behavior
 
