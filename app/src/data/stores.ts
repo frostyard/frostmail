@@ -116,6 +116,12 @@ export interface UIState {
   sidebarVisible: boolean;
   /** A narrow window shows Mailboxes in place of the list (docs/specs/ui.md, Narrow windows). */
   mailboxesOpen: boolean;
+  /** A narrow window shows Calendar's month and calendars in place of the day. */
+  calendarsOpen: boolean;
+  /** A narrow window shows People's address books in place of the list. */
+  booksOpen: boolean;
+  /** A narrow window shows Tasks' lists in place of the tasks. */
+  taskListsOpen: boolean;
   sidebarWidth: number;
   listWidth: number;
   conversations: boolean;
@@ -159,6 +165,9 @@ export interface UIActions {
   setFocus: (p: Pane) => void;
   toggleSidebar: () => void;
   openMailboxes: (open: boolean) => void;
+  openCalendars: (open: boolean) => void;
+  openBooks: (open: boolean) => void;
+  openTaskLists: (open: boolean) => void;
   setWidths: (w: { sidebarWidth?: number; listWidth?: number }) => void;
 }
 
@@ -190,6 +199,9 @@ const initialUI: UIState = {
   focus: "list",
   sidebarVisible: true,
   mailboxesOpen: false,
+  calendarsOpen: false,
+  booksOpen: false,
+  taskListsOpen: false,
   sidebarWidth: 220,
   listWidth: 360,
   conversations: true,
@@ -206,17 +218,17 @@ export const useUI = create<UIState & UIActions>()(
       openSmartSheet: (smartSheet) => set({ smartSheet }),
       closeSmartSheet: () => set({ smartSheet: null }),
       setCalendarView: (calendarView) => set({ calendarView }),
-      setCalendarDate: (calendarDate) => set({ calendarDate }),
+      setCalendarDate: (calendarDate) => set({ calendarDate, calendarsOpen: false }),
       selectOccurrence: (calendarSelected, date) =>
         set({ calendarSelected, ...(date === undefined ? {} : { calendarDate: date }) }),
       setCalendarFocus: (calendarFocus) => set({ calendarFocus }),
       setModule: (module) => set({ module }),
-      setTasksSource: (tasksSource) => set({ tasksSource, tasksSelected: null }),
+      setTasksSource: (tasksSource) => set({ tasksSource, tasksSelected: null, taskListsOpen: false }),
       selectTask: (tasksSelected) => set({ tasksSelected }),
       setTasksFocus: (tasksFocus) => set({ tasksFocus }),
       toggleShowCompleted: () => set((s) => ({ tasksShowCompleted: !s.tasksShowCompleted })),
       toggleTodoBar: () => set((s) => ({ todoBar: !s.todoBar })),
-      setPeopleBook: (peopleBook) => set({ peopleBook }),
+      setPeopleBook: (peopleBook) => set({ peopleBook, booksOpen: false }),
       selectPerson: (peopleSelected) => set({ peopleSelected }),
       editContact: (peopleEditing) => set({ peopleEditing }),
       setPeopleSearchDraft: (peopleSearchDraft) => set({ peopleSearchDraft }),
@@ -238,6 +250,9 @@ export const useUI = create<UIState & UIActions>()(
       setFocus: (focus) => set({ focus }),
       toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
       openMailboxes: (mailboxesOpen) => set({ mailboxesOpen }),
+      openCalendars: (calendarsOpen) => set({ calendarsOpen }),
+      openBooks: (booksOpen) => set({ booksOpen }),
+      openTaskLists: (taskListsOpen) => set({ taskListsOpen }),
       setWidths: (w) => set(w),
     }),
     {

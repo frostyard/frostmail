@@ -16,7 +16,7 @@ import type { Command } from "../lib/keymap";
 import { type PeopleRow, peopleRows } from "../lib/peopleRows";
 import { type PhotoChange, photoURL, scalePhoto } from "../lib/photo";
 import type { PersonSummary } from "../rpc/gen/api";
-import { useNarrow } from "./narrow";
+import { peoplePane, useNarrow } from "./narrow";
 import { revealMessage } from "./openMessage";
 import { rememberRestore } from "./pimUndo";
 import { openLink } from "./ReaderContainer";
@@ -346,7 +346,8 @@ function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef:
       inert={ui.peopleEditing !== null}
       onFocus={() => ui.setPeopleFocus("sidebar")}
       className="m-0 flex h-full min-w-0 shrink-0 flex-col border-0 bg-sidebar p-0"
-      style={{ width: ui.sidebarWidth }}
+      // A narrow window's address books take the whole width.
+      style={narrow ? undefined : { width: ui.sidebarWidth }}
     >
       <div className="min-h-0 flex-1 overflow-y-auto">
         <PeopleSidebar
@@ -356,6 +357,8 @@ function PeopleSidebarPane({ data, elementRef }: { data: PeopleData; elementRef:
           onSelect={(book) => {
             ui.setPeopleBook(book);
             ui.setPeopleFocus("sidebar");
+            // A narrow window shows the book's list, not a person picked before.
+            if (narrow) ui.selectPerson(null);
           }}
         />
       </div>
@@ -376,6 +379,7 @@ interface PeopleModuleProps {
 /** PeopleModule shows address books, a virtualized list and the selected person. */
 export const PeopleModule = forwardRef<PeopleHandle, PeopleModuleProps>(function PeopleModule(props, ref) {
   const ui = useUI();
+  const narrow = useNarrow();
   const sidebar = useRef<HTMLFieldSetElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const reader = useRef<HTMLElement>(null);
@@ -390,6 +394,35 @@ export const PeopleModule = forwardRef<PeopleHandle, PeopleModuleProps>(function
     }),
     [],
   );
+  if (narrow) {
+    // One pane at a time (docs/specs/ui.md, Narrow windows): the address
+    // books or the person over the list, which stays mounted, and inert,
+    // under them.
+    const pane = peoplePane(ui.booksOpen, ui.peopleSelected, ui.peopleEditing);
+    return (
+      <div className="relative flex min-h-0 flex-1 flex-col" data-narrow-pane={pane}>
+        <div ref={list} inert={pane !== "people"} className="min-h-0 flex-1">
+          <PeopleList people={props.data.people} />
+        </div>
+        {pane === "books" && (
+          <div className="absolute inset-0 z-10">
+            <PeopleSidebarPane elementRef={sidebar} data={props.data} />
+          </div>
+        )}
+        {pane === "person" && (
+          <section
+            ref={reader}
+            aria-label="Contact details"
+            tabIndex={-1}
+            onFocus={() => ui.setPeopleFocus("reader")}
+            className="absolute inset-0 z-10 bg-window outline-none"
+          >
+            <PeopleDetail data={props.data} />
+          </section>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-0 flex-1">
       {ui.sidebarVisible && (

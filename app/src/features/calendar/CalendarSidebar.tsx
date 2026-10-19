@@ -83,7 +83,7 @@ export function CalendarSidebar({ sections, onToggle, onMakeDefault, ...month }:
                   const rect = anchor.getBoundingClientRect();
                   openMenu(calendar, anchor, rect.left, rect.bottom);
                 }}
-                className="flex h-7 w-full items-center gap-2 pl-3 pr-2 text-left text-[13px] leading-4"
+                className="flex h-7 w-full items-center gap-2 pl-3 pr-2 text-left text-[13px] leading-4 narrow:h-11"
               >
                 <span
                   aria-hidden="true"

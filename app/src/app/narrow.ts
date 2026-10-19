@@ -32,3 +32,31 @@ export function narrowPane(mailboxesOpen: boolean, selected: readonly number[]):
   if (mailboxesOpen) return "mailboxes";
   return selected.length === 1 ? "reader" : "list";
 }
+
+/** CalendarPane is the pane a narrow window shows in Calendar. */
+export type CalendarPane = "calendars" | "day" | "event";
+
+/** calendarPane is Calendar's: its month and calendars when asked for, the event when one is selected, else the day. */
+export function calendarPane(calendarsOpen: boolean, selected: unknown): CalendarPane {
+  if (calendarsOpen) return "calendars";
+  return selected ? "event" : "day";
+}
+
+/** PeoplePane is the pane a narrow window shows in People. */
+export type PeoplePane = "books" | "people" | "person";
+
+/** peoplePane is People's: the person, or a contact being edited, else the books when asked for, else the list. */
+export function peoplePane(booksOpen: boolean, selected: number | null, editing: number | "new" | null): PeoplePane {
+  if (editing !== null) return "person";
+  if (booksOpen) return "books";
+  return selected === null ? "people" : "person";
+}
+
+/** TasksPane is the pane a narrow window shows in Tasks. */
+export type TasksPane = "taskLists" | "tasks" | "task";
+
+/** tasksPane is Tasks': the lists when asked for, the task when one is selected, else the tasks. */
+export function tasksPane(listsOpen: boolean, selected: number | null): TasksPane {
+  if (listsOpen) return "taskLists";
+  return selected === null ? "tasks" : "task";
+}

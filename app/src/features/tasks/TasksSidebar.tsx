@@ -123,7 +123,7 @@ export function TasksSidebar({ sections, counts, selected, focused, onSelect }: 
                     aria-level={1}
                     aria-selected={active}
                     data-key={typeof list.id === "number" ? `list:${list.id}` : list.id}
-                    className={`mx-2 flex h-7 items-center gap-2 rounded-md pl-1 pr-1 ${active ? (focused ? "bg-accent text-accent-contrast" : "bg-selection-sidebar") : ""}`}
+                    className={`mx-2 flex h-7 items-center gap-2 rounded-md pl-1 pr-1 narrow:h-11 ${active ? (focused ? "bg-accent text-accent-contrast" : "bg-selection-sidebar") : ""}`}
                   >
                     <Icon
                       size={16}

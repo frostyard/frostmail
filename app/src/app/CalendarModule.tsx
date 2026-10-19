@@ -8,6 +8,7 @@ import { MonthGrid } from "../features/calendar/MonthGrid";
 import { useNotify } from "../features/calendar/NotifySheet";
 import { ScopeSheet } from "../features/calendar/ScopeSheet";
 import { TimeGrid } from "../features/calendar/TimeGrid";
+import { WeekStrip } from "../features/calendar/WeekStrip";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { addDays, monthGrid, viewRange, zoned } from "../lib/calendarDates";
 import { canMove, dropFields, type Range, shiftedDays } from "../lib/eventDrag";
@@ -20,7 +21,7 @@ import type {
   Occurrence,
 } from "../rpc/gen/api";
 import { ContactCardContainer, type ContactCardContainerProps } from "./ContactCardContainer";
-import { useNarrow } from "./narrow";
+import { calendarPane, useNarrow } from "./narrow";
 import { openEvent } from "./openEvent";
 import { rememberRestore } from "./pimUndo";
 import { Splitter } from "./Splitter";
@@ -111,15 +112,25 @@ function useCalendarDrag(data: CalendarData) {
   };
 }
 
-function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: RefObject<HTMLElement | null> }) {
+function CalendarView({
+  data,
+  elementRef,
+  narrow = false,
+}: {
+  data: CalendarData;
+  elementRef: RefObject<HTMLElement | null>;
+  /** A narrow window shows the selected day alone, whatever the view. */
+  narrow?: boolean;
+}) {
   const ui = useUI();
   const { scopeSheet, notifySheet, onMove, onDraw, ...drag } = useCalendarDrag(data);
-  const lines = useMonthLines(elementRef, ui.calendarView === "month");
-  const range = viewRange(ui.calendarView, data.date, data.weekStart);
+  const view = narrow ? "day" : ui.calendarView;
+  const lines = useMonthLines(elementRef, view === "month");
+  const range = viewRange(view, data.date, data.weekStart);
   const days =
-    ui.calendarView === "month"
+    view === "month"
       ? monthGrid(data.date, data.weekStart)
-      : Array.from({ length: ui.calendarView === "day" ? 1 : 7 }, (_, index) => addDays(range.from, index));
+      : Array.from({ length: view === "day" ? 1 : 7 }, (_, index) => addDays(range.from, index));
   const props = {
     ...drag,
     days,
@@ -141,7 +152,7 @@ function CalendarView({ data, elementRef }: { data: CalendarData; elementRef: Re
   };
   return (
     <>
-      {ui.calendarView === "month" ? (
+      {view === "month" ? (
         <MonthGrid {...props} selectedDate={data.date} lines={lines} onSelectDate={ui.setCalendarDate} />
       ) : (
         <TimeGrid {...props} now={data.now} onMove={onMove} onDraw={onDraw} />
@@ -212,6 +223,115 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
     edit,
     remove,
   }));
+  const sidebarList = (
+    <CalendarSidebar
+      sections={data.sections}
+      selected={data.date}
+      today={data.today}
+      weekStart={data.weekStart}
+      busy={data.busy}
+      locale={data.locale}
+      onSelect={(date) => {
+        // A narrow window shows the day picked, not an event picked before.
+        if (narrow) ui.selectOccurrence(null);
+        ui.setCalendarDate(date);
+      }}
+      onToggle={(id, enabled) => {
+        void client.account
+          .setCollection({ id, enabled })
+          .catch((err: unknown) => console.warn("calendar visibility", err));
+      }}
+      onMakeDefault={(id) => {
+        void client.account
+          .setCollection({ id, isDefault: true })
+          .catch((err: unknown) => console.warn("calendar default", err));
+      }}
+    />
+  );
+  const eventPane = (
+    <EventPane
+      event={data.event}
+      calendar={calendar && section ? { ...calendar, account: section.title } : null}
+      timeZone={data.timeZone}
+      locale={data.locale}
+      onEdit={writable ? edit : undefined}
+      onDelete={writable && !invitation ? remove : undefined}
+      onPerson={(email, name, anchor) => {
+        const rect = anchor.getBoundingClientRect();
+        setCard({ address: { address: email, name }, at: { x: rect.left, y: rect.bottom } });
+      }}
+    />
+  );
+  const sheets = (
+    <>
+      {card && <ContactCardContainer key={card.address.address} {...card} onClose={() => setCard(null)} />}
+      {deleting && (
+        <ScopeSheet
+          action="delete"
+          first={deleting.first ?? false}
+          onChoose={(scope) => {
+            deleteEvent({ id: deleting.id, recurrenceId: deleting.recurrenceId, scope });
+            setDeleting(null);
+          }}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
+      {sheet}
+    </>
+  );
+  if (narrow) {
+    // One pane at a time (docs/specs/ui.md, Narrow windows): the day under
+    // its week, with the month and calendars, or the event, over it.
+    const pane = calendarPane(ui.calendarsOpen, ui.calendarSelected);
+    return (
+      <div className="relative flex min-h-0 flex-1 flex-col" data-narrow-pane={pane}>
+        <div className="flex min-h-0 flex-1 flex-col" inert={pane !== "day"}>
+          <WeekStrip
+            selected={data.date}
+            today={data.today}
+            weekStart={data.weekStart}
+            busy={data.busy}
+            locale={data.locale}
+            onSelect={ui.setCalendarDate}
+          />
+          <section
+            ref={view}
+            aria-label="Calendar view"
+            tabIndex={-1}
+            onFocus={() => ui.setCalendarFocus("list")}
+            onClick={() => ui.setCalendarFocus("list")}
+            onKeyDown={() => ui.setCalendarFocus("list")}
+            className="min-h-0 flex-1 outline-none"
+          >
+            <CalendarView data={data} elementRef={view} narrow />
+          </section>
+        </div>
+        {pane === "calendars" && (
+          <fieldset
+            ref={sidebar}
+            aria-label="Calendars"
+            tabIndex={-1}
+            onFocus={() => ui.setCalendarFocus("sidebar")}
+            className="absolute inset-0 z-10 m-0 overflow-y-auto border-0 bg-sidebar p-0 outline-none"
+          >
+            {sidebarList}
+          </fieldset>
+        )}
+        {pane === "event" && (
+          <section
+            ref={reader}
+            aria-label="Event details"
+            tabIndex={-1}
+            onFocus={() => ui.setCalendarFocus("reader")}
+            className="absolute inset-0 z-10 overflow-y-auto bg-window outline-none"
+          >
+            {eventPane}
+          </section>
+        )}
+        {sheets}
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-0 flex-1">
       {ui.sidebarVisible && (
@@ -226,34 +346,8 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
             className="flex h-full shrink-0 flex-col bg-sidebar outline-none"
             style={{ width: ui.sidebarWidth }}
           >
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <CalendarSidebar
-                sections={data.sections}
-                selected={data.date}
-                today={data.today}
-                weekStart={data.weekStart}
-                busy={data.busy}
-                locale={data.locale}
-                onSelect={ui.setCalendarDate}
-                onToggle={(id, enabled) => {
-                  void client.account
-                    .setCollection({ id, enabled })
-                    .catch((err: unknown) => console.warn("calendar visibility", err));
-                }}
-                onMakeDefault={(id) => {
-                  void client.account
-                    .setCollection({ id, isDefault: true })
-                    .catch((err: unknown) => console.warn("calendar default", err));
-                }}
-              />
-            </div>
-            {!narrow && (
-              <ModuleBar
-                modules={["mail", "calendar", "people", "tasks"]}
-                current={ui.module}
-                onSelect={ui.setModule}
-              />
-            )}
+            <div className="min-h-0 flex-1 overflow-y-auto">{sidebarList}</div>
+            <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
           </fieldset>
           <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
         </>
@@ -278,32 +372,9 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
         onKeyDown={() => ui.setCalendarFocus("reader")}
         className="h-full w-[320px] shrink-0 border-l border-separator outline-none"
       >
-        <EventPane
-          event={data.event}
-          calendar={calendar && section ? { ...calendar, account: section.title } : null}
-          timeZone={data.timeZone}
-          locale={data.locale}
-          onEdit={writable ? edit : undefined}
-          onDelete={writable && !invitation ? remove : undefined}
-          onPerson={(email, name, anchor) => {
-            const rect = anchor.getBoundingClientRect();
-            setCard({ address: { address: email, name }, at: { x: rect.left, y: rect.bottom } });
-          }}
-        />
+        {eventPane}
       </section>
-      {card && <ContactCardContainer key={card.address.address} {...card} onClose={() => setCard(null)} />}
-      {deleting && (
-        <ScopeSheet
-          action="delete"
-          first={deleting.first ?? false}
-          onChoose={(scope) => {
-            deleteEvent({ id: deleting.id, recurrenceId: deleting.recurrenceId, scope });
-            setDeleting(null);
-          }}
-          onCancel={() => setDeleting(null)}
-        />
-      )}
-      {sheet}
+      {sheets}
     </div>
   );
 });
