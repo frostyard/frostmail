@@ -18,12 +18,13 @@ Status (2026-10-19):
   - Phase 5's read-only tools;
   - Phase 6's remote mode.
   They pin lodge's `kit/v0.1.0` and `client/v0.1.0`.
-- **Still to come:**
+- **In review on 2026-10-19 (#71 to #76):**
   - Phase 4: the narrow layout, Save As and Raw Source by download, the
     route by Message-ID, and notifications;
   - Phase 5: the write and send tools;
-  - Phase 6: desktop notifications;
-  - each phase's done-when, run in lodge's development build.
+  - Phase 6: desktop notifications.
+- **Still to come:** each phase's done-when, run in lodge's development
+  build.
 - **Phase 7** waits on the user.
 
 ## Decisions for M8

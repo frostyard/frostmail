@@ -24,7 +24,7 @@ and each milestone's plan carries its own status. M8, mail in lodge
   - read-only `/mcp/mail`;
   - the desktop app as a lodge client;
   - attachments.
-- **Still to come:**
+- **In review on 2026-10-19 (#71 to #76):**
   - the narrow layout;
   - Save As by download;
   - links by Message-ID;
@@ -60,8 +60,8 @@ and each milestone's plan carries its own status. M8, mail in lodge
 - `internal/lodge`: maild as lodge's `mail` app (`maild --lodge`, on
   lodge/kit): the app socket and its content route
   ([specs/lodge-app.md](docs/specs/lodge-app.md)). `internal/mcpserver`:
-  the read-only MCP tools behind it, the only package that imports the MCP
-  SDK. `packaging/lodge`: the manifest, units and `stage.sh`
+  the MCP tools behind it, which the token's scope selects; it is the only
+  package that imports the MCP SDK. `packaging/lodge`: the manifest, units and `stage.sh`
   (`make lodge-package`); `dev/lodge/run.sh` runs maild behind lodge's
   development build; `tools/lodgeprobe` checks a lodge socket.
 - `internal/imapx`: the only package that imports go-imap.
