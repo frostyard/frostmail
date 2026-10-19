@@ -17,19 +17,16 @@ symlinks to it; edit this file only.
 Pre-release. The order of work is the [roadmap](docs/plans/0002-roadmap.md),
 and each milestone's plan carries its own status. M8, mail in lodge
 ([plan 0011](docs/plans/0011-m8-mail-in-lodge.md)), is in progress:
-- **Merged on 2026-10-19:**
+- **Built and merged on 2026-10-19:**
   - maild's lodge socket;
-  - the web build;
+  - the web build, with its narrow layout;
   - compose and the other windows as routes;
-  - read-only `/mcp/mail`;
-  - the desktop app as a lodge client;
-  - attachments.
-- **In review on 2026-10-19 (#71 to #76):**
-  - the narrow layout;
-  - Save As by download;
-  - links by Message-ID;
-  - notifications;
-  - the write and send tools.
+  - attachments, Save As by download and links by Message-ID;
+  - notifications, in the browser and in the desktop app;
+  - `/mcp/mail`, whose scope grants reading, writing and sending;
+  - the desktop app as a lodge client.
+- **Still to see:** a few checks in a real browser and on real desktops
+  (plan 0011's status).
 - **Phase 7,** moving the user's mail to lodge's host, waits on the user.
 
 ## Two kinds of agent work

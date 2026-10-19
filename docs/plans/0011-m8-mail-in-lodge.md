@@ -11,20 +11,14 @@ The contract is [specs/lodge-app.md](../specs/lodge-app.md).
 
 Status (2026-10-19):
 - **Phase 1 is written.** ADR-0041 is still Proposed.
-- **Merged on 2026-10-19, the parts each phase marks built (#60–#68):**
-  - Phase 2's socket;
-  - Phase 3's web build;
-  - Phase 4's routes and attachments;
-  - Phase 5's read-only tools;
-  - Phase 6's remote mode.
-  They pin lodge's `kit/v0.1.0` and `client/v0.1.0`.
-- **In review on 2026-10-19 (#71 to #76):**
-  - Phase 4: the narrow layout, Save As and Raw Source by download, the
-    route by Message-ID, and notifications;
-  - Phase 5: the write and send tools;
-  - Phase 6: desktop notifications.
-- **Still to come:** each phase's done-when, run in lodge's development
-  build.
+- **Phases 2 to 6 are built,** merged on 2026-10-19 (#60–#68 and
+  #71–#77) and pinned to lodge's `kit/v0.1.0` and `client/v0.1.0`. Each
+  phase marks what it built and the evidence.
+- **Still to see:**
+  - Phase 3: the reader frame's images from `lodge-content`, and the
+    switcher's chord, in a real browser;
+  - Phase 5: drafting live under `;write` through lodge;
+  - Phase 6: a real notification on Linux and on Windows.
 - **Phase 7** waits on the user.
 
 ## Decisions for M8
