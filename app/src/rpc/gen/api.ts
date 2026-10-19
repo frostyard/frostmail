@@ -1466,6 +1466,22 @@ export interface UnsubscribeResult {
   url?: string;
 }
 
+/**
+ * One notification of new mail, as maild's desktop notifications word it
+ * (docs/design/desktop.md, Notifications).
+ */
+export interface Announcement {
+  /** The sender, or "N new messages" for a group. */
+  title: string;
+  /**
+   * The subject (after "Reminder: " for a Remind Me reminder) and a line of
+   * preview, or the senders of a group.
+   */
+  body: string;
+  /** The message it opens; absent for a group. */
+  messageId?: number;
+}
+
 /** A message as the server holds it. */
 export interface MessageSource {
   /** The header section, up to the blank line. */
@@ -1668,6 +1684,17 @@ export interface MessageRemindParams {
   ids: number[];
   /** In the future. */
   at?: string /* RFC 3339 */;
+}
+
+/**
+ * New mail and fired Remind Me reminders to announce, sent live to every
+ * connected client when maild has no desktop to notify on (no session bus, as
+ * behind lodge, docs/specs/lodge-app.md); each client shows the notes itself.
+ * Never replayed.
+ */
+export interface MessageAnnounced {
+  accountId: number;
+  notes: Announcement[];
 }
 
 /** Messages were added or changed (flags, mailbox, fetched body). */
@@ -3008,6 +3035,7 @@ export type Event =
   | { event: "calendar.refused"; seq?: number; data: CalendarRefused }
   | { event: "draft.changed"; seq?: number; data: DraftChanged }
   | { event: "mailbox.changed"; seq?: number; data: MailboxChanged }
+  | { event: "message.announced"; seq?: number; data: MessageAnnounced }
   | { event: "message.changed"; seq?: number; data: MessageChanged }
   | { event: "message.removed"; seq?: number; data: MessageRemoved }
   | { event: "outbox.changed"; seq?: number; data: OutboxChanged }

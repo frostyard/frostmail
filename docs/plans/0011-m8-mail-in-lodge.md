@@ -23,6 +23,24 @@ The user chose these on 2026-10-18:
   test, smoke run and deployment uses generated mail (`tools/mailgen`,
   `tools/uifixture`, the mailtest container) and no real account.
 
+Accepted by the user on 2026-10-19, with Phase 4's notifications:
+
+- **Reminders with no client open.** With no session bus on the server, a
+  reminder that fires while no app is attached reaches nobody until one
+  connects, and so:
+  - a calendar reminder waits: `calendar.reminders` still lists it, so
+    the next client to connect raises the reminder window (a hidden page
+    also notifies it), as a desktop app started late does today;
+  - a Remind Me reminder brings its message back to the inbox when it
+    fires, whoever is connected, and only the announcement is lost;
+  - new mail announced while no client was connected is not replayed:
+    it is unread in the list;
+  - notifying with nothing open is Web Push's, which waits on lodge
+    ([ADR-0008](https://github.com/frostyard/lodge/blob/main/docs/adr/0008-lodge-installs-as-one-home-screen-app.md)).
+- **No service worker for now.** Web Push and the phone's notifications
+  are deferred (see Later); where a browser has no `Notification`
+  constructor, as Android's Chrome, mail stays silent.
+
 lodge's decisions that shape mail's side (the lodge program, 2026-10-18):
 
 - **D4:** the frame learns the content origin from lodge-client's `init`,
@@ -137,8 +155,10 @@ boundaries, so the planner builds them.
   In lodge's development build at 390 × 844, a message opened from the
   list and a reply composed from its bar reached `tools/smtpsink`, and
   the shell's Back returned from the message to the list.
-- **Notifications** while lodge is open: the web app shows new mail and
-  reminders with the Notification API. Web Push waits on lodge.
+- **Notifications** while lodge is open (built): maild with no session
+  bus sends connected clients `message.announced`, and the web app shows
+  new mail and, while hidden, reminders with the Notification API, once
+  allowed in Settings → General. Web Push waits on lodge.
 - **Done when,** in lodge's development build: a reply with an attachment
   composed in the frame goes out through `tools/smtpsink`; Save As
   downloads the `.eml`; a note's link to `/mail/message/<id>` opens the
@@ -189,8 +209,8 @@ Notifications are not built yet.
   from `GET https://LODGE/lodge/apps`, into the app's cache and opens the
   file, so the webview still fetches nothing.
 - **Notifications:** an IDL event for announcements, sent to connected
-  clients when maild has no session bus, and shown by the app's own
-  notifier.
+  clients when maild has no session bus (built, `message.announced`), and
+  shown by the app's own notifier.
 - **The Flatpak** gains the network for the Rust layer.
 - **Done when:** with `app.json` naming lodge's development build, the
   desktop app reads, composes with an attachment and sends through a maild
@@ -224,9 +244,6 @@ Notifications are not built yet.
   handing the grant to the server's maild. Decide by Phase 7.
 - **Secrets on the server:** the file store, or something sealed (systemd
   credentials, a TPM). Decide by Phase 7.
-- **Reminders with no client open:** with no session bus on the server, a
-  reminder that fires while no app is attached reaches nobody until one
-  connects. Decide with Phase 4's notifications.
 
 ## References
 
