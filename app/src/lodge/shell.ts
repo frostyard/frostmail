@@ -34,7 +34,7 @@ export function wireShell(l: Lodge, route: string): () => void {
   go(route);
   let last = routeOf(useUI.getState().source, useUI.getState().selected);
   let lastSource = sourceKey(useUI.getState().source);
-  l.route(last, title(useUI.getState().source), true);
+  l.route(last, title(useUI.getState().source), { replace: true });
   let navigating = false;
   const offUI = useUI.subscribe((s) => {
     if (navigating) return;
@@ -42,7 +42,7 @@ export function wireShell(l: Lodge, route: string): () => void {
     if (next === last) return;
     // A new source is a history entry; a new message in it replaces it.
     const key = sourceKey(s.source);
-    l.route(next, title(s.source), key === lastSource);
+    l.route(next, title(s.source), { replace: key === lastSource });
     last = next;
     lastSource = key;
   });

@@ -9,21 +9,9 @@ export const IN_LODGE = import.meta.env.MODE === "lodge";
 /** STORAGE_PREFIX goes before every local-storage key: lodge's apps share one origin. */
 export const STORAGE_PREFIX = IN_LODGE ? "mail:" : "";
 
-/**
- * Lodge is what the app uses of lodge-client's connection to the shell
- * (lodge's docs/specs/lodge-client.md, The library).
- */
-export interface Lodge {
-  theme: "light" | "dark";
-  apiURL(): string;
-  contentURL(path: string): string;
-  route(path: string, title: string, replace?: boolean): void;
-  context(c: { kind: string | null; ref: string; title: string }): void;
-  open(url: string): void;
-  on(type: "navigate", fn: (m: { route: string }) => void): () => void;
-  on(type: "visible", fn: (m: { visible: boolean }) => void): () => void;
-  on(type: "theme", fn: (m: { scheme: "light" | "dark" }) => void): () => void;
-}
+export type { Lodge } from "@frostyard/lodge-client";
+
+import type { Lodge } from "@frostyard/lodge-client";
 
 let current: Lodge | null = null;
 
