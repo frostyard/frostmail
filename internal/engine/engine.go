@@ -92,7 +92,7 @@ type Deps struct {
 }
 
 // Content is what the engine needs of lodge's content route
-// (lodgeapp.Content).
+// (lodge.Content).
 type Content interface {
 	// KeepPage keeps a reader page and returns its content path, or "".
 	KeepPage(page []byte) string

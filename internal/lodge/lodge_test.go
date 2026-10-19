@@ -1,4 +1,4 @@
-package lodgeapp_test
+package lodge_test
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
-	"github.com/frostyard/frostmail/internal/lodgeapp"
+	"github.com/frostyard/frostmail/internal/lodge"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpctest"
 )
@@ -185,7 +185,7 @@ func TestAPIFrames(t *testing.T) {
 	srv := rpctest.Start(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	a := &lodgeapp.API{Ctx: ctx, RPC: srv.RPC, Router: srv.Router, Log: discard()}
+	a := &lodge.API{Ctx: ctx, RPC: srv.RPC, Router: srv.Router, Log: discard()}
 	caller := api.Caller{Kind: api.CallerKindSession, Login: "e2e@example.com", NodeName: "e2e", Session: "0123456789abcdef"}
 	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { a.Serve(w, r, caller) }))
 	t.Cleanup(hs.Close)

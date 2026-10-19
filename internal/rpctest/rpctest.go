@@ -17,7 +17,7 @@ import (
 	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
-	"github.com/frostyard/frostmail/internal/lodgeapp"
+	"github.com/frostyard/frostmail/internal/lodge"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/pimsync"
@@ -81,7 +81,7 @@ type Server struct {
 	Router  *api.Router
 	Parts   *render.PartsCache
 	OAuth   *oauth.Manager
-	Content *lodgeapp.Content // nil unless Options.Lodge was set
+	Content *lodge.Content // nil unless Options.Lodge was set
 
 	ctx  context.Context
 	stop func()
@@ -128,7 +128,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	if o.Lodge {
-		if srv.Content, err = lodgeapp.NewContent(srv.Parts); err != nil {
+		if srv.Content, err = lodge.NewContent(srv.Parts); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -1,4 +1,4 @@
-package lodgeapp
+package lodge
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func (a *API) Serve(w http.ResponseWriter, r *http.Request, caller api.Caller) {
 }
 
 // errSeveral means a frame held more than one message.
-var errSeveral = errors.New("lodgeapp: a frame holds more than one message")
+var errSeveral = errors.New("lodge: a frame holds more than one message")
 
 // frameConn turns each frame into one line for rpcserver: a frame's
 // trailing newline is optional, and a frame of several lines ends the

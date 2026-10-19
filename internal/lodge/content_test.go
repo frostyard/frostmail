@@ -1,4 +1,4 @@
-package lodgeapp
+package lodge
 
 import (
 	"bytes"

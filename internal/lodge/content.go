@@ -1,8 +1,8 @@
-// Package lodgeapp serves maild as lodge's mail app on its app socket
+// Package lodge serves maild as lodge's mail app on its app socket
 // (docs/specs/lodge-app.md, ADR-0041): /health, the /api WebSocket as caller
 // session, and /content/ for reader pages and parts, which lodge-content
 // serves to the reader's frame.
-package lodgeapp
+package lodge
 
 import (
 	"bytes"
