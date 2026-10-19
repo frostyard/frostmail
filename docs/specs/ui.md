@@ -446,11 +446,13 @@ lodge's frame are.
   Move open their menus above it.
 - **Choosing a source** in Mailboxes shows its list, even when it is the
   source already shown.
-- **History** in lodge (lodge-app.md, The web build): opening a message
-  from its list pushes its route, so the shell's Back returns to the
-  list, and the toolbar's Back is history's own then. A message opened by
-  its route (a link, a reload) has no list under it: Back replaces its
-  route with the list's.
+- **History** in lodge ([lodge-app.md](lodge-app.md#the-web-build), and
+  lodge-client.md's Routes, which allows it): opening a message from its
+  list pushes its route, so the shell's Back returns to the list, and the
+  toolbar's Back is `history.back()` then, undoing the entry mail pushed.
+  A message opened by its route (a link, a reload) has no list under it:
+  Back replaces its route with the list's, and never calls
+  `history.back()`, whose entry may not be lodge's.
 - **Rows and targets:** the sidebar's rows are 44 high. Compose's
   toolbar buttons are 44 × 44 ([compose-ui.md](compose-ui.md)), and
   Settings stacks its lists over their forms

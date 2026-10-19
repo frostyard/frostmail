@@ -305,8 +305,13 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   message shows in place of its list ([ui.md](ui.md#narrow-windows-m8)),
   a message opened from its list pushes instead, and the toolbar's Back
   from it calls `history.back()`, which steps the shell's history as its
-  own Back would; the shell's `popstate` then sends `navigate`. Otherwise
-  the app never touches the top window's history or location.
+  own Back would; the shell's `popstate` then sends `navigate`. It calls
+  it only to undo that entry, which mail pushed itself: from a message
+  the frame was opened at (a link, a reload), the entry before may not be
+  lodge's, so Back reports the list's route with `replace` instead
+  ([lodge-client.md, Routes](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-client.md#routes),
+  frostyard/lodge#9). Otherwise the app never touches the top window's
+  history or location.
 - **Windows are routes.** The desktop app's other windows show in the
   frame in place of the main window, which stays loaded underneath, hidden,
   and takes no keys while one shows:
