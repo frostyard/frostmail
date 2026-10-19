@@ -4,8 +4,9 @@
 // MCP session whose tools reach maild over an in-process connection of
 // caller agent. That connection carries the session's token and scope, and
 // maild's router and engine enforce the scope: the tools only adapt the RPC
-// API. The read tools, for mail (read.go) and for calendars, tasks and
-// contacts (pim.go), come with every scope; ;write adds flags, moves and
+// API. The read tools, for mail (read.go), calendars, tasks and contacts
+// (pim.go) and the conversations waiting on a reply (waiting.go), come
+// with every scope; ;write adds flags, moves and
 // replies drafted, and ;send sending a draft (write.go). It is the only
 // package that imports the MCP SDK, and no SDK type is in its exported API.
 package mcpserver
@@ -32,8 +33,10 @@ language (words, from:, to:, subject:, has:attachment, is:unread, before:
 and after:); read_thread reads the conversation a message belongs to.
 list_collections lists the calendars, task lists and address books;
 list_events and read_event read the calendar, list_tasks and read_task the
-tasks, and search_contacts and read_contact the contacts. IDs come from
-these tools. ` + Notice
+tasks, and search_contacts and read_contact the contacts.
+threads_awaiting_reply lists the conversations waiting on the user, and
+threads_awaiting_others those waiting on others, as maild picks them. IDs
+come from these tools. ` + Notice
 
 // instructions tell the MCP host what this token may do.
 func instructions(scope api.Scope) string {
@@ -95,6 +98,7 @@ message belongs to, oldest first: each message's date, sender, recipients,
 subject and text, with its attachments' names, types and sizes. At most
 the newest 20 messages, each text cut at 32 KiB. ` + Notice}, t.readThread)
 	addPIMTools(s, t)
+	addWaitingTools(s, t)
 	addWriteTools(s, t, o.Scope)
 	return s
 }

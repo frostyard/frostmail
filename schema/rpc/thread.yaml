@@ -1,5 +1,21 @@
 domain: thread
 doc: Conversations, built by maild from message references (Gmail threads on Gmail).
+types:
+  - name: AwaitingThread
+    doc: A conversation waiting on a reply (ADR-0042).
+    fields:
+      - {name: threadId, type: int}
+      - {name: accountId, type: int}
+      - {name: message, type: MessageSummary, doc: "The thread's newest message."}
+      - {name: recipients, type: "[]Address", doc: "The first 10 of the newest message's To and Cc."}
+      - {name: recipientCount, type: int, doc: "How many addresses its To and Cc hold."}
+      - {name: vip, type: bool, doc: "awaitingReply: the sender is a VIP. awaitingOthers: a recipient is."}
+      - {name: waitingDays, type: int, doc: "Whole days of 24 hours since the newest message."}
+  - name: Awaiting
+    doc: Conversations waiting on a reply, those with a VIP first, then the newest first.
+    fields:
+      - {name: total, type: int, doc: "How many match, before limit."}
+      - {name: threads, type: "[]AwaitingThread"}
 methods:
   - name: messages
     doc: >-
@@ -9,4 +25,32 @@ methods:
       - {name: id, type: int}
     result: "[]MessageSummary"
     errors: [notFound]
+    callers: [local, session, agent]
+  - name: awaitingReply
+    doc: >-
+      Conversations waiting on the user (docs/specs/lodge-app.md, Calendar,
+      tasks and contacts): those whose newest message, leaving out drafts and
+      messages only in Drafts, Trash or Junk, is from someone else to one of
+      its account's identities in To, from no list or no-reply sender, not
+      answered, muted or blocked, in an inbox, and dated between withinDays
+      and waitingDays ago.
+    params:
+      - {name: limit, type: int, optional: true, doc: "1 to 25; default 5."}
+      - {name: waitingDays, type: int, optional: true, doc: "At least this many days old, 0 to 30; default 0."}
+      - {name: withinDays, type: int, optional: true, doc: "Less than this many days old, 1 to 90; default 30."}
+    result: Awaiting
+    errors: [invalidParams]
+    callers: [local, session, agent]
+  - name: awaitingOthers
+    doc: >-
+      Conversations waiting on other people: those whose newest message,
+      chosen as for awaitingReply, is from one of its account's identities to
+      someone who is none of any account's identities, not muted, and dated
+      between withinDays and waitingDays ago.
+    params:
+      - {name: limit, type: int, optional: true, doc: "1 to 25; default 10."}
+      - {name: waitingDays, type: int, optional: true, doc: "At least this many days old, 0 to 30; default 5."}
+      - {name: withinDays, type: int, optional: true, doc: "Less than this many days old, 1 to 90; default 30."}
+    result: Awaiting
+    errors: [invalidParams]
     callers: [local, session, agent]

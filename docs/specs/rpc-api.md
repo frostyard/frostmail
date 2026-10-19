@@ -2645,6 +2645,57 @@ Result: `[]MessageSummary`.
 Errors: `notFound`.
 Callers of this method: `local`, `session`, `agent`.
 
+### `thread.awaitingReply`
+
+Conversations waiting on the user (docs/specs/lodge-app.md, Calendar, tasks and contacts): those whose newest message, leaving out drafts and messages only in Drafts, Trash or Junk, is from someone else to one of its account's identities in To, from no list or no-reply sender, not answered, muted or blocked, in an inbox, and dated between withinDays and waitingDays ago.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `limit` | `int` (optional) | 1 to 25; default 5. |
+| `waitingDays` | `int` (optional) | At least this many days old, 0 to 30; default 0. |
+| `withinDays` | `int` (optional) | Less than this many days old, 1 to 90; default 30. |
+
+Result: `Awaiting`.
+Errors: `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+
+### `thread.awaitingOthers`
+
+Conversations waiting on other people: those whose newest message, chosen as for awaitingReply, is from one of its account's identities to someone who is none of any account's identities, not muted, and dated between withinDays and waitingDays ago.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `limit` | `int` (optional) | 1 to 25; default 10. |
+| `waitingDays` | `int` (optional) | At least this many days old, 0 to 30; default 5. |
+| `withinDays` | `int` (optional) | Less than this many days old, 1 to 90; default 30. |
+
+Result: `Awaiting`.
+Errors: `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+
+### Type `AwaitingThread`
+
+A conversation waiting on a reply (ADR-0042).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `threadId` | `int` |  |
+| `accountId` | `int` |  |
+| `message` | `MessageSummary` | The thread's newest message. |
+| `recipients` | `[]Address` | The first 10 of the newest message's To and Cc. |
+| `recipientCount` | `int` | How many addresses its To and Cc hold. |
+| `vip` | `bool` | awaitingReply: the sender is a VIP. awaitingOthers: a recipient is. |
+| `waitingDays` | `int` | Whole days of 24 hours since the newest message. |
+
+### Type `Awaiting`
+
+Conversations waiting on a reply, those with a VIP first, then the newest first.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `total` | `int` | How many match, before limit. |
+| `threads` | `[]AwaitingThread` |  |
+
 ## view
 
 Live message lists. A view belongs to the connection that opened it, sends its deltas only there, and closes with it.

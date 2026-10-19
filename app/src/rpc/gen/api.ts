@@ -2773,9 +2773,55 @@ function tasksClient(t: Transport): TasksClient {
 
 // ---- thread ----
 
+/** A conversation waiting on a reply (ADR-0042). */
+export interface AwaitingThread {
+  threadId: number;
+  accountId: number;
+  /** The thread's newest message. */
+  message: MessageSummary;
+  /** The first 10 of the newest message's To and Cc. */
+  recipients: Address[];
+  /** How many addresses its To and Cc hold. */
+  recipientCount: number;
+  /** awaitingReply: the sender is a VIP. awaitingOthers: a recipient is. */
+  vip: boolean;
+  /** Whole days of 24 hours since the newest message. */
+  waitingDays: number;
+}
+
+/**
+ * Conversations waiting on a reply, those with a VIP first, then the newest
+ * first.
+ */
+export interface Awaiting {
+  /** How many match, before limit. */
+  total: number;
+  threads: AwaitingThread[];
+}
+
 /** Params of thread.messages. */
 export interface ThreadMessagesParams {
   id: number;
+}
+
+/** Params of thread.awaitingReply. */
+export interface ThreadAwaitingReplyParams {
+  /** 1 to 25; default 5. */
+  limit?: number;
+  /** At least this many days old, 0 to 30; default 0. */
+  waitingDays?: number;
+  /** Less than this many days old, 1 to 90; default 30. */
+  withinDays?: number;
+}
+
+/** Params of thread.awaitingOthers. */
+export interface ThreadAwaitingOthersParams {
+  /** 1 to 25; default 10. */
+  limit?: number;
+  /** At least this many days old, 0 to 30; default 5. */
+  waitingDays?: number;
+  /** Less than this many days old, 1 to 90; default 30. */
+  withinDays?: number;
 }
 
 /**
@@ -2788,11 +2834,29 @@ export interface ThreadClient {
    * deleted locally.
    */
   messages(params: ThreadMessagesParams): Promise<MessageSummary[]>;
+  /**
+   * Conversations waiting on the user (docs/specs/lodge-app.md, Calendar,
+   * tasks and contacts): those whose newest message, leaving out drafts and
+   * messages only in Drafts, Trash or Junk, is from someone else to one of
+   * its account's identities in To, from no list or no-reply sender, not
+   * answered, muted or blocked, in an inbox, and dated between withinDays and
+   * waitingDays ago.
+   */
+  awaitingReply(params?: ThreadAwaitingReplyParams): Promise<Awaiting>;
+  /**
+   * Conversations waiting on other people: those whose newest message, chosen
+   * as for awaitingReply, is from one of its account's identities to someone
+   * who is none of any account's identities, not muted, and dated between
+   * withinDays and waitingDays ago.
+   */
+  awaitingOthers(params?: ThreadAwaitingOthersParams): Promise<Awaiting>;
 }
 
 function threadClient(t: Transport): ThreadClient {
   return {
     messages: (params) => t.call<MessageSummary[]>("thread.messages", params),
+    awaitingReply: (params = {}) => t.call<Awaiting>("thread.awaitingReply", params),
+    awaitingOthers: (params = {}) => t.call<Awaiting>("thread.awaitingOthers", params),
   };
 }
 
@@ -3169,6 +3233,8 @@ export const METHODS = [
   "tasks.update",
   "tasks.delete",
   "thread.messages",
+  "thread.awaitingReply",
+  "thread.awaitingOthers",
   "view.open",
   "view.count",
   "view.range",
