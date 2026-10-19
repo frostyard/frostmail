@@ -30,6 +30,10 @@ lodge's decisions that shape mail's side (the lodge program, 2026-10-18):
 - **D6:** a manifest that sets `contentLinks` gets
   `sandbox allow-popups allow-popups-to-escape-sandbox` on its content,
   and never scripts, same-origin, forms or top navigation. Mail sets it.
+- **D7:** a native client on an allowed node, such as the desktop app's
+  bridge, may open an app's `/api` with `Origin: https://LODGE` and no
+  fetch metadata; its identity comes from WhoIs alone. It reads the
+  content origin from `GET /lodge/apps`.
 
 ## How the phases map onto lodge's Phase 4
 
@@ -153,17 +157,28 @@ boundaries, so the planner builds them.
 
 ## Phase 6 — The desktop app as a lodge client (planner, medium)
 
+The design is [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge).
+It depends on Phase 4's attaching by bytes and Save As by download.
+
+- **Which maild:** the app's own `app.json` names lodge's URL, else the
+  local socket. Settings shows and changes it.
 - **The bridge's remote mode:** a WebSocket to `wss://LODGE/app/mail/api`
-  with `Origin: https://LODGE`, from the desktop's own tailnet node.
-- **Parts** fetched from `lodge-content` by the Rust layer and served under
-  `mailpart://`, so the webview still fetches nothing.
-- **Settings** choose a local maild or lodge's. The Flatpak gains the
-  network for the Rust layer.
-- **Notifications** come from the events the app receives, through its
-  own notifier, when maild is remote.
-- **Done when:** the desktop app reads, composes and sends through a maild
-  behind lodge, and the friend's Windows install still runs on its local
-  maild.
+  with `Origin: https://LODGE`, from the desktop's own tailnet node, one
+  line per text frame (Rust: `tokio-tungstenite` with rustls). lodge-http
+  admits native clients this way (D7).
+- **Keepalive:** the webview's transport sends `rpc.ping` every 30 s in
+  remote mode.
+- **Parts:** `open_part` downloads from lodge's content origin, read
+  from `GET https://LODGE/lodge/apps`, into the app's cache and opens the
+  file, so the webview still fetches nothing.
+- **Notifications:** an IDL event for announcements, sent to connected
+  clients when maild has no session bus, and shown by the app's own
+  notifier.
+- **The Flatpak** gains the network for the Rust layer.
+- **Done when:** with `app.json` naming lodge's development build, the
+  desktop app reads, composes with an attachment and sends through a maild
+  behind lodge, a new message notifies on the desktop, and the friend's
+  Windows install still runs on its local maild.
 
 ## Phase 7 — The user's mail moves to lodge's host
 

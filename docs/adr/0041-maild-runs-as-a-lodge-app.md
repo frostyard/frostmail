@@ -132,8 +132,9 @@ machine reaches neither maild's disk nor its loopback.
     home-screen app reach it through lodge.
   - The desktop app becomes a lodge client too. Its bridge opens
     `wss://LODGE/app/mail/api` as a session, with the desktop's own node
-    identity, and fetches parts from `lodge-content` for its `mailpart://`
-    scheme, so the webview still fetches nothing.
+    identity, and its Rust layer fetches attachments from `lodge-content`
+    itself, so the webview still fetches nothing
+    ([design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge)).
   - A local maild stays the mode for an install outside the owner's
     tailnet, such as the friend's Windows install. The app uses one or the
     other, chosen in its settings.

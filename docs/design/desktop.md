@@ -172,6 +172,58 @@ the notifier and the installer.
   Releases are unsigned (ADR-0038): SmartScreen asks once per release
   ("More info", "Run anyway").
 
+## On a maild behind lodge
+
+[ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md) makes the desktop app a
+lodge client: one maild on lodge's host serves the phone, browsers and the
+desktop. [Plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 6 builds it.
+A local maild, as above, stays the mode for installs outside the owner's
+tailnet, such as the friend's Windows install.
+
+- **Which maild.** The app reads `$XDG_CONFIG_HOME/frostmail/app.json`
+  (`%APPDATA%\Frostmail\app.json` on Windows): `{"lodge":
+  "https://lodge.<tailnet>.ts.net"}` reaches maild through lodge, and no
+  file, or no `lodge`, means the local socket. It is the app's own, never
+  maild's, since it names which maild to ask. Settings shows the choice,
+  and changing it reconnects every window.
+- **The bridge's remote mode.** `bridge.rs` opens
+  `wss://LODGE/app/mail/api` in place of the socket and moves the same
+  lines, one per text frame. It still never parses them.
+  - It connects from the desktop's own tailnet node, which lodge's
+    allow-list must name. lodge checks it by WhoIs, as it does a browser.
+  - It sends `Origin: https://LODGE` and no fetch metadata. lodge requires
+    an Origin on an upgrade, and the origin check guards browsers, which
+    the bridge is not: identity still comes from WhoIs alone, with the
+    desktop's node and login on lodge's allow-lists. lodge-http admits
+    native clients this way (the lodge program's decision D7).
+  - TLS is lodge's Tailscale certificate, checked against the system's
+    roots.
+  - The webview's transport sends `rpc.ping` every 30 s, visible or not,
+    since lodge closes a session after 90 s without a frame.
+  - Each window has its own connection, as on the socket, so each is a
+    lodge session. lodge keeps at most 8 per node and app, and past that
+    closes the least recently active, which reconnects.
+- **Parts.** The reader's images are already `data:` URLs (ADR-0014), so
+  the reader frame is unchanged. `open_part` downloads an attachment from
+  `<contentOrigin>/mail/<contentPath>` into the app's cache, and opens that
+  file as today. The webview still fetches nothing: only the Rust layer
+  reaches the network.
+  - The content origin is `contentOrigin` from `GET https://LODGE/lodge/apps`,
+    the JSON lodge's shell reads, asked with the same Origin. lodge can
+    rename its content node, so the app derives the name (lodge's, with
+    `lodge-content` for its first label) only when that request fails.
+- **What a remote maild cannot do for the desktop.** maild's session
+  caller cannot read or write the desktop's files, so attaching sends the
+  file's bytes (`draft.attachData`) and Save As downloads the source from
+  the content route, both from plan 0011's Phase 4.
+- **Notifications.** A remote maild has no session bus. It sends each
+  connected client a transient event when an announcement is due, and the
+  desktop app shows it with its own notifier; a click opens the message,
+  as `--open-message` does.
+- **The Flatpak** gains `--share=network` for the Rust layer. The
+  webview's CSP still forbids every fetch, so ADR-0005's third layer
+  holds, though the sandbox no longer cuts the network on its own.
+
 ## One app instance
 
 The app is single-instance (`tauri-plugin-single-instance`): a second
