@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/frostyard/lodge/kit/lodgeapp"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -22,6 +23,9 @@ type HTTPOptions struct {
 	Version string
 	// Log receives sessions opened; nil discards them.
 	Log *slog.Logger
+	// Now is the clock the tools read today and reminder times by; nil is
+	// time.Now.
+	Now func() time.Time
 }
 
 // sessionHeader is MCP Streamable HTTP's session header.
@@ -115,7 +119,7 @@ func (h *httpSessions) server(r *http.Request) *sdk.Server {
 	}
 	op.client = client
 	h.o.Log.Info("MCP session", "token", c.Token, "scope", scope.String())
-	return newServer(Options{Client: client, Version: h.o.Version, Scope: scope})
+	return newServer(Options{Client: client, Version: h.o.Version, Scope: scope, Now: h.o.Now})
 }
 
 // sessionRecorder notes the session ID a response issues, keeping streams

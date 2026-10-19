@@ -15,8 +15,10 @@ waiting on the user, and waiting on others
 
 Status (2026-10-19):
 - **Phase 1 is written.** ADR-0042 is still Proposed.
-- **Phases 2 to 5 are to build.** Phases 2 to 4 need nothing new from lodge.
-  Phase 5 needs lodge's local agent socket
+- **Phase 2's reads and Phase 4's read tools are built,** other than the
+  two thread tools. Phase 2's writes, Phase 3 and the rest of Phase 4 are
+  to build. Phases 2 to 4 need nothing new from lodge.
+- **Phase 5** needs lodge's local agent socket
   ([lodge ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md)).
 
 ## Decisions for M8.5
@@ -130,13 +132,14 @@ Porter's design:
     - `complete_task` completes it, and reopens it;
     - `remind_me` sets a reminder, and clears it;
     - the other account's task and message are errors.
-  - **Every limit is tested at its value and one past it:**
+  - **Every limit is tested at its value and one past it,** a `limit` of 0
+    being its default:
     - `list_events`: `to` 31 and 32 days after `from`; `limit` 1 and 200,
-      0 and 201; clashes 50 and 51;
-    - `list_tasks`: `limit` 1 and 100, 0 and 101;
+      -1 and 201; clashes 50 and 51;
+    - `list_tasks`: `limit` 1 and 100, -1 and 101;
     - `search_contacts`: `query` of 1 and 256 bytes, empty and 257;
-      `limit` 1 and 50, 0 and 51;
-    - both thread tools: `limit` 1 and 25, 0 and 26; `waiting_days` 0 and
+      `limit` 1 and 50, -1 and 51;
+    - both thread tools: `limit` 1 and 25, -1 and 26; `waiting_days` 0 and
       30, -1 and 31; `within_days` 1 and 90, 0 and 91;
     - `create_task`: `title` of 1 and 1,024 bytes, empty and 1,025;
       `notes` of 32 KiB and a byte more;

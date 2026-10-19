@@ -170,7 +170,8 @@ methods:
       - {name: timeZone, type: string, optional: true, doc: "The IANA zone the days are in. Default: maild's local zone."}
       - {name: calendarIds, type: "[]int", optional: true, doc: "Only these calendars."}
     result: "[]Occurrence"
-    errors: [invalidParams]
+    errors: [invalidParams, notFound]
+    callers: [local, session, agent]
   - name: event
     doc: An event, or one occurrence of a series.
     params:
@@ -178,6 +179,7 @@ methods:
       - {name: recurrenceId, type: string, optional: true}
     result: CalendarEvent
     errors: [notFound]
+    callers: [local, session, agent]
   - name: invitation
     doc: The invitation in a message's text/calendar part.
     params:

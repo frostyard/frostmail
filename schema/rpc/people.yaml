@@ -102,12 +102,15 @@ methods:
       - {name: query, type: string, optional: true}
       - {name: collectionId, type: int, optional: true, doc: "Only people with a contact in this address book."}
     result: "[]PersonSummary"
+    errors: [notFound]
+    callers: [local, session, agent]
   - name: get
     doc: One person with their contacts.
     params:
       - {name: id, type: int}
     result: Person
     errors: [notFound]
+    callers: [local, session, agent]
   - name: card
     doc: The contact card for an email address, person or not.
     params:

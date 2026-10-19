@@ -1,10 +1,12 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json/v2"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -210,6 +212,100 @@ func (d *DB) Person(ctx context.Context, id int64) (PersonRow, error) {
 		return PersonRow{}, ErrNotFound
 	}
 	return rows[0], nil
+}
+
+// ScopedPeople returns, as People does, the people with a contact in the
+// accounts' address books, each made of those contacts alone: the name,
+// sort key, organization, photo and first email come from them, and the
+// query matches their words only. It is what an agent whose scope names
+// these accounts may see (ADR-0042).
+func (d *DB) ScopedPeople(ctx context.Context, query string, accounts []int64) ([]PersonRow, error) {
+	return d.readScopedPeople(ctx, accounts, 0, strings.Fields(strings.ToLower(query)))
+}
+
+// ScopedPerson returns a person made of their contacts in the accounts'
+// address books, as ScopedPeople does, or ErrNotFound when they have none.
+func (d *DB) ScopedPerson(ctx context.Context, id int64, accounts []int64) (PersonRow, error) {
+	rows, err := d.readScopedPeople(ctx, accounts, id, nil)
+	if err != nil {
+		return PersonRow{}, err
+	}
+	if len(rows) == 0 {
+		return PersonRow{}, ErrNotFound
+	}
+	return rows[0], nil
+}
+
+func (d *DB) readScopedPeople(ctx context.Context, accounts []int64, id int64, query []string) ([]PersonRow, error) {
+	out := []PersonRow{}
+	if len(accounts) == 0 {
+		return out, nil
+	}
+	args := make([]any, 0, len(accounts)+1)
+	for _, a := range accounts {
+		args = append(args, a)
+	}
+	where := "col.account_id IN (" + inPlace(len(accounts)) + ")"
+	if id != 0 {
+		where += " AND p.id = ?"
+		args = append(args, id)
+	}
+	rows, err := d.db.QueryContext(ctx, `SELECT p.id, c.object_id, c.display_name, c.sort_key, c.organization,
+ COALESCE(length(c.photo), 0) > 0, COALESCE(ce.email, '')
+ FROM people p JOIN contacts c ON c.person_id = p.id
+ JOIN objects o ON o.id = c.object_id JOIN collections col ON col.id = o.collection_id
+ LEFT JOIN contact_emails ce ON ce.contact_id = c.object_id
+ WHERE `+where+` ORDER BY p.id, c.object_id, ce.position`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read scoped people: %w", err)
+	}
+	defer rows.Close()
+	var current PersonRow
+	var words []string
+	flush := func() {
+		if current.ID != 0 && matchesPeopleWords(words, query) {
+			out = append(out, current)
+		}
+	}
+	for rows.Next() {
+		var personID, contactID int64
+		var name, sortKey, org, email string
+		var photo bool
+		if err := rows.Scan(&personID, &contactID, &name, &sortKey, &org, &photo, &email); err != nil {
+			return nil, fmt.Errorf("read scoped person: %w", err)
+		}
+		if personID != current.ID {
+			flush()
+			current = PersonRow{ID: personID, Email: email, ContactIDs: []int64{}}
+			words = nil
+		}
+		if len(current.ContactIDs) == 0 || current.ContactIDs[len(current.ContactIDs)-1] != contactID {
+			current.ContactIDs = append(current.ContactIDs, contactID)
+			if current.DisplayName == "" && name != "" {
+				current.DisplayName, current.SortKey = name, sortKey
+				if current.SortKey == "" {
+					current.SortKey = strings.ToLower(name)
+				}
+			}
+			if current.Organization == "" {
+				current.Organization = org
+			}
+			words = append(words, peopleWords(name+" "+org)...)
+		}
+		current.HasPhoto = current.HasPhoto || photo
+		words = append(words, peopleWords(email)...)
+	}
+	flush()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(out, func(a, b PersonRow) int {
+		if n := cmp.Compare(a.SortKey, b.SortKey); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.ID, b.ID)
+	})
+	return out, nil
 }
 
 // PersonByEmail returns the person of an eligible contact with the normalized email.

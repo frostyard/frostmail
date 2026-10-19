@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"runtime"
+	"time"
 
 	"github.com/frostyard/lodge/kit/lodgeapp"
 	"github.com/frostyard/lodge/kit/mcpsession"
@@ -32,6 +33,8 @@ type Options struct {
 	// Content serves /content/.
 	Content *Content
 	Log     *slog.Logger
+	// Now is the MCP tools' clock; nil is time.Now.
+	Now func() time.Time
 }
 
 // NewServer is maild's side of lodge's app socket, through the kit: /health,
@@ -45,7 +48,7 @@ func NewServer(o Options) *lodgeapp.Server {
 	if o.Ctx == nil {
 		o.Ctx = context.Background()
 	}
-	mcp := mcpsession.New(mcpserver.Handler(mcpserver.HTTPOptions{Open: o.openAgent, Version: o.Version, Log: log}),
+	mcp := mcpsession.New(mcpserver.Handler(mcpserver.HTTPOptions{Open: o.openAgent, Version: o.Version, Log: log, Now: o.Now}),
 		mcpsession.Options{CheckScope: checkScope, Logger: log})
 	// The sessions' janitor runs until maild stops serving.
 	context.AfterFunc(o.Ctx, func() { _ = mcp.Close() })

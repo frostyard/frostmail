@@ -326,8 +326,8 @@ func TestAgentsReadMailThroughLodge(t *testing.T) {
 		}
 	}
 	slices.Sort(names)
-	if want := []string{"list_mailboxes", "read_thread", "search_messages"}; !slices.Equal(names, want) {
-		t.Errorf("tools = %v, want %v", names, want)
+	if !slices.Equal(names, readTools) {
+		t.Errorf("tools = %v, want %v", names, readTools)
 	}
 
 	var list struct {
@@ -394,6 +394,10 @@ func TestAgentsReadMailThroughLodge(t *testing.T) {
 	}
 }
 
+// readTools are the tools every scope has, sorted.
+var readTools = []string{"list_collections", "list_events", "list_mailboxes", "list_tasks", "read_contact", "read_event",
+	"read_task", "read_thread", "search_contacts", "search_messages"}
+
 func toolNames(t *testing.T, cs *sdk.ClientSession) []string {
 	t.Helper()
 	tools, err := cs.ListTools(t.Context(), nil)
@@ -420,7 +424,7 @@ func TestAgentsDraftAndSendThroughLodge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"draft_reply", "list_mailboxes", "move_messages", "read_thread", "search_messages", "set_flags"}
+	want := slices.Sorted(slices.Values(append([]string{"draft_reply", "move_messages", "set_flags"}, readTools...)))
 	if names := toolNames(t, cs); !slices.Equal(names, want) {
 		t.Errorf("tools under ;write = %v, want %v", names, want)
 	}

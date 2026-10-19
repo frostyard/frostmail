@@ -30,6 +30,14 @@ methods:
       - {name: dueBefore, type: string, optional: true, doc: "Only tasks due before this day, YYYY-MM-DD, as the To-Do bar asks."}
     result: "[]Task"
     errors: [notFound]
+    callers: [local, session, agent]
+  - name: get
+    doc: One task.
+    params:
+      - {name: id, type: int}
+    result: Task
+    errors: [notFound]
+    callers: [local, session, agent]
   - name: create
     doc: Add a task at the top of its list, and write it to the server.
     params:

@@ -31,15 +31,27 @@ func (p people) List(ctx context.Context, params *api.PeopleListParams) ([]api.P
 	if params.Query != nil {
 		query = *params.Query
 	}
-	rows, err := p.DB.People(ctx, query)
-	if err != nil {
-		return nil, err
-	}
 	var in map[int64]bool
 	if params.CollectionID != nil {
+		if _, agent := agentScope(ctx); agent {
+			if _, err := p.admitCollection(ctx, *params.CollectionID, api.CollectionKindAddressbook, "address book"); err != nil {
+				return nil, err
+			}
+		}
+		var err error
 		if in, err = p.DB.ContactsIn(ctx, *params.CollectionID); err != nil {
 			return nil, err
 		}
+	}
+	var rows []store.PersonRow
+	var err error
+	if accounts, scoped := personScope(ctx); scoped {
+		rows, err = p.DB.ScopedPeople(ctx, query, accounts)
+	} else {
+		rows, err = p.DB.People(ctx, query)
+	}
+	if err != nil {
+		return nil, err
 	}
 	out := make([]api.PersonSummary, 0, len(rows))
 	for _, r := range rows {
@@ -64,11 +76,28 @@ func indexLetter(sortKey string) string {
 
 // Get returns a person and their parseable source contacts in address book order.
 func (p people) Get(ctx context.Context, params *api.PeopleGetParams) (*api.Person, error) {
-	row, err := p.DB.Person(ctx, params.ID)
+	var row store.PersonRow
+	var err error
+	if accounts, scoped := personScope(ctx); scoped {
+		row, err = p.DB.ScopedPerson(ctx, params.ID, accounts)
+	} else {
+		row, err = p.DB.Person(ctx, params.ID)
+	}
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("person %d", params.ID))
 	}
 	return p.fullPerson(ctx, row)
+}
+
+// personScope is the accounts whose contacts make up a person for an agent
+// whose scope names accounts, and false for every other caller, who sees
+// each person whole.
+func personScope(ctx context.Context) ([]int64, bool) {
+	s, agent := agentScope(ctx)
+	if !agent || s.All {
+		return nil, false
+	}
+	return s.Accounts, true
 }
 
 type orderedContact struct {

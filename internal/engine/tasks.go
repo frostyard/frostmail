@@ -29,9 +29,9 @@ const localPrefix = "local-"
 func (t tasksService) List(ctx context.Context, p *api.TasksListParams) ([]api.Task, error) {
 	var f store.TaskFilter
 	if p.ListID != nil {
-		col, err := t.DB.GetCollection(ctx, *p.ListID)
-		if err != nil || col.Kind != api.CollectionKindTasklist {
-			return nil, api.NotFound("task list %d does not exist", *p.ListID)
+		col, err := t.admitCollection(ctx, *p.ListID, api.CollectionKindTasklist, "task list")
+		if err != nil {
+			return nil, err
 		}
 		f.ListID = col.ID
 	}
@@ -49,10 +49,24 @@ func (t tasksService) List(ctx context.Context, p *api.TasksListParams) ([]api.T
 		return nil, err
 	}
 	out := make([]api.Task, 0, len(rows))
-	for _, r := range rows {
+	for _, r := range scopedFunc(ctx, rows, func(r store.TaskRow) int64 { return r.AccountID }) {
 		out = append(out, t.task(ctx, r))
 	}
 	return out, nil
+}
+
+// Get returns one task; another account's is notFound to an agent whose
+// scope does not reach it.
+func (t tasksService) Get(ctx context.Context, p *api.TasksGetParams) (*api.Task, error) {
+	row, err := t.DB.Task(ctx, p.ID)
+	if err == nil && !admits(ctx, row.AccountID) {
+		err = store.ErrNotFound
+	}
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("task %d", p.ID))
+	}
+	out := t.task(ctx, row)
+	return &out, nil
 }
 
 func (t tasksService) task(ctx context.Context, r store.TaskRow) api.Task {

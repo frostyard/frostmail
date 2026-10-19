@@ -174,6 +174,7 @@ Address books, calendars and task lists, by account, then by the server's order.
 | `kind` | `CollectionKind` (optional) |  |
 
 Result: `[]Collection`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `account.setCollection`
 
@@ -470,7 +471,8 @@ The occurrences that overlap the days from to to, in start order, from enabled c
 | `calendarIds` | `[]int` (optional) | Only these calendars. |
 
 Result: `[]Occurrence`.
-Errors: `invalidParams`.
+Errors: `invalidParams`, `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `calendar.event`
 
@@ -483,6 +485,7 @@ An event, or one occurrence of a series.
 
 Result: `CalendarEvent`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `calendar.invitation`
 
@@ -1832,6 +1835,8 @@ People sorted by name. With query, those whose name, organization or email addre
 | `collectionId` | `int` (optional) | Only people with a contact in this address book. |
 
 Result: `[]PersonSummary`.
+Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `people.get`
 
@@ -1843,6 +1848,7 @@ One person with their contacts.
 
 Result: `Person`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `people.card`
 
@@ -2540,6 +2546,19 @@ Tasks of enabled lists of accounts with the tasks service on, list by list in co
 
 Result: `[]Task`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
+
+### `tasks.get`
+
+One task.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `Task`.
+Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `tasks.create`
 
