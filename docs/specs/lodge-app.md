@@ -30,9 +30,10 @@ Where it fits: [design/overview.md](../design/overview.md#behind-lodge),
 Phases 2 to 6 (merged 2026-10-19). `/mcp` grants reading, and with
 `;write` and `;send` changing and sending, for the accounts its scope
 names. Its calendar, task and contact tools
-([below](#calendar-tasks-and-contacts)) are proposed for
-[plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md), and
-not built.
+([below](#calendar-tasks-and-contacts)) come from
+[plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md): the
+read tools are built, and the waiting queries and the write tools are not
+yet.
 
 ## Interface
 
@@ -142,7 +143,7 @@ once its store is open, so a maild that answers is serving.
 | Domain | Callers | Methods with their own callers |
 | --- | --- | --- |
 | `rpc` (`hello`, `ping`) | local, session, agent | |
-| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`: local, session and agent. `message.setFlags`, `message.move`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
+| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `account.collections`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`, `calendar.range`, `calendar.event`, `tasks.list`, `tasks.get`, `people.list`, `people.get`: local, session and agent. `message.setFlags`, `message.move`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
 
 - A method a caller may not use answers `methodNotFound`, as for a method
   that does not exist.
@@ -259,8 +260,10 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
 #### Calendar, tasks and contacts
 
 **Status:** proposed in [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md)
-for [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md),
-and not built. Until it is, `/mcp` serves only the tools above.
+for [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md).
+The read methods and the read tools other than the two thread tools are
+built. `thread.awaitingReply`, `thread.awaitingOthers`, their tools, and
+the methods and tools under `write` are not yet.
 
 **The methods agents gain,** all additive within protocol 1. The scope
 column is what an agent's token needs beyond reading:
@@ -338,8 +341,8 @@ session, so an agent's call is `methodNotFound` under every scope,
 
 | Tool | Input | Answers |
 | --- | --- | --- |
-| `list_collections` | `kind` (`calendars`, `task_lists` or `address_books`; omitted: all) | the scope's collections: ID, account ID, name, whether it holds events, tasks or contacts, read-only, the account's default |
-| `list_events` | `from` (YYYY-MM-DD), `to` (the day after the last; default, the day after `from`; at most 31 days after `from`), `time_zone` (IANA; default maild's), `calendar_id`, `limit` (1 to 200, default 100) | the zone, the total, and the earliest occurrences by `calendar.range`. Each has its event ID, recurrence ID, calendar ID, account ID, summary, location, start and end (RFC 3339 in the zone; for an all-day event, its dates), status, the user's answer, and whether it is busy. Then `clashes`, at most 50: each pair of busy timed occurrences in the answer that overlap, with the IDs and summaries of both, and the overlap's start and end |
+| `list_collections` | `kind` (`calendars`, `task_lists` or `address_books`; omitted: all) | the scope's enabled collections: ID, account ID, name, kind (`calendar`, `task_list` or `address_book`), whether it holds events or tasks, read-only, the account's default |
+| `list_events` | `from` (YYYY-MM-DD), `to` (the day after the last; default, the day after `from`; at most 31 days after `from`), `time_zone` (IANA; default maild's), `calendar_id`, `limit` (1 to 200, default 100) | the zone, the total, and the earliest occurrences by `calendar.range`. Each has its event ID, recurrence ID, calendar ID, account ID, summary, location, start and end (RFC 3339 in the zone; for an all-day event, its dates), status, the user's answer, and whether it is busy. Then `clashes`, at most 50: each pair of busy timed occurrences in the answer that overlap, with the IDs and summaries of both, and the overlap's start and end; and `clash_count`, how many pairs there are |
 | `read_event` | `event_id`, `recurrence_id` | `calendar.event`: summary, location, description (cut at 32 KiB), start, end and zone, or the all-day dates, the recurrence as written, status, busy, the organizer, the first 100 attendees with their count (each one's name, address, role and answer), the user's answer, and the calendar's ID and name |
 | `list_tasks` | `due` (`today`: due today or before; `overdue`: due before today; `undated`; omitted: all), `list_id`, `completed` (include completed tasks; default false), `time_zone` (for today; default maild's), `limit` (1 to 100, default 50) | today's date, the total, and the tasks in list order: ID, list ID and name, account ID, parent ID, title, due, overdue, completed, and whether it has notes |
 | `read_task` | `task_id` | `tasks.get`: title, notes (cut at 32 KiB), due, completed and when, the list's ID and name, account ID, parent ID, and `message_id`, the message it was made from, for `read_thread` |
@@ -349,7 +352,9 @@ session, so an agent's call is `methodNotFound` under every scope,
 | `threads_awaiting_others` | `limit` (1 to 25, default 10), `waiting_days` (0 to 30, default 5), `within_days` (1 to 90, default 30) | `thread.awaitingOthers`: the same, with the newest message's recipients (the first 10, with their count) in place of its sender |
 
 Busy means not transparent, not cancelled, and not declined by the user.
-Only timed occurrences clash.
+Only timed occurrences clash. A `limit` of 0 is its default. maild's zone
+is the one it runs in; an answer names it `Local` when it has no IANA
+name. A read event's times are in its own zone, else UTC.
 
 **The write tools,** with `;write`, all `destructiveHint` false:
 

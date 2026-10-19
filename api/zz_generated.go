@@ -4648,6 +4648,11 @@ type TasksListParams struct {
 	DueBefore *string `json:"dueBefore,omitzero"`
 }
 
+// TasksGetParams holds the params of tasks.get.
+type TasksGetParams struct {
+	ID int64 `json:"id"`
+}
+
 // TasksCreateParams holds the params of tasks.create.
 type TasksCreateParams struct {
 	// Default: the default list of the first account with tasks on.
@@ -4682,6 +4687,8 @@ type TasksService interface {
 	// tasks service on, list by list in collection order; within a list, by the
 	// server's position, each parent followed by its subtasks.
 	List(ctx context.Context, p *TasksListParams) ([]Task, error)
+	// Get implements tasks.get. One task.
+	Get(ctx context.Context, p *TasksGetParams) (*Task, error)
 	// Create implements tasks.create. Add a task at the top of its list, and
 	// write it to the server.
 	Create(ctx context.Context, p *TasksCreateParams) (*Task, error)
@@ -4699,6 +4706,13 @@ func registerTasks(r *Router, s TasksService) {
 			return nil, err
 		}
 		return s.List(ctx, &p)
+	})
+	r.handle("tasks.get", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p TasksGetParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Get(ctx, &p)
 	})
 	r.handle("tasks.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p TasksCreateParams
@@ -4736,6 +4750,16 @@ func (x TasksClient) List(ctx context.Context, p *TasksListParams) ([]Task, erro
 	var r []Task
 	err := x.c.Call(ctx, "tasks.list", p, &r)
 	return r, err
+}
+
+// Get calls tasks.get.
+func (x TasksClient) Get(ctx context.Context, p *TasksGetParams) (*Task, error) {
+	var r Task
+	err := x.c.Call(ctx, "tasks.get", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // Create calls tasks.create.
@@ -5407,14 +5431,14 @@ var methodCallers = map[string][]CallerKind{
 	"account.verify":          {CallerKindLocal, CallerKindSession},
 	"account.services":        {CallerKindLocal, CallerKindSession},
 	"account.setService":      {CallerKindLocal, CallerKindSession},
-	"account.collections":     {CallerKindLocal, CallerKindSession},
+	"account.collections":     {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"account.setCollection":   {CallerKindLocal, CallerKindSession},
 	"address.suggest":         {CallerKindLocal, CallerKindSession},
 	"block.list":              {CallerKindLocal, CallerKindSession},
 	"block.add":               {CallerKindLocal, CallerKindSession},
 	"block.remove":            {CallerKindLocal, CallerKindSession},
-	"calendar.range":          {CallerKindLocal, CallerKindSession},
-	"calendar.event":          {CallerKindLocal, CallerKindSession},
+	"calendar.range":          {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"calendar.event":          {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"calendar.invitation":     {CallerKindLocal, CallerKindSession},
 	"calendar.respond":        {CallerKindLocal, CallerKindSession},
 	"calendar.reminders":      {CallerKindLocal, CallerKindSession},
@@ -5469,8 +5493,8 @@ var methodCallers = map[string][]CallerKind{
 	"outbox.cancel":           {CallerKindLocal, CallerKindSession},
 	"outbox.retry":            {CallerKindLocal, CallerKindSession},
 	"outbox.reschedule":       {CallerKindLocal, CallerKindSession},
-	"people.list":             {CallerKindLocal, CallerKindSession},
-	"people.get":              {CallerKindLocal, CallerKindSession},
+	"people.list":             {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"people.get":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"people.card":             {CallerKindLocal, CallerKindSession},
 	"people.photo":            {CallerKindLocal, CallerKindSession},
 	"people.senders":          {CallerKindLocal, CallerKindSession},
@@ -5499,7 +5523,8 @@ var methodCallers = map[string][]CallerKind{
 	"sync.status":             {CallerKindLocal, CallerKindSession},
 	"sync.now":                {CallerKindLocal, CallerKindSession},
 	"sync.pim":                {CallerKindLocal, CallerKindSession},
-	"tasks.list":              {CallerKindLocal, CallerKindSession},
+	"tasks.list":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"tasks.get":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"tasks.create":            {CallerKindLocal, CallerKindSession},
 	"tasks.update":            {CallerKindLocal, CallerKindSession},
 	"tasks.delete":            {CallerKindLocal, CallerKindSession},
@@ -5631,6 +5656,7 @@ var Methods = []string{
 	"sync.now",
 	"sync.pim",
 	"tasks.list",
+	"tasks.get",
 	"tasks.create",
 	"tasks.update",
 	"tasks.delete",

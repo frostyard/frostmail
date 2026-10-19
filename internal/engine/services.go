@@ -267,7 +267,7 @@ func (a accounts) Collections(ctx context.Context, p *api.AccountCollectionsPara
 		return nil, err
 	}
 	out := make([]api.Collection, 0, len(list))
-	for _, c := range list {
+	for _, c := range scopedFunc(ctx, list, func(c store.Collection) int64 { return c.AccountID }) {
 		out = append(out, toAPICollection(c, accts[c.AccountID]))
 	}
 	return out, nil

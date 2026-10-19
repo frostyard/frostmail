@@ -2703,6 +2703,11 @@ export interface TasksListParams {
   dueBefore?: string;
 }
 
+/** Params of tasks.get. */
+export interface TasksGetParams {
+  id: number;
+}
+
 /** Params of tasks.create. */
 export interface TasksCreateParams {
   /** Default: the default list of the first account with tasks on. */
@@ -2746,6 +2751,8 @@ export interface TasksClient {
    * parent followed by its subtasks.
    */
   list(params?: TasksListParams): Promise<Task[]>;
+  /** One task. */
+  get(params: TasksGetParams): Promise<Task>;
   /** Add a task at the top of its list, and write it to the server. */
   create(params: TasksCreateParams): Promise<Task>;
   /** Change a task; omitted fields keep their values. */
@@ -2757,6 +2764,7 @@ export interface TasksClient {
 function tasksClient(t: Transport): TasksClient {
   return {
     list: (params = {}) => t.call<Task[]>("tasks.list", params),
+    get: (params) => t.call<Task>("tasks.get", params),
     create: (params) => t.call<Task>("tasks.create", params),
     update: (params) => t.call<Task>("tasks.update", params),
     delete: (params) => t.call<null>("tasks.delete", params).then(() => undefined),
@@ -3156,6 +3164,7 @@ export const METHODS = [
   "sync.now",
   "sync.pim",
   "tasks.list",
+  "tasks.get",
   "tasks.create",
   "tasks.update",
   "tasks.delete",

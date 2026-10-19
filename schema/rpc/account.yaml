@@ -225,6 +225,7 @@ methods:
       - {name: accountId, type: int, optional: true}
       - {name: kind, type: CollectionKind, optional: true}
     result: "[]Collection"
+    callers: [local, session, agent]
   - name: setCollection
     doc: >-
       Show or hide a collection, or make it the default of its kind for its

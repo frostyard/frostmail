@@ -43,8 +43,19 @@ func (c calendarService) Range(ctx context.Context, p *api.CalendarRangeParams) 
 	if err != nil || !to.After(from) || to.After(from.AddDate(0, 0, 400)) {
 		return nil, api.InvalidParams("to must be 1 to 400 days after from")
 	}
-	return c.occurrences(ctx, store.OccurrenceFilter{From: dayInZone(from, zone), To: dayInZone(to, zone),
+	if _, agent := agentScope(ctx); agent {
+		for _, id := range p.CalendarIDs {
+			if _, err := c.admitCollection(ctx, id, api.CollectionKindCalendar, "calendar"); err != nil {
+				return nil, err
+			}
+		}
+	}
+	occ, err := c.occurrences(ctx, store.OccurrenceFilter{From: dayInZone(from, zone), To: dayInZone(to, zone),
 		FromDate: p.From, ToDate: p.To, CalendarIDs: p.CalendarIDs}, zone)
+	if err != nil {
+		return nil, err
+	}
+	return scopedFunc(ctx, occ, func(o api.Occurrence) int64 { return o.AccountID }), nil
 }
 
 func dayInZone(day time.Time, zone *time.Location) time.Time {
@@ -169,6 +180,9 @@ func eventAnswer(partStat string) *api.PartStat {
 // Event returns an event or the requested occurrence of its series.
 func (c calendarService) Event(ctx context.Context, p *api.CalendarEventParams) (*api.CalendarEvent, error) {
 	e, err := c.DB.Event(ctx, p.ID)
+	if err == nil && !admits(ctx, e.AccountID) {
+		err = store.ErrNotFound
+	}
 	if err != nil {
 		return nil, apiError(err, "calendar event")
 	}
