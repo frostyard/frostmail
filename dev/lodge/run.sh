@@ -9,7 +9,8 @@
 # ROOT is the directory lodge-e2e runs with --root; keep it short, since a
 # socket's path is at most 108 bytes. The first run stages maild, mailctl,
 # the manifest and the web build (make web-build first, in the nsl machine)
-# under ROOT in lodge's install layout, and builds the mail:
+# under ROOT in lodge's install layout, replacing only mail's own files (a
+# root may hold lodge's state and other apps), and builds the mail:
 #   showcase  hand-written mail (app/e2e/showcase), the default; maild runs
 #             with sync off, so it reaches no server and sends nothing
 #   fixture   200 mailgen messages and the hostile-HTML corpus; the account
@@ -24,6 +25,12 @@ kind=${2:-showcase}
 here=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$here"
 root=$(cd "$root" && pwd)
+# The root is staged into, never removed, but it must be a lodge root of
+# its own: never the machine's.
+if [ "$root" = / ]; then
+  echo "dev/lodge/run.sh: ROOT must be a directory of its own, not /" >&2
+  exit 1
+fi
 
 [ -f build/web/index.html ] || { echo "no build/web: run make web-build first" >&2; exit 1; }
 make -s lodge-package LODGE_DESTDIR="$root"
