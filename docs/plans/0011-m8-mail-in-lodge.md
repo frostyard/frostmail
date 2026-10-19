@@ -84,6 +84,21 @@ boundaries, so the planner builds them.
 - **Done when:** `kittest` passes every rule of the spec's socket
   sections against `maild --lodge`, each with a test that fails without
   it, and `make check` is green.
+- **Built** (frostyard/frostmail#61, on lodge/kit, pinned at `kit/v0.1.0`
+  since #69). `internal/lodge`'s tests drive the socket through `kittest`:
+  - `TestSocketRules` covers every path against every caller kind and
+    none, the required headers, and `/health`;
+  - `TestSessionOverAPI` covers an `/api` session's hello, ping and
+    render;
+  - `TestRenderKeepsTheReaderPage`, `TestPageResponse`, `TestPartResponse`
+    and `TestPagesAreBounded` cover the content route's pages and parts,
+    their headers, a range, a download, the bounds, and 404 for a stale
+    token or a bad `mac`;
+  - `TestListenRefusesOffLinux` covers `--lodge` off Linux;
+  - `internal/render`'s `TestPageOfTheHostileCorpus` covers the reader
+    page.
+
+  `tools/lodgeprobe` checks a running socket, and `make check` is green.
 
 ## Phase 3 — The web build (planner and executor, medium)
 
@@ -108,6 +123,15 @@ boundaries, so the planner builds them.
   - a link in a message opens a new tab, and an attachment opens;
   - reloading `/mail/mailbox/<id>/<message id>` opens that message;
   - `make ui-check` is green.
+- **Built** (frostyard/frostmail#62, with `@frostyard/lodge-client` at
+  `client/v0.1.0` since #69). In lodge's development build on
+  `dev/lodge/run.sh ROOT fixture` mail (2026-10-19), a mailbox lists and
+  reloading `/mail/mailbox/<id>/message/<id>` opens that message, at a
+  desktop width and at 390 px. The handshake, the session, context and an
+  attachment's content URL were checked in a stand-in shell, and the
+  hostile corpus in `internal/render`'s test. Still to see in a real
+  browser: the reader frame's images from `lodge-content` (the browser
+  pane blocks the second loopback origin), and the switcher's chord.
 
 ## Phase 4 — Mail's windows and files in a browser (executor, large)
 

@@ -187,8 +187,9 @@ the conventions for measurements and shortcuts are those of the reader UI
   to it in chunks (`draft.attachData`, `lib/upload.ts`;
   [lodge-app.md](lodge-app.md#attaching-by-bytes)): Attach Files opens the
   browser's file picker, and files dropped on the window are read there.
-  The desktop app's own drops still name paths, which a maild behind lodge
-  refuses with a note to use Attach Files.
+  On a maild behind lodge the desktop app opens its compose windows without
+  its own drag-and-drop handler (`open_compose`), so dropped files reach
+  the webview as files too, and their bytes go the same way.
 - Remove takes the file off the draft (`draft.detach`).
 
 ### Entry points

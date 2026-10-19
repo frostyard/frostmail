@@ -456,8 +456,17 @@ function ConversationMessage({
       {error && <p className="px-5 py-4 text-reader-meta text-secondary">{error}</p>}
       {rendering &&
         (rendering.html !== "" ? (
-          rendering.contentPath && shell ? (
-            <ContentFrame src={shell.contentURL(rendering.contentPath)} />
+          shell ? (
+            // In lodge, HTML shows only from lodge-content: a page too
+            // large for maild to keep (contentPath absent) is never put in
+            // a frame on lodge's own origin (docs/specs/lodge-app.md).
+            rendering.contentPath ? (
+              <ContentFrame src={shell.contentURL(rendering.contentPath)} />
+            ) : (
+              <p role="status" className="px-5 py-4 text-reader-meta text-secondary">
+                This message is too large to show here. Save As… in More Actions downloads it.
+              </p>
+            )
           ) : (
             <MessageFrame html={rendering.html} onOpenLink={openLink} />
           )

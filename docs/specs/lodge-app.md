@@ -224,7 +224,10 @@ path>`; the web app builds them with lodge-client's `contentURL`.
   keeps its `mailpart://localhost/` URL, which loads nothing here.
 - maild keeps at most 64 pages and 64 MiB of them in memory, evicting the
   least recently kept. A token it does not hold, or no longer holds, is
-  404.
+  404. A page larger than 64 MiB is not kept, so `message.render` answers
+  no `contentPath`; the web build then says the message is too large to
+  show and points to Save As, and never frames its HTML on lodge's own
+  origin (the desktop's `srcdoc` frame).
 - Headers:
   - `Content-Type: text/html; charset=utf-8`;
   - `Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; sandbox allow-popups allow-popups-to-escape-sandbox`;

@@ -223,16 +223,17 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   );
 
   // Files dropped anywhere on the window are attached: as paths in the
-  // app, as bytes in a browser.
+  // app, as bytes in a browser, or in the app on a maild behind lodge, whose
+  // compose windows leave drops to the webview (open_compose).
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri() || remoteMaild()) return;
     const off = getCurrentWebview().onDragDropEvent((e) => {
       if (e.payload.type === "drop") attachPaths(e.payload.paths);
     });
     return () => void off.then((f) => f());
   }, [attachPaths]);
   useEffect(() => {
-    if (isTauri()) return;
+    if (isTauri() && !remoteMaild()) return;
     const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes("Files") === true;
     const over = (e: DragEvent) => {
       if (hasFiles(e)) e.preventDefault();
