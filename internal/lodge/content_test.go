@@ -98,9 +98,19 @@ func TestPageResponse(t *testing.T) {
 			t.Errorf("page lacks %s:\n%s", want, body)
 		}
 	}
-	if !strings.Contains(PagePolicy, "sandbox allow-popups allow-popups-to-escape-sandbox") || strings.Contains(PagePolicy, "allow-scripts") ||
-		strings.Contains(PagePolicy, "allow-same-origin") {
-		t.Errorf("page policy = %q, want a sandbox with popups only", PagePolicy)
+	if !strings.Contains(PagePolicy, "sandbox allow-popups allow-popups-to-escape-sandbox") {
+		t.Errorf("page policy = %q, want a sandbox that lets links open tabs", PagePolicy)
+	}
+	// D6: never scripts, the origin, forms or top navigation.
+	for _, policy := range []string{PagePolicy, PartPolicy} {
+		for _, never := range []string{"allow-scripts", "allow-same-origin", "allow-forms", "allow-top-navigation"} {
+			if strings.Contains(policy, never) {
+				t.Errorf("policy %q grants %s", policy, never)
+			}
+		}
+	}
+	if !strings.HasSuffix(PartPolicy, "; sandbox") {
+		t.Errorf("part policy = %q, want a sandbox that grants nothing", PartPolicy)
 	}
 	if rec := get(t, c, "HEAD", "/content/"+path); rec.Code != http.StatusOK || rec.Body.Len() != 0 {
 		t.Errorf("HEAD = %d with %d bytes, want 200 and no body", rec.Code, rec.Body.Len())
