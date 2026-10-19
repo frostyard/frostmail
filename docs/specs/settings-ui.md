@@ -40,6 +40,11 @@ this spec adds no tokens.
   (`KeyRound`), and in the desktop app only Server (`Server`, M8). The
   window opens on Accounts.
 - The pane fills the rest of the window.
+- **In a narrow window** ([ui.md](ui.md#narrow-windows-m8)), a pane with
+  a list and a form (Accounts, Signatures) stacks the list, the full width
+  and at most 35% of the height, over its form; the labeled grids' label
+  column is 104 and their controls shrink to fit; panes have 16px
+  padding, and the Rules pane's buttons wrap.
 
 ## Shared pieces
 

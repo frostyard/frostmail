@@ -125,8 +125,14 @@ boundaries, so the planner builds them.
   (`/message/<Message-ID>`, resolved by maild), which notes can link to.
   A canonical lodge URL in a message opens in the shell through
   `lodge.open`, when the link is in mail's own UI.
-- **The narrow layout:** one pane at a time below a width
-  [ui.md](../specs/ui.md) sets, for the phone.
+- **The narrow layout** (built): one pane at a time below 600 CSS
+  pixels wide, for the phone
+  ([ui.md, Narrow windows](../specs/ui.md#narrow-windows-m8)). Mailboxes,
+  the list and the message each take the window, with Back between them
+  and the message actions in a bar at the foot; Compose and Settings fit.
+  In lodge's development build at 390 × 844, a message opened from the
+  list and a reply composed from its bar reached `tools/smtpsink`, and
+  the shell's Back returned from the message to the list.
 - **Notifications** while lodge is open: the web app shows new mail and
   reminders with the Notification API. Web Push waits on lodge.
 - **Done when,** in lodge's development build: a reply with an attachment
