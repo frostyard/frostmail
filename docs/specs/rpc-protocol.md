@@ -43,7 +43,8 @@ JSON-RPC 2.0, without batches:
 Params are decoded strictly: an unknown member or a missing required member
 is `invalidParams` (-32602). Malformed JSON is `parseError` (-32700) with a
 `null` id; a non-2.0 or method-less object is `invalidRequest` (-32600); an
-unknown method is `methodNotFound` (-32601).
+unknown method is `methodNotFound` (-32601). A request whose handler panics
+answers `internal` (-32603); the connection and maild keep serving.
 
 ## Connection setup
 
