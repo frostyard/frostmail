@@ -2,8 +2,10 @@ package lodge
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
+	"runtime"
 
 	"github.com/frostyard/lodge/kit/lodgeapp"
 
@@ -55,8 +57,12 @@ func Caller(c lodgeapp.Caller) api.Caller {
 
 // Listen opens maild's lodge socket: one systemd passed, else
 // /run/lodge/apps/mail.sock, or the same under LODGE_ROOT
-// (docs/specs/lodge-app.md, Listeners). It admits lodge's uid only.
+// (docs/specs/lodge-app.md, Listeners). It admits lodge's uid only. lodge
+// runs on Linux, so elsewhere (a Windows install) it refuses.
 func Listen() (*lodgeapp.Listener, error) {
+	if runtime.GOOS != "linux" {
+		return nil, fmt.Errorf("lodge runs on Linux; maild serves its local socket on %s, without --lodge", runtime.GOOS)
+	}
 	env, err := lodgeapp.LoadEnv()
 	if err != nil {
 		return nil, err
