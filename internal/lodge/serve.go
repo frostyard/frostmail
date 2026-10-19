@@ -19,7 +19,8 @@ const ID = "mail"
 // Options are what maild's lodge socket serves.
 type Options struct {
 	// Ctx bounds the agents' connections to maild, which outlive the
-	// request that opened their MCP session: maild's own context.
+	// request that opened their MCP session, and the MCP sessions' janitor:
+	// maild's own context.
 	Ctx context.Context
 	// Version is maild's, for /health.
 	Version string
@@ -44,6 +45,8 @@ func NewServer(o Options) *lodgeapp.Server {
 	}
 	mcp := mcpsession.New(mcpserver.Handler(mcpserver.HTTPOptions{Open: o.openAgent, Version: o.Version, Log: log}),
 		mcpsession.Options{CheckScope: checkScope, Logger: log})
+	// The sessions' janitor runs until maild stops serving.
+	context.AfterFunc(o.Ctx, func() { _ = mcp.Close() })
 	return &lodgeapp.Server{
 		Health: func(context.Context) lodgeapp.Health {
 			return lodgeapp.Health{OK: true, Version: o.Version, Protocol: api.Protocol}
