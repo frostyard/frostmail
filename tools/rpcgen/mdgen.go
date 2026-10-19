@@ -56,6 +56,9 @@ func genMarkdown(s *Schema) []byte {
 			if !slices.Equal(m.Callers, f.Callers) {
 				w.line("Callers of this method: `%s`.", strings.Join(m.Callers, "`, `"))
 			}
+			if m.Scope != "" {
+				w.line("An agent's scope must grant `%s`.", m.Scope)
+			}
 			w.line("")
 		}
 		for _, ev := range f.Events {

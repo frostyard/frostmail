@@ -8,8 +8,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/mailsync"
@@ -78,7 +80,39 @@ func (m messages) Source(ctx context.Context, p *api.MessageSourceParams) (*api.
 		raw, out.Truncated = raw[:maxSource], true
 	}
 	out.Text = strings.ToValidUTF8(string(raw), "\uFFFD")
+	if p.Content != nil && *p.Content && m.Content != nil {
+		blobID, err := m.storedBody(ctx, p.ID, true)
+		if err != nil {
+			return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
+		}
+		detail, err := m.DB.GetMessage(ctx, p.ID)
+		if err != nil {
+			return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
+		}
+		if blobID != "" {
+			path := m.Content.SourcePath(blobID, emlName(detail.Subject))
+			out.ContentPath = &path
+		}
+	}
 	return out, nil
+}
+
+// emlName is the file Save As offers for a message: its subject, which
+// the app's own dialog offers too, as a name with no separators.
+func emlName(subject string) string {
+	name := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || unicode.IsControl(r) {
+			return '-'
+		}
+		return r
+	}, strings.TrimSpace(subject))
+	if name == "" {
+		name = "(no subject)"
+	}
+	if len(name) > 200 {
+		name = strings.ToValidUTF8(name[:200], "")
+	}
+	return strings.TrimLeft(name, ".") + ".eml"
 }
 
 // Save implements message.save: the raw message written to a file the user
@@ -176,7 +210,53 @@ func (m messages) Summaries(ctx context.Context, p *api.MessageSummariesParams) 
 	return scoped(ctx, out), nil
 }
 
+// ByMessageID implements message.byMessageId: lodge's permanent route
+// names a message by its Message-ID, which maild resolves to the copy a
+// reader would want.
+func (m messages) ByMessageID(ctx context.Context, p *api.MessageByMessageIDParams) (*api.MessageSummary, error) {
+	msgid := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(p.MessageID), "<"), ">")
+	if msgid == "" {
+		return nil, api.InvalidParams("a Message-ID is required")
+	}
+	copies, err := m.DB.MessagesByMessageID(ctx, msgid)
+	if err != nil {
+		return nil, err
+	}
+	// An inbox's copy, else one out of Trash and Junk, else any; the
+	// earliest stored within each.
+	rank := func(c store.MessageCopy) int {
+		switch {
+		case slices.Contains(c.Roles, "inbox"):
+			return 0
+		case !slices.Contains(c.Roles, "trash") && !slices.Contains(c.Roles, "junk"):
+			return 1
+		}
+		return 2
+	}
+	best := -1
+	for i, c := range copies {
+		if admits(ctx, c.AccountID) && (best < 0 || rank(c) < rank(copies[best])) {
+			best = i
+		}
+	}
+	if best < 0 {
+		return nil, api.NotFound("no message has the Message-ID %q", msgid)
+	}
+	sums, err := m.DB.Summaries(ctx, []int64{copies[best].ID})
+	if err != nil {
+		return nil, err
+	}
+	if len(sums) == 0 {
+		return nil, api.NotFound("no message has the Message-ID %q", msgid)
+	}
+	s := toAPISummary(sums[0])
+	return &s, nil
+}
+
 func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) error {
+	if err := m.admitMessages(ctx, p.IDs); err != nil {
+		return err
+	}
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")
 	}
@@ -193,6 +273,17 @@ func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) er
 }
 
 func (m messages) Move(ctx context.Context, p *api.MessageMoveParams) error {
+	if err := m.admitMessages(ctx, p.IDs); err != nil {
+		return err
+	}
+	if err := m.admitMailbox(ctx, p.MailboxID); err != nil {
+		return err
+	}
+	if p.FromMailboxID != nil {
+		if err := m.admitMailbox(ctx, *p.FromMailboxID); err != nil {
+			return err
+		}
+	}
 	if m.Sync == nil {
 		return api.Unavailable("sync is not running")
 	}

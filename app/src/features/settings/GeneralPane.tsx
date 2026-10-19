@@ -21,6 +21,8 @@ export interface GeneralPaneProps {
   error?: string;
   onChange: (change: SettingsSetParams) => void;
   onUnblock?: (address: string) => void;
+  /** In a browser: whether it may show notifications, and asking it to (docs/specs/lodge-app.md). */
+  browser?: { permission: NotificationPermission; onAllow: () => void };
 }
 
 const FLAG_CLASSES = [
@@ -34,7 +36,15 @@ const FLAG_CLASSES = [
 ] as const;
 
 /** GeneralPane edits notifications, undo send, flag names and blocked senders. */
-export function GeneralPane({ settings, smarts = [], blocked = [], error, onChange, onUnblock }: GeneralPaneProps) {
+export function GeneralPane({
+  settings,
+  smarts = [],
+  blocked = [],
+  error,
+  onChange,
+  onUnblock,
+  browser,
+}: GeneralPaneProps) {
   const id = useId();
   const flagNames = settings?.flagNames;
   const [names, setNames] = useState(() => FLAG_CLASSES.map((_, i) => flagNames?.[i] ?? ""));
@@ -46,7 +56,7 @@ export function GeneralPane({ settings, smarts = [], blocked = [], error, onChan
     if (settings && trimmed.some((name, i) => name !== settings.flagNames[i])) onChange({ flagNames: trimmed });
   };
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-6 narrow:p-4">
       <div className={GRID}>
         <label htmlFor={`${id}-scope`} className={LABEL}>
           New message notifications:
@@ -81,6 +91,22 @@ export function GeneralPane({ settings, smarts = [], blocked = [], error, onChan
             </optgroup>
           )}
         </select>
+        {browser && (
+          <>
+            <span className={LABEL}>In this browser:</span>
+            {browser.permission === "default" ? (
+              <button type="button" className={`${BUTTON} justify-self-start`} onClick={browser.onAllow}>
+                Allow Notifications…
+              </button>
+            ) : (
+              <span className="text-[13px] leading-[18px] text-secondary">
+                {browser.permission === "granted"
+                  ? "Notifications are on."
+                  : "Notifications are blocked in the browser's settings."}
+              </span>
+            )}
+          </>
+        )}
         <label htmlFor={`${id}-delay`} className={LABEL}>
           Undo send delay:
         </label>

@@ -20,15 +20,15 @@ export const TLS_LABEL: Record<TLSMode, string> = {
   insecure: "None (insecure)",
 };
 
-/** GRID lays out labeled rows: labels in a 128px column, controls after. */
-export const GRID = "grid grid-cols-[128px_1fr] items-center gap-x-3 gap-y-2";
+/** GRID lays out labeled rows: labels in a 128px column, controls after; narrower in a narrow window. */
+export const GRID = "grid grid-cols-[128px_1fr] items-center gap-x-3 gap-y-2 narrow:grid-cols-[104px_minmax(0,1fr)]";
 
 /** LABEL is a field label. */
 export const LABEL = "text-right text-[13px] leading-[18px] text-secondary";
 
 /** FIELD is a text input or select. */
 export const FIELD =
-  "h-7 rounded-md border border-separator bg-window px-2 text-[13px] leading-[18px] focus:outline-none focus:ring-2 focus:ring-focus";
+  "h-7 rounded-md border border-separator bg-window px-2 text-[13px] leading-[18px] focus:outline-none focus:ring-2 focus:ring-focus narrow:min-w-0";
 
 /** BUTTON is a secondary push button. */
 export const BUTTON =

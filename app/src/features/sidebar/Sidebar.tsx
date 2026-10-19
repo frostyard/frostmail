@@ -120,7 +120,7 @@ function Row({
   const Icon = ICONS[item.icon];
   const iconColor = item.flagColor === undefined ? "text-accent" : (FLAG_CLASSES[item.flagColor] ?? "text-accent");
   const classes = [
-    "mx-2 flex h-7 items-center gap-2 rounded-md pr-1",
+    "mx-2 flex h-7 items-center gap-2 rounded-md pr-1 narrow:h-11",
     selected ? (focused ? "bg-accent text-accent-contrast" : "bg-selection-sidebar") : "",
     dropTarget && !selected ? "bg-selection-inactive" : "",
     item.selectable ? "" : "text-secondary",

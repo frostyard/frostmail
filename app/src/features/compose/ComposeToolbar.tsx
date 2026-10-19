@@ -50,15 +50,18 @@ export interface ComposeToolbarProps {
   laterChoices?: LaterChoice[];
   onSendAt?: (at: Date) => void;
   onCommand: (command: ComposeCommand) => void;
+  /** Minimize and Maximize; only the desktop app's windows have them (default true). Close always shows. */
+  windowControls?: boolean;
 }
 
 // The main toolbar's button style, with Send drawn in the accent color.
 // Send never carries text-secondary: two text colors in one class list
 // would make the result depend on CSS order.
+// A narrow window's buttons are touch targets (docs/specs/ui.md, Narrow windows).
 const BUTTON_CLASS =
-  "flex size-7 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
+  "flex size-7 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40 narrow:size-11";
 const SEND_CLASS =
-  "flex size-7 items-center justify-center rounded-md text-accent hover:bg-selection-inactive disabled:opacity-40";
+  "flex size-7 items-center justify-center rounded-md text-accent hover:bg-selection-inactive disabled:opacity-40 narrow:size-11";
 
 interface ComposeButtonProps {
   name: string;
@@ -105,7 +108,7 @@ function SendLaterButton(props: ComposeToolbarProps) {
         title="Send Later"
         aria-haspopup="menu"
         disabled={!props.canSend}
-        className="flex h-7 w-4 items-center justify-center rounded-md text-accent hover:bg-selection-inactive disabled:opacity-40"
+        className="flex h-7 w-4 items-center justify-center rounded-md text-accent hover:bg-selection-inactive disabled:opacity-40 narrow:h-11"
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
           setMenu({ x: rect.left, y: rect.bottom });
@@ -178,29 +181,33 @@ export function ComposeToolbar(props: ComposeToolbarProps) {
         command="delete"
         onCommand={props.onCommand}
       />
-      <ComposeButton
-        name="Minimize"
-        title="Minimize"
-        icon={<Minus size={16} />}
-        command="minimize"
-        onCommand={props.onCommand}
-      />
-      {props.maximized ? (
-        <ComposeButton
-          name="Restore"
-          title="Restore"
-          icon={<Copy size={16} />}
-          command="toggleMaximize"
-          onCommand={props.onCommand}
-        />
-      ) : (
-        <ComposeButton
-          name="Maximize"
-          title="Maximize"
-          icon={<Square size={16} />}
-          command="toggleMaximize"
-          onCommand={props.onCommand}
-        />
+      {(props.windowControls ?? true) && (
+        <>
+          <ComposeButton
+            name="Minimize"
+            title="Minimize"
+            icon={<Minus size={16} />}
+            command="minimize"
+            onCommand={props.onCommand}
+          />
+          {props.maximized ? (
+            <ComposeButton
+              name="Restore"
+              title="Restore"
+              icon={<Copy size={16} />}
+              command="toggleMaximize"
+              onCommand={props.onCommand}
+            />
+          ) : (
+            <ComposeButton
+              name="Maximize"
+              title="Maximize"
+              icon={<Square size={16} />}
+              command="toggleMaximize"
+              onCommand={props.onCommand}
+            />
+          )}
+        </>
       )}
       <ComposeButton name="Close" title="Close" icon={<X size={16} />} command="close" onCommand={props.onCommand} />
     </div>

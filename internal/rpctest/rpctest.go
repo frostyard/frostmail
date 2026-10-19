@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/lodge"
 	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/pimsync"
 	"github.com/frostyard/frostmail/internal/render"
@@ -62,6 +63,10 @@ type Options struct {
 	// Lodge, when set, serves reader pages and parts for lodge's content
 	// route, as maild --lodge does (Server.Content).
 	Lodge bool
+	// Broadcast announces new mail to connected clients
+	// (message.announced), as a maild without a session bus does; it
+	// replaces Sync's Announce.
+	Broadcast bool
 	// OnAttended learns when the app connects and leaves
 	// (rpcserver.Options.OnAttended).
 	OnAttended func(attended bool)
@@ -132,7 +137,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
 	if o.Lodge {
-		if srv.Content, err = lodge.NewContent(srv.Parts); err != nil {
+		if srv.Content, err = lodge.NewContent(srv.Parts, srv.Blobs); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -157,6 +162,9 @@ func StartWith(t testing.TB, o Options) *Server {
 			cfg.Parts = srv.Parts
 		}
 		cfg.Tokens = srv.OAuth
+		if o.Broadcast {
+			cfg.Announce = notify.Broadcast(broker.Publish)
+		}
 		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, cfg, broker.Publish)
 		deps.Sync = srv.Sync
 		srv.OAuth.SignedIn = func(id int64) { _ = srv.Sync.Restart(context.Background(), id) }

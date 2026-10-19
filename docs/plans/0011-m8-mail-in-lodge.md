@@ -23,6 +23,24 @@ The user chose these on 2026-10-18:
   test, smoke run and deployment uses generated mail (`tools/mailgen`,
   `tools/uifixture`, the mailtest container) and no real account.
 
+Accepted by the user on 2026-10-19, with Phase 4's notifications:
+
+- **Reminders with no client open.** With no session bus on the server, a
+  reminder that fires while no app is attached reaches nobody until one
+  connects, and so:
+  - a calendar reminder waits: `calendar.reminders` still lists it, so
+    the next client to connect raises the reminder window (a hidden page
+    also notifies it), as a desktop app started late does today;
+  - a Remind Me reminder brings its message back to the inbox when it
+    fires, whoever is connected, and only the announcement is lost;
+  - new mail announced while no client was connected is not replayed:
+    it is unread in the list;
+  - notifying with nothing open is Web Push's, which waits on lodge
+    ([ADR-0008](https://github.com/frostyard/lodge/blob/main/docs/adr/0008-lodge-installs-as-one-home-screen-app.md)).
+- **No service worker for now.** Web Push and the phone's notifications
+  are deferred (see Later); where a browser has no `Notification`
+  constructor, as Android's Chrome, mail stays silent.
+
 lodge's decisions that shape mail's side (the lodge program, 2026-10-18):
 
 - **D4:** the frame learns the content origin from lodge-client's `init`,
@@ -143,16 +161,28 @@ boundaries, so the planner builds them.
 - **Files.** Attaching sends the file's bytes over the RPC
   (`draft.attachData`, in chunks within the 16 MiB message limit; built),
   and an attachment's Save downloads it from the content route with
-  `?download=1` (built). Save As and Raw Source of a whole message are to
-  download from a content route for the message's source.
-- **Links between apps.** A permanent route by Message-ID
-  (`/message/<Message-ID>`, resolved by maild), which notes can link to.
-  A canonical lodge URL in a message opens in the shell through
-  `lodge.open`, when the link is in mail's own UI.
-- **The narrow layout:** one pane at a time below a width
-  [ui.md](../specs/ui.md) sets, for the phone.
-- **Notifications** while lodge is open: the web app shows new mail and
-  reminders with the Notification API. Web Push waits on lodge.
+  `?download=1` (built). Save As of a whole message, from the reader's
+  More menu or Raw Source's sheet, downloads the `.eml` from the content
+  route's `m/<mac>/<blob>/<name>`, which `message.source {content: true}`
+  names (built); the desktop app on a maild behind lodge downloads it
+  there through its Rust layer (`save_content`).
+- **Links between apps** (built). A permanent route by Message-ID
+  (`/message/<Message-ID>`, resolved by `message.byMessageId`), which
+  notes can link to, and which mail's context names. A canonical lodge
+  URL in mail's own UI opens in the shell through `lodge.open`; one in an
+  HTML message, in the sandboxed reader frame, opens a new tab.
+- **The narrow layout** (built): one pane at a time below 600 CSS
+  pixels wide, for the phone
+  ([ui.md, Narrow windows](../specs/ui.md#narrow-windows-m8)). Mailboxes,
+  the list and the message each take the window, with Back between them
+  and the message actions in a bar at the foot; Compose and Settings fit.
+  In lodge's development build at 390 × 844, a message opened from the
+  list and a reply composed from its bar reached `tools/smtpsink`, and
+  the shell's Back returned from the message to the list.
+- **Notifications** while lodge is open (built): maild with no session
+  bus sends connected clients `message.announced`, and the web app shows
+  new mail and, while hidden, reminders with the Notification API, once
+  allowed in Settings → General. Web Push waits on lodge.
 - **Done when,** in lodge's development build: a reply with an attachment
   composed in the frame goes out through `tools/smtpsink`; Save As
   downloads the `.eml`; a note's link to `/mail/message/<id>` opens the
@@ -163,16 +193,17 @@ boundaries, so the planner builds them.
 - **Read-only first (built):** `list_mailboxes`, `search_messages` and
   `read_thread`, under `account=*` or `account=<id>[,<id>…]`, with the
   engine enforcing the scope and the kit's `mcpsession` binding sessions.
-  Write and send scopes are refused until the tools below land.
-- **Tools:** list mailboxes, search, read a thread, draft a reply. Sending
-  is a tool of its own.
-- **The scope grammar,** in `Lodge-Scope`: `account=<id>` or
+- **Tools (built):** list mailboxes, search, read a thread; with
+  `;write`, set flags, move messages and draft a reply; with `;send`,
+  send a draft, a tool of its own.
+- **The scope grammar** (built), in `Lodge-Scope`: `account=<id>` or
   `account=*`, then optionally `;write` (flags, moves, drafts) and
   `;send` (queue a draft to send). Anything else is 403.
-- **The engine enforces it.** Each MCP session reaches maild over an
-  in-process connection of caller `agent` carrying its scope. Another
+- **The engine enforces it** (built). Each MCP session reaches maild over
+  an in-process connection of caller `agent` carrying its scope. Another
   account is `notFound`, and a method the scope does not cover is
-  `methodNotFound`.
+  `methodNotFound`: the IDL's per-method `scope` (`write`, `send`), which
+  the router checks.
 - **Sessions** through the kit's helper: bound to the token's name and
   scope, 8 per token name with the least recently used evicted, an hour
   idle. The manifest gains `mcp: true`.
@@ -180,15 +211,34 @@ boundaries, so the planner builds them.
   with an `account=<id>;write` token on generated mail, a send under that
   scope is `methodNotFound`, another account is `notFound`, and revoking
   the token cuts it off at once.
+  - In the tests, through the kit's `kittest` and the MCP SDK's client
+    (`internal/lodge/mcp_test.go`): under `account=<id>;write`,
+    `draft_reply` drafts Ann's reply above the quote, `send_draft` is not
+    offered, and the other account's message is an error; on the agent's
+    connection `draft.send` is `methodNotFound` and the other account's
+    message, mailbox and draft are `notFound`; under `;write;send`,
+    `send_draft` queues the draft.
+  - Live, 2026-10-19: Claude Code 2.1.300 (`claude -p` with an HTTP MCP
+    server and a bearer token) on an allowed node read showcase mail
+    through LODGE's `/mcp/mail` with an `account=*` token: `list_mailboxes`
+    returned both accounts. It sends no `Origin` and no `Sec-Fetch-*`,
+    and every request was 200 or 202. Evicted by 8 newer sessions on its
+    token, its stream and its next POST were 404, and it initialized a
+    new session and retried by itself. It probes MCP 2026-07-28's
+    `server/discover` first, which the kit answers 400, and falls back to
+    `initialize` at 2025-11-25. Revoking the token made the next request
+    401 (frostyard/lodge#9). Drafting live under `;write` is still to
+    run.
 
 ## Phase 6 — The desktop app as a lodge client (planner, medium)
 
 The design is [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge).
 It depends on Phase 4's attaching by bytes and Save As by download.
 Built: `app.json` and the Server pane, the bridge's remote mode with the
-keepalive, `open_part`'s downloads, and the Flatpak's network, with
-`app/e2e/lodge.e2e.ts` replying through lodge's development build.
-Notifications are not built yet.
+keepalive, `open_part`'s downloads and Save As's (`save_content`), and the
+Flatpak's network, with `app/e2e/lodge.e2e.ts` replying through lodge's
+development build, and the app's notifications from a remote maild
+(`notify_mail`).
 
 - **Which maild:** the app's own `app.json` names lodge's URL, else the
   local socket. Settings shows and changes it.
@@ -201,9 +251,10 @@ Notifications are not built yet.
 - **Parts:** `open_part` downloads from lodge's content origin, read
   from `GET https://LODGE/lodge/apps`, into the app's cache and opens the
   file, so the webview still fetches nothing.
-- **Notifications:** an IDL event for announcements, sent to connected
-  clients when maild has no session bus, and shown by the app's own
-  notifier.
+- **Notifications** (built): an IDL event for announcements, sent to
+  connected clients when maild has no session bus (`message.announced`),
+  and shown by the app's own notifier (`notify_mail`: the session bus on
+  Linux, `frostmail-notify.exe` on Windows).
 - **The Flatpak** gains the network for the Rust layer.
 - **Done when:** with `app.json` naming lodge's development build, the
   desktop app reads, composes with an attachment and sends through a maild
@@ -237,9 +288,6 @@ Notifications are not built yet.
   handing the grant to the server's maild. Decide by Phase 7.
 - **Secrets on the server:** the file store, or something sealed (systemd
   credentials, a TPM). Decide by Phase 7.
-- **Reminders with no client open:** with no session bus on the server, a
-  reminder that fires while no app is attached reaches nobody until one
-  connects. Decide with Phase 4's notifications.
 
 ## References
 

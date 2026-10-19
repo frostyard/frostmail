@@ -9,19 +9,25 @@ import { useNotify } from "../features/calendar/NotifySheet";
 import { FilterBar } from "../features/list/FilterBar";
 import { SortMenu } from "../features/list/SortMenu";
 import { ScopeBar } from "../features/search/SearchField";
+import type { ToolbarNarrow } from "../features/toolbar/Toolbar";
 import { addDays, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
 import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
 import { frameWindowOpen } from "../lodge/frameWindow";
+import { IN_LODGE } from "../lodge/lodge";
+import { backToList } from "../lodge/shell";
 import type { Client, InviteNotice } from "../rpc/gen/api";
+import { watchAnnouncements } from "./announce";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
+import { narrowPane, useNarrow } from "./narrow";
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
 import { watchOpenRequests } from "./openMessage";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
+import { watchPermalinks } from "./permalink";
 import { undoPim, watchRestores } from "./pimUndo";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { RefusedNotices } from "./RefusedNotices";
@@ -242,6 +248,8 @@ function useWindowEvents(
 ) {
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
+  useEffect(() => watchAnnouncements(client), [client]);
+  useEffect(() => watchPermalinks(client), [client]);
   useEffect(() => watchReminders(client), [client]);
   useEffect(() => watchRestores(), []);
   useLayoutEffect(() => watchOccurrenceRequests(), []);
@@ -369,6 +377,28 @@ function MailScope() {
   );
 }
 
+function ListHeader() {
+  const ui = useUI();
+  return (
+    <div className="flex h-[32px] shrink-0 items-center border-b border-separator bg-window pr-3">
+      {/* Scrolls when the list is narrow, without a bar: WebView2 would draw one. */}
+      <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&>div]:w-max [&>div]:border-b-0">
+        <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
+      </div>
+      <SortMenu
+        sort={ui.sort}
+        ascending={ui.ascending}
+        conversations={ui.conversations}
+        contactPhotos={ui.contactPhotos}
+        onSort={ui.setSort}
+        onAscending={ui.setAscending}
+        onConversations={ui.setConversations}
+        onContactPhotos={ui.setContactPhotos}
+      />
+    </div>
+  );
+}
+
 function MailPanes(props: {
   tasks: TasksData;
   handles: WindowHandles;
@@ -388,22 +418,7 @@ function MailPanes(props: {
         </>
       )}
       <div className="flex h-full shrink-0 flex-col" style={{ width: ui.listWidth }}>
-        <div className="flex h-[32px] shrink-0 items-center border-b border-separator bg-window pr-3">
-          {/* Scrolls when the list is narrow, without a bar: WebView2 would draw one. */}
-          <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&>div]:w-max [&>div]:border-b-0">
-            <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
-          </div>
-          <SortMenu
-            sort={ui.sort}
-            ascending={ui.ascending}
-            conversations={ui.conversations}
-            contactPhotos={ui.contactPhotos}
-            onSort={ui.setSort}
-            onAscending={ui.setAscending}
-            onConversations={ui.setConversations}
-            onContactPhotos={ui.setContactPhotos}
-          />
-        </div>
+        <ListHeader />
         <div className="min-h-0 flex-1">
           <ListContainer ref={props.handles.list} model={props.model} onDelete={props.onDelete} />
         </div>
@@ -415,6 +430,53 @@ function MailPanes(props: {
       {ui.todoBar && <ToDoBarContainer tasks={props.tasks} />}
     </div>
   );
+}
+
+// A narrow window's Mail shows one pane at a time (docs/specs/ui.md,
+// Narrow windows): Mailboxes or the message over the list, which stays
+// mounted, and inert, under them, so it keeps its place.
+function NarrowMailPanes(props: {
+  handles: WindowHandles;
+  model: ViewModel | null;
+  onDelete: (ids: number[]) => void;
+}) {
+  const ui = useUI();
+  const pane = narrowPane(ui.mailboxesOpen, ui.selected);
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col" data-narrow-pane={pane}>
+      <div className="flex min-h-0 flex-1 flex-col" inert={pane !== "list"}>
+        <ListHeader />
+        <div className="min-h-0 flex-1">
+          <ListContainer ref={props.handles.list} model={props.model} onDelete={props.onDelete} />
+        </div>
+      </div>
+      {pane === "mailboxes" && (
+        <div ref={props.handles.sidebar} className="absolute inset-0 bg-sidebar">
+          <SidebarContainer modules={false} />
+        </div>
+      )}
+      <div className={pane === "reader" ? "absolute inset-0 bg-window" : "hidden"}>
+        <ReaderContainer ref={props.handles.reader} />
+      </div>
+    </div>
+  );
+}
+
+/** closeMessage takes a narrow window from the message back to its list. */
+function closeMessage() {
+  if (IN_LODGE && backToList()) return;
+  useUI.getState().select([], null);
+}
+
+function useNarrowToolbar(narrow: boolean): ToolbarNarrow | undefined {
+  const module = useUI((state) => state.module);
+  const mailboxesOpen = useUI((state) => state.mailboxesOpen);
+  const selected = useUI((state) => state.selected);
+  if (!narrow) return undefined;
+  if (module !== "mail") return { pane: "module", onBack: () => useUI.getState().setModule("mail") };
+  const pane = narrowPane(mailboxesOpen, selected);
+  const onBack = pane === "reader" ? closeMessage : () => useUI.getState().openMailboxes(true);
+  return { pane, onBack };
 }
 
 // Keep a newly revealed selection until its matching Mail view has opened.
@@ -446,6 +508,11 @@ export function MainWindow() {
     sidebar: useRef<HTMLDivElement>(null),
   };
   const widths = usePaneWidths();
+  const narrow = useNarrow();
+  const narrowToolbar = useNarrowToolbar(narrow);
+  // The message bar acts on the selection: the message shown, or the list's.
+  const selectedCount = useUI((state) => state.selected.length);
+  const messageBar = (narrowToolbar?.pane === "reader" || narrowToolbar?.pane === "list") && selectedCount > 0;
   useWindowEvents(handles, model, people, calendar, tasks);
   const onDelete = useCallback(
     (ids: number[]) => {
@@ -466,17 +533,21 @@ export function MainWindow() {
         model={model}
         onDelete={onDelete}
         searchRef={handles.search}
+        narrow={narrowToolbar}
       />
-      {module === "mail" && <MailScope />}
+      {module === "mail" && (!narrowToolbar || narrowToolbar.pane === "list") && <MailScope />}
       {module === "people" ? (
         <PeopleModule ref={handles.people} data={people} {...widths} />
       ) : module === "tasks" ? (
         <TasksModule ref={handles.tasks} data={tasks} {...widths} />
       ) : module === "calendar" ? (
         <CalendarModule ref={handles.calendar} data={calendar} {...widths} />
+      ) : narrow ? (
+        <NarrowMailPanes handles={handles} model={model} onDelete={onDelete} />
       ) : (
         <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
       )}
+      {messageBar && <ToolbarContainer part="bar" model={model} onDelete={onDelete} searchRef={handles.search} />}
       <UndoToasts />
       <RefusedNotices />
       <SmartSheetContainer />

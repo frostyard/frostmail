@@ -37,6 +37,7 @@ import type {
 } from "../rpc/gen/api";
 import { ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
+import { browserNotifications } from "./announce";
 import { openInBrowser } from "./settings";
 
 type Pane = "general" | "accounts" | "signatures" | "rules" | "signin" | "server";
@@ -111,8 +112,21 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+// A browser shows notifications once the user allows them (announce.ts).
+function useBrowserNotifications() {
+  const [permission, setPermission] = useState(() => (browserNotifications() ? Notification.permission : null));
+  if (permission === null) return undefined;
+  return {
+    permission,
+    onAllow: () => {
+      void Notification.requestPermission().then(setPermission);
+    },
+  };
+}
+
 function GeneralPaneContainer() {
   const client = useClient();
+  const browser = useBrowserNotifications();
   const settings = useMail((s) => s.settings);
   const smarts = useMail((s) => s.smarts);
   const blocked = useMail((s) => s.blocked);
@@ -141,6 +155,7 @@ function GeneralPaneContainer() {
       error={error}
       onChange={(params) => void change(params)}
       onUnblock={(address) => void unblock(address)}
+      browser={browser}
     />
   );
 }
@@ -500,7 +515,7 @@ function AccountsPane() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full narrow:flex-col">
       <AccountList
         accounts={accounts}
         selected={selected}

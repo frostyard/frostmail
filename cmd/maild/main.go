@@ -154,8 +154,11 @@ func run(ctx context.Context, args []string) (err error) {
 	open := openInApp(logger)
 	desktop, err := notify.OpenDesktop(ctx, logger, open)
 	if err != nil {
-		logger.Info("no desktop notifications", "err", err)
+		// Behind lodge, or with no session bus: each connected client shows
+		// new mail itself (message.announced).
+		logger.Info("no desktop notifications; announcing new mail to connected clients", "err", err)
 		desktop = nil
+		syncCfg.Announce = notify.Broadcast(broker.Publish)
 	} else {
 		defer func() { _ = desktop.Close() }()
 		syncCfg.Announce = desktop.Announce
@@ -190,7 +193,7 @@ func run(ctx context.Context, args []string) (err error) {
 		if lodgeLn, err = lodge.Listen(); err != nil {
 			return fmt.Errorf("lodge socket: %w", err)
 		}
-		if content, err = lodge.NewContent(parts); err != nil {
+		if content, err = lodge.NewContent(parts, blobs); err != nil {
 			return err
 		}
 	}

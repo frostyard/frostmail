@@ -115,7 +115,7 @@ func (h *httpSessions) server(r *http.Request) *sdk.Server {
 	}
 	op.client = client
 	h.o.Log.Info("MCP session", "token", c.Token, "scope", scope.String())
-	return newServer(Options{Client: client, Version: h.o.Version})
+	return newServer(Options{Client: client, Version: h.o.Version, Scope: scope})
 }
 
 // sessionRecorder notes the session ID a response issues, keeping streams

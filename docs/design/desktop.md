@@ -71,8 +71,13 @@ desktop icon.
   notifications stay until dismissed.
 - Clicking one (`ActionInvoked`, action `default`) runs
   `frostmail --open-message <id>` (a group runs `frostmail`);
-  `FROSTMAIL_APP` names another binary. Without a session bus maild runs
-  without notifications.
+  `FROSTMAIL_APP` names another binary.
+- **Without a session bus** (behind lodge, or a session with none), maild
+  sends the same notes to every connected client instead, as the
+  transient event `message.announced {accountId, notes: [{title, body,
+  messageId?}]}`, and each client shows them itself: the web build with
+  the Notification API ([lodge-app.md](../specs/lodge-app.md#the-web-build)).
+  Nothing is replayed to a client that connects later.
 - Per account: notifications on or off (`account.update {notify}`); off
   for read-only accounts.
 - Which new mail notifies is the `notifyScope` setting: Inbox only (the
@@ -219,12 +224,25 @@ tailnet, such as the friend's Windows install.
     `lodge-content` for its first label) only when that request fails.
 - **What a remote maild cannot do for the desktop.** maild's session
   caller cannot read or write the desktop's files, so attaching sends the
-  file's bytes (`draft.attachData`) and Save As downloads the source from
-  the content route, both from plan 0011's Phase 4.
-- **Notifications** (not built yet). A remote maild has no session bus.
-  It is to send each connected client a transient event when an
-  announcement is due, for the desktop app's own notifier; a click opens
-  the message, as `--open-message` does.
+  file's bytes (`draft.attachData`), and Save As asks where with the
+  native dialog as before, then `save_content` downloads the message
+  `message.source {content: true}` names (`m/…`) from the content node
+  into that file, in the Rust layer as `open_part` downloads parts.
+- **Notifications.** A remote maild has no session bus, so it sends each
+  connected client `message.announced` (above), and the app's webview
+  hands the notes to `notify_mail` (`src-tauri/src/announce.rs`), which
+  shows them as maild would on this machine:
+  - on Linux, through `org.freedesktop.Notifications` on the app's own
+    session bus (zbus), with maild's hints, its Open action and its
+    group note per account that the next replaces; a click brings the
+    main window forward at the message (the `open-message` event);
+  - on Windows, through `frostmail-notify.exe` beside the app, with the
+    operation maild writes it (`mail` group, `m<id>` or `a<account>`
+    tags), whose click runs `frostmail.exe --open-message`, which the
+    single instance hands to the running app;
+  - elsewhere, not yet.
+
+  A calendar reminder raises the reminder window, as with a local maild.
 - **What does not change:** with no `lodge` in `app.json`, the bridge,
   the parts and every window are as above, on maild's own socket or pipe.
 - **Tests:** `src-tauri/src/remote.rs`'s tests (addresses, the
@@ -233,7 +251,8 @@ tailnet, such as the friend's Windows install.
   a fixture and the built app with `app.json` naming lodge, and lists,
   reads and sends a reply through it. It needs lodge's `make e2e-build`
   output in `FROSTMAIL_LODGE_E2E`, and skips without it.
-- **The Flatpak** gains `--share=network` for the Rust layer. The
+- **The Flatpak** gains `--share=network` for the Rust layer, and
+  `--talk-name=org.freedesktop.Notifications` for its notifications. The
   webview's CSP still forbids every fetch, so ADR-0005's third layer
   holds, though the sandbox no longer cuts the network on its own.
 

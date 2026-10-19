@@ -5,6 +5,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openFrameWindow } from "../lodge/frameWindow";
+import { openOutside } from "../lodge/lodge";
 
 declare global {
   interface Window {
@@ -28,11 +29,11 @@ export async function openSettings(): Promise<void> {
   window.open(`${window.location.pathname}#/settings`, "settings");
 }
 
-/** openInBrowser opens an http or https URL in the system browser. */
+/** openInBrowser opens an http or https URL in the system browser, or in lodge through the shell. */
 export async function openInBrowser(url: string): Promise<void> {
   if (isTauri()) {
     await invoke("open_link", { url });
     return;
   }
-  window.open(url, "_blank", "noopener");
+  if (!openOutside(url)) window.open(url, "_blank", "noopener");
 }

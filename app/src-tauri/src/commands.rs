@@ -6,7 +6,7 @@
 use std::sync::Mutex;
 
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{bridge, protocol, remote};
@@ -108,6 +108,19 @@ pub async fn open_part(
         return Ok(());
     }
     app.opener().open_path(full.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
+}
+
+/// Save As on a maild behind lodge (docs/design/desktop.md): download the
+/// message maild named on lodge's content node into the file the user
+/// chose. The maild on this machine writes it there itself (message.save).
+#[tauri::command]
+pub async fn save_content(content_path: String, path: String) -> Result<(), String> {
+    let url = remote::load()?.lodge.ok_or("Save As downloads only from a maild behind lodge")?;
+    let lodge = remote::Lodge::parse(&url)?;
+    let path = std::path::PathBuf::from(path);
+    tauri::async_runtime::spawn_blocking(move || remote::save_to(&lodge, &content_path, &path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Refuse a file whose type runs code when opened.
@@ -266,14 +279,7 @@ pub fn startup_message(launch: State<'_, Launch>) -> Option<i64> {
 /// A second launch (single instance): show the main window and pass on
 /// its --open-message as the open-message event (docs/design/desktop.md).
 pub fn second_launch(app: &AppHandle, args: &[String]) {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
-    if let Some(id) = open_request(args) {
-        let _ = app.emit_to("main", "open-message", id);
-    }
+    crate::announce::open(app, open_request(args).unwrap_or(0));
 }
 
 #[cfg(test)]

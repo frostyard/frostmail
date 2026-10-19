@@ -64,6 +64,10 @@ type Method struct {
 	Errors []string `yaml:"errors"`
 	// Callers replaces the domain's callers for this method.
 	Callers []string `yaml:"callers"`
+	// Scope is what an agent's scope must grant beyond reading: write or
+	// send (docs/specs/lodge-app.md, /mcp). Only a method agents may call
+	// has one.
+	Scope string `yaml:"scope"`
 
 	result *TypeRef
 }
@@ -98,7 +102,8 @@ var reservedClientMethods = map[string]bool{
 // reservedAPINames are package api's hand-written identifiers (api.go,
 // client.go); generated names must not collide with them.
 var reservedAPINames = []string{
-	"Admits", "Caller", "CallerFrom", "Client", "ErrScope", "ParseScope", "Scope", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
+	"Admits", "Caller", "CallerFrom", "Client", "ErrScope", "ParseScope", "Scope", "ScopeNeed", "NeedRead", "NeedWrite", "NeedSend",
+	"MethodNeed", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
 	"EventEnvelope", "EventMethod", "Frame", "HasMethod", "MaxMessageSize",
 	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow", "WithCaller", "WithConn",
 }
@@ -387,11 +392,17 @@ func build(files []*File) (*Schema, error) {
 			where := f.Domain + "." + m.Name
 			if m.Callers == nil {
 				m.Callers = f.Callers
-				continue
+			} else {
+				callers(f, where, m.Callers)
+				if len(m.Callers) == 0 {
+					fail(f, "%s: callers must name at least one caller", where)
+				}
 			}
-			callers(f, where, m.Callers)
-			if len(m.Callers) == 0 {
-				fail(f, "%s: callers must name at least one caller", where)
+			switch {
+			case m.Scope != "" && m.Scope != "write" && m.Scope != "send":
+				fail(f, "%s: scope %q must be write or send", where, m.Scope)
+			case m.Scope != "" && !slices.Contains(m.Callers, "agent"):
+				fail(f, "%s: scope %q needs agent among its callers", where, m.Scope)
 			}
 		}
 	}

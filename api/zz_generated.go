@@ -2514,6 +2514,18 @@ type UnsubscribeResult struct {
 	URL *string `json:"url,omitzero"`
 }
 
+// Announcement: One notification of new mail, as maild's desktop
+// notifications word it (docs/design/desktop.md, Notifications).
+type Announcement struct {
+	// The sender, or "N new messages" for a group.
+	Title string `json:"title"`
+	// The subject (after "Reminder: " for a Remind Me reminder) and a line of
+	// preview, or the senders of a group.
+	Body string `json:"body"`
+	// The message it opens; absent for a group.
+	MessageID *int64 `json:"messageId,omitzero"`
+}
+
 // MessageSource: A message as the server holds it.
 type MessageSource struct {
 	// The header section, up to the blank line.
@@ -2522,6 +2534,10 @@ type MessageSource struct {
 	Text string `json:"text"`
 	// The message is longer than text.
 	Truncated bool `json:"truncated"`
+	// With source's content, on a maild serving lodge: the whole message on
+	// maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with
+	// ?download=1 (docs/specs/lodge-app.md).
+	ContentPath *string `json:"contentPath,omitzero"`
 }
 
 // Message: Everything about a message except its body.
@@ -2604,6 +2620,12 @@ type MessageSummariesParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageByMessageIDParams holds the params of message.byMessageId.
+type MessageByMessageIDParams struct {
+	// The Message-ID, with or without its angle brackets.
+	MessageID string `json:"messageId"`
+}
+
 // MessageRenderParams holds the params of message.render.
 type MessageRenderParams struct {
 	ID     int64 `json:"id"`
@@ -2650,6 +2672,8 @@ type MessageDeleteParams struct {
 // MessageSourceParams holds the params of message.source.
 type MessageSourceParams struct {
 	ID int64 `json:"id"`
+	// Also name the whole message on maild's lodge content route, in contentPath.
+	Content *bool `json:"content,omitzero"`
 }
 
 // MessageSaveParams holds the params of message.save.
@@ -2702,6 +2726,12 @@ type MessageService interface {
 	// Summaries implements message.summaries. Summaries of messages in the order
 	// given; IDs that no longer exist are skipped.
 	Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error)
+	// ByMessageID implements message.byMessageId. The message a Message-ID names,
+	// for lodge's permanent route /message/<Message-ID>
+	// (docs/specs/lodge-app.md): among the stored messages with that Message-ID,
+	// one in an inbox, else one in neither Trash nor Junk, else any; the earliest
+	// stored of those. notFound when none is.
+	ByMessageID(ctx context.Context, p *MessageByMessageIDParams) (*MessageSummary, error)
 	// Render implements message.render. A message prepared for the reader,
 	// fetching it first if it is not stored locally. Remote images are loaded
 	// through maild only when remote is true; tracking images never are.
@@ -2726,7 +2756,8 @@ type MessageService interface {
 	Delete(ctx context.Context, p *MessageDeleteParams) error
 	// Source implements message.source. Raw Source and All Headers: the message
 	// as the server holds it, fetched first when it is not stored. Bytes that are
-	// not UTF-8 show as U+FFFD.
+	// not UTF-8 show as U+FFFD. With content, also the message's path on maild's
+	// lodge content route, for Save As by download.
 	Source(ctx context.Context, p *MessageSourceParams) (*MessageSource, error)
 	// Save implements message.save. Save As: write the message as the server
 	// holds it (an .eml file) to path, replacing a file there. invalidParams for
@@ -2779,6 +2810,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return s.Summaries(ctx, &p)
+	})
+	r.handle("message.byMessageId", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageByMessageIDParams
+		if err := decodeParams(raw, &p, []string{"messageId"}); err != nil {
+			return nil, err
+		}
+		return s.ByMessageID(ctx, &p)
 	})
 	r.handle("message.render", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRenderParams
@@ -2908,6 +2946,16 @@ func (x MessageClient) Summaries(ctx context.Context, p *MessageSummariesParams)
 	return r, err
 }
 
+// ByMessageID calls message.byMessageId.
+func (x MessageClient) ByMessageID(ctx context.Context, p *MessageByMessageIDParams) (*MessageSummary, error) {
+	var r MessageSummary
+	err := x.c.Call(ctx, "message.byMessageId", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 // Render calls message.render.
 func (x MessageClient) Render(ctx context.Context, p *MessageRenderParams) (*Rendering, error) {
 	var r Rendering
@@ -3002,6 +3050,21 @@ func (x MessageClient) Mute(ctx context.Context, p *MessageMuteParams) error {
 func (x MessageClient) Remind(ctx context.Context, p *MessageRemindParams) error {
 	return x.c.Call(ctx, "message.remind", p, nil)
 }
+
+// MessageAnnounced: New mail and fired Remind Me reminders to announce, sent
+// live to every connected client when maild has no desktop to notify on (no
+// session bus, as behind lodge, docs/specs/lodge-app.md); each client shows
+// the notes itself. Never replayed.
+type MessageAnnounced struct {
+	AccountID int64          `json:"accountId"`
+	Notes     []Announcement `json:"notes"`
+}
+
+// EventName is the wire name of MessageAnnounced.
+func (MessageAnnounced) EventName() string { return "message.announced" }
+
+// Durable reports whether MessageAnnounced is kept in the changes log.
+func (MessageAnnounced) Durable() bool { return false }
 
 // MessageChanged: Messages were added or changed (flags, mailbox, fetched
 // body).
@@ -5361,16 +5424,16 @@ var methodCallers = map[string][]CallerKind{
 	"calendar.update":         {CallerKindLocal, CallerKindSession},
 	"calendar.delete":         {CallerKindLocal, CallerKindSession},
 	"calendar.restore":        {CallerKindLocal, CallerKindSession},
-	"draft.create":            {CallerKindLocal, CallerKindSession},
+	"draft.create":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.open":              {CallerKindLocal, CallerKindSession},
-	"draft.get":               {CallerKindLocal, CallerKindSession},
-	"draft.list":              {CallerKindLocal, CallerKindSession},
-	"draft.update":            {CallerKindLocal, CallerKindSession},
+	"draft.get":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.list":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.update":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.attach":            {CallerKindLocal},
 	"draft.attachData":        {CallerKindLocal, CallerKindSession},
 	"draft.detach":            {CallerKindLocal, CallerKindSession},
-	"draft.delete":            {CallerKindLocal, CallerKindSession},
-	"draft.send":              {CallerKindLocal, CallerKindSession},
+	"draft.delete":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.send":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"events.subscribe":        {CallerKindLocal, CallerKindSession},
 	"identity.list":           {CallerKindLocal, CallerKindSession},
 	"identity.update":         {CallerKindLocal, CallerKindSession},
@@ -5386,10 +5449,11 @@ var methodCallers = map[string][]CallerKind{
 	"message.get":             {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.body":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.summaries":       {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"message.byMessageId":     {CallerKindLocal, CallerKindSession},
 	"message.render":          {CallerKindLocal, CallerKindSession},
 	"message.part":            {CallerKindLocal, CallerKindSession},
-	"message.setFlags":        {CallerKindLocal, CallerKindSession},
-	"message.move":            {CallerKindLocal, CallerKindSession},
+	"message.setFlags":        {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"message.move":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.copy":            {CallerKindLocal, CallerKindSession},
 	"message.delete":          {CallerKindLocal, CallerKindSession},
 	"message.source":          {CallerKindLocal, CallerKindSession},
@@ -5449,6 +5513,18 @@ var methodCallers = map[string][]CallerKind{
 	"vip.remove":              {CallerKindLocal, CallerKindSession},
 }
 
+// methodNeeds is what each method needs of an agent's scope beyond reading (schema/rpc scope).
+var methodNeeds = map[string]ScopeNeed{
+	"draft.create":     NeedWrite,
+	"draft.get":        NeedWrite,
+	"draft.list":       NeedWrite,
+	"draft.update":     NeedWrite,
+	"draft.delete":     NeedWrite,
+	"draft.send":       NeedSend,
+	"message.setFlags": NeedWrite,
+	"message.move":     NeedWrite,
+}
+
 // Methods is every method's wire name, in schema order.
 var Methods = []string{
 	"account.list",
@@ -5504,6 +5580,7 @@ var Methods = []string{
 	"message.get",
 	"message.body",
 	"message.summaries",
+	"message.byMessageId",
 	"message.render",
 	"message.part",
 	"message.setFlags",
@@ -5608,6 +5685,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "mailbox.changed":
 		var e MailboxChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "message.announced":
+		var e MessageAnnounced
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

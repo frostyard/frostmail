@@ -12,6 +12,7 @@ import (
 	netmail "net/mail"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,6 +54,9 @@ func (d drafts) Create(ctx context.Context, p *api.DraftCreateParams) (*api.Draf
 			return nil, api.InvalidParams("a %s needs sourceId", p.Kind)
 		}
 		m, err := d.DB.GetMessage(ctx, *p.SourceID)
+		if err == nil && !admits(ctx, m.AccountID) {
+			err = store.ErrNotFound
+		}
 		if err != nil {
 			return nil, apiError(err, fmt.Sprintf("message %d", *p.SourceID))
 		}
@@ -104,7 +108,11 @@ func (d drafts) draftAccount(ctx context.Context, asked *int64, src *store.Messa
 	case src != nil:
 		return src.AccountID, nil
 	case asked != nil:
-		if _, err := d.DB.GetAccount(ctx, *asked); err != nil {
+		_, err := d.DB.GetAccount(ctx, *asked)
+		if err == nil && !admits(ctx, *asked) {
+			err = store.ErrNotFound
+		}
+		if err != nil {
 			return 0, apiError(err, fmt.Sprintf("account %d", *asked))
 		}
 		return *asked, nil
@@ -113,6 +121,8 @@ func (d drafts) draftAccount(ctx context.Context, asked *int64, src *store.Messa
 	if err != nil {
 		return 0, err
 	}
+	// An agent writes from the first account its scope reaches.
+	accts = slices.DeleteFunc(accts, func(a store.Account) bool { return !admits(ctx, a.ID) })
 	if len(accts) == 0 {
 		return 0, api.InvalidParams("there is no account to write from")
 	}
@@ -430,6 +440,9 @@ func (d drafts) Get(ctx context.Context, p *api.DraftGetParams) (*api.Draft, err
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("draft %d", p.ID))
 	}
+	if err := admitDraft(ctx, dr.ID, dr.AccountID); err != nil {
+		return nil, err
+	}
 	r := toAPIDraft(dr)
 	return &r, nil
 }
@@ -445,7 +458,9 @@ func (d drafts) List(ctx context.Context, p *api.DraftListParams) ([]api.Draft, 
 	}
 	out := make([]api.Draft, 0, len(list))
 	for _, dr := range list {
-		out = append(out, toAPIDraft(dr))
+		if admits(ctx, dr.AccountID) {
+			out = append(out, toAPIDraft(dr))
+		}
 	}
 	return out, nil
 }
@@ -454,6 +469,9 @@ func (d drafts) Update(ctx context.Context, p *api.DraftUpdateParams) (*api.Draf
 	cur, err := d.DB.GetDraft(ctx, p.ID)
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("draft %d", p.ID))
+	}
+	if err := admitDraft(ctx, cur.ID, cur.AccountID); err != nil {
+		return nil, err
 	}
 	if err := d.checkContent(ctx, cur.AccountID, p.Content); err != nil {
 		return nil, err
@@ -596,6 +614,15 @@ func (d drafts) Detach(ctx context.Context, p *api.DraftDetachParams) error {
 }
 
 func (d drafts) Delete(ctx context.Context, p *api.DraftDeleteParams) error {
+	if _, agent := agentScope(ctx); agent {
+		dr, err := d.DB.GetDraft(ctx, p.ID)
+		if err != nil {
+			return apiError(err, fmt.Sprintf("draft %d", p.ID))
+		}
+		if err := admitDraft(ctx, dr.ID, dr.AccountID); err != nil {
+			return err
+		}
+	}
 	var acct int64
 	err := d.DB.Tx(ctx, func(tx *store.Tx) error {
 		dr, err := tx.DeleteDraft(ctx, p.ID)
@@ -621,6 +648,9 @@ func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxIt
 	dr, err := d.DB.GetDraft(ctx, p.ID)
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("draft %d", p.ID))
+	}
+	if err := admitDraft(ctx, dr.ID, dr.AccountID); err != nil {
+		return nil, err
 	}
 	delay, err := d.undoDelay(ctx)
 	if err != nil {

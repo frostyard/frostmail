@@ -10,6 +10,11 @@ the conventions for measurements and shortcuts are those of the reader UI
 
 ## Layout
 
+In a narrow window ([ui.md](ui.md#narrow-windows-m8)) the toolbar's
+buttons are 44 × 44 targets. Minimize and Maximize are the desktop app's
+alone; the web build's Compose has Close only, which returns to the main
+window.
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ ➤   New Message                        📎  Aa  🗑    – □ ✕ │  toolbar 52

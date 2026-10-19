@@ -136,7 +136,7 @@ fn loopback(host: &str) -> bool {
     host == "localhost" || host.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback())
 }
 
-/// Attachments downloaded at once are at most this big.
+/// Attachments and messages downloaded at once are at most this big.
 const MAX_DOWNLOAD: u64 = 128 << 20;
 
 fn agent() -> ureq::Agent {
@@ -158,6 +158,26 @@ pub fn download(lodge: &Lodge, content_path: &str, filename: &str) -> Result<Pat
 }
 
 fn download_into(dir: &Path, lodge: &Lodge, content_path: &str, filename: &str) -> Result<PathBuf, String> {
+    let data = fetch(lodge, content_path, filename)?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let path = dir.join(safe_name(filename));
+    write_new(&path, &data)?;
+    Ok(path)
+}
+
+/// Save As on a maild behind lodge: download a message maild named on the
+/// content node (`m/…`) into path, the file the user chose, replacing it.
+pub fn save_to(lodge: &Lodge, content_path: &str, path: &Path) -> Result<(), String> {
+    if !path.is_absolute() {
+        return Err(format!("not an absolute path: {}", path.display()));
+    }
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    write_new(path, &fetch(lodge, content_path, &name)?)
+}
+
+/// fetch reads `<contentOrigin>/mail/<contentPath>`, at most MAX_DOWNLOAD
+/// bytes of it; what names the file it becomes.
+fn fetch(lodge: &Lodge, content_path: &str, what: &str) -> Result<Vec<u8>, String> {
     if content_path.starts_with('/') || content_path.contains("..") || content_path.contains(['?', '#']) {
         return Err(format!("not a content path: {content_path}"));
     }
@@ -170,12 +190,9 @@ fn download_into(dir: &Path, lodge: &Lodge, content_path: &str, filename: &str) 
         .read_to_end(&mut data)
         .map_err(|e| format!("download {url}: {e}"))?;
     if data.len() as u64 > MAX_DOWNLOAD {
-        return Err(format!("{filename} is over {} MiB", MAX_DOWNLOAD >> 20));
+        return Err(format!("{what} is over {} MiB", MAX_DOWNLOAD >> 20));
     }
-    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let path = dir.join(safe_name(filename));
-    write_new(&path, &data)?;
-    Ok(path)
+    Ok(data)
 }
 
 /// A file name that stays in its directory: no separators, no leading dot,
@@ -255,7 +272,9 @@ mod tests {
                 }
                 let (status, body): (&str, Vec<u8>) = if head.starts_with("GET /lodge/apps ") {
                     ("200 OK", apps.clone().into_bytes())
-                } else if head.starts_with("GET /mail/p/mac/m/1/2/notes.txt ") {
+                } else if head.starts_with("GET /mail/p/mac/m/1/2/notes.txt ")
+                    || head.starts_with("GET /mail/m/mac/blob/Lunch.eml ")
+                {
                     ("200 OK", part.to_vec())
                 } else {
                     ("404 Not Found", b"not found".to_vec())
@@ -280,6 +299,22 @@ mod tests {
         assert!(apps.contains(&format!("origin: {origin}")) || apps.contains(&format!("Origin: {origin}")), "{apps}");
         assert!(download_into(&dir, &lodge, "p/mac/m/1/2/other.txt", "other.txt").is_err());
         assert!(download_into(&dir, &lodge, "../etc/passwd", "x").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn saves_a_message_where_the_user_chose() {
+        let (origin, _heads) = fake_lodge(r#"{"contract":1,"contentOrigin":"ORIGIN","apps":[]}"#, b"From: a@x.test\r\n\r\nhi");
+        let lodge = Lodge::parse(&origin).unwrap();
+        let dir = std::env::temp_dir().join(format!("frostmail-save-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Lunch.eml");
+        std::fs::write(&path, b"an older copy").unwrap();
+        save_to(&lodge, "m/mac/blob/Lunch.eml", &path).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"From: a@x.test\r\n\r\nhi");
+        assert!(save_to(&lodge, "m/mac/blob/Other.eml", &dir.join("Other.eml")).is_err());
+        assert!(!dir.join("Other.eml").exists());
+        assert!(save_to(&lodge, "m/mac/blob/Lunch.eml", Path::new("relative.eml")).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

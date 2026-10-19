@@ -40,6 +40,11 @@ this spec adds no tokens.
   (`KeyRound`), and in the desktop app only Server (`Server`, M8). The
   window opens on Accounts.
 - The pane fills the rest of the window.
+- **In a narrow window** ([ui.md](ui.md#narrow-windows-m8)), a pane with
+  a list and a form (Accounts, Signatures) stacks the list, the full width
+  and at most 35% of the height, over its form; the labeled grids' label
+  column is 104 and their controls shrink to fit; panes have 16px
+  padding, and the Rules pane's buttons wrap.
 
 ## Shared pieces
 
@@ -59,6 +64,7 @@ container calls maild.
 
 ```
  New message notifications:  [Inbox Only ▾]
+          In this browser:   [Allow Notifications…]     (the web build)
           Undo send delay:   [10 Seconds ▾]
                Flag names:   ⚑ [Red          ]
                              ⚑ [Orange       ]
@@ -68,6 +74,12 @@ container calls maild.
 ```
 
 - A `GRID` of labeled rows, 24px padding, `LABEL` right-aligned.
+- **In this browser** (M8), only where the page can show notifications (the
+  web build; [lodge-app.md](lodge-app.md#the-web-build)): while the
+  browser has not been asked, an Allow Notifications… button (`BUTTON`),
+  which asks it (`Notification.requestPermission`); then "Notifications
+  are on." or "Notifications are blocked in the browser's settings." in
+  13/18 `--text-secondary`.
 - **New message notifications:** a `select`: Inbox Only (`inbox`), VIPs
   (`vips`), Contacts (`contacts`), All Mailboxes (`all`), then, in an
   `optgroup` labeled "Smart Mailboxes", each smart mailbox by name

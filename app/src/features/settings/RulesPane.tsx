@@ -25,7 +25,7 @@ export function RulesPane(props: RulesPaneProps) {
     if (index < 0) setSelected(null);
   }, [index]);
   return (
-    <div className="flex h-full flex-col p-6">
+    <div className="flex h-full flex-col p-6 narrow:p-4">
       <ul aria-label="Rules" className="min-h-0 flex-1 overflow-y-auto rounded-md border border-separator">
         {props.rules.length === 0 && (
           <li className="flex h-7 items-center justify-center text-[13px] text-secondary">No Rules</li>
@@ -58,7 +58,7 @@ export function RulesPane(props: RulesPaneProps) {
           </li>
         ))}
       </ul>
-      <div className="mt-2 flex gap-2">
+      <div className="mt-2 flex gap-2 narrow:flex-wrap">
         <button type="button" className={BUTTON} onClick={props.onAdd}>
           Add Rule
         </button>

@@ -853,6 +853,8 @@ Start a draft: a new message in the account (or the first account), or a reply, 
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.open`
 
@@ -875,6 +877,8 @@ One draft.
 
 Result: `Draft`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.list`
 
@@ -885,6 +889,8 @@ Drafts, most recently changed first.
 | `accountId` | `int` (optional) |  |
 
 Result: `[]Draft`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.update`
 
@@ -897,6 +903,8 @@ Replace a draft's content; maild stores it at once and updates the server copy l
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.attach`
 
@@ -949,6 +957,8 @@ Discard a draft, and its server copy.
 
 Result: none (`null`).
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `draft.send`
 
@@ -961,6 +971,8 @@ Queue a draft for sending after the undo delay, or at sendAt (Send Later). Fails
 
 Result: `OutboxItem`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `send`.
 
 ### Event `draft.changed` (durable)
 
@@ -1296,6 +1308,17 @@ Summaries of messages in the order given; IDs that no longer exist are skipped.
 Result: `[]MessageSummary`.
 Callers of this method: `local`, `session`, `agent`.
 
+### `message.byMessageId`
+
+The message a Message-ID names, for lodge's permanent route /message/<Message-ID> (docs/specs/lodge-app.md): among the stored messages with that Message-ID, one in an inbox, else one in neither Trash nor Junk, else any; the earliest stored of those. notFound when none is.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `string` | The Message-ID, with or without its angle brackets. |
+
+Result: `MessageSummary`.
+Errors: `notFound`, `invalidParams`.
+
 ### `message.render`
 
 A message prepared for the reader, fetching it first if it is not stored locally. Remote images are loaded through maild only when remote is true; tracking images never are.
@@ -1332,6 +1355,8 @@ Change flags locally at once and on the server when it can be reached.
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `message.move`
 
@@ -1345,6 +1370,8 @@ Move messages to another mailbox of the same account.
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
+An agent's scope must grant `write`.
 
 ### `message.copy`
 
@@ -1371,11 +1398,12 @@ Errors: `notFound`.
 
 ### `message.source`
 
-Raw Source and All Headers: the message as the server holds it, fetched first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+Raw Source and All Headers: the message as the server holds it, fetched first when it is not stored. Bytes that are not UTF-8 show as U+FFFD. With content, also the message's path on maild's lodge content route, for Save As by download.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | `int` |  |
+| `content` | `bool` (optional) | Also name the whole message on maild's lodge content route, in contentPath. |
 
 Result: `MessageSource`.
 Errors: `notFound`, `unavailable`.
@@ -1451,6 +1479,15 @@ Remind Me: at a time, bring messages back to the top of their account's inbox an
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`, `conflict`.
+
+### Event `message.announced` (transient)
+
+New mail and fired Remind Me reminders to announce, sent live to every connected client when maild has no desktop to notify on (no session bus, as behind lodge, docs/specs/lodge-app.md); each client shows the notes itself. Never replayed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `notes` | `[]Announcement` |  |
 
 ### Event `message.changed` (durable)
 
@@ -1547,6 +1584,16 @@ What unsubscribe did.
 | --- | --- | --- |
 | `url` | `string` (optional) | For web: the page for the app to open. |
 
+### Type `Announcement`
+
+One notification of new mail, as maild's desktop notifications word it (docs/design/desktop.md, Notifications).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `title` | `string` | The sender, or "N new messages" for a group. |
+| `body` | `string` | The subject (after "Reminder: " for a Remind Me reminder) and a line of preview, or the senders of a group. |
+| `messageId` | `int` (optional) | The message it opens; absent for a group. |
+
 ### Type `MessageSource`
 
 A message as the server holds it.
@@ -1556,6 +1603,7 @@ A message as the server holds it.
 | `headers` | `string` | The header section, up to the blank line. |
 | `text` | `string` | The whole message, at most 2 MB of it. |
 | `truncated` | `bool` | The message is longer than text. |
+| `contentPath` | `string` (optional) | With source's content, on a maild serving lodge: the whole message on maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with ?download=1 (docs/specs/lodge-app.md). |
 
 ### Type `Message`
 
