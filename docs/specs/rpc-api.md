@@ -911,6 +911,22 @@ Result: `DraftAttachment`.
 Errors: `notFound`, `invalidParams`.
 Callers of this method: `local`.
 
+### `draft.attachData`
+
+Attach a file by its bytes, for a client that cannot name a path on maild's machine, such as a browser through lodge: in chunks, in order. The first chunk (offset 0, without uploadId) starts an upload of size bytes named filename; each later one names the upload and the offset it continues at. The chunk that completes size attaches the file as draft.attach does, and the result carries it. maild checks the name and the size, names the type from the name and the bytes, and discards an upload its connection leaves unfinished, or that sends nothing for 10 minutes.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `filename` | `string` | The file's name, without a directory. |
+| `size` | `int` | The whole file's bytes; the draft's attachments may total 25 MB. |
+| `offset` | `int` | Where this chunk starts: 0, then the last result's received. |
+| `data` | `string` | The chunk's bytes, base64 (standard alphabet, padded), 1 byte to 4 MiB decoded. |
+| `uploadId` | `string` (optional) | The upload, for every chunk after the first. |
+
+Result: `DraftUpload`.
+Errors: `notFound`, `invalidParams`, `conflict`.
+
 ### `draft.detach`
 
 Remove an attachment from a draft.
@@ -966,6 +982,16 @@ A file attached to a draft, stored by maild.
 | `filename` | `string` |  |
 | `contentType` | `string` | Lowercase type/subtype. |
 | `size` | `int` | Bytes. |
+
+### Type `DraftUpload`
+
+An attachment arriving in chunks (draft.attachData).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `uploadId` | `string` | Names the upload in its later chunks. |
+| `received` | `int` | The bytes maild holds: the next chunk's offset. |
+| `attachment` | `DraftAttachment` (optional) | The attachment, once the last chunk is in. |
 
 ### Type `DraftContent`
 

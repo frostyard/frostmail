@@ -150,6 +150,27 @@ once its store is open, so a maild that answers is serving.
   - `PartFile` gains `contentPath`, `p/<mac>/<path>`, on a maild serving
     `--lodge`.
 
+### Attaching by bytes
+
+`draft.attachData`, for callers local and session:
+
+- the file comes in chunks of 1 byte to 4 MiB decoded, base64 in `data`,
+  in order. The first (offset 0, no `uploadId`) starts an upload of
+  `size` bytes named `filename`; each later one names its `uploadId` and
+  continues at the last answer's `received`;
+- maild checks the name (a name, not a path: no `/`, `\` or control
+  character, at most 255 bytes) and that the draft's attachments stay
+  within 25 MB, names the type from the name and the first bytes as
+  `draft.attach` does, and keeps the chunks in a private temporary file;
+- a chunk at another offset is `conflict`, and one of another
+  connection's, draft, name or size is `notFound`;
+- the chunk that completes `size` attaches the file, and its answer
+  carries the attachment;
+- an upload belongs to its connection: the connection's end, or 10
+  minutes without a chunk, discards it. A connection has at most 4
+  uploads in progress, and maild 16;
+- agents cannot call it: the draft domain does not admit them.
+
 ### `/mcp`
 
 MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
@@ -261,8 +282,9 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   message header and scrolls itself.
   A message without HTML shows its text, as today.
 - **Attachments** open through `lodge.open(contentURL(contentPath))` from
-  the click that asked, which opens a new tab. Saving one opens the same
-  URL with `?download=1`.
+  the click that asked, which opens a new tab. Each has a Save button,
+  which opens the same URL with `?download=1`: the content route answers
+  `Content-Disposition: attachment`, so the browser saves it.
 - **Routes,** relative to `/app/mail`, with the canonical URL `/mail`
   followed by the route: the sidebar's source, then `/message/<id>` when
   one message is selected.
@@ -304,9 +326,11 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   (`lodge.storageKey`).
 - **The switcher's chord** (`init.shortcut`, by default Ctrl+\`) is bound
   by nothing in the app.
-- **What a session cannot do** is not offered: Save As by path. Attaching
-  by path answers that it needs the desktop app, until attaching by bytes
-  ([plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 4) lands.
+- **Attaching** sends the file's bytes with `draft.attachData`
+  ([Attaching by bytes](#attaching-by-bytes)), from Attach Files (a file
+  input) or files dropped on the window.
+- **What a session cannot do** is not offered: Save As of a whole message,
+  which writes a path on maild's machine.
 
 ### Limits
 
@@ -315,6 +339,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 | a JSON-RPC message, requests in flight | 16 MiB, 32 per connection |
 | reader pages kept | 64, and 64 MiB; the least recently kept evicted |
 | a content `mac` | 128 bits of HMAC-SHA256 |
+| an upload | chunks of 4 MiB decoded; 4 in progress a connection, 16 in all; 10 minutes idle |
 | MCP sessions | 8 per token name, the least recently used evicted; an hour idle |
 | an MCP search, a thread | 50 messages; the newest 20, each text 32 KiB |
 | keepalive | `rpc.ping` every 30 s while visible |

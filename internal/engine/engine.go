@@ -85,6 +85,8 @@ type Deps struct {
 	// UIDs, and the hrefs made from them. Nil makes random UUIDs; replay
 	// tests give the names a recorded session used.
 	NewUID func() (string, error)
+	// uploads holds draft.attachData's uploads in progress (New makes it).
+	uploads *uploads
 	// Content keeps reader pages and names parts for lodge's content route
 	// (docs/specs/lodge-app.md); nil when maild serves no lodge socket,
 	// which leaves contentPath out.
@@ -112,7 +114,12 @@ func (d Deps) newUID() (string, error) {
 type Engine struct{ d Deps }
 
 // New returns an Engine.
-func New(d Deps) *Engine { return &Engine{d: d} }
+func New(d Deps) *Engine {
+	if d.uploads == nil {
+		d.uploads = newUploads()
+	}
+	return &Engine{d: d}
+}
 
 // Accounts implements the account domain.
 func (e *Engine) Accounts() api.AccountService { return accounts{e.d} }

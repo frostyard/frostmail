@@ -1,7 +1,8 @@
 // The desktop app on a maild behind lodge (docs/design/desktop.md, On a
 // maild behind lodge): lodge's development build on loopback, maild --lodge
 // on a fixture, and the app with app.json naming lodge and no maild socket
-// of its own. It lists, reads, and sends a reply through lodge. It needs
+// of its own. It lists, reads, and sends a reply with an attachment through
+// lodge. It needs
 // lodge's development build: FROSTMAIL_LODGE_E2E names the directory with
 // lodge-e2e and lodgectl (lodge's make e2e-build); without it, it skips.
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
@@ -30,6 +31,7 @@ const LODGE = process.env.FROSTMAIL_LODGE_E2E;
 let app: App | undefined;
 let sink: Sink | undefined;
 let maildLog = "";
+let upload = "";
 
 /** stage puts maild's manifest, units and a placeholder web build under root, as lodge installs them. */
 function stage(root: string): void {
@@ -51,6 +53,9 @@ beforeAll(async () => {
   stage(root);
   sink = await smtpSink(dir);
   const data = fixture(dir, 20, { smtp: sink.addr });
+  // A file to attach: past one chunk of draft.attachData, so it goes in two.
+  upload = join(dir, "generated-notes.txt");
+  writeFileSync(upload, `${Array.from({ length: 300_000 }, (_, i) => `generated line ${i}`).join("\n")}\n`);
   const procs: ChildProcess[] = [];
   const port = await freePort();
   const cport = await freePort();
@@ -112,7 +117,7 @@ async function otherWindow(s: Session, main: string): Promise<void> {
 }
 
 describe.skipIf(!LODGE)("the desktop app on a maild behind lodge", () => {
-  it("lists, reads and replies through lodge", async () => {
+  it("lists, reads and replies with an attachment through lodge", async () => {
     if (!app || !sink) throw new Error("the app did not start");
     const s = app.session;
     const main = await s.window();
@@ -129,6 +134,14 @@ describe.skipIf(!LODGE)("the desktop app on a maild behind lodge", () => {
     const body = await s.find(".compose-body");
     await s.click(body);
     await s.type(body, "Replied through lodge.");
+    // A maild behind lodge cannot read this computer's files: the file's
+    // bytes go through lodge (draft.attachData).
+    await s.type(await s.find('input[aria-label="Files to attach"]'), upload);
+    await s.waitFor("the attachment", async () =>
+      s.execute<boolean>(
+        'return document.querySelector("[aria-label=Attachments]")?.textContent.includes("generated-notes.txt") === true',
+      ),
+    );
     await s.waitFor("Send to be enabled", async () =>
       s.execute<boolean>('return !document.querySelector("button[aria-label=Send]").disabled'),
     );
@@ -136,6 +149,7 @@ describe.skipIf(!LODGE)("the desktop app on a maild behind lodge", () => {
     await s.switchTo(main);
     const sent = await s.waitFor("the reply at the SMTP sink", async () => sink?.messages()[0], 30_000);
     expect(sent).toContain("Replied through lodge.");
+    expect(sent).toContain("filename=generated-notes.txt");
     expect(sent).toMatch(/^In-Reply-To: </m);
     writeFileSync(join(BUILD, "e2e-lodge.png"), Buffer.from(await s.screenshot(), "base64"));
   });

@@ -20,6 +20,12 @@ types:
       - {name: filename, type: string}
       - {name: contentType, type: string, doc: "Lowercase type/subtype."}
       - {name: size, type: int, doc: "Bytes."}
+  - name: DraftUpload
+    doc: An attachment arriving in chunks (draft.attachData).
+    fields:
+      - {name: uploadId, type: string, doc: "Names the upload in its later chunks."}
+      - {name: received, type: int, doc: "The bytes maild holds: the next chunk's offset."}
+      - {name: attachment, type: DraftAttachment, optional: true, doc: "The attachment, once the last chunk is in."}
   - name: DraftContent
     doc: What a compose window edits.
     fields:
@@ -83,6 +89,26 @@ methods:
     result: DraftAttachment
     errors: [notFound, invalidParams]
     callers: [local]
+  - name: attachData
+    doc: >-
+      Attach a file by its bytes, for a client that cannot name a path on
+      maild's machine, such as a browser through lodge: in chunks, in
+      order. The first chunk (offset 0, without uploadId) starts an upload
+      of size bytes named filename; each later one names the upload and
+      the offset it continues at. The chunk that completes size attaches
+      the file as draft.attach does, and the result carries it. maild
+      checks the name and the size, names the type from the name and the
+      bytes, and discards an upload its connection leaves unfinished, or
+      that sends nothing for 10 minutes.
+    params:
+      - {name: id, type: int}
+      - {name: filename, type: string, doc: "The file's name, without a directory."}
+      - {name: size, type: int, doc: "The whole file's bytes; the draft's attachments may total 25 MB."}
+      - {name: offset, type: int, doc: "Where this chunk starts: 0, then the last result's received."}
+      - {name: data, type: string, doc: "The chunk's bytes, base64 (standard alphabet, padded), 1 byte to 4 MiB decoded."}
+      - {name: uploadId, type: string, optional: true, doc: "The upload, for every chunk after the first."}
+    result: DraftUpload
+    errors: [notFound, invalidParams, conflict]
   - name: detach
     doc: Remove an attachment from a draft.
     params:

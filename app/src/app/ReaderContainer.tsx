@@ -296,6 +296,21 @@ function ConversationMessage({
     [client, id],
   );
 
+  // In lodge, a part saves as a download from the content origin
+  // (docs/specs/lodge-app.md, The web build).
+  const savePart = useCallback(
+    (part: Part) => {
+      void client.message
+        .part({ id, path: part.path })
+        .then((f) => {
+          const l = lodge();
+          if (l && f.contentPath) l.open(`${l.contentURL(f.contentPath)}?download=1`);
+        })
+        .catch((err: unknown) => console.warn("save part", err));
+    },
+    [client, id],
+  );
+
   const moreAction = useCallback(
     async (action: string) => {
       if (action === "headers") {
@@ -453,6 +468,7 @@ function ConversationMessage({
         <AttachmentStrip
           parts={invitation ? message.parts.filter((p) => p !== part) : message.parts}
           onOpen={openPart}
+          {...(IN_LODGE ? { onSave: savePart } : {})}
         />
       )}
     </article>

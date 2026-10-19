@@ -3,7 +3,7 @@
 // name, date, subject and recipients; the strip lists a message's
 // attachments as chips; the banner reports remote content and trackers that
 // were held back and offers to load them.
-import { Ellipsis, File, Star } from "lucide-react";
+import { Download, Ellipsis, File, Star } from "lucide-react";
 import { Fragment } from "react";
 
 import { avatarTone, displayName, formatAddressList, formatHeaderDate, formatSize, initials } from "../../lib/format";
@@ -147,6 +147,8 @@ export function MessageHeader(props: MessageHeaderProps) {
 export interface AttachmentStripProps {
   parts: Part[];
   onOpen: (part: Part) => void;
+  /** Saves a part as a download, where the reader offers it (in lodge). */
+  onSave?: (part: Part) => void;
 }
 
 /** isAttachment is whether a part is shown as an attachment rather than inline. */
@@ -164,7 +166,7 @@ export function AttachmentStrip(props: AttachmentStripProps) {
   return (
     <ul aria-label="Attachments" className="flex flex-wrap gap-2 px-5 pb-4">
       {attachments.map((part) => (
-        <li key={part.path}>
+        <li key={part.path} className="flex items-center gap-0.5">
           <button
             type="button"
             title={part.filename}
@@ -177,6 +179,17 @@ export function AttachmentStrip(props: AttachmentStripProps) {
             </span>
             <span className="text-[12px] text-secondary tabular-nums">{formatSize(part.size)}</span>
           </button>
+          {props.onSave && (
+            <button
+              type="button"
+              aria-label={`Save ${part.filename === "" ? "Untitled" : part.filename}`}
+              title="Save"
+              className="flex h-8 w-7 items-center justify-center rounded-md bg-banner text-secondary"
+              onClick={() => props.onSave?.(part)}
+            >
+              <Download size={14} />
+            </button>
+          )}
         </li>
       ))}
     </ul>
