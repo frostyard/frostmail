@@ -500,7 +500,7 @@ function AccountsPane() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full narrow:flex-col">
       <AccountList
         accounts={accounts}
         selected={selected}

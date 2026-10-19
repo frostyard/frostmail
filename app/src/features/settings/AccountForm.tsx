@@ -380,7 +380,7 @@ export function AccountForm(props: AccountFormProps) {
   const { mode, value, onChange, busy, error } = props;
   return (
     <form
-      className="flex h-full flex-1 flex-col overflow-y-auto px-6 py-5"
+      className="flex h-full flex-1 flex-col overflow-y-auto px-6 py-5 narrow:min-h-0 narrow:px-4"
       onSubmit={(event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         props.onSubmit();

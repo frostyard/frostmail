@@ -46,7 +46,7 @@ export function GeneralPane({ settings, smarts = [], blocked = [], error, onChan
     if (settings && trimmed.some((name, i) => name !== settings.flagNames[i])) onChange({ flagNames: trimmed });
   };
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-6 narrow:p-4">
       <div className={GRID}>
         <label htmlFor={`${id}-scope`} className={LABEL}>
           New message notifications:
