@@ -218,6 +218,17 @@ func (c *conn) write(m api.Frame) error {
 	if err != nil {
 		return err
 	}
+	if len(line) >= api.MaxMessageSize {
+		if m.Method != "" {
+			return fmt.Errorf("a %s of %d bytes is over the %d-byte message limit", m.Method, len(line), api.MaxMessageSize)
+		}
+		big := len(line)
+		line, err = json.Marshal(api.Frame{JSONRPC: "2.0", ID: m.ID,
+			Error: api.Internal("the reply is %d bytes; a message is at most %d", big, api.MaxMessageSize)})
+		if err != nil {
+			return err
+		}
+	}
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
 	_, err = c.nc.Write(append(line, '\n'))
