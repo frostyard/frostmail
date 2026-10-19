@@ -31,6 +31,7 @@ fn main() {
             bridge::maild_send,
             commands::open_link,
             commands::open_part,
+            commands::save_content,
             commands::open_compose,
             commands::open_event,
             commands::open_settings,

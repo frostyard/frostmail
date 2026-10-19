@@ -8,17 +8,25 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/render"
 )
 
 func newContent(t *testing.T) *Content {
 	t.Helper()
+	c, _ := newContentBlobs(t)
+	return c
+}
+
+func newContentBlobs(t *testing.T) (*Content, *blob.Store) {
+	t.Helper()
 	parts := &render.PartsCache{Root: filepath.Join(t.TempDir(), "parts")}
-	c, err := NewContent(parts)
+	blobs := blob.New(filepath.Join(t.TempDir(), "blobs"))
+	c, err := NewContent(parts, blobs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return c
+	return c, blobs
 }
 
 func get(t *testing.T, c *Content, method, path string, hdr ...string) *httptest.ResponseRecorder {
@@ -168,6 +176,67 @@ func TestPartResponse(t *testing.T) {
 	// Paths from another start, whose key differs, are gone.
 	if rec := get(t, newContent(t), "GET", "/content/"+path); rec.Code != http.StatusNotFound {
 		t.Errorf("a part path from before a restart = %d, want 404", rec.Code)
+	}
+}
+
+func TestSourceResponse(t *testing.T) {
+	c, blobs := newContentBlobs(t)
+	raw := []byte("From: a@mailtest.test\r\nSubject: Hi\r\n\r\n<script>alert(1)</script>\r\n")
+	id, err := blobs.Put(t.Context(), bytes.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := c.SourcePath(id, "Hi there é.eml")
+	if want := "/" + id + "/Hi%20there%20%C3%A9.eml"; !strings.HasPrefix(path, "m/") || !strings.HasSuffix(path, want) || len(path) != len("m/")+22+len(want) {
+		t.Fatalf("source path = %q, want m/<22 characters>%s", path, want)
+	}
+
+	// To read: text, which the content node's policy keeps inert.
+	rec := get(t, c, "GET", "/content/"+path)
+	if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), raw) {
+		t.Fatalf("GET = %d %q", rec.Code, rec.Body)
+	}
+	for k, want := range map[string]string{
+		"Content-Type":            "text/plain; charset=utf-8",
+		"Content-Security-Policy": PartPolicy,
+		"X-Content-Type-Options":  "nosniff",
+		"Cache-Control":           "private, no-store",
+		"Content-Disposition":     "",
+	} {
+		if got := rec.Header().Get(k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+
+	// To save: an .eml download under the name the path carries.
+	rec = get(t, c, "GET", "/content/"+path+"?download=1")
+	if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), raw) {
+		t.Fatalf("download = %d %q", rec.Code, rec.Body)
+	}
+	if got, want := rec.Header().Get("Content-Type"), "message/rfc822"; got != want {
+		t.Errorf("download Content-Type = %q, want %q", got, want)
+	}
+	if got, want := rec.Header().Get("Content-Disposition"), "attachment; filename*=UTF-8''Hi%20there%20%C3%A9.eml"; got != want {
+		t.Errorf("Content-Disposition = %q, want %q", got, want)
+	}
+	if rec := get(t, c, "GET", "/content/"+path, "Range", "bytes=0-3"); rec.Code != http.StatusPartialContent || rec.Body.String() != "From" {
+		t.Errorf("one range = %d %q, want 206 From", rec.Code, rec.Body)
+	}
+
+	mac := path[len("m/") : len("m/")+22]
+	other := strings.Repeat("0", 64)
+	for name, bad := range map[string]string{
+		"another name":          "m/" + mac + "/" + id + "/Other.eml",
+		"another blob":          "m/" + mac + "/" + other + "/Hi%20there%20%C3%A9.eml",
+		"a bad mac":             "m/" + strings.Repeat("A", 22) + "/" + id + "/Hi%20there%20%C3%A9.eml",
+		"a missing blob":        c.SourcePath(other, "x.eml"),
+		"an encoded separator":  "m/" + c.mac(sourceKey(id, "a/b.eml")) + "/" + id + "/a%2Fb.eml",
+		"the part of that name": "p/" + mac + "/" + id + "/Hi%20there%20%C3%A9.eml",
+		"an upper-case blob":    "m/" + mac + "/" + strings.ToUpper(id) + "/Hi%20there%20%C3%A9.eml",
+	} {
+		if rec := get(t, c, "GET", "/content/"+bad); rec.Code != http.StatusNotFound {
+			t.Errorf("%s: GET %s = %d, want 404", name, bad, rec.Code)
+		}
 	}
 }
 
