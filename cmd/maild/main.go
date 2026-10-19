@@ -178,7 +178,7 @@ func run(ctx context.Context, args []string) (err error) {
 		}
 	}
 
-	ln, err := rpcserver.Listen(paths.Socket)
+	ln, err := rpcserver.Listen(paths.Socket, logger)
 	if err != nil {
 		return err
 	}

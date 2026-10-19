@@ -121,7 +121,7 @@ func TestEventsResumeAfterReconnect(t *testing.T) {
 
 func TestListenRejectsLiveSocket(t *testing.T) {
 	srv := rpctest.Start(t)
-	if _, err := rpcserver.Listen(srv.Socket); err == nil || !strings.Contains(err.Error(), "already listening") {
+	if _, err := rpcserver.Listen(srv.Socket, nil); err == nil || !strings.Contains(err.Error(), "already listening") {
 		t.Fatalf("Listen on a live socket = %v", err)
 	}
 }

@@ -27,7 +27,7 @@ func TestPipeGrantsOnlyTheUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln, err := rpcserver.Listen(path)
+	ln, err := rpcserver.Listen(path, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

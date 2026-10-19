@@ -32,10 +32,14 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
   (`rpcserver`, `api.Dial`), paths (`config`), secrets (`secrets.Open`),
   notifications (`notify`) and the local zone (`calendar.LocalZone`).
 - **api** is the contract ([ADR-0007](../adr/0007-rpc-contract.md)): generated
-  types, services, router and client over a hand-written runtime.
-- **rpcserver** frames messages, checks the peer UID, rejects calls before
-  `rpc.hello`, runs requests concurrently (up to 32 per connection) and
-  delivers events after the `events.subscribe` reply.
+  types, services, router and client over the JSON-RPC runtime of lodge's
+  kit (`github.com/frostyard/lodge/kit/jsonrpc`), which frostnotes shares.
+- **rpcserver** serves `rpc.hello`, events and each connection's caller on
+  the kit's server, which frames messages, rejects calls before
+  `rpc.hello`, runs requests concurrently (up to 32 per connection), answers
+  `internal` to a panic or an oversized reply, and delivers events after the
+  `events.subscribe` reply. The private socket checks the peer: the kit's
+  `jsonrpc.Listen` on Linux, and on Windows maild's own named pipe.
 - **engine** implements the domains over the store and validates input.
 - **store** is SQLite with a single writer; durable events are written in
   the same transaction as the change ([storage.md](storage.md)).

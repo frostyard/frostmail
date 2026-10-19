@@ -167,7 +167,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		t.Fatal(err)
 	}
 	srv.Socket = socket
-	ln, err := rpcserver.Listen(srv.Socket)
+	ln, err := rpcserver.Listen(srv.Socket, log)
 	if err != nil {
 		t.Fatal(err)
 	}
