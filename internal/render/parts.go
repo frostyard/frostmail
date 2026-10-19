@@ -51,6 +51,20 @@ func (c *PartsCache) Open(rel string) (io.ReadCloser, error) {
 	return f, nil
 }
 
+// File opens the cached file at rel, for serving it with its size and
+// modification time.
+func (c *PartsCache) File(rel string) (*os.File, error) {
+	p, err := c.abs(rel)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, fmt.Errorf("parts cache: %w", err)
+	}
+	return f, nil
+}
+
 // Write stores data at rel atomically: a temp file in the same directory,
 // then a rename.
 func (c *PartsCache) Write(rel string, data []byte) error {

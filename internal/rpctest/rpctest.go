@@ -6,6 +6,7 @@ package rpctest
 import (
 	"context"
 	"log/slog"
+	"net"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
+	"github.com/frostyard/frostmail/internal/lodgeapp"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/pimsync"
@@ -57,6 +59,9 @@ type Options struct {
 	// Unsubscriber, when set, sends one-click unsubscribe requests
 	// (engine.Deps.Unsubscriber); tests pass a fake.
 	Unsubscriber engine.Unsubscriber
+	// Lodge, when set, serves reader pages and parts for lodge's content
+	// route, as maild --lodge does (Server.Content).
+	Lodge bool
 	// OnAttended learns when the app connects and leaves
 	// (rpcserver.Options.OnAttended).
 	OnAttended func(attended bool)
@@ -73,9 +78,12 @@ type Server struct {
 	Sync    *mailsync.Manager // nil unless Options.Sync was set
 	PIM     *pimsync.Manager  // nil unless Options.PIM was set
 	RPC     *rpcserver.Server
+	Router  *api.Router
 	Parts   *render.PartsCache
 	OAuth   *oauth.Manager
+	Content *lodgeapp.Content // nil unless Options.Lodge was set
 
+	ctx  context.Context
 	stop func()
 }
 
@@ -119,9 +127,17 @@ func StartWith(t testing.TB, o Options) *Server {
 		undo = 50 * time.Millisecond
 	}
 	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
+	if o.Lodge {
+		if srv.Content, err = lodgeapp.NewContent(srv.Parts); err != nil {
+			t.Fatal(err)
+		}
+	}
 	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
 		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery,
 		Unsubscriber: o.Unsubscriber}
+	if srv.Content != nil {
+		deps.Content = srv.Content
+	}
 	if o.PIM != nil {
 		cfg := *o.PIM
 		cfg.Tokens = srv.OAuth
@@ -164,7 +180,9 @@ func StartWith(t testing.TB, o Options) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	srv.Router = router
 	ctx, cancel := context.WithCancel(context.Background())
+	srv.ctx = ctx
 	go views.Run(ctx)
 	if srv.Sync != nil {
 		if err := srv.Sync.Start(ctx); err != nil {
@@ -205,6 +223,22 @@ func StartWith(t testing.TB, o Options) *Server {
 // sync stops, the socket closes and the database is closed. The test's
 // cleanup does the same; Stop is for restarting on the same DataDir.
 func (s *Server) Stop() { s.stop() }
+
+// DialAs serves a connection as caller, as lodge's /api does for a
+// session, and completes rpc.hello on it; the client closes when the test
+// ends.
+func (s *Server) DialAs(t testing.TB, caller api.Caller) (*api.Client, *api.Hello) {
+	t.Helper()
+	server, client := net.Pipe()
+	go s.RPC.ServeConn(s.ctx, server, s.Router, caller)
+	c := api.NewClient(client)
+	t.Cleanup(func() { _ = c.Close() })
+	h, err := c.RPC().Hello(t.Context(), &api.RPCHelloParams{Protocol: api.Protocol, Client: "rpctest"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, h
+}
 
 // Dial connects and completes rpc.hello; the client closes when the test ends.
 func (s *Server) Dial(t testing.TB) *api.Client {

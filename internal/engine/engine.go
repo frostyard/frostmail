@@ -85,6 +85,19 @@ type Deps struct {
 	// UIDs, and the hrefs made from them. Nil makes random UUIDs; replay
 	// tests give the names a recorded session used.
 	NewUID func() (string, error)
+	// Content keeps reader pages and names parts for lodge's content route
+	// (docs/specs/lodge-app.md); nil when maild serves no lodge socket,
+	// which leaves contentPath out.
+	Content Content
+}
+
+// Content is what the engine needs of lodge's content route
+// (lodgeapp.Content).
+type Content interface {
+	// KeepPage keeps a reader page and returns its content path, or "".
+	KeepPage(page []byte) string
+	// PartPath is the content path of a parts cache path.
+	PartPath(rel string) string
 }
 
 // newUID is a name for a new object (NewUID).
