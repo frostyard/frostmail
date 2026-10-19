@@ -142,8 +142,10 @@ LODGE_DESTDIR ?= build/lodge-root
 lodge-package: build ## Stage maild, its manifest, units and web build for lodge under LODGE_DESTDIR
 	packaging/lodge/stage.sh "$(LODGE_DESTDIR)" "$(VERSION)" build
 
+# The shell's notifications test needs a session bus: dbus-run-session gives
+# it one where the machine has it, and it skips elsewhere.
 app-test: ## Run the app shell's and the Windows notifier's Rust tests (nsl)
-	$(IN_NSL) 'cd app/src-tauri && cargo test --release && cd ../notify && cargo test --release'
+	$(IN_NSL) 'cd app/src-tauri && $$(command -v dbus-run-session >/dev/null && echo dbus-run-session --) cargo test --release && cd ../notify && cargo test --release'
 
 # Windows CI builds the Windows app (ADR-0038); here it is only type-checked,
 # without the sidecars its bundle takes.

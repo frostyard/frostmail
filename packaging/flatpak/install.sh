@@ -34,10 +34,12 @@ install -Dm644 app/src-tauri/icons/icon.png "$out/app/files/share/icons/hicolor/
 
 # The sandbox (ADR-0013): display, GPU and IPC; maild's socket directory;
 # its parts cache and the home directory read-only. The network is for the
-# Rust layer to reach a maild behind lodge (docs/design/desktop.md, On a
-# maild behind lodge); the webview's CSP still forbids every fetch.
+# Rust layer to reach a maild behind lodge, and the notification service
+# for its announcements, which that maild cannot show (docs/design/desktop.md,
+# On a maild behind lodge); the webview's CSP still forbids every fetch.
 flatpak build-finish "$out/app" --command=frostmail \
 	--socket=wayland --socket=fallback-x11 --share=ipc --device=dri --share=network \
+	--talk-name=org.freedesktop.Notifications \
 	--filesystem=xdg-run/frostmail --filesystem=xdg-cache/frostmail:ro --filesystem=home:ro
 
 flatpak build-export "$out/repo" "$out/app"
