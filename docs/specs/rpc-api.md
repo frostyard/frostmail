@@ -1464,6 +1464,15 @@ Remind Me: at a time, bring messages back to the top of their account's inbox an
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`, `conflict`.
 
+### Event `message.announced` (transient)
+
+New mail and fired Remind Me reminders to announce, sent live to every connected client when maild has no desktop to notify on (no session bus, as behind lodge, docs/specs/lodge-app.md); each client shows the notes itself. Never replayed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` |  |
+| `notes` | `[]Announcement` |  |
+
 ### Event `message.changed` (durable)
 
 Messages were added or changed (flags, mailbox, fetched body).
@@ -1558,6 +1567,16 @@ What unsubscribe did.
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `url` | `string` (optional) | For web: the page for the app to open. |
+
+### Type `Announcement`
+
+One notification of new mail, as maild's desktop notifications word it (docs/design/desktop.md, Notifications).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `title` | `string` | The sender, or "N new messages" for a group. |
+| `body` | `string` | The subject (after "Reminder: " for a Remind Me reminder) and a line of preview, or the senders of a group. |
+| `messageId` | `int` (optional) | The message it opens; absent for a group. |
 
 ### Type `MessageSource`
 

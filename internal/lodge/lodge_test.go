@@ -64,12 +64,20 @@ the attachment
 // INBOX holds message().
 func start(t *testing.T) (*rpctest.Server, *api.Client, int64) {
 	t.Helper()
+	srv, c, id, _ := startSynced(t)
+	return srv, c, id
+}
+
+// startSynced is start with the account's server, and new mail announced
+// to connected clients, as maild --lodge has no session bus.
+func startSynced(t *testing.T) (*rpctest.Server, *api.Client, int64, *imapxtest.Mem) {
+	t.Helper()
 	mem := imapxtest.StartMem(t)
 	if _, err := mem.User.Append("INBOX", strings.NewReader(message()), &imap.AppendOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	cfg := mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, MinBackoff: 50 * time.Millisecond, NoPrefetch: true}
-	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, Lodge: true})
+	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, Lodge: true, Broadcast: true})
 	c := srv.Dial(t)
 	ctx := t.Context()
 	inbox := api.MailboxRoleInbox
@@ -100,7 +108,7 @@ func start(t *testing.T) (*rpctest.Server, *api.Client, int64) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			return srv, c, rows[0].ID
+			return srv, c, rows[0].ID, mem
 		case <-timeout:
 			t.Fatal("the message never synced")
 		}
@@ -187,6 +195,49 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 	r, err = sess.Message().Render(ctx, &api.MessageRenderParams{ID: id, Content: &yes})
 	if err != nil || r.ContentPath == nil {
 		t.Fatalf("render as a session = %v, %v", r, err)
+	}
+}
+
+func TestNewMailIsAnnouncedToSessions(t *testing.T) {
+	srv, c, _, mem := startSynced(t)
+	ctx := t.Context()
+	sess, _ := srv.DialAs(t, api.Caller{Kind: api.CallerKindSession, Login: "e2e@example.com", NodeName: "e2e"})
+	if _, err := sess.Events().Subscribe(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	raw := "From: Ann <ann@mailtest.test>\r\nSubject: Lunch\r\n\r\nAt noon?\r\n"
+	if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := c.Account().List(ctx, nil)
+	if err != nil || len(accounts) != 1 {
+		t.Fatalf("accounts = %v, %v", accounts, err)
+	}
+	if err := c.Sync().Now(ctx, &api.SyncNowParams{AccountID: accounts[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	timeout := time.After(10 * time.Second)
+	for {
+		select {
+		case ev := <-sess.Notifications():
+			if ev.Event != "message.announced" {
+				continue
+			}
+			var a api.MessageAnnounced
+			if err := json.Unmarshal(ev.Data, &a); err != nil {
+				t.Fatal(err)
+			}
+			if a.AccountID != accounts[0].ID || len(a.Notes) != 1 || a.Notes[0].Title != "Ann" ||
+				!strings.HasPrefix(a.Notes[0].Body, "Lunch") || a.Notes[0].MessageID == nil {
+				t.Fatalf("announced %+v, want Ann's Lunch", a)
+			}
+			if ev.Seq != 0 {
+				t.Errorf("the announcement has seq %d, want a transient event", ev.Seq)
+			}
+			return
+		case <-timeout:
+			t.Fatal("the new mail was never announced")
+		}
 	}
 }
 

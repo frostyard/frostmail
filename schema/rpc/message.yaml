@@ -63,6 +63,12 @@ types:
     doc: What unsubscribe did.
     fields:
       - {name: url, type: string, optional: true, doc: "For web: the page for the app to open."}
+  - name: Announcement
+    doc: One notification of new mail, as maild's desktop notifications word it (docs/design/desktop.md, Notifications).
+    fields:
+      - {name: title, type: string, doc: "The sender, or \"N new messages\" for a group."}
+      - {name: body, type: string, doc: "The subject (after \"Reminder: \" for a Remind Me reminder) and a line of preview, or the senders of a group."}
+      - {name: messageId, type: int, optional: true, doc: "The message it opens; absent for a group."}
   - name: MessageSource
     doc: A message as the server holds it.
     fields:
@@ -261,6 +267,15 @@ methods:
       - {name: at, type: time, optional: true, doc: "In the future."}
     errors: [notFound, invalidParams, conflict]
 events:
+  - name: announced
+    doc: >-
+      New mail and fired Remind Me reminders to announce, sent live to every
+      connected client when maild has no desktop to notify on (no session
+      bus, as behind lodge, docs/specs/lodge-app.md); each client shows the
+      notes itself. Never replayed.
+    fields:
+      - {name: accountId, type: int}
+      - {name: notes, type: "[]Announcement"}
   - name: changed
     doc: Messages were added or changed (flags, mailbox, fetched body).
     durable: true
