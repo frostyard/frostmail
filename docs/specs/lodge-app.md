@@ -32,7 +32,7 @@ Phases 2 to 6 (merged 2026-10-19). `/mcp` grants reading, and with
 names. Its calendar, task and contact tools
 ([below](#calendar-tasks-and-contacts)) come from
 [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md): the
-read tools are built, and the waiting queries and the write tools are not
+read tools and the waiting queries are built, and the write tools are not
 yet.
 
 ## Interface
@@ -143,7 +143,7 @@ once its store is open, so a maild that answers is serving.
 | Domain | Callers | Methods with their own callers |
 | --- | --- | --- |
 | `rpc` (`hello`, `ping`) | local, session, agent | |
-| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `account.collections`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`, `calendar.range`, `calendar.event`, `tasks.list`, `tasks.get`, `people.list`, `people.get`: local, session and agent. `message.setFlags`, `message.move`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
+| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `account.collections`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`, `calendar.range`, `calendar.event`, `tasks.list`, `tasks.get`, `people.list`, `people.get`, `thread.awaitingReply`, `thread.awaitingOthers`: local, session and agent. `message.setFlags`, `message.move`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
 
 - A method a caller may not use answers `methodNotFound`, as for a method
   that does not exist.
@@ -261,9 +261,8 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
 
 **Status:** proposed in [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md)
 for [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md).
-The read methods and the read tools other than the two thread tools are
-built. `thread.awaitingReply`, `thread.awaitingOthers`, their tools, and
-the methods and tools under `write` are not yet.
+The read methods and tools are built, the waiting queries and their tools
+included. The methods and tools under `write` are not yet.
 
 **The methods agents gain,** all additive within protocol 1. The scope
 column is what an agent's token needs beyond reading:
@@ -348,8 +347,8 @@ session, so an agent's call is `methodNotFound` under every scope,
 | `read_task` | `task_id` | `tasks.get`: title, notes (cut at 32 KiB), due, completed and when, the list's ID and name, account ID, parent ID, and `message_id`, the message it was made from, for `read_thread` |
 | `search_contacts` | `query` (1 to 256 bytes, matched as `people.list` matches), `limit` (1 to 50, default 20) | the total, and the people by name: ID, name, organization, first address |
 | `read_contact` | `person_id` | `people.get`: the name and organization, and each contact the scope reaches. Each contact has its address book's ID, name parts, nickname, title, email addresses, phones, postal addresses, URLs, birthday, note (cut at 32 KiB) and whether it is read-only |
-| `threads_awaiting_reply` | `limit` (1 to 25, default 5), `waiting_days` (0 to 30, default 0), `within_days` (1 to 90, default 30) | `thread.awaitingReply`: the total, and for each thread its ID, account ID, VIP and days waiting, with its newest message's ID, subject, sender, date, preview and unread, and the thread's message count |
-| `threads_awaiting_others` | `limit` (1 to 25, default 10), `waiting_days` (0 to 30, default 5), `within_days` (1 to 90, default 30) | `thread.awaitingOthers`: the same, with the newest message's recipients (the first 10, with their count) in place of its sender |
+| `threads_awaiting_reply` | `limit` (1 to 25, default 5), `waiting_days` (0 to 30, default 0), `within_days` (1 to 90, default 30), `time_zone` (IANA; default maild's) | `thread.awaitingReply`: the zone, the total, and for each thread its ID, account ID, VIP and days waiting, with its newest message's ID, subject, sender, date (RFC 3339 in the zone), preview and unread, and the thread's message count |
+| `threads_awaiting_others` | `limit` (1 to 25, default 10), `waiting_days` (0 to 30, default 5), `within_days` (1 to 90, default 30), `time_zone` | `thread.awaitingOthers`: the same, with the newest message's recipients (the first 10, with their count) in place of its sender |
 
 Busy means not transparent, not cancelled, and not declined by the user.
 Only timed occurrences clash. A `limit` of 0 is its default. maild's zone

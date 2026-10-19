@@ -4800,9 +4800,53 @@ func (TasksChanged) Durable() bool { return true }
 
 // ---- thread ----
 
+// AwaitingThread: A conversation waiting on a reply (ADR-0042).
+type AwaitingThread struct {
+	ThreadID  int64 `json:"threadId"`
+	AccountID int64 `json:"accountId"`
+	// The thread's newest message.
+	Message MessageSummary `json:"message"`
+	// The first 10 of the newest message's To and Cc.
+	Recipients []Address `json:"recipients"`
+	// How many addresses its To and Cc hold.
+	RecipientCount int64 `json:"recipientCount"`
+	// awaitingReply: the sender is a VIP. awaitingOthers: a recipient is.
+	Vip bool `json:"vip"`
+	// Whole days of 24 hours since the newest message.
+	WaitingDays int64 `json:"waitingDays"`
+}
+
+// Awaiting: Conversations waiting on a reply, those with a VIP first, then
+// the newest first.
+type Awaiting struct {
+	// How many match, before limit.
+	Total   int64            `json:"total"`
+	Threads []AwaitingThread `json:"threads"`
+}
+
 // ThreadMessagesParams holds the params of thread.messages.
 type ThreadMessagesParams struct {
 	ID int64 `json:"id"`
+}
+
+// ThreadAwaitingReplyParams holds the params of thread.awaitingReply.
+type ThreadAwaitingReplyParams struct {
+	// 1 to 25; default 5.
+	Limit *int64 `json:"limit,omitzero"`
+	// At least this many days old, 0 to 30; default 0.
+	WaitingDays *int64 `json:"waitingDays,omitzero"`
+	// Less than this many days old, 1 to 90; default 30.
+	WithinDays *int64 `json:"withinDays,omitzero"`
+}
+
+// ThreadAwaitingOthersParams holds the params of thread.awaitingOthers.
+type ThreadAwaitingOthersParams struct {
+	// 1 to 25; default 10.
+	Limit *int64 `json:"limit,omitzero"`
+	// At least this many days old, 0 to 30; default 5.
+	WaitingDays *int64 `json:"waitingDays,omitzero"`
+	// Less than this many days old, 1 to 90; default 30.
+	WithinDays *int64 `json:"withinDays,omitzero"`
 }
 
 // ThreadService: Conversations, built by maild from message references (Gmail
@@ -4811,6 +4855,19 @@ type ThreadService interface {
 	// Messages implements thread.messages. The messages of a thread in every
 	// mailbox, oldest first, without messages deleted locally.
 	Messages(ctx context.Context, p *ThreadMessagesParams) ([]MessageSummary, error)
+	// AwaitingReply implements thread.awaitingReply. Conversations waiting on the
+	// user (docs/specs/lodge-app.md, Calendar, tasks and contacts): those whose
+	// newest message, leaving out drafts and messages only in Drafts, Trash or
+	// Junk, is from someone else to one of its account's identities in To, from
+	// no list or no-reply sender, not answered, muted or blocked, in an inbox,
+	// and dated between withinDays and waitingDays ago.
+	AwaitingReply(ctx context.Context, p *ThreadAwaitingReplyParams) (*Awaiting, error)
+	// AwaitingOthers implements thread.awaitingOthers. Conversations waiting on
+	// other people: those whose newest message, chosen as for awaitingReply, is
+	// from one of its account's identities to someone who is none of any
+	// account's identities, not muted, and dated between withinDays and
+	// waitingDays ago.
+	AwaitingOthers(ctx context.Context, p *ThreadAwaitingOthersParams) (*Awaiting, error)
 }
 
 func registerThread(r *Router, s ThreadService) {
@@ -4820,6 +4877,20 @@ func registerThread(r *Router, s ThreadService) {
 			return nil, err
 		}
 		return s.Messages(ctx, &p)
+	})
+	r.handle("thread.awaitingReply", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ThreadAwaitingReplyParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.AwaitingReply(ctx, &p)
+	})
+	r.handle("thread.awaitingOthers", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ThreadAwaitingOthersParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.AwaitingOthers(ctx, &p)
 	})
 }
 
@@ -4836,6 +4907,26 @@ func (x ThreadClient) Messages(ctx context.Context, p *ThreadMessagesParams) ([]
 	var r []MessageSummary
 	err := x.c.Call(ctx, "thread.messages", p, &r)
 	return r, err
+}
+
+// AwaitingReply calls thread.awaitingReply.
+func (x ThreadClient) AwaitingReply(ctx context.Context, p *ThreadAwaitingReplyParams) (*Awaiting, error) {
+	var r Awaiting
+	err := x.c.Call(ctx, "thread.awaitingReply", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// AwaitingOthers calls thread.awaitingOthers.
+func (x ThreadClient) AwaitingOthers(ctx context.Context, p *ThreadAwaitingOthersParams) (*Awaiting, error) {
+	var r Awaiting
+	err := x.c.Call(ctx, "thread.awaitingOthers", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // ---- view ----
@@ -5529,6 +5620,8 @@ var methodCallers = map[string][]CallerKind{
 	"tasks.update":            {CallerKindLocal, CallerKindSession},
 	"tasks.delete":            {CallerKindLocal, CallerKindSession},
 	"thread.messages":         {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"thread.awaitingReply":    {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"thread.awaitingOthers":   {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"view.open":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"view.count":              {CallerKindLocal, CallerKindSession},
 	"view.range":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
@@ -5661,6 +5754,8 @@ var Methods = []string{
 	"tasks.update",
 	"tasks.delete",
 	"thread.messages",
+	"thread.awaitingReply",
+	"thread.awaitingOthers",
 	"view.open",
 	"view.count",
 	"view.range",

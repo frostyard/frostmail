@@ -15,9 +15,9 @@ waiting on the user, and waiting on others
 
 Status (2026-10-19):
 - **Phase 1 is written.** ADR-0042 is still Proposed.
-- **Phase 2's reads and Phase 4's read tools are built,** other than the
-  two thread tools. Phase 2's writes, Phase 3 and the rest of Phase 4 are
-  to build. Phases 2 to 4 need nothing new from lodge.
+- **Phase 2's reads, Phase 3 and Phase 4's read tools are built.** Phase
+  2's writes and Phase 4's write tools are to build. Phases 2 to 4 need
+  nothing new from lodge.
 - **Phase 5** needs lodge's local agent socket
   ([lodge ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md)).
 
@@ -104,6 +104,19 @@ Porter's design:
   - each param is tested at the ends of its range and one past each end;
   - on 50,000 generated messages (`tools/mailgen`), each method answers in
     under 150 ms.
+- **Built,** with `mailctl waiting [--others]`. The rules' tests are
+  `internal/engine/awaiting_test.go`, a thread for each rule and boundary,
+  with a Gmail account for the `INBOX` label.
+  - Timed on 2026-10-19, on `tools/uifixture -n 50000 -seed 7` with maild
+    on the Framework (Strix Halo), 20 runs over the socket after one
+    warm-up, `limit` 25 and `waitingDays` 0. mailgen's mail is to
+    `test@mailtest.test`, so the fixture account gained that identity.
+    - `withinDays` 30: `awaitingReply` p95 41.5 ms (1,647 threads match),
+      `awaitingOthers` p95 28.8 ms.
+    - `withinDays` 90: `awaitingReply` p95 66.4 ms (7,439 match),
+      `awaitingOthers` p95 65.4 ms.
+    - No thread matched `awaitingOthers`, since mailgen writes no sent
+      mail; it still scans the same window.
 
 ## Phase 4 — The tools (planner, medium)
 

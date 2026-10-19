@@ -396,7 +396,7 @@ func TestAgentsReadMailThroughLodge(t *testing.T) {
 
 // readTools are the tools every scope has, sorted.
 var readTools = []string{"list_collections", "list_events", "list_mailboxes", "list_tasks", "read_contact", "read_event",
-	"read_task", "read_thread", "search_contacts", "search_messages"}
+	"read_task", "read_thread", "search_contacts", "search_messages", "threads_awaiting_others", "threads_awaiting_reply"}
 
 func toolNames(t *testing.T, cs *sdk.ClientSession) []string {
 	t.Helper()
