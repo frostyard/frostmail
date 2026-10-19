@@ -1,11 +1,12 @@
-// Notifications in a browser (docs/specs/lodge-app.md, The web build): a
-// maild with no session bus announces new mail to connected clients
-// (message.announced), and the web build shows each note with the
-// Notification API, as maild words them on a desktop. Calendar reminders
-// raise the reminder window, which a hidden page cannot show, so a hidden
-// page notifies them too. Nothing notifies while no page is open: that
-// waits on Web Push, lodge's decision.
-import { isTauri } from "@tauri-apps/api/core";
+// Notifications from a maild with no session bus (docs/specs/lodge-app.md,
+// The web build; docs/design/desktop.md, Notifications): it announces new
+// mail to connected clients (message.announced). The web build shows each
+// note with the Notification API, as maild words them on a desktop, and
+// the desktop app hands them to its own notifier (src-tauri/src/announce.rs).
+// Calendar reminders raise the reminder window, which a hidden page cannot
+// show, so a hidden page notifies them too. Nothing notifies while no page
+// is open: that waits on Web Push, lodge's decision.
+import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { useMail, useUI } from "../data/stores";
 import { lodge } from "../lodge/lodge";
@@ -49,6 +50,14 @@ function show(): void {
 
 /** watchAnnouncements shows new mail and, while the page is hidden, due reminders; it returns the cleanup. */
 export function watchAnnouncements(client: Client): () => void {
+  if (isTauri()) {
+    return client.transport.onEvent((event) => {
+      if (event.event === "message.announced")
+        void invoke("notify_mail", { accountId: event.data.accountId, notes: event.data.notes }).catch((err: unknown) =>
+          console.warn("notify", err),
+        );
+    });
+  }
   if (!browserNotifications()) return () => {};
   const reminded = new Set<string>();
   const openMessage = (id: number) => {

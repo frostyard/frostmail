@@ -6,7 +6,7 @@
 use std::sync::Mutex;
 
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{bridge, protocol, remote};
@@ -275,14 +275,7 @@ pub fn startup_message(launch: State<'_, Launch>) -> Option<i64> {
 /// A second launch (single instance): show the main window and pass on
 /// its --open-message as the open-message event (docs/design/desktop.md).
 pub fn second_launch(app: &AppHandle, args: &[String]) {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
-    if let Some(id) = open_request(args) {
-        let _ = app.emit_to("main", "open-message", id);
-    }
+    crate::announce::open(app, open_request(args).unwrap_or(0));
 }
 
 #[cfg(test)]

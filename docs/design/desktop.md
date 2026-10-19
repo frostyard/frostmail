@@ -229,9 +229,20 @@ tailnet, such as the friend's Windows install.
   `message.source {content: true}` names (`m/…`) from the content node
   into that file, in the Rust layer as `open_part` downloads parts.
 - **Notifications.** A remote maild has no session bus, so it sends each
-  connected client `message.announced` (above, built). The desktop app's
-  own notifier is to show them; a click opens the message, as
-  `--open-message` does (not built yet).
+  connected client `message.announced` (above), and the app's webview
+  hands the notes to `notify_mail` (`src-tauri/src/announce.rs`), which
+  shows them as maild would on this machine:
+  - on Linux, through `org.freedesktop.Notifications` on the app's own
+    session bus (zbus), with maild's hints, its Open action and its
+    group note per account that the next replaces; a click brings the
+    main window forward at the message (the `open-message` event);
+  - on Windows, through `frostmail-notify.exe` beside the app, with the
+    operation maild writes it (`mail` group, `m<id>` or `a<account>`
+    tags), whose click runs `frostmail.exe --open-message`, which the
+    single instance hands to the running app;
+  - elsewhere, not yet.
+
+  A calendar reminder raises the reminder window, as with a local maild.
 - **What does not change:** with no `lodge` in `app.json`, the bridge,
   the parts and every window are as above, on maild's own socket or pipe.
 - **Tests:** `src-tauri/src/remote.rs`'s tests (addresses, the
@@ -240,7 +251,8 @@ tailnet, such as the friend's Windows install.
   a fixture and the built app with `app.json` naming lodge, and lists,
   reads and sends a reply through it. It needs lodge's `make e2e-build`
   output in `FROSTMAIL_LODGE_E2E`, and skips without it.
-- **The Flatpak** gains `--share=network` for the Rust layer. The
+- **The Flatpak** gains `--share=network` for the Rust layer, and
+  `--talk-name=org.freedesktop.Notifications` for its notifications. The
   webview's CSP still forbids every fetch, so ADR-0005's third layer
   holds, though the sandbox no longer cuts the network on its own.
 
