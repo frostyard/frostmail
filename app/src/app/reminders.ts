@@ -3,6 +3,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { useUI } from "../data/stores";
+import { closeFrameWindow, frameWindowOpen, openFrameWindow } from "../lodge/frameWindow";
+import { IN_LODGE } from "../lodge/lodge";
 import type { Client } from "../rpc/gen/api";
 
 declare global {
@@ -27,6 +29,11 @@ export function isRemindersWindow(): boolean {
 
 /** openReminders shows the reminder window, raising it when it is open. */
 export async function openReminders(): Promise<void> {
+  if (IN_LODGE) {
+    // In lodge's frame the reminders never cover a window the user is in.
+    if (!frameWindowOpen()) openFrameWindow({ kind: "reminders" });
+    return;
+  }
   if (isTauri()) {
     await invoke("open_reminders");
     return;
@@ -36,6 +43,7 @@ export async function openReminders(): Promise<void> {
 
 /** openOccurrenceInMain asks the main window to open an occurrence in Calendar. */
 export async function openOccurrenceInMain(request: OccurrenceRequest): Promise<void> {
+  closeFrameWindow(); // in lodge, back to the main window to show it
   if (isTauri()) {
     await emitTo("main", "open-occurrence", request);
     return;

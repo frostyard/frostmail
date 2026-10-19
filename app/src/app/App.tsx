@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 
 import { type Connect, Session } from "../data/session";
 import { useMail } from "../data/stores";
+import { useFrameWindow } from "../lodge/frameWindow";
+import { IN_LODGE } from "../lodge/lodge";
 import { ComposeWindow } from "./ComposeWindow";
 import { composeTarget } from "./compose";
 import { EventWindow } from "./EventWindow";
@@ -38,6 +40,24 @@ function useHash() {
   return hash;
 }
 
+/** LodgeFrame is the app in lodge's frame: the main window, covered by the
+ * window a route names, which keeps the main window mounted underneath
+ * (lodge/frameWindow.ts). */
+function LodgeFrame() {
+  const open = useFrameWindow((s) => s.open);
+  return (
+    <>
+      <div className="h-full" hidden={open !== null}>
+        <MainWindow />
+      </div>
+      {open?.kind === "compose" && <ComposeWindow key={open.draftId} draftId={open.draftId} fresh={open.fresh} />}
+      {open?.kind === "event" && <EventWindow key={JSON.stringify(open.target)} target={open.target} />}
+      {open?.kind === "reminders" && <RemindersWindow />}
+      {open?.kind === "settings" && <SettingsWindow />}
+    </>
+  );
+}
+
 /** App connects to maild with connect and shows the main window, a compose window's draft, an event editor, reminders, or settings. */
 export function App(props: { connect: Connect }) {
   useHash();
@@ -50,7 +70,9 @@ export function App(props: { connect: Connect }) {
   }, []);
   return (
     <Session connect={props.connect} fallback={<Connecting />}>
-      {target !== null ? (
+      {IN_LODGE ? (
+        <LodgeFrame />
+      ) : target !== null ? (
         <ComposeWindow draftId={target.draftId} fresh={target.fresh} />
       ) : event !== null ? (
         <EventWindow target={event} />

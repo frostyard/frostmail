@@ -107,9 +107,11 @@ boundaries, so the planner builds them.
 
 ## Phase 4 — Mail's windows and files in a browser (executor, large)
 
-- **Windows become routes.** Compose (`/compose/<draft id>`), Settings
-  (`/settings`), the event editor and the reminder window open in the
-  frame, each with its way back. The desktop app keeps its windows.
+- **Windows become routes** (built). Compose (`/compose/<draft id>`),
+  Settings (`/settings`), the event editor and the reminder window open in
+  the frame, each with its way back. The desktop app keeps its windows.
+  A reply composed in lodge's frame goes out through `tools/smtpsink`
+  (`dev/lodge/run.sh ROOT fixture`).
 - **Files.** Attaching sends the file's bytes over the RPC
   (`draft.attachData`, in chunks within the 16 MiB message limit). Save As
   and Raw Source download from a content route for the message's source.

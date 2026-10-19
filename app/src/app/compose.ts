@@ -4,6 +4,7 @@
 // browser (the dev gateway) it opens in a new tab at #/compose/<id>.
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
+import { openFrameWindow } from "../lodge/frameWindow";
 import type { Client, DraftKind } from "../rpc/gen/api";
 
 declare global {
@@ -33,6 +34,7 @@ export function composeTarget(): ComposeTarget | null {
 
 /** openCompose shows a draft in its compose window, focusing it when it is already open. */
 export async function openCompose(draftId: number, fresh = false): Promise<void> {
+  if (openFrameWindow({ kind: "compose", draftId, fresh })) return;
   if (isTauri()) {
     await invoke("open_compose", { draftId, fresh });
     return;
