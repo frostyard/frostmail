@@ -65,3 +65,4 @@ was always going to ship a Flatpak.
 - Builds on: [ADR-0002](0002-daemon-and-thin-clients.md),
   [ADR-0005](0005-html-mail-rendering.md),
   [ADR-0006](0006-development-environment.md)
+- Related: [ADR-0041](0041-maild-runs-as-a-lodge-app.md) (the desktop app as a lodge client)

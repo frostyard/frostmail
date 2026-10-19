@@ -60,4 +60,4 @@ matters most. GTK and Qt look like their desktops.
 ## References
 
 - Shapes: [design/overview.md](../design/overview.md), [specs/rpc-protocol.md](../specs/rpc-protocol.md)
-- Related: [ADR-0005](0005-html-mail-rendering.md), [ADR-0007](0007-rpc-contract.md)
+- Related: [ADR-0005](0005-html-mail-rendering.md), [ADR-0007](0007-rpc-contract.md), [ADR-0041](0041-maild-runs-as-a-lodge-app.md) (maild behind lodge, for every client)

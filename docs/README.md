@@ -56,6 +56,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0038 — Windows is a second platform, with maild and the app as on Linux](adr/0038-windows-as-a-second-platform.md)
 - [0039 — Microsoft accounts: mail over IMAP and SMTP, contacts and calendars over Graph](adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)
 - [0040 — Store Graph's events and contacts as iCalendar and vCard derived from its JSON](adr/0040-graph-events-and-contacts-as-derived-sources.md)
+- [0041 — maild runs as a lodge app](adr/0041-maild-runs-as-a-lodge-app.md)
 
 ### Design
 
@@ -83,6 +84,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [People, calendar and tasks UI](specs/pim-ui.md): the module bar, the People module, the contact card (M4.5)
 - [Mail.app parity](specs/parity.md): every Mail feature, its status and its test (M5)
 - [Condition editor and smart mailboxes](specs/organize-ui.md): the editor rules share, the smart mailbox sheet (M5)
+- [maild as a lodge app](specs/lodge-app.md): what maild installs for lodge and serves on its app socket, and the web build (M8)
 
 ### Plans
 
@@ -96,6 +98,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md), done, with its evidence
 - [0009 — M5.5 edit events and contacts](plans/0009-m5.5-edit-events-and-contacts.md)
 - [0010 — M7 Microsoft accounts and Windows](plans/0010-m7-microsoft-and-windows.md)
+- [0011 — M8 Mail in lodge](plans/0011-m8-mail-in-lodge.md)
 
 ## Conventions
 
