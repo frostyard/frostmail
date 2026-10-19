@@ -1371,11 +1371,12 @@ Errors: `notFound`.
 
 ### `message.source`
 
-Raw Source and All Headers: the message as the server holds it, fetched first when it is not stored. Bytes that are not UTF-8 show as U+FFFD.
+Raw Source and All Headers: the message as the server holds it, fetched first when it is not stored. Bytes that are not UTF-8 show as U+FFFD. With content, also the message's path on maild's lodge content route, for Save As by download.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | `int` |  |
+| `content` | `bool` (optional) | Also name the whole message on maild's lodge content route, in contentPath. |
 
 Result: `MessageSource`.
 Errors: `notFound`, `unavailable`.
@@ -1556,6 +1557,7 @@ A message as the server holds it.
 | `headers` | `string` | The header section, up to the blank line. |
 | `text` | `string` | The whole message, at most 2 MB of it. |
 | `truncated` | `bool` | The message is longer than text. |
+| `contentPath` | `string` (optional) | With source's content, on a maild serving lodge: the whole message on maild's content route, as m/<mac>/<blob>/<name>.eml, which downloads with ?download=1 (docs/specs/lodge-app.md). |
 
 ### Type `Message`
 

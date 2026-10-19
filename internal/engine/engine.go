@@ -87,7 +87,7 @@ type Deps struct {
 	NewUID func() (string, error)
 	// uploads holds draft.attachData's uploads in progress (New makes it).
 	uploads *uploads
-	// Content keeps reader pages and names parts for lodge's content route
+	// Content keeps reader pages and names parts and messages for lodge's content route
 	// (docs/specs/lodge-app.md); nil when maild serves no lodge socket,
 	// which leaves contentPath out.
 	Content Content
@@ -100,6 +100,8 @@ type Content interface {
 	KeepPage(page []byte) string
 	// PartPath is the content path of a parts cache path.
 	PartPath(rel string) string
+	// SourcePath is the content path of a stored message's blob, saved as name.
+	SourcePath(blobID, name string) string
 }
 
 // newUID is a name for a new object (NewUID).

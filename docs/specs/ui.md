@@ -366,12 +366,16 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   - **Raw Source:** a sheet (the smart mailbox sheet's frame, 720 wide,
     titled "Raw Source") with the whole message (`text`) in a 12/18
     monospace `pre` 480 high that scrolls, "The message is longer than
-    what is shown." under it when `truncated`, and Close.
+    what is shown." under it when `truncated`, then Save As… (as the
+    menu's, for the whole message) and Close. Tab moves between the two.
   - **Save As:** the save dialog (title "Save Message", default name the
     subject with `/` and `\` replaced by `-`, "(no subject)" when blank,
     plus `.eml`, filter "Email Message" `eml`), then `message.save {id,
-    path}`; nothing when the dialog is cancelled; outside Tauri,
-    nothing.
+    path}`; nothing when the dialog is cancelled. On a maild behind
+    lodge the app downloads the message there instead
+    ([design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge)),
+    and in lodge's web build the browser downloads it
+    ([lodge-app.md](lodge-app.md#the-web-build)).
   - **Print:** the webview's print (`window.print()`). Print styles show
     only the reader pane, unscrolled and without toolbars or banners'
     buttons; the print dialog's Print to File is Export as PDF.

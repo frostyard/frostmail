@@ -1,7 +1,7 @@
 // Package lodge serves maild as lodge's mail app on its app socket
 // (docs/specs/lodge-app.md, ADR-0041): /health, the /api WebSocket as caller
-// session, and /content/ for reader pages and parts, which lodge-content
-// serves to the reader's frame.
+// session, and /content/ for reader pages, parts and whole messages, which
+// lodge-content serves to the reader's frame and to downloads.
 package lodge
 
 import (
@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"regexp"
 	"strings"
@@ -39,11 +40,18 @@ const (
 	PartPolicy = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
 )
 
+// Blobs opens a stored message by its blob ID (blob.Store).
+type Blobs interface {
+	Open(id string) (io.ReadCloser, error)
+}
+
 // Content is what maild serves under /content/: reader pages kept in
-// memory, and files of the parts cache named by a MAC under a key drawn at
-// start, so content paths are unguessable and end with the process.
+// memory, and files of the parts cache and stored messages named by a MAC
+// under a key drawn at start, so content paths are unguessable and end
+// with the process.
 type Content struct {
 	parts *render.PartsCache
+	blobs Blobs
 	key   []byte
 
 	mu    sync.Mutex
@@ -58,13 +66,13 @@ type page struct {
 	kept  time.Time
 }
 
-// NewContent serves parts from parts.
-func NewContent(parts *render.PartsCache) (*Content, error) {
+// NewContent serves parts from parts and messages' sources from blobs.
+func NewContent(parts *render.PartsCache, blobs Blobs) (*Content, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return nil, fmt.Errorf("content key: %w", err)
 	}
-	return &Content{parts: parts, key: key, pages: map[string]*list.Element{}, order: list.New()}, nil
+	return &Content{parts: parts, blobs: blobs, key: key, pages: map[string]*list.Element{}, order: list.New()}, nil
 }
 
 // KeepPage keeps a reader page and returns its content path,
@@ -107,6 +115,17 @@ func (c *Content) PartPath(rel string) string {
 	}
 	return "p/" + c.mac(rel) + "/" + strings.Join(segs, "/")
 }
+
+// SourcePath is the content path of a stored message, the blob blobID,
+// saved as name: m/<mac>/<blobID>/<name percent-encoded>. The MAC covers
+// the name too, so a path names one file name.
+func (c *Content) SourcePath(blobID, name string) string {
+	return "m/" + c.mac(sourceKey(blobID, name)) + "/" + blobID + "/" + escape(name)
+}
+
+// sourceKey is what a source path's MAC covers; the NUL keeps it apart
+// from every parts cache path, which never holds one.
+func sourceKey(blobID, name string) string { return "m\x00" + blobID + "/" + name }
 
 // mac is 22 base64url characters: the first 16 bytes of HMAC-SHA256(rel).
 func (c *Content) mac(rel string) string {
@@ -152,8 +171,9 @@ func unescape(s string) (string, bool) {
 }
 
 var (
-	pagePath = regexp.MustCompile(`^r/([0-9a-f]{32})\.html$`)
-	partPath = regexp.MustCompile(`^p/([A-Za-z0-9_-]{22})/(.+)$`)
+	pagePath   = regexp.MustCompile(`^r/([0-9a-f]{32})\.html$`)
+	partPath   = regexp.MustCompile(`^p/([A-Za-z0-9_-]{22})/(.+)$`)
+	sourcePath = regexp.MustCompile(`^m/([A-Za-z0-9_-]{22})/([0-9a-f]{64})/([^/]+)$`)
 )
 
 // ServeHTTP serves GET and HEAD /content/<content path>. lodge has checked
@@ -175,6 +195,10 @@ func (c *Content) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if m := partPath.FindStringSubmatch(path); m != nil {
 		c.servePart(w, r, m[1], m[2])
+		return
+	}
+	if m := sourcePath.FindStringSubmatch(path); m != nil {
+		c.serveSource(w, r, m[1], m[2], m[3])
 		return
 	}
 	httpError(w, "not found", http.StatusNotFound)
@@ -231,6 +255,48 @@ func (c *Content) servePart(w http.ResponseWriter, r *http.Request, mac, escaped
 	}
 	oneRange(r)
 	http.ServeContent(w, r, "", fi.ModTime(), f)
+}
+
+// serveSource serves a stored message as the server holds it: as text to
+// read, or with ?download=1 as an .eml file to save (Save As).
+func (c *Content) serveSource(w http.ResponseWriter, r *http.Request, mac, blobID, escaped string) {
+	name, ok := unescape(escaped)
+	if !ok || name == "" || c.blobs == nil || !hmac.Equal([]byte(mac), []byte(c.mac(sourceKey(blobID, name)))) {
+		httpError(w, "not found", http.StatusNotFound)
+		return
+	}
+	rc, err := c.blobs.Open(blobID)
+	if err != nil {
+		httpError(w, "not found", http.StatusNotFound)
+		return
+	}
+	defer rc.Close()
+	var modified time.Time
+	if st, ok := rc.(interface{ Stat() (fs.FileInfo, error) }); ok {
+		if fi, err := st.Stat(); err == nil {
+			modified = fi.ModTime()
+		}
+	}
+	body, ok := rc.(io.ReadSeeker)
+	if !ok {
+		raw, err := io.ReadAll(rc)
+		if err != nil {
+			httpError(w, "not found", http.StatusNotFound)
+			return
+		}
+		body = bytes.NewReader(raw)
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/plain; charset=utf-8")
+	if r.URL.Query().Get("download") == "1" {
+		h.Set("Content-Type", "message/rfc822")
+		h.Set("Content-Disposition", "attachment; filename*=UTF-8''"+escape(name))
+	}
+	h.Set("Content-Security-Policy", PartPolicy)
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Cache-Control", "private, no-store")
+	oneRange(r)
+	http.ServeContent(w, r, "", modified, body)
 }
 
 // oneRange drops a Range header naming several ranges: content answers one

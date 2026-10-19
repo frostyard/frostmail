@@ -110,6 +110,19 @@ pub async fn open_part(
     app.opener().open_path(full.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Save As on a maild behind lodge (docs/design/desktop.md): download the
+/// message maild named on lodge's content node into the file the user
+/// chose. The maild on this machine writes it there itself (message.save).
+#[tauri::command]
+pub async fn save_content(content_path: String, path: String) -> Result<(), String> {
+    let url = remote::load()?.lodge.ok_or("Save As downloads only from a maild behind lodge")?;
+    let lodge = remote::Lodge::parse(&url)?;
+    let path = std::path::PathBuf::from(path);
+    tauri::async_runtime::spawn_blocking(move || remote::save_to(&lodge, &content_path, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 /// Refuse a file whose type runs code when opened.
 fn refuse_unsafe(name: &str) -> Result<(), String> {
     let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();

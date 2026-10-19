@@ -86,6 +86,7 @@ path admits one caller kind, and any other is 403:
 | `GET /api`, WebSocket | `session` | JSON-RPC as caller `session` |
 | `GET`, `HEAD` `/content/r/<token>.html` | `content` | a reader page |
 | `GET`, `HEAD` `/content/p/<mac>/<path>` | `content` | a decoded part |
+| `GET`, `HEAD` `/content/m/<mac>/<blob>/<name>` | `content` | a whole message, for Save As |
 | `POST`, `GET`, `DELETE` `/mcp` | `agent` | MCP Streamable HTTP |
 
 - Any other path is 404, and any other method on a listed path is 405.
@@ -149,6 +150,10 @@ once its store is open, so a maild that answers is serving.
     `r/<token>.html`. It is absent otherwise.
   - `PartFile` gains `contentPath`, `p/<mac>/<path>`, on a maild serving
     `--lodge`.
+  - `message.source` gains the optional param `content`. With `content`
+    true, on a maild serving `--lodge`, the result's `contentPath` names
+    the whole message on the content route, `m/<mac>/<blob>/<name>`, for
+    Save As by download. It is absent otherwise.
 
 ### Attaching by bytes
 
@@ -253,6 +258,22 @@ path>`; the web app builds them with lodge-client's `contentURL`.
   - `X-Content-Type-Options: nosniff`;
   - `Cache-Control: private, no-store`.
 
+**Messages,** `GET` or `HEAD /content/m/<mac>/<blob>/<name>`, for Save
+As:
+
+- `blob` is the stored message's blob ID (64 lowercase hex digits), and
+  `name` the file name it saves as, percent-encoded as one segment: the
+  subject with `/`, `\` and control characters as `-`, leading dots
+  dropped, at most 200 bytes, then `.eml`; `(no subject).eml` for none.
+  `message.source {content: true}` fetches the whole message first when
+  only its display copy is stored.
+- `mac` is as a part's, over `m`, a NUL, then `<blob>/<name>`, so a path
+  names one message and one name, and no part's path is a message's.
+- The answer is the message as the server holds it, as
+  `text/plain; charset=utf-8`; with `?download=1`, as `message/rfc822`
+  with `Content-Disposition: attachment; filename*=UTF-8''<name>`.
+- Ranges and the other headers are as a part's.
+
 lodge-content adds its own sandbox policy and cross-origin headers
 ([lodge-http](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-http.md#content-routes)).
 For mail, whose manifest sets `contentLinks`, lodge's sandbox is
@@ -338,8 +359,11 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 - **Attaching** sends the file's bytes with `draft.attachData`
   ([Attaching by bytes](#attaching-by-bytes)), from Attach Files (a file
   input) or files dropped on the window.
-- **What a session cannot do** is not offered: Save As of a whole message,
-  which writes a path on maild's machine.
+- **Save As** of a whole message downloads it: `message.source {content:
+  true}`, then `lodge.open` of its content URL with `?download=1`, in
+  place of `message.save`, which writes a path on maild's machine and
+  answers a session `methodNotFound`. Raw Source's sheet offers Save As
+  too, for the whole of a message longer than the sheet shows.
 
 ### Limits
 
