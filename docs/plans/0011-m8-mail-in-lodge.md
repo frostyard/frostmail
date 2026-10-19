@@ -17,7 +17,6 @@ Status (2026-10-19):
 - **Still to see:**
   - Phase 3: the reader frame's images from `lodge-content`, and the
     switcher's chord, in a real browser;
-  - Phase 5: drafting live under `;write` through lodge;
   - Phase 6: a real notification on Linux and on Windows.
 - **Phase 7** waits on the user.
 
@@ -239,8 +238,25 @@ boundaries, so the planner builds them.
     new session and retried by itself. It probes MCP 2026-07-28's
     `server/discover` first, which the kit answers 400, and falls back to
     `initialize` at 2025-11-25. Revoking the token made the next request
-    401 (frostyard/lodge#9). Drafting live under `;write` is still to
-    run.
+    401 (frostyard/lodge#9).
+  - Live under `;write`, 2026-10-19 at about 17:35 UTC, after lodge's
+    host was redeployed from the new mains (lodge 5cc661a, notes b06b7ef,
+    maild 4886778; showcase data, sync off): the same Claude Code, with an
+    `account=1;write` token, through LODGE's `/mcp/mail`.
+    - It was offered `list_mailboxes`, `search_messages`, `read_thread`,
+      `draft_reply`, `move_messages` and `set_flags`, and not
+      `send_draft`.
+    - `search_messages` found "Dinner Saturday?" from Iris Young (message
+      5, account 1), and `read_thread` read its thread. `draft_reply`
+      drafted the reply, draft 2: to Iris Young, "Re: Dinner Saturday?",
+      the given text above the quote. It opened at `/mail/compose/2` in
+      LODGE's shell. Nothing was sent, and the outbox stayed empty.
+    - `read_thread` of message 15, account 2's, answered "message 15 does
+      not exist", as for a message that is not there.
+    - `send_draft` on the same token was an unknown tool (JSON-RPC
+      -32602): the scope does not offer it. maild's own `draft.send`
+      refusal, `methodNotFound`, is in the tests above.
+    - The token was revoked after, and the next request was 401.
 
 ## Phase 6 — The desktop app as a lodge client (planner, medium)
 
