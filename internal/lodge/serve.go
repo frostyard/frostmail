@@ -6,8 +6,10 @@ import (
 	"net"
 
 	"github.com/frostyard/lodge/kit/lodgeapp"
+	"github.com/frostyard/lodge/kit/mcpsession"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/mcpserver"
 	"github.com/frostyard/frostmail/internal/rpcserver"
 )
 
@@ -16,6 +18,9 @@ const ID = "mail"
 
 // Options are what maild's lodge socket serves.
 type Options struct {
+	// Ctx bounds the agents' connections to maild, which outlive the
+	// request that opened their MCP session: maild's own context.
+	Ctx context.Context
 	// Version is maild's, for /health.
 	Version string
 	// RPC and Router serve /api, as the private socket does.
@@ -27,13 +32,18 @@ type Options struct {
 }
 
 // NewServer is maild's side of lodge's app socket, through the kit: /health,
-// /api as caller session and /content/ as caller content. lodge's other
-// routes answer 404.
+// /api as caller session, /content/ as caller content and /mcp as caller
+// agent. lodge's other routes answer 404.
 func NewServer(o Options) *lodgeapp.Server {
 	log := o.Log
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
+	if o.Ctx == nil {
+		o.Ctx = context.Background()
+	}
+	mcp := mcpsession.New(mcpserver.Handler(mcpserver.HTTPOptions{Open: o.openAgent, Version: o.Version, Log: log}),
+		mcpsession.Options{CheckScope: checkScope, Logger: log})
 	return &lodgeapp.Server{
 		Health: func(context.Context) lodgeapp.Health {
 			return lodgeapp.Health{OK: true, Version: o.Version, Protocol: api.Protocol}
@@ -44,8 +54,34 @@ func NewServer(o Options) *lodgeapp.Server {
 			log.Info("lodge session ended", "session", c.Session, "node", c.NodeName)
 		},
 		Content: o.Content,
+		MCP:     mcp,
 		Logger:  log,
 	}
+}
+
+// checkScope refuses, with 403, a token whose scope this maild cannot
+// grant (docs/specs/lodge-app.md, /mcp).
+func checkScope(scope string) error {
+	_, err := api.ParseScope(scope)
+	return err
+}
+
+// openAgent connects an MCP session to maild in process, as caller agent
+// with the token's name and scope, which the engine enforces.
+func (o Options) openAgent(ctx context.Context, token string, scope api.Scope) (*api.Client, error) {
+	server, client := net.Pipe()
+	go o.RPC.ServeConn(o.Ctx, server, o.Router, api.Caller{Kind: api.CallerKindAgent, Token: token, Scope: scope})
+	c := api.NewClient(client)
+	if _, err := c.RPC().Hello(ctx, &api.RPCHelloParams{Protocol: api.Protocol, Client: "mcp " + token}); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
+	// The connection subscribes to nothing, but its views notify it.
+	go func() {
+		for range c.Notifications() {
+		}
+	}()
+	return c, nil
 }
 
 // Caller is the RPC caller of a session lodge sent to /api.

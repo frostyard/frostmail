@@ -205,8 +205,8 @@ func TestSocketRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !m.Content || !m.ContentLinks || m.MCP || m.Device || m.RemoteImages || m.Key != "m" || m.User != "frostmail" {
-		t.Errorf("manifest %+v, want the spec's: content, contentLinks, key m, user frostmail, and nothing else", m)
+	if !m.Content || !m.ContentLinks || !m.MCP || m.Device || m.RemoteImages || m.Key != "m" || m.User != "frostmail" {
+		t.Errorf("manifest %+v, want the spec's: content, contentLinks, mcp, key m, user frostmail, and nothing else", m)
 	}
 	kittest.CheckRules(t, lodgeSocket(t, rpctest.StartWith(t, rpctest.Options{Lodge: true})), m)
 }
