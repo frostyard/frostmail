@@ -32,6 +32,7 @@ methods:
     params:
       - {name: accountId, type: int, optional: true, doc: "Limit to one account. Omit for all accounts."}
     result: "[]Mailbox"
+    callers: [local, session, agent]
   - name: create
     doc: >-
       Make a mailbox (a label on Gmail), at the top level or inside parentId,

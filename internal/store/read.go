@@ -16,6 +16,10 @@ import (
 // not filter.
 type ViewFilter struct {
 	AccountID int64
+	// Accounts, when not nil, keeps only these accounts' messages, whatever
+	// else the filter says: an agent's scope (docs/specs/lodge-app.md). An
+	// empty, non-nil list keeps none.
+	Accounts  []int64
 	MailboxID int64
 	Unread    *bool // true: unseen only; false: seen only
 	Flagged   *bool
@@ -139,6 +143,14 @@ func (d *DB) viewWhere(ctx context.Context, f ViewFilter) (string, []any, error)
 	if f.AccountID != 0 {
 		conds = append(conds, "m.account_id = ?")
 		args = append(args, f.AccountID)
+	}
+	if f.Accounts != nil {
+		ids, err := json.Marshal(f.Accounts)
+		if err != nil {
+			return "", nil, err
+		}
+		conds = append(conds, "m.account_id IN (SELECT value FROM json_each(?))")
+		args = append(args, string(ids))
 	}
 	if f.MailboxID != 0 {
 		conds = append(conds, `EXISTS (SELECT 1 FROM message_mailbox mm WHERE mm.message_id = m.id AND mm.mailbox_id = ?)`)

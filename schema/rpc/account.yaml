@@ -132,6 +132,7 @@ methods:
   - name: list
     doc: All accounts, oldest first.
     result: "[]Account"
+    callers: [local, session, agent]
   - name: get
     doc: One account.
     params:

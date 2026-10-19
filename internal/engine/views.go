@@ -22,6 +22,7 @@ func (v views) Open(ctx context.Context, p *api.ViewOpenParams) (*api.ViewInfo, 
 	if err != nil {
 		return nil, err
 	}
+	f.Accounts = scopeAccounts(ctx)
 	id, count, err := v.Views.Open(ctx, api.ConnFrom(ctx), f)
 	if err != nil {
 		return nil, err

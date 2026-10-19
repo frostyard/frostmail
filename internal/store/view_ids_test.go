@@ -87,6 +87,10 @@ func TestViewIDsFilters(t *testing.T) {
 		{"search and unread", ViewFilter{AccountID: acctA, Match: `"invoice"*`, Unread: viewBool(true)}, []int64{1}},
 		{"search excluding", ViewFilter{Match: `"invoice"*`, Exclude: `"zebra"*`}, []int64{7, 3, 1}},
 		{"no match", ViewFilter{Match: `"zebra"*`}, nil},
+		{"only account B's", ViewFilter{Accounts: []int64{acctB}, Match: `"invoice"*`}, []int64{7}},
+		{"both accounts", ViewFilter{Accounts: []int64{acctA, acctB}}, []int64{7, 6, 2, 4, 3, 1}},
+		{"no account", ViewFilter{Accounts: []int64{}}, nil},
+		{"accounts narrow a mailbox of another", ViewFilter{Accounts: []int64{acctB}, MailboxID: inboxA}, nil},
 	}
 	for _, tc := range cases {
 		got, err := d.ViewIDs(t.Context(), tc.f)

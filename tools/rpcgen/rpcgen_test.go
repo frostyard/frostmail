@@ -92,10 +92,6 @@ func TestLoadRejects(t *testing.T) {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    callers: []\n"},
 			"callers must name at least one caller",
 		},
-		"method widens its domain": {
-			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\nmethods:\n  - name: m\n    callers: [local, agent]\n"},
-			`caller "agent" is not one of the domain's`,
-		},
 		"generated name collision": {
 			map[string]string{"rpc.yaml": minimalRPC, "a.yaml": "domain: a\ntypes:\n  - name: AGetParams\nmethods:\n  - name: get\n"},
 			"collides",
@@ -136,7 +132,7 @@ func TestCallers(t *testing.T) {
 	dir := writeSchema(t, map[string]string{
 		"rpc.yaml": minimalRPC,
 		"a.yaml":   "domain: a\nmethods:\n  - name: open\n  - name: save\n    callers: [local]\n",
-		"b.yaml":   "domain: b\ncallers: [agent]\nmethods:\n  - name: m\n",
+		"b.yaml":   "domain: b\ncallers: [agent]\nmethods:\n  - name: m\n  - name: n\n    callers: [local, session, agent]\n",
 	})
 	s, err := Load(dir)
 	if err != nil {
@@ -149,16 +145,17 @@ func TestCallers(t *testing.T) {
 	// gofmt aligns the table, so compare without spaces.
 	flat := strings.Join(strings.Fields(string(src)), "")
 	for _, want := range []string{
-		`"a.open":{CallerKindLocal,CallerKindSession},`, // the default
-		`"a.save":{CallerKindLocal},`,                   // narrowed
-		`"b.m":{CallerKindAgent},`,                      // the domain's own
+		`"a.open":{CallerKindLocal,CallerKindSession},`,              // the default
+		`"a.save":{CallerKindLocal},`,                                // narrowed
+		`"b.m":{CallerKindAgent},`,                                   // the domain's own
+		`"b.n":{CallerKindLocal,CallerKindSession,CallerKindAgent},`, // replaced
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("generated Go lacks %s", want)
 		}
 	}
 	md := string(genMarkdown(s))
-	for _, want := range []string{"Callers: `local`, `session`.", "Callers: `local` only."} {
+	for _, want := range []string{"Callers: `local`, `session`.", "Callers of this method: `local`.", "Callers of this method: `local`, `session`, `agent`."} {
 		if !strings.Contains(md, want) {
 			t.Errorf("Markdown lacks %q", want)
 		}
