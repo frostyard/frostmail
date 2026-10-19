@@ -1,0 +1,11 @@
+{
+  "contract": 1,
+  "id": "mail",
+  "name": "Mail",
+  "icon": "icon.svg",
+  "version": "0.0.0-dev",
+  "user": "frostmail",
+  "key": "m",
+  "content": true,
+  "contentLinks": true
+}

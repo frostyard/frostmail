@@ -1,5 +1,5 @@
 .PHONY: help build build-windows install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci web-build lodge-package ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -128,6 +128,25 @@ ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 
 app-build: ## Build the release app binary into build/frostmail-app (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm tauri build && mkdir -p ../build && cp "$$CARGO_TARGET_DIR/release/frostmail" ../build/frostmail-app'
+
+web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs/specs/lodge-app.md)
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --mode lodge --base /app/mail/ --outDir ../build/web --emptyOutDir && cp src-tauri/icons/icon.svg ../build/web/icon.svg'
+
+# lodge-package stages maild as lodge's mail app under LODGE_DESTDIR, in
+# lodge's install layout (docs/specs/lodge-app.md): the manifest with this
+# build's version, the web build when make web-build has made one, maild
+# and mailctl, the units and the sysusers.d entry.
+LODGE_DESTDIR ?= build/lodge-root
+lodge-package: build ## Stage maild, its manifest, units and web build for lodge under LODGE_DESTDIR
+	rm -rf $(LODGE_DESTDIR)
+	install -Dm755 build/maild $(LODGE_DESTDIR)/usr/local/bin/maild
+	install -Dm755 build/mailctl $(LODGE_DESTDIR)/usr/local/bin/mailctl
+	install -d $(LODGE_DESTDIR)/usr/share/lodge/apps/mail
+	sed 's/"version": "[^"]*"/"version": "$(VERSION)"/' packaging/lodge/app.json > $(LODGE_DESTDIR)/usr/share/lodge/apps/mail/app.json
+	if [ -d build/web ]; then cp -R build/web $(LODGE_DESTDIR)/usr/share/lodge/apps/mail/web; fi
+	install -Dm644 packaging/lodge/frostmail.socket $(LODGE_DESTDIR)/usr/lib/systemd/system/frostmail.socket
+	install -Dm644 packaging/lodge/frostmail.service $(LODGE_DESTDIR)/usr/lib/systemd/system/frostmail.service
+	install -Dm644 packaging/lodge/sysusers.d-frostmail.conf $(LODGE_DESTDIR)/usr/lib/sysusers.d/frostmail.conf
 
 app-test: ## Run the app shell's and the Windows notifier's Rust tests (nsl)
 	$(IN_NSL) 'cd app/src-tauri && cargo test --release && cd ../notify && cargo test --release'

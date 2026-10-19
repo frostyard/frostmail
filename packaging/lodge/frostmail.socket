@@ -1,0 +1,17 @@
+# maild's lodge app socket (docs/specs/lodge-app.md, What maild installs).
+# Only lodge's group may connect, and maild admits lodge's uid alone.
+[Unit]
+Description=Frostmail's lodge app socket
+Documentation=https://github.com/frostyard/frostmail/blob/main/docs/specs/lodge-app.md
+
+[Socket]
+ListenStream=/run/lodge/apps/mail.sock
+FileDescriptorName=mail
+SocketUser=frostmail
+SocketGroup=lodge
+SocketMode=0660
+DirectoryMode=0755
+Service=frostmail.service
+
+[Install]
+WantedBy=sockets.target

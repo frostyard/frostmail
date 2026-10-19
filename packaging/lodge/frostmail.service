@@ -1,0 +1,45 @@
+# maild as lodge's mail app (docs/specs/lodge-app.md, ADR-0041): a system
+# service as user frostmail, on the socket frostmail.socket passes it.
+# mailctl reaches it on the private socket: sudo -u frostmail mailctl ...
+[Unit]
+Description=Frostmail mail engine (maild) as lodge's mail app
+Documentation=https://github.com/frostyard/frostmail/blob/main/docs/specs/lodge-app.md
+Requires=frostmail.socket
+After=frostmail.socket network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=frostmail
+Group=frostmail
+ExecStart=/usr/local/bin/maild --lodge
+Environment=FROSTMAIL_DATA_DIR=/var/lib/frostmail
+Environment=FROSTMAIL_CACHE_DIR=/var/cache/frostmail
+Environment=FROSTMAIL_SOCKET=/run/frostmail/maild.sock
+Environment=FROSTMAIL_SECRETS=file
+StateDirectory=frostmail
+StateDirectoryMode=0700
+CacheDirectory=frostmail
+CacheDirectoryMode=0700
+RuntimeDirectory=frostmail
+RuntimeDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
