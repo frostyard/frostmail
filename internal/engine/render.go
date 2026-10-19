@@ -22,8 +22,8 @@ func (m messages) Render(ctx context.Context, p *api.MessageRenderParams) (*api.
 		return nil, err
 	}
 	out := &api.Rendering{HTML: r.HTML, Text: r.Text, Remote: int64(r.Remote), Trackers: int64(r.Trackers)}
-	if p.Content != nil && *p.Content && m.Deps.Content != nil && r.HTML != "" {
-		if path := m.Deps.Content.KeepPage(render.Page(r.HTML)); path != "" {
+	if p.Content != nil && *p.Content && m.Content != nil && r.HTML != "" {
+		if path := m.Content.KeepPage(render.Page(r.HTML)); path != "" {
 			out.ContentPath = &path
 		}
 	}
@@ -54,8 +54,8 @@ func (m messages) Part(ctx context.Context, p *api.MessagePartParams) (*api.Part
 		return nil, err
 	}
 	out := &api.PartFile{Path: f.Path, ContentType: f.ContentType, Filename: f.Filename, Size: f.Size}
-	if m.Deps.Content != nil {
-		path := m.Deps.Content.PartPath(f.Path)
+	if m.Content != nil {
+		path := m.Content.PartPath(f.Path)
 		out.ContentPath = &path
 	}
 	return out, nil

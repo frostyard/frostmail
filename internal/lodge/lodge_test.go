@@ -1,18 +1,20 @@
 package lodge_test
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json/v2"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
-	"golang.org/x/net/websocket"
+	"github.com/frostyard/lodge/kit/kittest"
+	"github.com/frostyard/lodge/kit/manifest"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
@@ -105,13 +107,6 @@ func start(t *testing.T) (*rpctest.Server, *api.Client, int64) {
 
 func discard() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-func serve(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/content/"+path, nil))
-	return rec
-}
-
 func TestRenderKeepsTheReaderPage(t *testing.T) {
 	srv, c, id := start(t)
 	ctx := t.Context()
@@ -131,11 +126,25 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 	if r.ContentPath == nil || !strings.HasPrefix(*r.ContentPath, "r/") {
 		t.Fatalf("contentPath = %v, want r/<token>.html", r.ContentPath)
 	}
-	rec := serve(t, srv.Content, *r.ContentPath)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("the page = %d %s", rec.Code, rec.Body)
+	// Through the socket, as lodge-content asks for it.
+	l := lodgeSocket(t, srv)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/content/"+*r.ContentPath, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	page := rec.Body.String()
+	resp, err := l.Do(req, kittest.Content())
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Security-Policy") != lodge.PagePolicy {
+		t.Fatalf("the page = %d (%s) %s", resp.StatusCode, resp.Header.Get("Content-Security-Policy"), body)
+	}
+	if code, _ := l.Get(t, "/content/"+*r.ContentPath, kittest.Session()); code != http.StatusForbidden {
+		t.Errorf("the page as a session = %d, want 403", code)
+	}
+	page := string(body)
 	for _, want := range []string{`<base target="_blank">`, `src="data:image/png;base64,`, `href="https://example.com/"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %s:\n%s", want, page)
@@ -167,10 +176,8 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 	if f.ContentPath == nil || !strings.HasPrefix(*f.ContentPath, "p/") {
 		t.Fatalf("part contentPath = %v, want p/<mac>/<path>", f.ContentPath)
 	}
-	rec = serve(t, srv.Content, *f.ContentPath)
-	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != "the attachment" ||
-		rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
-		t.Errorf("the part = %d %q (%s)", rec.Code, rec.Body, rec.Header().Get("Content-Type"))
+	if code, got := l.Get(t, "/content/"+*f.ContentPath, kittest.Content()); code != http.StatusOK || strings.TrimSpace(got) != "the attachment" {
+		t.Errorf("the part = %d %q", code, got)
 	}
 
 	// A session renders the same way.
@@ -181,71 +188,53 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 	}
 }
 
-func TestAPIFrames(t *testing.T) {
-	srv := rpctest.Start(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	a := &lodge.API{Ctx: ctx, RPC: srv.RPC, Router: srv.Router, Log: discard()}
-	caller := api.Caller{Kind: api.CallerKindSession, Login: "e2e@example.com", NodeName: "e2e", Session: "0123456789abcdef"}
-	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { a.Serve(w, r, caller) }))
-	t.Cleanup(hs.Close)
+// lodgeSocket serves maild's lodge socket for srv, with kittest playing lodge.
+func lodgeSocket(t *testing.T, srv *rpctest.Server) *kittest.Lodge {
+	t.Helper()
+	return kittest.Start(t, lodge.ID, lodge.NewServer(lodge.Options{
+		Version: "test", RPC: srv.RPC, Router: srv.Router, Content: srv.Content, Log: discard(),
+	}))
+}
 
-	dial := func() *websocket.Conn {
-		t.Helper()
-		ws, err := websocket.Dial("ws"+strings.TrimPrefix(hs.URL, "http")+"/api", "", "http://unchecked.example")
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = ws.Close() })
-		_ = ws.SetDeadline(time.Now().Add(5 * time.Second))
-		return ws
+func TestSocketRules(t *testing.T) {
+	data, err := os.ReadFile("../../packaging/lodge/app.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	recv := func(ws *websocket.Conn) map[string]any {
-		t.Helper()
-		var msg string
-		if err := websocket.Message.Receive(ws, &msg); err != nil {
-			t.Fatal(err)
-		}
-		if !strings.HasSuffix(msg, "\n") || strings.Count(msg, "\n") != 1 {
-			t.Errorf("frame %q: want one message ending in a newline", msg)
-		}
-		var m map[string]any
-		if err := json.Unmarshal([]byte(msg), &m); err != nil {
-			t.Fatal(err)
-		}
-		return m
+	m, err := manifest.Parse(data)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if !m.Content || !m.ContentLinks || m.MCP || m.Device || m.RemoteImages || m.Key != "m" || m.User != "frostmail" {
+		t.Errorf("manifest %+v, want the spec's: content, contentLinks, key m, user frostmail, and nothing else", m)
+	}
+	kittest.CheckRules(t, lodgeSocket(t, rpctest.StartWith(t, rpctest.Options{Lodge: true})), m)
+}
 
-	ws := dial()
-	// A frame without a newline is one message, and so is one with it.
-	if err := websocket.Message.Send(ws, `{"jsonrpc":"2.0","id":1,"method":"rpc.hello","params":{"protocol":1,"client":"t"}}`); err != nil {
+func TestSessionOverAPI(t *testing.T) {
+	l := lodgeSocket(t, rpctest.StartWith(t, rpctest.Options{Lodge: true}))
+	ctx := t.Context()
+	nc, err := l.DialAPI(ctx, kittest.Session())
+	if err != nil {
 		t.Fatal(err)
 	}
-	hello := recv(ws)
-	res, _ := hello["result"].(map[string]any)
-	if res["caller"] != "session" || res["login"] != "e2e@example.com" || res["nodeName"] != "e2e" {
-		t.Fatalf("hello = %v, want the session's caller", hello)
-	}
-	if err := websocket.Message.Send(ws, `{"jsonrpc":"2.0","id":2,"method":"rpc.ping"}`+"\n"); err != nil {
+	c := api.NewClient(nc)
+	t.Cleanup(func() { _ = c.Close() })
+	h, err := c.RPC().Hello(ctx, &api.RPCHelloParams{Protocol: api.Protocol, Client: "test"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if m := recv(ws); m["id"] != float64(2) || m["error"] != nil {
-		t.Fatalf("ping = %v", m)
+	if h.Caller == nil || *h.Caller != api.CallerKindSession || h.Login == nil || *h.Login != kittest.Login ||
+		h.NodeName == nil || *h.NodeName != kittest.NodeName {
+		t.Fatalf("hello = %+v, want lodge's session", h)
 	}
-	if err := websocket.Message.Send(ws, `{"jsonrpc":"2.0","id":3,"method":"message.save","params":{"id":1,"path":"/tmp/x"}}`); err != nil {
-		t.Fatal(err)
+	if err := c.RPC().Ping(ctx, &api.RPCPingParams{}); err != nil {
+		t.Fatalf("rpc.ping: %v", err)
 	}
-	if e, _ := recv(ws)["error"].(map[string]any); e["code"] != float64(api.CodeMethodNotFound) {
-		t.Fatalf("message.save as a session = %v, want methodNotFound", e)
+	if _, err := c.Account().List(ctx, &api.AccountListParams{}); err != nil {
+		t.Fatalf("account.list as a session: %v", err)
 	}
-
-	// A frame holding two messages ends the connection.
-	ws = dial()
-	if err := websocket.Message.Send(ws, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"rpc.ping\"}\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"rpc.ping\"}\n"); err != nil {
-		t.Fatal(err)
-	}
-	var msg string
-	if err := websocket.Message.Receive(ws, &msg); err == nil {
-		t.Fatalf("a frame of two messages answered %q, want the connection closed", msg)
+	if err := c.Message().Save(ctx, &api.MessageSaveParams{ID: 1, Path: "/tmp/x.eml"}); !errors.Is(err, api.ErrMethodNotFound) {
+		t.Fatalf("message.save as a session = %v, want methodNotFound", err)
 	}
 }
