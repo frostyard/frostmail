@@ -2,8 +2,11 @@
 
 [![CI](https://github.com/frostyard/frostmail/actions/workflows/ci.yml/badge.svg)](https://github.com/frostyard/frostmail/actions/workflows/ci.yml)
 
-A Linux mail client that works like Apple Mail.app, without looking like a
-GNOME or KDE app. Pre-release: it syncs, reads, searches and sends generic
+A mail client that works like Apple Mail.app, without looking like a GNOME
+or KDE app. It runs on Linux and on Windows, and its daemon can also serve a
+phone and any browser on the owner's tailnet as the mail app of
+[lodge](https://github.com/frostyard/lodge)
+([M8](docs/plans/0011-m8-mail-in-lodge.md); built, before its trial). Pre-release: it syncs, reads, searches and sends generic
 IMAP, Gmail and iCloud accounts, and is in its daily-driver trial
 ([M4](docs/plans/0006-m4-daily-driver.md)). Contacts, calendars and tasks
 over CardDAV, CalDAV and Google Tasks, invitations answered from the reader,
