@@ -133,6 +133,17 @@ methods:
       - {name: ids, type: "[]int"}
     result: "[]MessageSummary"
     callers: [local, session, agent]
+  - name: byMessageId
+    doc: >-
+      The message a Message-ID names, for lodge's permanent route
+      /message/<Message-ID> (docs/specs/lodge-app.md): among the stored
+      messages with that Message-ID, one in an inbox, else one in neither
+      Trash nor Junk, else any; the earliest stored of those. notFound when
+      none is.
+    params:
+      - {name: messageId, type: string, doc: "The Message-ID, with or without its angle brackets."}
+    result: MessageSummary
+    errors: [notFound, invalidParams]
   - name: render
     doc: >-
       A message prepared for the reader, fetching it first if it is not stored

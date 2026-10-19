@@ -1568,6 +1568,12 @@ export interface MessageSummariesParams {
   ids: number[];
 }
 
+/** Params of message.byMessageId. */
+export interface MessageByMessageIDParams {
+  /** The Message-ID, with or without its angle brackets. */
+  messageId: string;
+}
+
 /** Params of message.render. */
 export interface MessageRenderParams {
   id: number;
@@ -1694,6 +1700,13 @@ export interface MessageClient {
    */
   summaries(params: MessageSummariesParams): Promise<MessageSummary[]>;
   /**
+   * The message a Message-ID names, for lodge's permanent route
+   * /message/<Message-ID> (docs/specs/lodge-app.md): among the stored
+   * messages with that Message-ID, one in an inbox, else one in neither Trash
+   * nor Junk, else any; the earliest stored of those. notFound when none is.
+   */
+  byMessageId(params: MessageByMessageIDParams): Promise<MessageSummary>;
+  /**
    * A message prepared for the reader, fetching it first if it is not stored
    * locally. Remote images are loaded through maild only when remote is true;
    * tracking images never are.
@@ -1769,6 +1782,7 @@ function messageClient(t: Transport): MessageClient {
     get: (params) => t.call<Message>("message.get", params),
     body: (params) => t.call<Body>("message.body", params),
     summaries: (params) => t.call<MessageSummary[]>("message.summaries", params),
+    byMessageId: (params) => t.call<MessageSummary>("message.byMessageId", params),
     render: (params) => t.call<Rendering>("message.render", params),
     part: (params) => t.call<PartFile>("message.part", params),
     setFlags: (params) => t.call<null>("message.setFlags", params).then(() => undefined),
@@ -3063,6 +3077,7 @@ export const METHODS = [
   "message.get",
   "message.body",
   "message.summaries",
+  "message.byMessageId",
   "message.render",
   "message.part",
   "message.setFlags",

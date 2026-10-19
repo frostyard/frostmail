@@ -559,6 +559,45 @@ func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
 	return m, nil
 }
 
+// MessageCopy is a stored message with a given Message-ID, and the roles
+// of the mailboxes holding it.
+type MessageCopy struct {
+	ID        int64
+	AccountID int64
+	Roles     []string
+}
+
+// MessagesByMessageID lists the stored messages whose Message-ID header,
+// without angle brackets, is msgid, in the order they were stored.
+func (d *DB) MessagesByMessageID(ctx context.Context, msgid string) ([]MessageCopy, error) {
+	// From accounts, so each account's lookup uses messages_msgid.
+	rows, err := d.db.QueryContext(ctx, `SELECT m.id, m.account_id, COALESCE(mb.role, '')
+		FROM accounts a JOIN messages m ON m.account_id = a.id AND m.msgid_hdr = ?
+		LEFT JOIN message_mailbox mm ON mm.message_id = m.id
+		LEFT JOIN mailboxes mb ON mb.id = mm.mailbox_id
+		ORDER BY m.id`, msgid)
+	if err != nil {
+		return nil, fmt.Errorf("messages by message-id: %w", err)
+	}
+	defer rows.Close()
+	var out []MessageCopy
+	for rows.Next() {
+		var id, account int64
+		var role string
+		if err := rows.Scan(&id, &account, &role); err != nil {
+			return nil, fmt.Errorf("messages by message-id: %w", err)
+		}
+		if len(out) == 0 || out[len(out)-1].ID != id {
+			out = append(out, MessageCopy{ID: id, AccountID: account})
+		}
+		if role != "" {
+			last := &out[len(out)-1]
+			last.Roles = append(last.Roles, role)
+		}
+	}
+	return out, rows.Err()
+}
+
 // mailboxIDsOf returns the IDs of the mailboxes holding a message,
 // ascending.
 func (d *DB) mailboxIDsOf(ctx context.Context, id int64) ([]int64, error) {
