@@ -1296,6 +1296,17 @@ Summaries of messages in the order given; IDs that no longer exist are skipped.
 Result: `[]MessageSummary`.
 Callers of this method: `local`, `session`, `agent`.
 
+### `message.byMessageId`
+
+The message a Message-ID names, for lodge's permanent route /message/<Message-ID> (docs/specs/lodge-app.md): among the stored messages with that Message-ID, one in an inbox, else one in neither Trash nor Junk, else any; the earliest stored of those. notFound when none is.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `string` | The Message-ID, with or without its angle brackets. |
+
+Result: `MessageSummary`.
+Errors: `notFound`, `invalidParams`.
+
 ### `message.render`
 
 A message prepared for the reader, fetching it first if it is not stored locally. Remote images are loaded through maild only when remote is true; tracking images never are.

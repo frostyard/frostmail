@@ -22,6 +22,7 @@ import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
 import { watchOpenRequests } from "./openMessage";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
+import { watchPermalinks } from "./permalink";
 import { undoPim, watchRestores } from "./pimUndo";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { RefusedNotices } from "./RefusedNotices";
@@ -242,6 +243,7 @@ function useWindowEvents(
 ) {
   const client = useClient();
   useEffect(() => watchOpenRequests(client), [client]);
+  useEffect(() => watchPermalinks(client), [client]);
   useEffect(() => watchReminders(client), [client]);
   useEffect(() => watchRestores(), []);
   useLayoutEffect(() => watchOccurrenceRequests(), []);

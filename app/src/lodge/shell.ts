@@ -2,6 +2,7 @@
 // build): the route follows the sidebar's source and the selection, or the
 // window the frame shows (frameWindow.ts); a navigate message moves them,
 // and the theme follows the shell's.
+import { permalinkPending, requestPermalink } from "../app/permalink";
 import { type Source, sourceKey, sourceTitle, useMail, useUI } from "../data/stores";
 import { type FrameWindow, useFrameWindow, windowFromRoute, windowRoute } from "./frameWindow";
 import type { Lodge } from "./lodge";
@@ -21,6 +22,11 @@ export function go(route: string): void {
   }
   useFrameWindow.setState({ open: null });
   const where = parseRoute(route);
+  if (where.messageId !== undefined) {
+    // maild resolves it; the window stays as it is until then.
+    requestPermalink(where.messageId);
+    return;
+  }
   const ui = useUI.getState();
   if (sourceKey(ui.source) !== sourceKey(where.source)) ui.setSource(where.source);
   const selected = where.message === undefined ? [] : [where.message];
@@ -56,6 +62,14 @@ function current(): Place {
   return place(ui.source, ui.selected, useFrameWindow.getState().open);
 }
 
+// While a permanent route resolves, the shell keeps showing it, and the
+// route of the message it opens replaces it.
+const PERMALINK = "permalink";
+
+function shown(route: string): Place {
+  return permalinkPending() ? { route, title: "Mail", key: PERMALINK } : current();
+}
+
 /**
  * wireShell opens the app at route (the frame's own path under
  * /app/mail), then keeps the shell's route, history and theme in step with
@@ -64,14 +78,14 @@ function current(): Place {
 export function wireShell(l: Lodge, route: string): () => void {
   applyTheme(l.theme);
   go(route);
-  let last = current();
+  let last = shown(route);
   l.route(last.route, last.title, { replace: true });
   let navigating = false;
   const report = () => {
     if (navigating) return;
     const next = current();
     if (next.route === last.route) return;
-    l.route(next.route, next.title, { replace: next.key === last.key });
+    l.route(next.route, next.title, { replace: next.key === last.key || last.key === PERMALINK });
     last = next;
   };
   const offUI = useUI.subscribe(report);
@@ -84,7 +98,7 @@ export function wireShell(l: Lodge, route: string): () => void {
     } finally {
       navigating = false;
     }
-    last = current();
+    last = shown(r);
   });
   const offTheme = l.on("theme", ({ scheme }) => applyTheme(scheme));
   return () => {

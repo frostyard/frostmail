@@ -2604,6 +2604,12 @@ type MessageSummariesParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageByMessageIDParams holds the params of message.byMessageId.
+type MessageByMessageIDParams struct {
+	// The Message-ID, with or without its angle brackets.
+	MessageID string `json:"messageId"`
+}
+
 // MessageRenderParams holds the params of message.render.
 type MessageRenderParams struct {
 	ID     int64 `json:"id"`
@@ -2702,6 +2708,12 @@ type MessageService interface {
 	// Summaries implements message.summaries. Summaries of messages in the order
 	// given; IDs that no longer exist are skipped.
 	Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error)
+	// ByMessageID implements message.byMessageId. The message a Message-ID names,
+	// for lodge's permanent route /message/<Message-ID>
+	// (docs/specs/lodge-app.md): among the stored messages with that Message-ID,
+	// one in an inbox, else one in neither Trash nor Junk, else any; the earliest
+	// stored of those. notFound when none is.
+	ByMessageID(ctx context.Context, p *MessageByMessageIDParams) (*MessageSummary, error)
 	// Render implements message.render. A message prepared for the reader,
 	// fetching it first if it is not stored locally. Remote images are loaded
 	// through maild only when remote is true; tracking images never are.
@@ -2779,6 +2791,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return s.Summaries(ctx, &p)
+	})
+	r.handle("message.byMessageId", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageByMessageIDParams
+		if err := decodeParams(raw, &p, []string{"messageId"}); err != nil {
+			return nil, err
+		}
+		return s.ByMessageID(ctx, &p)
 	})
 	r.handle("message.render", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageRenderParams
@@ -2906,6 +2925,16 @@ func (x MessageClient) Summaries(ctx context.Context, p *MessageSummariesParams)
 	var r []MessageSummary
 	err := x.c.Call(ctx, "message.summaries", p, &r)
 	return r, err
+}
+
+// ByMessageID calls message.byMessageId.
+func (x MessageClient) ByMessageID(ctx context.Context, p *MessageByMessageIDParams) (*MessageSummary, error) {
+	var r MessageSummary
+	err := x.c.Call(ctx, "message.byMessageId", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // Render calls message.render.
@@ -5386,6 +5415,7 @@ var methodCallers = map[string][]CallerKind{
 	"message.get":             {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.body":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.summaries":       {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"message.byMessageId":     {CallerKindLocal, CallerKindSession},
 	"message.render":          {CallerKindLocal, CallerKindSession},
 	"message.part":            {CallerKindLocal, CallerKindSession},
 	"message.setFlags":        {CallerKindLocal, CallerKindSession},
@@ -5504,6 +5534,7 @@ var Methods = []string{
 	"message.get",
 	"message.body",
 	"message.summaries",
+	"message.byMessageId",
 	"message.render",
 	"message.part",
 	"message.setFlags",

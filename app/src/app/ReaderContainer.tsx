@@ -34,8 +34,10 @@ import { zoned } from "../lib/calendarDates";
 import { whenText } from "../lib/later";
 import { isVip, vipSet } from "../lib/vips";
 import { IN_LODGE, lodge, openOutside } from "../lodge/lodge";
+import { permalink } from "../lodge/routes";
 import type {
   Address,
+  Client,
   Invitation,
   Message,
   MessageSource,
@@ -66,10 +68,28 @@ export interface ReaderHandle {
   more: (action: "headers" | "source") => void;
 }
 
-/** openLink opens a URL in the system browser, or in lodge a browser tab. */
+/**
+ * openLink opens a URL in the system browser; in lodge, through the shell,
+ * which opens a canonical lodge URL (another app's, or mail's own
+ * permanent route) in place and anything else in a new tab.
+ */
 export function openLink(url: string): void {
   if (isTauri()) void invoke("open_link", { url }).catch((err: unknown) => console.warn("open link", err));
   else if (!openOutside(url)) window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/**
+ * reportContext tells lodge's companion which message is shown, by its
+ * permanent route when it has a Message-ID, so a link made from it lasts
+ * (docs/specs/lodge-app.md, The web build).
+ */
+async function reportContext(client: Client, id: number, title: string, stale: () => boolean): Promise<void> {
+  const l = lodge();
+  if (!l) return;
+  const m = await client.message.get({ id }).catch(() => null);
+  if (stale()) return;
+  const route = m?.messageId ? permalink(m.messageId) : `/message/${id}`;
+  l.context({ kind: "message", ref: `mail${route}`, title });
 }
 
 /** useReaderHeight sets --reader-height on el to its height: in lodge the
@@ -165,7 +185,7 @@ function Conversation({
     (async () => {
       const [s] = await client.message.summaries({ ids: [id] });
       if (!s || cancelled) return;
-      lodge()?.context({ kind: "message", ref: `mail/message/${id}`, title: s.subject });
+      void reportContext(client, id, s.subject, () => cancelled);
       let rows = [s];
       if (s.threadId !== 0) rows = await client.thread.messages({ id: s.threadId });
       const trash = new Set(trashKey === "" ? [] : trashKey.split(",").map(Number));

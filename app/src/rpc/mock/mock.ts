@@ -418,6 +418,13 @@ export class MockTransport implements Transport {
         if (!String(p.path ?? "").startsWith("/"))
           throw new RPCError(ErrorCode.invalidParams, `"${String(p.path)}" is not an absolute path`);
         return null;
+      case "message.byMessageId": {
+        // The mock's Message-IDs are mock-<id>@mock.test (get).
+        const id = /^<?mock-([0-9]+)@mock\.test>?$/.exec(String(p.messageId ?? "").trim())?.[1];
+        const m = id === undefined ? undefined : this.messages.get(Number(id));
+        if (!m) throw new RPCError(ErrorCode.notFound, `no message has the Message-ID "${String(p.messageId)}"`);
+        return m.summary;
+      }
       case "message.render":
         return this.render(num(p.id), p.remote === true);
       case "message.part":

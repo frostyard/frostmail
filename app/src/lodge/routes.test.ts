@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Source } from "../data/stores";
-import { parseRoute, routeOf } from "./routes";
+import { parseRoute, permalink, routeOf } from "./routes";
 
 describe("lodge routes", () => {
   it("round-trips every source, with and without a message", () => {
@@ -45,5 +45,21 @@ describe("lodge routes", () => {
     }
     expect(parseRoute("/mailbox/5?q=1#top")).toEqual({ source: { kind: "mailbox", mailboxId: 5 } });
     expect(parseRoute("/x/message/3")).toEqual({ source: { kind: "allInboxes" }, message: 3 });
+  });
+
+  it("names a message by its Message-ID, which maild resolves", () => {
+    const all = { kind: "allInboxes" } as const;
+    expect(permalink("gen-1-200@mailgen.test")).toBe("/message/gen-1-200%40mailgen.test");
+    for (const messageId of ["gen-1-200@mailgen.test", "a/b+c@x.test", "Ünï code@x", "12ab@x"]) {
+      expect(parseRoute(permalink(messageId))).toEqual({ source: all, messageId });
+    }
+    expect(parseRoute("/message/plan@x.test")).toEqual({ source: all, messageId: "plan@x.test" });
+    expect(parseRoute("/message/plan%40x.test?from=notes#top")).toEqual({ source: all, messageId: "plan@x.test" });
+    // A maild ID stays one; a malformed escape or a blank names nothing.
+    expect(parseRoute("/message/42")).toEqual({ source: all, message: 42 });
+    expect(parseRoute("/message/%E0%A4")).toEqual({ source: all });
+    expect(parseRoute("/message/%20")).toEqual({ source: all });
+    // Only /message/<Message-ID> is permanent: under a source it names no message.
+    expect(parseRoute("/mailbox/3/message/plan@x")).toEqual({ source: { kind: "mailbox", mailboxId: 3 } });
   });
 });

@@ -121,10 +121,11 @@ boundaries, so the planner builds them.
   and an attachment's Save downloads it from the content route with
   `?download=1` (built). Save As and Raw Source of a whole message are to
   download from a content route for the message's source.
-- **Links between apps.** A permanent route by Message-ID
-  (`/message/<Message-ID>`, resolved by maild), which notes can link to.
-  A canonical lodge URL in a message opens in the shell through
-  `lodge.open`, when the link is in mail's own UI.
+- **Links between apps** (built). A permanent route by Message-ID
+  (`/message/<Message-ID>`, resolved by `message.byMessageId`), which
+  notes can link to, and which mail's context names. A canonical lodge
+  URL in mail's own UI opens in the shell through `lodge.open`; one in an
+  HTML message, in the sandboxed reader frame, opens a new tab.
 - **The narrow layout:** one pane at a time below a width
   [ui.md](../specs/ui.md) sets, for the phone.
 - **Notifications** while lodge is open: the web app shows new mail and
