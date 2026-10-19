@@ -9,3 +9,4 @@ methods:
       - {name: id, type: int}
     result: "[]MessageSummary"
     errors: [notFound]
+    callers: [local, session, agent]

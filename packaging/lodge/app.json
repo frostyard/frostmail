@@ -7,5 +7,6 @@
   "user": "frostmail",
   "key": "m",
   "content": true,
-  "contentLinks": true
+  "contentLinks": true,
+  "mcp": true
 }

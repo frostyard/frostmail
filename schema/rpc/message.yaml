@@ -118,17 +118,20 @@ methods:
       - {name: id, type: int}
     result: Message
     errors: [notFound]
+    callers: [local, session, agent]
   - name: body
     doc: A message's text, fetching the message from the server first if it is not stored locally.
     params:
       - {name: id, type: int}
     result: Body
     errors: [notFound, unavailable]
+    callers: [local, session, agent]
   - name: summaries
     doc: Summaries of messages in the order given; IDs that no longer exist are skipped.
     params:
       - {name: ids, type: "[]int"}
     result: "[]MessageSummary"
+    callers: [local, session, agent]
   - name: render
     doc: >-
       A message prepared for the reader, fetching it first if it is not stored

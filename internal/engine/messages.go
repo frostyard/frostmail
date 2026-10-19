@@ -21,6 +21,9 @@ type messages struct{ Deps }
 
 func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Message, error) {
 	d, err := m.DB.GetMessage(ctx, p.ID)
+	if err == nil && !admits(ctx, d.AccountID) {
+		err = store.ErrNotFound
+	}
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
 	}
@@ -40,6 +43,9 @@ func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Messag
 }
 
 func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body, error) {
+	if err := m.admitMessage(ctx, p.ID); err != nil {
+		return nil, err
+	}
 	raw, err := m.display(ctx, p.ID)
 	if err != nil {
 		return nil, err
@@ -167,7 +173,7 @@ func (m messages) Summaries(ctx context.Context, p *api.MessageSummariesParams) 
 	for _, s := range sums {
 		out = append(out, toAPISummary(s))
 	}
-	return out, nil
+	return scoped(ctx, out), nil
 }
 
 func (m messages) SetFlags(ctx context.Context, p *api.MessageSetFlagsParams) error {

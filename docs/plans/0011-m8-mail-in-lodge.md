@@ -130,6 +130,10 @@ boundaries, so the planner builds them.
 
 ## Phase 5 — Agents through `/mcp/mail` (planner, medium)
 
+- **Read-only first (built):** `list_mailboxes`, `search_messages` and
+  `read_thread`, under `account=*` or `account=<id>[,<id>…]`, with the
+  engine enforcing the scope and the kit's `mcpsession` binding sessions.
+  Write and send scopes are refused until the tools below land.
 - **Tools:** list mailboxes, search, read a thread, draft a reply. Sending
   is a tool of its own.
 - **The scope grammar,** in `Lodge-Scope`: `account=<id>` or

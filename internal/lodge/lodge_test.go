@@ -211,7 +211,7 @@ func startLodge(t *testing.T, srv *kitlodgeapp.Server) *kittest.Lodge {
 func lodgeSocket(t *testing.T, srv *rpctest.Server) *kittest.Lodge {
 	t.Helper()
 	return startLodge(t, lodge.NewServer(lodge.Options{
-		Version: "test", RPC: srv.RPC, Router: srv.Router, Content: srv.Content, Log: discard(),
+		Ctx: t.Context(), Version: "test", RPC: srv.RPC, Router: srv.Router, Content: srv.Content, Log: discard(),
 	}))
 }
 
@@ -224,8 +224,8 @@ func TestSocketRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !m.Content || !m.ContentLinks || m.MCP || m.Device || m.RemoteImages || m.Key != "m" || m.User != "frostmail" {
-		t.Errorf("manifest %+v, want the spec's: content, contentLinks, key m, user frostmail, and nothing else", m)
+	if !m.Content || !m.ContentLinks || !m.MCP || m.Device || m.RemoteImages || m.Key != "m" || m.User != "frostmail" {
+		t.Errorf("manifest %+v, want the spec's: content, contentLinks, mcp, key m, user frostmail, and nothing else", m)
 	}
 	kittest.CheckRules(t, lodgeSocket(t, rpctest.StartWith(t, rpctest.Options{Lodge: true})), m)
 }

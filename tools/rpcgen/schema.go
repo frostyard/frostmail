@@ -62,7 +62,7 @@ type Method struct {
 	Params []Field  `yaml:"params"`
 	Result string   `yaml:"result"`
 	Errors []string `yaml:"errors"`
-	// Callers narrows the domain's callers for this method.
+	// Callers replaces the domain's callers for this method.
 	Callers []string `yaml:"callers"`
 
 	result *TypeRef
@@ -98,7 +98,7 @@ var reservedClientMethods = map[string]bool{
 // reservedAPINames are package api's hand-written identifiers (api.go,
 // client.go); generated names must not collide with them.
 var reservedAPINames = []string{
-	"Admits", "Caller", "CallerFrom", "Client", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
+	"Admits", "Caller", "CallerFrom", "Client", "ErrScope", "ParseScope", "Scope", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
 	"EventEnvelope", "EventMethod", "Frame", "HasMethod", "MaxMessageSize",
 	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow", "WithCaller", "WithConn",
 }
@@ -390,11 +390,6 @@ func build(files []*File) (*Schema, error) {
 				continue
 			}
 			callers(f, where, m.Callers)
-			for _, c := range m.Callers {
-				if !slices.Contains(f.Callers, c) {
-					fail(f, "%s: caller %q is not one of the domain's %v; a method only narrows them", where, c, f.Callers)
-				}
-			}
 			if len(m.Callers) == 0 {
 				fail(f, "%s: callers must name at least one caller", where)
 			}

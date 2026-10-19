@@ -24,5 +24,8 @@ func (t threads) Messages(ctx context.Context, p *api.ThreadMessagesParams) ([]a
 	for _, s := range sums {
 		out = append(out, toAPISummary(s))
 	}
+	if out = scoped(ctx, out); len(out) == 0 && len(sums) > 0 {
+		return nil, api.NotFound("thread %d does not exist", p.ID)
+	}
 	return out, nil
 }

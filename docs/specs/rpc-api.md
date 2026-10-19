@@ -34,6 +34,7 @@ All accounts, oldest first.
 No params.
 
 Result: `[]Account`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `account.get`
 
@@ -908,7 +909,7 @@ Attach a local file; maild copies it, so later changes to the file do not matter
 
 Result: `DraftAttachment`.
 Errors: `notFound`, `invalidParams`.
-Callers: `local` only.
+Callers of this method: `local`.
 
 ### `draft.detach`
 
@@ -1113,6 +1114,7 @@ Mailboxes ordered by account, role, then path.
 | `accountId` | `int` (optional) | Limit to one account. Omit for all accounts. |
 
 Result: `[]Mailbox`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `mailbox.create`
 
@@ -1243,6 +1245,7 @@ One message's headers and structure.
 
 Result: `Message`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `message.body`
 
@@ -1254,6 +1257,7 @@ A message's text, fetching the message from the server first if it is not stored
 
 Result: `Body`.
 Errors: `notFound`, `unavailable`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `message.summaries`
 
@@ -1264,6 +1268,7 @@ Summaries of messages in the order given; IDs that no longer exist are skipped.
 | `ids` | `[]int` |  |
 
 Result: `[]MessageSummary`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `message.render`
 
@@ -1360,7 +1365,7 @@ Save As: write the message as the server holds it (an .eml file) to path, replac
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`, `unavailable`.
-Callers: `local` only.
+Callers of this method: `local`.
 
 ### `message.unsubscribeInfo`
 
@@ -2545,6 +2550,7 @@ The messages of a thread in every mailbox, oldest first, without messages delete
 
 Result: `[]MessageSummary`.
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ## view
 
@@ -2562,6 +2568,7 @@ Open a view; deltas follow on this connection without events.subscribe.
 
 Result: `ViewInfo`.
 Errors: `invalidParams`, `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `view.count`
 
@@ -2586,6 +2593,7 @@ The rows from start up to, not including, end; end is capped at the view's count
 
 Result: `[]MessageSummary`.
 Errors: `notFound`, `invalidParams`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### `view.close`
 
@@ -2597,6 +2605,7 @@ Close a view.
 
 Result: none (`null`).
 Errors: `notFound`.
+Callers of this method: `local`, `session`, `agent`.
 
 ### Event `view.delta` (transient)
 

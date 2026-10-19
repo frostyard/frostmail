@@ -54,7 +54,7 @@ func genMarkdown(s *Schema) []byte {
 				w.line("Errors: `%s`.", strings.Join(m.Errors, "`, `"))
 			}
 			if !slices.Equal(m.Callers, f.Callers) {
-				w.line("Callers: `%s` only.", strings.Join(m.Callers, "`, `"))
+				w.line("Callers of this method: `%s`.", strings.Join(m.Callers, "`, `"))
 			}
 			w.line("")
 		}

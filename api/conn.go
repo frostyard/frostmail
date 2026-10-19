@@ -28,13 +28,16 @@ func ConnFrom(ctx context.Context) Conn {
 }
 
 // Caller is who a connection serves (docs/specs/lodge-app.md). Login,
-// NodeName, DisplayName and Session come from lodge for a session.
+// NodeName, DisplayName and Session come from lodge for a session; Token
+// and Scope for an agent, whose scope the engine enforces.
 type Caller struct {
 	Kind        CallerKind
 	Login       string
 	NodeName    string
 	DisplayName string
 	Session     string
+	Token       string
+	Scope       Scope
 }
 
 type callerKey struct{}

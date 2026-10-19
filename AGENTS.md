@@ -32,6 +32,11 @@ symlinks to it; edit this file only.
 - `internal/events`: fans committed events out to subscribers and replays
   the log. `internal/rpcserver`: the socket server. `internal/engine`: the API
   domains over the store. `internal/rpctest`: a real server for tests.
+- `internal/lodge`: maild as lodge's `mail` app (`maild --lodge`, on
+  lodge/kit): the app socket and its content route
+  ([specs/lodge-app.md](docs/specs/lodge-app.md)). `internal/mcpserver`:
+  the read-only MCP tools behind it, the only package that imports the MCP
+  SDK.
 - `internal/imapx`: the only package that imports go-imap.
   `third_party/go-imap` is a patched fork (Gmail X-GM-EXT-1); see its
   `FROSTMAIL-PATCHES.md` and [ADR-0004](docs/adr/0004-go-imap-fork.md).

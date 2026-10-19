@@ -183,7 +183,9 @@ func (a accounts) List(ctx context.Context, _ *api.AccountListParams) ([]api.Acc
 	}
 	out := make([]api.Account, 0, len(list))
 	for _, acct := range list {
-		out = append(out, a.toAPI(ctx, acct))
+		if admits(ctx, acct.ID) {
+			out = append(out, a.toAPI(ctx, acct))
+		}
 	}
 	return out, nil
 }
@@ -398,7 +400,9 @@ func (m mailboxes) List(ctx context.Context, p *api.MailboxListParams) ([]api.Ma
 	}
 	out := make([]api.Mailbox, 0, len(list))
 	for _, mb := range list {
-		out = append(out, toAPIMailbox(mb))
+		if admits(ctx, mb.AccountID) {
+			out = append(out, toAPIMailbox(mb))
+		}
 	}
 	return out, nil
 }

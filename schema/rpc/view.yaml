@@ -120,6 +120,7 @@ methods:
       - {name: query, type: ViewQuery}
     result: ViewInfo
     errors: [invalidParams, notFound]
+    callers: [local, session, agent]
   - name: count
     doc: >-
       Count what each query lists, without opening views: the sidebar's
@@ -137,11 +138,13 @@ methods:
       - {name: end, type: int}
     result: "[]MessageSummary"
     errors: [notFound, invalidParams]
+    callers: [local, session, agent]
   - name: close
     doc: Close a view.
     params:
       - {name: id, type: int}
     errors: [notFound]
+    callers: [local, session, agent]
 events:
   - name: delta
     doc: A view's rows changed. Rows a client holds are moved by the ops; fetch inserted rows with view.range.
