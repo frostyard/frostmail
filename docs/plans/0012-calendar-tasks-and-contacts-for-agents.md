@@ -15,10 +15,9 @@ waiting on the user, and waiting on others
 
 Status (2026-10-19):
 - **Phase 1 is written.** ADR-0042 is still Proposed.
-- **Phase 2's reads, Phase 3 and Phase 4's read tools are built.** Phase
-  2's writes and Phase 4's write tools are to build. Phases 2 to 4 need
-  nothing new from lodge.
-- **Phase 5** needs lodge's local agent socket
+- **Phases 2 to 4 are built** (2026-10-19, frostyard/frostmail#82–#84),
+  each with what it built and its evidence.
+- **Phase 5** waits on lodge's local agent socket
   ([lodge ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md)).
 
 ## Decisions for M8.5
@@ -79,6 +78,13 @@ Porter's design:
     method the spec keeps from agents is `methodNotFound`;
   - a person with contacts in both accounts shows only the contact in the
     scope.
+- **Built:** the reads in #82, the writes in #84.
+  - Tests: `internal/lodge/mcp_pim_test.go` and
+    `mcp_pim_write_test.go`, on an agent's connection.
+  - People: `store.ScopedPeople` and `store.ScopedPerson` make a person
+    of the scope's contacts alone, for `people.list`'s match too.
+  - Under `;write`, a parent task of another account is `notFound` to
+    `tasks.create` as well.
 
 ## Phase 3 — Waiting threads (planner, medium)
 
@@ -104,7 +110,7 @@ Porter's design:
   - each param is tested at the ends of its range and one past each end;
   - on 50,000 generated messages (`tools/mailgen`), each method answers in
     under 150 ms.
-- **Built,** with `mailctl waiting [--others]`. The rules' tests are
+- **Built** in #83, with `mailctl waiting [--others]`. The rules' tests are
   `internal/engine/awaiting_test.go`, a thread for each rule and boundary,
   with a Gmail account for the `INBOX` label.
   - Timed on 2026-10-19, on `tools/uifixture -n 50000 -seed 7` with maild
@@ -162,6 +168,12 @@ Porter's design:
       100 and 101; recipients 10 and 11.
   - **Every answer** carries the notice, and each scope's tool list
     matches the spec.
+- **Built:** the read tools in #82 and #83, and the write tools in #84.
+  - Tests: `internal/lodge/mcp_pim_test.go`, `mcp_pim_limits_test.go`,
+    `mcp_waiting_test.go` and `mcp_pim_write_test.go`.
+  - A `limit` of 0 is its default, so a limit's "one past" below is -1.
+  - The tools read "today" and reminder times from `lodge.Options.Now`, so
+    the tests run on a fixed clock.
 
 ## Phase 5 — Live, for Porter (planner, small)
 

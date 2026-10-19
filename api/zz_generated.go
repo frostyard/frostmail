@@ -5577,7 +5577,7 @@ var methodCallers = map[string][]CallerKind{
 	"message.unsubscribe":     {CallerKindLocal, CallerKindSession},
 	"message.redirect":        {CallerKindLocal, CallerKindSession},
 	"message.mute":            {CallerKindLocal, CallerKindSession},
-	"message.remind":          {CallerKindLocal, CallerKindSession},
+	"message.remind":          {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"oauth.setClient":         {CallerKindLocal, CallerKindSession},
 	"oauth.getClient":         {CallerKindLocal, CallerKindSession},
 	"outbox.list":             {CallerKindLocal, CallerKindSession},
@@ -5616,8 +5616,8 @@ var methodCallers = map[string][]CallerKind{
 	"sync.pim":                {CallerKindLocal, CallerKindSession},
 	"tasks.list":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"tasks.get":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
-	"tasks.create":            {CallerKindLocal, CallerKindSession},
-	"tasks.update":            {CallerKindLocal, CallerKindSession},
+	"tasks.create":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"tasks.update":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"tasks.delete":            {CallerKindLocal, CallerKindSession},
 	"thread.messages":         {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"thread.awaitingReply":    {CallerKindLocal, CallerKindSession, CallerKindAgent},
@@ -5641,6 +5641,9 @@ var methodNeeds = map[string]ScopeNeed{
 	"draft.send":       NeedSend,
 	"message.setFlags": NeedWrite,
 	"message.move":     NeedWrite,
+	"message.remind":   NeedWrite,
+	"tasks.create":     NeedWrite,
+	"tasks.update":     NeedWrite,
 }
 
 // Methods is every method's wire name, in schema order.

@@ -539,6 +539,9 @@ func (m messages) Remind(ctx context.Context, p *api.MessageRemindParams) error 
 	if p.At != nil && !p.At.After(m.DB.Now()) {
 		return api.InvalidParams("a reminder's time must be in the future")
 	}
+	if err := m.admitMessages(ctx, p.IDs); err != nil {
+		return err
+	}
 	rows, err := m.DB.Summaries(ctx, p.IDs)
 	if err != nil {
 		return err

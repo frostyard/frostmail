@@ -48,6 +48,8 @@ methods:
       - {name: parentId, type: int, optional: true}
     result: Task
     errors: [invalidParams, notFound, conflict]
+    callers: [local, session, agent]
+    scope: write
   - name: update
     doc: Change a task; omitted fields keep their values.
     params:
@@ -58,6 +60,8 @@ methods:
       - {name: completed, type: bool, optional: true}
     result: Task
     errors: [invalidParams, notFound, conflict]
+    callers: [local, session, agent]
+    scope: write
   - name: delete
     doc: Delete a task and its subtasks.
     params:
