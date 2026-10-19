@@ -6,6 +6,7 @@ toolchain go1.27.1
 
 require (
 	github.com/Microsoft/go-winio v0.6.4
+	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
@@ -34,7 +35,6 @@ require (
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/frostyard/std v0.2.2 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

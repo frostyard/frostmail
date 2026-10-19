@@ -155,6 +155,13 @@ client.
   `dev/incus/mailtest.sh demo USER` delivers realistic demo mail. Run a
   development maild with `FROSTMAIL_SECRETS=file`, or its test passwords
   move into the desktop's keyring (docs/design/accounts.md, Secrets).
+- **Inside lodge:** `make web-build` builds the app for lodge's
+  `/app/mail/` (Vite's `lodge` mode, `src/lodge/`), and
+  `dev/lodge/run.sh ROOT` runs `maild --lodge` on generated mail under a
+  lodge root for lodge's development build (`lodge-e2e --root ROOT`).
+  `tools/lodgeprobe -socket ROOT/run/lodge/apps/mail.sock` checks that
+  maild as lodge reaches it: health, a session, and a reader page from
+  the content route ([specs/lodge-app.md](../specs/lodge-app.md)).
 - `make ui-check` runs Biome, the TypeScript check and Vitest (happy-dom,
   Testing Library) in the nsl machine. Task cards that touch `app/` are
   verified with it.
