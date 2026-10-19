@@ -20,6 +20,7 @@ type File struct {
 	Domain   string     `yaml:"domain"`
 	Protocol int        `yaml:"protocol"`
 	Doc      string     `yaml:"doc"`
+	Callers  []string   `yaml:"callers"`
 	Enums    []Enum     `yaml:"enums"`
 	Types    []Type     `yaml:"types"`
 	Methods  []Method   `yaml:"methods"`
@@ -61,6 +62,8 @@ type Method struct {
 	Params []Field  `yaml:"params"`
 	Result string   `yaml:"result"`
 	Errors []string `yaml:"errors"`
+	// Callers narrows the domain's callers for this method.
+	Callers []string `yaml:"callers"`
 
 	result *TypeRef
 }
@@ -78,6 +81,14 @@ type ErrorDef struct {
 	Doc  string `yaml:"doc"`
 }
 
+// callerKinds are the caller kinds a domain or method may admit, in the
+// order the CallerKind enum declares them (docs/specs/lodge-app.md). A domain
+// without callers admits defaultCallers.
+var (
+	callerKinds    = []string{"local", "session", "agent"}
+	defaultCallers = []string{"local", "session"}
+)
+
 // reservedClientMethods are api.Client's hand-written methods; a domain's
 // generated accessor Client.<Domain>() must not shadow them.
 var reservedClientMethods = map[string]bool{
@@ -87,9 +98,9 @@ var reservedClientMethods = map[string]bool{
 // reservedAPINames are package api's hand-written identifiers (api.go,
 // client.go); generated names must not collide with them.
 var reservedAPINames = []string{
-	"Client", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
+	"Admits", "Caller", "CallerFrom", "Client", "Conn", "ConnFrom", "Dial", "Error", "ErrorCode", "Errorf", "Event", "EventBuffer",
 	"EventEnvelope", "EventMethod", "Frame", "HasMethod", "MaxMessageSize",
-	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow", "WithConn",
+	"NewClient", "NewEnvelope", "NewRouter", "Router", "ErrEventsOverflow", "WithCaller", "WithConn",
 }
 
 // builtinErrors are the JSON-RPC 2.0 codes; methods may list them by name.
@@ -342,6 +353,51 @@ func build(files []*File) (*Schema, error) {
 			}
 			seen[fd.Name] = true
 			fd.ref = resolve(f, where+"."+fd.Name, fd.Type)
+		}
+	}
+	if e := s.enums["CallerKind"]; e == nil {
+		errs = append(errs, errors.New("no file declares the CallerKind enum"))
+	} else {
+		var got []string
+		for _, v := range e.Values {
+			got = append(got, v.Name)
+		}
+		if !slices.Equal(got, callerKinds) {
+			errs = append(errs, fmt.Errorf("enum CallerKind must be %v, not %v", callerKinds, got))
+		}
+	}
+	callers := func(f *File, where string, cs []string) {
+		seen := map[string]bool{}
+		for _, c := range cs {
+			if !slices.Contains(callerKinds, c) || seen[c] {
+				fail(f, "%s: caller %q must be unique, one of %v", where, c, callerKinds)
+			}
+			seen[c] = true
+		}
+	}
+	for _, f := range s.Domains {
+		if f.Callers == nil {
+			f.Callers = defaultCallers
+		} else if len(f.Callers) == 0 {
+			fail(f, "domain %s: callers must name at least one caller", f.Domain)
+		}
+		callers(f, "domain "+f.Domain, f.Callers)
+		for i := range f.Methods {
+			m := &f.Methods[i]
+			where := f.Domain + "." + m.Name
+			if m.Callers == nil {
+				m.Callers = f.Callers
+				continue
+			}
+			callers(f, where, m.Callers)
+			for _, c := range m.Callers {
+				if !slices.Contains(f.Callers, c) {
+					fail(f, "%s: caller %q is not one of the domain's %v; a method only narrows them", where, c, f.Callers)
+				}
+			}
+			if len(m.Callers) == 0 {
+				fail(f, "%s: callers must name at least one caller", where)
+			}
 		}
 	}
 	for _, f := range s.Domains {

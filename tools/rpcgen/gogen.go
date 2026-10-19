@@ -191,6 +191,20 @@ func genGo(s *Schema) ([]byte, error) {
 	w.line("}")
 	w.line("")
 
+	w.line("// methodCallers is the caller kinds each method admits (schema/rpc callers).")
+	w.line("var methodCallers = map[string][]CallerKind{")
+	for _, f := range s.Domains {
+		for _, m := range f.Methods {
+			var kinds []string
+			for _, c := range m.Callers {
+				kinds = append(kinds, "CallerKind"+goName(c))
+			}
+			w.line("%q: {%s},", wireMethod(f.Domain, m.Name), strings.Join(kinds, ", "))
+		}
+	}
+	w.line("}")
+	w.line("")
+
 	w.line("// Methods is every method's wire name, in schema order.")
 	w.line("var Methods = []string{")
 	for _, f := range s.Domains {

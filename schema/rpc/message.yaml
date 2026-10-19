@@ -95,6 +95,7 @@ types:
       - {name: text, type: string, doc: "The readable text, as message.body returns it."}
       - {name: remote, type: int, doc: "Remote resources left out: not requested, or requested and failed."}
       - {name: trackers, type: int, doc: "Tracking images removed; they are never loaded."}
+      - {name: contentPath, type: string, optional: true, doc: "With render's content, on a maild serving lodge: the reader's whole page on maild's content route, as r/<token>.html (docs/specs/lodge-app.md). Absent for a message without HTML."}
   - name: PartFile
     doc: A message part decoded into the parts cache.
     fields:
@@ -102,6 +103,7 @@ types:
       - {name: contentType, type: string, doc: "Lowercase type/subtype."}
       - {name: filename, type: string, doc: "A safe file name: the part's, or one made from its type."}
       - {name: size, type: int, doc: "Decoded size in bytes."}
+      - {name: contentPath, type: string, optional: true, doc: "On a maild serving lodge: the part on maild's content route, as p/<mac>/<path> (docs/specs/lodge-app.md)."}
   - name: FlagChanges
     doc: Flags to set or clear; omitted fields keep their values.
     fields:
@@ -135,6 +137,7 @@ methods:
     params:
       - {name: id, type: int}
       - {name: remote, type: bool, optional: true}
+      - {name: content, type: bool, optional: true, doc: "Also keep the reader's page for maild's lodge content route, and name it in contentPath."}
     result: Rendering
     errors: [notFound, unavailable]
   - name: part
@@ -190,6 +193,7 @@ methods:
       - {name: id, type: int}
       - {name: path, type: string, doc: "An absolute path the user chose."}
     errors: [notFound, invalidParams, unavailable]
+    callers: [local]
   - name: unsubscribeInfo
     doc: >-
       How a list message can be left, from its stored headers (the body is

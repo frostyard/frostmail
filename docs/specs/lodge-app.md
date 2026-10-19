@@ -72,6 +72,9 @@ Phase 5 adds `"mcp": true`, once maild serves `/mcp`.
   ignored like any unknown header.
 - Without `--lodge`, maild serves no app socket, and everything else in
   this spec but the IDL's callers is absent.
+- lodge and its app sockets run on Linux. Elsewhere, such as a Windows
+  install, `maild --lodge` refuses at start ("lodge runs on Linux"), and
+  maild serves only its local socket.
 
 ### Requests on the app socket
 
@@ -107,10 +110,10 @@ once its store is open, so a maild that answers is serving.
 ### `/api`
 
 - A WebSocket (RFC 6455). Each text frame carries one message of
-  [rpc-protocol.md](rpc-protocol.md#messages). A frame may end with one
-  `\n`, which is not part of the message, and maild ends each frame it
-  sends with one. A binary frame, or a frame holding more than one
-  message, closes the connection.
+  [rpc-protocol.md](rpc-protocol.md#messages). The kit turns each frame
+  into one line for maild's JSON-RPC server: a frame may end with one
+  `\n`, which is not part of the message, and each frame maild sends is
+  one message ending with one. A binary frame closes the connection.
 - The connection is caller `session` for its lifetime. It is otherwise a
   connection as on the private socket: `rpc.hello` first, events after
   `events.subscribe`, 32 requests in flight, messages of at most 16 MiB.

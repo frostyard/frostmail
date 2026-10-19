@@ -1,6 +1,9 @@
 package api
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 // Conn is the client connection a request arrived on, for services that
 // keep per-connection state, such as views.
@@ -22,4 +25,37 @@ func WithConn(ctx context.Context, c Conn) context.Context {
 func ConnFrom(ctx context.Context) Conn {
 	c, _ := ctx.Value(connKey{}).(Conn)
 	return c
+}
+
+// Caller is who a connection serves (docs/specs/lodge-app.md). Login,
+// NodeName, DisplayName and Session come from lodge for a session.
+type Caller struct {
+	Kind        CallerKind
+	Login       string
+	NodeName    string
+	DisplayName string
+	Session     string
+}
+
+type callerKey struct{}
+
+// WithCaller returns ctx carrying c; the RPC server sets it for every
+// request on a connection that is not local.
+func WithCaller(ctx context.Context, c Caller) context.Context {
+	return context.WithValue(ctx, callerKey{}, c)
+}
+
+// CallerFrom returns the caller a request arrived for: a local caller when
+// none was set.
+func CallerFrom(ctx context.Context) Caller {
+	if c, ok := ctx.Value(callerKey{}).(Caller); ok {
+		return c
+	}
+	return Caller{Kind: CallerKindLocal}
+}
+
+// Admits reports whether method admits callers of kind, by the schema's
+// callers. An unknown method admits none.
+func Admits(method string, kind CallerKind) bool {
+	return slices.Contains(methodCallers[method], kind)
 }

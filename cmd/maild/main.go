@@ -21,6 +21,8 @@ import (
 	"time"
 	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
 
+	"github.com/frostyard/lodge/kit/lodgeapp"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/calendar"
@@ -29,6 +31,7 @@ import (
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/httprec"
+	"github.com/frostyard/frostmail/internal/lodge"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
@@ -62,6 +65,8 @@ func run(ctx context.Context, args []string) (err error) {
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	autostart := fs.String("autostart", "", "on or off: start maild when the user signs in to Windows (the per-user Run key), then exit")
 	debug := fs.Bool("debug", false, "log at debug level")
+	lodgeApp := fs.Bool("lodge", false, "also serve lodge's mail app socket: one systemd passes, else /run/lodge/apps/mail.sock "+
+		"or the same under LODGE_ROOT (docs/specs/lodge-app.md)")
 	devgwAddr := fs.String("devgw", "", "also serve the API over a WebSocket on this loopback address, for UI development "+
 		"(needs FROSTMAIL_DEVGW_TOKEN; docs/design/app.md)")
 	if err := fs.Parse(args); err != nil {
@@ -177,13 +182,25 @@ func run(ctx context.Context, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	// lodge's app socket opens once the store is, so a maild that answers
+	// lodge is serving.
+	var lodgeLn *lodgeapp.Listener
+	var content *lodge.Content
+	if *lodgeApp {
+		if lodgeLn, err = lodge.Listen(); err != nil {
+			return fmt.Errorf("lodge socket: %w", err)
+		}
+		if content, err = lodge.NewContent(parts); err != nil {
+			return err
+		}
+	}
 	var sched *reminders.Scheduler // the app coming or going checks reminders
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger,
 		OnAttended: func(bool) { sched.Kick() }})
-	eng := engine.New(engine.Deps{
+	eng := engine.New(withContent(engine.Deps{
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
 		OAuth: tokens, PIM: pim, Unsubscriber: unsubscribe.New(),
-	})
+	}, content))
 	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, syncer.FireReminders, logger)
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
@@ -213,17 +230,36 @@ func run(ctx context.Context, args []string) (err error) {
 	defer syncer.Wait()
 	defer pim.Wait()
 	if *devgwAddr != "" {
-		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router) }
+		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router, api.Caller{Kind: api.CallerKindLocal}) }
 		go func() {
 			if err := devgw.ListenAndServe(ctx, *devgwAddr, os.Getenv("FROSTMAIL_DEVGW_TOKEN"), serve, logger); err != nil {
 				logger.Error("dev gateway stopped", "err", err)
 			}
 		}()
 	}
+	if lodgeLn != nil {
+		lsrv := lodge.NewServer(lodge.Options{Version: version, RPC: srv, Router: router, Content: content, Log: logger})
+		go func() {
+			if err := lsrv.Serve(ctx, lodgeLn); err != nil {
+				logger.Error("lodge socket stopped", "err", err)
+			}
+		}()
+		logger.Info("serving lodge's mail app", "socket", lodgeLn.Addr().String())
+	}
 	logger.Info("maild started", "version", version, "socket", paths.Socket, "db", paths.DB)
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
 	return err
+}
+
+// withContent gives the engine lodge's content route when maild serves
+// one, and nothing otherwise: a nil *lodge.Content must stay a nil
+// interface.
+func withContent(d engine.Deps, c *lodge.Content) engine.Deps {
+	if c != nil {
+		d.Content = c
+	}
+	return d
 }
 
 // newReminders fires calendar reminders (docs/design/pim.md, Reminders):

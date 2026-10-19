@@ -78,16 +78,17 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener, r *api.Router) erro
 			_ = nc.Close()
 			continue
 		}
-		c := &conn{s: s, r: r, nc: nc, sem: make(chan struct{}, MaxInFlight)}
+		c := &conn{s: s, r: r, nc: nc, sem: make(chan struct{}, MaxInFlight), caller: api.Caller{Kind: api.CallerKindLocal}}
 		wg.Go(func() { c.serve(ctx) })
 	}
 }
 
-// ServeConn serves one connection the caller has already authenticated (the
-// dev gateway, internal/devgw) until it ends or ctx does. Unix socket
-// connections go through Serve, which checks the peer's UID instead.
-func (s *Server) ServeConn(ctx context.Context, nc net.Conn, r *api.Router) {
-	c := &conn{s: s, r: r, nc: nc, sem: make(chan struct{}, MaxInFlight)}
+// ServeConn serves one connection the caller has already authenticated, as
+// caller, until it ends or ctx does: the dev gateway's (internal/devgw) as
+// local, lodge's /api as a session. Unix socket connections go through
+// Serve, which checks the peer's UID instead and serves them as local.
+func (s *Server) ServeConn(ctx context.Context, nc net.Conn, r *api.Router, caller api.Caller) {
+	c := &conn{s: s, r: r, nc: nc, sem: make(chan struct{}, MaxInFlight), caller: caller}
 	c.serve(ctx)
 }
 
@@ -99,11 +100,12 @@ func connFrom(ctx context.Context) *conn {
 }
 
 type conn struct {
-	s   *Server
-	r   *api.Router
-	nc  net.Conn
-	sem chan struct{}
-	ctx context.Context
+	s      *Server
+	r      *api.Router
+	nc     net.Conn
+	sem    chan struct{}
+	ctx    context.Context
+	caller api.Caller
 
 	wmu   sync.Mutex
 	ready atomic.Bool
@@ -117,7 +119,10 @@ type conn struct {
 }
 
 func (c *conn) serve(parent context.Context) {
-	ctx, cancel := context.WithCancel(api.WithConn(context.WithValue(parent, ctxKey{}, c), c))
+	if c.caller.Kind == "" {
+		c.caller.Kind = api.CallerKindLocal
+	}
+	ctx, cancel := context.WithCancel(api.WithCaller(api.WithConn(context.WithValue(parent, ctxKey{}, c), c), c.caller))
 	c.ctx = ctx
 	stop := context.AfterFunc(ctx, func() { _ = c.nc.Close() })
 	defer func() {
@@ -286,10 +291,28 @@ func (s *Server) Hello(ctx context.Context, p *api.RPCHelloParams) (*api.Hello, 
 		c.app = strings.HasPrefix(p.Client, AppClient)
 		c.mu.Unlock()
 		c.ready.Store(true)
-		s.opts.Logger.Debug("client connected", "client", p.Client)
+		s.opts.Logger.Debug("client connected", "client", p.Client, "caller", c.caller.Kind)
 	}
-	return &api.Hello{Protocol: api.Protocol, Server: s.opts.Name}, nil
+	h := &api.Hello{Protocol: api.Protocol, Server: s.opts.Name}
+	caller := api.CallerFrom(ctx)
+	h.Caller = &caller.Kind
+	if caller.Kind == api.CallerKindSession {
+		h.Login = optional(caller.Login)
+		h.NodeName = optional(caller.NodeName)
+		h.DisplayName = optional(caller.DisplayName)
+	}
+	return h, nil
 }
+
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// Ping implements rpc.ping.
+func (s *Server) Ping(context.Context, *api.RPCPingParams) error { return nil }
 
 // Subscribe implements events.subscribe; delivery starts after the reply.
 func (s *Server) Subscribe(ctx context.Context, p *api.EventsSubscribeParams) (*api.Subscription, error) {

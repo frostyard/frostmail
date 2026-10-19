@@ -25,6 +25,8 @@ Generated from [schema/rpc](../../schema/rpc). Framing, connection setup and eve
 
 Mail accounts and their server settings. Credentials are write-only over RPC; account.setPassword stores one and no method returns it.
 
+Callers: `local`, `session`.
+
 ### `account.list`
 
 All accounts, oldest first.
@@ -384,6 +386,8 @@ What a collection holds.
 
 Addresses seen in stored and sent mail, for completing recipients.
 
+Callers: `local`, `session`.
+
 ### `address.suggest`
 
 Addresses whose address, or any word of whose name, starts with prefix (case-insensitively), most used first.
@@ -398,6 +402,8 @@ Result: `[]Address`.
 ## block
 
 Blocked senders (ADR-0028): their mail never notifies, and is marked as blocked or moved to the Trash as it arrives (the blockAction setting).
+
+Callers: `local`, `session`.
 
 ### `block.list`
 
@@ -448,6 +454,8 @@ One blocked address.
 ## calendar
 
 Events from the accounts' calendars, their occurrences, invitations and reminders (docs/design/pim.md, ADR-0018, ADR-0019), and their edits (ADR-0030 to ADR-0033, ADR-0035).
+
+Callers: `local`, `session`.
 
 ### `calendar.range`
 
@@ -829,6 +837,8 @@ What a change to an occurrence of a series changes (ADR-0031).
 
 Drafts: messages being written. maild stores a draft at once on every update and keeps a copy in the account's Drafts mailbox; draft.send hands it to the outbox (docs/design/send.md).
 
+Callers: `local`, `session`.
+
 ### `draft.create`
 
 Start a draft: a new message in the account (or the first account), or a reply, reply-all or forward of a message.
@@ -898,6 +908,7 @@ Attach a local file; maild copies it, so later changes to the file do not matter
 
 Result: `DraftAttachment`.
 Errors: `notFound`, `invalidParams`.
+Callers: `local` only.
 
 ### `draft.detach`
 
@@ -998,6 +1009,8 @@ How a new draft starts.
 
 Change notifications. After events.subscribe, the server sends JSON-RPC notifications with method "event" on the same connection. Durable events carry a sequence number and are kept in the changes log, so a client that reconnects can resume from the last sequence number it saw.
 
+Callers: `local`, `session`.
+
 ### `events.subscribe`
 
 Start receiving events on this connection. Durable events after sinceSeq are replayed before live events.
@@ -1020,6 +1033,8 @@ The state of a new subscription.
 ## identity
 
 The addresses an account sends as, with their signatures.
+
+Callers: `local`, `session`.
 
 ### `identity.list`
 
@@ -1086,6 +1101,8 @@ One From address of an account.
 ## mailbox
 
 Mailboxes (IMAP folders, and Gmail labels shown as folders).
+
+Callers: `local`, `session`.
 
 ### `mailbox.list`
 
@@ -1214,6 +1231,8 @@ What a mailbox is for, from SPECIAL-USE attributes or name heuristics.
 
 Messages. An ID is local and stays the same while the message exists, including across moves the server reports with COPYUID.
 
+Callers: `local`, `session`.
+
 ### `message.get`
 
 One message's headers and structure.
@@ -1254,6 +1273,7 @@ A message prepared for the reader, fetching it first if it is not stored locally
 | --- | --- | --- |
 | `id` | `int` |  |
 | `remote` | `bool` (optional) |  |
+| `content` | `bool` (optional) | Also keep the reader's page for maild's lodge content route, and name it in contentPath. |
 
 Result: `Rendering`.
 Errors: `notFound`, `unavailable`.
@@ -1340,6 +1360,7 @@ Save As: write the message as the server holds it (an .eml file) to path, replac
 
 Result: none (`null`).
 Errors: `notFound`, `invalidParams`, `unavailable`.
+Callers: `local` only.
 
 ### `message.unsubscribeInfo`
 
@@ -1542,6 +1563,7 @@ A message prepared for the reader.
 | `text` | `string` | The readable text, as message.body returns it. |
 | `remote` | `int` | Remote resources left out: not requested, or requested and failed. |
 | `trackers` | `int` | Tracking images removed; they are never loaded. |
+| `contentPath` | `string` (optional) | With render's content, on a maild serving lodge: the reader's whole page on maild's content route, as r/<token>.html (docs/specs/lodge-app.md). Absent for a message without HTML. |
 
 ### Type `PartFile`
 
@@ -1553,6 +1575,7 @@ A message part decoded into the parts cache.
 | `contentType` | `string` | Lowercase type/subtype. |
 | `filename` | `string` | A safe file name: the part's, or one made from its type. |
 | `size` | `int` | Decoded size in bytes. |
+| `contentPath` | `string` (optional) | On a maild serving lodge: the part on maild's content route, as p/<mac>/<path> (docs/specs/lodge-app.md). |
 
 ### Type `FlagChanges`
 
@@ -1578,6 +1601,8 @@ How a list message can be left (ADR-0027), best first.
 ## oauth
 
 The OAuth clients maild signs in with. Microsoft's is built in (ADR-0039); for Google, until Frostmail ships a verified client (M6), the user registers their own (docs/design/accounts.md). The client secret is write-only.
+
+Callers: `local`, `session`.
 
 ### `oauth.setClient`
 
@@ -1625,6 +1650,8 @@ An OAuth identity provider maild knows the endpoints of.
 ## outbox
 
 Messages on their way out (docs/design/send.md, Outbox).
+
+Callers: `local`, `session`.
 
 ### `outbox.list`
 
@@ -1713,6 +1740,8 @@ Where a message is on its way out.
 ## people
 
 Contacts from the accounts' address books, joined into people by email address across address books and accounts (docs/design/pim.md), and their edits (ADR-0030, ADR-0032).
+
+Callers: `local`, `session`.
 
 ### `people.list`
 
@@ -1992,6 +2021,8 @@ What the app shows for an email address in mail.
 
 Connection setup. A client calls rpc.hello first on every connection; the server answers any other method with notReady until hello succeeds.
 
+Callers: `local`, `session`, `agent`.
+
 ### `rpc.hello`
 
 Negotiate the protocol major version. Changes within a major version are additive only.
@@ -2004,18 +2035,42 @@ Negotiate the protocol major version. Changes within a major version are additiv
 Result: `Hello`.
 Errors: `protocolMismatch`.
 
+### `rpc.ping`
+
+Do nothing; a web client calls it at least every 30 s while visible, so lodge keeps its session.
+
+No params.
+
+Result: none (`null`).
+
 ### Type `Hello`
 
-Server identity and the negotiated protocol.
+Server identity, the negotiated protocol, and who the connection serves.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `protocol` | `int` | Protocol major version the server speaks. |
 | `server` | `string` | Server name and version, for logs. |
+| `caller` | `CallerKind` (optional) | The connection's caller; absent from a maild older than callers, which serves local only. |
+| `login` | `string` (optional) | A session's tailnet login, from lodge. |
+| `nodeName` | `string` (optional) | A session's tailnet node name, from lodge. |
+| `displayName` | `string` (optional) | A session's display name, when lodge has one. |
+
+### Enum `CallerKind`
+
+Who a connection serves (docs/specs/lodge-app.md). A method a connection's caller may not use answers methodNotFound.
+
+| Value | Meaning |
+| --- | --- |
+| `local` | maild's private socket: mailctl, and the app on the same machine. |
+| `session` | A browser session through lodge's /app/mail/api. |
+| `agent` | An MCP session through lodge's /mcp/mail. |
 
 ## rule
 
 Rules that act on new inbox mail in maild, before it notifies, and on chosen messages with apply (ADR-0024, docs/design/organize.md).
+
+Callers: `local`, `session`.
 
 ### `rule.list`
 
@@ -2147,6 +2202,8 @@ What a rule does to a message that meets its conditions.
 
 Preferences maild keeps for every account, so they hold with the app closed and look the same from mailctl (ADR-0026, docs/design/organize.md).
 
+Callers: `local`, `session`.
+
 ### `settings.get`
 
 The current preferences.
@@ -2214,6 +2271,8 @@ What happens to new mail from a blocked sender (ADR-0028).
 ## smart
 
 Smart mailboxes: saved conditions listed as a mailbox, across accounts (ADR-0023, docs/design/organize.md).
+
+Callers: `local`, `session`.
 
 ### `smart.list`
 
@@ -2314,6 +2373,8 @@ One smart mailbox.
 
 Account synchronization state and control.
 
+Callers: `local`, `session`.
+
 ### `sync.status`
 
 The sync state of every account, or of one.
@@ -2385,6 +2446,8 @@ What an account's sync is doing.
 ## tasks
 
 Tasks from Google Tasks and from CalDAV task lists (docs/design/pim.md). Flagged mail, which the Tasks module and the To-Do bar show beside them, comes from view.open with flagged set.
+
+Callers: `local`, `session`.
 
 ### `tasks.list`
 
@@ -2470,6 +2533,8 @@ A task.
 
 Conversations, built by maild from message references (Gmail threads on Gmail).
 
+Callers: `local`, `session`.
+
 ### `thread.messages`
 
 The messages of a thread in every mailbox, oldest first, without messages deleted locally.
@@ -2484,6 +2549,8 @@ Errors: `notFound`.
 ## view
 
 Live message lists. A view belongs to the connection that opened it, sends its deltas only there, and closes with it.
+
+Callers: `local`, `session`.
 
 ### `view.open`
 
@@ -2697,6 +2764,8 @@ How a condition compares; which fields take which ops is in docs/design/organize
 ## vip
 
 VIP senders: addresses whose mail gets a star, a mailbox of its own, and can be the only mail that notifies (docs/design/organize.md).
+
+Callers: `local`, `session`.
 
 ### `vip.list`
 

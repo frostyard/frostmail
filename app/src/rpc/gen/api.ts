@@ -1473,6 +1473,12 @@ export interface Rendering {
   remote: number;
   /** Tracking images removed; they are never loaded. */
   trackers: number;
+  /**
+   * With render's content, on a maild serving lodge: the reader's whole page
+   * on maild's content route, as r/<token>.html (docs/specs/lodge-app.md).
+   * Absent for a message without HTML.
+   */
+  contentPath?: string;
 }
 
 /** A message part decoded into the parts cache. */
@@ -1485,6 +1491,11 @@ export interface PartFile {
   filename: string;
   /** Decoded size in bytes. */
   size: number;
+  /**
+   * On a maild serving lodge: the part on maild's content route, as
+   * p/<mac>/<path> (docs/specs/lodge-app.md).
+   */
+  contentPath?: string;
 }
 
 /** Flags to set or clear; omitted fields keep their values. */
@@ -1514,6 +1525,11 @@ export interface MessageSummariesParams {
 export interface MessageRenderParams {
   id: number;
   remote?: boolean;
+  /**
+   * Also keep the reader's page for maild's lodge content route, and name it
+   * in contentPath.
+   */
+  content?: boolean;
 }
 
 /** Params of message.part. */
@@ -2152,12 +2168,30 @@ function peopleClient(t: Transport): PeopleClient {
 
 // ---- rpc ----
 
-/** Server identity and the negotiated protocol. */
+/**
+ * Who a connection serves (docs/specs/lodge-app.md). A method a connection's
+ * caller may not use answers methodNotFound.
+ */
+export type CallerKind = "local" | "session" | "agent";
+export const CallerKindValues: readonly CallerKind[] = ["local", "session", "agent"];
+
+/** Server identity, the negotiated protocol, and who the connection serves. */
 export interface Hello {
   /** Protocol major version the server speaks. */
   protocol: number;
   /** Server name and version, for logs. */
   server: string;
+  /**
+   * The connection's caller; absent from a maild older than callers, which
+   * serves local only.
+   */
+  caller?: CallerKind;
+  /** A session's tailnet login, from lodge. */
+  login?: string;
+  /** A session's tailnet node name, from lodge. */
+  nodeName?: string;
+  /** A session's display name, when lodge has one. */
+  displayName?: string;
 }
 
 /** Params of rpc.hello. */
@@ -2167,6 +2201,9 @@ export interface RPCHelloParams {
   /** Client name and version, for logs. */
   client: string;
 }
+
+/** Params of rpc.ping. */
+export type RPCPingParams = Record<string, never>;
 
 /**
  * Connection setup. A client calls rpc.hello first on every connection; the
@@ -2178,11 +2215,17 @@ export interface RPCClient {
    * additive only.
    */
   hello(params: RPCHelloParams): Promise<Hello>;
+  /**
+   * Do nothing; a web client calls it at least every 30 s while visible, so
+   * lodge keeps its session.
+   */
+  ping(params?: RPCPingParams): Promise<void>;
 }
 
 function rpcClient(t: Transport): RPCClient {
   return {
     hello: (params) => t.call<Hello>("rpc.hello", params),
+    ping: (params = {}) => t.call<null>("rpc.ping", params).then(() => undefined),
   };
 }
 
@@ -2996,6 +3039,7 @@ export const METHODS = [
   "people.setPhoto",
   "people.restore",
   "rpc.hello",
+  "rpc.ping",
   "rule.list",
   "rule.create",
   "rule.update",

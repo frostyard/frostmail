@@ -2507,6 +2507,10 @@ type Rendering struct {
 	Remote int64 `json:"remote"`
 	// Tracking images removed; they are never loaded.
 	Trackers int64 `json:"trackers"`
+	// With render's content, on a maild serving lodge: the reader's whole page on
+	// maild's content route, as r/<token>.html (docs/specs/lodge-app.md). Absent
+	// for a message without HTML.
+	ContentPath *string `json:"contentPath,omitzero"`
 }
 
 // PartFile: A message part decoded into the parts cache.
@@ -2519,6 +2523,9 @@ type PartFile struct {
 	Filename string `json:"filename"`
 	// Decoded size in bytes.
 	Size int64 `json:"size"`
+	// On a maild serving lodge: the part on maild's content route, as
+	// p/<mac>/<path> (docs/specs/lodge-app.md).
+	ContentPath *string `json:"contentPath,omitzero"`
 }
 
 // FlagChanges: Flags to set or clear; omitted fields keep their values.
@@ -2548,6 +2555,9 @@ type MessageSummariesParams struct {
 type MessageRenderParams struct {
 	ID     int64 `json:"id"`
 	Remote *bool `json:"remote,omitzero"`
+	// Also keep the reader's page for maild's lodge content route, and name it in
+	// contentPath.
+	Content *bool `json:"content,omitzero"`
 }
 
 // MessagePartParams holds the params of message.part.
@@ -3689,12 +3699,44 @@ func (PeopleRefused) Durable() bool { return false }
 
 // ---- rpc ----
 
-// Hello: Server identity and the negotiated protocol.
+// CallerKind: Who a connection serves (docs/specs/lodge-app.md). A method a
+// connection's caller may not use answers methodNotFound.
+type CallerKind string
+
+const (
+	// maild's private socket: mailctl, and the app on the same machine.
+	CallerKindLocal CallerKind = "local"
+	// A browser session through lodge's /app/mail/api.
+	CallerKindSession CallerKind = "session"
+	// An MCP session through lodge's /mcp/mail.
+	CallerKindAgent CallerKind = "agent"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v CallerKind) Valid() bool {
+	switch v {
+	case CallerKindLocal, CallerKindSession, CallerKindAgent:
+		return true
+	}
+	return false
+}
+
+// Hello: Server identity, the negotiated protocol, and who the connection
+// serves.
 type Hello struct {
 	// Protocol major version the server speaks.
 	Protocol int64 `json:"protocol"`
 	// Server name and version, for logs.
 	Server string `json:"server"`
+	// The connection's caller; absent from a maild older than callers, which
+	// serves local only.
+	Caller *CallerKind `json:"caller,omitzero"`
+	// A session's tailnet login, from lodge.
+	Login *string `json:"login,omitzero"`
+	// A session's tailnet node name, from lodge.
+	NodeName *string `json:"nodeName,omitzero"`
+	// A session's display name, when lodge has one.
+	DisplayName *string `json:"displayName,omitzero"`
 }
 
 // RPCHelloParams holds the params of rpc.hello.
@@ -3705,6 +3747,9 @@ type RPCHelloParams struct {
 	Client string `json:"client"`
 }
 
+// RPCPingParams holds the params of rpc.ping.
+type RPCPingParams struct{}
+
 // RPCService: Connection setup. A client calls rpc.hello first on every
 // connection; the server answers any other method with notReady until hello
 // succeeds.
@@ -3712,6 +3757,9 @@ type RPCService interface {
 	// Hello implements rpc.hello. Negotiate the protocol major version. Changes
 	// within a major version are additive only.
 	Hello(ctx context.Context, p *RPCHelloParams) (*Hello, error)
+	// Ping implements rpc.ping. Do nothing; a web client calls it at least every
+	// 30 s while visible, so lodge keeps its session.
+	Ping(ctx context.Context, p *RPCPingParams) error
 }
 
 func registerRPC(r *Router, s RPCService) {
@@ -3721,6 +3769,13 @@ func registerRPC(r *Router, s RPCService) {
 			return nil, err
 		}
 		return s.Hello(ctx, &p)
+	})
+	r.handle("rpc.ping", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RPCPingParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return nil, s.Ping(ctx, &p)
 	})
 }
 
@@ -3740,6 +3795,11 @@ func (x RPCClient) Hello(ctx context.Context, p *RPCHelloParams) (*Hello, error)
 		return nil, err
 	}
 	return &r, nil
+}
+
+// Ping calls rpc.ping.
+func (x RPCClient) Ping(ctx context.Context, p *RPCPingParams) error {
+	return x.c.Call(ctx, "rpc.ping", p, nil)
 }
 
 // ---- rule ----
@@ -5218,6 +5278,123 @@ func (s Services) register(r *Router) error {
 	return nil
 }
 
+// methodCallers is the caller kinds each method admits (schema/rpc callers).
+var methodCallers = map[string][]CallerKind{
+	"account.list":            {CallerKindLocal, CallerKindSession},
+	"account.get":             {CallerKindLocal, CallerKindSession},
+	"account.create":          {CallerKindLocal, CallerKindSession},
+	"account.update":          {CallerKindLocal, CallerKindSession},
+	"account.delete":          {CallerKindLocal, CallerKindSession},
+	"account.setPassword":     {CallerKindLocal, CallerKindSession},
+	"account.discover":        {CallerKindLocal, CallerKindSession},
+	"account.authorize":       {CallerKindLocal, CallerKindSession},
+	"account.verify":          {CallerKindLocal, CallerKindSession},
+	"account.services":        {CallerKindLocal, CallerKindSession},
+	"account.setService":      {CallerKindLocal, CallerKindSession},
+	"account.collections":     {CallerKindLocal, CallerKindSession},
+	"account.setCollection":   {CallerKindLocal, CallerKindSession},
+	"address.suggest":         {CallerKindLocal, CallerKindSession},
+	"block.list":              {CallerKindLocal, CallerKindSession},
+	"block.add":               {CallerKindLocal, CallerKindSession},
+	"block.remove":            {CallerKindLocal, CallerKindSession},
+	"calendar.range":          {CallerKindLocal, CallerKindSession},
+	"calendar.event":          {CallerKindLocal, CallerKindSession},
+	"calendar.invitation":     {CallerKindLocal, CallerKindSession},
+	"calendar.respond":        {CallerKindLocal, CallerKindSession},
+	"calendar.reminders":      {CallerKindLocal, CallerKindSession},
+	"calendar.snooze":         {CallerKindLocal, CallerKindSession},
+	"calendar.dismiss":        {CallerKindLocal, CallerKindSession},
+	"calendar.create":         {CallerKindLocal, CallerKindSession},
+	"calendar.update":         {CallerKindLocal, CallerKindSession},
+	"calendar.delete":         {CallerKindLocal, CallerKindSession},
+	"calendar.restore":        {CallerKindLocal, CallerKindSession},
+	"draft.create":            {CallerKindLocal, CallerKindSession},
+	"draft.open":              {CallerKindLocal, CallerKindSession},
+	"draft.get":               {CallerKindLocal, CallerKindSession},
+	"draft.list":              {CallerKindLocal, CallerKindSession},
+	"draft.update":            {CallerKindLocal, CallerKindSession},
+	"draft.attach":            {CallerKindLocal},
+	"draft.detach":            {CallerKindLocal, CallerKindSession},
+	"draft.delete":            {CallerKindLocal, CallerKindSession},
+	"draft.send":              {CallerKindLocal, CallerKindSession},
+	"events.subscribe":        {CallerKindLocal, CallerKindSession},
+	"identity.list":           {CallerKindLocal, CallerKindSession},
+	"identity.update":         {CallerKindLocal, CallerKindSession},
+	"identity.create":         {CallerKindLocal, CallerKindSession},
+	"identity.delete":         {CallerKindLocal, CallerKindSession},
+	"mailbox.list":            {CallerKindLocal, CallerKindSession},
+	"mailbox.create":          {CallerKindLocal, CallerKindSession},
+	"mailbox.rename":          {CallerKindLocal, CallerKindSession},
+	"mailbox.move":            {CallerKindLocal, CallerKindSession},
+	"mailbox.delete":          {CallerKindLocal, CallerKindSession},
+	"mailbox.setRole":         {CallerKindLocal, CallerKindSession},
+	"mailbox.erase":           {CallerKindLocal, CallerKindSession},
+	"message.get":             {CallerKindLocal, CallerKindSession},
+	"message.body":            {CallerKindLocal, CallerKindSession},
+	"message.summaries":       {CallerKindLocal, CallerKindSession},
+	"message.render":          {CallerKindLocal, CallerKindSession},
+	"message.part":            {CallerKindLocal, CallerKindSession},
+	"message.setFlags":        {CallerKindLocal, CallerKindSession},
+	"message.move":            {CallerKindLocal, CallerKindSession},
+	"message.copy":            {CallerKindLocal, CallerKindSession},
+	"message.delete":          {CallerKindLocal, CallerKindSession},
+	"message.source":          {CallerKindLocal, CallerKindSession},
+	"message.save":            {CallerKindLocal},
+	"message.unsubscribeInfo": {CallerKindLocal, CallerKindSession},
+	"message.unsubscribe":     {CallerKindLocal, CallerKindSession},
+	"message.redirect":        {CallerKindLocal, CallerKindSession},
+	"message.mute":            {CallerKindLocal, CallerKindSession},
+	"message.remind":          {CallerKindLocal, CallerKindSession},
+	"oauth.setClient":         {CallerKindLocal, CallerKindSession},
+	"oauth.getClient":         {CallerKindLocal, CallerKindSession},
+	"outbox.list":             {CallerKindLocal, CallerKindSession},
+	"outbox.cancel":           {CallerKindLocal, CallerKindSession},
+	"outbox.retry":            {CallerKindLocal, CallerKindSession},
+	"outbox.reschedule":       {CallerKindLocal, CallerKindSession},
+	"people.list":             {CallerKindLocal, CallerKindSession},
+	"people.get":              {CallerKindLocal, CallerKindSession},
+	"people.card":             {CallerKindLocal, CallerKindSession},
+	"people.photo":            {CallerKindLocal, CallerKindSession},
+	"people.senders":          {CallerKindLocal, CallerKindSession},
+	"people.add":              {CallerKindLocal, CallerKindSession},
+	"people.create":           {CallerKindLocal, CallerKindSession},
+	"people.update":           {CallerKindLocal, CallerKindSession},
+	"people.delete":           {CallerKindLocal, CallerKindSession},
+	"people.setPhoto":         {CallerKindLocal, CallerKindSession},
+	"people.restore":          {CallerKindLocal, CallerKindSession},
+	"rpc.hello":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"rpc.ping":                {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"rule.list":               {CallerKindLocal, CallerKindSession},
+	"rule.create":             {CallerKindLocal, CallerKindSession},
+	"rule.update":             {CallerKindLocal, CallerKindSession},
+	"rule.delete":             {CallerKindLocal, CallerKindSession},
+	"rule.move":               {CallerKindLocal, CallerKindSession},
+	"rule.apply":              {CallerKindLocal, CallerKindSession},
+	"settings.get":            {CallerKindLocal, CallerKindSession},
+	"settings.set":            {CallerKindLocal, CallerKindSession},
+	"smart.list":              {CallerKindLocal, CallerKindSession},
+	"smart.create":            {CallerKindLocal, CallerKindSession},
+	"smart.update":            {CallerKindLocal, CallerKindSession},
+	"smart.fromSearch":        {CallerKindLocal, CallerKindSession},
+	"smart.delete":            {CallerKindLocal, CallerKindSession},
+	"smart.move":              {CallerKindLocal, CallerKindSession},
+	"sync.status":             {CallerKindLocal, CallerKindSession},
+	"sync.now":                {CallerKindLocal, CallerKindSession},
+	"sync.pim":                {CallerKindLocal, CallerKindSession},
+	"tasks.list":              {CallerKindLocal, CallerKindSession},
+	"tasks.create":            {CallerKindLocal, CallerKindSession},
+	"tasks.update":            {CallerKindLocal, CallerKindSession},
+	"tasks.delete":            {CallerKindLocal, CallerKindSession},
+	"thread.messages":         {CallerKindLocal, CallerKindSession},
+	"view.open":               {CallerKindLocal, CallerKindSession},
+	"view.count":              {CallerKindLocal, CallerKindSession},
+	"view.range":              {CallerKindLocal, CallerKindSession},
+	"view.close":              {CallerKindLocal, CallerKindSession},
+	"vip.list":                {CallerKindLocal, CallerKindSession},
+	"vip.add":                 {CallerKindLocal, CallerKindSession},
+	"vip.remove":              {CallerKindLocal, CallerKindSession},
+}
+
 // Methods is every method's wire name, in schema order.
 var Methods = []string{
 	"account.list",
@@ -5303,6 +5480,7 @@ var Methods = []string{
 	"people.setPhoto",
 	"people.restore",
 	"rpc.hello",
+	"rpc.ping",
 	"rule.list",
 	"rule.create",
 	"rule.update",
