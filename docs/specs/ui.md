@@ -259,6 +259,25 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Dates:** today, the short time ("9:41 AM" in the locale); yesterday,
   "Yesterday"; within the last 6 days, the weekday ("Tuesday"); otherwise the
   locale's short date ("10/3/26").
+- **Drafts not yet saved** (M8.5): a Drafts mailbox lists its account's
+  drafts that no stored message holds yet, and All Drafts every
+  account's (`draft.unsaved`): drafts maild has whose server copy has not
+  arrived, with sync off, offline, or within the quiet period, whether
+  the user or an agent made them. So no draft is out of sight. They head
+  the list, newest first, as a `group` named "Not Yet Saved" of rows the
+  height of a message's:
+  - line 1 is "To: " and the recipients (`formatAddressList`), or "No
+    Recipients" in `--text-tertiary`, with the date it last changed;
+  - line 2 is the subject, as a message's, then a "Not Saved" badge in the
+    thread count's style;
+  - lines 3–4 are the draft's own text, without its quote.
+
+  A click, Enter or Space opens the draft in its compose window, or its
+  `/compose/<id>` route in lodge. They are left out while searching or
+  filtering. They refresh on `draft.changed` and `outbox.changed`, and
+  as the list's count changes, so a draft gives way to its copy when that
+  arrives. A Drafts list with no message but such drafts shows no empty
+  text.
 - **Empty:** "No Messages" centered, 15/400 `--text-secondary`. With a
   filter (below) it names the filter and the source it narrows, titled as
   the toolbar titles it: "No Unread Messages in All Inboxes", "No Flagged

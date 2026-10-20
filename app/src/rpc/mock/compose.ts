@@ -44,6 +44,8 @@ const VALID = /^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$/;
 /** MockCompose serves drafts and the outbox for MockTransport. */
 export class MockCompose {
   private readonly drafts = new Map<number, Draft>();
+  /** Drafts opened from a stored message, which holds them: never unsaved. */
+  private readonly opened = new Set<number>();
   private readonly outbox = new Map<number, OutboxItem>();
   private readonly timers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly identityList: Identity[];
@@ -91,6 +93,7 @@ export class MockCompose {
         const src = this.source(num(p.messageId));
         if (!src) throw notFound(`message ${num(p.messageId)}`);
         const d = this.draft(this.create("new", src.accountId, undefined).id);
+        this.opened.add(d.id);
         d.content.subject = src.subject;
         d.content.to = src.to;
         d.content.html = src.html !== "" ? src.html : `<p>${src.text}</p>`;
@@ -100,6 +103,15 @@ export class MockCompose {
         return structuredClone(this.draft(num(p.id)));
       case "draft.list":
         return [...this.drafts.values()].map((d) => structuredClone(d));
+      case "draft.unsaved": {
+        // As maild: no stored message holds them, and the Outbox does not.
+        const out = [...this.outbox.values()].filter((o) => o.state !== "sent" && o.state !== "accepted");
+        return [...this.drafts.values()]
+          .filter((d) => typeof p.accountId !== "number" || d.accountId === p.accountId)
+          .filter((d) => !this.opened.has(d.id) && !out.some((o) => o.draftId === d.id))
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id - a.id)
+          .map((d) => structuredClone(d));
+      }
       case "draft.update": {
         const d = this.draft(num(p.id));
         d.content = structuredClone(p.content as DraftContent);

@@ -36,6 +36,11 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   edit, so drafts opened and closed untouched never reach the server.
   Deleting a draft queues its copy's deletion the same way. A copy the
   server refuses is retried after the draft changes again.
+- **Before the copy:** `draft.unsaved` lists the drafts no stored message
+  of their account holds (by Message-ID) and the Outbox does not hold.
+  The Drafts list shows them, marked Not Saved, until their copy arrives
+  ([ui.md](../specs/ui.md#message-list)), so a draft made with sync off,
+  offline, or by an agent through `/mcp/mail` is never out of sight.
 - `draft.open` on a message (normally in Drafts) returns the draft with the
   same Message-ID if there is one; otherwise it parses the message into a
   new draft (recipients including Bcc, subject, HTML or text body,

@@ -105,6 +105,30 @@ func (d *DB) ListDrafts(ctx context.Context, accountID int64) ([]Draft, error) {
 	return drafts, nil
 }
 
+// UnsavedDrafts lists, as ListDrafts does, the drafts no stored message of
+// their account holds (none has their Message-ID) and the Outbox does not
+// hold (no queued, sending or failed row): those a Drafts mailbox lists
+// as not yet saved until their server copy arrives (docs/design/send.md).
+func (d *DB) UnsavedDrafts(ctx context.Context, accountID int64) ([]Draft, error) {
+	query := draftSelect + ` WHERE NOT EXISTS (SELECT 1 FROM messages m
+ WHERE m.account_id = drafts.account_id AND m.msgid_hdr = drafts.msgid_hdr AND m.deleted = 0)
+ AND NOT EXISTS (SELECT 1 FROM outbox o WHERE o.draft_id = drafts.id AND o.state IN ('queued', 'sending', 'failed'))`
+	var args []any
+	if accountID != 0 {
+		query += ` AND account_id = ?`
+		args = append(args, accountID)
+	}
+	query += ` ORDER BY updated_at DESC, id DESC`
+	drafts, err := queryDrafts(ctx, d.db, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachDrafts(ctx, d.db, drafts); err != nil {
+		return nil, err
+	}
+	return drafts, nil
+}
+
 // UpdateDraftContent replaces a draft's content, sets updated_at to the
 // transaction clock (see bumpUpdatedAt) and returns the draft as stored. A
 // missing draft is an error wrapping ErrNotFound.
