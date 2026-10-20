@@ -15,25 +15,38 @@ export function draftsScope(source: Source, mailboxes: readonly Mailbox[]): { ac
   return mailbox?.role === "drafts" ? { accountId: mailbox.accountId } : null;
 }
 
-/** useUnsavedDrafts returns the unsaved drafts of a scope, refreshed on draft and Outbox changes and when count changes. */
-export function useUnsavedDrafts(client: Client, scope: { accountId?: number } | null, count: number): Draft[] {
-  const [drafts, setDrafts] = useState<Draft[]>([]);
+/** Unsaved is what useUnsavedDrafts answers: the drafts, and why they could not be listed. */
+export interface Unsaved {
+  drafts: Draft[];
+  error: string | null;
+}
+
+const NONE: Unsaved = { drafts: [], error: null };
+
+/**
+ * useUnsavedDrafts returns the unsaved drafts of a scope, refreshed on
+ * draft and Outbox changes and when count changes. It answers a scope's
+ * own drafts only: another scope's, still shown while this one's load, would
+ * put another account's drafts in this Drafts list.
+ */
+export function useUnsavedDrafts(client: Client, scope: { accountId?: number } | null, count: number): Unsaved {
   const accountId = scope?.accountId;
-  const active = scope !== null;
+  const key = scope === null ? null : (accountId ?? "all");
+  const [state, setState] = useState<Unsaved & { key: number | "all" | null }>({ ...NONE, key: null });
   // biome-ignore lint/correctness/useExhaustiveDependencies: count re-reads them when the list changes, as a server copy arrives.
   useEffect(() => {
-    if (!active) {
-      setDrafts([]);
-      return;
-    }
+    if (key === null) return;
     let current = true;
     const load = () => {
       void client.draft
         .unsaved(accountId === undefined ? {} : { accountId })
-        .then((list) => {
-          if (current) setDrafts(list);
+        .then((drafts) => {
+          if (current) setState({ key, drafts, error: null });
         })
-        .catch((err: unknown) => console.warn("unsaved drafts", err));
+        .catch((err: unknown) => {
+          console.warn("unsaved drafts", err);
+          if (current) setState({ key, drafts: [], error: err instanceof Error ? err.message : String(err) });
+        });
     };
     load();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -47,6 +60,6 @@ export function useUnsavedDrafts(client: Client, scope: { accountId?: number } |
       clearTimeout(timer);
       off();
     };
-  }, [client, active, accountId, count]);
-  return drafts;
+  }, [client, key, accountId, count]);
+  return key !== null && state.key === key ? state : NONE;
 }
