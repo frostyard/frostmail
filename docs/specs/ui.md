@@ -92,6 +92,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     syncs).
   - Over the list: the source title (13/600) above a subtitle (11/400
     secondary): "1,234 messages, 12 unread", or "Searching…", or "N results".
+    A Drafts list counts its drafts not yet saved ([Message
+    list](#message-list)): "3 drafts not yet saved" when it holds no
+    message, else after the messages, "2 messages, 0 unread · 1 draft not
+    yet saved".
     A mailbox of a read-only account adds " · Read-only" to its subtitle,
     and opening its messages does not mark them read.
   - Over the reader: Delete, Archive, Flag (menu of the 7 colors and Clear

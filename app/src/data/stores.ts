@@ -122,6 +122,8 @@ export interface UIState {
   booksOpen: boolean;
   /** A narrow window shows Tasks' lists in place of the tasks. */
   taskListsOpen: boolean;
+  /** How many drafts not yet saved the list shows (docs/specs/ui.md, Message list); the toolbar counts them. */
+  unsavedDrafts: number;
   sidebarWidth: number;
   listWidth: number;
   conversations: boolean;
@@ -168,6 +170,7 @@ export interface UIActions {
   openCalendars: (open: boolean) => void;
   openBooks: (open: boolean) => void;
   openTaskLists: (open: boolean) => void;
+  setUnsavedDrafts: (n: number) => void;
   setWidths: (w: { sidebarWidth?: number; listWidth?: number }) => void;
 }
 
@@ -202,6 +205,7 @@ const initialUI: UIState = {
   calendarsOpen: false,
   booksOpen: false,
   taskListsOpen: false,
+  unsavedDrafts: 0,
   sidebarWidth: 220,
   listWidth: 360,
   conversations: true,
@@ -253,6 +257,7 @@ export const useUI = create<UIState & UIActions>()(
       openCalendars: (calendarsOpen) => set({ calendarsOpen }),
       openBooks: (booksOpen) => set({ booksOpen }),
       openTaskLists: (taskListsOpen) => set({ taskListsOpen }),
+      setUnsavedDrafts: (unsavedDrafts) => set({ unsavedDrafts }),
       setWidths: (w) => set(w),
     }),
     {

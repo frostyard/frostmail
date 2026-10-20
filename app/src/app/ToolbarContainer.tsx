@@ -70,10 +70,16 @@ function mailTitle(model: ViewModel | null) {
   }
   const src = ui.source;
   const title = sourceTitle(src, { ...mail, flagNames: mail.settings?.flagNames });
+  // Drafts not yet saved, which a Drafts list shows above its messages,
+  // count too: alone when the list holds no message, else after them.
   const counts = (list: typeof mailboxes) => {
     const total = list.reduce((n, mb) => n + mb.total, 0);
     const unread = list.reduce((n, mb) => n + mb.unread, 0);
-    return `${formatCount(total)} messages, ${formatCount(unread)} unread`;
+    const messages = `${formatCount(total)} messages, ${formatCount(unread)} unread`;
+    const n = ui.unsavedDrafts;
+    if (n === 0) return messages;
+    const unsaved = `${formatCount(n)} ${n === 1 ? "draft" : "drafts"} not yet saved`;
+    return total === 0 ? unsaved : `${messages} · ${unsaved}`;
   };
   switch (src.kind) {
     case "allInboxes":

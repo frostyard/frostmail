@@ -194,6 +194,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       void openCompose(id).catch((err: unknown) => console.warn("open draft", err));
     }, []);
     const unsavedShown = unsaved.drafts.length > 0 || unsaved.error !== null;
+    // The toolbar's subtitle counts them; none once the list is gone.
+    const unsavedCount = unsaved.drafts.length;
+    useEffect(() => {
+      useUI.getState().setUnsavedDrafts(unsavedCount);
+    }, [unsavedCount]);
+    useEffect(() => () => useUI.getState().setUnsavedDrafts(0), []);
     const unsavedTop = unsavedHeight(unsaved.drafts.length, unsaved.error !== null);
 
     const virtualizer = useVirtualizer({

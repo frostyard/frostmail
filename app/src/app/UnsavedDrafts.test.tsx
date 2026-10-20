@@ -22,6 +22,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** subtitle is the toolbar's text under the list's title. */
+const subtitle = () => screen.getByRole("toolbar", { name: "Toolbar" }).textContent ?? "";
+
 /** OTHER is a second account's Drafts mailbox, when setup adds the account. */
 const OTHER = { accountId: 2, drafts: 20 };
 
@@ -79,8 +82,11 @@ describe("a Drafts list", () => {
     expect(row.textContent).toContain("Yes to Saturday");
     // The heading is on screen, not only the group's name.
     expect(within(group() as HTMLElement).getByText("Not Yet Saved")).toBeTruthy();
-    // The Drafts mailbox holds no message, and that is no empty mailbox.
+    // The Drafts mailbox holds no message, and that is no empty mailbox:
+    // the toolbar counts the draft in place of messages.
     expect(within(list).queryByText(/No Messages/)).toBeNull();
+    await waitFor(() => expect(subtitle()).toContain("1 draft not yet saved"));
+    expect(subtitle()).not.toContain("0 messages");
 
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     fireEvent.click(row);
@@ -101,8 +107,10 @@ describe("a Drafts list", () => {
         .map((r) => r.querySelector(".text-list-subject")?.textContent);
       expect(titles).toEqual(["Second", "First"]);
     });
+    await waitFor(() => expect(subtitle()).toContain("2 drafts not yet saved"));
     useUI.getState().setSource({ kind: "mailbox", mailboxId: FIXTURE.inbox });
     await waitFor(() => expect(group()).toBeNull());
+    await waitFor(() => expect(subtitle()).not.toContain("not yet saved"));
   });
 
   it("follows drafts as they change: a new one appears, a sent or deleted one goes", async () => {
