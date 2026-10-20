@@ -437,11 +437,15 @@ func TestAgentsDraftAndSendThroughLodge(t *testing.T) {
 	}
 	var draft struct {
 		DraftID int64    `json:"draft_id"`
+		URL     string   `json:"url"`
 		To      []string `json:"to"`
 		Subject string   `json:"subject"`
 	}
 	if call(t, cs, "draft_reply", map[string]any{"message_id": n.msgA, "text": "Thanks, Ann.\n\nSee you <then>."}, &draft) {
 		t.Fatal("draft_reply answered an error")
+	}
+	if want := "/mail/compose/" + itoa(draft.DraftID); draft.URL != want {
+		t.Errorf("draft_reply's url = %q, want %q", draft.URL, want)
 	}
 	local := n.srv.Dial(t)
 	dr, err := local.Draft().Get(ctx, &api.DraftGetParams{ID: draft.DraftID})
