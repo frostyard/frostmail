@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/mail"
 	"strconv"
 	"strings"
 	"time"
@@ -14,13 +15,15 @@ import (
 
 // The write and send tools (docs/specs/lodge-app.md, /mcp), each only for
 // a token whose scope grants it: ;write sets flags, moves messages, drafts
-// replies, creates and completes tasks and sets Remind Me (ADR-0042);
+// replies and new messages, creates and completes tasks and sets Remind Me
+// (ADR-0042);
 // ;send queues a draft to send. maild's router and engine enforce the
 // scope whatever the tools offer. Nothing here writes an event.
 
 // Limits on what the write tools take.
 const (
 	maxIDs       = 100 // messages one call changes
+	maxTo        = 100 // recipients of a new message in To, and in Cc
 	maxTaskTitle = 1024
 	maxTaskNotes = 32 << 10
 	maxRemind    = 365 * 24 * time.Hour
@@ -45,6 +48,14 @@ type replyIn struct {
 	MessageID int64  `json:"message_id" jsonschema:"the message to reply to, by its ID from search_messages"`
 	Text      string `json:"text" jsonschema:"the reply's text, above the quoted message; a blank line starts a paragraph"`
 	ReplyAll  bool   `json:"reply_all,omitzero" jsonschema:"reply to every recipient, not only the sender"`
+}
+
+type messageIn struct {
+	To        []string `json:"to" jsonschema:"the recipients, each an email address or Name <address>; 1 to 100"`
+	Cc        []string `json:"cc,omitzero" jsonschema:"recipients to copy, as to; at most 100"`
+	Subject   string   `json:"subject" jsonschema:"the subject"`
+	Text      string   `json:"text" jsonschema:"the message's text, above the signature; a blank line starts a paragraph"`
+	AccountID int64    `json:"account_id,omitzero" jsonschema:"the account to write from, by its ID from list_mailboxes; default the first account this token reaches, as Compose picks"`
 }
 
 type draftOut struct {
@@ -124,6 +135,11 @@ message: text above the quoted message, to its sender (or with reply_all
 to every recipient), from the account that received it. The draft waits
 in the user's Drafts for them to read, change and send, and its url opens
 it in Compose; this does not send it.`}, t.draftReply)
+		sdk.AddTool(s, &sdk.Tool{Name: "draft_message", Annotations: writes, Description: `Draft a new message, not
+a reply: to and cc, a subject, and text above the signature, from an
+account (by default the first this token reaches). It only drafts: the
+draft waits in the user's Drafts, and the user reviews and sends it from
+Compose, which its url opens. This does not send it.`}, t.draftMessage)
 		sdk.AddTool(s, &sdk.Tool{Name: "create_task", Annotations: writes, Description: `Add a task to the user's
 Tasks, at the top of a list: by default the default list of the first
 account this token reaches. It is written to the list's server.`}, t.createTask)
@@ -188,6 +204,55 @@ func (t *tools) draftReply(ctx context.Context, _ *sdk.CallToolRequest, in reply
 		return nil, draftOut{}, err
 	}
 	content := dr.Content
+	content.HTML = replyHTML(in.Text, content.HTML)
+	if dr, err = c.Draft().Update(ctx, &api.DraftUpdateParams{ID: dr.ID, Content: content}); err != nil {
+		return nil, draftOut{}, err
+	}
+	return nil, draftOut{DraftID: dr.ID, URL: draftURL(dr.ID), AccountID: dr.AccountID, To: addresses(dr.Content.To),
+		Cc: addresses(dr.Content.Cc), Subject: dr.Content.Subject,
+		Note: "The draft is in the user's Drafts, and its url opens it in Compose; nothing was sent."}, nil
+}
+
+// recipients parses addresses for a new message: each an address, or a
+// name and an address as mail writes them.
+func recipients(field string, list []string, least int) ([]api.Address, error) {
+	if len(list) < least || len(list) > maxTo {
+		return nil, fmt.Errorf("%s must name %d to %d addresses", field, least, maxTo)
+	}
+	out := make([]api.Address, 0, len(list))
+	for _, s := range list {
+		a, err := mail.ParseAddress(s)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %q is not an email address", field, s)
+		}
+		out = append(out, api.Address{Name: a.Name, Address: a.Address})
+	}
+	return out, nil
+}
+
+func (t *tools) draftMessage(ctx context.Context, _ *sdk.CallToolRequest, in messageIn) (*sdk.CallToolResult, draftOut, error) {
+	to, err := recipients("to", in.To, 1)
+	if err != nil {
+		return nil, draftOut{}, err
+	}
+	cc, err := recipients("cc", in.Cc, 0)
+	if err != nil {
+		return nil, draftOut{}, err
+	}
+	if strings.TrimSpace(in.Text) == "" {
+		return nil, draftOut{}, fmt.Errorf("text is empty")
+	}
+	p := &api.DraftCreateParams{Kind: api.DraftKindNew, To: to}
+	if in.AccountID != 0 {
+		p.AccountID = &in.AccountID
+	}
+	c := t.o.Client
+	dr, err := c.Draft().Create(ctx, p)
+	if err != nil {
+		return nil, draftOut{}, err
+	}
+	content := dr.Content
+	content.To, content.Cc, content.Subject = to, cc, strings.TrimSpace(in.Subject)
 	content.HTML = replyHTML(in.Text, content.HTML)
 	if dr, err = c.Draft().Update(ctx, &api.DraftUpdateParams{ID: dr.ID, Content: content}); err != nil {
 		return nil, draftOut{}, err

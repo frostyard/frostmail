@@ -6,10 +6,10 @@
 // maild's router and engine enforce the scope: the tools only adapt the RPC
 // API. The read tools, for mail (read.go), calendars, tasks and contacts
 // (pim.go) and the conversations waiting on a reply (waiting.go), come
-// with every scope; ;write adds flags, moves and
-// replies drafted, tasks created and completed and Remind Me, and ;send
-// sending a draft (write.go). It is the only
-// package that imports the MCP SDK, and no SDK type is in its exported API.
+// with every scope; ;write adds flags, moves, replies and new messages
+// drafted, tasks created and completed and Remind Me, and ;send sending a
+// draft (write.go). It is the only package that imports the MCP SDK, and no
+// SDK type is in its exported API.
 package mcpserver
 
 import (
@@ -45,14 +45,15 @@ func instructions(scope api.Scope) string {
 	switch {
 	case scope.Write && scope.Send:
 		return reading + ` With this token you may also set flags, move messages, draft
-replies (draft_reply), create and complete tasks, set Remind Me
-(remind_me), and send drafts (send_draft); send only what the user asked
-to send. It cannot delete mail or change the calendar.`
+replies (draft_reply) and new messages (draft_message), create and
+complete tasks, set Remind Me (remind_me), and send drafts (send_draft);
+send only what the user asked to send. It cannot delete mail or change the
+calendar.`
 	case scope.Write:
 		return reading + ` With this token you may also set flags, move messages, draft
-replies, which wait in the user's Drafts (draft_reply), create and
-complete tasks, and set Remind Me (remind_me). It cannot send or delete
-mail, or change the calendar.`
+replies (draft_reply) and new messages (draft_message), which wait in the
+user's Drafts, create and complete tasks, and set Remind Me (remind_me).
+It cannot send or delete mail, or change the calendar.`
 	case scope.Send:
 		return reading + ` With this token you may also send drafts the user wrote
 (send_draft), but not change or draft mail, or change tasks or the
