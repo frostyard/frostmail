@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,12 +49,17 @@ type replyIn struct {
 
 type draftOut struct {
 	DraftID   int64    `json:"draft_id"`
+	URL       string   `json:"url" jsonschema:"the lodge URL that opens the draft in Compose, to link it or for lodge.open; use it as it is"`
 	AccountID int64    `json:"account_id"`
 	To        []string `json:"to"`
 	Cc        []string `json:"cc"`
 	Subject   string   `json:"subject"`
 	Note      string   `json:"note"`
 }
+
+// draftURL is the lodge URL that opens a draft in mail's Compose
+// (docs/specs/lodge-app.md, The web build: windows are routes).
+func draftURL(id int64) string { return "/mail/compose/" + strconv.FormatInt(id, 10) }
 
 type createTaskIn struct {
 	Title  string `json:"title" jsonschema:"what to do, 1 to 1,024 bytes"`
@@ -116,8 +122,8 @@ mailbox's ID from list_mailboxes.`}, t.moveMessages)
 		sdk.AddTool(s, &sdk.Tool{Name: "draft_reply", Annotations: writes, Description: `Draft a reply to a
 message: text above the quoted message, to its sender (or with reply_all
 to every recipient), from the account that received it. The draft waits
-in the user's Drafts for them to read, change and send; this does not
-send it.`}, t.draftReply)
+in the user's Drafts for them to read, change and send, and its url opens
+it in Compose; this does not send it.`}, t.draftReply)
 		sdk.AddTool(s, &sdk.Tool{Name: "create_task", Annotations: writes, Description: `Add a task to the user's
 Tasks, at the top of a list: by default the default list of the first
 account this token reaches. It is written to the list's server.`}, t.createTask)
@@ -186,8 +192,9 @@ func (t *tools) draftReply(ctx context.Context, _ *sdk.CallToolRequest, in reply
 	if dr, err = c.Draft().Update(ctx, &api.DraftUpdateParams{ID: dr.ID, Content: content}); err != nil {
 		return nil, draftOut{}, err
 	}
-	return nil, draftOut{DraftID: dr.ID, AccountID: dr.AccountID, To: addresses(dr.Content.To), Cc: addresses(dr.Content.Cc),
-		Subject: dr.Content.Subject, Note: "The draft is in the user's Drafts; nothing was sent."}, nil
+	return nil, draftOut{DraftID: dr.ID, URL: draftURL(dr.ID), AccountID: dr.AccountID, To: addresses(dr.Content.To),
+		Cc: addresses(dr.Content.Cc), Subject: dr.Content.Subject,
+		Note: "The draft is in the user's Drafts, and its url opens it in Compose; nothing was sent."}, nil
 }
 
 // replyHTML puts text, as paragraphs, on the reply's empty first line,

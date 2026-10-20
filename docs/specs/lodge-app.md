@@ -266,7 +266,7 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
   | --- | --- | --- | --- |
   | `set_flags` | `;write` | `message_ids` (1 to 100), `read`, `flagged` | `message.setFlags` |
   | `move_messages` | `;write` | `message_ids` (1 to 100), `mailbox_id` | `message.move` |
-  | `draft_reply` | `;write` | `message_id`, `text`, `reply_all` | `draft.create` of a reply (or reply-all) from the account that received the message, then `draft.update` with `text`, escaped, as paragraphs (a blank line between) above the signature and the quote; answers the draft's ID, recipients and subject. The draft waits in Drafts. |
+  | `draft_reply` | `;write` | `message_id`, `text`, `reply_all` | `draft.create` of a reply (or reply-all) from the account that received the message, then `draft.update` with `text`, escaped, as paragraphs (a blank line between) above the signature and the quote; answers the draft's ID, `url`, recipients and subject. The draft waits in Drafts, and `url`, `/mail/compose/<draft id>`, opens it in Compose (without `fresh`, so closing it keeps it). |
   | `send_draft` | `;send` | `draft_id` | `draft.send`: the message goes out after the user's undo delay; answers the outbox item's ID, recipients and send time |
 
 - Nothing an agent can call deletes mail, or sends without `;send`.
