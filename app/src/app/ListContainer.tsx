@@ -19,6 +19,7 @@ import { RedirectSheet } from "../features/compose/RedirectSheet";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyTextIn } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
+import { UnsavedDraftRow } from "../features/list/UnsavedDraftRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
@@ -45,7 +46,8 @@ import {
   toggleRead,
   toggleSpam,
 } from "./commands";
-import { openDraftMessage } from "./compose";
+import { openCompose, openDraftMessage } from "./compose";
+import { draftsScope, useUnsavedDrafts } from "./useUnsavedDrafts";
 
 /** ListHandle lets the window send keyboard commands to the list. */
 export interface ListHandle {
@@ -180,12 +182,26 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       return () => clearInterval(t);
     }, []);
 
+    // Drafts maild holds whose copies have not reached the Drafts mailbox
+    // head the list of a Drafts source, unfiltered and unsearched, so no
+    // draft is out of sight (docs/specs/ui.md, Message list).
+    const unsavedScope = useMemo(
+      () => (search === "" && listFilter === "all" ? draftsScope(source, mailboxes) : null),
+      [search, listFilter, source, mailboxes],
+    );
+    const unsaved = useUnsavedDrafts(client, unsavedScope, count);
+    const openUnsaved = useCallback((id: number) => {
+      void openCompose(id).catch((err: unknown) => console.warn("open draft", err));
+    }, []);
+    const unsavedHeight = unsaved.length * ROW_HEIGHT;
+
     const virtualizer = useVirtualizer({
       count,
       getScrollElement: () => scroller.current,
       estimateSize: () => ROW_HEIGHT,
       observeElementRect: observeListRect,
       overscan: 8,
+      scrollMargin: unsavedHeight,
     });
     const items = virtualizer.getVirtualItems();
     const first = items[0]?.index ?? 0;
@@ -524,38 +540,48 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         onFocus={() => setFocus("list")}
         className="h-full overflow-y-auto bg-window outline-none"
       >
+        {unsaved.length > 0 && (
+          // biome-ignore lint/a11y/useSemanticElements: a group of options in the listbox, as ARIA has it; a fieldset is no listbox child.
+          <div role="group" aria-label="Not Yet Saved">
+            {unsaved.map((draft) => (
+              <UnsavedDraftRow key={draft.id} draft={draft} now={now} onOpen={openUnsaved} />
+            ))}
+          </div>
+        )}
         {model?.error ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center text-secondary">
             <span className="text-empty">Messages could not be loaded</span>
             <span className="text-[12px]">{model.error}</span>
           </div>
         ) : model?.ready && count === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 text-empty text-secondary">
-            <span>{emptyTextIn(listFilter, emptyScope)}</span>
-            {listFilter !== "all" && (
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
-                  onClick={() => setListFilter("all")}
-                >
-                  Show All
-                </button>
-                {listFilter === "flagged" && source.kind !== "flagged" && (
+          unsaved.length > 0 ? null : (
+            <div className="flex h-full flex-col items-center justify-center gap-1 text-empty text-secondary">
+              <span>{emptyTextIn(listFilter, emptyScope)}</span>
+              {listFilter !== "all" && (
+                <div className="flex gap-3">
                   <button
                     type="button"
                     className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
-                    onClick={() => {
-                      setSource({ kind: "flagged" });
-                      setListFilter("all");
-                    }}
+                    onClick={() => setListFilter("all")}
                   >
-                    Show All Flagged
+                    Show All
                   </button>
-                )}
-              </div>
-            )}
-          </div>
+                  {listFilter === "flagged" && source.kind !== "flagged" && (
+                    <button
+                      type="button"
+                      className="border-0 bg-transparent p-0 text-[12px] leading-4 text-accent"
+                      onClick={() => {
+                        setSource({ kind: "flagged" });
+                        setListFilter("all");
+                      }}
+                    >
+                      Show All Flagged
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {items.map((v) => {
@@ -564,7 +590,13 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                 // biome-ignore lint/a11y/noStaticElementInteractions: double-click opens a draft; Enter does the same from the keyboard (keymap "open").
                 <div
                   key={v.key}
-                  style={{ position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${v.start}px)` }}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    transform: `translateY(${v.start - unsavedHeight}px)`,
+                  }}
                   onDoubleClick={() => row && openIfDraft(row.id)}
                 >
                   {row ? (

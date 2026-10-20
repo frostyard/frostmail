@@ -465,6 +465,23 @@ func (d drafts) List(ctx context.Context, p *api.DraftListParams) ([]api.Draft, 
 	return out, nil
 }
 
+// Unsaved implements draft.unsaved.
+func (d drafts) Unsaved(ctx context.Context, p *api.DraftUnsavedParams) ([]api.Draft, error) {
+	var acct int64
+	if p.AccountID != nil {
+		acct = *p.AccountID
+	}
+	list, err := d.DB.UnsavedDrafts(ctx, acct)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.Draft, 0, len(list))
+	for _, dr := range list {
+		out = append(out, toAPIDraft(dr))
+	}
+	return out, nil
+}
+
 func (d drafts) Update(ctx context.Context, p *api.DraftUpdateParams) (*api.Draft, error) {
 	cur, err := d.DB.GetDraft(ctx, p.ID)
 	if err != nil {

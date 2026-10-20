@@ -80,6 +80,16 @@ methods:
     result: "[]Draft"
     callers: [local, session, agent]
     scope: write
+  - name: unsaved
+    doc: >-
+      The drafts no stored message holds yet (none of the account's has
+      their Message-ID) and the Outbox does not hold, most recently changed
+      first: those a Drafts mailbox and All Drafts list as not yet saved, so
+      no draft is out of sight before its server copy arrives (with sync
+      off, offline, or within the quiet period; docs/design/send.md).
+    params:
+      - {name: accountId, type: int, optional: true}
+    result: "[]Draft"
   - name: update
     doc: Replace a draft's content; maild stores it at once and updates the server copy later.
     params:

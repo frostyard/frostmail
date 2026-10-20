@@ -895,6 +895,16 @@ Result: `[]Draft`.
 Callers of this method: `local`, `session`, `agent`.
 An agent's scope must grant `write`.
 
+### `draft.unsaved`
+
+The drafts no stored message holds yet (none of the account's has their Message-ID) and the Outbox does not hold, most recently changed first: those a Drafts mailbox and All Drafts list as not yet saved, so no draft is out of sight before its server copy arrives (with sync off, offline, or within the quiet period; docs/design/send.md).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accountId` | `int` (optional) |  |
+
+Result: `[]Draft`.
+
 ### `draft.update`
 
 Replace a draft's content; maild stores it at once and updates the server copy later.

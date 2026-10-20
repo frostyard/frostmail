@@ -1004,6 +1004,11 @@ export interface DraftListParams {
   accountId?: number;
 }
 
+/** Params of draft.unsaved. */
+export interface DraftUnsavedParams {
+  accountId?: number;
+}
+
 /** Params of draft.update. */
 export interface DraftUpdateParams {
   id: number;
@@ -1084,6 +1089,14 @@ export interface DraftClient {
   /** Drafts, most recently changed first. */
   list(params?: DraftListParams): Promise<Draft[]>;
   /**
+   * The drafts no stored message holds yet (none of the account's has their
+   * Message-ID) and the Outbox does not hold, most recently changed first:
+   * those a Drafts mailbox and All Drafts list as not yet saved, so no draft
+   * is out of sight before its server copy arrives (with sync off, offline,
+   * or within the quiet period; docs/design/send.md).
+   */
+  unsaved(params?: DraftUnsavedParams): Promise<Draft[]>;
+  /**
    * Replace a draft's content; maild stores it at once and updates the server
    * copy later.
    */
@@ -1123,6 +1136,7 @@ function draftClient(t: Transport): DraftClient {
     open: (params) => t.call<Draft>("draft.open", params),
     get: (params) => t.call<Draft>("draft.get", params),
     list: (params = {}) => t.call<Draft[]>("draft.list", params),
+    unsaved: (params = {}) => t.call<Draft[]>("draft.unsaved", params),
     update: (params) => t.call<Draft>("draft.update", params),
     attach: (params) => t.call<DraftAttachment>("draft.attach", params),
     attachData: (params) => t.call<DraftUpload>("draft.attachData", params),
@@ -3156,6 +3170,7 @@ export const METHODS = [
   "draft.open",
   "draft.get",
   "draft.list",
+  "draft.unsaved",
   "draft.update",
   "draft.attach",
   "draft.attachData",

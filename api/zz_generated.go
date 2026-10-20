@@ -1696,6 +1696,11 @@ type DraftListParams struct {
 	AccountID *int64 `json:"accountId,omitzero"`
 }
 
+// DraftUnsavedParams holds the params of draft.unsaved.
+type DraftUnsavedParams struct {
+	AccountID *int64 `json:"accountId,omitzero"`
+}
+
 // DraftUpdateParams holds the params of draft.update.
 type DraftUpdateParams struct {
 	ID      int64        `json:"id"`
@@ -1758,6 +1763,12 @@ type DraftService interface {
 	Get(ctx context.Context, p *DraftGetParams) (*Draft, error)
 	// List implements draft.list. Drafts, most recently changed first.
 	List(ctx context.Context, p *DraftListParams) ([]Draft, error)
+	// Unsaved implements draft.unsaved. The drafts no stored message holds yet
+	// (none of the account's has their Message-ID) and the Outbox does not hold,
+	// most recently changed first: those a Drafts mailbox and All Drafts list as
+	// not yet saved, so no draft is out of sight before its server copy arrives
+	// (with sync off, offline, or within the quiet period; docs/design/send.md).
+	Unsaved(ctx context.Context, p *DraftUnsavedParams) ([]Draft, error)
 	// Update implements draft.update. Replace a draft's content; maild stores it
 	// at once and updates the server copy later.
 	Update(ctx context.Context, p *DraftUpdateParams) (*Draft, error)
@@ -1812,6 +1823,13 @@ func registerDraft(r *Router, s DraftService) {
 			return nil, err
 		}
 		return s.List(ctx, &p)
+	})
+	r.handle("draft.unsaved", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftUnsavedParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Unsaved(ctx, &p)
 	})
 	r.handle("draft.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p DraftUpdateParams
@@ -1899,6 +1917,13 @@ func (x DraftClient) Get(ctx context.Context, p *DraftGetParams) (*Draft, error)
 func (x DraftClient) List(ctx context.Context, p *DraftListParams) ([]Draft, error) {
 	var r []Draft
 	err := x.c.Call(ctx, "draft.list", p, &r)
+	return r, err
+}
+
+// Unsaved calls draft.unsaved.
+func (x DraftClient) Unsaved(ctx context.Context, p *DraftUnsavedParams) ([]Draft, error) {
+	var r []Draft
+	err := x.c.Call(ctx, "draft.unsaved", p, &r)
 	return r, err
 }
 
@@ -5543,6 +5568,7 @@ var methodCallers = map[string][]CallerKind{
 	"draft.open":              {CallerKindLocal, CallerKindSession},
 	"draft.get":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.list":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.unsaved":           {CallerKindLocal, CallerKindSession},
 	"draft.update":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.attach":            {CallerKindLocal},
 	"draft.attachData":        {CallerKindLocal, CallerKindSession},
@@ -5680,6 +5706,7 @@ var Methods = []string{
 	"draft.open",
 	"draft.get",
 	"draft.list",
+	"draft.unsaved",
 	"draft.update",
 	"draft.attach",
 	"draft.attachData",
