@@ -1,14 +1,15 @@
 // Drafts not yet saved head a Drafts list (docs/specs/ui.md, Message list):
 // what maild holds is never out of sight before its server copy arrives.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
 import { draftPreview } from "../features/list/UnsavedDraftRow";
-import type { Draft, Mailbox } from "../rpc/gen/api";
+import { type Draft, ErrorCode, type Mailbox } from "../rpc/gen/api";
 import { FIXTURE, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { RPCError } from "../rpc/transport";
 import { MainWindow } from "./MainWindow";
 import { draftsScope } from "./useUnsavedDrafts";
 
@@ -21,8 +22,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function setup() {
-  const mock = new MockTransport(mockData({ inbox: 5, now: new Date("2026-10-08T12:00:00Z") }));
+/** OTHER is a second account's Drafts mailbox, when setup adds the account. */
+const OTHER = { accountId: 2, drafts: 20 };
+
+async function setup(twoAccounts = false) {
+  const data = mockData({ inbox: 5, now: new Date("2026-10-08T12:00:00Z") });
+  if (twoAccounts) {
+    const first = data.accounts[0];
+    if (first) data.accounts.push({ ...first, id: OTHER.accountId, email: "two@mailtest.test", displayName: "Two" });
+    data.mailboxes.push({
+      id: OTHER.drafts,
+      accountId: OTHER.accountId,
+      path: "Drafts",
+      name: "Drafts",
+      delimiter: "/",
+      role: "drafts",
+      label: false,
+    });
+  }
+  const mock = new MockTransport(data);
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <MainWindow />
@@ -30,8 +48,8 @@ async function setup() {
   );
   const list = await screen.findByRole("listbox", { name: "Messages" });
   // A reply as an agent drafts it: made, then given its text.
-  const draft = async (subject: string, to = "ann@x.test") => {
-    const d = await mock.call<Draft>("draft.create", { kind: "new" });
+  const draft = async (subject: string, to = "ann@x.test", accountId: number = FIXTURE.accountId) => {
+    const d = await mock.call<Draft>("draft.create", { kind: "new", accountId });
     await mock.call("draft.update", {
       id: d.id,
       content: { ...d.content, subject, to: [{ name: "Ann", address: to }], html: `<p>Yes to ${subject}</p>` },
@@ -59,6 +77,8 @@ describe("a Drafts list", () => {
     expect(row.textContent).toContain("Saturday");
     expect(row.textContent).toContain("Not Saved");
     expect(row.textContent).toContain("Yes to Saturday");
+    // The heading is on screen, not only the group's name.
+    expect(within(group() as HTMLElement).getByText("Not Yet Saved")).toBeTruthy();
     // The Drafts mailbox holds no message, and that is no empty mailbox.
     expect(within(list).queryByText(/No Messages/)).toBeNull();
 
@@ -94,6 +114,42 @@ describe("a Drafts list", () => {
     await mock.call("draft.send", { id: sent });
     await mock.call("draft.delete", { id: deleted });
     await waitFor(() => expect(group()).toBeNull());
+  });
+
+  it("never shows another account's drafts in a Drafts mailbox, even while its own load", async () => {
+    const { draft, group } = await setup(true);
+    const mine = await draft("Mine");
+    const theirs = await draft("Theirs", "bob@x.test", OTHER.accountId);
+    useUI.getState().setSource({ kind: "role", role: "drafts" });
+    const ids = () =>
+      within(group() ?? document.createElement("div"))
+        .queryAllByRole("option")
+        .map((r) => Number(r.getAttribute("data-draft-id")));
+    await waitFor(() => expect(ids().sort()).toEqual([mine, theirs].sort()));
+    // The switch renders before maild answers for the account: no draft of
+    // the other account may show meanwhile.
+    act(() => useUI.getState().setSource({ kind: "mailbox", mailboxId: FIXTURE.drafts }));
+    expect(ids()).not.toContain(theirs);
+    await waitFor(() => expect(ids()).toEqual([mine]));
+    act(() => useUI.getState().setSource({ kind: "mailbox", mailboxId: OTHER.drafts }));
+    expect(ids()).not.toContain(mine);
+    await waitFor(() => expect(ids()).toEqual([theirs]));
+  });
+
+  it("says so when the drafts not yet saved cannot be listed, rather than showing an empty Drafts", async () => {
+    const { mock, list } = await setup();
+    const call = mock.call.bind(mock);
+    vi.spyOn(mock, "call").mockImplementation((method, params) =>
+      method === "draft.unsaved"
+        ? Promise.reject(new RPCError(ErrorCode.methodNotFound, "method not found"))
+        : call(method, params),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    useUI.getState().setSource({ kind: "mailbox", mailboxId: FIXTURE.drafts });
+    const alert = await within(list).findByRole("alert");
+    expect(alert.textContent).toContain("could not be listed");
+    expect(within(list).getByText("Not Yet Saved")).toBeTruthy();
+    expect(within(list).queryByText(/No Messages/)).toBeNull();
   });
 
   it("leaves out a draft opened from a stored message, which the list already holds", async () => {

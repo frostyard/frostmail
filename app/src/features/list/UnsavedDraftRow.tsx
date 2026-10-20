@@ -1,12 +1,55 @@
-// A draft no stored message holds yet, at the top of Drafts (docs/specs/ui.md,
-// Message list): maild has it, but its copy has not reached the Drafts
-// mailbox, so the list shows the draft itself, marked Not Saved. Who it is
-// to and the date on line 1, its subject on line 2, the start of its text
-// below. A click, Enter or Space opens it in Compose.
-import type { KeyboardEvent } from "react";
+// Drafts no stored message holds yet, at the top of Drafts (docs/specs/ui.md,
+// Message list): maild has them, but their copies have not reached the
+// Drafts mailbox, so the list shows the drafts themselves under a Not Yet
+// Saved heading, each marked Not Saved. Who it is to and the date on line
+// 1, its subject on line 2, the start of its text below. A click, Enter or
+// Space opens it in Compose.
+import { type KeyboardEvent, useId } from "react";
 
 import { formatAddressList, formatListDate } from "../../lib/format";
 import type { Draft } from "../../rpc/gen/api";
+import { ROW_HEIGHT } from "./MessageRow";
+
+/** The section's heading and its error line are 28 and 24 high. */
+const HEADING_HEIGHT = 28;
+const ERROR_HEIGHT = 24;
+
+/** unsavedHeight is how tall the section is: nothing with no drafts and no error. */
+export function unsavedHeight(drafts: number, error: boolean): number {
+  if (drafts === 0 && !error) return 0;
+  return HEADING_HEIGHT + (error ? ERROR_HEIGHT : 0) + drafts * ROW_HEIGHT;
+}
+
+/** UnsavedDraftsSectionProps are the section's inputs. */
+export interface UnsavedDraftsSectionProps {
+  drafts: Draft[];
+  /** Why the drafts could not be listed; null when they were. */
+  error: string | null;
+  now: Date;
+  onOpen: (id: number) => void;
+}
+
+/** UnsavedDraftsSection is the Not Yet Saved heading over the drafts' rows, or nothing when there are none. */
+export function UnsavedDraftsSection({ drafts, error, now, onOpen }: UnsavedDraftsSectionProps) {
+  const heading = useId();
+  if (drafts.length === 0 && error === null) return null;
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a group of options in the listbox, as ARIA has it; a fieldset is no listbox child.
+    <div role="group" aria-labelledby={heading}>
+      <div id={heading} className="flex h-7 items-end px-6 pb-1 text-[11px] font-semibold leading-4 text-secondary">
+        Not Yet Saved
+      </div>
+      {error !== null && (
+        <div role="alert" className="h-6 truncate px-6 text-[12px] leading-6 text-secondary">
+          Drafts not yet saved could not be listed: {error}
+        </div>
+      )}
+      {drafts.map((draft) => (
+        <UnsavedDraftRow key={draft.id} draft={draft} now={now} onOpen={onOpen} />
+      ))}
+    </div>
+  );
+}
 
 /** draftPreview is the start of a draft's own text: its HTML without the quoted message, as plain text. */
 export function draftPreview(html: string): string {

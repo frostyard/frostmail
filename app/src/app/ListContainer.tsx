@@ -19,7 +19,7 @@ import { RedirectSheet } from "../features/compose/RedirectSheet";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyTextIn } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
-import { UnsavedDraftRow } from "../features/list/UnsavedDraftRow";
+import { UnsavedDraftsSection, unsavedHeight } from "../features/list/UnsavedDraftRow";
 import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
@@ -193,7 +193,8 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     const openUnsaved = useCallback((id: number) => {
       void openCompose(id).catch((err: unknown) => console.warn("open draft", err));
     }, []);
-    const unsavedHeight = unsaved.length * ROW_HEIGHT;
+    const unsavedShown = unsaved.drafts.length > 0 || unsaved.error !== null;
+    const unsavedTop = unsavedHeight(unsaved.drafts.length, unsaved.error !== null);
 
     const virtualizer = useVirtualizer({
       count,
@@ -201,7 +202,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       estimateSize: () => ROW_HEIGHT,
       observeElementRect: observeListRect,
       overscan: 8,
-      scrollMargin: unsavedHeight,
+      scrollMargin: unsavedTop,
     });
     const items = virtualizer.getVirtualItems();
     const first = items[0]?.index ?? 0;
@@ -540,21 +541,14 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         onFocus={() => setFocus("list")}
         className="h-full overflow-y-auto bg-window outline-none"
       >
-        {unsaved.length > 0 && (
-          // biome-ignore lint/a11y/useSemanticElements: a group of options in the listbox, as ARIA has it; a fieldset is no listbox child.
-          <div role="group" aria-label="Not Yet Saved">
-            {unsaved.map((draft) => (
-              <UnsavedDraftRow key={draft.id} draft={draft} now={now} onOpen={openUnsaved} />
-            ))}
-          </div>
-        )}
+        <UnsavedDraftsSection drafts={unsaved.drafts} error={unsaved.error} now={now} onOpen={openUnsaved} />
         {model?.error ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center text-secondary">
             <span className="text-empty">Messages could not be loaded</span>
             <span className="text-[12px]">{model.error}</span>
           </div>
         ) : model?.ready && count === 0 ? (
-          unsaved.length > 0 ? null : (
+          unsavedShown ? null : (
             <div className="flex h-full flex-col items-center justify-center gap-1 text-empty text-secondary">
               <span>{emptyTextIn(listFilter, emptyScope)}</span>
               {listFilter !== "all" && (
@@ -595,7 +589,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                     top: 0,
                     left: 0,
                     right: 0,
-                    transform: `translateY(${v.start - unsavedHeight}px)`,
+                    transform: `translateY(${v.start - unsavedTop}px)`,
                   }}
                   onDoubleClick={() => row && openIfDraft(row.id)}
                 >

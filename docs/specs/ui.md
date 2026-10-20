@@ -264,8 +264,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   account's (`draft.unsaved`): drafts maild has whose server copy has not
   arrived, with sync off, offline, or within the quiet period, whether
   the user or an agent made them. So no draft is out of sight. They head
-  the list, newest first, as a `group` named "Not Yet Saved" of rows the
-  height of a message's:
+  the list, newest first, under the heading "Not Yet Saved" (28 high,
+  11/600 `--text-secondary`, as the sidebar's section titles), which names
+  the `group` of their rows, each the height of a message's:
   - line 1 is "To: " and the recipients (`formatAddressList`), or "No
     Recipients" in `--text-tertiary`, with the date it last changed;
   - line 2 is the subject, as a message's, then a "Not Saved" badge in the
@@ -276,8 +277,11 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   `/compose/<id>` route in lodge. They are left out while searching or
   filtering. They refresh on `draft.changed` and `outbox.changed`, and
   as the list's count changes, so a draft gives way to its copy when that
-  arrives. A Drafts list with no message but such drafts shows no empty
-  text.
+  arrives. A list shows its own scope's alone: from All Drafts to one
+  account's Drafts, the other accounts' are gone at once, before that
+  account's arrive. When maild cannot list them, the heading stands over a
+  line saying so (`role="alert"`) in place of an empty list. A Drafts list
+  with no message but these shows no empty text.
 - **Empty:** "No Messages" centered, 15/400 `--text-secondary`. With a
   filter (below) it names the filter and the source it narrows, titled as
   the toolbar titles it: "No Unread Messages in All Inboxes", "No Flagged
