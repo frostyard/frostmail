@@ -430,8 +430,8 @@ func TestAgentsDraftAndSendThroughLodge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := slices.Sorted(slices.Values(append([]string{"complete_task", "create_task", "draft_reply", "move_messages",
-		"remind_me", "set_flags"}, readTools...)))
+	want := slices.Sorted(slices.Values(append([]string{"complete_task", "create_task", "draft_message", "draft_reply",
+		"move_messages", "remind_me", "set_flags"}, readTools...)))
 	if names := toolNames(t, cs); !slices.Equal(names, want) {
 		t.Errorf("tools under ;write = %v, want %v", names, want)
 	}

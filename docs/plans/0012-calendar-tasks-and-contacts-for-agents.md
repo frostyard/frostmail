@@ -174,6 +174,8 @@ Porter's design:
   - A `limit` of 0 is its default, so a limit's "one past" below is -1.
   - The tools read "today" and reminder times from `lodge.Options.Now`, so
     the tests run on a fixed clock.
+  - Added after, for Porter: `draft_message`, the draft of a new message
+    under `;write`, since `draft_reply` drafts only replies.
 
 ## Phase 5 — Live, for Porter (planner, small)
 
