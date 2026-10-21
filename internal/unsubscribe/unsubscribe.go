@@ -6,7 +6,6 @@ package unsubscribe
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,6 +16,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/frostyard/lodge/kit/netguard"
 )
 
 // Method is a way to unsubscribe, best first: OneClick, Mail, Web.
@@ -98,54 +99,21 @@ type Poster struct {
 }
 
 // New is a Poster that refuses every address inside the user's network.
-func New() *Poster { return newPoster(public, nil) }
-
-// errInside is a refused address.
-var errInside = errors.New("unsubscribe: the address is inside the local network")
-
-// inside are the ranges a one-click request may not reach, beyond what the
-// netip methods name: shared address space (RFC 6598), the IETF protocol
-// block, benchmarking and the reserved block.
-var inside = []netip.Prefix{
-	netip.MustParsePrefix("100.64.0.0/10"),
-	netip.MustParsePrefix("192.0.0.0/24"),
-	netip.MustParsePrefix("198.18.0.0/15"),
-	netip.MustParsePrefix("240.0.0.0/4"),
-	netip.MustParsePrefix("0.0.0.0/8"),
-}
-
-// public refuses loopback, private, link-local, multicast, unspecified and
-// the other inside ranges.
-func public(ip netip.Addr) error {
-	ip = ip.Unmap()
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
-		return fmt.Errorf("%s: %w", ip, errInside)
-	}
-	for _, p := range inside {
-		if p.Contains(ip) {
-			return fmt.Errorf("%s: %w", ip, errInside)
-		}
-	}
-	return nil
-}
+// The check is lodge kit's netguard (ADR-0017 there), shared with the other
+// apps: it refuses loopback, private, link-local, multicast, unspecified,
+// shared (RFC 6598), the IETF protocol block, benchmarking, the reserved
+// block, the documentation ranges, NAT64, Teredo, 6to4 and site-local, and
+// it runs on each address after DNS.
+func New() *Poster { return newPoster(netguard.Control, nil) }
 
 // newPoster checks each address the dialer is about to connect to, after
-// DNS, so a name that resolves inside (or rebinds) is refused.
-func newPoster(guard func(netip.Addr) error, tlsConfig *tls.Config) *Poster {
+// DNS, so a name that resolves inside (or rebinds) is refused. Production
+// passes netguard.Control; a test passes controlWith to allow its local
+// server.
+func newPoster(control func(network, address string, c syscall.RawConn) error, tlsConfig *tls.Config) *Poster {
 	dialer := &net.Dialer{
 		Timeout: limit,
-		Control: func(_, address string, _ syscall.RawConn) error {
-			host, _, err := net.SplitHostPort(address)
-			if err != nil {
-				return err
-			}
-			ip, err := netip.ParseAddr(host)
-			if err != nil {
-				return fmt.Errorf("unsubscribe: %q is not an address: %w", host, err)
-			}
-			return guard(ip)
-		},
+		Control: control,
 	}
 	transport := &http.Transport{
 		DialContext:         dialer.DialContext,
@@ -153,6 +121,9 @@ func newPoster(guard func(netip.Addr) error, tlsConfig *tls.Config) *Poster {
 		TLSHandshakeTimeout: limit,
 		DisableKeepAlives:   true,
 		ForceAttemptHTTP2:   true,
+		// No proxy: an environment proxy would dial the address itself, and
+		// this process would never see it.
+		Proxy: nil,
 	}
 	return &Poster{client: &http.Client{
 		Transport: transport,
@@ -160,6 +131,23 @@ func newPoster(guard func(netip.Addr) error, tlsConfig *tls.Config) *Poster {
 		// A redirect is not followed: its status is the answer.
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}
+}
+
+// controlWith is netguard.Control's host:port check with another guard:
+// netguard exports no hook, and the tests allow the local test server's
+// address.
+func controlWith(guard func(netip.Addr) error) func(network, address string, c syscall.RawConn) error {
+	return func(_, address string, _ syscall.RawConn) error {
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return fmt.Errorf("unsubscribe: %q is not host:port: %w", address, err)
+		}
+		ip, err := netip.ParseAddr(host)
+		if err != nil {
+			return fmt.Errorf("unsubscribe: %q is not an address: %w", host, err)
+		}
+		return guard(ip)
+	}
 }
 
 // Post sends the one-click request: a POST of List-Unsubscribe=One-Click,

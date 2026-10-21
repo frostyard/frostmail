@@ -70,7 +70,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
 | P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` |
-| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestPublicRefusesInsideAddresses`, `Unsubscribe.test.tsx` |
+| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestGuardRefusesInsideAddresses`, `Unsubscribe.test.tsx` |
 | P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
 | P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
 | P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
