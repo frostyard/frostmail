@@ -79,6 +79,29 @@ func (h *sendHarness) signInMicrosoft() {
 	_ = resp.Body.Close()
 }
 
+// TestOutlookFinishSignInFromPastedAddress finishes a sign-in with the
+// address the browser could not open (ADR-0043), as a client on another
+// machine does, and the account syncs as after the loopback return.
+func TestOutlookFinishSignInFromPastedAddress(t *testing.T) {
+	h := startMicrosoft(t)
+	ctx := t.Context()
+	res, err := h.c.Account().Authorize(ctx, &api.AccountAuthorizeParams{ID: h.acct})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(res.URL)
+	back := u.Query().Get("redirect_uri") + "?" + url.Values{"code": {"c0de"}, "state": {u.Query().Get("state")}}.Encode()
+	a, err := h.c.Account().FinishSignIn(ctx, &api.AccountFinishSignInParams{URL: back})
+	if err != nil || !a.SignedIn {
+		t.Fatalf("finishSignIn = %+v, %v; want signed in", a, err)
+	}
+	h.waitPhase(api.SyncPhaseIdle)
+	got, err := h.c.Account().Get(ctx, &api.AccountGetParams{ID: h.acct})
+	if err != nil || !got.SignedIn {
+		t.Fatalf("account = %+v, %v; want signed in", got, err)
+	}
+}
+
 // TestOutlookTransientLoginRetries checks Outlook's "User is authenticated
 // but not connected.": the token is good and the mailbox is away for a
 // while, so sync retries and never asks for a sign-in.

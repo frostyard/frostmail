@@ -326,7 +326,8 @@ type Discovery struct {
 // AuthorizeResult: An OAuth sign-in in progress.
 type AuthorizeResult struct {
 	// Open in the system browser; maild finishes the sign-in when the browser
-	// returns.
+	// returns to its loopback, or when a client sends the address to
+	// account.finishSignIn.
 	URL string `json:"url"`
 }
 
@@ -480,6 +481,12 @@ type AccountAuthorizeParams struct {
 	ID int64 `json:"id"`
 }
 
+// AccountFinishSignInParams holds the params of account.finishSignIn.
+type AccountFinishSignInParams struct {
+	// The address the provider sent the browser to, with its query.
+	URL string `json:"url"`
+}
+
 // AccountVerifyParams holds the params of account.verify.
 type AccountVerifyParams struct {
 	ID int64 `json:"id"`
@@ -540,8 +547,13 @@ type AccountService interface {
 	// Authorize implements account.authorize. Start an OAuth sign-in for an
 	// oauth2 account. maild listens on a loopback port for the browser's return
 	// for 5 minutes, then stores the token, reconnects, and emits
-	// account.changed.
+	// account.changed. The sign-in also finishes when a client sends the address
+	// the browser could not open to account.finishSignIn (ADR-0043).
 	Authorize(ctx context.Context, p *AccountAuthorizeParams) (*AuthorizeResult, error)
+	// FinishSignIn implements account.finishSignIn. Finish a waiting OAuth
+	// sign-in with the address that the browser could not open (ADR-0043). maild
+	// stores the token, reconnects and emits account.changed.
+	FinishSignIn(ctx context.Context, p *AccountFinishSignInParams) (*Account, error)
 	// Verify implements account.verify. Compare the stored mail with the server,
 	// changing nothing on either side.
 	Verify(ctx context.Context, p *AccountVerifyParams) (*VerifyReport, error)
@@ -620,6 +632,13 @@ func registerAccount(r *Router, s AccountService) {
 			return nil, err
 		}
 		return s.Authorize(ctx, &p)
+	})
+	r.handle("account.finishSignIn", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p AccountFinishSignInParams
+		if err := decodeParams(raw, &p, []string{"url"}); err != nil {
+			return nil, err
+		}
+		return s.FinishSignIn(ctx, &p)
 	})
 	r.handle("account.verify", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p AccountVerifyParams
@@ -727,6 +746,16 @@ func (x AccountClient) Discover(ctx context.Context, p *AccountDiscoverParams) (
 func (x AccountClient) Authorize(ctx context.Context, p *AccountAuthorizeParams) (*AuthorizeResult, error) {
 	var r AuthorizeResult
 	err := x.c.Call(ctx, "account.authorize", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// FinishSignIn calls account.finishSignIn.
+func (x AccountClient) FinishSignIn(ctx context.Context, p *AccountFinishSignInParams) (*Account, error) {
+	var r Account
+	err := x.c.Call(ctx, "account.finishSignIn", p, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -5544,6 +5573,7 @@ var methodCallers = map[string][]CallerKind{
 	"account.setPassword":     {CallerKindLocal, CallerKindSession},
 	"account.discover":        {CallerKindLocal, CallerKindSession},
 	"account.authorize":       {CallerKindLocal, CallerKindSession},
+	"account.finishSignIn":    {CallerKindLocal, CallerKindSession},
 	"account.verify":          {CallerKindLocal, CallerKindSession},
 	"account.services":        {CallerKindLocal, CallerKindSession},
 	"account.setService":      {CallerKindLocal, CallerKindSession},
@@ -5682,6 +5712,7 @@ var Methods = []string{
 	"account.setPassword",
 	"account.discover",
 	"account.authorize",
+	"account.finishSignIn",
 	"account.verify",
 	"account.services",
 	"account.setService",

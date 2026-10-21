@@ -123,7 +123,8 @@ export interface Discovery {
 export interface AuthorizeResult {
   /**
    * Open in the system browser; maild finishes the sign-in when the browser
-   * returns.
+   * returns to its loopback, or when a client sends the address to
+   * account.finishSignIn.
    */
   url: string;
 }
@@ -300,6 +301,12 @@ export interface AccountAuthorizeParams {
   id: number;
 }
 
+/** Params of account.finishSignIn. */
+export interface AccountFinishSignInParams {
+  /** The address the provider sent the browser to, with its query. */
+  url: string;
+}
+
 /** Params of account.verify. */
 export interface AccountVerifyParams {
   id: number;
@@ -373,9 +380,17 @@ export interface AccountClient {
   /**
    * Start an OAuth sign-in for an oauth2 account. maild listens on a loopback
    * port for the browser's return for 5 minutes, then stores the token,
-   * reconnects, and emits account.changed.
+   * reconnects, and emits account.changed. The sign-in also finishes when a
+   * client sends the address the browser could not open to
+   * account.finishSignIn (ADR-0043).
    */
   authorize(params: AccountAuthorizeParams): Promise<AuthorizeResult>;
+  /**
+   * Finish a waiting OAuth sign-in with the address that the browser could
+   * not open (ADR-0043). maild stores the token, reconnects and emits
+   * account.changed.
+   */
+  finishSignIn(params: AccountFinishSignInParams): Promise<Account>;
   /**
    * Compare the stored mail with the server, changing nothing on either side.
    */
@@ -414,6 +429,7 @@ function accountClient(t: Transport): AccountClient {
     setPassword: (params) => t.call<null>("account.setPassword", params).then(() => undefined),
     discover: (params) => t.call<Discovery>("account.discover", params),
     authorize: (params) => t.call<AuthorizeResult>("account.authorize", params),
+    finishSignIn: (params) => t.call<Account>("account.finishSignIn", params),
     verify: (params) => t.call<VerifyReport>("account.verify", params),
     services: (params) => t.call<ServiceSettings[]>("account.services", params),
     setService: (params) => t.call<ServiceSettings>("account.setService", params),
@@ -3146,6 +3162,7 @@ export const METHODS = [
   "account.setPassword",
   "account.discover",
   "account.authorize",
+  "account.finishSignIn",
   "account.verify",
   "account.services",
   "account.setService",

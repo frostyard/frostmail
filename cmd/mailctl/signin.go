@@ -210,6 +210,31 @@ func newAccountAuthorizeCmd(opts *rootOptions) *cobra.Command {
 	return cmd
 }
 
+// newAccountFinishSignInCmd builds account finish-signin: finish a waiting
+// OAuth sign-in with the address that the browser could not open (ADR-0043).
+func newAccountFinishSignInCmd(opts *rootOptions) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "finish-signin URL",
+		Short: "Finish a sign-in with the address the browser could not open",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			c, _, err := opts.dial(ctx)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			a, err := c.Account().FinishSignIn(ctx, &api.AccountFinishSignInParams{URL: args[0]})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "account %d (%s) signed in\n", a.ID, a.Email)
+			return nil
+		},
+	}
+	return cmd
+}
+
 // signIn starts an OAuth sign-in for an account, prints the address to
 // open in the browser, and unless told not to waits for the browser to
 // finish it.

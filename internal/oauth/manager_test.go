@@ -287,3 +287,139 @@ func TestAuthorizeNeedsAnOAuthAccountAndAClient(t *testing.T) {
 		t.Errorf("no client = %v", err)
 	}
 }
+
+// address is the redirect the provider sends the browser to, with the given
+// code and state.
+func (e *env) address(t *testing.T, authURL, code, state string) string {
+	t.Helper()
+	u, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.provider.mu.Lock()
+	e.provider.challenge = u.Query().Get("code_challenge")
+	e.provider.mu.Unlock()
+	if state == "" {
+		state = u.Query().Get("state")
+	}
+	return u.Query().Get("redirect_uri") + "?" + url.Values{"code": {code}, "state": {state}}.Encode()
+}
+
+func TestFinishSignsIn(t *testing.T) {
+	e := newEnv(t)
+	ctx := t.Context()
+	authURL, err := e.m.Authorize(ctx, e.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	redirect, _ := url.Parse(authURL)
+	id, err := e.m.Finish(ctx, e.address(t, authURL, "the-code", ""))
+	if err != nil || id != e.acct {
+		t.Fatalf("Finish = %d, %v", id, err)
+	}
+	select {
+	case got := <-e.signedIn:
+		if got != e.acct {
+			t.Errorf("signed in %d", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("SignedIn was not called")
+	}
+	if rt, err := e.sec.Get(ctx, secrets.RefreshToken(e.acct)); err != nil || rt != "refresh-1" {
+		t.Fatalf("refresh token = %q, %v", rt, err)
+	}
+	if acct, err := e.db.GetAccount(ctx, e.acct); err != nil || acct.NeedsReauth {
+		t.Fatalf("account = %+v, %v; want no sign-in again", acct, err)
+	}
+	// The loopback listener ended with the sign-in.
+	if _, err := http.Get(redirect.Query().Get("redirect_uri")); err == nil {
+		t.Error("the loopback listener is still open")
+	}
+}
+
+func TestFinishWithAnotherState(t *testing.T) {
+	e := newEnv(t)
+	authURL, err := e.m.Authorize(t.Context(), e.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.m.Finish(t.Context(), e.address(t, authURL, "the-code", "forged")); !errors.Is(err, ErrNoSignIn) {
+		t.Fatalf("forged state = %v, want ErrNoSignIn", err)
+	}
+}
+
+func TestFinishWithAnotherOrigin(t *testing.T) {
+	e := newEnv(t)
+	authURL, err := e.m.Authorize(t.Context(), e.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := url.Parse(authURL)
+	redirect, _ := url.Parse(r.Query().Get("redirect_uri"))
+	state := r.Query().Get("state")
+	query := "?" + url.Values{"code": {"the-code"}, "state": {state}}.Encode()
+	otherPort := *redirect
+	otherPort.Host = redirect.Hostname() + ":1"
+	otherHost := *redirect
+	otherHost.Host = "localhost:" + redirect.Port()
+	for name, address := range map[string]string{
+		"port": otherPort.String() + query,
+		"host": otherHost.String() + query,
+	} {
+		if _, err := e.m.Finish(t.Context(), address); !errors.Is(err, ErrNoSignIn) {
+			t.Errorf("another %s = %v, want ErrNoSignIn", name, err)
+		}
+	}
+}
+
+func TestFinishTwice(t *testing.T) {
+	e := newEnv(t)
+	authURL, err := e.m.Authorize(t.Context(), e.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := e.address(t, authURL, "the-code", "")
+	if _, err := e.m.Finish(t.Context(), address); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.m.Finish(t.Context(), address); !errors.Is(err, ErrNoSignIn) {
+		t.Fatalf("second Finish = %v, want ErrNoSignIn", err)
+	}
+	// A browser that returns after the paste fails, or gets 410.
+	resp, err := http.Get(address)
+	if err == nil {
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusGone {
+			t.Errorf("loopback after Finish = %d, want an error or 410", resp.StatusCode)
+		}
+	}
+}
+
+func TestFinishRefused(t *testing.T) {
+	e := newEnv(t)
+	authURL, err := e.m.Authorize(t.Context(), e.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(authURL)
+	address := u.Query().Get("redirect_uri") + "?" + url.Values{"error": {"access_denied"}, "state": {u.Query().Get("state")}}.Encode()
+	_, err = e.m.Finish(t.Context(), address)
+	if !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "access_denied") {
+		t.Fatalf("refused = %v, want ErrRefused naming access_denied", err)
+	}
+	if _, err := e.sec.Get(t.Context(), secrets.RefreshToken(e.acct)); !errors.Is(err, secrets.ErrNotFound) {
+		t.Errorf("a refused sign-in stored a token: %v", err)
+	}
+}
+
+func TestFinishWithoutAScheme(t *testing.T) {
+	e := newEnv(t)
+	authURL, err := e.m.Authorize(t.Context(), e.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := strings.TrimPrefix(e.address(t, authURL, "the-code", ""), "http://")
+	if _, err := e.m.Finish(t.Context(), " "+address+" "); err != nil {
+		t.Fatalf("Finish without a scheme = %v", err)
+	}
+}

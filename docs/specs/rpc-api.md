@@ -119,7 +119,7 @@ Errors: `invalidParams`.
 
 ### `account.authorize`
 
-Start an OAuth sign-in for an oauth2 account. maild listens on a loopback port for the browser's return for 5 minutes, then stores the token, reconnects, and emits account.changed.
+Start an OAuth sign-in for an oauth2 account. maild listens on a loopback port for the browser's return for 5 minutes, then stores the token, reconnects, and emits account.changed. The sign-in also finishes when a client sends the address the browser could not open to account.finishSignIn (ADR-0043).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -127,6 +127,17 @@ Start an OAuth sign-in for an oauth2 account. maild listens on a loopback port f
 
 Result: `AuthorizeResult`.
 Errors: `notFound`, `invalidParams`, `unavailable`.
+
+### `account.finishSignIn`
+
+Finish a waiting OAuth sign-in with the address that the browser could not open (ADR-0043). maild stores the token, reconnects and emits account.changed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `url` | `string` | The address the provider sent the browser to, with its query. |
+
+Result: `Account`.
+Errors: `invalidParams`, `unavailable`.
 
 ### `account.verify`
 
@@ -246,7 +257,7 @@ An OAuth sign-in in progress.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `url` | `string` | Open in the system browser; maild finishes the sign-in when the browser returns. |
+| `url` | `string` | Open in the system browser; maild finishes the sign-in when the browser returns to its loopback, or when a client sends the address to account.finishSignIn. |
 
 ### Type `MailboxCheck`
 

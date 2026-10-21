@@ -419,12 +419,16 @@ function AccountsPane() {
   const [selected, setSelected] = useState<number | "new" | null>(null);
   const [value, setValue] = useState<AccountFormValue>(emptyAccount);
   const [discovery, setDiscovery] = useState<DiscoveryState>({ kind: "idle" });
+  // The account whose sign-in this window started, while it waits. Only
+  // that sign-in can finish from a pasted address (ADR-0043).
+  const [signInId, setSignInId] = useState<number | null>(null);
   const { busy, error, setError, run } = useRequest();
   const account = accounts.find((a) => a.id === selected);
 
   const select = useCallback(
     (next: number | "new") => {
       setSelected(next);
+      setSignInId((current) => (current === next ? current : null));
       setError(null);
       setDiscovery({ kind: "idle" });
       const a = accounts.find((x) => x.id === next);
@@ -442,6 +446,24 @@ function AccountsPane() {
       typeof selected === "number" && listed.current.has(selected) && !accounts.some((a) => a.id === selected);
     if (selected === null || removed) select(accounts[0]?.id ?? "new");
   }, [accounts, selected, select]);
+
+  // A sign-in that finished hides the field; its account now says signed in.
+  useEffect(() => {
+    if (signInId !== null && accounts.some((a) => a.id === signInId && a.signedIn)) setSignInId(null);
+  }, [accounts, signInId]);
+
+  const startSignIn = useCallback(
+    async (id: number) => {
+      setSignInId(id);
+      try {
+        await signIn(client, id);
+      } catch (err) {
+        setSignInId(null);
+        throw err;
+      }
+    },
+    [client],
+  );
 
   const discover = () =>
     run(async () => {
@@ -483,7 +505,7 @@ function AccountsPane() {
         if (value.auth === "password" && value.password !== "")
           await client.account.setPassword({ id: a.id, password: value.password });
         const serviceError = await enableServices(client, a.id, value.services ?? []);
-        if (value.auth === "oauth2") await signIn(client, a.id);
+        if (value.auth === "oauth2") await startSignIn(a.id);
         if (serviceError) throw new Error(serviceError);
       }, noClient);
     } else if (account) {
@@ -511,8 +533,16 @@ function AccountsPane() {
   };
 
   const authorize = () => {
-    if (typeof selected === "number") void run(() => signIn(client, selected), noClient);
+    if (typeof selected === "number") void run(() => startSignIn(selected), noClient);
   };
+
+  // finishSignIn ends the waiting sign-in with the address of the page the
+  // browser could not open. Its errors show like every other request's.
+  const finishSignIn = (url: string) =>
+    run(async () => {
+      await client.account.finishSignIn({ url });
+      setSignInId(null);
+    });
 
   return (
     <div className="flex h-full narrow:flex-col">
@@ -532,6 +562,8 @@ function AccountsPane() {
           onDiscover={() => void discover()}
           signedIn={account?.signedIn ?? false}
           onSignIn={authorize}
+          signInWaiting={typeof selected === "number" && signInId === selected && !(account?.signedIn ?? false)}
+          onFinishSignIn={finishSignIn}
           services={
             typeof selected === "number" && (
               <AccountServices

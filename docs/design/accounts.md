@@ -63,6 +63,23 @@ caps responses at 64 KB, and never sends the password anywhere.
   them when less than 5 minutes remain, and once after `AUTHENTICATE`
   fails. `invalid_grant` makes the account `unauthorized` with "Sign in
   again" in the sidebar and settings.
+- **A sign-in also finishes from a pasted address** when the browser
+  cannot reach maild's loopback, as behind lodge (ADR-0043).
+  `account.finishSignIn {url}` takes the address the provider sent the
+  browser to. maild reads its `state` and finds the waiting sign-in by a
+  constant-time comparison. The address's scheme, host, port and path
+  must be the waiting redirect's; a path of "" and "/" are equal. Then
+  maild does what the loopback listener does: it refuses the sign-in when
+  the query holds the provider's `error`, or exchanges the code with the
+  same redirect and PKCE verifier, stores the refresh token, clears "Sign
+  in again", reconnects the account and emits `account.changed`. The
+  listener then closes. A sign-in finishes once, by whichever way comes
+  first; an unknown, finished or expired `state` is `invalidParams` and
+  the user starts the sign-in again. maild logs no code and no address.
+  Only `local` and `session` callers may use the method, never an agent.
+  The clients show a field while a sign-in waits
+  ([settings-ui.md](../specs/settings-ui.md)); `mailctl account
+  finish-signin URL` does the same.
 - **A refused login is not always the credential.** A `NO` with the code
   `UNAVAILABLE` (RFC 5530), or Outlook's "User is authenticated but not
   connected.", means the server took the token but cannot open the

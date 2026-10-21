@@ -6,6 +6,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openFrameWindow } from "../lodge/frameWindow";
 import { openOutside } from "../lodge/lodge";
+import { remoteMaild } from "../rpc/transport/tauri";
 
 declare global {
   interface Window {
@@ -36,4 +37,14 @@ export async function openInBrowser(url: string): Promise<void> {
     return;
   }
   if (!openOutside(url)) window.open(url, "_blank", "noopener");
+}
+
+/**
+ * pasteSignIn reports whether a sign-in may finish with the address of the
+ * page the browser could not open (ADR-0043): in a browser, or in the
+ * desktop app on a maild behind lodge. The desktop app on its own maild
+ * gets the loopback return, so it shows no such field.
+ */
+export function pasteSignIn(): boolean {
+  return !isTauri() || remoteMaild();
 }

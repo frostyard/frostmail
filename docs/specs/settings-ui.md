@@ -272,6 +272,8 @@ interface AccountFormProps {
   onDiscover: () => void;    // add mode
   signedIn: boolean;         // edit mode: Account.signedIn
   onSignIn: () => void;      // edit mode, oauth2: browser sign-in
+  signInWaiting?: boolean;   // edit mode: this window's sign-in waits for the shown account
+  onFinishSignIn?: (url: string) => Promise<void>; // edit mode: finishes it with a pasted address
   busy: boolean;             // a request is running
   error: string | null;      // the last request's error
   onSubmit: () => void;
@@ -327,6 +329,23 @@ interface AccountFormProps {
   in` (`text-secondary`) or `Not signed in` (`text-flag-1`), then a
   `button type="button"` (secondary style, `ml-3`) `Sign In Again…` when
   signed in, else `Sign In…`, calling `onSignIn`, disabled while `busy`.
+- **Finishing with a pasted address (edit mode):** when `signInWaiting`
+  is true and `onFinishSignIn` is set, and `pasteSignIn()` is true (a
+  browser, or the desktop app on a maild behind lodge; not the desktop
+  app on its own maild, which the loopback return reaches), a `div`
+  (`col-start-2 flex flex-col gap-2`) follows the provider row:
+  - a `p` (`text-[12px] leading-4 text-secondary`): "If your browser
+    cannot open the page after you sign in, copy that page's address and
+    paste it here."
+  - a `div` (`flex items-center gap-2`) with a `label` (the label style)
+    `Address`, an `input type="url"` (its `id` from `useId`,
+    `autoComplete="off"`, `spellCheck={false}`, the field style,
+    `min-w-0 flex-1`, disabled while `busy`), and a `button
+    type="button"` `Finish Sign-In` (secondary; disabled while the field
+    is empty or `busy`). The button calls `onFinishSignIn` with the
+    trimmed address. The row goes when the account reports `signedIn`;
+    after an error the address stays, and the error shows in the form's
+    alert like every other request's.
 - Then, each in a `div` with `mt-5`: `ServerFields id="imap"` "Incoming
   Mail (IMAP)" and `ServerFields id="smtp"` "Outgoing Mail (SMTP)",
   disabled while `busy`.
@@ -441,8 +460,12 @@ interface ServicesSectionProps {
   error says "Set up your Google client under Sign-In first."
 - **Edit:** Save sends `account.update` with every editable field, then
   `account.setPassword` when a new password was typed. Sign In… calls
-  `account.authorize` and opens the URL; `account.changed` updates the
-  status.
+  `account.authorize`, remembers the account whose sign-in it started,
+  and opens the URL; `account.changed` updates the status. The remembered
+  account clears when its account reports `signedIn`, when another
+  account is selected, or when authorize fails. Finish Sign-In calls
+  `account.finishSignIn` with the address; its error goes to the form's
+  alert.
 - **Remove:** asks "Remove <email>? Its mail is deleted from this computer,
   not from the server." and calls `account.delete` when confirmed.
 - **Services (edit mode):** `account.services` of the selected account,

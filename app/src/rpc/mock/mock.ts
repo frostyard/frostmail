@@ -105,6 +105,8 @@ export class MockTransport implements Transport {
   private readonly unsubscribed = new Set<string>();
   /** One-click requests fail while this is set, as a sender's server can. */
   oneClickFails = false;
+  /** The account whose OAuth sign-in the last authorize started. */
+  private signInAccount: number | null = null;
 
   constructor(
     data: MockData,
@@ -324,8 +326,20 @@ export class MockTransport implements Transport {
         if (a.auth === "password") throw new RPCError(ErrorCode.invalidParams, "account uses password sign-in");
         this.people.authorize(a.id);
         a.signedIn = true;
+        this.signInAccount = a.id;
         this.accountChanged(a.id);
         return { url: `https://accounts.google.test/authorize/${a.id}` };
+      }
+      case "account.finishSignIn": {
+        // The address is not checked, as the mock's sign-in never waits: the
+        // last authorized account signs in, as maild's account.finishSignIn.
+        const a = this.accounts.find((x) => x.id === this.signInAccount);
+        if (!a) throw new RPCError(ErrorCode.invalidParams, "no sign-in waits for this address");
+        a.signedIn = true;
+        this.people.authorize(a.id);
+        this.signInAccount = null;
+        this.accountChanged(a.id);
+        return { ...a };
       }
       case "account.create":
         return this.createAccount(p as unknown as AccountCreateParams);
