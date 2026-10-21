@@ -6,12 +6,17 @@ A mail client that works like Apple Mail.app, without looking like a GNOME
 or KDE app. It runs on Linux and on Windows, and its daemon can also serve a
 phone and any browser on the owner's tailnet as the mail app of
 [lodge](https://github.com/frostyard/lodge)
-([M8](docs/plans/0011-m8-mail-in-lodge.md); built, before its trial). Pre-release: it syncs, reads, searches and sends generic
-IMAP, Gmail and iCloud accounts, and is in its daily-driver trial
+([M8](docs/plans/0011-m8-mail-in-lodge.md); built, and in progress).
+Pre-release: it syncs, reads, searches and sends generic IMAP, Gmail,
+iCloud and Outlook.com accounts, and has finished its daily-driver trial
 ([M4](docs/plans/0006-m4-daily-driver.md)). Contacts, calendars and tasks
-over CardDAV, CalDAV and Google Tasks, invitations answered from the reader,
-and a To-Do bar beside the inbox are arriving
-([M4.5](docs/plans/0007-m4.5-people-calendar-tasks.md)). See the
+over CardDAV, CalDAV, Google Tasks and Microsoft Graph, invitations
+answered from the reader, events and contacts edited in place, and a To-Do
+bar beside the inbox are built
+([M4.5](docs/plans/0007-m4.5-people-calendar-tasks.md),
+[M5.5](docs/plans/0009-m5.5-edit-events-and-contacts.md)), with Mail.app's
+rules, smart mailboxes, VIPs, Send Later and Remind Me
+([M5](docs/plans/0008-m5-mail-app-parity.md)). See the
 [roadmap](docs/plans/0002-roadmap.md).
 
 ![The main window: unified inboxes for two accounts, flags, threads and an
