@@ -95,8 +95,14 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Window:** default 1200 × 780, minimum 800 × 500. No system title bar.
 - **Panes:** sidebar default 220 (min 160, max 320); list default 360
   (min 280, max 560); reader takes the rest (min 360). Panes are separated by
-  a 1px `--separator` line with a 6px invisible drag handle. Widths persist
-  per window in local storage. Ctrl+Alt+S hides and shows the sidebar.
+  a 1px `--separator` line with a 6px invisible drag handle, which turns
+  `--accent` while it is dragged or focused. The splitter is `Splitter` from
+  `@frostyard/lodge-ui/react`
+  ([lodge ADR-0018](https://github.com/frostyard/lodge/blob/main/docs/adr/0018-a-ui-package-beside-the-client.md)):
+  a focusable `separator` that reports its pane's share of the window as
+  `aria-valuenow`, and that the arrow keys move 16 pixels at a time. Widths
+  persist per window in local storage. Ctrl+Alt+S hides and shows the
+  sidebar.
 - **Toolbar (52, `--bg-toolbar`, 1px `--separator` bottom):** one strip
   split at the pane boundaries. It is the window's drag region; double-click
   on empty toolbar space toggles maximize (Tauri's drag-region handling does
