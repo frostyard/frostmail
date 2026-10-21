@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/frostyard/lodge/kit/netguard"
 )
 
 func TestParse(t *testing.T) {
@@ -36,15 +38,17 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestPublicRefusesInsideAddresses(t *testing.T) {
+// TestGuardRefusesInsideAddresses covers the ranges the poster's check
+// refuses: kit/netguard's own test has one case per range.
+func TestGuardRefusesInsideAddresses(t *testing.T) {
 	for _, a := range []string{"127.0.0.1", "::1", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254",
 		"fe80::1", "fd00::1", "0.0.0.0", "::", "224.0.0.1", "100.64.0.1", "::ffff:127.0.0.1", "::ffff:10.0.0.1"} {
-		if err := public(netip.MustParseAddr(a)); !errors.Is(err, errInside) {
+		if err := netguard.Public(netip.MustParseAddr(a)); !errors.Is(err, netguard.ErrInside) {
 			t.Errorf("%s: %v, want refused", a, err)
 		}
 	}
 	for _, a := range []string{"93.184.216.34", "2606:2800:220:1::1"} {
-		if err := public(netip.MustParseAddr(a)); err != nil {
+		if err := netguard.Public(netip.MustParseAddr(a)); err != nil {
 			t.Errorf("%s: %v, want allowed", a, err)
 		}
 	}
@@ -56,7 +60,7 @@ func TestPostRefusesTheLocalServer(t *testing.T) {
 	}))
 	defer srv.Close()
 	err := New().Post(t.Context(), srv.URL+"/u")
-	if !errors.Is(err, errInside) {
+	if !errors.Is(err, netguard.ErrInside) {
 		t.Errorf("post to %s: %v, want refused", srv.URL, err)
 	}
 	if err := New().Post(t.Context(), "http://list.example/u"); err == nil || !strings.Contains(err.Error(), "https") {
@@ -80,7 +84,7 @@ func TestPostOneClick(t *testing.T) {
 		w.WriteHeader(status)
 	}))
 	defer srv.Close()
-	p := newPoster(func(netip.Addr) error { return nil }, srv.Client().Transport.(*http.Transport).TLSClientConfig)
+	p := newPoster(controlWith(func(netip.Addr) error { return nil }), srv.Client().Transport.(*http.Transport).TLSClientConfig)
 	if err := p.Post(t.Context(), srv.URL+"/u?list=1"); err != nil {
 		t.Fatalf("one-click: %v", err)
 	}

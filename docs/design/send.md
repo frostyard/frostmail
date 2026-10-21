@@ -202,10 +202,14 @@ and limits.
   user left the list before.
 - **One-click** (`unsubscribe.Poster`): an `http.Client` with no cookie
   jar, no proxy, no redirects, 10 seconds, `User-Agent: Frostmail`; its
-  dialer checks each address it is about to connect to, after DNS, and
-  refuses loopback, private, link-local, multicast, unspecified, shared
-  (RFC 6598) and reserved ranges, IPv4-mapped included. A 2xx is success;
-  anything else is `unavailable` with why, and nothing is remembered.
+  dialer checks each address it is about to connect to, after DNS, with
+  lodge kit's `netguard` (`kit/netguard`, shared with frostread and
+  frostnotes; [ADR-0017](https://github.com/frostyard/lodge/blob/main/docs/adr/0017-the-kit-guards-outbound-fetches-against-inside-addresses.md)).
+  It refuses loopback, private, link-local, multicast, unspecified, shared
+  (RFC 6598), the IETF protocol block, benchmarking, the reserved block,
+  the documentation ranges, NAT64, Teredo, 6to4 and site-local, IPv4-mapped
+  included. A 2xx is success; anything else is `unavailable` with why, and
+  nothing is remembered.
 - **Mail:** a message from the account's default identity to the
   `mailto:` address, with its subject (else "unsubscribe") and body,
   queued in the outbox.
