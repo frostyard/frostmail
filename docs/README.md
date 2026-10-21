@@ -58,7 +58,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0040 — Store Graph's events and contacts as iCalendar and vCard derived from its JSON](adr/0040-graph-events-and-contacts-as-derived-sources.md)
 - [0041 — maild runs as a lodge app](adr/0041-maild-runs-as-a-lodge-app.md)
 - [0042 — Agents get calendar, task and contact tools](adr/0042-agents-get-calendar-task-and-contact-tools.md)
-- [0043 — OAuth sign-in returns through lodge, or by a pasted address](adr/0043-sign-in-returns-through-lodge.md) (Proposed)
+- [0043 — Finish an OAuth sign-in with a pasted address when the browser cannot reach maild](adr/0043-finish-a-sign-in-with-a-pasted-address.md)
 
 ### Design
 
