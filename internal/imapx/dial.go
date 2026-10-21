@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
@@ -26,6 +27,12 @@ import (
 // ErrAuth means the server rejected the credentials. Retrying with the same
 // password will not help.
 var ErrAuth = errors.New("imapx: login rejected")
+
+// ErrUnavailable means the server accepted the credentials but cannot open
+// the mailbox now, so a later login can succeed: the response code
+// UNAVAILABLE (RFC 5530), or Outlook's "User is authenticated but not
+// connected.", which it answers while the mailbox's backend is away.
+var ErrUnavailable = errors.New("imapx: mailbox unavailable")
 
 // ErrReadOnly means a read-only session was asked to change the server.
 var ErrReadOnly = errors.New("imapx: the session is read-only")
@@ -130,6 +137,9 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 		_ = c.Close()
 		var imapErr *imap.Error
 		if errors.As(err, &imapErr) && imapErr.Type == imap.StatusResponseTypeNo {
+			if unavailable(imapErr) {
+				return nil, fmt.Errorf("imap %s: login: %w: %w", addr, ErrUnavailable, err)
+			}
 			return nil, fmt.Errorf("imap %s: login: %w: %w", addr, ErrAuth, err)
 		}
 		return nil, fmt.Errorf("imap %s: login: %w", addr, err)
@@ -139,6 +149,13 @@ func Dial(ctx context.Context, opts DialOptions) (*imapclient.Client, error) {
 		return nil, fmt.Errorf("imap %s: %w", addr, ctx.Err())
 	}
 	return c, nil
+}
+
+// unavailable reports whether a refused login is the server's trouble, not
+// the credentials'.
+func unavailable(e *imap.Error) bool {
+	return e.Code == imap.ResponseCodeUnavailable ||
+		strings.Contains(strings.ToLower(e.Text), "authenticated but not connected")
 }
 
 // login signs in with LOGIN, or AUTHENTICATE XOAUTH2 for OAuth; a refused

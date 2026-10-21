@@ -63,6 +63,13 @@ caps responses at 64 KB, and never sends the password anywhere.
   them when less than 5 minutes remain, and once after `AUTHENTICATE`
   fails. `invalid_grant` makes the account `unauthorized` with "Sign in
   again" in the sidebar and settings.
+- **A refused login is not always the credential.** A `NO` with the code
+  `UNAVAILABLE` (RFC 5530), or Outlook's "User is authenticated but not
+  connected.", means the server took the token but cannot open the
+  mailbox now. Outlook answers it for minutes at a time, often after it
+  drops an IDLE connection, while the mailbox's backend moves. Sync treats
+  it as `offline` and retries with backoff (`imapx.ErrUnavailable`); only
+  another `NO` marks the account. A login that succeeds clears the mark.
 - **XOAUTH2** is the SASL mechanism for both IMAP (`AUTHENTICATE XOAUTH2`)
   and SMTP (`AUTH XOAUTH2`); a failure's base64 JSON details are decoded
   into the error.

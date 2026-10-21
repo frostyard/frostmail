@@ -108,6 +108,15 @@ func (a *actor) refused(ctx context.Context) {
 	}
 }
 
+// signedIn clears "Sign in again" once the server takes the credential: a
+// mark from a refusal that a later login proves wrong goes away.
+func (a *actor) signedIn(ctx context.Context) {
+	err := a.m.db.Tx(ctx, func(tx *store.Tx) error { return tx.SetNeedsReauth(ctx, a.acct.ID, false) })
+	if err != nil {
+		a.m.log.Warn("clear the account's sign-in mark", "account", a.acct.ID, "err", err)
+	}
+}
+
 func (a *actor) stop() {
 	a.cancel()
 	<-a.done
@@ -139,7 +148,8 @@ func (a *actor) phase(p api.SyncPhase, errText string) {
 }
 
 // run connects and syncs until ctx ends, retrying failures with backoff.
-// A rejected login waits for a restart (a new password) or a sync request.
+// A rejected login waits for a restart (a new password) or a sync request;
+// a mailbox the server cannot open now (imapx.ErrUnavailable) is retried.
 func (a *actor) run(ctx context.Context) {
 	backoff := a.m.cfg.MinBackoff
 	for {
@@ -209,6 +219,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 		return false, err
 	}
 	defer func() { _ = cmd.Close() }()
+	a.signedIn(ctx)
 	a.gmail = providers.ForKind(a.acct.Kind).Quirks.Gmail && cmd.Caps.Gmail
 
 	if err := a.replay(ctx, cmd); err != nil {

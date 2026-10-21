@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/emersion/go-imap/v2"
@@ -29,6 +30,10 @@ const (
 type Mem struct {
 	User *imapmemserver.User
 	Addr string
+	// Unavailable, on a server from StartMemFullOAuth, is how many of the
+	// next XOAUTH2 logins with the right token get Outlook's transient NO
+	// ("User is authenticated but not connected.").
+	Unavailable *atomic.Int32
 }
 
 // StartMem listens on localhost with only IMAP4rev1 (and the extensions that
@@ -95,14 +100,20 @@ func (m *Mem) DialOptions() imapx.DialOptions {
 func StartMemFullOAuth(t testing.TB, token string) *Mem {
 	t.Helper()
 	caps := imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapMove: {}, imap.CapUIDPlus: {}, imap.CapESearch: {}}
-	return startMemWith(t, caps, func(s imapserver.Session) imapserver.Session { return &oauthSession{Session: s, token: token} })
+	unavailable := new(atomic.Int32)
+	m := startMemWith(t, caps, func(s imapserver.Session) imapserver.Session {
+		return &oauthSession{Session: s, token: token, unavailable: unavailable}
+	})
+	m.Unavailable = unavailable
+	return m
 }
 
 // oauthSession adds XOAUTH2 to a memory session; MOVE and NAMESPACE pass
 // through.
 type oauthSession struct {
 	imapserver.Session
-	token string
+	token       string
+	unavailable *atomic.Int32
 }
 
 func (s *oauthSession) AuthenticateMechanisms() []string { return []string{"XOAUTH2"} }
@@ -123,7 +134,8 @@ func (s *oauthSession) Namespace() (*imap.NamespaceData, error) {
 }
 
 // xoauth2Server checks the initial response; a wrong token gets Gmail's
-// failure challenge, then NO.
+// failure challenge, then NO, and the right one Outlook's transient NO
+// while Mem.Unavailable counts down.
 type xoauth2Server struct {
 	s       *oauthSession
 	refused bool
@@ -137,6 +149,11 @@ func (x *xoauth2Server) Next(response []byte) ([]byte, bool, error) {
 	if string(response) != want {
 		x.refused = true
 		return []byte(`{"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}`), false, nil
+	}
+	for n := x.s.unavailable.Load(); n > 0; n = x.s.unavailable.Load() {
+		if x.s.unavailable.CompareAndSwap(n, n-1) {
+			return nil, true, &imap.Error{Type: imap.StatusResponseTypeNo, Text: "User is authenticated but not connected."}
+		}
 	}
 	if err := x.s.Login(Username, Password); err != nil {
 		return nil, true, err
