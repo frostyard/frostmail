@@ -343,8 +343,8 @@ interface AccountFormProps {
     `min-w-0 flex-1`, disabled while `busy`), and a `button
     type="button"` `Finish Sign-In` (secondary; disabled while the field
     is empty or `busy`). The button calls `onFinishSignIn` with the
-    trimmed address. The row goes when the account reports `signedIn`;
-    after an error the address stays, and the error shows in the form's
+    trimmed address. The row goes when the sign-in finishes (see Edit
+    below); after an error the address stays, and the error shows in the form's
     alert like every other request's.
 - Then, each in a `div` with `mt-5`: `ServerFields id="imap"` "Incoming
   Mail (IMAP)" and `ServerFields id="smtp"` "Outgoing Mail (SMTP)",
@@ -460,12 +460,14 @@ interface ServicesSectionProps {
   error says "Set up your Google client under Sign-In first."
 - **Edit:** Save sends `account.update` with every editable field, then
   `account.setPassword` when a new password was typed. Sign In… calls
-  `account.authorize`, remembers the account whose sign-in it started,
-  and opens the URL; `account.changed` updates the status. The remembered
-  account clears when its account reports `signedIn`, when another
-  account is selected, or when authorize fails. Finish Sign-In calls
-  `account.finishSignIn` with the address; its error goes to the form's
-  alert.
+  `account.authorize`, remembers the account whose sign-in it started and
+  whether it was signed in then, and opens the URL; `account.changed`
+  updates the status. The remembered sign-in waits, whether the account
+  was signed in or not, and clears when Finish Sign-In succeeds, when an
+  account that was not signed in reports `signedIn`, when another account
+  is selected, when authorize fails, or after 5 minutes (maild's limit for
+  a sign-in). Finish Sign-In calls `account.finishSignIn` with the
+  address; its error goes to the form's alert.
 - **Remove:** asks "Remove <email>? Its mail is deleted from this computer,
   not from the server." and calls `account.delete` when confirmed.
 - **Services (edit mode):** `account.services` of the selected account,
