@@ -1,3 +1,4 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { newCondition } from "../../lib/conditions";
 import { actionsComplete, newAction } from "../../lib/rules";
@@ -40,48 +41,35 @@ export interface RuleSheetProps {
 export function RuleSheet(props: RuleSheetProps) {
   const [draft, setDraft] = useState(props.initial);
   const canSave = Boolean(draft.name.trim()) && actionsComplete(draft.actions, props.mailboxes) && !props.busy;
-  const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement;
-    dialog.current?.querySelector<HTMLInputElement>("input")?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60">
+    <Sheet
+      title={props.title}
+      width={640}
+      className="rounded-[10px]"
+      titleClassName="text-[13px] font-semibold"
+      showClose={false}
+      closeOnOverlay={false}
+      initialFocus={"first"}
+      onClose={props.onCancel}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
       <div
-        ref={dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[640px] max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
         onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") {
+          if (event.key !== "Tab") return;
+          const controls = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>("input, select, button"),
+          ).filter((control) => !control.hasAttribute("disabled"));
+          const first = controls[0];
+          const last = controls.at(-1);
+          if (event.shiftKey && document.activeElement === first) {
             event.preventDefault();
-            props.onCancel();
-          } else if (event.key === "Tab") {
-            const controls = Array.from(
-              event.currentTarget.querySelectorAll<HTMLElement>("input, select, button"),
-            ).filter((control) => !control.hasAttribute("disabled"));
-            const first = controls[0];
-            const last = controls.at(-1);
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last?.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first?.focus();
-            }
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
           }
         }}
       >
-        <h2 id={titleId} className="mb-4 text-[13px] font-semibold">
-          {props.title}
-        </h2>
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -130,6 +118,6 @@ export function RuleSheet(props: RuleSheetProps) {
           </div>
         </form>
       </div>
-    </div>
+    </Sheet>
   );
 }

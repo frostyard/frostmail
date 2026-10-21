@@ -1,5 +1,5 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { useEffect, useId, useRef } from "react";
-
 import type { EventScope } from "../../rpc/gen/api";
 import { BUTTON, PRIMARY_BUTTON } from "../settings/labels";
 
@@ -13,42 +13,29 @@ export interface ScopeSheetProps {
 
 /** ScopeSheet asks which occurrences a change or deletion affects. */
 export function ScopeSheet({ action, first, onChoose, onCancel }: ScopeSheetProps) {
-  const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
   const verb = action === "change" ? "Change" : "Delete";
-  useEffect(() => {
-    const previous = document.activeElement;
-    dialog.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60">
+    <Sheet
+      title={`${verb} Repeating Event`}
+      width={420}
+      className="rounded-[10px]"
+      titleClassName="text-[13px] font-semibold"
+      showClose={false}
+      closeOnOverlay={false}
+      initialFocus={"first"}
+      onClose={onCancel}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
       <div
-        ref={dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[420px] max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
         onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onCancel();
-          } else if (event.key === "Tab") {
-            const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
-            const index = controls.indexOf(document.activeElement as HTMLButtonElement);
-            event.preventDefault();
-            controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
-          }
+          if (event.key !== "Tab") return;
+          const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+          const index = controls.indexOf(document.activeElement as HTMLButtonElement);
+          event.preventDefault();
+          controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
         }}
         onKeyUp={(event) => event.stopPropagation()}
       >
-        <h2 id={titleId} className="mb-4 text-[13px] font-semibold">
-          {verb} Repeating Event
-        </h2>
         <p className="mb-4 text-[13px] leading-[18px]">
           {verb} only this event, this and all future events, or every event in the series?
         </p>
@@ -69,6 +56,6 @@ export function ScopeSheet({ action, first, onChoose, onCancel }: ScopeSheetProp
           </button>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
