@@ -1,5 +1,7 @@
 // The message list: a virtualized view with selection, keyboard commands
 // and the row context menu (docs/specs/ui.md, Message list and Behavior).
+
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type DragEvent,
@@ -11,7 +13,6 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { useClient } from "../data/session";
 import { sourceTitle, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
@@ -20,7 +21,6 @@ import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyTextIn } from "../features/list/FilterBar";
 import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
 import { UnsavedDraftsSection, unsavedHeight } from "../features/list/UnsavedDraftRow";
-import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
 import { remindChoices } from "../lib/later";
@@ -375,23 +375,23 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       const copies = copyTargets(rows[0], mailboxes);
       const spam = spamTarget(model, menu.ids, mailboxes);
       const items: MenuItem[] = [
-        { kind: "item", id: "reply", label: "Reply", shortcut: "Ctrl+R" },
-        { kind: "item", id: "replyAll", label: "Reply All", shortcut: "Ctrl+Shift+R" },
-        { kind: "item", id: "forward", label: "Forward", shortcut: "Ctrl+Shift+F" },
+        { kind: "item", id: "reply", label: "Reply", keys: "Ctrl+R" },
+        { kind: "item", id: "replyAll", label: "Reply All", keys: "Ctrl+Shift+R" },
+        { kind: "item", id: "forward", label: "Forward", keys: "Ctrl+Shift+F" },
         { kind: "item", id: "forwardAttachment", label: "Forward as Attachment" },
-        { kind: "item", id: "redirect", label: "Redirect…", shortcut: "Ctrl+Shift+E", disabled: readOnly },
+        { kind: "item", id: "redirect", label: "Redirect…", keys: "Ctrl+Shift+E", disabled: readOnly },
         { kind: "separator" },
       ];
       if (archiveMailbox(model, menu.ids, mailboxes)) {
-        items.push({ kind: "item", id: "archive", label: "Archive", shortcut: "Ctrl+Alt+A", disabled: readOnly });
+        items.push({ kind: "item", id: "archive", label: "Archive", keys: "Ctrl+Alt+A", disabled: readOnly });
       }
       items.push(
-        { kind: "item", id: "delete", label: "Delete", shortcut: "Delete", disabled: readOnly },
+        { kind: "item", id: "delete", label: "Delete", keys: "Delete", disabled: readOnly },
         {
           kind: "item",
           id: "spam",
           label: spam.notSpam ? "Not Spam" : "Mark as Spam",
-          shortcut: "Ctrl+Shift+J",
+          keys: "Ctrl+Shift+J",
           disabled: readOnly || !spam.to,
         },
         { kind: "separator" },
@@ -418,7 +418,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           kind: "item",
           id: "toggleFlag",
           label: rows[0]?.flags.flagged ? "Unflag" : "Flag",
-          shortcut: "Ctrl+Shift+L",
+          keys: "Ctrl+Shift+L",
           disabled: readOnly,
         },
         {
@@ -449,7 +449,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           kind: "item",
           id: "read",
           label: allSeen ? "Mark as Unread" : "Mark as Read",
-          shortcut: "Ctrl+Shift+U",
+          keys: "Ctrl+Shift+U",
           disabled: readOnly,
         },
         {

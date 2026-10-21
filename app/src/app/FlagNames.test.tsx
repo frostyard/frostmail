@@ -44,7 +44,7 @@ describe("flag names in the menus", () => {
       const colors = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')).map(label);
       expect(colors.slice(0, 2)).toEqual(["Urgent", "Orange"]);
     });
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
 
     fireEvent.click(row);

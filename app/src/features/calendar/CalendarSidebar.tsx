@@ -1,8 +1,9 @@
 // The small month and account calendars.
+
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { Lock } from "lucide-react";
 import { useRef, useState } from "react";
 import { calendarColor } from "../../lib/eventText";
-import { ContextMenu } from "../menu/ContextMenu";
 import type { MiniMonthProps } from "./MiniMonth";
 import { MiniMonth } from "./MiniMonth";
 

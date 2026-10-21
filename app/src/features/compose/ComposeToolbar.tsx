@@ -3,6 +3,7 @@
 // presentational: the container wires them to maild and to the TipTap
 // editor, and every control only reports the command it asks for.
 
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import {
   Bold,
   ChevronDown,
@@ -24,9 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-
 import type { LaterChoice } from "../../lib/later";
-import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ComposeCommand is what a compose toolbar control asks for. */
 export type ComposeCommand =

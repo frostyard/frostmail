@@ -1,5 +1,5 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { useEffect, useId, useRef, useState } from "react";
-
 import { ALERT, BUTTON, FIELD, PRIMARY_BUTTON } from "../settings/labels";
 
 /** MailboxSheetMode names the mailbox operation being edited. */
@@ -27,49 +27,36 @@ export interface MailboxSheetProps {
 export function MailboxSheet(props: MailboxSheetProps) {
   const [name, setName] = useState(props.name);
   const [parent, setParent] = useState(props.parentId === undefined ? "" : String(props.parentId));
-  const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
   const title = { new: "New Mailbox", rename: "Rename Mailbox", move: "Move Mailbox" }[props.mode];
-  useEffect(() => {
-    const previous = document.activeElement;
-    dialog.current?.querySelector<HTMLElement>("input, select")?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60">
+    <Sheet
+      title={title}
+      width={400}
+      className="rounded-[10px]"
+      titleClassName="text-[13px] font-semibold"
+      showClose={false}
+      closeOnOverlay={false}
+      initialFocus={"first"}
+      onClose={props.onCancel}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
       <div
-        ref={dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[400px] max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
         onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") {
+          if (event.key !== "Tab") return;
+          const controls = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>("input, select, button"),
+          ).filter((control) => !control.hasAttribute("disabled"));
+          const first = controls[0];
+          const last = controls.at(-1);
+          if (event.shiftKey && document.activeElement === first) {
             event.preventDefault();
-            props.onCancel();
-          } else if (event.key === "Tab") {
-            const controls = Array.from(
-              event.currentTarget.querySelectorAll<HTMLElement>("input, select, button"),
-            ).filter((control) => !control.hasAttribute("disabled"));
-            const first = controls[0];
-            const last = controls.at(-1);
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last?.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first?.focus();
-            }
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
           }
         }}
       >
-        <h2 id={titleId} className="mb-4 text-[13px] font-semibold">
-          {title}
-        </h2>
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -124,6 +111,6 @@ export function MailboxSheet(props: MailboxSheetProps) {
           </div>
         </form>
       </div>
-    </div>
+    </Sheet>
   );
 }

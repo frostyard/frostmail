@@ -1,4 +1,6 @@
 // The reader: the selected message's conversation (docs/design/app.md, Reader).
+
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import {
@@ -11,11 +13,9 @@ import {
   useRef,
   useState,
 } from "react";
-
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import { TimeSheet } from "../features/later/TimeSheet";
-import { ContextMenu } from "../features/menu/ContextMenu";
 import { ContentFrame } from "../features/reader/ContentFrame";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
@@ -407,12 +407,12 @@ function ConversationMessage({
               kind: "item",
               id: "headers",
               label: headers === null ? "Show All Headers" : "Hide All Headers",
-              shortcut: "Ctrl+Shift+H",
+              keys: "Ctrl+Shift+H",
             },
-            { kind: "item", id: "source", label: "Raw Source…", shortcut: "Ctrl+Alt+U" },
+            { kind: "item", id: "source", label: "Raw Source…", keys: "Ctrl+Alt+U" },
             { kind: "separator" },
             { kind: "item", id: "save", label: "Save As…" },
-            { kind: "item", id: "print", label: "Print…", shortcut: "Ctrl+P" },
+            { kind: "item", id: "print", label: "Print…", keys: "Ctrl+P" },
           ]}
           onSelect={(action) => {
             void moreAction(action).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));

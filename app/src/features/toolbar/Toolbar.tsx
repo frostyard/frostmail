@@ -7,7 +7,7 @@
 // (docs/specs/ui.md, Narrow windows). The planner's containers decide what
 // each command does.
 
-import { IconButton } from "@frostyard/lodge-ui/react";
+import { Menu as ContextMenu, IconButton, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import {
   Archive,
   ChevronLeft,
@@ -34,11 +34,9 @@ import {
   X,
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, useState } from "react";
-
 import type { CalendarPane, NarrowPane, PeoplePane, TasksPane } from "../../app/narrow";
 import type { CalendarView } from "../../lib/calendarDates";
 import { FLAG_NAMES, flagLabel } from "../../lib/flags";
-import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** ToolbarCommand is what a toolbar control asks for. */
 export type ToolbarCommand =
@@ -313,17 +311,17 @@ interface MessageActionsProps {
 
 interface MessageAction {
   label: string;
-  shortcut: string;
+  keys: string;
   icon: LucideIcon;
   kind: "delete" | "archive" | "reply" | "replyAll" | "forward";
 }
 
 const MESSAGE_ACTIONS: MessageAction[] = [
-  { label: "Delete", shortcut: "Delete", icon: Trash2, kind: "delete" },
-  { label: "Archive", shortcut: "Ctrl+Alt+A", icon: Archive, kind: "archive" },
-  { label: "Reply", shortcut: "Ctrl+R", icon: Reply, kind: "reply" },
-  { label: "Reply All", shortcut: "Ctrl+Shift+R", icon: ReplyAll, kind: "replyAll" },
-  { label: "Forward", shortcut: "Ctrl+Shift+F", icon: Forward, kind: "forward" },
+  { label: "Delete", keys: "Delete", icon: Trash2, kind: "delete" },
+  { label: "Archive", keys: "Ctrl+Alt+A", icon: Archive, kind: "archive" },
+  { label: "Reply", keys: "Ctrl+R", icon: Reply, kind: "reply" },
+  { label: "Reply All", keys: "Ctrl+Shift+R", icon: ReplyAll, kind: "replyAll" },
+  { label: "Forward", keys: "Ctrl+Shift+F", icon: Forward, kind: "forward" },
 ];
 
 function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, onOpenMenu }: MessageActionsProps) {
@@ -332,12 +330,12 @@ function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, on
   const className = bar ? BAR_CLASS : undefined;
   return (
     <>
-      {MESSAGE_ACTIONS.map(({ label, shortcut, icon: Icon, kind }) =>
+      {MESSAGE_ACTIONS.map(({ label, keys, icon: Icon, kind }) =>
         bar ? (
           <ToolbarButton
             key={kind}
             label={label}
-            shortcut={shortcut}
+            shortcut={keys}
             className={className}
             icon={<Icon size={size} />}
             disabled={none || (kind === "archive" && !canArchive)}
@@ -347,7 +345,7 @@ function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, on
           <IconButton
             key={kind}
             label={label}
-            keys={shortcut}
+            keys={keys}
             icon={Icon}
             disabled={none || (kind === "archive" && !canArchive)}
             onClick={() => onCommand({ kind })}

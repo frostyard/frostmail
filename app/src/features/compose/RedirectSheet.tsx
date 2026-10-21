@@ -1,5 +1,5 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
-
 import { isValidAddress } from "../../lib/addressParse";
 import type { Address } from "../../rpc/gen/api";
 import { BUTTON, PRIMARY_BUTTON } from "../settings/labels";
@@ -41,16 +41,7 @@ export function RedirectSheet(props: RedirectSheetProps) {
   const [to, setTo] = useState<Address[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
   const valid = to.length > 0 && to.every((address) => isValidAddress(address.address));
-  useEffect(() => {
-    const previous = document.activeElement;
-    dialog.current?.querySelector<HTMLInputElement>("input")?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
 
   async function redirect() {
     if (!valid || pending) return;
@@ -66,19 +57,30 @@ export function RedirectSheet(props: RedirectSheetProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60">
+    <Sheet
+      title="Redirect"
+      width={420}
+      className="rounded-[10px]"
+      titleClassName="text-[13px] font-semibold"
+      showClose={false}
+      closeOnOverlay={false}
+      initialFocus={"first"}
+      onClose={props.onCancel}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
       <div
-        ref={dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[420px] max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
-        onKeyDown={(event) => sheetKeyDown(event, props.onCancel)}
+        onKeyDown={(event) => {
+          if (event.key === "Tab") sheetKeyDown(event, props.onCancel);
+          // An open address list takes Escape first; the sheet must not close.
+          if (
+            event.key === "Escape" &&
+            event.target instanceof HTMLInputElement &&
+            event.target.getAttribute("aria-expanded") === "true"
+          ) {
+            event.stopPropagation();
+          }
+        }}
       >
-        <h2 id={titleId} className="text-[13px] font-semibold">
-          Redirect
-        </h2>
         <p className="mt-1 mb-4 text-[12px] leading-4 text-secondary">{props.subject.trim() || "(no subject)"}</p>
         <div className="flex items-center gap-2 text-[13px]">
           <span>To</span>
@@ -98,6 +100,6 @@ export function RedirectSheet(props: RedirectSheetProps) {
           </button>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }

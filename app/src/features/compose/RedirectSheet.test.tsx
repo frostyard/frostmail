@@ -29,7 +29,7 @@ function type(text: string) {
 describe("RedirectSheet", () => {
   it("shows the subject and starts in To, with Redirect disabled", () => {
     sheet();
-    expect(dialog().className).toContain("w-[420px]");
+    expect(dialog().style.width).toBe("420px");
     expect(dialog().textContent).toContain("Quarterly numbers");
     expect(document.activeElement).toBe(to());
     expect(redirectButton().disabled).toBe(true);

@@ -1,8 +1,7 @@
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-
 import type { ViewSort } from "../../rpc/gen/api";
-import { ContextMenu, type MenuItem } from "../menu/ContextMenu";
 
 /** SORTS are the list's sort fields in display order. */
 export const SORTS: { key: ViewSort; label: string }[] = [
