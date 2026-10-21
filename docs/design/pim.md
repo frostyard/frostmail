@@ -87,6 +87,9 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   UID, which for an accepted invitation is the organizer's): the local
   object moves there, or gives way to the copy a pass already brought,
   and without an ETag in the answer it is read back from there.
+  A write reads its object again in its transaction, and keeps the ETag
+  and href a pass wrote since it was first read. A source a pass changed
+  makes the write start again, up to 3 times; then it fails with `conflict`.
 
 ### Microsoft Graph
 

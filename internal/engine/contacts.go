@@ -107,8 +107,32 @@ func (p people) SetPhoto(ctx context.Context, params *api.PeopleSetPhotoParams) 
 }
 
 // edit patches a contact, and queues the put or adds the change to the
-// waiting one, with the base it was made on (ADR-0030).
+// waiting one, with the base it was made on (ADR-0030). A contact a sync
+// pass replaced since it was read is read again, up to writeAttempts times.
 func (p people) edit(ctx context.Context, id int64, f vcardx.Fields) (*api.ContactWrite, error) {
+	return retryWrite("the contact", func() (*api.ContactWrite, error) {
+		w, err := p.prepareEdit(ctx, id, f)
+		if err != nil {
+			return nil, err
+		}
+		return p.writeEdit(ctx, w)
+	})
+}
+
+// contactWrite is an edit or a deletion of a contact, made from the object
+// as it was read.
+type contactWrite struct {
+	obj       store.Object
+	col       store.Collection
+	fields    vcardx.Fields // an edit's change
+	raw       []byte        // an edit's patched source
+	card      *vcardx.Card  // an edit's patched card
+	stay      int64         // a deletion's other contact of the person
+	restoreID string
+}
+
+// prepareEdit reads the contact and patches it, for writeEdit to store.
+func (p people) prepareEdit(ctx context.Context, id int64, f vcardx.Fields) (*contactWrite, error) {
 	obj, col, err := p.writableContact(ctx, id)
 	if err != nil {
 		return nil, err
@@ -125,28 +149,40 @@ func (p people) edit(ctx context.Context, id int64, f vcardx.Fields) (*api.Conta
 	if err != nil {
 		return nil, err
 	}
-	err = p.DB.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.RecordRestore(ctx, store.Restore{ID: restoreID, AccountID: col.AccountID,
-			Objects: []store.RestoreObject{{CollectionID: col.ID, Href: obj.Href, UID: obj.UID, Raw: obj.Raw}}}); err != nil {
+	return &contactWrite{obj: obj, col: col, fields: f, raw: raw, card: card, restoreID: restoreID}, nil
+}
+
+// writeEdit stores a prepared edit. The contact is read again in the
+// transaction, so its put is queued on the ETag a pass wrote last; it
+// returns errObjectChanged when the source is not the one that was
+// patched.
+func (p people) writeEdit(ctx context.Context, w *contactWrite) (*api.ContactWrite, error) {
+	err := p.DB.Tx(ctx, func(tx *store.Tx) error {
+		obj, err := currentObject(ctx, tx, w.obj)
+		if err != nil {
 			return err
 		}
-		if err := queueEdit(ctx, tx, obj, col, f); err != nil {
+		if err := tx.RecordRestore(ctx, store.Restore{ID: w.restoreID, AccountID: w.col.AccountID,
+			Objects: []store.RestoreObject{{CollectionID: w.col.ID, Href: obj.Href, UID: obj.UID, Raw: obj.Raw}}}); err != nil {
+			return err
+		}
+		if err := queueEdit(ctx, tx, obj, w.col, w.fields); err != nil {
 			return err
 		}
 		next := obj
-		next.Raw = raw
+		next.Raw = w.raw
 		if _, err := tx.PutObject(ctx, next); err != nil {
 			return err
 		}
-		if err := indexCard(ctx, tx, obj.ID, card); err != nil {
+		if err := indexCard(ctx, tx, obj.ID, w.card); err != nil {
 			return err
 		}
-		return tx.Emit(ctx, api.PeopleChanged{AccountID: col.AccountID})
+		return tx.Emit(ctx, api.PeopleChanged{AccountID: w.col.AccountID})
 	})
 	if err != nil {
 		return nil, err
 	}
-	return p.written(ctx, col.AccountID, obj.ID, obj.ID, restoreID)
+	return p.written(ctx, w.col.AccountID, w.obj.ID, w.obj.ID, w.restoreID)
 }
 
 // queueEdit queues an edit's put, or adds it to the put already waiting.
@@ -176,31 +212,54 @@ func queueEdit(ctx context.Context, tx *store.Tx, obj store.Object, col store.Co
 	return err
 }
 
-// Delete deletes a contact from its address book and the server.
+// Delete deletes a contact from its address book and the server. A contact
+// a sync pass replaced since it was read is read again, up to writeAttempts
+// times.
 func (p people) Delete(ctx context.Context, params *api.PeopleDeleteParams) (*api.ContactWrite, error) {
+	return retryWrite("the contact", func() (*api.ContactWrite, error) {
+		w, err := p.prepareDelete(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		return p.writeDelete(ctx, w)
+	})
+}
+
+// prepareDelete reads the contact, for writeDelete to delete.
+func (p people) prepareDelete(ctx context.Context, params *api.PeopleDeleteParams) (*contactWrite, error) {
 	obj, col, err := p.writableContact(ctx, params.ID)
 	if err != nil {
 		return nil, err
 	}
-	stay := p.otherContact(ctx, obj.ID)
 	restoreID, err := newRestoreID()
 	if err != nil {
 		return nil, err
 	}
-	err = p.DB.Tx(ctx, func(tx *store.Tx) error {
-		if err := tx.RecordRestore(ctx, store.Restore{ID: restoreID, AccountID: col.AccountID,
-			Objects: []store.RestoreObject{{CollectionID: col.ID, Href: obj.Href, UID: obj.UID, Raw: obj.Raw}}}); err != nil {
+	return &contactWrite{obj: obj, col: col, stay: p.otherContact(ctx, obj.ID), restoreID: restoreID}, nil
+}
+
+// writeDelete deletes a prepared contact. The contact is read again in the
+// transaction, so its delete is queued on the ETag a pass wrote last; it
+// returns errObjectChanged when the source is not the one that was read.
+func (p people) writeDelete(ctx context.Context, w *contactWrite) (*api.ContactWrite, error) {
+	err := p.DB.Tx(ctx, func(tx *store.Tx) error {
+		obj, err := currentObject(ctx, tx, w.obj)
+		if err != nil {
 			return err
 		}
-		if err := deleteContact(ctx, tx, obj, col); err != nil {
+		if err := tx.RecordRestore(ctx, store.Restore{ID: w.restoreID, AccountID: w.col.AccountID,
+			Objects: []store.RestoreObject{{CollectionID: w.col.ID, Href: obj.Href, UID: obj.UID, Raw: obj.Raw}}}); err != nil {
 			return err
 		}
-		return tx.Emit(ctx, api.PeopleChanged{AccountID: col.AccountID})
+		if err := deleteContact(ctx, tx, obj, w.col); err != nil {
+			return err
+		}
+		return tx.Emit(ctx, api.PeopleChanged{AccountID: w.col.AccountID})
 	})
 	if err != nil {
 		return nil, err
 	}
-	return p.written(ctx, col.AccountID, obj.ID, stay, restoreID)
+	return p.written(ctx, w.col.AccountID, w.obj.ID, w.stay, w.restoreID)
 }
 
 // deleteContact removes a contact here and queues its delete; one the

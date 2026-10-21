@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -284,7 +285,29 @@ func (t tasksService) after(ctx context.Context, accountID, id int64) (*api.Task
 	return &out, nil
 }
 
+// Update changes a task. A task a sync pass replaced since it was read is
+// read again, up to writeAttempts times.
 func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*api.Task, error) {
+	return retryWrite("the task", func() (*api.Task, error) {
+		w, err := t.prepareUpdate(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		return t.writeUpdate(ctx, w)
+	})
+}
+
+// taskUpdate is a task's update, patched from the object as it was read.
+type taskUpdate struct {
+	col  store.Collection
+	read store.Object // the object as read, which the patch was made from
+	obj  store.Object // the patched object
+	row  store.TaskRow
+	op   store.PIMOp
+}
+
+// prepareUpdate reads the task and patches it, for writeUpdate to store.
+func (t tasksService) prepareUpdate(ctx context.Context, p *api.TasksUpdateParams) (*taskUpdate, error) {
 	row, err := t.DB.Task(ctx, p.ID)
 	if err == nil && !admits(ctx, row.AccountID) {
 		err = store.ErrNotFound
@@ -300,10 +323,11 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 	if err != nil {
 		return nil, err
 	}
-	obj, err := t.DB.GetObject(ctx, row.ObjectID)
+	read, err := t.DB.GetObject(ctx, row.ObjectID)
 	if err != nil {
 		return nil, err
 	}
+	obj := read
 	now := t.DB.Now()
 	var op store.PIMOp
 	if google {
@@ -314,18 +338,36 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 	if err != nil {
 		return nil, err
 	}
-	op.AccountID, op.CollectionID, op.ObjectID, op.Href = col.AccountID, col.ID, &row.ObjectID, obj.Href
-	err = t.DB.Tx(ctx, func(tx *store.Tx) error {
+	op.AccountID, op.CollectionID, op.ObjectID = col.AccountID, col.ID, &row.ObjectID
+	return &taskUpdate{col: col, read: read, obj: obj, row: row, op: op}, nil
+}
+
+// writeUpdate stores a patched task and queues its change. The task is read
+// again in the transaction: a sync pass that settled it since leaves its
+// ETag and href, which the patched object and the queued op take. It
+// returns errObjectChanged when the source is not the one that was patched.
+func (t tasksService) writeUpdate(ctx context.Context, w *taskUpdate) (*api.Task, error) {
+	id := w.row.ObjectID
+	err := t.DB.Tx(ctx, func(tx *store.Tx) error {
+		current, err := currentObject(ctx, tx, w.read)
+		if err != nil {
+			return err
+		}
+		obj, op := w.obj, w.op
+		obj.ETag, obj.Href, op.Href = current.ETag, current.Href, current.Href
+		if op.Kind == "put" {
+			op.IfMatch = current.ETag
+		}
 		if _, err := tx.PutObject(ctx, obj); err != nil {
 			return err
 		}
-		if err := tx.IndexTask(ctx, row.ObjectID, row); err != nil {
+		if err := tx.IndexTask(ctx, id, w.row); err != nil {
 			return err
 		}
 		// A waiting put writes the source as it is when it runs.
 		waiting := false
 		if op.Kind == "put" {
-			if waiting, err = tx.QueuedPIMOp(ctx, row.ObjectID, "put"); err != nil {
+			if waiting, err = tx.QueuedPIMOp(ctx, id, "put"); err != nil {
 				return err
 			}
 		}
@@ -334,12 +376,12 @@ func (t tasksService) Update(ctx context.Context, p *api.TasksUpdateParams) (*ap
 				return err
 			}
 		}
-		return tx.Emit(ctx, api.TasksChanged{AccountID: col.AccountID})
+		return tx.Emit(ctx, api.TasksChanged{AccountID: w.col.AccountID})
 	})
 	if err != nil {
 		return nil, err
 	}
-	return t.after(ctx, col.AccountID, row.ObjectID)
+	return t.after(ctx, w.col.AccountID, id)
 }
 
 // patchGoogle changes a Google task's JSON and row, and returns its
@@ -486,11 +528,18 @@ func (t tasksService) Delete(ctx context.Context, p *api.TasksDeleteParams) erro
 // deletion: for Google one tasks.delete for the task, which takes its
 // subtasks along; for CalDAV a delete per object, conditional on its ETag.
 // An object the server never had is only dropped, with its waiting
-// changes.
+// changes. Each object is read in the transaction, so the ETag is the one
+// a pass wrote last; a subtask that is gone is skipped.
 func (t tasksService) deleteLocal(ctx context.Context, tx *store.Tx, col store.Collection, google bool, ids []int64) error {
 	var hrefs []string
 	for i, id := range ids {
-		obj, err := t.DB.GetObject(ctx, id)
+		obj, err := tx.GetObject(ctx, id)
+		if errors.Is(err, store.ErrNotFound) {
+			if i == 0 {
+				return apiError(err, "the task")
+			}
+			continue // a subtask a pass removed since it was listed
+		}
 		if err != nil {
 			return err
 		}
