@@ -28,8 +28,19 @@ components ◄── containers ◄── stores, ViewModel ◄── Client (ge
 | `app/` | `App` (pane layout, splitters, focus), containers that connect features to data | planner |
 | `features/<area>/` | presentational components and their tests: `sidebar`, `list`, `reader`, `toolbar`, `menu`, `search` | cards |
 | `lib/` | pure helpers: formatting, the mailbox tree, the keymap | cards |
-| `styles/` | `tokens.css` (spec tokens), `app.css` (Tailwind entry, base styles) | planner |
+| `styles/` | `app.css` (Tailwind entry, imports the shared look, base styles and the compose body) | planner |
 | `testing/` | Testing Library setup and render helpers | planner |
+
+The look is shared code: `@frostyard/lodge-ui` carries the colour tokens,
+the accents and the Tailwind theme over them, so `styles/app.css` imports
+the package instead of defining them
+([lodge ADR-0018](https://github.com/frostyard/lodge/blob/main/docs/adr/0018-a-ui-package-beside-the-client.md),
+[lodge's UI package spec](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md),
+[specs/ui.md](../specs/ui.md#tokens)). The move changed no look: the
+built stylesheet loses no token and changes none, and `make screenshots`
+differs by no more than two runs of the same code do. ADR-0009 leaves the
+adding of a dependency to the planner, who approved this one on
+2026-10-21.
 
 Presentational components take data and callbacks as props, hold only
 transient state (hover, an open menu), and import nothing from `data/` or

@@ -8,9 +8,19 @@ Shortcuts use Ctrl where Mail.app uses ⌘ and Alt where it uses ⌥ or ⌃⌘.
 
 ## Tokens
 
-Defined as CSS custom properties on `:root`, with dark values under
-`@media (prefers-color-scheme: dark)`. Components MUST use tokens, never
+Defined by [lodge's UI package](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md)
+(`@frostyard/lodge-ui`) as CSS custom properties on `:root`, with dark
+values under `@media (prefers-color-scheme: dark)` and under
+`[data-theme="dark"]`. The values below are Frostmail's copy of
+that contract: the app imports the package's `tokens.css` and `accents.css`, and
+its own `styles/tokens.css` is gone. Components MUST use tokens, never
 literal colors.
+
+The package is the shared look of frostmail, frostnotes and frostread
+([lodge ADR-0018](https://github.com/frostyard/lodge/blob/main/docs/adr/0018-a-ui-package-beside-the-client.md)).
+[ADR-0009](../adr/0009-ui-architecture.md) adds a runtime dependency only
+through the planner: the planner approved `@frostyard/lodge-ui` on
+2026-10-21, and it is pinned in `app/pnpm-lock.yaml` to a lodge commit.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
@@ -32,6 +42,9 @@ literal colors.
 | `--flag-1` … `--flag-7` | see flags | see flags | flag colors |
 | `--quote-1` … `--quote-3` | `#2e7bd6` `#2ea44f` `#c2410c` | `#5aa0f0` `#4cc76a` `#f0884a` | quote bars by level, cycling |
 | `--avatar-0` … `--avatar-7` | `#5e5ce6` `#0a84ff` `#30b0c7` `#34c759` `#ff9f0a` `#ff375f` `#bf5af2` `#8e8e93` | same | avatar circles, by `avatarTone` |
+
+The domain tokens (`--flag-*`, `--quote-*`, `--avatar-*`) come from the
+package's `accents.css`; an app that does not use them does not import it.
 
 **Flags.** `flagColor` 1–7 (the API's numbering, `$MailFlagBit0-2` + 1):
 
