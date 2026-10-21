@@ -1,5 +1,5 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { useEffect, useId, useRef } from "react";
-
 import { BUTTON } from "../settings/labels";
 
 /** RawSourceSheetProps supplies the source and the sheet's callbacks. */
@@ -13,53 +13,44 @@ export interface RawSourceSheetProps {
 
 /** RawSourceSheet shows the message as the server holds it. */
 export function RawSourceSheet({ text, truncated, onClose, onSave }: RawSourceSheetProps) {
-  const titleId = useId();
   const close = useRef<HTMLButtonElement>(null);
   const saveAs = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement;
-    close.current?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60 print:hidden">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[720px] max-w-full max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onClose();
-          } else if (event.key === "Tab") {
+    <div className="print:hidden">
+      <Sheet
+        title="Raw Source"
+        width={720}
+        className="max-w-full rounded-[10px]"
+        titleClassName="text-[13px] font-semibold"
+        showClose={false}
+        closeOnOverlay={false}
+        initialFocus={close}
+        onClose={onClose}
+      >
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
+        <div
+          onKeyDown={(event) => {
+            if (event.key !== "Tab") return;
             // Focus stays on the sheet's buttons.
             event.preventDefault();
             const next = document.activeElement === close.current && saveAs.current ? saveAs : close;
             next.current?.focus();
-          }
-        }}
-      >
-        <h2 id={titleId} className="mb-4 text-[13px] font-semibold">
-          Raw Source
-        </h2>
-        <pre className="h-[480px] overflow-auto select-text font-mono text-[12px] leading-[18px]">{text}</pre>
-        {truncated && <p className="mt-3 text-[12px] text-secondary">The message is longer than what is shown.</p>}
-        <div className="mt-4 flex justify-end gap-2">
-          {onSave && (
-            <button ref={saveAs} type="button" className={BUTTON} onClick={onSave}>
-              Save As…
+          }}
+        >
+          <pre className="h-[480px] overflow-auto select-text font-mono text-[12px] leading-[18px]">{text}</pre>
+          {truncated && <p className="mt-3 text-[12px] text-secondary">The message is longer than what is shown.</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            {onSave && (
+              <button ref={saveAs} type="button" className={BUTTON} onClick={onSave}>
+                Save As…
+              </button>
+            )}
+            <button ref={close} type="button" className={BUTTON} onClick={onClose}>
+              Close
             </button>
-          )}
-          <button ref={close} type="button" className={BUTTON} onClick={onClose}>
-            Close
-          </button>
+          </div>
         </div>
-      </div>
+      </Sheet>
     </div>
   );
 }

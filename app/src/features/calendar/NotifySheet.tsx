@@ -1,5 +1,5 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-
 import { noticeText, noticeTitle } from "../../lib/notify";
 import type { InviteNotice } from "../../rpc/gen/api";
 import { BUTTON, PRIMARY_BUTTON } from "../settings/labels";
@@ -13,40 +13,29 @@ export interface NotifySheetProps {
 
 /** NotifySheet asks before a calendar write tells invitees by email. */
 export function NotifySheet({ notice, onSend, onCancel }: NotifySheetProps) {
-  const titleId = useId();
   const sendButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement;
-    sendButton.current?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60">
+    <Sheet
+      title={noticeTitle(notice.kind)}
+      width={420}
+      className="rounded-[10px]"
+      titleClassName="text-[13px] font-semibold"
+      showClose={false}
+      closeOnOverlay={false}
+      initialFocus={sendButton}
+      onClose={onCancel}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[420px] max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
         onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onCancel();
-          } else if (event.key === "Tab") {
-            const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
-            const index = controls.indexOf(document.activeElement as HTMLButtonElement);
-            event.preventDefault();
-            controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
-          }
+          if (event.key !== "Tab") return;
+          const controls = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+          const index = controls.indexOf(document.activeElement as HTMLButtonElement);
+          event.preventDefault();
+          controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
         }}
         onKeyUp={(event) => event.stopPropagation()}
       >
-        <h2 id={titleId} className="mb-4 text-[13px] font-semibold">
-          {noticeTitle(notice.kind)}
-        </h2>
         <p className="mb-4 text-[13px] leading-[18px]">{noticeText(notice.count)}</p>
         <div className="flex justify-end gap-2">
           <button type="button" className={BUTTON} onClick={onCancel}>
@@ -57,7 +46,7 @@ export function NotifySheet({ notice, onSend, onCancel }: NotifySheetProps) {
           </button>
         </div>
       </div>
-    </div>
+    </Sheet>
   );
 }
 

@@ -12,9 +12,9 @@ describe("RawSourceSheet's Save As", () => {
     const close = screen.getByRole("button", { name: "Close" });
     const save = screen.getByRole("button", { name: "Save As…" });
     expect(document.activeElement).toBe(close);
-    fireEvent.keyDown(dialog, { key: "Tab" });
+    fireEvent.keyDown(close, { key: "Tab" });
     expect(document.activeElement).toBe(save);
-    fireEvent.keyDown(dialog, { key: "Tab" });
+    fireEvent.keyDown(save, { key: "Tab" });
     expect(document.activeElement).toBe(close);
     fireEvent.click(save);
     expect(onSave).toHaveBeenCalledOnce();
