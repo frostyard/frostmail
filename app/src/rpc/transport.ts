@@ -1,113 +1,35 @@
 // The line-level contract between the generated Client (gen/api.ts) and a
-// connection to maild. JSON-RPC multiplexing happens here, in the webview;
-// the Tauri bridge only moves lines (docs/specs/rpc-protocol.md).
+// connection to maild: the rpc subpath of @frostyard/lodge-client
+// (client/v0.3.0), whose JsonRpcSession multiplexes JSON-RPC in the
+// webview (docs/specs/rpc-protocol.md). The session hands events over in
+// the kit's envelope; the app types what they carry (gen/api.ts), and
+// asTransport is the one place the two meet.
+import type { Transport as RpcTransport } from "@frostyard/lodge-client/rpc";
+
 import type { Event } from "./gen/api";
 
+export type { EventEnvelope } from "@frostyard/lodge-client/rpc";
+export { JsonRpcSession, RPCError } from "@frostyard/lodge-client/rpc";
+
+/** Transport is what the app's client calls, with maild's events typed. */
 export interface Transport {
   call<T>(method: string, params: unknown): Promise<T>;
   /** Subscribe to server events; returns an unsubscribe function. */
   onEvent(handler: (event: Event) => void): () => void;
   /** Called once when the connection ends. */
   onClose(handler: (reason: string) => void): () => void;
+  /** Where a mail part loads from, when the transport serves one. */
+  blobURL?(hash: string, ext: string): string;
 }
 
-/** A JSON-RPC error returned by maild; code is an ErrorCode. */
-export class RPCError extends Error {
-  constructor(
-    readonly code: number,
-    message: string,
-    readonly data?: unknown,
-  ) {
-    super(message);
-    this.name = "RPCError";
-  }
-}
-
-interface Pending {
-  resolve: (value: unknown) => void;
-  reject: (reason: Error) => void;
-}
-
-interface Incoming {
-  id?: number | string | null;
-  method?: string;
-  params?: unknown;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
-}
-
-/**
- * JsonRpcSession implements Transport over any line channel: the caller
- * supplies how to send a line and feeds received lines to receive().
- */
-export class JsonRpcSession implements Transport {
-  private nextId = 0;
-  private readonly pending = new Map<number, Pending>();
-  private readonly eventHandlers = new Set<(event: Event) => void>();
-  private readonly closeHandlers = new Set<(reason: string) => void>();
-  private closedReason: string | undefined;
-
-  constructor(private readonly sendLine: (line: string) => Promise<void>) {}
-
-  call<T>(method: string, params: unknown): Promise<T> {
-    if (this.closedReason !== undefined) {
-      return Promise.reject(new Error(`maild connection closed: ${this.closedReason}`));
-    }
-    const id = ++this.nextId;
-    const line = JSON.stringify({ jsonrpc: "2.0", id, method, params: params ?? {} });
-    return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
-      this.sendLine(line).catch((err: unknown) => {
-        this.pending.delete(id);
-        reject(err instanceof Error ? err : new Error(String(err)));
-      });
-    });
-  }
-
-  onEvent(handler: (event: Event) => void): () => void {
-    this.eventHandlers.add(handler);
-    return () => this.eventHandlers.delete(handler);
-  }
-
-  onClose(handler: (reason: string) => void): () => void {
-    if (this.closedReason !== undefined) {
-      handler(this.closedReason);
-      return () => {};
-    }
-    this.closeHandlers.add(handler);
-    return () => this.closeHandlers.delete(handler);
-  }
-
-  /** Feed one line received from maild. */
-  receive(line: string): void {
-    let msg: Incoming;
-    try {
-      msg = JSON.parse(line) as Incoming;
-    } catch {
-      this.close(`malformed message from maild: ${line.slice(0, 120)}`);
-      return;
-    }
-    if (msg.id === undefined || msg.id === null) {
-      if (msg.method === "event" && msg.params) {
-        for (const h of this.eventHandlers) h(msg.params as Event);
-      }
-      return;
-    }
-    if (typeof msg.id !== "number") return;
-    const p = this.pending.get(msg.id);
-    if (!p) return;
-    this.pending.delete(msg.id);
-    if (msg.error) p.reject(new RPCError(msg.error.code, msg.error.message, msg.error.data));
-    else p.resolve(msg.result ?? null);
-  }
-
-  /** Fail pending calls and notify close handlers; idempotent. */
-  close(reason: string): void {
-    if (this.closedReason !== undefined) return;
-    this.closedReason = reason;
-    for (const p of this.pending.values()) p.reject(new Error(`maild connection closed: ${reason}`));
-    this.pending.clear();
-    for (const h of this.closeHandlers) h(reason);
-    this.closeHandlers.clear();
-  }
+/** asTransport is the subpath's session with maild's events (gen/api.ts). */
+export function asTransport(session: RpcTransport): Transport {
+  const transport: Transport = {
+    call: <T>(method: string, params: unknown) => session.call<T>(method, params),
+    onEvent: (handler) => session.onEvent((envelope) => handler(envelope as Event)),
+    onClose: (handler) => session.onClose(handler),
+  };
+  const blobURL = session.blobURL;
+  if (blobURL !== undefined) transport.blobURL = blobURL;
+  return transport;
 }

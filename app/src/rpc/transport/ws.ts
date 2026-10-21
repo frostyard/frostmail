@@ -1,7 +1,7 @@
 // The dev transport: maild's API over the dev gateway's WebSocket
 // (internal/devgw), for running the UI in a browser against a real maild.
 // Frames are the same newline-delimited lines the Unix socket carries.
-import { JsonRpcSession, type Transport } from "../transport";
+import { asTransport, JsonRpcSession, type Transport } from "../transport";
 
 /** connectWS connects to maild's dev gateway at url (ws://…?token=…). */
 export function connectWS(url: string): Promise<Transport> {
@@ -20,7 +20,7 @@ export function connectWS(url: string): Promise<Transport> {
     };
     ws.onopen = () => {
       open = true;
-      resolve(session);
+      resolve(asTransport(session));
     };
     ws.onclose = (e) => {
       if (!open) reject(new Error(`cannot reach maild's dev gateway (${e.code})`));

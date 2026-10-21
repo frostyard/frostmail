@@ -4,7 +4,7 @@
 // maild behind lodge), which closes a session that sends nothing for 90 s.
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-import { JsonRpcSession, type Transport } from "../transport";
+import { asTransport, JsonRpcSession, type Transport } from "../transport";
 
 type BridgeMessage = { kind: "line"; line: string } | { kind: "closed"; error: string };
 
@@ -33,5 +33,5 @@ export async function connectTauri(): Promise<Transport> {
   const connected = await invoke<{ remote: boolean } | null>("maild_connect", { onMessage: channel });
   remote = connected?.remote === true;
   if (remote) timer = setInterval(() => void session.call("rpc.ping", {}).catch(() => {}), PING_MS);
-  return session;
+  return asTransport(session);
 }
