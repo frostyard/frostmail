@@ -277,8 +277,7 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
 
 **Status:** built in
 [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md)
-(2026-10-19), on [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md),
-which is still Proposed.
+(2026-10-19), on [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md).
 
 **The methods agents gain,** all additive within protocol 1. The scope
 column is what an agent's token needs beyond reading:

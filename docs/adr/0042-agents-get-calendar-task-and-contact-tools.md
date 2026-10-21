@@ -1,6 +1,6 @@
 # 0042 — Agents get calendar, task and contact tools
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-21)
 - **Date:** 2026-10-19
 
 ## Context

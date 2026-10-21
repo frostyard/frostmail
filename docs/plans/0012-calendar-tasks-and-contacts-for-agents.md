@@ -14,7 +14,7 @@ waiting on the user, and waiting on others
 - **The contract:** [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts).
 
 Status (2026-10-19):
-- **Phase 1 is written.** ADR-0042 is still Proposed.
+- **Phase 1 is done.** The user accepted ADR-0042 on 2026-10-21.
 - **Phases 2 to 4 are built** (2026-10-19, frostyard/frostmail#82–#84),
   each with what it built and its evidence.
 - **Phase 5** waits on lodge's local agent socket
