@@ -13,12 +13,13 @@ waiting on the user, and waiting on others
   which made `/mcp/mail`, its scope and its tools.
 - **The contract:** [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts).
 
-Status (2026-10-19):
+Status (2026-10-21):
 - **Phase 1 is done.** The user accepted ADR-0042 on 2026-10-21.
 - **Phases 2 to 4 are built** (2026-10-19, frostyard/frostmail#82–#84),
   each with what it built and its evidence.
-- **Phase 5** waits on lodge's local agent socket
-  ([lodge ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md)).
+- **Phase 5** is mostly checked over lodge's local agent socket
+  ([lodge ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md));
+  the rest is still to run (below).
 
 ## Decisions for M8.5
 
@@ -193,6 +194,20 @@ Porter's design:
   - is cut off at once when its token is revoked.
 
   The evidence is recorded here.
+- **Evidence so far (2026-10-19),** from Porter's own Phase 1 check on
+  lodge's host (lodge `bab1ed7`, mail `424e2a7`, showcase mail;
+  [Porter's roadmap](https://github.com/frostyard/porter/blob/main/docs/plans/0001-roadmap.md)),
+  as user `frostporter` on `/run/lodge/agent.sock` with an
+  `account=*;write` token:
+  - today's three events listed with their clash; nine tasks; the threads
+    waiting on the user, with a Message-ID and a `/mail/message/…` link;
+  - no send tool offered;
+  - the same token on lodge's tailnet route answered 401, and a user
+    outside `lodge-agents` could not open the socket.
+- **Still to run** on lodge's development build: "Call Iris" due Friday
+  shown in the web build's Tasks; `notFound` for another account under a
+  one-account token; revocation cutting the client off; the threads
+  waiting on others, and a VIP first.
 
 ## Later / ideas
 
