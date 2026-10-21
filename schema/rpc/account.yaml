@@ -73,7 +73,7 @@ types:
   - name: AuthorizeResult
     doc: An OAuth sign-in in progress.
     fields:
-      - {name: url, type: string, doc: "Open in the system browser; maild finishes the sign-in when the browser returns."}
+      - {name: url, type: string, doc: "Open in the system browser; maild finishes the sign-in when the browser returns to its loopback, or when a client sends the address to account.finishSignIn."}
   - name: MailboxCheck
     doc: How one synced folder compares with the server.
     fields:
@@ -188,11 +188,23 @@ methods:
     doc: >-
       Start an OAuth sign-in for an oauth2 account. maild listens on a
       loopback port for the browser's return for 5 minutes, then stores the
-      token, reconnects, and emits account.changed.
+      token, reconnects, and emits account.changed. The sign-in also
+      finishes when a client sends the address the browser could not open
+      to account.finishSignIn (ADR-0043).
     params:
       - {name: id, type: int}
     result: AuthorizeResult
     errors: [notFound, invalidParams, unavailable]
+  - name: finishSignIn
+    doc: >-
+      Finish a waiting OAuth sign-in with the address that the browser
+      could not open (ADR-0043). maild stores the token, reconnects and
+      emits account.changed.
+    params:
+      - {name: url, type: string, doc: "The address the provider sent the browser to, with its query."}
+    result: Account
+    errors: [invalidParams, unavailable]
+    callers: [local, session]
   - name: verify
     doc: Compare the stored mail with the server, changing nothing on either side.
     params:

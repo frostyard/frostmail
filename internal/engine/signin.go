@@ -51,6 +51,32 @@ func (a accounts) Authorize(ctx context.Context, p *api.AccountAuthorizeParams) 
 	return &api.AuthorizeResult{URL: u}, nil
 }
 
+// FinishSignIn finishes a waiting OAuth sign-in with the address that the
+// browser could not open (ADR-0043).
+func (a accounts) FinishSignIn(ctx context.Context, p *api.AccountFinishSignInParams) (*api.Account, error) {
+	if a.OAuth == nil {
+		return nil, api.Unavailable("OAuth sign-in is not running")
+	}
+	id, err := a.OAuth.Finish(ctx, p.URL)
+	var te *oauth.TokenError
+	switch {
+	case errors.Is(err, oauth.ErrNoSignIn):
+		return nil, api.InvalidParams("no sign-in waits for this address: start the sign-in again")
+	case errors.Is(err, oauth.ErrRefused):
+		return nil, api.InvalidParams("%v", err)
+	case errors.Is(err, oauth.ErrNoCode), errors.As(err, &te):
+		return nil, api.InvalidParams("%v", err)
+	case err != nil:
+		return nil, err
+	}
+	acct, err := a.DB.GetAccount(ctx, id)
+	if err != nil {
+		return nil, apiError(err, fmt.Sprintf("account %d", id))
+	}
+	r := a.toAPI(ctx, acct)
+	return &r, nil
+}
+
 func (a accounts) Verify(ctx context.Context, p *api.AccountVerifyParams) (*api.VerifyReport, error) {
 	if a.Sync == nil {
 		return nil, api.Unavailable("sync is not running")

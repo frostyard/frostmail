@@ -35,6 +35,17 @@ var (
 	// ErrNoScope means the grant covers no scope of the audience asked
 	// for: the user signs in again with the service on.
 	ErrNoScope = errors.New("oauth: the sign-in covers no scope for this service")
+	// ErrNoSignIn means no waiting sign-in has the state of the address
+	// given to Finish: it is unknown, finished or expired.
+	ErrNoSignIn = errors.New("oauth: no sign-in waits for this address")
+	// ErrRefused means the provider refused the sign-in: the address
+	// carries its error value.
+	ErrRefused = errors.New("oauth: the provider refused the sign-in")
+	// ErrNoCode means the address carries neither a code nor an error.
+	ErrNoCode = errors.New("oauth: the browser returned no code")
+
+	// errFlowFinished means the sign-in ended before this request.
+	errFlowFinished = errors.New("oauth: this sign-in is already finished")
 )
 
 // tokenKey names a cached access token: an account's, for an audience
@@ -68,7 +79,8 @@ type Manager struct {
 
 	mu         sync.Mutex
 	tokens     map[tokenKey]Token
-	flows      map[int64]context.CancelFunc
+	flows      map[int64]*flow  // the waiting sign-in of each account
+	byState    map[string]*flow // the same waiting sign-ins, by state
 	refreshing map[int64]*sync.Mutex
 }
 
@@ -150,7 +162,8 @@ func (m *Manager) creds(ctx context.Context, accountID int64) (creds, error) {
 // Authorize starts a sign-in and returns the URL for the browser. maild
 // listens on a random loopback port for the browser's return, for one
 // request with the right state, until FlowTimeout; a new sign-in for the
-// same account cancels the previous one.
+// same account cancels the previous one. A sign-in also ends through
+// Finish, when its browser cannot reach maild's loopback (ADR-0043).
 func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error) {
 	c, err := m.creds(ctx, accountID)
 	if err != nil {
@@ -179,17 +192,21 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 		timeout = 5 * time.Minute
 	}
 	fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	f := &flow{m: m, c: c, lns: lns, state: state, verifier: verifier, redirect: redirect, scopes: scopes,
+		ctx: fctx, cancel: cancel, done: make(chan struct{})}
 	m.mu.Lock()
 	if m.flows == nil {
-		m.flows = map[int64]context.CancelFunc{}
+		m.flows = map[int64]*flow{}
+	}
+	if m.byState == nil {
+		m.byState = map[string]*flow{}
 	}
 	if old := m.flows[accountID]; old != nil {
-		old()
+		old.cancel()
 	}
-	m.flows[accountID] = cancel
+	m.flows[accountID] = f
+	m.byState[state] = f
 	m.mu.Unlock()
-
-	f := &flow{m: m, c: c, lns: lns, state: state, verifier: verifier, redirect: redirect, scopes: scopes, done: make(chan struct{})}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second}
 	for _, ln := range lns {
 		go func() { _ = srv.Serve(ln) }()
@@ -206,6 +223,7 @@ func (m *Manager) Authorize(ctx context.Context, accountID int64) (string, error
 			stop()
 		}
 		cancel()
+		m.removeFlow(f)
 	}()
 	e := c.endpoint
 	e.Scopes = scopes
@@ -289,6 +307,8 @@ type flow struct {
 	lns                       []net.Listener // the redirect's port
 	state, verifier, redirect string
 	scopes                    []string // what the sign-in asked for
+	ctx                       context.Context
+	cancel                    context.CancelFunc
 	once                      sync.Once
 	done                      chan struct{}
 }
@@ -299,32 +319,122 @@ func (f *flow) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "This is not the sign-in Frostmail is waiting for.", http.StatusBadRequest)
 		return
 	}
+	w.Header().Set("Connection", "close")
+	switch err := f.complete(r.Context(), q); {
+	case errors.Is(err, errFlowFinished):
+		http.Error(w, "This sign-in is already finished.", http.StatusGone)
+	case errors.Is(err, ErrRefused):
+		// The flow ends with this answer: the port stops answering before
+		// the browser has the page, and this connection closes after it.
+		page(w, "Sign-in was not completed ("+q.Get("error")+"). You can close this tab and try again from Frostmail.")
+	case err != nil:
+		page(w, "Sign-in failed: "+err.Error())
+	default:
+		page(w, "Frostmail is signed in to "+f.c.acct.Email+". You can close this tab.")
+	}
+}
+
+// complete ends the sign-in once: it closes the listeners, refuses it when
+// the query holds the provider's error, or exchanges the code and stores
+// the grant. A second call returns errFlowFinished.
+func (f *flow) complete(ctx context.Context, q url.Values) error {
 	finished := false
+	var err error
 	f.once.Do(func() {
 		finished = true
 		defer close(f.done)
-		// The flow ends with this answer: the port stops answering before
-		// the browser has the page, and this connection closes after it.
-		// Shutdown, once done is closed, waits for the page to go out.
 		for _, ln := range f.lns {
 			_ = ln.Close()
 		}
-		w.Header().Set("Connection", "close")
+		f.m.removeFlow(f)
 		if e := q.Get("error"); e != "" {
 			f.m.Log.Warn("sign-in refused", "account", f.c.acct.ID, "error", e)
-			page(w, "Sign-in was not completed ("+e+"). You can close this tab and try again from Frostmail.")
+			err = fmt.Errorf("%w: %s", ErrRefused, e)
 			return
 		}
-		if err := f.finish(r.Context(), q.Get("code")); err != nil {
+		err = f.finish(ctx, q.Get("code"))
+		if err != nil {
 			f.m.Log.Warn("sign-in failed", "account", f.c.acct.ID, "err", err)
-			page(w, "Sign-in failed: "+err.Error())
-			return
 		}
-		page(w, "Frostmail is signed in to "+f.c.acct.Email+". You can close this tab.")
 	})
 	if !finished {
-		http.Error(w, "This sign-in is already finished.", http.StatusGone)
+		return errFlowFinished
 	}
+	return err
+}
+
+// removeFlow forgets a flow that ended, or that a new sign-in replaced.
+func (m *Manager) removeFlow(f *flow) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.flows[f.c.acct.ID] == f {
+		delete(m.flows, f.c.acct.ID)
+	}
+	if m.byState[f.state] == f {
+		delete(m.byState, f.state)
+	}
+}
+
+// Finish ends the waiting sign-in whose state is in the address that the
+// provider sent the browser to, and stores its token as the loopback
+// listener would (ADR-0043). The address must have the waiting sign-in's
+// redirect as its scheme, host, port and path. Finish never logs the code
+// or the address.
+func (m *Manager) Finish(ctx context.Context, rawURL string) (int64, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return 0, ErrNoSignIn
+	}
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "http://" + rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return 0, ErrNoSignIn
+	}
+	state := u.Query().Get("state")
+	if state == "" {
+		return 0, ErrNoSignIn
+	}
+	m.mu.Lock()
+	var f *flow
+	for _, candidate := range m.byState {
+		if subtle.ConstantTimeCompare([]byte(state), []byte(candidate.state)) == 1 {
+			f = candidate
+			break
+		}
+	}
+	m.mu.Unlock()
+	if f == nil || f.ctx.Err() != nil || !sameRedirect(u, f.redirect) {
+		return 0, ErrNoSignIn
+	}
+	err = f.complete(ctx, u.Query())
+	if errors.Is(err, errFlowFinished) {
+		return 0, ErrNoSignIn
+	}
+	if err != nil {
+		return 0, err
+	}
+	return f.c.acct.ID, nil
+}
+
+// sameRedirect reports whether u has the scheme, host, port and path of a
+// redirect URI. A path of "" and "/" are equal, as the browser shows them.
+func sameRedirect(u *url.URL, redirect string) bool {
+	r, err := url.Parse(redirect)
+	if err != nil {
+		return false
+	}
+	path := func(p string) string {
+		if p == "" {
+			return "/"
+		}
+		return p
+	}
+	return strings.EqualFold(u.Scheme, r.Scheme) &&
+		strings.EqualFold(u.Hostname(), r.Hostname()) &&
+		u.Port() == r.Port() &&
+		path(u.Path) == path(r.Path)
 }
 
 func page(w http.ResponseWriter, text string) {
@@ -337,7 +447,7 @@ func page(w http.ResponseWriter, text string) {
 // finish exchanges the code and stores the grant.
 func (f *flow) finish(ctx context.Context, code string) error {
 	if code == "" {
-		return errors.New("the browser returned no code")
+		return ErrNoCode
 	}
 	m, c := f.m, f.c
 	tok, err := m.exchange(ctx, c, url.Values{

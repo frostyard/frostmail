@@ -4,8 +4,9 @@
 // edits an existing one (its name, servers, options, a new password, or
 // signing in to Google or Microsoft again), reporting every edit as a new
 // value.
-import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useId, useRef } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 
+import { pasteSignIn } from "../../app/settings";
 import type { AccountKind, AuthKind, DiscoverySource, ServerConfig, ServiceKind } from "../../rpc/gen/api";
 import { ALERT, BUTTON, FIELD, GRID, KIND_LABEL, LABEL, PRIMARY_BUTTON } from "./labels";
 import { ServerFields } from "./ServerFields";
@@ -56,6 +57,10 @@ export interface AccountFormProps {
   signedIn: boolean;
   /** Edit mode, Google or Microsoft sign-in: starts it in the browser. */
   onSignIn: () => void;
+  /** Edit mode: a sign-in this window started waits for the shown account. */
+  signInWaiting?: boolean;
+  /** Finishes a waiting sign-in with the address of the page the browser could not open. */
+  onFinishSignIn?: (url: string) => Promise<void>;
   /** A request is running. */
   busy: boolean;
   /** The last request's error. */
@@ -140,12 +145,58 @@ function PasswordRow(props: { value: AccountFormValue; editing: boolean; onChang
   );
 }
 
+function FinishSignInRow(props: { busy: boolean; onFinish: (url: string) => Promise<void> }) {
+  const id = useId();
+  const [address, setAddress] = useState("");
+  const [sending, setSending] = useState(false);
+  const busy = props.busy || sending;
+  const finish = async () => {
+    const url = address.trim();
+    if (url === "" || busy) return;
+    setSending(true);
+    // The row goes once the account is signed in; after an error the
+    // address stays, to correct or send again.
+    try {
+      await props.onFinish(url);
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div className="col-start-2 flex flex-col gap-2">
+      <p className="text-[12px] leading-4 text-secondary">
+        If your browser cannot open the page after you sign in, copy that page's address and paste it here.
+      </p>
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className={LABEL}>
+          Address
+        </label>
+        <input
+          id={id}
+          type="url"
+          className={`${FIELD} min-w-0 flex-1`}
+          autoComplete="off"
+          spellCheck={false}
+          disabled={busy}
+          value={address}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => setAddress(event.target.value)}
+        />
+        <button type="button" className={BUTTON} disabled={busy || address.trim() === ""} onClick={() => void finish()}>
+          Finish Sign-In
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SignInRow(props: {
   kind: AccountKind;
   mode: "add" | "edit";
   signedIn: boolean;
   busy: boolean;
   onSignIn: () => void;
+  waiting?: boolean;
+  onFinishSignIn?: (url: string) => Promise<void>;
 }) {
   const provider = PROVIDER[props.kind] ?? "Google";
   const covers = offeredServices(props.kind).length > 0 ? ", once for mail and the services checked below" : "";
@@ -157,14 +208,19 @@ function SignInRow(props: {
           After adding the account, sign in with {provider} in your browser{covers}.
         </p>
       ) : (
-        <div className="flex items-center">
-          <span className={`text-[13px] leading-[18px] ${props.signedIn ? "text-secondary" : "text-flag-1"}`}>
-            {props.signedIn ? "Signed in" : "Not signed in"}
-          </span>
-          <button type="button" className={`${BUTTON} ml-3`} disabled={props.busy} onClick={props.onSignIn}>
-            {props.signedIn ? "Sign In Again…" : "Sign In…"}
-          </button>
-        </div>
+        <>
+          <div className="flex items-center">
+            <span className={`text-[13px] leading-[18px] ${props.signedIn ? "text-secondary" : "text-flag-1"}`}>
+              {props.signedIn ? "Signed in" : "Not signed in"}
+            </span>
+            <button type="button" className={`${BUTTON} ml-3`} disabled={props.busy} onClick={props.onSignIn}>
+              {props.signedIn ? "Sign In Again…" : "Sign In…"}
+            </button>
+          </div>
+          {props.waiting && props.onFinishSignIn && pasteSignIn() && (
+            <FinishSignInRow busy={props.busy} onFinish={props.onFinishSignIn} />
+          )}
+        </>
       )}
     </>
   );
@@ -393,7 +449,15 @@ export function AccountForm(props: AccountFormProps) {
         {value.auth === "password" ? (
           <PasswordRow value={value} editing={mode === "edit"} onChange={onChange} />
         ) : (
-          <SignInRow kind={value.kind} mode={mode} signedIn={props.signedIn} busy={busy} onSignIn={props.onSignIn} />
+          <SignInRow
+            kind={value.kind}
+            mode={mode}
+            signedIn={props.signedIn}
+            busy={busy}
+            onSignIn={props.onSignIn}
+            waiting={props.signInWaiting}
+            onFinishSignIn={props.onFinishSignIn}
+          />
         )}
       </div>
       <ServerRows value={value} onChange={onChange} busy={busy} />
