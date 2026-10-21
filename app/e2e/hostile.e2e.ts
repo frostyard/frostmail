@@ -89,11 +89,23 @@ describe("hostile HTML", () => {
           `document.querySelector('[role="listbox"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))`,
         );
       }
-      await settle(300);
-      const subject = await s.execute<string | null>(
-        `return document.querySelector('section[aria-label="Message"] article')?.getAttribute("aria-label") ?? null`,
+      // Every subject differs, so a new one is the next message; a slow
+      // runner can still show the old one after ArrowDown.
+      const subject = await s.waitFor(
+        `message ${i + 1} of ${count} in the reader`,
+        async () => {
+          const label = await s.execute<string | null>(
+            `return document.querySelector('section[aria-label="Message"] article')?.getAttribute("aria-label") ?? null`,
+          );
+          if (!label || shown.has(label)) return null;
+          const frame = await s.execute<boolean>(
+            `return document.querySelector('section[aria-label="Message"] iframe') !== null`,
+          );
+          return frame ? label : null;
+        },
+        15_000,
       );
-      if (subject) shown.add(subject);
+      shown.add(subject);
       const load = await s.findAll('section[aria-label="Message"] [role="status"] button');
       for (const b of load) await s.click(b).catch(() => {});
       await settle(300);
