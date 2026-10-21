@@ -1,3 +1,4 @@
+import { Sheet } from "@frostyard/lodge-ui/react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { localeWeekStart } from "../../lib/calendarDates";
 import { defaultRepeat, type Frequency, nthWeekday, type Repeat, WEEKDAYS, type Weekday } from "../../lib/repeat";
@@ -107,34 +108,28 @@ function MonthlyDays({ repeat, start, onChange }: { repeat: Repeat; start: strin
 export function RepeatSheet({ initial, start, locale, onChoose, onCancel }: RepeatSheetProps) {
   const [repeat, setRepeat] = useState(initial);
   const [interval, setInterval] = useState(String(initial.interval));
-  const titleId = useId();
-  const dialog = useRef<HTMLDivElement>(null);
   const amount = Number(interval);
   const valid =
     Number.isInteger(amount) && amount >= 1 && (repeat.frequency !== "WEEKLY" || repeat.weekdays.length > 0);
   const unit = FREQUENCIES.find(([frequency]) => frequency === repeat.frequency)?.[2];
-  useEffect(() => {
-    const previous = document.activeElement;
-    dialog.current?.querySelector<HTMLSelectElement>("select")?.focus();
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-window/60">
+    <Sheet
+      title="Custom Repeat"
+      width={420}
+      className="rounded-[10px]"
+      titleClassName="text-[13px] font-semibold"
+      showClose={false}
+      closeOnOverlay={false}
+      initialFocus={"first"}
+      onClose={onCancel}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: the Sheet's frame is the dialog; this wrapper only keeps Tab and the keys inside it */}
       <div
-        ref={dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className="w-[420px] max-h-[90vh] overflow-y-auto rounded-[10px] border border-separator bg-window p-5 outline-none"
-        onKeyDown={(event) => sheetKey(event, onCancel)}
+        onKeyDown={(event) => {
+          if (event.key === "Tab") sheetKey(event, onCancel);
+        }}
         onKeyUp={(event) => event.stopPropagation()}
       >
-        <h2 id={titleId} className="mb-4 text-[13px] font-semibold">
-          Custom Repeat
-        </h2>
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -201,6 +196,6 @@ export function RepeatSheet({ initial, start, locale, onChoose, onCancel }: Repe
           </div>
         </form>
       </div>
-    </div>
+    </Sheet>
   );
 }
