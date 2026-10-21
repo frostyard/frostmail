@@ -1,4 +1,6 @@
 // Tasks panes and keyboard actions.
+
+import { Splitter } from "@frostyard/lodge-ui/react";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { type Pane, useUI } from "../data/stores";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
@@ -6,9 +8,9 @@ import { TaskList } from "../features/tasks/TaskList";
 import { TaskPane } from "../features/tasks/TaskPane";
 import { TasksSidebar } from "../features/tasks/TasksSidebar";
 import type { Command } from "../lib/keymap";
+import { panePercent } from "../lib/panes";
 import { taskLines } from "../lib/taskText";
 import { tasksPane, useNarrow } from "./narrow";
-import { Splitter } from "./Splitter";
 import type { TasksData } from "./useTasks";
 
 /** TasksHandle focuses panes and editing fields. */
@@ -201,7 +203,14 @@ export const TasksModule = forwardRef<TasksHandle, TasksModuleProps>(function Ta
             <div className="min-h-0 flex-1 overflow-y-auto">{sidebarList}</div>
             <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
           </fieldset>
-          <Splitter label="Resize sidebar" onResize={resizeSidebar} onEnd={endDrag} />
+          <Splitter
+            orientation="vertical"
+            label="Resize sidebar"
+            value={panePercent(ui.sidebarWidth)}
+            onStart={endDrag}
+            onMove={resizeSidebar}
+            onEnd={endDrag}
+          />
         </>
       )}
       <section

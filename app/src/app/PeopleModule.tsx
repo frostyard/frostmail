@@ -1,4 +1,6 @@
 // People panes share Mail's column widths and splitters.
+
+import { Splitter } from "@frostyard/lodge-ui/react";
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
 import { isTauri } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -13,6 +15,7 @@ import { IndexHeader, PersonRow } from "../features/people/PersonRow";
 import { PhotoWell } from "../features/people/PhotoWell";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import type { Command } from "../lib/keymap";
+import { panePercent } from "../lib/panes";
 import { type PeopleRow, peopleRows } from "../lib/peopleRows";
 import { type PhotoChange, photoURL, scalePhoto } from "../lib/photo";
 import type { PersonSummary } from "../rpc/gen/api";
@@ -20,7 +23,6 @@ import { peoplePane, useNarrow } from "./narrow";
 import { revealMessage } from "./openMessage";
 import { rememberRestore } from "./pimUndo";
 import { openLink } from "./ReaderContainer";
-import { Splitter } from "./Splitter";
 import { openOccurrence, useCalendarColors, useCalendarFrame } from "./useCalendar";
 import { type PeopleData, writeToPerson } from "./usePeople";
 
@@ -428,13 +430,27 @@ export const PeopleModule = forwardRef<PeopleHandle, PeopleModuleProps>(function
       {ui.sidebarVisible && (
         <>
           <PeopleSidebarPane elementRef={sidebar} data={props.data} />
-          <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
+          <Splitter
+            orientation="vertical"
+            label="Resize sidebar"
+            value={panePercent(ui.sidebarWidth)}
+            onStart={props.endDrag}
+            onMove={props.resizeSidebar}
+            onEnd={props.endDrag}
+          />
         </>
       )}
       <div ref={list} inert={ui.peopleEditing !== null} className="h-full shrink-0" style={{ width: ui.listWidth }}>
         <PeopleList people={props.data.people} />
       </div>
-      <Splitter label="Resize contacts list" onResize={props.resizeList} onEnd={props.endDrag} />
+      <Splitter
+        orientation="vertical"
+        label="Resize contacts list"
+        value={panePercent(ui.listWidth)}
+        onStart={props.endDrag}
+        onMove={props.resizeList}
+        onEnd={props.endDrag}
+      />
       <section
         ref={reader}
         aria-label="Contact details"

@@ -1,6 +1,7 @@
 // The modular main window, shared pane resizing and keyboard dispatch.
-import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
+import { Splitter } from "@frostyard/lodge-ui/react";
+import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useClient } from "../data/session";
 import { type Pane, useMail, useUI } from "../data/stores";
 import { useView } from "../data/useView";
@@ -15,6 +16,7 @@ import { addDays, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
 import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
+import { panePercent } from "../lib/panes";
 import { frameWindowOpen } from "../lodge/frameWindow";
 import { IN_LODGE } from "../lodge/lodge";
 import { backToList } from "../lodge/shell";
@@ -24,7 +26,6 @@ import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { calendarPane, narrowPane, peoplePane, tasksPane, useNarrow } from "./narrow";
-
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
 import { watchOpenRequests } from "./openMessage";
@@ -36,7 +37,6 @@ import { RefusedNotices } from "./RefusedNotices";
 import { watchOccurrenceRequests, watchReminders } from "./reminders";
 import { SidebarContainer } from "./SidebarContainer";
 import { SmartSheetContainer } from "./SmartSheetContainer";
-import { Splitter } from "./Splitter";
 import { openSettings } from "./settings";
 import { type TasksHandle, TasksModule, tasksCommand } from "./TasksModule";
 import { ToDoBarContainer } from "./ToDoBarContainer";
@@ -419,7 +419,14 @@ function MailPanes(props: {
           <div ref={props.handles.sidebar} className="h-full shrink-0" style={{ width: ui.sidebarWidth }}>
             <SidebarContainer />
           </div>
-          <Splitter label="Resize sidebar" onResize={props.widths.resizeSidebar} onEnd={props.widths.endDrag} />
+          <Splitter
+            orientation="vertical"
+            label="Resize sidebar"
+            value={panePercent(ui.sidebarWidth)}
+            onStart={props.widths.endDrag}
+            onMove={props.widths.resizeSidebar}
+            onEnd={props.widths.endDrag}
+          />
         </>
       )}
       <div className="flex h-full shrink-0 flex-col" style={{ width: ui.listWidth }}>
@@ -428,7 +435,14 @@ function MailPanes(props: {
           <ListContainer ref={props.handles.list} model={props.model} onDelete={props.onDelete} />
         </div>
       </div>
-      <Splitter label="Resize message list" onResize={props.widths.resizeList} onEnd={props.widths.endDrag} />
+      <Splitter
+        orientation="vertical"
+        label="Resize message list"
+        value={panePercent(ui.listWidth)}
+        onStart={props.widths.endDrag}
+        onMove={props.widths.resizeList}
+        onEnd={props.widths.endDrag}
+      />
       <div className="h-full min-w-0 flex-1">
         <ReaderContainer ref={props.handles.reader} />
       </div>
