@@ -125,6 +125,20 @@ export class Session {
     await this.do("DELETE", "/actions");
   }
 
+  /**
+   * visible reports whether an element is shown: checkVisibility where the
+   * page has it, else a box with a width and a height.
+   */
+  visible(el: Element): Promise<boolean> {
+    return this.execute<boolean>(
+      `const el = arguments[0];
+       if (el.checkVisibility) return el.checkVisibility();
+       const r = el.getBoundingClientRect();
+       return r.width > 0 && r.height > 0;`,
+      { [ELEMENT]: el.id },
+    );
+  }
+
   /** windows returns the handles of the session's windows. */
   windows(): Promise<string[]> {
     return this.do<string[]>("GET", "/window/handles");
