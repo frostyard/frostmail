@@ -210,7 +210,8 @@ jobs:
           retention-days: 14
       # The reader on WebView2 (ADR-0038): the hostile-mail suite, links,
       # remote images and the smoke test drive the app the installer holds,
-      # with the runner's msedgedriver attached to it.
+      # with the runner's msedgedriver attached to it, as do the window
+      # chrome and the keyboard map.
       - name: The app's end-to-end tests on WebView2
         run: |
           set -euo pipefail
@@ -223,4 +224,4 @@ jobs:
           MSYS_NO_PATHCONV=1 reg query 'HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' /v pv || true
           # WebView2 needs a window, so an interactive desktop session.
           powershell -NoProfile -Command '"session " + (Get-Process -Id $PID).SessionId + ", interactive " + [Environment]::UserInteractive'
-          cd app && FROSTMAIL_EDGEDRIVER="$edge" pnpm exec vitest run -c vitest.e2e.config.ts hostile links smoke remote
+          cd app && FROSTMAIL_EDGEDRIVER="$edge" pnpm exec vitest run -c vitest.e2e.config.ts hostile links smoke remote window
