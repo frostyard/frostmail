@@ -1,10 +1,11 @@
 // The reminder window's content (docs/specs/pim-ui.md, Reminder window).
+
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { type CSSProperties, useState } from "react";
 import { calendarColor } from "../../lib/eventText";
 import { reminderWhen, snoozeChoices } from "../../lib/reminderText";
 import type { Reminder } from "../../rpc/gen/api";
-import { ContextMenu } from "../menu/ContextMenu";
 
 /** ReminderPanelProps are the reminder window's inputs. */
 export interface ReminderPanelProps {

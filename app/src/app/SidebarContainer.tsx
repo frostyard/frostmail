@@ -1,11 +1,11 @@
 // The sidebar, fed by the mail store (docs/specs/ui.md, Sidebar).
+
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { isTauri } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { useMemo, useState } from "react";
-
 import { useClient } from "../data/session";
 import { sourceFromKey, sourceKey, useMail, useUI } from "../data/stores";
-import { ContextMenu, type MenuItem } from "../features/menu/ContextMenu";
 import { MailboxSheet, type MailboxSheetMode } from "../features/sidebar/MailboxSheet";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
