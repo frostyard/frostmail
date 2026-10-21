@@ -15,8 +15,6 @@ export interface SearchFieldProps {
   /** Escape or the clear button. */
   onClear: () => void;
   inputRef?: Ref<HTMLInputElement>;
-  /** Take the width it is given, as a narrow window's list does, rather than 220. */
-  fill?: boolean;
 }
 
 function useSearchHandlers(props: SearchFieldProps) {
@@ -62,9 +60,7 @@ function useSearchHandlers(props: SearchFieldProps) {
 export function SearchField(props: SearchFieldProps) {
   const { handleChange, handleKeyDown, clear } = useSearchHandlers(props);
   return (
-    <div
-      className={`flex h-[28px] items-center rounded-md bg-selection-inactive px-[6px] narrow:h-8 narrow:gap-1.5 ${props.fill ? "w-full" : "w-[220px]"}`}
-    >
+    <div className="flex h-[28px] w-full items-center rounded-md bg-selection-inactive px-[6px] narrow:h-8 narrow:gap-1.5">
       <Search size={14} className="text-tertiary" />
       <input
         type="search"

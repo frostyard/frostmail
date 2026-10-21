@@ -64,9 +64,10 @@ too:
   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`) and attaches the runner's
   msedgedriver, which matches the runner's WebView2, to it
   (`debuggerAddress`); a session msedgedriver launched would look for that
-  port in a data folder of its own. The harness waits up to 45 s for the
-  driver to answer and tries a second time on a new port, because the first
-  msedgedriver start on a fresh runner can take more than 20 s.
+  port in a data folder of its own. It also runs the window chrome and the
+  keyboard map (`app/e2e/window.e2e.ts`). The harness waits up to 45 s for
+  the driver to answer and tries a second time on a new port, because the
+  first msedgedriver start on a fresh runner can take more than 20 s.
   `FROSTMAIL_OPEN_LOG` stands in for the Linux opener stand-ins. Installs
   and trials take that installer to the VM or one of the user's machines.
 - Tests that need a socket take one from `rpctest.SocketPath`: a short

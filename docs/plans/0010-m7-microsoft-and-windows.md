@@ -323,7 +323,9 @@ records how Graph's events and contacts are stored.
   the installer hooks; WebView2's `http://tauri.localhost` origin in the
   navigation guard and its `http://mailpart.localhost` parts; the
   harness on msedgedriver; and CI's Windows app job, which builds the
-  installer and runs hostile, links, smoke and remote on WebView2.
+  installer and runs hostile, links, smoke and remote on WebView2, as
+  well as the window chrome and the keyboard map
+  (`app/e2e/window.e2e.ts`).
   Checked in `frostmail-win11` with a local MinGW build: toasts show,
   replace and go under the AppUserModelID, a reminder carries Snooze and
   Dismiss, Windows hands `frostmail-toast:` URIs to the notifier verbatim,

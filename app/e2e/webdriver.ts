@@ -4,6 +4,16 @@
 
 const ELEMENT = "element-6066-11e4-a52e-4f735466cecf";
 
+/** Key holds the W3C WebDriver key values the app tests press. */
+export const Key = {
+  Control: "\uE009",
+  Shift: "\uE008",
+  Alt: "\uE00A",
+  ArrowDown: "\uE015",
+  Escape: "\uE00C",
+  Tab: "\uE004",
+} as const;
+
 /** Element is a handle to an element in the session's page. */
 export interface Element {
   readonly id: string;
@@ -99,6 +109,34 @@ export class Session {
   /** type sends keystrokes to an element. */
   async type(el: Element, text: string): Promise<void> {
     await this.do("POST", `/element/${el.id}/value`, { text });
+  }
+
+  /**
+   * keys sends one key chord to the focused element, as real key presses:
+   * every value goes down in order, then up in reverse. It then releases all
+   * keys, so no modifier stays held.
+   */
+  async keys(...chord: string[]): Promise<void> {
+    const actions = [
+      ...chord.map((value) => ({ type: "keyDown", value })),
+      ...[...chord].reverse().map((value) => ({ type: "keyUp", value })),
+    ];
+    await this.do("POST", "/actions", { actions: [{ type: "key", id: "keyboard", actions }] });
+    await this.do("DELETE", "/actions");
+  }
+
+  /**
+   * visible reports whether an element is shown: checkVisibility where the
+   * page has it, else a box with a width and a height.
+   */
+  visible(el: Element): Promise<boolean> {
+    return this.execute<boolean>(
+      `const el = arguments[0];
+       if (el.checkVisibility) return el.checkVisibility();
+       const r = el.getBoundingClientRect();
+       return r.width > 0 && r.height > 0;`,
+      { [ELEMENT]: el.id },
+    );
   }
 
   /** windows returns the handles of the session's windows. */
