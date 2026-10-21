@@ -16,5 +16,5 @@ export async function startInLodge(connect: () => Promise<Lodge>): Promise<Conne
   // lodge-client replays nothing: the frame's route is history.location.
   const loc = l.history.location;
   wireShell(l, loc.pathname + loc.search + loc.hash);
-  return () => connectLodgeAPI(l.apiURL());
+  return () => connectLodgeAPI(l);
 }

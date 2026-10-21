@@ -16,6 +16,8 @@ function fakeLodge() {
     contract: 1,
     theme: "dark",
     shortcut: "Ctrl+Backquote",
+    role: "app",
+    companion: null,
     contentOrigin: "https://content.test",
     visible: true,
     history: {
@@ -28,6 +30,7 @@ function fakeLodge() {
     contentURL: (p) => `https://content.test/mail/${p}`,
     route: (path, _title, options) => routes.push({ path, replace: options?.replace === true }),
     context: () => {},
+    ask: () => {},
     open: () => {},
     openSwitcher: () => {},
     storageKey: (k) => `mail:${k}`,
