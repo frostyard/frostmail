@@ -8,7 +8,7 @@ phone and any browser on the owner's tailnet as the mail app of
 [lodge](https://github.com/frostyard/lodge)
 ([M8](docs/plans/0011-m8-mail-in-lodge.md); built, and in progress).
 Pre-release: it syncs, reads, searches and sends generic IMAP, Gmail,
-iCloud and Outlook.com accounts, and has finished its daily-driver trial
+iCloud and Outlook.com accounts, and is the owner's daily mail client
 ([M4](docs/plans/0006-m4-daily-driver.md)). Contacts, calendars and tasks
 over CardDAV, CalDAV, Google Tasks and Microsoft Graph, invitations
 answered from the reader, events and contacts edited in place, and a To-Do
