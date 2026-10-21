@@ -94,8 +94,8 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0003 — M1 headless read path](plans/0003-m1-headless-read-path.md), done, with its evidence
 - [0004 — M2 UI read path](plans/0004-m2-ui-read-path.md), done, with its evidence
 - [0005 — M3 compose and send](plans/0005-m3-compose-and-send.md), done, with its evidence
-- [0006 — M4 daily driver](plans/0006-m4-daily-driver.md)
-- [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md)
+- [0006 — M4 daily driver](plans/0006-m4-daily-driver.md), done, with its evidence
+- [0007 — M4.5 people, calendar and tasks](plans/0007-m4.5-people-calendar-tasks.md), done, with its evidence
 - [0008 — M5 Mail.app parity](plans/0008-m5-mail-app-parity.md), done, with its evidence
 - [0009 — M5.5 edit events and contacts](plans/0009-m5.5-edit-events-and-contacts.md)
 - [0010 — M7 Microsoft accounts and Windows](plans/0010-m7-microsoft-and-windows.md)
