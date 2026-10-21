@@ -41,6 +41,14 @@ type response struct {
 	organizer calendar.Attendee
 }
 
+// respondAttempts is how many times Respond answers an invitation whose
+// object a sync pass wrote in between.
+const respondAttempts = 3
+
+// errStale says the answered object is not the one that was read: a sync
+// pass wrote or removed it, and the answer runs again from the top.
+var errStale = errors.New("engine: the answered object changed")
+
 // Respond answers an invitation (ADR-0022, docs/design/pim.md,
 // Invitations). The user's PARTSTAT changes in the stored event, whose put
 // is queued; an accepted or tentative invitation not yet stored goes into
@@ -48,13 +56,27 @@ type response struct {
 // (a copy its scheduling delivered, or a new copy on a provider that
 // schedules those too), maild mails the organizer an iTIP REPLY through
 // the outbox, with the undo delay, and the copy it writes leaves
-// scheduling to the client.
+// scheduling to the client. An object a sync pass changed since it was
+// read is read again, up to respondAttempts times.
 func (c calendarService) Respond(ctx context.Context, p *api.CalendarRespondParams) (*api.CalendarEvent, error) {
 	switch p.Answer {
 	case api.PartStatAccepted, api.PartStatDeclined, api.PartStatTentative:
 	default:
 		return nil, api.InvalidParams("an answer is accepted, declined or tentative")
 	}
+	for range respondAttempts {
+		ev, err := c.respondOnce(ctx, p)
+		if !errors.Is(err, errStale) {
+			return ev, err
+		}
+	}
+	return nil, api.Conflict("the event changed while it was answered; answer it again")
+}
+
+// respondOnce answers the invitation as it is now. It returns errStale when
+// a sync pass wrote or removed the stored object before the answer was
+// stored.
+func (c calendarService) respondOnce(ctx context.Context, p *api.CalendarRespondParams) (*api.CalendarEvent, error) {
 	r, err := c.response(ctx, p)
 	if err != nil {
 		return nil, err
@@ -228,7 +250,9 @@ func (c calendarService) byMessage(ctx context.Context, r *response, id int64) e
 
 // answerStored patches the stored copy, queues its put and, when mail is
 // set, the reply, the copy then leaving scheduling to the client. It
-// returns the event's ID.
+// returns the event's ID. The object is read again in the transaction: a
+// sync pass that wrote it since leaves its ETag and href, and a changed
+// or removed source returns errStale, which answers again from the top.
 func (c calendarService) answerStored(ctx context.Context, r *response, mail bool) (int64, error) {
 	raw, err := itip.SetPartStat(r.src, r.key, r.attendee, r.answer)
 	if err != nil {
@@ -243,15 +267,40 @@ func (c calendarService) answerStored(ctx context.Context, r *response, mail boo
 			return 0, err
 		}
 	}
-	obj := r.obj
-	obj.Raw = raw
 	err = c.DB.Tx(ctx, func(tx *store.Tx) error {
+		current, err := tx.GetObject(ctx, r.obj.ID)
+		if errors.Is(err, store.ErrNotFound) {
+			return errStale
+		}
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(current.Raw, r.src) {
+			return errStale
+		}
+		// The patch was made from r.src, which is current.Raw, and the
+		// object keeps the ETag and href a pass wrote.
+		obj := current
+		obj.Raw = raw
 		if err := c.storeAnswer(ctx, tx, r, obj); err != nil {
 			return err
 		}
 		return queueReply(ctx, tx, reply)
 	})
+	if errors.Is(err, errStale) {
+		c.dropReply(reply)
+	}
 	return r.stored.ID, err
+}
+
+// dropReply removes a built reply's blob when its answer is not stored.
+func (c calendarService) dropReply(r *reply) {
+	if r == nil {
+		return
+	}
+	if err := c.Blobs.Remove(r.item.BlobID); err != nil && c.Log != nil {
+		c.Log.Warn("the unused reply's blob stays", "blob", r.item.BlobID, "err", err)
+	}
 }
 
 // answerMessage stores an accepted or tentative invitation in the default
@@ -311,7 +360,9 @@ func (c calendarService) answerMessage(ctx context.Context, r *response, mail *b
 }
 
 // storeAnswer stores and indexes the answered object and queues its put
-// on the ETag it was read with ("" creates it), unless one is waiting.
+// on the ETag it holds in the transaction ("" creates it), unless one is
+// waiting. answerStored reads that object again first, so the ETag and
+// href are those a sync pass wrote.
 func (c calendarService) storeAnswer(ctx context.Context, tx *store.Tx, r *response, obj store.Object) error {
 	from, to := pimsync.Window(tx.Now())
 	if f, t, ok, err := c.DB.InstanceWindow(ctx); err != nil {
