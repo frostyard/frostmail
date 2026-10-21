@@ -324,6 +324,9 @@ function noClient(err: unknown): string | null {
     : null;
 }
 
+/** SIGN_IN_WAIT_MS is how long maild waits for a sign-in's return (internal/oauth's FlowTimeout). */
+const SIGN_IN_WAIT_MS = 5 * 60 * 1000;
+
 async function signIn(client: Client, id: number): Promise<void> {
   const r = await client.account.authorize({ id });
   await openInBrowser(r.url);
@@ -419,16 +422,17 @@ function AccountsPane() {
   const [selected, setSelected] = useState<number | "new" | null>(null);
   const [value, setValue] = useState<AccountFormValue>(emptyAccount);
   const [discovery, setDiscovery] = useState<DiscoveryState>({ kind: "idle" });
-  // The account whose sign-in this window started, while it waits. Only
-  // that sign-in can finish from a pasted address (ADR-0043).
-  const [signInId, setSignInId] = useState<number | null>(null);
+  // The sign-in this window started, while it waits: its account, and
+  // whether that account was signed in before. Only that sign-in can finish
+  // from a pasted address (ADR-0043).
+  const [waiting, setWaiting] = useState<{ id: number; wasSignedIn: boolean } | null>(null);
   const { busy, error, setError, run } = useRequest();
   const account = accounts.find((a) => a.id === selected);
 
   const select = useCallback(
     (next: number | "new") => {
       setSelected(next);
-      setSignInId((current) => (current === next ? current : null));
+      setWaiting((current) => (current?.id === next ? current : null));
       setError(null);
       setDiscovery({ kind: "idle" });
       const a = accounts.find((x) => x.id === next);
@@ -447,22 +451,30 @@ function AccountsPane() {
     if (selected === null || removed) select(accounts[0]?.id ?? "new");
   }, [accounts, selected, select]);
 
-  // A sign-in that finished hides the field; its account now says signed in.
+  // A sign-in that finished elsewhere hides the field: an account that was
+  // not signed in now says it is. Signing a signed-in account in again shows
+  // no such change, so the field also goes when maild's sign-in expires.
   useEffect(() => {
-    if (signInId !== null && accounts.some((a) => a.id === signInId && a.signedIn)) setSignInId(null);
-  }, [accounts, signInId]);
+    if (waiting && !waiting.wasSignedIn && accounts.some((a) => a.id === waiting.id && a.signedIn)) setWaiting(null);
+  }, [accounts, waiting]);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => setWaiting(null), SIGN_IN_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [waiting]);
 
   const startSignIn = useCallback(
     async (id: number) => {
-      setSignInId(id);
+      const wasSignedIn = accounts.find((a) => a.id === id)?.signedIn ?? false;
+      setWaiting({ id, wasSignedIn });
       try {
         await signIn(client, id);
       } catch (err) {
-        setSignInId(null);
+        setWaiting(null);
         throw err;
       }
     },
-    [client],
+    [accounts, client],
   );
 
   const discover = () =>
@@ -541,7 +553,7 @@ function AccountsPane() {
   const finishSignIn = (url: string) =>
     run(async () => {
       await client.account.finishSignIn({ url });
-      setSignInId(null);
+      setWaiting(null);
     });
 
   return (
@@ -562,7 +574,7 @@ function AccountsPane() {
           onDiscover={() => void discover()}
           signedIn={account?.signedIn ?? false}
           onSignIn={authorize}
-          signInWaiting={typeof selected === "number" && signInId === selected && !(account?.signedIn ?? false)}
+          signInWaiting={typeof selected === "number" && waiting?.id === selected}
           onFinishSignIn={finishSignIn}
           services={
             typeof selected === "number" && (
