@@ -315,6 +315,9 @@ development build, and the app's notifications from a remote maild
   elsewhere cannot reach. Candidates: a redirect to a lodge route, pasting
   the redirect URL back into mail, or signing in from the desktop app and
   handing the grant to the server's maild. Decide by Phase 7.
+  [ADR-0043](../adr/0043-sign-in-returns-through-lodge.md) (Proposed,
+  2026-10-21) answers it: lodge's route `/mail/signin` where the provider's
+  client registers it, and a pasted address everywhere else.
 - **Secrets on the server:** the file store, or something sealed (systemd
   credentials, a TPM). Decide by Phase 7.
 
