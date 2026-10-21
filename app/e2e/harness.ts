@@ -205,16 +205,62 @@ function pipeUp(path: string): Promise<boolean> {
 /** reachable reports whether an HTTP endpoint answers with success. */
 async function reachable(url: string): Promise<boolean> {
   try {
-    return (await fetch(url)).ok;
+    return (await fetch(url, { signal: AbortSignal.timeout(2_000) })).ok;
   } catch {
     return false;
   }
 }
 
 /**
- * startApp starts the app and the WebDriver server that drives it on port,
- * adding them to procs as they start, and returns the session's
- * capabilities.
+ * startDriver starts a WebDriver server on a free port, adding it to procs,
+ * and waits for it to answer, returning its URL. The first msedgedriver
+ * start on a fresh CI runner can take more than 20 s, so it waits 45 s and,
+ * on failure, tries once more on a new port, which also covers a lost port
+ * race or a driver that hangs.
+ */
+async function startDriver(command: string, env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<string> {
+  let last: Error | undefined;
+  let output = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const port = await freePort();
+    const url = `http://127.0.0.1:${port}`;
+    const driver = spawn(command, [`--port=${port}`], { env, stdio: ["ignore", "pipe", "pipe"] });
+    let text = "";
+    for (const stream of [driver.stdout, driver.stderr]) {
+      stream?.on("data", (chunk: Buffer) => {
+        text += chunk.toString();
+        process.stderr.write(chunk);
+      });
+    }
+    procs.push(driver);
+    const started = Date.now();
+    try {
+      await until(
+        "the WebDriver server",
+        () => {
+          if (driver.exitCode !== null || driver.signalCode !== null) {
+            throw new Error(`the driver exited with ${driver.exitCode ?? driver.signalCode}`);
+          }
+          return reachable(`${url}/status`);
+        },
+        45_000,
+      );
+      process.stderr.write(`${command} answered after ${Date.now() - started} ms\n`);
+      return url;
+    } catch (err) {
+      last = err instanceof Error ? err : new Error(String(err));
+      output += text;
+      await stopProcess(driver);
+      procs.splice(procs.indexOf(driver), 1);
+    }
+  }
+  throw new Error(`${String(last)}${output.trim() ? `: ${output.trim()}` : ""}`);
+}
+
+/**
+ * startApp starts the app and the WebDriver server that drives it, adding
+ * them to procs as they start, and returns the driver's URL and the
+ * session's capabilities.
  *
  * WebKitWebDriver launches the app itself; Tauri allows automation when
  * TAURI_WEBVIEW_AUTOMATION is set (all tauri-driver does on Linux).
@@ -222,13 +268,16 @@ async function reachable(url: string): Promise<boolean> {
  * folder of its own while Tauri gives WebView2 the app's, attaches instead
  * to the port the app opens when FROSTMAIL_DEVTOOLS_PORT names one.
  */
-async function startApp(port: number, env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<Record<string, unknown>> {
-  const stdio: ["ignore", "inherit", "inherit"] = ["ignore", "inherit", "inherit"];
+async function startApp(
+  env: NodeJS.ProcessEnv,
+  procs: ChildProcess[],
+): Promise<{ url: string; capabilities: Record<string, unknown> }> {
   if (!WINDOWS) {
-    procs.push(
-      spawn("WebKitWebDriver", [`--port=${port}`], { env: { ...env, TAURI_WEBVIEW_AUTOMATION: "true" }, stdio }),
-    );
-    return { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } };
+    const url = await startDriver("WebKitWebDriver", { ...env, TAURI_WEBVIEW_AUTOMATION: "true" }, procs);
+    return {
+      url,
+      capabilities: { "webkitgtk:browserOptions": { binary: bin("frostmail-app"), args: ["--automation"] } },
+    };
   }
   const devtools = await freePort();
   const app = spawn(bin("frostmail-app"), [], {
@@ -249,8 +298,11 @@ async function startApp(port: number, env: NodeJS.ProcessEnv, procs: ChildProces
     const state = app.exitCode === null ? "is still running" : `exited with ${app.exitCode}`;
     throw new Error(`${String(err)}; the app ${state}${output ? `: ${output.trim()}` : ""}`);
   }
-  procs.push(spawn(process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe", [`--port=${port}`], { env, stdio }));
-  return { browserName: "webview2", "ms:edgeOptions": { debuggerAddress: `127.0.0.1:${devtools}` } };
+  const url = await startDriver(process.env.FROSTMAIL_EDGEDRIVER ?? "msedgedriver.exe", env, procs);
+  return {
+    url,
+    capabilities: { browserName: "webview2", "ms:edgeOptions": { debuggerAddress: `127.0.0.1:${devtools}` } },
+  };
 }
 
 /** stopProcess ends a process and, on Windows, what it started (the app's WebView2 processes). */
@@ -300,10 +352,7 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
 
 /** driveApp starts the app and a WebDriver session on it, adding their processes to procs. */
 async function driveApp(env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<Session> {
-  const port = await freePort();
-  const capabilities = await startApp(port, env, procs);
-  const url = `http://127.0.0.1:${port}`;
-  await until("the WebDriver server", () => reachable(`${url}/status`));
+  const { url, capabilities } = await startApp(env, procs);
   return Session.start(url, capabilities);
 }
 
