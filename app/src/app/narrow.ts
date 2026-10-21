@@ -1,28 +1,20 @@
 // Which layout the main window takes (docs/specs/ui.md, Narrow windows):
 // one pane at a time below 600 CSS pixels of width, the phone in lodge's
-// frame. app.css's `narrow:` variant uses the same query.
-import { useSyncExternalStore } from "react";
+// frame. The query and the hook are lodge-ui's (@frostyard/lodge-ui/theme);
+// app.css's `narrow:` variant uses the same query, and the pane rules are
+// the modules' own.
+import { useNarrow } from "@frostyard/lodge-ui/react";
+import { isNarrow as isNarrowNow, NARROW_QUERY } from "@frostyard/lodge-ui/theme";
 
-/** NARROW is the media query of a narrow window. */
-export const NARROW = "(max-width: 599px)";
-
-function query(): MediaQueryList | null {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia(NARROW) : null;
-}
+/** NARROW is the media query of a narrow window, from lodge-ui. */
+export const NARROW = NARROW_QUERY;
 
 /** isNarrow reports whether the window is narrow now. */
 export function isNarrow(): boolean {
-  return query()?.matches ?? false;
+  return isNarrowNow();
 }
 
-/** useNarrow reports whether the window is narrow, following its width. */
-export function useNarrow(): boolean {
-  return useSyncExternalStore((onChange) => {
-    const q = query();
-    q?.addEventListener("change", onChange);
-    return () => q?.removeEventListener("change", onChange);
-  }, isNarrow);
-}
+export { useNarrow };
 
 /** NarrowPane is the pane a narrow window shows in Mail. */
 export type NarrowPane = "mailboxes" | "list" | "reader";
