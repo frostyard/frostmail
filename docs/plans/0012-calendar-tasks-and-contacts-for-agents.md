@@ -13,11 +13,12 @@ waiting on the user, and waiting on others
   which made `/mcp/mail`, its scope and its tools.
 - **The contract:** [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts).
 
-Status (2026-10-19):
-- **Phase 1 is written.** ADR-0042 is still Proposed.
+Status (2026-10-21):
+- **Phase 1 is done.** The user accepted ADR-0042 on 2026-10-21.
 - **Phases 2 to 4 are built** (2026-10-19, frostyard/frostmail#82–#84),
   each with what it built and its evidence.
-- **Phase 5** waits on lodge's local agent socket
+- **Phase 5 is done** (2026-10-21): checked live over lodge's local agent
+  socket
   ([lodge ADR-0014](https://github.com/frostyard/lodge/blob/main/docs/adr/0014-agents-on-lodges-host-use-a-local-agent-socket.md)).
 
 ## Decisions for M8.5
@@ -193,6 +194,39 @@ Porter's design:
   - is cut off at once when its token is revoked.
 
   The evidence is recorded here.
+- **Result (2026-10-21): done,** in two runs.
+- **2026-10-19,** from Porter's own Phase 1 check on
+  lodge's host (lodge `bab1ed7`, mail `424e2a7`, showcase mail;
+  [Porter's roadmap](https://github.com/frostyard/porter/blob/main/docs/plans/0001-roadmap.md)),
+  as user `frostporter` on `/run/lodge/agent.sock` with an
+  `account=*;write` token:
+  - today's three events listed with their clash; nine tasks; the threads
+    waiting on the user, with a Message-ID and a `/mail/message/…` link;
+  - no send tool offered;
+  - the same token on lodge's tailnet route answered 401, and a user
+    outside `lodge-agents` could not open the socket.
+- **2026-10-20 (23:47 EDT),** on lodge's development build (lodge
+  `25d0d3b`, mail `f8a74d1`, showcase mail), with MCP over
+  `agent.sock`, an `account=*;write` token and an `account=2` token:
+  - `tools/list`: 19 tools under `account=*;write`, with no `send_draft`
+    and no event write; the 12 read tools under `account=2`.
+  - `list_events` from 2026-10-20: four events, and one clash ("Design
+    review" against "Interview: Backend").
+  - `list_tasks` due today: three tasks, one of them overdue; `overdue`:
+    one task.
+  - `threads_awaiting_reply`: ten threads, the VIP's first. The showcase
+    mail has no VIP, so the run added one to its generated data.
+  - `threads_awaiting_others`: one thread ("Re: Dinner Saturday?") with
+    `waiting_days` 0, and none at the default 5 days, because the showcase
+    mail is one day old.
+  - `create_task` "Call Iris" due Friday 2026-10-23: task 36, shown by
+    `list_tasks`, by `mailctl tasks ls` and in the web build's Tasks.
+  - Under `account=2`, `read_task`, `read_event` and `list_tasks` for
+    account 1's items answered `notFound`. Found: `read_thread` answered
+    "message 6 does not exist" without the `notFound:` prefix the others
+    have.
+  - `lodgectl token revoke` closed the open stream at once ("closed 1"),
+    and the next call and a new `initialize` answered 401.
 
 ## Later / ideas
 

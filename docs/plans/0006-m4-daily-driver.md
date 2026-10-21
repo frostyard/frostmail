@@ -224,6 +224,44 @@ Microsoft accounts are not in the user's set; their profile waits (Later).
   Search on the user's mail (about 45,000 messages, `tools/searchbench
   -runs 10`): p95 22.6 ms over the nine queries, worst 24.3 ms.
 
+### Result (2026-10-21)
+
+Recorded after the window, from the user's answers on 2026-10-21, the daily
+verify log that M5.5 scheduled (from 2026-10-15) and maild's journal:
+
+1. **Only client for 7 days, verify clean:** met. Frostmail was the user's
+   only mail client from 2026-10-08 to 2026-10-15, and no mail was lost
+   (the user's answer). Every verify run from 2026-10-15 that could reach
+   its account was clean.
+2. **OAuth survived the week:** **not met.**
+   - Google refused both Gmail accounts' refresh tokens with
+     `invalid_grant` ("Token has been expired or revoked") from 2026-10-16
+     (13:42 EDT for one account, 15:49 EDT for the other) until
+     2026-10-18. Verify reported both accounts unavailable on 2026-10-17
+     and 2026-10-18.
+   - The user did not sign the accounts in again. maild's database
+     records that its OAuth flow completed for both accounts at 20:30 and
+     20:31 EDT on 2026-10-18, about three minutes after the app was
+     opened: `needs_reauth` was cleared and the granted scopes were stored
+     in one transaction, which only a completed authorization does
+     (`internal/oauth/manager.go`, `finish`). How that flow started is
+     unknown. Verify was clean on both accounts from 2026-10-19.
+   - The user's Google OAuth client is in "Testing". *Inference, not
+     checked:* Google expires the refresh tokens of an app in "Testing"
+     after 7 days, and the refusals began about 7 days after the accounts'
+     M4.5 sign-in (2026-10-09). If so, OAuth fails again about every 7
+     days, next about 2026-10-25, until the client is "In production"
+     ([design/accounts.md](../design/accounts.md#setting-up-a-personal-google-client)).
+   - The app-password fallback works (2026-10-08).
+   - Carried to M6's Google sign-in work.
+3. **Search under 150 ms:** met (above).
+4. **Notify with the app closed, click opens:** met. A new-mail
+   notification, clicked with the app closed, opened the message (the
+   user's answer).
+5. **Replay tests:** met (above).
+
+M4 is closed on 2026-10-21, with exit 2 not met and carried to M6.
+
 ## Later / ideas
 
 - Microsoft (Outlook.com, Microsoft 365) profile and OAuth: when an

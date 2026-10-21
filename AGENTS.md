@@ -30,8 +30,8 @@ and each milestone's plan carries its own status. M8, mail in lodge
 - **Phase 7,** moving the user's mail to lodge's host, waits on the user.
 
 M8.5 ([plan 0012](docs/plans/0012-calendar-tasks-and-contacts-for-agents.md)),
-calendar, task and contact tools on `/mcp/mail` for Porter, is built; its live
-check waits on lodge's agent socket.
+calendar, task and contact tools on `/mcp/mail` for Porter, is built and
+checked live over lodge's agent socket (2026-10-21).
 
 ## Two kinds of agent work
 

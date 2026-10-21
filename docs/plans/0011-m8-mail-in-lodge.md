@@ -9,8 +9,8 @@ and depends on lodge's Phases 1 (the kit) and 2 (lodge v1). It runs after
 and leaves the friend's Windows install on its local maild.
 The contract is [specs/lodge-app.md](../specs/lodge-app.md).
 
-Status (2026-10-19):
-- **Phase 1 is written.** ADR-0041 is still Proposed.
+Status (2026-10-21):
+- **Phase 1 is done.** The user accepted ADR-0041 on 2026-10-21.
 - **Phases 2 to 6 are built,** merged on 2026-10-19 (#60–#68 and
   #71–#77) and pinned to lodge's `kit/v0.1.0` and `client/v0.1.0`. Each
   phase marks what it built and the evidence.

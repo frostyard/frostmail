@@ -1,6 +1,6 @@
 # 0041 — maild runs as a lodge app
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-10-21)
 - **Date:** 2026-10-18
 
 ## Context
@@ -150,7 +150,10 @@ machine reaches neither maild's disk nor its loopback.
   - sign-in, secrets, sync, rules, reminders and notifications.
 - **On a server, secrets and notifications change place.**
   - With no Secret Service, maild keeps secrets in its file store
-    (`/var/lib/frostmail/secrets.json`, 0600, owner `frostmail`).
+    (`/var/lib/frostmail/secrets.json`, 0600, owner `frostmail`). Whether
+    that stays, or a sealed store (systemd credentials, a TPM) replaces
+    it, is [plan 0011](../plans/0011-m8-mail-in-lodge.md)'s open question,
+    decided before Phase 7.
   - With no session bus, maild sends no notifications itself. A client
     that receives its events shows them.
 - **Google sign-in from another machine is open.** The loopback redirect
