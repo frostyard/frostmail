@@ -12,7 +12,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/frostyard/clix v0.4.0
-	github.com/frostyard/lodge/kit v0.2.1-0.20261021100231-fbbe1b5f3985
+	github.com/frostyard/lodge/kit v0.3.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.10.2
