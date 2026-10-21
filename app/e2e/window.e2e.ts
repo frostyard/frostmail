@@ -3,6 +3,8 @@
 // WebDriver actions endpoint. WebView2 has browser accelerator keys, such
 // as Ctrl+R, Ctrl+F and Ctrl+N, that the app must take before the browser
 // does; a marker in the page proves at the end that no key reloaded it.
+// WebView2 keeps a minimized window's page visible, so the chrome test asks
+// the window plugin whether the window is minimized.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type App, fixture, launch, tempDir, WINDOWS } from "./harness";
@@ -57,6 +59,10 @@ function button(s: Session, name: string): Promise<Element> {
   });
 }
 
+/** MINIMIZED asks Tauri's window plugin whether the main window is minimized. */
+const MINIMIZED = `const done = arguments[arguments.length - 1];
+  window.__TAURI_INTERNALS__.invoke("plugin:window|is_minimized", { label: "main" }).then((v) => done(v), (e) => done("error: " + e));`;
+
 /** row waits for a message row by index. */
 function row(s: Session, index: number): Promise<Element> {
   return s.waitFor(`message row ${index}`, async () => (await s.findAll('[role="option"]'))[index]);
@@ -81,6 +87,8 @@ describe("the window", () => {
     // The window controls stay in the window at this width; Linux checks
     // the same boxes at its 1200-pixel window.
     await controlsInside(s);
+    // The window plugin answers through the page's internals on Linux too.
+    expect(await s.executeAsync<boolean>(MINIMIZED)).toBe(false);
 
     await s.click(await row(s, 0));
     await s.waitFor("the first row to be selected", () => rowSelected(s, 0));
@@ -146,10 +154,13 @@ describe("the window", () => {
     await s.click(await button(s, "Restore"));
     await button(s, "Maximize");
 
-    // Minimize last: the window hides and stops taking keys.
+    // Minimize last: the window leaves the screen, so ask the window plugin.
     await s.click(await button(s, "Minimize"));
-    await s.waitFor("the window to hide", () =>
-      s.execute<boolean>('return document.visibilityState === "hidden" || document.hidden'),
-    );
+    const state = await s.waitFor("the window to minimize", async () => {
+      const v = await s.executeAsync<boolean | string>(MINIMIZED);
+      return typeof v === "string" || v ? v : undefined;
+    });
+    if (typeof state === "string" && state.startsWith("error:")) throw new Error(state);
+    expect(state).toBe(true);
   });
 });
