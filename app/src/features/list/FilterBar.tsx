@@ -1,7 +1,6 @@
+import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-
-import { ContextMenu } from "../menu/ContextMenu";
 
 /** ListFilter is the choice that narrows the message list. */
 export type ListFilter = "all" | "unread" | "flagged" | "attachments" | "toMe" | "ccMe" | "vips";
