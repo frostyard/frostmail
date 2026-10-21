@@ -1,4 +1,5 @@
 // Details and people for the selected event.
+import { IconButton } from "@frostyard/lodge-ui/react";
 import { Check, CircleHelp, Pencil, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { alarmText, answerText, calendarColor, dateText, describeRecurrence, timeRange } from "../../lib/eventText";
@@ -93,28 +94,8 @@ export function EventPane({ event, calendar, timeZone, locale, onPerson, onEdit,
             <div className="text-[12px] font-semibold leading-4 text-flag-1">Cancelled</div>
           )}
         </div>
-        {onEdit && (
-          <button
-            type="button"
-            aria-label="Edit Event"
-            title="Edit Event"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive"
-            onClick={onEdit}
-          >
-            <Pencil size={16} />
-          </button>
-        )}
-        {onDelete && (
-          <button
-            type="button"
-            aria-label="Delete Event"
-            title="Delete Event"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive"
-            onClick={onDelete}
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
+        {onEdit && <IconButton label="Edit Event" icon={Pencil} onClick={onEdit} />}
+        {onDelete && <IconButton label="Delete Event" icon={Trash2} onClick={onDelete} />}
       </header>
       <div className="mb-5 select-text text-[13px] leading-[18px]">
         <div>{dateText(event, timeZone, locale)}</div>

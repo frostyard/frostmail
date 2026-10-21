@@ -6,6 +6,8 @@
 // pane's controls instead, with the message actions in a bar at the foot
 // (docs/specs/ui.md, Narrow windows). The planner's containers decide what
 // each command does.
+
+import { IconButton } from "@frostyard/lodge-ui/react";
 import {
   Archive,
   ChevronLeft,
@@ -190,6 +192,12 @@ interface ToolbarButtonProps {
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
+/**
+ * ToolbarButton is the toolbar's icon button where lodge-ui's IconButton
+ * does not fit: a menu button (aria-haspopup), a class of its own (a narrow
+ * window's 44px touch bar and its 20px icons), or an icon node that
+ * animates. The plain ones are lodge-ui's IconButton.
+ */
 function ToolbarButton(props: ToolbarButtonProps) {
   const { label, shortcut, icon, disabled, hasMenu, onClick, className } = props;
   return (
@@ -228,10 +236,10 @@ function SidebarSegment({
       className="flex h-full shrink-0 items-center gap-1 px-2"
       style={sidebarWidth > 0 ? { width: `${sidebarWidth + 1}px` } : undefined}
     >
-      <ToolbarButton
+      <IconButton
         label="Toggle Sidebar"
-        shortcut="Ctrl+Alt+S"
-        icon={<PanelLeft size={16} />}
+        keys="Ctrl+Alt+S"
+        icon={PanelLeft}
         onClick={() => onCommand({ kind: "toggleSidebar" })}
       />
       {mode === "mail" && (
@@ -275,18 +283,18 @@ function ListSegment({
         <span className="text-toolbar-subtitle truncate text-secondary">{subtitle}</span>
       </div>
       {mode === "people" && (
-        <ToolbarButton
+        <IconButton
           label="New Contact"
-          shortcut="Ctrl+N"
-          icon={<UserPlus size={16} />}
+          keys="Ctrl+N"
+          icon={UserPlus}
           disabled={!people?.canCreate}
           onClick={() => onCommand({ kind: "newContact" })}
         />
       )}
-      <ToolbarButton
+      <IconButton
         label="New Message"
-        shortcut={mode === "people" ? undefined : "Ctrl+N"}
-        icon={<SquarePen size={16} />}
+        {...(mode === "people" ? {} : { keys: "Ctrl+N" })}
+        icon={SquarePen}
         onClick={() => onCommand({ kind: "compose" })}
       />
     </div>
@@ -324,17 +332,28 @@ function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, on
   const className = bar ? BAR_CLASS : undefined;
   return (
     <>
-      {MESSAGE_ACTIONS.map(({ label, shortcut, icon: Icon, kind }) => (
-        <ToolbarButton
-          key={kind}
-          label={label}
-          shortcut={shortcut}
-          className={className}
-          icon={<Icon size={size} />}
-          disabled={none || (kind === "archive" && !canArchive)}
-          onClick={() => onCommand({ kind })}
-        />
-      ))}
+      {MESSAGE_ACTIONS.map(({ label, shortcut, icon: Icon, kind }) =>
+        bar ? (
+          <ToolbarButton
+            key={kind}
+            label={label}
+            shortcut={shortcut}
+            className={className}
+            icon={<Icon size={size} />}
+            disabled={none || (kind === "archive" && !canArchive)}
+            onClick={() => onCommand({ kind })}
+          />
+        ) : (
+          <IconButton
+            key={kind}
+            label={label}
+            keys={shortcut}
+            icon={Icon}
+            disabled={none || (kind === "archive" && !canArchive)}
+            onClick={() => onCommand({ kind })}
+          />
+        ),
+      )}
       <ToolbarButton
         label="Flag"
         shortcut="Ctrl+Shift+L"
@@ -344,14 +363,24 @@ function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, on
         hasMenu
         onClick={onOpenMenu("flag")}
       />
-      <ToolbarButton
-        label={selection.seen ? "Mark as Unread" : "Mark as Read"}
-        shortcut="Ctrl+Shift+U"
-        className={className}
-        icon={selection.seen ? <Mail size={size} /> : <MailOpen size={size} />}
-        disabled={none}
-        onClick={() => onCommand({ kind: "toggleRead" })}
-      />
+      {bar ? (
+        <ToolbarButton
+          label={selection.seen ? "Mark as Unread" : "Mark as Read"}
+          shortcut="Ctrl+Shift+U"
+          className={className}
+          icon={selection.seen ? <Mail size={size} /> : <MailOpen size={size} />}
+          disabled={none}
+          onClick={() => onCommand({ kind: "toggleRead" })}
+        />
+      ) : (
+        <IconButton
+          label={selection.seen ? "Mark as Unread" : "Mark as Read"}
+          keys="Ctrl+Shift+U"
+          icon={selection.seen ? Mail : MailOpen}
+          disabled={none}
+          onClick={() => onCommand({ kind: "toggleRead" })}
+        />
+      )}
       <ToolbarButton
         label="Move"
         className={className}
@@ -410,29 +439,24 @@ function ReaderSegment({
       )}
       <div data-tauri-drag-region className="flex-1" />
       {mode === "mail" && (
-        <ToolbarButton
+        <IconButton
           label="To-Do Bar"
-          icon={<PanelRight size={16} />}
+          icon={PanelRight}
           pressed={todoBar ?? false}
           onClick={() => onCommand({ kind: "toggleTodoBar" })}
         />
       )}
       {!fixedPane && search}
-      <ToolbarButton
-        label="Settings"
-        icon={<Settings size={16} />}
-        shortcut="Ctrl+,"
-        onClick={() => onCommand({ kind: "settings" })}
-      />
+      <IconButton label="Settings" icon={Settings} keys="Ctrl+," onClick={() => onCommand({ kind: "settings" })} />
       {windowControls && (
         <>
-          <ToolbarButton label="Minimize" icon={<Minus size={16} />} onClick={() => onCommand({ kind: "minimize" })} />
-          <ToolbarButton
+          <IconButton label="Minimize" icon={Minus} onClick={() => onCommand({ kind: "minimize" })} />
+          <IconButton
             label={maximized ? "Restore" : "Maximize"}
-            icon={maximized ? <Copy size={16} /> : <Square size={16} />}
+            icon={maximized ? Copy : Square}
             onClick={() => onCommand({ kind: "toggleMaximize" })}
           />
-          <ToolbarButton label="Close" icon={<X size={16} />} onClick={() => onCommand({ kind: "close" })} />
+          <IconButton label="Close" icon={X} onClick={() => onCommand({ kind: "close" })} />
         </>
       )}
     </div>
@@ -450,10 +474,10 @@ function CalendarSegment({
   const views: CalendarView[] = ["day", "week", "month"];
   return (
     <div data-segment="calendar" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
-      <ToolbarButton
+      <IconButton
         label="New Event"
-        shortcut="Ctrl+N"
-        icon={<Plus size={16} />}
+        keys="Ctrl+N"
+        icon={Plus}
         disabled={calendar.canCreate === false}
         onClick={() => onCommand({ kind: "newEvent" })}
       />
@@ -464,14 +488,14 @@ function CalendarSegment({
       >
         Today
       </button>
-      <ToolbarButton
+      <IconButton
         label={`Previous ${labels[calendar.view]}`}
-        icon={<ChevronLeft size={16} />}
+        icon={ChevronLeft}
         onClick={() => onCommand({ kind: "previousPeriod" })}
       />
-      <ToolbarButton
+      <IconButton
         label={`Next ${labels[calendar.view]}`}
-        icon={<ChevronRight size={16} />}
+        icon={ChevronRight}
         onClick={() => onCommand({ kind: "nextPeriod" })}
       />
       <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">
@@ -500,10 +524,10 @@ function CalendarSegment({
 function TasksSegment({ tasks, onCommand }: { tasks: ToolbarTasks; onCommand: ToolbarProps["onCommand"] }) {
   return (
     <div data-segment="tasks" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
-      <ToolbarButton
+      <IconButton
         label="New Task"
-        shortcut="Ctrl+N"
-        icon={<Plus size={16} />}
+        keys="Ctrl+N"
+        icon={Plus}
         disabled={tasks.canCreate === false}
         onClick={() => onCommand({ kind: "newTask" })}
       />
