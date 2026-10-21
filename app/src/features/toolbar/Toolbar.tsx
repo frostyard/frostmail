@@ -429,13 +429,19 @@ function ReaderSegment({
       style={fixedPane ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
     >
       {mode === "mail" && (
-        <MessageActions
-          selection={selection}
-          canArchive={canArchive}
-          moveTargets={moveTargets}
-          onCommand={onCommand}
-          onOpenMenu={onOpenMenu}
-        />
+        // The message actions give way last: too little room clips them from
+        // their end, Move first, and their commands stay on the keyboard.
+        <div data-message-actions data-tauri-drag-region className="flex min-w-0 items-center overflow-hidden">
+          <div data-tauri-drag-region className="flex w-max items-center gap-1">
+            <MessageActions
+              selection={selection}
+              canArchive={canArchive}
+              moveTargets={moveTargets}
+              onCommand={onCommand}
+              onOpenMenu={onOpenMenu}
+            />
+          </div>
+        </div>
       )}
       <div data-tauri-drag-region className="flex-1" />
       {mode === "mail" && (
@@ -446,19 +452,29 @@ function ReaderSegment({
           onClick={() => onCommand({ kind: "toggleTodoBar" })}
         />
       )}
-      {!fixedPane && search}
-      <IconButton label="Settings" icon={Settings} keys="Ctrl+," onClick={() => onCommand({ kind: "settings" })} />
-      {windowControls && (
-        <>
-          <IconButton label="Minimize" icon={Minus} onClick={() => onCommand({ kind: "minimize" })} />
-          <IconButton
-            label={maximized ? "Restore" : "Maximize"}
-            icon={maximized ? Copy : Square}
-            onClick={() => onCommand({ kind: "toggleMaximize" })}
-          />
-          <IconButton label="Close" icon={X} onClick={() => onCommand({ kind: "close" })} />
-        </>
+      {!fixedPane && (
+        // The search shrinks before the message actions (1000 to 1), from
+        // 220 to 120. Below that, the room beside the To-Do Bar button,
+        // Settings and the window controls, with the gaps (168), is all it
+        // can give: no width pushes the window controls out of the window.
+        <div data-search-slot className="w-[220px] min-w-[min(120px,calc(100%_-_168px))] shrink-[1000]">
+          {search}
+        </div>
       )}
+      <div data-window-controls data-tauri-drag-region className="flex shrink-0 items-center gap-1">
+        <IconButton label="Settings" icon={Settings} keys="Ctrl+," onClick={() => onCommand({ kind: "settings" })} />
+        {windowControls && (
+          <>
+            <IconButton label="Minimize" icon={Minus} onClick={() => onCommand({ kind: "minimize" })} />
+            <IconButton
+              label={maximized ? "Restore" : "Maximize"}
+              icon={maximized ? Copy : Square}
+              onClick={() => onCommand({ kind: "toggleMaximize" })}
+            />
+            <IconButton label="Close" icon={X} onClick={() => onCommand({ kind: "close" })} />
+          </>
+        )}
+      </div>
     </div>
   );
 }

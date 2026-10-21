@@ -225,7 +225,7 @@ function useToolbarCommand(props: ToolbarContainerProps) {
   );
 }
 
-function ToolbarSearch({ searchRef, fill }: Pick<ToolbarContainerProps, "searchRef"> & { fill: boolean }) {
+function ToolbarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) {
   const ui = useUI();
   const inPeople = ui.module === "people";
   const onSearch = (text: string) => {
@@ -237,7 +237,7 @@ function ToolbarSearch({ searchRef, fill }: Pick<ToolbarContainerProps, "searchR
     else ui.commitSearch(text);
   };
   return (
-    <div inert={inPeople && ui.peopleEditing !== null} className={fill ? "w-full" : undefined}>
+    <div inert={inPeople && ui.peopleEditing !== null} className="w-full">
       <SearchField
         value={inPeople ? ui.peopleSearchDraft : ui.searchDraft}
         placeholder={inPeople ? "Search Contacts" : "Search"}
@@ -245,7 +245,6 @@ function ToolbarSearch({ searchRef, fill }: Pick<ToolbarContainerProps, "searchR
         onSearch={onSearch}
         onClear={inPeople ? ui.clearPeopleSearch : ui.clearSearch}
         inputRef={searchRef}
-        fill={fill}
       />
     </div>
   );
@@ -311,7 +310,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
       moveTargets={data.moveTargets}
       maximized={maximized}
       onCommand={onCommand}
-      search={<ToolbarSearch searchRef={props.searchRef} fill={props.narrow !== undefined} />}
+      search={<ToolbarSearch searchRef={props.searchRef} />}
     />
   );
 }

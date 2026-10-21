@@ -125,7 +125,11 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     (`Settings`, Ctrl+,) and the window controls (minimize,
     maximize/restore, close: 28 × 28 targets, 16px icons). The window
     controls are the desktop app's: the web build has none, since the
-    browser or lodge's shell holds the window.
+    browser or lodge's shell holds the window. In a window too narrow for
+    the segment, the search field shrinks from 220 to 120, then the message
+    actions are clipped from their end (Move first); at the smallest widths
+    the search gives up the rest of the room it needs. Settings and the
+    window controls never shrink and stay in the window.
   - Buttons are 28 × 28 with 16px Lucide icons in `--text-secondary`;
     hover background `--selection-inactive`; disabled at 40% opacity. Every
     button has a tooltip naming it and its shortcut.

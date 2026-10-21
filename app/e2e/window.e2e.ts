@@ -3,12 +3,9 @@
 // WebDriver actions endpoint. WebView2 has browser accelerator keys, such
 // as Ctrl+R, Ctrl+F and Ctrl+N, that the app must take before the browser
 // does; a marker in the page proves at the end that no key reloaded it.
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { type App, BUILD, fixture, launch, tempDir, WINDOWS } from "./harness";
+import { type App, fixture, launch, tempDir, WINDOWS } from "./harness";
 import { type Element, Key, type Session } from "./webdriver";
 
 let app: App | undefined;
@@ -65,11 +62,25 @@ function row(s: Session, index: number): Promise<Element> {
   return s.waitFor(`message row ${index}`, async () => (await s.findAll('[role="option"]'))[index]);
 }
 
+/** controlsInside fails, naming the bad box, unless each window control is in the viewport. */
+async function controlsInside(s: Session): Promise<void> {
+  const outside = await s.execute<string>(
+    `const bad = [...document.querySelectorAll('button[aria-label="Minimize"], button[aria-label="Maximize"], button[aria-label="Restore"], button[aria-label="Close"]')]
+       .map((el) => ({ name: el.getAttribute("aria-label"), right: el.getBoundingClientRect().right }))
+       .filter((b) => b.right > window.innerWidth);
+     return bad.map((b) => b.name + " at right " + Math.round(b.right) + " > " + window.innerWidth).join("; ");`,
+  );
+  expect(outside, "window controls outside the window").toBe("");
+}
+
 describe("the window", () => {
   it("the keyboard map", async () => {
     if (!app) throw new Error("app did not start");
     const s = app.session;
     const main = await s.window();
+    // The window controls stay in the window at this width; Linux checks
+    // the same boxes at its 1200-pixel window.
+    await controlsInside(s);
 
     await s.click(await row(s, 0));
     await s.waitFor("the first row to be selected", () => rowSelected(s, 0));
@@ -117,27 +128,9 @@ describe("the window", () => {
   it.skipIf(!WINDOWS)("the window chrome", async () => {
     if (!app) throw new Error("app did not start");
     const s = app.session;
-    // The facts of the toolbar's window controls, before any click: their
-    // boxes and visibility, and the window's and the screen's sizes.
-    const facts = await s.execute<Record<string, unknown>>(`const names = ["Minimize", "Maximize", "Close"];
-      const each = (el) => {
-        const r = el.getBoundingClientRect();
-        return { x: r.x, y: r.y, width: r.width, height: r.height,
-          visible: el.checkVisibility ? el.checkVisibility() : r.width > 0 && r.height > 0 };
-      };
-      return {
-        buttons: names.map((name) => {
-          const found = [...document.querySelectorAll('button[aria-label="' + name + '"]')];
-          return { name, count: found.length, buttons: found.map(each) };
-        }),
-        innerWidth: window.innerWidth, innerHeight: window.innerHeight,
-        outerWidth: window.outerWidth, outerHeight: window.outerHeight,
-        screenWidth: screen.width, screenHeight: screen.height,
-        availWidth: screen.availWidth, availHeight: screen.availHeight,
-        devicePixelRatio: window.devicePixelRatio,
-      };`);
-    process.stderr.write(`window chrome: ${JSON.stringify(facts)}\n`);
-    writeFileSync(join(BUILD, "e2e-window.png"), Buffer.from(await s.screenshot(), "base64"));
+    // A narrow window must not push the undecorated window's controls out of
+    // its right edge, where no pointer can reach them.
+    await controlsInside(s);
     for (const name of ["Minimize", "Maximize", "Close"]) await button(s, name);
 
     const before = await s.execute<number>("return window.outerWidth");
