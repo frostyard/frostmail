@@ -1,4 +1,6 @@
 // Calendar panes share the main window's sidebar width.
+
+import { Splitter } from "@frostyard/lodge-ui/react";
 import { forwardRef, type RefObject, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { type Pane, useUI } from "../data/stores";
@@ -13,6 +15,7 @@ import { ModuleBar } from "../features/sidebar/ModuleBar";
 import { addDays, monthGrid, viewRange, zoned } from "../lib/calendarDates";
 import { canMove, dropFields, type Range, shiftedDays } from "../lib/eventDrag";
 import { withNotify } from "../lib/notify";
+import { panePercent } from "../lib/panes";
 import type {
   CalendarDeleteParams,
   CalendarEvent,
@@ -24,7 +27,6 @@ import { ContactCardContainer, type ContactCardContainerProps } from "./ContactC
 import { calendarPane, useNarrow } from "./narrow";
 import { openEvent } from "./openEvent";
 import { rememberRestore } from "./pimUndo";
-import { Splitter } from "./Splitter";
 import type { CalendarData } from "./useCalendar";
 
 /** CalendarHandle lets MainWindow focus panes, scroll hours and edit or delete the selection. */
@@ -349,7 +351,14 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
             <div className="min-h-0 flex-1 overflow-y-auto">{sidebarList}</div>
             <ModuleBar modules={["mail", "calendar", "people", "tasks"]} current={ui.module} onSelect={ui.setModule} />
           </fieldset>
-          <Splitter label="Resize sidebar" onResize={props.resizeSidebar} onEnd={props.endDrag} />
+          <Splitter
+            orientation="vertical"
+            label="Resize sidebar"
+            value={panePercent(ui.sidebarWidth)}
+            onStart={props.endDrag}
+            onMove={props.resizeSidebar}
+            onEnd={props.endDrag}
+          />
         </>
       )}
       <section
