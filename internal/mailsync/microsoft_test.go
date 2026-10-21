@@ -14,12 +14,12 @@ import (
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/frostyard/frostmail/internal/smtpx/smtpxtest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
-// newMicrosoftHarness is maild with a Microsoft account, cy@hotmail.com,
-// signed in with the built-in client through localhost, on memory IMAP and
-// SMTP servers that take the token "tok-1".
-func newMicrosoftHarness(t *testing.T) *sendHarness {
+// startMicrosoft is maild with a Microsoft account, cy@hotmail.com, not yet
+// signed in, on memory IMAP and SMTP servers that take the token "tok-1".
+func startMicrosoft(t *testing.T) *sendHarness {
 	t.Helper()
 	mem := imapxtest.StartMemFullOAuth(t, "tok-1")
 	sm := smtpxtest.Start(t, "unused")
@@ -47,8 +47,24 @@ func newMicrosoftHarness(t *testing.T) *sendHarness {
 	}
 	h := &sendHarness{harness: &harness{t: t, srv: srv, c: c, acct: a.ID}, mem: mem, smtp: sm}
 	h.waitPhase(api.SyncPhaseUnauthorized)
+	return h
+}
+
+// newMicrosoftHarness is startMicrosoft signed in and idle.
+func newMicrosoftHarness(t *testing.T) *sendHarness {
+	t.Helper()
+	h := startMicrosoft(t)
+	h.signInMicrosoft()
+	h.waitPhase(api.SyncPhaseIdle)
+	return h
+}
+
+// signInMicrosoft runs account.authorize and the browser's redirect.
+func (h *sendHarness) signInMicrosoft() {
+	t, c, ctx := h.t, h.c, h.t.Context()
+	t.Helper()
 	// No client was set: the built-in one signs in, through localhost.
-	res, err := c.Account().Authorize(ctx, &api.AccountAuthorizeParams{ID: a.ID})
+	res, err := c.Account().Authorize(ctx, &api.AccountAuthorizeParams{ID: h.acct})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,8 +77,42 @@ func newMicrosoftHarness(t *testing.T) *sendHarness {
 		t.Fatal(err)
 	}
 	_ = resp.Body.Close()
+}
+
+// TestOutlookTransientLoginRetries checks Outlook's "User is authenticated
+// but not connected.": the token is good and the mailbox is away for a
+// while, so sync retries and never asks for a sign-in.
+func TestOutlookTransientLoginRetries(t *testing.T) {
+	h := startMicrosoft(t)
+	h.mem.Unavailable.Store(3)
+	h.signInMicrosoft()
+	st := h.waitPhase(api.SyncPhaseOffline)
+	if st.Error == nil || !strings.Contains(*st.Error, "not connected") {
+		t.Fatalf("offline status = %+v", st)
+	}
 	h.waitPhase(api.SyncPhaseIdle)
-	return h
+	got, err := h.c.Account().Get(t.Context(), &api.AccountGetParams{ID: h.acct})
+	if err != nil || !got.SignedIn {
+		t.Fatalf("account = %+v, %v; want signed in", got, err)
+	}
+}
+
+// TestLoginClearsSignInAgain checks that a login the server takes clears
+// "Sign in again", which an earlier refusal left.
+func TestLoginClearsSignInAgain(t *testing.T) {
+	h := newMicrosoftHarness(t)
+	ctx := t.Context()
+	if err := h.srv.DB.Tx(ctx, func(tx *store.Tx) error { return tx.SetNeedsReauth(ctx, h.acct, true) }); err != nil {
+		t.Fatal(err)
+	}
+	// A changed account reconnects.
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, Notify: ptr(false)}); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 5*time.Second, "signed in again", func() bool {
+		got, err := h.c.Account().Get(ctx, &api.AccountGetParams{ID: h.acct})
+		return err == nil && got.SignedIn
+	})
 }
 
 // TestMicrosoftAccountKeepsColorsLocal checks the profile's NoKeywords:
