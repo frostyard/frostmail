@@ -42,6 +42,13 @@ differs by no more than two runs of the same code do. ADR-0009 leaves the
 adding of a dependency to the planner, who approved this one on
 2026-10-21.
 
+The toolbar's window buttons (Minimize, Maximize or Restore, and Close) are
+the package's `WindowControls` too, in its default look: the toolbar draws
+Settings and, in the desktop app, that group, and the DOM differs from the
+buttons it replaced by one wrapper, `role="group"`, `aria-label="Window
+controls"`. The compose window's own toolbar keeps its Close button, which
+always shows and whose commands are strings, not a `WindowCommand`.
+
 Presentational components take data and callbacks as props, hold only
 transient state (hover, an open menu), and import nothing from `data/` or
 `rpc/` except API types. Containers in `app/` wire them to stores and the

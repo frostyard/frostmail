@@ -85,6 +85,14 @@ describe("Toolbar in a narrow window", () => {
     for (const name of ["Settings", "Minimize", "Maximize", "Close"]) {
       expect(group.contains(screen.getByRole("button", { name }))).toBe(true);
     }
+    // The three window buttons are the package's WindowControls: a named group inside this one, which keeps Settings.
+    const controls = screen.getByRole("group", { name: "Window controls" });
+    expect(group.contains(controls)).toBe(true);
+    expect(controls.className).toContain("shrink-0");
+    expect(controls.contains(screen.getByRole("button", { name: "Settings" }))).toBe(false);
+    for (const name of ["Minimize", "Maximize", "Close"]) {
+      expect(controls.contains(screen.getByRole("button", { name }))).toBe(true);
+    }
   });
 
   it("puts the search before that group, to shrink from 220", () => {
