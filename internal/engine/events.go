@@ -90,8 +90,22 @@ func (c calendarService) Create(ctx context.Context, p *api.CalendarCreateParams
 }
 
 // Update changes an event, one occurrence of a series, or a series from
-// an occurrence on (ADR-0031), and moves it to another calendar.
+// an occurrence on (ADR-0031), and moves it to another calendar. An
+// event a sync pass replaced since it was read is read again, up to
+// writeAttempts times.
 func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams) (*api.EventWrite, error) {
+	return retryWrite("the event", func() (*api.EventWrite, error) {
+		w, err := c.prepareUpdate(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		return c.writeUpdate(ctx, w)
+	})
+}
+
+// prepareUpdate reads the event and builds its update, which writeUpdate
+// stores.
+func (c calendarService) prepareUpdate(ctx context.Context, p *api.CalendarUpdateParams) (*eventWrite, error) {
 	change, move := eventChangeOf(p.Fields)
 	t, err := c.writableEvent(ctx, p.ID)
 	if err != nil {
@@ -141,16 +155,34 @@ func (c calendarService) Update(ctx context.Context, p *api.CalendarUpdateParams
 	if err != nil {
 		return nil, err
 	}
-	w := eventWrite{c: c, t: t, raw: raw, split: split, edit: edit, target: target, restoreID: restoreID}
+	return &eventWrite{c: c, t: t, raw: raw, split: split, edit: edit, target: target, restoreID: restoreID}, nil
+}
+
+// writeUpdate stores a prepared update. It returns errObjectChanged when a
+// sync pass replaced or removed the event's source since it was read.
+func (c calendarService) writeUpdate(ctx context.Context, w *eventWrite) (*api.EventWrite, error) {
 	if err := c.DB.Tx(ctx, func(tx *store.Tx) error { return w.run(ctx, tx) }); err != nil {
 		return nil, err
 	}
-	return c.eventWritten(ctx, restoreID, w.accounts(), w.resultUID(), w.resultRecurrenceID(), w.resultCalendar())
+	return c.eventWritten(ctx, w.restoreID, w.accounts(), w.resultUID(), w.resultRecurrenceID(), w.resultCalendar())
 }
 
 // Delete deletes an event, one occurrence of a series, or a series from
-// an occurrence on.
+// an occurrence on. An event a sync pass replaced since it was read is
+// read again, up to writeAttempts times.
 func (c calendarService) Delete(ctx context.Context, p *api.CalendarDeleteParams) (*api.EventWrite, error) {
+	return retryWrite("the event", func() (*api.EventWrite, error) {
+		w, err := c.prepareDelete(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		return c.writeDelete(ctx, w)
+	})
+}
+
+// prepareDelete reads the event and builds its deletion, which writeDelete
+// stores.
+func (c calendarService) prepareDelete(ctx context.Context, p *api.CalendarDeleteParams) (*eventWrite, error) {
 	t, err := c.writableEvent(ctx, p.ID)
 	if err != nil {
 		return nil, err
@@ -178,14 +210,19 @@ func (c calendarService) Delete(ctx context.Context, p *api.CalendarDeleteParams
 	if err != nil {
 		return nil, err
 	}
-	w := eventWrite{c: c, t: t, raw: raw, edit: edit, restoreID: restoreID}
+	return &eventWrite{c: c, t: t, raw: raw, edit: edit, restoreID: restoreID}, nil
+}
+
+// writeDelete stores a prepared deletion. It returns errObjectChanged when
+// a sync pass replaced or removed the event's source since it was read.
+func (c calendarService) writeDelete(ctx context.Context, w *eventWrite) (*api.EventWrite, error) {
 	if err := c.DB.Tx(ctx, func(tx *store.Tx) error { return w.run(ctx, tx) }); err != nil {
 		return nil, err
 	}
 	if c.PIM != nil {
-		c.PIM.Kick(t.col.AccountID)
+		c.PIM.Kick(w.t.col.AccountID)
 	}
-	return &api.EventWrite{RestoreID: restoreID}, nil
+	return &api.EventWrite{RestoreID: w.restoreID}, nil
 }
 
 // Restore writes back what an event write replaced (ADR-0032).
@@ -284,7 +321,15 @@ type eventWrite struct {
 	moved     store.Object
 }
 
+// run stores the write. It reads the object again first, so that the ETag
+// and href a pass wrote since the read are the ones it queues on, and
+// returns errObjectChanged when the source is not the one that was read.
 func (w *eventWrite) run(ctx context.Context, tx *store.Tx) error {
+	current, err := currentObject(ctx, tx, w.t.obj)
+	if err != nil {
+		return err
+	}
+	w.t.obj = current
 	t := w.t
 	objects := []store.RestoreObject{{CollectionID: t.col.ID, Href: t.obj.Href, UID: t.obj.UID, Raw: t.obj.Raw}}
 	var splitObj store.Object
