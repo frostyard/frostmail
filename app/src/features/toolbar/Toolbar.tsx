@@ -6,9 +6,18 @@
 // pane's controls instead, with the message actions in a bar at the foot
 // (docs/specs/ui.md, Narrow windows). The planner's containers decide what
 // each command does. Message actions that do not fit move into a "»" menu
-// from their end, as Mail.app does.
+// from their end, as Mail.app does. On Windows the window controls are
+// Windows' caption buttons, full height at the strip's right edge
+// (ADR-0038).
 
-import { Menu as ContextMenu, IconButton, type MenuEntry as MenuItem, WindowControls } from "@frostyard/lodge-ui/react";
+import {
+  Menu as ContextMenu,
+  IconButton,
+  type MenuEntry as MenuItem,
+  WindowControls,
+  type WindowPlatform,
+  windowPlatform,
+} from "@frostyard/lodge-ui/react";
 import {
   Archive,
   ChevronLeft,
@@ -119,6 +128,8 @@ export interface ToolbarProps {
   narrow?: ToolbarNarrow;
   /** Minimize, Maximize and Close; only the desktop app's windows have them (default true). */
   windowControls?: boolean;
+  /** Whose window buttons to draw (default WINDOW_PLATFORM, the navigator's); tests set it. */
+  platform?: WindowPlatform;
   flagNames?: readonly string[];
   mode?: "mail" | "people" | "calendar" | "tasks";
   calendar?: ToolbarCalendar;
@@ -147,6 +158,12 @@ interface MenuState {
   x: number;
   y: number;
 }
+
+// WINDOW_PLATFORM is whose title bar buttons the window controls draw: Windows'
+// caption buttons on Windows, lodge-ui's own look on Linux (docs/specs/ui.md,
+// Toolbar; ADR-0038). It is read once, at load: the platform cannot change
+// while the app runs.
+const WINDOW_PLATFORM: WindowPlatform = windowPlatform();
 
 const BUTTON_CLASS =
   "flex size-7 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
@@ -656,10 +673,12 @@ function ReaderSegment({
   paneWidth,
   todoBar,
   windowControls,
+  platform,
 }: {
   paneWidth?: number;
   todoBar?: boolean;
   windowControls: boolean;
+  platform: WindowPlatform;
   mode: "mail" | "people" | "calendar" | "tasks";
   selection: ToolbarSelection;
   canArchive: boolean;
@@ -672,6 +691,9 @@ function ReaderSegment({
   onSelect: (id: string) => void;
 }) {
   const fixedPane = mode === "calendar" || mode === "tasks";
+  // Windows draws its caption buttons as the strip's full height, to its right
+  // edge: the segment keeps no right padding, and the row holding them fills it.
+  const windows = platform === "windows";
   const { box, row, fit } = useActionFit(mode === "mail");
   const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const count = fit ? fitItems(fit.available, fit.widths, fit.more, fit.gap) : MESSAGE_ACTION_ORDER.length;
@@ -685,7 +707,7 @@ function ReaderSegment({
     <div
       data-segment={fixedPane ? "pane" : "reader"}
       data-tauri-drag-region
-      className={`flex h-full min-w-0 items-center gap-1 px-2 ${fixedPane ? "shrink-0" : "flex-1"}`}
+      className={`flex h-full min-w-0 items-center gap-1 ${windows ? "pl-2" : "px-2"} ${fixedPane ? "shrink-0" : "flex-1"}`}
       style={fixedPane ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
     >
       {mode === "mail" && (
@@ -745,9 +767,13 @@ function ReaderSegment({
           {search}
         </div>
       )}
-      <div data-window-controls data-tauri-drag-region className="flex shrink-0 items-center gap-1">
+      <div
+        data-window-controls
+        data-tauri-drag-region
+        className={`flex shrink-0 items-center gap-1${windows ? " h-full" : ""}`}
+      >
         <IconButton label="Settings" icon={Settings} keys="Ctrl+," onClick={() => onCommand({ kind: "settings" })} />
-        {windowControls && <WindowControls maximized={maximized} onWindow={onCommand} />}
+        {windowControls && <WindowControls maximized={maximized} onWindow={onCommand} platform={platform} />}
       </div>
     </div>
   );
@@ -889,6 +915,7 @@ function ToolbarSegments({
         onOpenMenu={onOpenMenu}
         onSelect={onSelect}
         windowControls={props.windowControls ?? true}
+        platform={props.platform ?? WINDOW_PLATFORM}
       />
     </>
   );
