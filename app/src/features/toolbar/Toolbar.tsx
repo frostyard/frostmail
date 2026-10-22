@@ -5,13 +5,15 @@
 // empty space toggles maximize. A narrow window's toolbar holds its one
 // pane's controls instead, with the message actions in a bar at the foot
 // (docs/specs/ui.md, Narrow windows). The planner's containers decide what
-// each command does.
+// each command does. Message actions that do not fit move into a "»" menu
+// from their end, as Mail.app does.
 
 import { Menu as ContextMenu, IconButton, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import {
   Archive,
   ChevronLeft,
   ChevronRight,
+  ChevronsRight,
   Copy,
   Flag,
   FolderInput,
@@ -33,10 +35,11 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { type MouseEvent, type ReactNode, useState } from "react";
+import { type MouseEvent, type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
 import type { CalendarPane, NarrowPane, PeoplePane, TasksPane } from "../../app/narrow";
 import type { CalendarView } from "../../lib/calendarDates";
 import { FLAG_NAMES, flagLabel } from "../../lib/flags";
+import { fitItems } from "./fit";
 
 /** ToolbarCommand is what a toolbar control asks for. */
 export type ToolbarCommand =
@@ -155,7 +158,10 @@ const BUTTON_CLASS =
 const TOUCH_CLASS =
   "flex size-11 shrink-0 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
 const BAR_CLASS =
-  "flex h-11 min-w-0 flex-1 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
+  "flex h-11 min-w-11 flex-1 items-center justify-center rounded-md text-secondary hover:bg-selection-inactive disabled:opacity-40";
+// A narrow window's message buttons are 44 wide at least, so they stay touch
+// targets even when the bar cannot share out its width.
+const BAR_WIDTH = 44;
 
 // The Flag menu: the seven colors as checkable items, then Clear Flag.
 function flagItems(selection: ToolbarSelection, flagNames?: readonly string[]): MenuItem[] {
@@ -186,7 +192,10 @@ interface ToolbarButtonProps {
   icon: ReactNode;
   disabled?: boolean;
   hasMenu?: boolean;
+  /** The menu this button opens is open; only with hasMenu. */
+  expanded?: boolean;
   pressed?: boolean;
+  tabIndex?: number;
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -205,6 +214,8 @@ function ToolbarButton(props: ToolbarButtonProps) {
       aria-pressed={props.pressed}
       title={shortcut ? `${label} (${shortcut})` : label}
       aria-haspopup={hasMenu ? "menu" : undefined}
+      aria-expanded={hasMenu ? props.expanded : undefined}
+      tabIndex={props.tabIndex}
       disabled={disabled}
       onClick={onClick}
       className={className ?? BUTTON_CLASS}
@@ -299,6 +310,84 @@ function ListSegment({
   );
 }
 
+type MessageActionKind = "delete" | "archive" | "reply" | "replyAll" | "forward" | "flag" | "toggleRead" | "move";
+type PlainKind = "delete" | "archive" | "reply" | "replyAll" | "forward" | "toggleRead";
+type ImmediateKind = Exclude<PlainKind, "toggleRead">;
+
+// MESSAGE_ACTION_ORDER is the message actions in toolbar order. Actions that
+// do not fit go into the » menu from the end, and the menu lists them in
+// this same order.
+const MESSAGE_ACTION_ORDER: readonly MessageActionKind[] = [
+  "delete",
+  "archive",
+  "reply",
+  "replyAll",
+  "forward",
+  "flag",
+  "toggleRead",
+  "move",
+];
+
+interface MessageAction {
+  label: string;
+  keys: string;
+  icon: LucideIcon;
+}
+
+const MESSAGE_ACTIONS: Record<ImmediateKind, MessageAction> = {
+  delete: { label: "Delete", keys: "Delete", icon: Trash2 },
+  archive: { label: "Archive", keys: "Ctrl+Alt+A", icon: Archive },
+  reply: { label: "Reply", keys: "Ctrl+R", icon: Reply },
+  replyAll: { label: "Reply All", keys: "Ctrl+Shift+R", icon: ReplyAll },
+  forward: { label: "Forward", keys: "Ctrl+Shift+F", icon: Forward },
+};
+
+// ACTION_ICONS draws every action in the hidden measuring row.
+const ACTION_ICONS: Record<MessageActionKind, LucideIcon> = {
+  delete: Trash2,
+  archive: Archive,
+  reply: Reply,
+  replyAll: ReplyAll,
+  forward: Forward,
+  flag: Flag,
+  toggleRead: MailOpen,
+  move: FolderInput,
+};
+
+/** messageCommand is the command a plain menu id runs. */
+function messageCommand(kind: PlainKind): ToolbarCommand {
+  switch (kind) {
+    case "delete":
+      return { kind: "delete" };
+    case "archive":
+      return { kind: "archive" };
+    case "reply":
+      return { kind: "reply" };
+    case "replyAll":
+      return { kind: "replyAll" };
+    case "forward":
+      return { kind: "forward" };
+    case "toggleRead":
+      return { kind: "toggleRead" };
+  }
+}
+
+/** commandFor reads a menu id, or null when the id names no command. */
+function commandFor(id: string): ToolbarCommand | null {
+  switch (id) {
+    case "delete":
+    case "archive":
+    case "reply":
+    case "replyAll":
+    case "forward":
+    case "toggleRead":
+      return messageCommand(id);
+  }
+  if (id.startsWith("flag:")) return { kind: "flag", color: Number(id.slice(5)) };
+  if (id.startsWith("move:")) return { kind: "move", mailboxId: Number(id.slice(5)) };
+  return null;
+}
+
 interface MessageActionsProps {
   /** The narrow window's bar: touch-sized buttons sharing its width. */
   bar?: boolean;
@@ -309,86 +398,250 @@ interface MessageActionsProps {
   onOpenMenu: (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
-interface MessageAction {
-  label: string;
-  keys: string;
-  icon: LucideIcon;
-  kind: "delete" | "archive" | "reply" | "replyAll" | "forward";
+interface MessageActionsWithCountProps extends MessageActionsProps {
+  /** How many actions show, from MESSAGE_ACTION_ORDER's start. */
+  count?: number;
 }
 
-const MESSAGE_ACTIONS: MessageAction[] = [
-  { label: "Delete", keys: "Delete", icon: Trash2, kind: "delete" },
-  { label: "Archive", keys: "Ctrl+Alt+A", icon: Archive, kind: "archive" },
-  { label: "Reply", keys: "Ctrl+R", icon: Reply, kind: "reply" },
-  { label: "Reply All", keys: "Ctrl+Shift+R", icon: ReplyAll, kind: "replyAll" },
-  { label: "Forward", keys: "Ctrl+Shift+F", icon: Forward, kind: "forward" },
-];
+/** actionDisabled applies a button's disabled rule to its menu row too. */
+function actionDisabled(
+  kind: MessageActionKind,
+  selection: ToolbarSelection,
+  canArchive: boolean,
+  moveTargets: MoveTarget[],
+): boolean {
+  if (kind === "archive") return selection.count === 0 || !canArchive;
+  if (kind === "move") return selection.count === 0 || moveTargets.length === 0;
+  return selection.count === 0;
+}
 
-function MessageActions({ bar, selection, canArchive, moveTargets, onCommand, onOpenMenu }: MessageActionsProps) {
-  const none = selection.count === 0;
+function MessageActionButton(props: MessageActionsWithCountProps & { kind: MessageActionKind }) {
+  const { kind, bar, selection, canArchive, moveTargets, onCommand, onOpenMenu } = props;
   const size = bar ? 20 : 16;
   const className = bar ? BAR_CLASS : undefined;
-  return (
-    <>
-      {MESSAGE_ACTIONS.map(({ label, keys, icon: Icon, kind }) =>
-        bar ? (
-          <ToolbarButton
-            key={kind}
-            label={label}
-            shortcut={keys}
-            className={className}
-            icon={<Icon size={size} />}
-            disabled={none || (kind === "archive" && !canArchive)}
-            onClick={() => onCommand({ kind })}
-          />
-        ) : (
-          <IconButton
-            key={kind}
-            label={label}
-            keys={keys}
-            icon={Icon}
-            disabled={none || (kind === "archive" && !canArchive)}
-            onClick={() => onCommand({ kind })}
-          />
-        ),
-      )}
-      <ToolbarButton
-        label="Flag"
-        shortcut="Ctrl+Shift+L"
-        className={className}
-        icon={<Flag size={size} />}
-        disabled={none}
-        hasMenu
-        onClick={onOpenMenu("flag")}
-      />
-      {bar ? (
+  const disabled = actionDisabled(kind, selection, canArchive, moveTargets);
+  switch (kind) {
+    case "delete":
+    case "archive":
+    case "reply":
+    case "replyAll":
+    case "forward": {
+      const action = MESSAGE_ACTIONS[kind];
+      const Icon = action.icon;
+      return bar ? (
         <ToolbarButton
-          label={selection.seen ? "Mark as Unread" : "Mark as Read"}
+          label={action.label}
+          shortcut={action.keys}
+          className={className}
+          icon={<Icon size={size} />}
+          disabled={disabled}
+          onClick={() => onCommand(messageCommand(kind))}
+        />
+      ) : (
+        <IconButton
+          label={action.label}
+          keys={action.keys}
+          icon={Icon}
+          disabled={disabled}
+          onClick={() => onCommand(messageCommand(kind))}
+        />
+      );
+    }
+    case "flag":
+      return (
+        <ToolbarButton
+          label="Flag"
+          shortcut="Ctrl+Shift+L"
+          className={className}
+          icon={<Flag size={size} />}
+          disabled={disabled}
+          hasMenu
+          onClick={onOpenMenu("flag")}
+        />
+      );
+    case "toggleRead": {
+      const label = selection.seen ? "Mark as Unread" : "Mark as Read";
+      const Icon = selection.seen ? Mail : MailOpen;
+      return bar ? (
+        <ToolbarButton
+          label={label}
           shortcut="Ctrl+Shift+U"
           className={className}
-          icon={selection.seen ? <Mail size={size} /> : <MailOpen size={size} />}
-          disabled={none}
+          icon={<Icon size={size} />}
+          disabled={disabled}
           onClick={() => onCommand({ kind: "toggleRead" })}
         />
       ) : (
         <IconButton
-          label={selection.seen ? "Mark as Unread" : "Mark as Read"}
+          label={label}
           keys="Ctrl+Shift+U"
-          icon={selection.seen ? Mail : MailOpen}
-          disabled={none}
+          icon={Icon}
+          disabled={disabled}
           onClick={() => onCommand({ kind: "toggleRead" })}
         />
-      )}
-      <ToolbarButton
-        label="Move"
-        className={className}
-        icon={<FolderInput size={size} />}
-        disabled={none || moveTargets.length === 0}
-        hasMenu
-        onClick={onOpenMenu("move")}
-      />
+      );
+    }
+    case "move":
+      return (
+        <ToolbarButton
+          label="Move"
+          className={className}
+          icon={<FolderInput size={size} />}
+          disabled={disabled}
+          hasMenu
+          onClick={onOpenMenu("move")}
+        />
+      );
+  }
+}
+
+function MessageActions({
+  bar,
+  selection,
+  canArchive,
+  moveTargets,
+  onCommand,
+  onOpenMenu,
+  count = MESSAGE_ACTION_ORDER.length,
+}: MessageActionsWithCountProps) {
+  return (
+    <>
+      {MESSAGE_ACTION_ORDER.slice(0, count).map((kind) => (
+        <MessageActionButton
+          key={kind}
+          kind={kind}
+          bar={bar}
+          selection={selection}
+          canArchive={canArchive}
+          moveTargets={moveTargets}
+          onCommand={onCommand}
+          onOpenMenu={onOpenMenu}
+        />
+      ))}
     </>
   );
+}
+
+/** overflowItems lists hidden actions in toolbar order, as » menu entries. */
+function overflowItems(
+  hidden: readonly MessageActionKind[],
+  selection: ToolbarSelection,
+  canArchive: boolean,
+  moveTargets: MoveTarget[],
+  flagNames?: readonly string[],
+): MenuItem[] {
+  return hidden.map((kind): MenuItem => {
+    const disabled = actionDisabled(kind, selection, canArchive, moveTargets);
+    switch (kind) {
+      case "flag":
+        return { kind: "submenu", id: "flag", label: "Flag", disabled, items: flagItems(selection, flagNames) };
+      case "move":
+        return { kind: "submenu", id: "move", label: "Move", disabled, items: moveItems(moveTargets) };
+      case "toggleRead":
+        return {
+          kind: "item",
+          id: "toggleRead",
+          label: selection.seen ? "Mark as Unread" : "Mark as Read",
+          keys: "Ctrl+Shift+U",
+          disabled,
+        };
+      default: {
+        const action = MESSAGE_ACTIONS[kind];
+        return { kind: "item", id: kind, label: action.label, keys: action.keys, disabled };
+      }
+    }
+  });
+}
+
+// MoreButton is the » that opens the actions that no longer fit. It is the
+// last button of the actions, and only shows when at least one is hidden.
+function MoreButton({
+  bar,
+  expanded,
+  onClick,
+}: {
+  bar?: boolean;
+  expanded: boolean;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <ToolbarButton
+      label="More Toolbar Items"
+      className={bar ? BAR_CLASS : undefined}
+      icon={<ChevronsRight size={bar ? 20 : 16} />}
+      hasMenu
+      expanded={expanded}
+      onClick={onClick}
+    />
+  );
+}
+
+// MeasuringRow holds one button of every action at its real size, and the »,
+// so the toolbar knows what the actions would need. It is invisible and inert.
+function MeasuringRow({ row }: { row: RefObject<HTMLDivElement | null> }) {
+  return (
+    <div aria-hidden="true" inert className="pointer-events-none invisible absolute inset-0 overflow-hidden">
+      <div ref={row} className="flex w-max items-center gap-1">
+        {MESSAGE_ACTION_ORDER.map((kind) => {
+          const Icon = ACTION_ICONS[kind];
+          return (
+            <button key={kind} type="button" tabIndex={-1} className={BUTTON_CLASS}>
+              <Icon size={16} />
+            </button>
+          );
+        })}
+        <button type="button" tabIndex={-1} className={BUTTON_CLASS}>
+          <ChevronsRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface ActionFit {
+  available: number;
+  widths: number[];
+  more: number;
+  gap: number;
+}
+
+// useActionFit measures the actions in a hidden row at their real size, and
+// the room the actions' container has. An unmeasured fit (available 0, as in
+// a test without layout) shows every action.
+function useActionFit(measured: boolean) {
+  const box = useRef<HTMLDivElement>(null);
+  const row = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<ActionFit | null>(null);
+  useLayoutEffect(() => {
+    if (!measured) return;
+    const container = box.current;
+    const measuring = row.current;
+    if (!container || !measuring) return;
+    const measure = () => {
+      const style = getComputedStyle(container);
+      const widths = [...measuring.querySelectorAll("button")].map((button) => button.getBoundingClientRect().width);
+      setFit({
+        available: Math.max(
+          0,
+          container.getBoundingClientRect().width -
+            (Number.parseFloat(style.paddingLeft) || 0) -
+            (Number.parseFloat(style.paddingRight) || 0) -
+            (Number.parseFloat(style.borderLeftWidth) || 0) -
+            (Number.parseFloat(style.borderRightWidth) || 0),
+        ),
+        widths: widths.slice(0, MESSAGE_ACTION_ORDER.length),
+        more: widths[MESSAGE_ACTION_ORDER.length] ?? 0,
+        gap: Number.parseFloat(style.columnGap) || 0,
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    // The row also changes when the font loads, without a container resize.
+    observer.observe(measuring);
+    return () => observer.disconnect();
+  }, [measured]);
+  return { box, row, fit };
 }
 
 // The segment over the reader: the message actions, then the search field
@@ -398,10 +651,12 @@ function ReaderSegment({
   selection,
   canArchive,
   moveTargets,
+  flagNames,
   maximized,
   search,
   onCommand,
   onOpenMenu,
+  onSelect,
   paneWidth,
   todoBar,
   windowControls,
@@ -413,12 +668,23 @@ function ReaderSegment({
   selection: ToolbarSelection;
   canArchive: boolean;
   moveTargets: MoveTarget[];
+  flagNames?: readonly string[];
   maximized: boolean;
   search: ReactNode;
   onCommand: (cmd: ToolbarCommand) => void;
   onOpenMenu: (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => void;
+  onSelect: (id: string) => void;
 }) {
   const fixedPane = mode === "calendar" || mode === "tasks";
+  const { box, row, fit } = useActionFit(mode === "mail");
+  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
+  const count = fit ? fitItems(fit.available, fit.widths, fit.more, fit.gap) : MESSAGE_ACTION_ORDER.length;
+  const hidden = MESSAGE_ACTION_ORDER.slice(count);
+  // The actions' natural width, so the container never takes its width from
+  // the buttons it happens to show: a fixed base keeps the fit stable.
+  const basis = fit
+    ? fit.widths.reduce((sum, width) => sum + width, 0) + fit.gap * Math.max(0, fit.widths.length - 1)
+    : null;
   return (
     <div
       data-segment={fixedPane ? "pane" : "reader"}
@@ -427,18 +693,42 @@ function ReaderSegment({
       style={fixedPane ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
     >
       {mode === "mail" && (
-        // The message actions give way last: too little room clips them from
-        // their end, Move first, and their commands stay on the keyboard.
-        <div data-message-actions data-tauri-drag-region className="flex min-w-0 items-center overflow-hidden">
-          <div data-tauri-drag-region className="flex w-max items-center gap-1">
-            <MessageActions
-              selection={selection}
-              canArchive={canArchive}
-              moveTargets={moveTargets}
-              onCommand={onCommand}
-              onOpenMenu={onOpenMenu}
+        // The message actions give way last: the search shrinks first. The
+        // actions that no longer fit move into » from their end, Move first.
+        <div
+          ref={box}
+          data-message-actions
+          data-tauri-drag-region
+          className="relative flex min-w-0 grow-0 shrink items-center gap-1 overflow-hidden"
+          style={basis === null ? undefined : { flexBasis: `${basis}px` }}
+        >
+          <MeasuringRow row={row} />
+          <MessageActions
+            selection={selection}
+            canArchive={canArchive}
+            moveTargets={moveTargets}
+            onCommand={onCommand}
+            onOpenMenu={onOpenMenu}
+            count={count}
+          />
+          {hidden.length > 0 && (
+            <MoreButton
+              expanded={more !== null}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setMore({ x: rect.left, y: rect.bottom });
+              }}
             />
-          </div>
+          )}
+          {more && (
+            <ContextMenu
+              items={overflowItems(hidden, selection, canArchive, moveTargets, flagNames)}
+              x={more.x}
+              y={more.y}
+              onSelect={onSelect}
+              onClose={() => setMore(null)}
+            />
+          )}
         </div>
       )}
       <div data-tauri-drag-region className="flex-1" />
@@ -565,9 +855,11 @@ function TasksSegment({ tasks, onCommand }: { tasks: ToolbarTasks; onCommand: To
 function ToolbarSegments({
   props,
   onOpenMenu,
+  onSelect,
 }: {
   props: ToolbarProps;
   onOpenMenu: MessageActionsProps["onOpenMenu"];
+  onSelect: (id: string) => void;
 }) {
   return (
     <>
@@ -604,10 +896,12 @@ function ToolbarSegments({
         selection={props.selection}
         canArchive={props.canArchive}
         moveTargets={props.moveTargets}
+        flagNames={props.flagNames}
         maximized={props.maximized}
         search={props.search}
         onCommand={props.onCommand}
         onOpenMenu={onOpenMenu}
+        onSelect={onSelect}
         windowControls={props.windowControls ?? true}
       />
     </>
@@ -732,19 +1026,58 @@ export type MessageBarProps = Pick<
   "selection" | "canArchive" | "moveTargets" | "flagNames" | "onCommand"
 >;
 
+// BAR_WIDTHS are the bar's buttons at their minimum: each is a touch target.
+const BAR_WIDTHS: readonly number[] = MESSAGE_ACTION_ORDER.map(() => BAR_WIDTH);
+
 /** MessageBar is a narrow window's message actions, in a bar at the foot of Mail. */
 export function MessageBar(props: MessageBarProps) {
-  const [menu, setMenu] = useState<MenuState | null>(null);
-  const openMenu = (kind: MenuKind) => (event: MouseEvent<HTMLButtonElement>) => {
+  const bar = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<{ available: number; gap: number } | null>(null);
+  const [menu, setMenu] = useState<{ kind: MenuKind | "more"; x: number; y: number } | null>(null);
+  // The bar's buttons are all 44 wide, so only its own width has to be
+  // measured. available <= 0 (no layout yet) shows every action.
+  useLayoutEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const measure = () => {
+      const style = getComputedStyle(element);
+      setFit({
+        available: Math.max(
+          0,
+          element.getBoundingClientRect().width -
+            (Number.parseFloat(style.paddingLeft) || 0) -
+            (Number.parseFloat(style.paddingRight) || 0) -
+            (Number.parseFloat(style.borderLeftWidth) || 0) -
+            (Number.parseFloat(style.borderRightWidth) || 0),
+        ),
+        gap: Number.parseFloat(style.columnGap) || 0,
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const count = fit ? fitItems(fit.available, BAR_WIDTHS, BAR_WIDTH, fit.gap) : MESSAGE_ACTION_ORDER.length;
+  const hidden = MESSAGE_ACTION_ORDER.slice(count);
+  const openMenu = (kind: MenuKind | "more") => (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     setMenu({ kind, x: rect.left, y: rect.top });
   };
   const choose = (id: string) => {
-    if (id.startsWith("flag:")) props.onCommand({ kind: "flag", color: Number(id.slice(5)) });
-    else if (id.startsWith("move:")) props.onCommand({ kind: "move", mailboxId: Number(id.slice(5)) });
+    const command = commandFor(id);
+    if (command) props.onCommand(command);
   };
+  const items = menu
+    ? menu.kind === "flag"
+      ? flagItems(props.selection, props.flagNames)
+      : menu.kind === "move"
+        ? moveItems(props.moveTargets)
+        : overflowItems(hidden, props.selection, props.canArchive, props.moveTargets, props.flagNames)
+    : [];
   return (
     <div
+      ref={bar}
       role="toolbar"
       aria-label="Message Actions"
       className="flex shrink-0 items-center gap-1 border-t border-separator bg-toolbar px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]"
@@ -756,16 +1089,10 @@ export function MessageBar(props: MessageBarProps) {
         moveTargets={props.moveTargets}
         onCommand={props.onCommand}
         onOpenMenu={openMenu}
+        count={count}
       />
-      {menu && (
-        <ContextMenu
-          items={menu.kind === "flag" ? flagItems(props.selection, props.flagNames) : moveItems(props.moveTargets)}
-          x={menu.x}
-          y={menu.y}
-          onSelect={choose}
-          onClose={() => setMenu(null)}
-        />
-      )}
+      {hidden.length > 0 && <MoreButton bar expanded={menu?.kind === "more"} onClick={openMenu("more")} />}
+      {menu && <ContextMenu items={items} x={menu.x} y={menu.y} onSelect={choose} onClose={() => setMenu(null)} />}
     </div>
   );
 }
@@ -781,8 +1108,8 @@ export function Toolbar(props: ToolbarProps) {
   };
 
   const choose = (id: string) => {
-    if (id.startsWith("flag:")) props.onCommand({ kind: "flag", color: Number(id.slice(5)) });
-    else if (id.startsWith("move:")) props.onCommand({ kind: "move", mailboxId: Number(id.slice(5)) });
+    const command = commandFor(id);
+    if (command) props.onCommand(command);
   };
 
   return (
@@ -792,7 +1119,7 @@ export function Toolbar(props: ToolbarProps) {
       data-tauri-drag-region
       className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar"
     >
-      <ToolbarSegments props={props} onOpenMenu={openMenu} />
+      <ToolbarSegments props={props} onOpenMenu={openMenu} onSelect={choose} />
       {menu && (props.mode ?? "mail") === "mail" ? (
         <ContextMenu
           items={menu.kind === "flag" ? flagItems(props.selection, props.flagNames) : moveItems(props.moveTargets)}

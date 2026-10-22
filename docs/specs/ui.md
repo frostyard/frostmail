@@ -126,10 +126,13 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     maximize/restore, close: 28 × 28 targets, 16px icons). The window
     controls are the desktop app's: the web build has none, since the
     browser or lodge's shell holds the window. In a window too narrow for
-    the segment, the search field shrinks from 220 to 120, then the message
-    actions are clipped from their end (Move first); at the smallest widths
-    the search gives up the rest of the room it needs. Settings and the
-    window controls never shrink and stay in the window.
+    the segment, the search field shrinks from 220 to 120. Then the message
+    actions that do not fit move into a » menu from their end, Move first,
+    as in Mail.app. The » is `chevrons-right`, named "More Toolbar Items",
+    and shows only while an action is hidden; its menu lists the hidden
+    actions in toolbar order, with Flag and Move as submenus. At the smallest widths the search gives up the rest of the
+    room it needs. Settings and the window controls never shrink and stay
+    in the window.
   - Buttons are 28 × 28 with 16px Lucide icons in `--text-secondary`;
     hover background `--selection-inactive`; disabled at 40% opacity. Every
     button has a tooltip naming it and its shortcut.
@@ -502,8 +505,11 @@ lodge's frame are.
   shown or the list has a selection: 52 high plus the bottom safe area,
   `--bg-toolbar`, 1px `--separator` top, with the toolbar's message
   actions in its order (Delete, Archive, Reply, Reply All, Forward, Flag,
-  Mark, Move), sharing the width, each 44 high with a 20px icon. Flag and
-  Move open their menus above it.
+  Mark, Move), sharing the width, each at least 44 wide and 44 high with a
+  20px icon. Flag and Move open their menus above it. When the bar cannot
+  hold all 8 actions at 44 wide, the actions move into » from their end,
+  as in the toolbar. At 390 px all 8 fit. At 320 px Flag, Mark and Move go
+  into ».
 - **The module tabs,** at the foot of the window wherever the message bar
   is not (Mailboxes, the list without a selection, and every pane of
   Calendar, People and Tasks but a contact being edited, which ends with
