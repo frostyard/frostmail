@@ -59,6 +59,23 @@ function button(s: Session, name: string): Promise<Element> {
   });
 }
 
+/** CaptionBox is one window button's box, in the page's pixels. */
+interface CaptionBox {
+  name: string;
+  width: number;
+  height: number;
+  right: number;
+}
+
+/** CAPTIONS measures the three window buttons against the strip and the window. */
+const CAPTIONS = `const box = (el) => { const r = el.getBoundingClientRect(); return { name: el.getAttribute("aria-label"), width: r.width, height: r.height, right: r.right }; };
+  const buttons = ["Minimize", "Maximize", "Restore", "Close"]
+    .map((name) => document.querySelector('button[aria-label="' + name + '"]'))
+    .filter((el) => el !== null)
+    .map(box);
+  const strip = document.querySelector('[role="toolbar"][aria-label="Toolbar"]');
+  return { buttons: buttons, strip: strip ? strip.clientHeight : 0, window: window.innerWidth };`;
+
 /** MINIMIZED asks Tauri's window plugin whether the main window is minimized. */
 const MINIMIZED = `const done = arguments[arguments.length - 1];
   window.__TAURI_INTERNALS__.invoke("plugin:window|is_minimized", { label: "main" }).then((v) => done(v), (e) => done("error: " + e));`;
@@ -140,6 +157,20 @@ describe("the window", () => {
     // its right edge, where no pointer can reach them.
     await controlsInside(s);
     for (const name of ["Minimize", "Maximize", "Close"]) await button(s, name);
+
+    // Windows draws Windows' caption buttons: each 46 wide, as high as the
+    // strip (its 52px less the 1px border below it), and Close reaching the
+    // window's right edge, with no padding after it (docs/specs/ui.md,
+    // Layout: Toolbar; ADR-0038).
+    const caption = await s.execute<{ buttons: CaptionBox[]; strip: number; window: number }>(CAPTIONS);
+    expect(caption.buttons.map((b) => b.name)).toEqual(["Minimize", "Maximize", "Close"]);
+    for (const box of caption.buttons) {
+      expect(Math.abs(box.width - 46), `${box.name} is 46 wide`).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.height - caption.strip), `${box.name} fills the strip`).toBeLessThanOrEqual(1);
+    }
+    const close = caption.buttons[2];
+    if (!close) throw new Error("the Close button did not measure");
+    expect(Math.abs(close.right - caption.window), "Close reaches the window's right edge").toBeLessThanOrEqual(1);
 
     const before = await s.execute<number>("return window.outerWidth");
     await s.click(await button(s, "Maximize"));

@@ -123,13 +123,30 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     the list.
     Then the search field (220 wide, 28 high, rounded 6), Settings
     (`Settings`, Ctrl+,) and the window controls (minimize,
-    maximize/restore, close: 28 × 28 targets, 16px icons). The window
-    controls are `WindowControls` from `@frostyard/lodge-ui/react`
-    ([lodge's UI package spec](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md)),
-    in its default `"linux"` look; the toolbar passes `maximized` and its
-    own command callback, and keeps Settings beside them. They are the
-    desktop app's: the web build has none, since the browser or lodge's
-    shell holds the window. In a window too narrow for
+    maximize/restore, close). The window controls are `WindowControls` from
+    `@frostyard/lodge-ui/react`
+    ([lodge's UI package spec](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md)):
+    the toolbar passes `maximized` and its own command callback, and keeps
+    Settings beside them. They are the desktop app's: the web build has
+    none, since the browser or lodge's shell holds the window.
+    They are whose buttons the platform has, since Windows became a second
+    platform ([ADR-0038](../adr/0038-windows-as-a-second-platform.md)): the
+    toolbar reads `windowPlatform()` once and passes it as the group's
+    `platform`.
+    - On **Linux** the three buttons keep the look they had: lodge-ui's
+      own, 28 × 28 targets with 16px icons in `--text-secondary`, 4px
+      apart, and the segment keeps its 8px padding at both ends.
+    - On **Windows** they are Windows' caption buttons: flat, 46 wide each,
+      with 16px icons, the strip's full 52px height, no gap between them
+      and none after Close, so Close reaches the window's right edge,
+      where the pointer always finds it. Hover is `--selection-inactive`,
+      except Close, which is red (`#c42b1c`) with white text, as Windows
+      draws it. For them the segment keeps its 8px left padding only, and
+      the row holding Settings and the buttons fills the strip's height.
+      The strip's drag region stays on that row and never on a button. A
+      build that draws no buttons, as a browser on Windows does, keeps the
+      Linux padding, so Settings stays off the window's edge.
+    In a window too narrow for
     the segment, the search field shrinks from 220 to 120. Then the message
     actions that do not fit move into a » menu from their end, Move first,
     as in Mail.app. The » is `chevrons-right`, named "More Toolbar Items",
@@ -732,5 +749,6 @@ The compose window's own keys are in [compose-ui.md](compose-ui.md).
 ## References
 
 - Rationale: [ADR-0009](../adr/0009-ui-architecture.md),
-  [ADR-0005](../adr/0005-html-mail-rendering.md)
+  [ADR-0005](../adr/0005-html-mail-rendering.md),
+  [ADR-0038](../adr/0038-windows-as-a-second-platform.md)
 - Context: [design/app.md](../design/app.md)
