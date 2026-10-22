@@ -692,8 +692,10 @@ function ReaderSegment({
 }) {
   const fixedPane = mode === "calendar" || mode === "tasks";
   // Windows draws its caption buttons as the strip's full height, to its right
-  // edge: the segment keeps no right padding, and the row holding them fills it.
-  const windows = platform === "windows";
+  // edge: the segment keeps no right padding, and the row holding them fills
+  // it. Only when it draws them: a browser on Windows has none of its own (the
+  // web build), and Settings then keeps the Linux padding, off the edge.
+  const windows = platform === "windows" && windowControls;
   const { box, row, fit } = useActionFit(mode === "mail");
   const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const count = fit ? fitItems(fit.available, fit.widths, fit.more, fit.gap) : MESSAGE_ACTION_ORDER.length;

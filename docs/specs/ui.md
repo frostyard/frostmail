@@ -143,7 +143,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
       except Close, which is red (`#c42b1c`) with white text, as Windows
       draws it. For them the segment keeps its 8px left padding only, and
       the row holding Settings and the buttons fills the strip's height.
-      The strip's drag region stays on that row and never on a button.
+      The strip's drag region stays on that row and never on a button. A
+      build that draws no buttons, as a browser on Windows does, keeps the
+      Linux padding, so Settings stays off the window's edge.
     In a window too narrow for
     the segment, the search field shrinks from 220 to 120. Then the message
     actions that do not fit move into a » menu from their end, Move first,

@@ -74,6 +74,19 @@ describe("Toolbar's window controls on Windows", () => {
     expect(segment?.lastElementChild).toBe(group);
   });
 
+  it("keeps the Linux padding when no window controls are drawn, as in a browser", () => {
+    // A browser on Windows draws no window buttons (the web build), so Settings
+    // must not sit at the window's edge.
+    toolbar({ platform: "windows", windowControls: false });
+    expect(screen.queryByRole("group", { name: "Window controls" })).toBeNull();
+    const segment = document.querySelector<HTMLElement>('[data-segment="reader"]');
+    expect(segment?.className).toContain("px-2");
+    expect(segment?.className).not.toContain("pl-2");
+    const group = document.querySelector<HTMLElement>("[data-window-controls]");
+    expect(group?.className).toBe("flex shrink-0 items-center gap-1");
+    expect(group?.contains(button("Settings"))).toBe(true);
+  });
+
   it("says Restore when the window is maximized, and sends its commands", () => {
     const props = toolbar({ platform: "windows", maximized: true });
     const controls = screen.getByRole("group", { name: "Window controls" });
