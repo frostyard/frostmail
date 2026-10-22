@@ -8,20 +8,18 @@
 // each command does. Message actions that do not fit move into a "»" menu
 // from their end, as Mail.app does.
 
-import { Menu as ContextMenu, IconButton, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
+import { Menu as ContextMenu, IconButton, type MenuEntry as MenuItem, WindowControls } from "@frostyard/lodge-ui/react";
 import {
   Archive,
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
-  Copy,
   Flag,
   FolderInput,
   Forward,
   type LucideIcon,
   Mail,
   MailOpen,
-  Minus,
   PanelLeft,
   PanelRight,
   Plus,
@@ -29,11 +27,9 @@ import {
   Reply,
   ReplyAll,
   Settings,
-  Square,
   SquarePen,
   Trash2,
   UserPlus,
-  X,
 } from "lucide-react";
 import { type MouseEvent, type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
 import type { CalendarPane, NarrowPane, PeoplePane, TasksPane } from "../../app/narrow";
@@ -751,17 +747,7 @@ function ReaderSegment({
       )}
       <div data-window-controls data-tauri-drag-region className="flex shrink-0 items-center gap-1">
         <IconButton label="Settings" icon={Settings} keys="Ctrl+," onClick={() => onCommand({ kind: "settings" })} />
-        {windowControls && (
-          <>
-            <IconButton label="Minimize" icon={Minus} onClick={() => onCommand({ kind: "minimize" })} />
-            <IconButton
-              label={maximized ? "Restore" : "Maximize"}
-              icon={maximized ? Copy : Square}
-              onClick={() => onCommand({ kind: "toggleMaximize" })}
-            />
-            <IconButton label="Close" icon={X} onClick={() => onCommand({ kind: "close" })} />
-          </>
-        )}
+        {windowControls && <WindowControls maximized={maximized} onWindow={onCommand} />}
       </div>
     </div>
   );

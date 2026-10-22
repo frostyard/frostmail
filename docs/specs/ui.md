@@ -124,8 +124,12 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     Then the search field (220 wide, 28 high, rounded 6), Settings
     (`Settings`, Ctrl+,) and the window controls (minimize,
     maximize/restore, close: 28 × 28 targets, 16px icons). The window
-    controls are the desktop app's: the web build has none, since the
-    browser or lodge's shell holds the window. In a window too narrow for
+    controls are `WindowControls` from `@frostyard/lodge-ui/react`
+    ([lodge's UI package spec](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md)),
+    in its default `"linux"` look; the toolbar passes `maximized` and its
+    own command callback, and keeps Settings beside them. They are the
+    desktop app's: the web build has none, since the browser or lodge's
+    shell holds the window. In a window too narrow for
     the segment, the search field shrinks from 220 to 120. Then the message
     actions that do not fit move into a » menu from their end, Move first,
     as in Mail.app. The » is `chevrons-right`, named "More Toolbar Items",
