@@ -386,8 +386,7 @@ function ListHeader() {
   const ui = useUI();
   return (
     <div className="flex h-[32px] shrink-0 items-center border-b border-separator bg-window pr-3">
-      {/* Scrolls when the list is narrow, without a bar: WebView2 would draw one. */}
-      <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&>div]:w-max [&>div]:border-b-0">
+      <div className="flex min-w-0 flex-1 [&>div]:border-b-0">
         <FilterBar filter={ui.listFilter} onChange={ui.setListFilter} />
       </div>
       <SortMenu
