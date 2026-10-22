@@ -329,11 +329,16 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   the source or a search, through the view query (`unread`, `flagged`,
   `hasAttachments`); All is no filter. A fifth button, More (`chevron-down`
   after its label, `aria-haspopup="menu"`, named "More filters"), opens a
-  menu of To Me, Cc Me and From VIPs (M5), each a condition in the view's
-  `filter` (`tome`, `ccme`, `vip` is true), so it combines with a source's
-  own conditions; while one of them is chosen, More shows its label,
-  pressed, and their empty lists read "No Messages to You", "No Messages
-  Cc'd to You" and "No Messages from VIPs". It lasts until changed (not across
+  menu. When the bar is narrower than its tabs, tabs move into this menu
+  from the end: Attachments, then Flagged, then Unread; All and More stay
+  in the bar, and More fits with its current label. The bar never scrolls,
+  and no tab reaches under Sort. The menu holds the hidden tabs in bar
+  order, then a separator if any, then To Me, Cc Me and From VIPs (M5),
+  each a condition in the view's `filter` (`tome`, `ccme`, `vip` is true),
+  so it combines with a source's own conditions. While any filter in the
+  menu is chosen, More shows its label, pressed. The empty lists of the
+  three read "No Messages to You", "No Messages Cc'd to You" and "No
+  Messages from VIPs". The filter lasts until changed (not across
   restarts), is the same for every source, and changing it clears the
   selection. A row read while the Unread filter shows it stays until the
   filter or the source changes (maild keeps it: `ViewQuery.unread`); an

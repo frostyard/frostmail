@@ -149,6 +149,11 @@ export class Session {
     return this.do<string>("GET", "/window");
   }
 
+  /** setWindowRect changes the current window's size and returns its actual rectangle. */
+  setWindowRect(width: number, height: number): Promise<{ x: number; y: number; width: number; height: number }> {
+    return this.do("POST", "/window/rect", { width, height });
+  }
+
   /** switchTo makes a window current. */
   async switchTo(handle: string): Promise<void> {
     await this.do("POST", "/window", { handle });
