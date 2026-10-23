@@ -1,6 +1,6 @@
 // The lodge transport: maild's API over lodge's /app/mail/api WebSocket,
 // opened and kept by @frostyard/lodge-client/rpc's connectLodgeAPI
-// (client/v0.3.0): it opens while the page is visible, pings every 30 s so
+// (client/v0.3.2): it opens while the page is visible, pings every 30 s so
 // lodge keeps the session, and reconnects after a drop
 // (docs/specs/lodge-app.md, The web build).
 import { connectLodgeAPI as connect } from "@frostyard/lodge-client/rpc";
