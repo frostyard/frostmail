@@ -115,7 +115,7 @@ Porter's design:
   `internal/engine/awaiting_test.go`, a thread for each rule and boundary,
   with a Gmail account for the `INBOX` label.
   - Timed on 2026-10-19, on `tools/uifixture -n 50000 -seed 7` with maild
-    on the Framework (Strix Halo), 20 runs over the socket after one
+    on the owner's laptop (Strix Halo), 20 runs over the socket after one
     warm-up, `limit` 25 and `waitingDays` 0. mailgen's mail is to
     `test@mailtest.test`, so the fixture account gained that identity.
     - `withinDays` 30: `awaitingReply` p95 41.5 ms (1,647 threads match),

@@ -73,7 +73,7 @@ the same `main` cannot see each other's code, so:
 unless `EXECUTOR_MODEL` names one; opencode needs `EXECUTOR_MODEL` as a
 `provider/model`, whose endpoint lives in the user's opencode config. Per
 run: `make task T=0001 EXECUTOR=opencode
-EXECUTOR_MODEL=selfie/halogen-qwen3.8-flash-next`.
+EXECUTOR_MODEL=PROVIDER/MODEL`.
 
 ## Sizing
 

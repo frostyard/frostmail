@@ -22,7 +22,7 @@ NSL_MACHINE ?= frostmail
 IN_NSL := nsl run -m $(NSL_MACHINE) sh -lc
 # The executor for task cards (ADR-0021): codex, with the user's Codex model
 # unless EXECUTOR_MODEL names one; or opencode with EXECUTOR_MODEL as its
-# provider/model (EXECUTOR=opencode EXECUTOR_MODEL=selfie/halogen-qwen3.8-flash-next).
+# provider/model (EXECUTOR=opencode EXECUTOR_MODEL=PROVIDER/MODEL).
 EXECUTOR ?= codex
 EXECUTOR_MODEL ?=
 
