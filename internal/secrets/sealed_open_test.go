@@ -285,7 +285,7 @@ func TestOpenReaderSealedFallsBackToTheLeftoverWithNoSealedFile(t *testing.T) {
 }
 
 func TestOpenSealedRemovesAnEmptyPlainFile(t *testing.T) {
-	_, file := sealedEnv(t, testKey(3))
+	dir, file := sealedEnv(t, testKey(3))
 	if err := os.WriteFile(file, []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -294,5 +294,8 @@ func TestOpenSealedRemovesAnEmptyPlainFile(t *testing.T) {
 	}
 	if _, err := os.Stat(file); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("an empty plain file is still there: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, SealedFileName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("an empty plain store made a sealed file: %v", err)
 	}
 }

@@ -32,7 +32,8 @@
 # exist (seal-mail-secrets.sh makes it, or the command in
 # packaging/lodge/frostmail.service); maild moves the export's plain
 # secrets.json into secrets.sealed on its start, and the script checks that
-# secrets.json is gone and secrets.sealed exists. The export's secrets.json
+# secrets.json is gone and, when the export held a secret, that
+# secrets.sealed exists. The export's secrets.json
 # is in plain text, and so is the copy on lodge's host until maild starts.
 #
 # It keeps what it sets aside, and a manifest --rollback reads, under
@@ -71,7 +72,7 @@ set_aside=
 rollback=
 
 usage() {
-	sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,47p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 
@@ -315,6 +316,7 @@ fi
 # The export.
 export_id=
 accounts=
+has_secrets=0
 if [ -z "$from" ]; then
 	problem "--from DIR is required: the export, copied here from the desktop (move-mail-to-lodge.sh export --to DIR)"
 elif [ ! -d "$from" ]; then
@@ -344,7 +346,12 @@ else
 	fi
 	[ -d "$from/blobs" ] || problem "$from/blobs is missing"
 	[ -f "$from/frostmail.db" ] || problem "$from/frostmail.db is missing"
-	[ -f "$from/secrets.json" ] || problem "$from/secrets.json is missing"
+	if [ -f "$from/secrets.json" ]; then
+		# An export with no secret ({}) leaves no secrets.sealed: maild removes the empty plain file.
+		if [ "$(tr -d ' \t\r\n' <"$from/secrets.json")" != '{}' ]; then has_secrets=1; fi
+	else
+		problem "$from/secrets.json is missing"
+	fi
 fi
 
 # Not moved already: a backup of this script that took this export in.
@@ -467,12 +474,16 @@ if [ "$mode" = apply ]; then
 	if [ "$secrets_mode" = sealed ]; then
 		# maild is active before it opens its secrets: wait for it to seal the file.
 		for _ in $(seq 60); do
-			[ ! -e "$(p "$target")/secrets.json" ] && [ -f "$(p "$target")/secrets.sealed" ] && break
+			[ ! -e "$(p "$target")/secrets.json" ] && { [ $has_secrets = 0 ] || [ -f "$(p "$target")/secrets.sealed" ]; } && break
 			sleep 0.5
 		done
 		[ ! -e "$(p "$target")/secrets.json" ] || fail "$target/secrets.json is still there: maild did not seal it: journalctl -u $UNIT"
-		[ -f "$(p "$target")/secrets.sealed" ] || fail "$target/secrets.sealed does not exist: journalctl -u $UNIT"
-		ok "secrets.json is gone and secrets.sealed exists"
+		if [ $has_secrets = 1 ]; then
+			[ -f "$(p "$target")/secrets.sealed" ] || fail "$target/secrets.sealed does not exist: journalctl -u $UNIT"
+			ok "secrets.json is gone and secrets.sealed exists"
+		else
+			ok "secrets.json is gone (the export held no secret, so maild made no secrets.sealed)"
+		fi
 	fi
 	for _ in $(seq 30); do
 		if now_out=$(as "$APP_USER" "$mailctl" --socket "$app_socket" account list 2>/dev/null); then break; fi
@@ -485,7 +496,9 @@ if [ "$mode" = apply ]; then
 	[ "$now" = "$want" ] || fail "$UNIT lists the accounts '$now', not the export's '$want'"
 	ok "its accounts are the export's: $want"
 else
-	if [ "$secrets_mode" = sealed ]; then say "  then check that $target/secrets.json is gone and $target/secrets.sealed exists"; fi
+	if [ "$secrets_mode" = sealed ]; then
+		if [ $has_secrets = 1 ]; then say "  then check that $target/secrets.json is gone and $target/secrets.sealed exists"; else say "  then check that $target/secrets.json is gone (the export holds no secret: no secrets.sealed)"; fi
+	fi
 	say "  then check that $UNIT lists the export's accounts: ${accounts:-none}"
 fi
 
