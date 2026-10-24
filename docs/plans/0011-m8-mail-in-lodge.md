@@ -23,9 +23,9 @@ Status (2026-10-24):
   tested against a staged root (#115).
 - **The sealed secrets store is built** (2026-10-24):
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
-  accepted the same day. `FROSTMAIL_SECRETS=sealed`,
-  `scripts/seal-mail-secrets.sh` and the move script's `sealed` are
-  tested; the key step on lodge's host is not run yet. The move itself
+  accepted the same day. `FROSTMAIL_SECRETS=sealed` and the unit (#117),
+  `scripts/seal-mail-secrets.sh` and the move script's `sealed` (#118)
+  are tested; the key step on lodge's host is not run yet. The move itself
   waits on the user.
 
 ## Decisions for M8
@@ -325,7 +325,8 @@ and the desktop's maild stops.
     makes the key (`systemd-creds encrypt --with-key=auto`) is
     [`scripts/seal-mail-secrets.sh`](../../scripts/seal-mail-secrets.sh)
     (dry run by default, `--apply`, `--rollback`; tested in
-    `scripts/seal_test.go`), and the move script accepts `sealed`;
+    `scripts/seal_test.go`), and the move script accepts `sealed`
+    (both #118);
   - [specs/lodge-app.md](../specs/lodge-app.md) and
     [design/accounts.md](../design/accounts.md#secrets) match.
 
