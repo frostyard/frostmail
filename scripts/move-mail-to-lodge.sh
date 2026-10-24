@@ -27,6 +27,15 @@
 #   3. enables and starts frostmail.socket and frostmail.service, and checks
 #      that its maild lists the export's accounts.
 #
+# frostmail.service must have FROSTMAIL_SECRETS=file or sealed. With sealed
+# (ADR-0044) the key /etc/credstore.encrypted/frostmail-secrets-key must
+# exist (seal-mail-secrets.sh makes it, or the command in
+# packaging/lodge/frostmail.service); maild moves the export's plain
+# secrets.json into secrets.sealed on its start, and the script checks that
+# secrets.json is gone and, when the export held a secret, that
+# secrets.sealed exists. The export's secrets.json
+# is in plain text, and so is the copy on lodge's host until maild starts.
+#
 # It keeps what it sets aside, and a manifest --rollback reads, under
 # /var/backups/frostmail-move-<stamp>. It refuses any state it cannot read
 # unambiguously, before changing anything. It never deletes DIR.
@@ -63,7 +72,7 @@ set_aside=
 rollback=
 
 usage() {
-	sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,47p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 
@@ -283,9 +292,16 @@ exec_start=$(show "$UNIT" ExecStart | sed -n 's/.*path=\([^ ;]*\).*/\1/p')
 dropins=$(show "$UNIT" DropInPaths)
 say "    $UNIT runs ${exec_start:-?} as $APP_USER, data $target, cache $cache, private socket $app_socket"
 [ -z "$dropins" ] || say "    with drop-ins: $dropins (kept as they are: the binary, data and socket above are theirs)"
-if [ "$secrets_mode" != file ]; then
-	problem "$UNIT has FROSTMAIL_SECRETS='${secrets_mode}', not 'file': the server's maild must keep its secrets in its file store (ADR-0044 decides what comes next)"
-fi
+case $secrets_mode in
+file) ok "$UNIT keeps its secrets in a plain file (FROSTMAIL_SECRETS=file)" ;;
+sealed)
+	if [ -f "$(p /etc/credstore.encrypted/frostmail-secrets-key)" ]; then
+		ok "$UNIT seals its secrets (FROSTMAIL_SECRETS=sealed), and the key /etc/credstore.encrypted/frostmail-secrets-key exists"
+	else
+		problem "$UNIT has FROSTMAIL_SECRETS=sealed, and the key /etc/credstore.encrypted/frostmail-secrets-key does not exist: make it first with seal-mail-secrets.sh, or by hand as packaging/lodge/frostmail.service says (ADR-0044)"
+	fi ;;
+*) problem "$UNIT has FROSTMAIL_SECRETS='${secrets_mode}', not 'file' or 'sealed': the server's maild must keep its secrets in its file store, plain or sealed (ADR-0044)" ;;
+esac
 
 mailctl=$(command -v mailctl || true)
 if [ -n "$exec_start" ] && [ -x "$(p "$(dirname "$exec_start")/mailctl")" ]; then
@@ -300,6 +316,7 @@ fi
 # The export.
 export_id=
 accounts=
+has_secrets=0
 if [ -z "$from" ]; then
 	problem "--from DIR is required: the export, copied here from the desktop (move-mail-to-lodge.sh export --to DIR)"
 elif [ ! -d "$from" ]; then
@@ -329,7 +346,12 @@ else
 	fi
 	[ -d "$from/blobs" ] || problem "$from/blobs is missing"
 	[ -f "$from/frostmail.db" ] || problem "$from/frostmail.db is missing"
-	[ -f "$from/secrets.json" ] || problem "$from/secrets.json is missing"
+	if [ -f "$from/secrets.json" ]; then
+		# An export with no secret ({}) leaves no secrets.sealed: maild removes the empty plain file.
+		if [ "$(tr -d ' \t\r\n' <"$from/secrets.json")" != '{}' ]; then has_secrets=1; fi
+	else
+		problem "$from/secrets.json is missing"
+	fi
 fi
 
 # Not moved already: a backup of this script that took this export in.
@@ -449,6 +471,20 @@ if [ "$mode" = apply ]; then
 	done
 	[ "$("$SYSTEMCTL" is-active "$UNIT" 2>/dev/null)" = active ] || fail "$UNIT did not start: journalctl -u $UNIT"
 	ok "$UNIT is active"
+	if [ "$secrets_mode" = sealed ]; then
+		# maild is active before it opens its secrets: wait for it to seal the file.
+		for _ in $(seq 60); do
+			[ ! -e "$(p "$target")/secrets.json" ] && { [ $has_secrets = 0 ] || [ -f "$(p "$target")/secrets.sealed" ]; } && break
+			sleep 0.5
+		done
+		[ ! -e "$(p "$target")/secrets.json" ] || fail "$target/secrets.json is still there: maild did not seal it: journalctl -u $UNIT"
+		if [ $has_secrets = 1 ]; then
+			[ -f "$(p "$target")/secrets.sealed" ] || fail "$target/secrets.sealed does not exist: journalctl -u $UNIT"
+			ok "secrets.json is gone and secrets.sealed exists"
+		else
+			ok "secrets.json is gone (the export held no secret, so maild made no secrets.sealed)"
+		fi
+	fi
 	for _ in $(seq 30); do
 		if now_out=$(as "$APP_USER" "$mailctl" --socket "$app_socket" account list 2>/dev/null); then break; fi
 		now_out=
@@ -460,6 +496,9 @@ if [ "$mode" = apply ]; then
 	[ "$now" = "$want" ] || fail "$UNIT lists the accounts '$now', not the export's '$want'"
 	ok "its accounts are the export's: $want"
 else
+	if [ "$secrets_mode" = sealed ]; then
+		if [ $has_secrets = 1 ]; then say "  then check that $target/secrets.json is gone and $target/secrets.sealed exists"; else say "  then check that $target/secrets.json is gone (the export holds no secret: no secrets.sealed)"; fi
+	fi
 	say "  then check that $UNIT lists the export's accounts: ${accounts:-none}"
 fi
 

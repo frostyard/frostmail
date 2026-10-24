@@ -210,10 +210,11 @@ func (f *File) Remove() error {
 }
 
 // migrate moves every secret from the file store into another store,
-// reading each back before the file is removed.
+// reading each back before the file is removed. A file that holds no
+// secret is removed too, and a missing file is nothing to do.
 func migrate(ctx context.Context, from *File, to Store) error {
 	all, err := from.All()
-	if err != nil || len(all) == 0 {
+	if err != nil {
 		return err
 	}
 	for key, value := range all {

@@ -192,7 +192,11 @@ and `TestMicrosoftSessionOnTheFake` run each script against `davtest` or
 provider. Only the throwaway Gmail account and the user's Outlook.com
 test account are recorded: the repository is public, and a scrubbed
 trace keeps dates and counts. A dev maild that keeps its secrets in a
-file (`FROSTMAIL_SECRETS=file`) lends `tools/davsession` its sign-in.
+file (`FROSTMAIL_SECRETS=file`) lends `tools/davsession` its sign-in. A
+server's sealed store (`FROSTMAIL_SECRETS=sealed`) is tested with a key in
+a temporary `$CREDENTIALS_DIRECTORY` (`internal/secrets/sealed_test.go`),
+and the scripts that seal and move it with a staged root and stub
+commands (`scripts/seal_test.go`, `scripts/move_test.go`).
 
 ## Planned layers
 

@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -21,11 +22,17 @@ func NewDPAPIFile(path string) *File {
 // Open picks maild's secret store on Windows: the DPAPI-sealed file beside
 // file (secrets.dpapi), unless FROSTMAIL_SECRETS=file keeps a development
 // or test maild's secrets in the plain file. Secrets still in the plain
-// file are moved over and the file is removed.
+// file are moved over and the file is removed. FROSTMAIL_SECRETS=sealed
+// (a systemd credential, ADR-0044) is an error here, and so is any other
+// value but file.
 func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
 	plain := NewFile(file)
-	if os.Getenv("FROSTMAIL_SECRETS") == "file" {
+	switch v := os.Getenv("FROSTMAIL_SECRETS"); v {
+	case "file":
 		return plain, nil
+	case "":
+	default:
+		return nil, errNotOnWindows(v)
 	}
 	sealed := NewDPAPIFile(strings.TrimSuffix(file, filepath.Ext(file)) + ".dpapi")
 	if err := migrate(ctx, plain, sealed); err != nil {
@@ -39,13 +46,27 @@ func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
 // (mailctl export, with maild stopped): the sealed file, or the plain file
 // when FROSTMAIL_SECRETS=file. A key the sealed file does not hold is also
 // looked up in the plain file, a leftover Open has not migrated yet. It
-// never moves a secret and never writes.
+// never moves a secret and never writes. Like Open, it refuses "sealed" and
+// any value it does not know.
 func OpenReader(_ context.Context, file string) (Store, error) {
 	plain := NewFile(file)
-	if os.Getenv("FROSTMAIL_SECRETS") == "file" {
+	switch v := os.Getenv("FROSTMAIL_SECRETS"); v {
+	case "file":
 		return readOnly{first: plain}, nil
+	case "":
+	default:
+		return nil, errNotOnWindows(v)
 	}
 	return readOnly{first: NewDPAPIFile(strings.TrimSuffix(file, filepath.Ext(file)) + ".dpapi"), second: plain}, nil
+}
+
+// errNotOnWindows refuses a FROSTMAIL_SECRETS value Windows has no store
+// for: "sealed" needs systemd credentials, which Windows does not have.
+func errNotOnWindows(v string) error {
+	if v == "sealed" {
+		return errors.New(`secrets: FROSTMAIL_SECRETS=sealed needs a systemd credential, which Windows does not have: use file or leave it unset`)
+	}
+	return errUnknownMode(v)
 }
 
 func protect(data []byte) ([]byte, error) {

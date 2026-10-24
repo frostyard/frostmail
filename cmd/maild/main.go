@@ -120,7 +120,10 @@ func run(ctx context.Context, args []string) (err error) {
 		views.OnCommit(evs)
 	}
 	// The Secret Service when the desktop has one; FROSTMAIL_SECRETS=file
-	// keeps a development or test maild out of the user's keyring.
+	// keeps a development or test maild out of the user's keyring, and
+	// FROSTMAIL_SECRETS=sealed (a server) seals the file with a systemd
+	// credential's key. An Open error stops maild: it never falls back to
+	// a plain file (ADR-0044).
 	sec, err := secrets.Open(ctx, filepath.Join(paths.DataDir, "secrets.json"), logger)
 	if err != nil {
 		return err
