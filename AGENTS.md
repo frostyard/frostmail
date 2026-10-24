@@ -28,9 +28,9 @@ and each milestone's plan carries its own status. M8, mail in lodge
 - **Still to see:** a few checks in a real browser and on real desktops
   (plan 0011's status).
 - **Phase 7,** moving the user's mail to lodge's host: its tools are
-  built (`mailctl export`, `scripts/move-mail-to-lodge.sh`); secrets on
-  the server wait on [ADR-0044](docs/adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
-  (Proposed), and the move waits on the user.
+  built (`mailctl export`, `scripts/move-mail-to-lodge.sh`). The sealed
+  secrets store of [ADR-0044](docs/adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
+  (accepted 2026-10-24) is the next step, and the move waits on the user.
 
 M8.5 ([plan 0012](docs/plans/0012-calendar-tasks-and-contacts-for-agents.md)),
 calendar, task and contact tools on `/mcp/mail` for Porter, is built and

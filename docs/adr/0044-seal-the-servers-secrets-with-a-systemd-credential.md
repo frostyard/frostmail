@@ -1,6 +1,6 @@
 # 0044 — On a server, maild seals its secrets file with a key from a systemd credential
 
-- **Status:** Proposed
+- **Status:** Accepted (Brian, 2026-10-24)
 - **Date:** 2026-10-24
 
 ## Context
