@@ -349,6 +349,15 @@ if [ "$mode" = apply ]; then
 		start_as_was "$unit_was" "$socket_was" || true
 		fail "the files changed while the units stopped, to a state this script refuses (above). The units are started again as they were; nothing else changed"
 	fi
+	if [ $has_json = 0 ] && [ $has_key = 1 ]; then
+		# The state the checks call already sealed (or nothing to seal): the old maild moved
+		# secrets.json in while it stopped. Backing up now would record a file that is not there.
+		restored=1
+		start_as_was "$unit_was" "$socket_was"
+		say "  maild sealed secrets.json during the stop: nothing left to do. The units are started again as they were; no backup and no manifest were made."
+		say $'\nNothing else changed.'
+		exit 0
+	fi
 fi
 
 step "2. The backup"

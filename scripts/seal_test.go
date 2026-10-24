@@ -614,6 +614,31 @@ func TestSealActsOnTheStateAfterTheStop(t *testing.T) {
 		}
 		inOrder(t, changes(t, root), "systemctl stop frostmail.socket frostmail.service", "systemctl start frostmail.socket frostmail.service")
 	})
+	t.Run("maild seals it during the stop: nothing left to do", func(t *testing.T) {
+		root := sealStage(t)
+		writeFile(t, root, keyPath, "key")
+		// The old maild moves the file in as it stops.
+		writeFile(t, root, "stub/on-stop", "mv \"$SEAL_ROOT/var/lib/frostmail/secrets.json\" \"$SEAL_ROOT/var/lib/frostmail/secrets.sealed\"\n")
+		out, code := seal(t, root, "--apply")
+		if code != 0 || !strings.Contains(out, "maild sealed secrets.json during the stop: nothing left to do") {
+			t.Fatalf("exit %d:\n%s", code, out)
+		}
+		if exists(root, "var/backups") && exists(root, sealBackup) {
+			t.Error("it made a backup")
+		}
+		if got := readFile(t, root, "var/lib/frostmail/secrets.sealed"); got != plainSecret {
+			t.Errorf("secrets.sealed = %q: it must stay as maild made it", got)
+		}
+		if exists(root, "var/lib/frostmail/secrets.json") || exists(root, dropInPath) {
+			t.Error("secrets.json is back, or a drop-in was written")
+		}
+		for _, u := range []string{"frostmail.service", "frostmail.socket"} {
+			if got := readFile(t, root, "stub/units/"+u+"/active"); got != "active\n" {
+				t.Errorf("%s is %q: it must start again as it was", u, got)
+			}
+		}
+		inOrder(t, changes(t, root), "systemctl stop frostmail.socket frostmail.service", "systemctl start frostmail.socket frostmail.service")
+	})
 	t.Run("secrets.json goes: the backup and the manifest say so", func(t *testing.T) {
 		root := sealStage(t)
 		writeFile(t, root, "stub/on-stop", "rm \"$SEAL_ROOT/var/lib/frostmail/secrets.json\"\n")
