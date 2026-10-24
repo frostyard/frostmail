@@ -60,7 +60,13 @@ systemctl)
 			stop) echo inactive >"$(u "$unit")/active" ;;
 			esac
 			# CacheDirectory= makes the cache when the service starts.
-			if [ "$unit" = frostmail.service ] && [ "$(cat "$(u "$unit")/active")" = active ]; then mkdir -p "$R/var/cache/frostmail"; fi
+			if [ "$unit" = frostmail.service ] && [ "$(cat "$(u "$unit")/active")" = active ]; then
+				mkdir -p "$R/var/cache/frostmail"
+				# maild with FROSTMAIL_SECRETS=sealed and its key seals a plain secrets.json (ADR-0044).
+				if grep -q FROSTMAIL_SECRETS=sealed "$(u "$unit")/Environment" && [ -f "$R/etc/credstore.encrypted/frostmail-secrets-key" ] && [ -f "$R/var/lib/frostmail/secrets.json" ]; then
+					mv "$R/var/lib/frostmail/secrets.json" "$R/var/lib/frostmail/secrets.sealed"
+				fi
+			fi
 		done ;;
 	esac ;;
 runuser)
@@ -358,7 +364,10 @@ func TestHostRefusals(t *testing.T) {
 		}, from, "mail is not installed for lodge"},
 		"secrets not in the file store": {func(t *testing.T, root string) {
 			writeFile(t, root, "stub/units/frostmail.service/Environment", "FROSTMAIL_DATA_DIR=/var/lib/frostmail\n")
-		}, from, "FROSTMAIL_SECRETS='', not 'file'"},
+		}, from, "FROSTMAIL_SECRETS='', not 'file' or 'sealed'"},
+		"sealed secrets without the key": {func(t *testing.T, root string) {
+			sealedUnit(t, root)
+		}, from, "the key /etc/credstore.encrypted/frostmail-secrets-key does not exist: make it first with seal-mail-secrets.sh"},
 		"the service not installed": {func(t *testing.T, root string) {
 			writeFile(t, root, "stub/units/frostmail.service/LoadState", "not-found\n")
 		}, from, "frostmail.service is not installed"},
@@ -418,6 +427,37 @@ func TestHostRefusals(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// sealedUnit makes the staged frostmail.service seal its secrets (ADR-0044).
+func sealedUnit(t *testing.T, root string) {
+	t.Helper()
+	env := readFile(t, root, "stub/units/frostmail.service/Environment")
+	writeFile(t, root, "stub/units/frostmail.service/Environment", strings.Replace(env, "FROSTMAIL_SECRETS=file", "FROSTMAIL_SECRETS=sealed", 1))
+}
+
+func TestApplyWithSealedSecretsChecksTheKeyAndThatMaildSealedTheFile(t *testing.T) {
+	root := stage(t)
+	sealedUnit(t, root)
+	writeFile(t, root, "etc/credstore.encrypted/frostmail-secrets-key", "sealed key")
+	dry, code := move(t, root, "--from", filepath.Join(root, "root/frostmail-export"))
+	if code != 0 || !strings.Contains(dry, "✓ frostmail.service seals its secrets (FROSTMAIL_SECRETS=sealed), and the key /etc/credstore.encrypted/frostmail-secrets-key exists") ||
+		!strings.Contains(dry, "then check that /var/lib/frostmail/secrets.json is gone and /var/lib/frostmail/secrets.sealed exists") {
+		t.Fatalf("dry run: exit %d\n%s", code, dry)
+	}
+	out := applied(t, root)
+	if !strings.Contains(out, "✓ secrets.json is gone and secrets.sealed exists") {
+		t.Errorf("the output lacks the sealed check:\n%s", out)
+	}
+	if exists(root, "var/lib/frostmail/secrets.json") {
+		t.Error("secrets.json is still in the target")
+	}
+	if got := readFile(t, root, "var/lib/frostmail/secrets.sealed"); got != `{"account/1/password":"x"}` {
+		t.Errorf("secrets.sealed = %q", got)
+	}
+	if got := readFile(t, root, "var/lib/frostmail/frostmail.db"); got != desktopDB {
+		t.Errorf("the target's database = %q", got)
 	}
 }
 

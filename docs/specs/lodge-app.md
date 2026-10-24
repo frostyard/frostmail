@@ -83,7 +83,15 @@ maild exits when the key is missing, is not 32 bytes, or does not open
 and it never falls back to a plain file. A plain `secrets.json` it finds
 is moved in once, read back, and removed. `FROSTMAIL_SECRETS=file` (a
 plain `secrets.json`, 0600) stays for a server without systemd
-credentials, and maild warns at start.
+credentials, and maild warns at start. Such a server needs a drop-in that
+also clears the credential, or systemd refuses to start the unit:
+
+```ini
+# /etc/systemd/system/frostmail.service.d/50-secrets-file.conf
+[Service]
+Environment=FROSTMAIL_SECRETS=file
+LoadCredentialEncrypted=
+```
 
 ### Listeners
 
