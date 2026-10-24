@@ -18,8 +18,8 @@
 # together, with go.mod's toolchain.
 set -euo pipefail
 
-GO_VERSION=1.27.1
-GO_WINDOWS_SHA256=a3911b5e0e1b1053f25ed0675f4c1c6aad1e2bfcf253df2b9be4caabd2edd95d
+GO_VERSION=1.27.3
+GO_WINDOWS_SHA256=f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff
 
 VM=${FM_WIN_VM:-frostmail-win11}
 KEY=${FM_WIN_KEY:-$HOME/.ssh/frostmail-windows}

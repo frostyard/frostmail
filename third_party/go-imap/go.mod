@@ -2,7 +2,7 @@ module github.com/emersion/go-imap/v2
 
 go 1.18
 
-toolchain go1.27.1
+toolchain go1.27.3
 
 require (
 	github.com/emersion/go-message v0.18.2

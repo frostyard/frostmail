@@ -95,6 +95,9 @@ checked live over lodge's agent socket (2026-10-21).
 - `make engine-it` runs integration tests against the Dovecot container
   (resetting it first). `make ui-test` and `make app-build` run in the nsl
   machine. `make ci` is verify plus race tests and the app checks.
+- `make vulncheck` runs govulncheck (pinned in the Makefile; needs the
+  network). It is not part of `check`, `verify` or `ci`; the CI job
+  "Vulnerabilities (make vulncheck)" runs it. Keep it at 0 reachable findings.
 - Fix a lint finding rather than loosening `.golangci.yml`.
 
 ## Conventions

@@ -1,10 +1,13 @@
 .PHONY: help build build-windows install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci web-build lodge-package ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci vulncheck web-build lodge-package ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT)
+
+# govulncheck's release; the Go checksum database verifies the module.
+GOVULNCHECK_VERSION := v1.9.0
 
 # golangci-lint's release, read from mise.toml (frostyard/core ADR-0043).
 GOLANGCI_LINT_VERSION := $(strip $(shell sed -n 's/^golangci-lint = "\(.*\)"/\1/p' mise.toml))
@@ -103,6 +106,9 @@ check: fmt verify ## Format, then verify (the developer gate)
 
 ci: verify ui-check app-test app-build ## verify plus race tests and the app checks
 	go test -race ./...
+
+vulncheck: ## Report reachable vulnerabilities (govulncheck; needs the network)
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 ui-check: ## Lint (Biome), typecheck and test the app UI (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run check'
