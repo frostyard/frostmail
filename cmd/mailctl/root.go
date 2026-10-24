@@ -43,6 +43,7 @@ func newRootCmd() *cobra.Command {
 		newTasksCmd(opts),
 		newWaitingCmd(opts),
 		newRulesCmd(opts),
+		newExportCmd(opts),
 	)
 	return root
 }

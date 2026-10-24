@@ -35,6 +35,19 @@ func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
 	return sealed, nil
 }
 
+// OpenReader opens the store Open would pick, to read it and nothing else
+// (mailctl export, with maild stopped): the sealed file, or the plain file
+// when FROSTMAIL_SECRETS=file. A key the sealed file does not hold is also
+// looked up in the plain file, a leftover Open has not migrated yet. It
+// never moves a secret and never writes.
+func OpenReader(_ context.Context, file string) (Store, error) {
+	plain := NewFile(file)
+	if os.Getenv("FROSTMAIL_SECRETS") == "file" {
+		return readOnly{first: plain}, nil
+	}
+	return readOnly{first: NewDPAPIFile(strings.TrimSuffix(file, filepath.Ext(file)) + ".dpapi"), second: plain}, nil
+}
+
 func protect(data []byte) ([]byte, error) {
 	return crypt(data, windows.CryptProtectData)
 }

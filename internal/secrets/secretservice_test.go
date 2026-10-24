@@ -316,3 +316,83 @@ func TestOpenPicksAndMigrates(t *testing.T) {
 		t.Errorf("FROSTMAIL_SECRETS=file gave %T, %v", st, err)
 	}
 }
+
+func TestOpenReaderReadsTheServiceThenTheLeftoverFileAndWritesNothing(t *testing.T) {
+	addr := privateBus(t)
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", addr)
+	t.Setenv("FROSTMAIL_SECRETS", "")
+	ctx := t.Context()
+	file := filepath.Join(t.TempDir(), "secrets.json")
+	leftover := NewFile(file)
+	for k, v := range map[string]string{"account/2/password": "from-file", "account/1/password": "old-file"} {
+		if err := leftover.Set(ctx, k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rawBefore, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// No service on the bus: the file alone.
+	st, err := OpenReader(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.Get(ctx, "account/2/password"); err != nil || got != "from-file" {
+		t.Fatalf("file only: get = %q, %v", got, err)
+	}
+	if _, err := st.Get(ctx, "account/9/password"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("file only: get missing = %v", err)
+	}
+
+	f := startFake(t, addr)
+	ss, err := OpenSecretService(ctx, connect(t, addr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ss.Set(ctx, "account/1/password", "from-service"); err != nil {
+		t.Fatal(err)
+	}
+	serviceBefore := f.snapshot()
+
+	st, err = OpenReader(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The service wins for a key in both; a key only in the file is read from it.
+	if got, err := st.Get(ctx, "account/1/password"); err != nil || got != "from-service" {
+		t.Errorf("a key in the service = %q, %v", got, err)
+	}
+	if got, err := st.Get(ctx, "account/2/password"); err != nil || got != "from-file" {
+		t.Errorf("a key only in the leftover file = %q, %v", got, err)
+	}
+	if _, err := st.Get(ctx, "account/9/password"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a key in neither = %v", err)
+	}
+	if err := st.Set(ctx, "account/3/password", "x"); !errors.Is(err, ErrReadOnly) {
+		t.Errorf("set = %v, want ErrReadOnly", err)
+	}
+	if err := st.Delete(ctx, "account/1/password"); !errors.Is(err, ErrReadOnly) {
+		t.Errorf("delete = %v, want ErrReadOnly", err)
+	}
+
+	// Neither store changed: the file is still there, byte for byte, and
+	// the service holds what it held.
+	if rawAfter, err := os.ReadFile(file); err != nil || string(rawAfter) != string(rawBefore) {
+		t.Errorf("the leftover file changed: %v", err)
+	}
+	if got := f.snapshot(); !maps.Equal(got, serviceBefore) {
+		t.Errorf("the service changed: %v, was %v", got, serviceBefore)
+	}
+
+	// FROSTMAIL_SECRETS=file leaves the service alone.
+	t.Setenv("FROSTMAIL_SECRETS", "file")
+	st, err = OpenReader(ctx, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.Get(ctx, "account/1/password"); err != nil || got != "old-file" {
+		t.Errorf("FROSTMAIL_SECRETS=file: get = %q, %v", got, err)
+	}
+}

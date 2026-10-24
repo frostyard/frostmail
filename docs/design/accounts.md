@@ -113,6 +113,16 @@ caps responses at 64 KB, and never sends the password anywhere.
   0600 check is Unix-only.
 - Keys: `account/<id>/password`, `account/<id>/refresh-token`,
   `oauth/<provider>/client-secret`. Deleting an account deletes its keys.
+- On a server (ADR-0041), `frostmail.service` keeps the file store
+  (`FROSTMAIL_SECRETS=file`).
+  [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
+  (Proposed) seals it with a key from a systemd credential.
+- **Moving to another maild.** `mailctl export DIR`, with maild stopped,
+  reads every account's keys and the OAuth clients' secrets from whichever
+  store maild uses, without changing it, and writes them to
+  `DIR/secrets.json` (0600) beside a copy of the database and the blobs.
+  `scripts/move-mail-to-lodge.sh` uses it to move the desktop's mail to
+  lodge's host ([plan 0011](../plans/0011-m8-mail-in-lodge.md), Phase 7).
 
 ## Read-only accounts
 
