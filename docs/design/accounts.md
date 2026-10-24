@@ -116,7 +116,8 @@ caps responses at 64 KB, and never sends the password anywhere.
 - On a server (ADR-0041), `frostmail.service` keeps the file store
   (`FROSTMAIL_SECRETS=file`).
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
-  (Proposed) seals it with a key from a systemd credential.
+  (accepted 2026-10-24, not built yet) seals it with a key from a systemd
+  credential.
 - **Moving to another maild.** `mailctl export DIR`, with maild stopped,
   reads every account's keys and the OAuth clients' secrets from whichever
   store maild uses, without changing it, and writes them to
