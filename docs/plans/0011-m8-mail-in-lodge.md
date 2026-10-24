@@ -20,10 +20,13 @@ Status (2026-10-24):
   - Phase 6: a real notification on Linux and on Windows.
 - **Phase 7's tools are built** (2026-10-24): `mailctl export` and
   [`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh),
-  tested against a staged root (#115). The next step is the sealed
-  secrets store of
+  tested against a staged root (#115).
+- **The sealed secrets store is built** (2026-10-24):
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
-  accepted on 2026-10-24. The move itself waits on the user.
+  accepted the same day. `FROSTMAIL_SECRETS=sealed`,
+  `scripts/seal-mail-secrets.sh` and the move script's `sealed` are
+  tested; the key step on lodge's host is not run yet. The move itself
+  waits on the user.
 
 ## Decisions for M8
 
@@ -305,23 +308,32 @@ and the desktop's maild stops.
   (accepted 2026-10-21) finishes a sign-in with a pasted address.
 - **Secrets on the server:**
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
-  accepted by the user on 2026-10-24. It keeps maild's file store and
-  seals it with a key from a systemd credential. The move does not wait on
-  it: the script places a plain `secrets.json`, which maild moves into the
-  sealed store on its first start under ADR-0044.
-- **Next: the sealed secrets store** (not started). Build ADR-0044's
-  decision:
+  accepted by the user on 2026-10-24, and built. It keeps maild's file
+  store and seals it with a key from a systemd credential. The move script
+  places a plain `secrets.json`, which maild moves into the sealed store on
+  its first start.
+- **The sealed secrets store** (built, 2026-10-24). ADR-0044's decision:
   - a sealed file store, `secrets.sealed` (AES-256-GCM, a fresh nonce on
     each write), with the key from
-    `$CREDENTIALS_DIRECTORY/frostmail-secrets-key`;
+    `$CREDENTIALS_DIRECTORY/frostmail-secrets-key`
+    (`internal/secrets/sealed.go`);
   - `FROSTMAIL_SECRETS=sealed`, which refuses to start without a key that
-    opens the file, and moves a plain `secrets.json` in once;
-  - `packaging/lodge/frostmail.service` with
-    `LoadCredentialEncrypted=frostmail-secrets-key`, the install step that
-    makes the key (`systemd-creds encrypt --with-key=auto`), and the move
-    script accepting `sealed`;
+    opens the file, never falls back, and moves a plain `secrets.json` in
+    once;
+  - `packaging/lodge/frostmail.service` with `FROSTMAIL_SECRETS=sealed` and
+    `LoadCredentialEncrypted=frostmail-secrets-key`; the install step that
+    makes the key (`systemd-creds encrypt --with-key=auto`) is
+    [`scripts/seal-mail-secrets.sh`](../../scripts/seal-mail-secrets.sh)
+    (dry run by default, `--apply`, `--rollback`; tested in
+    `scripts/seal_test.go`), and the move script accepts `sealed`;
   - [specs/lodge-app.md](../specs/lodge-app.md) and
-    [design/accounts.md](../design/accounts.md#secrets) to match.
+    [design/accounts.md](../design/accounts.md#secrets) match.
+
+  **For the user, on lodge's host, in order:** install the new packaging
+  and run `systemctl daemon-reload`; run `scripts/seal-mail-secrets.sh`
+  (dry run) and then with `--apply`, which makes the key and seals the
+  test deployment's `secrets.json`; then
+  `scripts/move-mail-to-lodge.sh --from DIR`.
 - **`mailctl export DIR`** (built). On the desktop, with maild stopped, it
   writes a still copy of maild's data:
   - `frostmail.db`, by SQLite's `VACUUM INTO`, with no migration;
@@ -391,7 +403,7 @@ and the desktop's maild stops.
   credentials, a TPM). Decide by Phase 7.
   Answered on 2026-10-24 by
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
-  (accepted): the file store, sealed with a key from a systemd credential.
+  (accepted, built): the file store, sealed with a key from a systemd credential.
 
 ## References
 

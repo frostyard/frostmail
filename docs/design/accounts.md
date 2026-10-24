@@ -98,9 +98,13 @@ caps responses at 64 KB, and never sends the password anywhere.
   labeled `Frostmail: <key>` with attributes `application=frostmail`,
   `key=<key>`, plain session (the bus is local). A locked collection is
   unlocked with the service's prompt.
-- maild picks the Secret Service when the session bus offers it, else the
-  file store with a warning. `FROSTMAIL_SECRETS=file` forces the file store
-  (tests, CI).
+- `FROSTMAIL_SECRETS` chooses the store, and an unknown value is an error:
+  - unset: the Secret Service when the session bus offers it, else the
+    file store with a warning;
+  - `file`: the plain file store, with a warning that a server seals it
+    (tests, CI, development);
+  - `sealed`: the sealed file store, below (Linux only; on Windows it is an
+    error).
 - Migration: on start with the Secret Service, every key of an existing
   `secrets.json` is copied in, verified by reading it back, and the file is
   removed.
@@ -113,11 +117,43 @@ caps responses at 64 KB, and never sends the password anywhere.
   0600 check is Unix-only.
 - Keys: `account/<id>/password`, `account/<id>/refresh-token`,
   `oauth/<provider>/client-secret`. Deleting an account deletes its keys.
-- On a server (ADR-0041), `frostmail.service` keeps the file store
-  (`FROSTMAIL_SECRETS=file`).
-  [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
-  (accepted 2026-10-24, not built yet) seals it with a key from a systemd
-  credential.
+- **The sealed store** is for a server (ADR-0041, and
+  [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
+  accepted 2026-10-24, built): `FROSTMAIL_SECRETS=sealed`, which
+  `frostmail.service` sets.
+  - `internal/secrets/sealed.go`: the file store's JSON object, sealed
+    with AES-256-GCM as `secrets.sealed` beside the database, mode 0600,
+    written like `secrets.json` (a temporary file, synced, renamed). The
+    file is the magic `FMSEAL01`, a fresh random 12-byte nonce for each
+    write, then the ciphertext and its tag; the magic is also the
+    additional data.
+  - The key is 32 raw bytes, the systemd credential `frostmail-secrets-key`
+    (`LoadCredentialEncrypted=` in the unit), which maild reads from
+    `$CREDENTIALS_DIRECTORY`.
+  - **No silent fallback.** maild refuses to start (it exits with the
+    error) when the credentials directory or the key is missing, the key is
+    not 32 bytes, or the key does not open an existing `secrets.sealed`.
+    The error names the credential and the file, never a secret or the key,
+    and a plain `secrets.json` stays as it was. It never falls back to a
+    plain file or to the Secret Service. A missing `secrets.sealed` is an
+    empty store, the first start.
+  - **Migration.** On start, a plain `secrets.json` moves in once: each key
+    is copied, read back, and the plain file removed, as for the Secret
+    Service. maild reads the sealed file first, so a plain file never moves
+    into a file that nothing opens.
+  - `mailctl export` with `sealed` reads `secrets.sealed`, then a plain
+    leftover, and never writes. It needs `$CREDENTIALS_DIRECTORY` to hold
+    the key, so it runs as a service with the unit's
+    `LoadCredentialEncrypted=`; it fails without the key.
+  - **The key is not in a backup of the data directory.** A restore
+    onto another host cannot open `secrets.sealed`: move it aside, and each
+    account shows "Sign in again".
+  - `scripts/seal-mail-secrets.sh` (as root, on lodge's host) makes the
+    key and lets maild seal an existing `secrets.json`: dry run by default,
+    a backup of the plain file and a manifest, `--rollback`. The move
+    script (`scripts/move-mail-to-lodge.sh`) accepts `file` and `sealed`.
+  - `FROSTMAIL_SECRETS=file` stays for a server without systemd
+    credentials, and for CI and development.
 - **Moving to another maild.** `mailctl export DIR`, with maild stopped,
   reads every account's keys and the OAuth clients' secrets from whichever
   store maild uses, without changing it, and writes them to

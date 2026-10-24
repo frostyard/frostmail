@@ -59,7 +59,31 @@ names, and their calendars, tasks and contacts
 | `FROSTMAIL_DATA_DIR` | `/var/lib/frostmail` (`StateDirectory=frostmail`, 0700) |
 | `FROSTMAIL_CACHE_DIR` | `/var/cache/frostmail` (`CacheDirectory=frostmail`, 0700) |
 | `FROSTMAIL_SOCKET` | `/run/frostmail/maild.sock` (`RuntimeDirectory=frostmail`, 0700) |
-| `FROSTMAIL_SECRETS` | `file`: `/var/lib/frostmail/secrets.json`, 0600 |
+| `FROSTMAIL_SECRETS` | `sealed`: `/var/lib/frostmail/secrets.sealed`, 0600, AES-256-GCM under the key of the credential `frostmail-secrets-key` ([ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)) |
+
+`frostmail.service` also has
+`LoadCredentialEncrypted=frostmail-secrets-key:/etc/credstore.encrypted/frostmail-secrets-key`
+(the explicit path needs systemd 250), which gives maild the key in
+`$CREDENTIALS_DIRECTORY/frostmail-secrets-key`, readable by `frostmail`
+only. **Install step, once, as root:** make the key,
+`scripts/seal-mail-secrets.sh --apply`, which also moves a plain
+`secrets.json` in, or by hand:
+
+```sh
+install -d -m 0700 /etc/credstore.encrypted
+head -c 32 /dev/urandom | systemd-creds encrypt --with-key=auto \
+  --name=frostmail-secrets-key - /etc/credstore.encrypted/frostmail-secrets-key
+```
+
+The key is 32 random bytes sealed to the host's TPM2 or host key
+(`--with-key=auto`). It is not part of a backup of `/var/lib/frostmail`.
+Without the key the unit does not start: with `FROSTMAIL_SECRETS=sealed`
+maild exits when the key is missing, is not 32 bytes, or does not open
+`secrets.sealed`, with an error that names the credential and the file,
+and it never falls back to a plain file. A plain `secrets.json` it finds
+is moved in once, read back, and removed. `FROSTMAIL_SECRETS=file` (a
+plain `secrets.json`, 0600) stays for a server without systemd
+credentials, and maild warns at start.
 
 ### Listeners
 

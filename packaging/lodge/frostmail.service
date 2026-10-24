@@ -16,7 +16,17 @@ ExecStart=/usr/local/bin/maild --lodge
 Environment=FROSTMAIL_DATA_DIR=/var/lib/frostmail
 Environment=FROSTMAIL_CACHE_DIR=/var/cache/frostmail
 Environment=FROSTMAIL_SOCKET=/run/frostmail/maild.sock
-Environment=FROSTMAIL_SECRETS=file
+# The secrets are sealed in /var/lib/frostmail/secrets.sealed (ADR-0044), under
+# a key that is a systemd credential. Root makes the key once, with
+# scripts/seal-mail-secrets.sh, or by hand:
+#   install -d -m 0700 /etc/credstore.encrypted
+#   head -c 32 /dev/urandom | systemd-creds encrypt --with-key=auto \
+#     --name=frostmail-secrets-key - /etc/credstore.encrypted/frostmail-secrets-key
+# Without the key the unit does not start: maild refuses a missing or wrong
+# key and never falls back to a plain file. The explicit path of
+# LoadCredentialEncrypted= needs systemd 250.
+Environment=FROSTMAIL_SECRETS=sealed
+LoadCredentialEncrypted=frostmail-secrets-key:/etc/credstore.encrypted/frostmail-secrets-key
 StateDirectory=frostmail
 StateDirectoryMode=0700
 CacheDirectory=frostmail
