@@ -9,7 +9,7 @@ and depends on lodge's Phases 1 (the kit) and 2 (lodge v1). It runs after
 and leaves the friend's Windows install on its local maild.
 The contract is [specs/lodge-app.md](../specs/lodge-app.md).
 
-Status (2026-10-21):
+Status (2026-10-24):
 - **Phase 1 is done.** The user accepted ADR-0041 on 2026-10-21.
 - **Phases 2 to 6 are built,** merged on 2026-10-19 (#60–#68 and
   #71–#77) and pinned to lodge's `kit/v0.1.0` and `client/v0.1.0`. Each
@@ -18,7 +18,11 @@ Status (2026-10-21):
   - Phase 3: the reader frame's images from `lodge-content`, and the
     switcher's chord, in a real browser;
   - Phase 6: a real notification on Linux and on Windows.
-- **Phase 7** waits on the user.
+- **Phase 7's tools are built** (2026-10-24): `mailctl export` and
+  [`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh),
+  tested against a staged root. Secrets on the server wait on
+  [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
+  (Proposed). The move itself waits on the user.
 
 ## Decisions for M8
 
@@ -291,12 +295,62 @@ development build, and the app's notifications from a remote maild
 
 ## Phase 7 — The user's mail moves to lodge's host
 
-- Answer the sign-in question below.
-- Move the user's data directory and secrets from the desktop's maild to
-  `/var/lib/frostmail`, and stop the desktop's maild.
+The user's accounts, their mail and their secrets move from the desktop's
+maild to `/var/lib/frostmail` on lodge's host, which is another machine,
+and the desktop's maild stops.
+
+- **The sign-in question** is answered:
+  [ADR-0043](../adr/0043-finish-a-sign-in-with-a-pasted-address.md)
+  (accepted 2026-10-21) finishes a sign-in with a pasted address.
+- **Secrets on the server:**
+  [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
+  Proposed. It keeps maild's file store and seals it with a key from a
+  systemd credential. The move does not wait on it: the script places a
+  plain `secrets.json`, which maild moves into the sealed store on its
+  first start under ADR-0044.
+- **`mailctl export DIR`** (built). On the desktop, with maild stopped, it
+  writes a still copy of maild's data:
+  - `frostmail.db`, by SQLite's `VACUUM INTO`, with no migration;
+  - `blobs/`;
+  - `secrets.json`, mode 0600: each account's credential and each OAuth
+    client's secret, read from the Secret Service (or the file store, or
+    DPAPI on Windows), without changing it;
+  - `MANIFEST`, written last: the export's ID, the schema, the database's
+    SHA-256, the blob count and the accounts.
+
+  `mailctl export --check DIR` checks an export against its own build,
+  offline: the manifest, the checksum, a schema no newer than this maild's,
+  the blobs and the secrets file. Tests: `cmd/mailctl/export_test.go`.
+- **[`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh)**
+  (built), on the model of frostnotes'
+  [`move-hub-behind-lodge.sh`](https://github.com/frostyard/frostnotes/blob/main/scripts/move-hub-behind-lodge.sh).
+  Without `--apply` it only checks and prints the plan. It refuses any
+  state it cannot read unambiguously, before it changes anything, and
+  prints the rollback when a step fails. Its test,
+  `scripts/move_test.go`, runs it against a staged root with stub
+  commands.
+  1. On the desktop, as the user: `move-mail-to-lodge.sh export --to DIR
+     --apply` disables the desktop's `maild.service` and runs `mailctl
+     export DIR`.
+  2. The user copies DIR to lodge's host over SSH.
+  3. On lodge's host, as root: `move-mail-to-lodge.sh --from DIR --apply`
+     checks the export with the host's own `mailctl export --check`,
+     stops mail, sets the old data directory and parts cache aside, puts
+     the export in `/var/lib/frostmail` as `frostmail`, starts mail, and
+     checks that the server's maild lists the export's accounts. Its
+     backup and manifest are in `/var/backups/frostmail-move-<stamp>`, and
+     `--rollback` puts the server back as it was.
+     - It sets aside data that holds only generated mail (addresses in
+       RFC 2606's names) by itself. It refuses other accounts there
+       unless `--set-aside`, and never merges them.
+     - It lists lodge's MCP tokens for mail: a scope that names an
+       account ID names the export's account with that ID after the move.
+  4. The desktop app names lodge in its Server pane, and both copies of
+     the export are removed.
 - **Done when:** the user's accounts sync only on lodge's host for a week,
   read from the phone, a browser and the desktop app, with clean daily
-  verifies.
+  verifies. Then the desktop's Secret Service items go
+  (`secret-tool clear application frostmail`).
 
 ## Later / ideas
 
@@ -321,6 +375,9 @@ development build, and the app's notifications from a remote maild
   sign-in with the address the browser could not open.
 - **Secrets on the server:** the file store, or something sealed (systemd
   credentials, a TPM). Decide by Phase 7.
+  Proposed on 2026-10-24 in
+  [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md):
+  the file store, sealed with a key from a systemd credential.
 
 ## References
 

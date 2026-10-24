@@ -33,3 +33,23 @@ func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
 	log.Warn("no Secret Service; keeping secrets in a file", "file", file, "err", err)
 	return fs, nil
 }
+
+// OpenReader opens the store Open would pick, to read it and nothing else
+// (mailctl export, with maild stopped): it never moves a secret out of the
+// file and never writes. With the Secret Service, a key it does not hold is
+// also looked up in the file, a leftover Open has not migrated yet.
+func OpenReader(ctx context.Context, file string) (Store, error) {
+	fs := NewFile(file)
+	if os.Getenv("FROSTMAIL_SECRETS") == "file" {
+		return readOnly{first: fs}, nil
+	}
+	conn, err := dbus.ConnectSessionBus(dbus.WithContext(ctx))
+	if err == nil {
+		var ss *SecretService
+		if ss, err = OpenSecretService(ctx, conn); err == nil {
+			return readOnly{first: ss, second: fs}, nil
+		}
+		_ = conn.Close()
+	}
+	return readOnly{first: fs}, nil
+}
