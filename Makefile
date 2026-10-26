@@ -172,7 +172,11 @@ deb: ## Build dist/frostyard-maild_<DEB_VERSION>_amd64.deb with nFPM, after make
 	$(MAKE) --no-print-directory deb-check DEB_VERSION='$(DEB_VERSION)'
 
 deb-check: ## Check the .deb that make deb built (metadata, /usr only, root-owned, payload)
-	packaging/deb-check.sh "$(DEB_FILE)" frostyard-maild "$(DEB_VERSION)"
+	packaging/deb-check.py "$(DEB_FILE)" frostyard-maild "$(DEB_VERSION)" \
+		--exec /usr/bin/maild --exec /usr/bin/mailctl \
+		--file /usr/lib/systemd/system/frostmail.socket --file /usr/lib/systemd/system/frostmail.service \
+		--file /usr/lib/sysusers.d/frostmail.conf --file /usr/share/lodge/apps/mail/web/index.html \
+		--manifest /usr/share/lodge/apps/mail/app.json
 
 svu-version-check:
 	@test -n "$(SVU_VERSION)" || { echo "mise.toml pins no svu"; exit 1; }
@@ -192,10 +196,12 @@ bump: svu-version-check ## Tag the next version with svu and push the tag (main,
 	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || { echo "HEAD is not origin/main"; exit 1; }
 	$(MAKE) --no-print-directory verify
 	@test -z "$$(git status --porcelain)" || { echo "make verify left the working tree unclean"; exit 1; }
-	@version=$$($(SVU) next); \
-		git tag -a "$$version" -m "Version $$version"; \
-		echo "Tagged $$version; pushing it to origin"; \
-		git push origin "$$version"
+	@set -eu; \
+	version=$$($(SVU) next); \
+	printf '%s\n' "$$version" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+' || { echo "svu next gave '$$version', not vX.Y.Z"; exit 1; }; \
+	git tag -a "$$version" -m "Version $$version"; \
+	echo "Tagged $$version; pushing it to origin..."; \
+	git push origin "refs/tags/$$version"
 
 # The shell's notifications test needs a session bus: dbus-run-session gives
 # it one where the machine has it, and it skips elsewhere.

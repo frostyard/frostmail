@@ -87,7 +87,13 @@ it runs `make verify`, then tags `svu next` and pushes the tag
 The tag's workflow, `.github/workflows/release.yml`, builds
 `frostyard-maild_X.Y.Z_amd64.deb` with `make deb` (the staged layout above, put
 together by nFPM from `packaging/nfpm.yaml`, and checked by
-`packaging/deb-check.sh`), attests it, and attaches it to the GitHub release.
+`packaging/deb-check.py`), attests it, and attaches it to the GitHub release.
+`deb-check.py` reads the archive's exact member names. It fails unless the control
+fields are right (`Depends: systemd`, no maintainer scripts), and the package holds
+only root-owned, non-writable directories, files and links under `/usr`, with the
+binaries (mode 0755), the units, the sysusers.d entry, the manifest (whose `version`
+is the package's) and the web build's `index.html`.
+`internal/lodge/debcheck_test.go` feeds it bad packages, and each must fail.
 Verify a download with:
 
 ```sh
