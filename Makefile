@@ -1,5 +1,5 @@
 .PHONY: help build build-windows install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci vulncheck web-build lodge-package ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check ci vulncheck web-build lodge-package deb deb-check bump svu-version-check ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -11,6 +11,9 @@ GOVULNCHECK_VERSION := v1.9.0
 
 # golangci-lint's release, read from mise.toml (frostyard/core ADR-0043).
 GOLANGCI_LINT_VERSION := $(strip $(shell sed -n 's/^golangci-lint = "\(.*\)"/\1/p' mise.toml))
+# svu's release, read from the same mise.toml pin; it tags releases in make bump.
+SVU_VERSION := $(strip $(shell sed -n 's/^svu = "\(.*\)"/\1/p' mise.toml))
+SVU ?= svu
 # The Go release the project builds with: go.mod's toolchain line (its go line is
 # only the minimum).
 GO_VERSION := $(strip $(shell sed -n 's/^toolchain go\([0-9.]*\)$$/\1/p' go.mod))
@@ -147,6 +150,58 @@ web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs
 LODGE_DESTDIR ?= build/lodge-root
 lodge-package: build ## Stage maild, its manifest, units and web build for lodge under LODGE_DESTDIR
 	packaging/lodge/stage.sh "$(LODGE_DESTDIR)" "$(VERSION)" build
+
+# deb packages the staged lodge app as dist/frostyard-maild_<DEB_VERSION>_amd64.deb
+# with nFPM (frostyard/core ADR-0011, ADR-0058; packaging/nfpm.yaml). The
+# binaries go in build/deb/bin, apart from build/, so a host build is never
+# reused by accident, and the tree is staged from scratch into build/deb/root
+# with packaging/lodge/stage.sh. A snapshot version starts with 0.0.0- (core
+# ADR-0012); the release passes DEB_VERSION=X.Y.Z, the tag without its v.
+DEB_VERSION ?= 0.0.0-$(COMMIT)-snapshot
+DEB_FILE = dist/frostyard-maild_$(DEB_VERSION)_amd64.deb
+DEB_LDFLAGS = -s -w -X main.version=$(DEB_VERSION) -X main.commit=$(COMMIT)
+deb: ## Build dist/frostyard-maild_<DEB_VERSION>_amd64.deb with nFPM, after make web-build
+	@test -f build/web/index.html || { echo "no web build: run make web-build first"; exit 1; }
+	rm -rf build/deb
+	mkdir -p build/deb/bin dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(DEB_LDFLAGS)' -o build/deb/bin/ ./cmd/maild ./cmd/mailctl
+	cp -R build/web build/deb/bin/web
+	packaging/lodge/stage.sh build/deb/root "$(DEB_VERSION)" build/deb/bin
+	chmod -R u=rwX,go=rX build/deb/root
+	DEB_VERSION='$(DEB_VERSION)' nfpm package -p deb -f packaging/nfpm.yaml -t dist/
+	$(MAKE) --no-print-directory deb-check DEB_VERSION='$(DEB_VERSION)'
+
+deb-check: ## Check the .deb that make deb built (metadata, /usr only, root-owned, payload)
+	packaging/deb-check.py "$(DEB_FILE)" frostyard-maild "$(DEB_VERSION)" \
+		--exec /usr/bin/maild --exec /usr/bin/mailctl \
+		--file /usr/lib/systemd/system/frostmail.socket --file /usr/lib/systemd/system/frostmail.service \
+		--file /usr/lib/sysusers.d/frostmail.conf --file /usr/share/lodge/apps/mail/web/index.html \
+		--manifest /usr/share/lodge/apps/mail/app.json
+
+svu-version-check:
+	@test -n "$(SVU_VERSION)" || { echo "mise.toml pins no svu"; exit 1; }
+	@command -v "$(SVU)" >/dev/null 2>&1 || { \
+		echo "svu $(SVU_VERSION) is required for make bump (install with: mise install)"; exit 1; }
+	@installed="$$($(SVU) --version 2>&1 | sed -n 's/^GitVersion:[[:space:]]*//p' | head -1)"; \
+	if [ "$$installed" != "$(SVU_VERSION)" ]; then \
+		echo "expected svu $(SVU_VERSION), found $${installed:-unknown} (install with: mise install)"; exit 1; \
+	fi
+
+# bump is the only sanctioned way to tag a release (core ADR-0012): the tag
+# starts .github/workflows/release.yml.
+bump: svu-version-check ## Tag the next version with svu and push the tag (main, clean, up to date, gate green)
+	@test "$$(git rev-parse --abbrev-ref HEAD)" = main || { echo "make bump runs on main"; exit 1; }
+	@test -z "$$(git status --porcelain)" || { echo "the working tree is not clean"; exit 1; }
+	@git fetch origin main
+	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || { echo "HEAD is not origin/main"; exit 1; }
+	$(MAKE) --no-print-directory verify
+	@test -z "$$(git status --porcelain)" || { echo "make verify left the working tree unclean"; exit 1; }
+	@set -eu; \
+	version=$$($(SVU) next); \
+	printf '%s\n' "$$version" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+' || { echo "svu next gave '$$version', not vX.Y.Z"; exit 1; }; \
+	git tag -a "$$version" -m "Version $$version"; \
+	echo "Tagged $$version; pushing it to origin..."; \
+	git push origin "refs/tags/$$version"
 
 # The shell's notifications test needs a session bus: dbus-run-session gives
 # it one where the machine has it, and it skips elsewhere.

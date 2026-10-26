@@ -1,0 +1,24 @@
+# nFPM config for frostyard-maild (frostyard/core ADR-0011, ADR-0058). make deb
+# stages the tree and runs nfpm; the Version comes from DEB_VERSION.
+name: frostyard-maild
+arch: amd64
+platform: linux
+version: ${DEB_VERSION}
+version_schema: none
+section: net
+priority: optional
+maintainer: Brian Ketelsen <bketelsen@gmail.com>
+description: |-
+  Frostmail's daemon and CLI, and its lodge app.
+  maild owns mail sync, storage and the RPC socket; mailctl is its CLI.
+  The package holds the web build, units and sysusers.d entry for lodge's
+  mail app. Built for Snosi's sysext maild (core ADR-0058).
+vendor: frostyard
+homepage: https://github.com/frostyard/frostmail
+license: MIT
+depends:
+  - systemd
+contents:
+  - src: ./build/deb/root/usr
+    dst: /usr
+    type: tree

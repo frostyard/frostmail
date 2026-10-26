@@ -119,3 +119,26 @@ func TestWorkflowsFollowADR0021(t *testing.T) {
 		t.Fatal("no action references found")
 	}
 }
+
+// The release workflow's build job runs third-party npm code, so it holds no
+// write token and no id-token; only the release job may write, attest and
+// mint an id-token (frostyard/core ADR-0011, ADR-0021).
+func TestReleaseBuildJobCannotWrite(t *testing.T) {
+	root, ok := workflows(t)["release.yml"]
+	if !ok {
+		t.Fatal("no release.yml")
+	}
+	jobs := get(root, "jobs")
+	build := get(get(jobs, "build"), "permissions")
+	if build == nil || build.Kind != yaml.MappingNode {
+		t.Fatal("release.yml: the build job declares no permissions")
+	}
+	for i := 0; i+1 < len(build.Content); i += 2 {
+		if k, v := build.Content[i].Value, build.Content[i+1].Value; k != "contents" || v != "read" {
+			t.Errorf("release.yml: build job has permission %s: %s; it may only read contents", k, v)
+		}
+	}
+	if get(get(jobs, "release"), "permissions") == nil {
+		t.Error("release.yml: the release job declares no permissions")
+	}
+}
