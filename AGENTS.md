@@ -83,6 +83,11 @@ checked live over lodge's agent socket (2026-10-21).
   `app/src/rpc/gen/api.ts` is generated. `app/src/lodge/` runs the UI in
   lodge's frame (routes, windows as routes), over
   `app/src/rpc/transport/lodge.ts`.
+- `packaging/flatpak`: the app's Flatpak manifest, its metainfo and desktop
+  entry, and the offline `cargo-sources.json` and `node-sources.json`
+  (`make flatpak-sources`; [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
+  The Flatpak holds the app only, not maild. CI builds it in
+  `.github/workflows/flatpak.yml`. `install.sh` is the local wrapper.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
@@ -96,6 +101,10 @@ checked live over lodge's agent socket (2026-10-21).
 - `make engine-it` runs integration tests against the Dovecot container
   (resetting it first). `make ui-test` and `make app-build` run in the nsl
   machine. `make ci` is verify plus race tests and the app checks.
+- `make flatpak-sources` regenerates the 2 sources files of the Flatpak. Run
+  it after any change to `app/src-tauri/Cargo.lock` or `app/pnpm-lock.yaml`,
+  in the nsl machine (it needs Python 3 with venv, not Node or Rust); CI's job
+  "Flatpak sources (make flatpak-sources)" fails on a stale file.
 - `make vulncheck` runs govulncheck (pinned in the Makefile; needs the
   network). It is not part of `check`, `verify` or `ci`; the CI job
   "Vulnerabilities (make vulncheck)" runs it. Keep it at 0 reachable findings.
