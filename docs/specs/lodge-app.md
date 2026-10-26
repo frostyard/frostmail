@@ -79,6 +79,25 @@ Then run `systemctl daemon-reload`, restart `frostmail.service`, and run
 `lodgectl reload`. The drop-in in `/etc/systemd/system/frostmail.service.d/`
 that `seal-mail-secrets.sh` writes stays in both cases.
 
+### Release
+
+`make bump` is the only way to tag a release: on a clean, up-to-date `main`
+it runs `make verify`, then tags `svu next` and pushes the tag
+([core ADR-0012](https://github.com/frostyard/core/blob/main/docs/adr/0012-svu-versioning-and-rolling-dev-prerelease.md)).
+The tag's workflow, `.github/workflows/release.yml`, builds
+`frostyard-maild_X.Y.Z_amd64.deb` with `make deb` (the staged layout above, put
+together by nFPM from `packaging/nfpm.yaml`, and checked by
+`packaging/deb-check.sh`), attests it, and attaches it to the GitHub release.
+Verify a download with:
+
+```sh
+gh attestation verify frostyard-maild_X.Y.Z_amd64.deb --repo frostyard/frostmail
+```
+
+Pull requests build a snapshot, `frostyard-maild_0.0.0-<commit>-snapshot_amd64.deb`
+(the CI job "Snapshot .deb (make deb)"). Snosi picks the release up later
+([core plan 0010](https://github.com/frostyard/core/blob/main/docs/plans/0010-suite-packaging.md), Phase 3).
+
 `frostmail.service` runs maild with:
 
 | Variable | Value |
