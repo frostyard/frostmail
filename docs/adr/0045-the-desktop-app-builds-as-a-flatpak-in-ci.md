@@ -50,9 +50,10 @@ the host (ADR-0013) or behind lodge (ADR-0041).
   permission with it. The `xdg-portal` feature of `tauri-plugin-dialog` makes
   rfd show message dialogs (`ask`) through zenity, and the GNOME runtime has
   no zenity. The app keeps `--filesystem=home:ro` until that is solved.
-- **Known limit: Save As.** With a remote maild, Save As writes the file from
-  the sandbox. The home is read-only, so Save As can fail outside
-  `xdg-run/frostmail` and the cache.
+- **Known limit: Save As.** With a maild behind lodge, the app's Rust layer
+  writes the saved file itself, from the sandbox (`save_content`). The home
+  is read-only there, so Save As to a folder in the home fails. With a maild
+  on the host, maild writes the file (`message.save`), and Save As works.
 
 ## Consequences
 
