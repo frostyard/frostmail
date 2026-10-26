@@ -12,7 +12,7 @@ Wants=network-online.target
 Type=simple
 User=frostmail
 Group=frostmail
-ExecStart=/usr/local/bin/maild --lodge
+ExecStart=/usr/bin/maild --lodge
 Environment=FROSTMAIL_DATA_DIR=/var/lib/frostmail
 Environment=FROSTMAIL_CACHE_DIR=/var/cache/frostmail
 Environment=FROSTMAIL_SOCKET=/run/frostmail/maild.sock

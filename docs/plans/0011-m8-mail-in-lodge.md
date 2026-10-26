@@ -112,7 +112,8 @@ boundaries, so the planner builds them.
 - **Packaging.** `packaging/lodge/`: `app.json`, `frostmail.socket`,
   `frostmail.service` and `sysusers.d/frostmail.conf`. `make
   lodge-package` stages them, with the binary and the web build, under a
-  root for lodge's installer.
+  root for lodge's installer (`usr/bin`, `usr/lib/systemd/system`,
+  `usr/lib/sysusers.d`, `usr/share/lodge`; `usr/` only since 2026-10-26).
 - **Tests** play lodge with the kit's `kittest`: the peer check, each
   path against every caller kind, the required headers, `/health`, an
   `/api` session that says hello, pings and renders, the reader page and

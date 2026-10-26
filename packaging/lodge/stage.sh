@@ -4,6 +4,10 @@
 # manifest with VERSION, the web build when BUILD/web holds one, the units
 # and the sysusers.d entry. make lodge-package runs it.
 #
+# It writes only under DESTDIR/usr (core ADR-0058: a sysext payload is /usr
+# only): binaries in usr/bin, units in usr/lib/systemd/system, the sysusers.d
+# entry in usr/lib/sysusers.d, the manifest and web build in usr/share/lodge.
+#
 #   packaging/lodge/stage.sh DESTDIR VERSION [BUILD]
 #
 # DESTDIR may be a lodge root that other apps and lodge itself share
@@ -29,8 +33,8 @@ esac
 
 app=$dest/usr/share/lodge/apps/mail
 rm -rf -- "$app"
-install -Dm755 "$build/maild" "$dest/usr/local/bin/maild"
-install -Dm755 "$build/mailctl" "$dest/usr/local/bin/mailctl"
+install -Dm755 "$build/maild" "$dest/usr/bin/maild"
+install -Dm755 "$build/mailctl" "$dest/usr/bin/mailctl"
 install -d "$app"
 sed "s/\"version\": \"[^\"]*\"/\"version\": \"$version\"/" "$here/app.json" > "$app/app.json"
 if [ -d "$build/web" ]; then cp -R "$build/web" "$app/web"; fi
