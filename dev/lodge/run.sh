@@ -75,4 +75,4 @@ LODGE_ROOT=$root \
   FROSTMAIL_SOCKET=$root/run/frostmail/maild.sock \
   FROSTMAIL_SECRETS=file \
   FROSTMAIL_SYNC=$sync \
-  "$root/usr/local/bin/maild" --lodge
+  "$root/usr/bin/maild" --lodge

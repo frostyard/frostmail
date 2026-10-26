@@ -17,7 +17,7 @@ and so are the frame's messages
 The RPC's wire rules are [rpc-protocol.md](rpc-protocol.md), and its
 methods [rpc-api.md](rpc-api.md).
 
-Rationale: [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md),
+Rationale: core [ADR-0058](https://github.com/frostyard/core/blob/main/docs/adr/0058-ship-suite-desktop-apps-as-flatpaks-and-services-as-sysexts.md) (the `/usr` layout), [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md),
 [ADR-0042](../adr/0042-agents-get-calendar-task-and-contact-tools.md),
 [ADR-0005](../adr/0005-html-mail-rendering.md),
 [ADR-0014](../adr/0014-images-embedded-in-the-reader-frame.md),
@@ -40,9 +40,11 @@ names, and their calendars, tasks and contacts
 
 | What | Where (lodge's contract) | Contents |
 | --- | --- | --- |
+| binaries | `/usr/bin/maild`, `/usr/bin/mailctl` | mode 0755; `frostmail.service` runs `/usr/bin/maild --lodge` |
+| units | `/usr/lib/systemd/system/frostmail.socket`, `frostmail.service` | no `RequiredBy=`, no `Condition*=` line |
 | manifest | `/usr/share/lodge/apps/mail/app.json` | the JSON below; `version` is maild's |
 | web build | `/usr/share/lodge/apps/mail/web/` | `make web-build`'s output, built for the base `/app/mail/`, with `icon.svg` |
-| system user | `sysusers.d/frostmail.conf` | `frostmail`, in group `lodge-apps` and not in `lodge` |
+| system user | `/usr/lib/sysusers.d/frostmail.conf` | `frostmail`, in group `lodge-apps` and not in `lodge`; the file also declares group `lodge` (`g lodge -`), which owns the socket, so the socket starts without lodge's own package |
 | the app socket | `frostmail.socket` | `ListenStream=/run/lodge/apps/mail.sock`, `SocketUser=frostmail`, `SocketGroup=lodge`, `SocketMode=0660` |
 | the daemon | `frostmail.service` | `maild --lodge` as `frostmail`, with the environment below |
 
@@ -51,6 +53,31 @@ names, and their calendars, tasks and contacts
   "version": "0.1.0", "user": "frostmail", "key": "m",
   "content": true, "contentLinks": true, "mcp": true }
 ```
+
+Everything stages under `usr/` only, as core
+[ADR-0058](https://github.com/frostyard/core/blob/main/docs/adr/0058-ship-suite-desktop-apps-as-flatpaks-and-services-as-sysexts.md)
+asks of a sysext payload: `make lodge-package` writes nothing in `/etc`,
+`/var` or `/usr/local`. State stays in `/var/lib/frostmail`
+(`StateDirectory=`), and the credential key in `/etc/credstore.encrypted`
+belongs to the host's administrator.
+
+**Hand deploy on a host that installed maild before this layout** (binaries in
+`/usr/local/bin` or `/opt/lodge/bin`). First run `systemctl show -p
+FragmentPath,ExecStart frostmail.service`:
+
+- If the unit is in `/etc/systemd/system/`, it overrides the staged unit.
+  Copy the stage's `usr/bin/maild` and `usr/bin/mailctl` to the directory its
+  `ExecStart` names, replace `/usr/share/lodge/apps/mail/` with the staged
+  one, and leave `/etc` as it is.
+- If the unit is in `/usr/lib/systemd/system/`, remove
+  `/usr/share/lodge/apps/mail/`, copy the stage's `usr/` onto `/usr`, run
+  `systemd-sysusers`, and remove the old `/usr/local/bin/maild` and
+  `/usr/local/bin/mailctl` once: `/usr/local/bin` comes before `/usr/bin` on
+  `PATH`, so a stale `mailctl` there hides the new one.
+
+Then run `systemctl daemon-reload`, restart `frostmail.service`, and run
+`lodgectl reload`. The drop-in in `/etc/systemd/system/frostmail.service.d/`
+that `seal-mail-secrets.sh` writes stays in both cases.
 
 `frostmail.service` runs maild with:
 

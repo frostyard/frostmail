@@ -68,7 +68,8 @@ checked live over lodge's agent socket (2026-10-21).
   ([specs/lodge-app.md](docs/specs/lodge-app.md)). `internal/mcpserver`:
   the MCP tools behind it, which the token's scope selects; it is the only
   package that imports the MCP SDK. `packaging/lodge`: the manifest, units and `stage.sh`
-  (`make lodge-package`); `dev/lodge/run.sh` runs maild behind lodge's
+  (`make lodge-package`, which stages under `usr/` only:
+  core [ADR-0058](https://github.com/frostyard/core/blob/main/docs/adr/0058-ship-suite-desktop-apps-as-flatpaks-and-services-as-sysexts.md)); `dev/lodge/run.sh` runs maild behind lodge's
   development build; `tools/lodgeprobe` checks a lodge socket.
 - `internal/imapx`: the only package that imports go-imap.
   `third_party/go-imap` is a patched fork (Gmail X-GM-EXT-1); see its
