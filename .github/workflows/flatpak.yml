@@ -83,7 +83,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: flatpak
+    needs: [sources, flatpak]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     # GitHub-hosted on purpose: flatpak-index rejects attestations from
     # self-hosted runners.

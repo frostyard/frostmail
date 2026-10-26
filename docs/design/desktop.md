@@ -53,7 +53,8 @@ GNOME 51 SDK, offline, with one module: the Tauri app. maild is not in it.
 - **Sandbox.** The same as `install.sh` sets: the permissions of
   [ADR-0013](../adr/0013-app-as-a-local-flatpak.md) and
   [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md).
-- **Tests.** `cargo test --release --offline`, `desktop-file-validate`,
+- **Tests.** `cargo test --release --offline` (in its own session bus,
+  as `make app-test` does), `desktop-file-validate`,
   `appstreamcli validate --no-net` and a check that the binary has no
   missing library.
 - **Publishing.** `.github/workflows/flatpak.yml` builds on every pull

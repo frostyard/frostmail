@@ -43,10 +43,10 @@
         "install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/org.frostyard.Frostmail.png"
       ],
       "test-commands": [
-        "cd src-tauri && cargo test --release --offline",
+        "cd src-tauri && if command -v dbus-run-session >/dev/null; then dbus-run-session -- cargo test --release --offline; else env -u DBUS_SESSION_BUS_ADDRESS cargo test --release --offline; fi",
         "desktop-file-validate /app/share/applications/org.frostyard.Frostmail.desktop",
         "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",
-        "! ldd /app/bin/frostmail | grep 'not found'"
+        "libs=$(ldd /app/bin/frostmail) && ! printf '%s\\n' \"$libs\" | grep 'not found'"
       ],
       "sources": [
         {
