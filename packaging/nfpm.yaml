@@ -12,7 +12,7 @@ description: |-
   Frostmail's daemon and CLI, and its lodge app.
   maild owns mail sync, storage and the RPC socket; mailctl is its CLI.
   The package holds the web build, units and sysusers.d entry for lodge's
-  mail app. Built for Snosi's frostyard sysext (ADR-0058).
+  mail app. Built for Snosi's sysext maild (core ADR-0058).
 vendor: frostyard
 homepage: https://github.com/frostyard/frostmail
 license: MIT
