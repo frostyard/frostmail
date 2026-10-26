@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.frostyard.Frostmail</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Frostmail</name>
+  <summary>Read and send mail</summary>
+  <developer id="org.frostyard">
+    <name>Frostyard</name>
+  </developer>
+  <description>
+    <p>
+      Frostmail is a mail client in the spirit of Apple Mail. It reads and
+      sends mail, and it also has a calendar, tasks and contacts.
+    </p>
+    <p>
+      This app is the desktop client. It talks to maild, the Frostmail
+      daemon, which syncs and stores your mail. maild runs on your host or
+      behind a lodge server; it is not part of this Flatpak.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.frostyard.Frostmail.desktop</launchable>
+  <url type="homepage">https://github.com/frostyard/frostmail</url>
+  <url type="bugtracker">https://github.com/frostyard/frostmail/issues</url>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Network</category>
+    <category>Email</category>
+  </categories>
+  <releases>
+    <release version="0.0.0" date="2026-10-26"/>
+  </releases>
+</component>
