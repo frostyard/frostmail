@@ -90,7 +90,7 @@ together by nFPM from `packaging/nfpm.yaml`, and checked by
 `packaging/deb-check.py`), attests it, and attaches it to the GitHub release.
 `deb-check.py` reads the archive's exact member names. It fails unless the control
 fields are right (`Depends: systemd`, no maintainer scripts), and the package holds
-only root-owned, non-writable directories, files and links under `/usr`, with the
+only root-owned, non-writable directories and regular files (no links) under `/usr`, with the
 binaries (mode 0755), the units, the sysusers.d entry, the manifest (whose `version`
 is the package's) and the web build's `index.html`.
 `internal/lodge/debcheck_test.go` feeds it bad packages, and each must fail.
