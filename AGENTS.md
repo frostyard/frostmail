@@ -38,6 +38,12 @@ M8.5 ([plan 0012](docs/plans/0012-calendar-tasks-and-contacts-for-agents.md)),
 calendar, task and contact tools on `/mcp/mail` for Porter, is built and
 checked live over lodge's agent socket (2026-10-21).
 
+M6, the standalone desktop Flatpak
+([plan 0013](docs/plans/0013-m6-the-standalone-desktop-flatpak.md)), is
+planned: [ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
+(proposed 2026-10-27) bundles maild and mailctl, runs them by default, and
+keeps lodge as a connection the user chooses.
+
 ## Two kinds of agent work
 
 - **Planning and core work** (architecture, contracts, the sync engine,

@@ -11,6 +11,13 @@ of its own. The desktop app then reaches it through lodge
 [specs/lodge-app.md](../specs/lodge-app.md),
 [plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 6).
 
+Planned, not built: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
+(proposed) puts maild and mailctl inside the Flatpak, runs that maild by
+default, and keeps lodge as a connection the user chooses. The released
+Flatpak then never uses a host maild.
+[Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
+this document changes with each of its phases.
+
 ## Installing for one user
 
 No root is needed. maild and mailctl run on the host; the app is a local
