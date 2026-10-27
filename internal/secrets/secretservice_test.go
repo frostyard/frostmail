@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/internal/dbustest"
 	"github.com/godbus/dbus/v5"
@@ -554,9 +556,17 @@ func TestSecretServicePromptEndsWhenTheServiceLeaves(t *testing.T) {
 	f.mu.Lock()
 	f.silent, f.prompted = true, make(chan struct{}, 1)
 	f.mu.Unlock()
+	// A bounded context: a wait that does not end fails the test, with
+	// Set's error, instead of holding it until the package's timeout.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- ss.Set(t.Context(), "k", "v") }()
-	<-f.prompted
+	go func() { done <- ss.Set(ctx, "k", "v") }()
+	select {
+	case <-f.prompted:
+	case err := <-done:
+		t.Fatalf("Set ended before the service showed its prompt: %v", err)
+	}
 	if _, err := f.conn.ReleaseName(ssName); err != nil {
 		t.Fatal(err)
 	}
@@ -570,21 +580,24 @@ func TestSecretServicePromptEndsWhenTheServiceLeaves(t *testing.T) {
 // the result of the prompt's own Completed signal.
 func TestAwaitCompleted(t *testing.T) {
 	const path = dbus.ObjectPath("/org/freedesktop/secrets/prompt/1")
+	// A bounded context: a wait that does not end fails the test.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
 	closed := make(chan *dbus.Signal)
 	close(closed)
-	if _, err := awaitCompleted(t.Context(), path, closed); !errors.Is(err, ErrUnavailable) {
+	if _, err := awaitCompleted(ctx, path, closed); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("a closed channel: %v; want ErrUnavailable", err)
 	}
 	signals := make(chan *dbus.Signal, 4)
 	signals <- &dbus.Signal{Name: busName + ".NameOwnerChanged", Body: []any{"org.example.other", ":1.4", ""}}
 	signals <- &dbus.Signal{Name: busName + ".NameOwnerChanged", Body: []any{ssName, ":1.3", ""}}
-	if _, err := awaitCompleted(t.Context(), path, signals); !errors.Is(err, ErrUnavailable) {
+	if _, err := awaitCompleted(ctx, path, signals); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("the service left: %v; want ErrUnavailable", err)
 	}
 	made := dbus.ObjectPath("/org/freedesktop/secrets/collection/made")
 	signals <- &dbus.Signal{Path: "/org/freedesktop/secrets/prompt/2", Name: ssPrompt + ".Completed", Body: []any{true, dbus.MakeVariant("")}}
 	signals <- &dbus.Signal{Path: path, Name: ssPrompt + ".Completed", Body: []any{false, dbus.MakeVariant(made)}}
-	got, err := awaitCompleted(t.Context(), path, signals)
+	got, err := awaitCompleted(ctx, path, signals)
 	if err != nil || got.Value() != made {
 		t.Fatalf("Completed: %v, %v; want %s", got, err, made)
 	}
