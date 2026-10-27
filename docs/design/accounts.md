@@ -94,10 +94,17 @@ caps responses at 64 KB, and never sends the password anywhere.
 ## Secrets
 
 - `secrets.Store` gains `SecretService`: D-Bus `org.freedesktop.secrets`,
-  default collection (`/org/freedesktop/secrets/aliases/default`), items
-  labeled `Frostmail: <key>` with attributes `application=frostmail`,
-  `key=<key>`, plain session (the bus is local). A locked collection is
-  unlocked with the service's prompt.
+  default collection, items labeled `Frostmail: <key>` with attributes
+  `application=frostmail`, `key=<key>`, plain session (the bus is local).
+  A locked collection is unlocked with the service's prompt.
+  - maild reads the `default` alias (`ReadAlias`). When the alias is `/`,
+    or names a collection the service does not have, maild makes the
+    default collection (label "Default keyring") with `CreateCollection`,
+    as libsecret does. If the service cannot, the error is `ErrNoKeyring`
+    and says to set `FROSTMAIL_SECRETS=file`. A dismissed prompt, to unlock
+    or to make the collection, is `ErrDismissed`.
+  - A prompt wait ends with `ErrUnavailable` when the service leaves the
+    bus (`NameOwnerChanged`) or the bus connection closes.
 - `FROSTMAIL_SECRETS` chooses the store, and an unknown value is an error:
   - unset: the Secret Service when the session bus offers it, else the
     file store with a warning;
