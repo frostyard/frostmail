@@ -1,6 +1,6 @@
 # 0045 — The desktop app builds as a Flatpak in CI
 
-- **Status:** Proposed
+- **Status:** Accepted (Brian, 2026-10-26)
 - **Date:** 2026-10-26
 
 ## Context
