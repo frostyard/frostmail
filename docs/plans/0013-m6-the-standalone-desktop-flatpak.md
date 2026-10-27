@@ -106,8 +106,9 @@ built.
   [design/desktop.md](../design/desktop.md) follow.
 - **Done when,** on Duncan's desktop VM with a CI bundle:
   1. a password account on the mailtest container is added, and its secret
-     is in the keyring (`secret-tool search application frostmail`), not in
-     a file;
+     is in the keyring under the store's namespace (`secret-tool search
+     application org.frostyard.Frostmail store <store id> key
+     account/<id>/password`), not in a file;
   2. in a session with only the `session` collection, setup asks for a new
      "Default keyring", and a cancel fails the setup with no account saved;
   3. a new message notifies with the window closed, and its click opens the
