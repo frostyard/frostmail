@@ -1,4 +1,4 @@
-.PHONY: help build build-windows install install-app uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
+.PHONY: help build build-windows install install-app flatpak-sources uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check ci vulncheck web-build lodge-package deb deb-check bump svu-version-check ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -55,6 +55,13 @@ install: build ## Install maild and mailctl for this user and (re)start maild as
 
 install-app: app-build ## Package the app as a local Flatpak and install it for this user (ADR-0013)
 	packaging/flatpak/install.sh
+
+# The Flatpak's offline sources (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md):
+# the crates and the pnpm store as flatpak-builder sources. Run it after any
+# change to Cargo.lock or pnpm-lock.yaml; CI's Flatpak sources job fails on a
+# stale file. Needs the network, git and Python 3 with venv (nsl: python3-venv).
+flatpak-sources: ## Regenerate packaging/flatpak/{cargo,node}-sources.json (network, Python 3)
+	scripts/flatpak-sources.sh
 
 uninstall: ## Stop maild and remove it, mailctl and the user service; mail data stays
 	-systemctl --user disable --now maild.service

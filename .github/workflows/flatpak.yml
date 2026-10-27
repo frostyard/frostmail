@@ -1,0 +1,140 @@
+# Builds the Flatpak, with its tests, on every pull request and push to main
+# (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md), as igloo's
+# workflow does. The sources job checks that the offline sources match the
+# lockfiles. A v* tag also publishes an OCI image to ghcr.io/frostyard/frostmail
+# and attests its digest. The Frostyard remote
+# (https://github.com/frostyard/flatpak-index) serves the latest tag only when
+# this workflow attested it on a v* tag, so main pushes publish nothing.
+#
+# Every action is pinned to a commit SHA (core ADR-0021); Dependabot bumps the
+# SHA and the version comment together.
+name: Flatpak
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push cancels the older run of a pull request, never a tag run.
+concurrency:
+  group: flatpak-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  APP_ID: org.frostyard.Frostmail
+  IMAGE: ghcr.io/frostyard/frostmail
+
+jobs:
+  sources:
+    name: Flatpak sources (make flatpak-sources)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Regenerate the offline sources
+        run: make flatpak-sources
+      - name: The committed sources match the lockfiles
+        run: git diff --exit-code -- packaging/flatpak
+
+  flatpak:
+    name: Flatpak (build and test)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    # flatpak-builder sandboxes builds with bubblewrap, which needs a
+    # privileged container. The image is pinned by digest.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51@sha256:78d969b18225ae107ca29497bf09c4a3f791e5f1838a9a912a529d0024fb6210
+      options: --privileged
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and test
+        uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: packaging/flatpak/org.frostyard.Frostmail.json
+          bundle: frostmail.flatpak
+          artifact-name: frostmail-flatpak
+          run-tests: true
+          # The runtime and the SDK extensions come from the cache; the app
+          # always rebuilds, and a change of the manifest or of a sources
+          # file starts the cache afresh.
+          cache-key: flatpak-builder-${{ hashFiles('packaging/flatpak/org.frostyard.Frostmail.json', 'packaging/flatpak/cargo-sources.json', 'packaging/flatpak/node-sources.json') }}
+
+      - name: Export the OCI image
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: flatpak build-bundle --oci --arch=x86_64 repo frostmail.oci "$APP_ID"
+
+      - name: Keep the OCI image for publishing
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frostmail-oci
+          path: frostmail.oci
+          retention-days: 1
+
+  publish:
+    name: Publish
+    needs: [sources, flatpak]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # GitHub-hosted on purpose: flatpak-index rejects attestations from
+    # self-hosted runners.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      # Optional: a fine-grained token with Actions write access to
+      # frostyard/flatpak-index, so the remote refreshes right away instead of
+      # at its next hourly run.
+      DISPATCH_TOKEN: ${{ secrets.FLATPAK_INDEX_DISPATCH_TOKEN }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: frostmail-oci
+          path: frostmail.oci
+
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GITHUB_TOKEN" | skopeo login ghcr.io --username "$ACTOR" --password-stdin
+
+      # The version and commit tags go first. latest moves only after the
+      # digest is attested, so the remote never sees an unattested latest.
+      - name: Push the version to GHCR
+        id: push
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          skopeo copy --digestfile digest oci:frostmail.oci "docker://$IMAGE:$VERSION"
+          digest="$(cat digest)"
+          skopeo copy --preserve-digests "docker://$IMAGE@$digest" "docker://$IMAGE:sha-${GITHUB_SHA::12}"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest the image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+
+      - name: Move latest to the attested digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: skopeo copy --preserve-digests "docker://$IMAGE@$DIGEST" "docker://$IMAGE:latest"
+
+      - name: Refresh the Frostyard remote
+        if: env.DISPATCH_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.DISPATCH_TOKEN }}
+        run: gh workflow run publish.yml --repo frostyard/flatpak-index

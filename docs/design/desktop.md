@@ -39,6 +39,29 @@ directory and, read-only, the cache and the home directory.
 (`WantedBy=default.target`). maild keeps syncing, sending and notifying
 while the app is closed.
 
+## The Flatpak in CI
+
+Rationale: [ADR-0045](../adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md),
+and core's
+[Plan 0010, Phase 5](https://github.com/frostyard/core/blob/main/docs/plans/0010-suite-packaging.md).
+`packaging/flatpak/org.frostyard.Frostmail.json` builds the app inside the
+GNOME 51 SDK, offline, with one module: the Tauri app. maild is not in it.
+
+- **Sources.** `cargo-sources.json` comes from `app/src-tauri/Cargo.lock` and
+  `node-sources.json` from `app/pnpm-lock.yaml`. `make flatpak-sources`
+  writes both (in the nsl machine); CI fails when they are stale.
+- **Sandbox.** The same as `install.sh` sets: the permissions of
+  [ADR-0013](../adr/0013-app-as-a-local-flatpak.md) and
+  [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md).
+- **Tests.** `cargo test --release --offline` (in its own session bus,
+  as `make app-test` does), `desktop-file-validate`,
+  `appstreamcli validate --no-net` and a check that the binary has no
+  missing library.
+- **Publishing.** `.github/workflows/flatpak.yml` builds on every pull
+  request and push to main. A `v*` tag pushes
+  `ghcr.io/frostyard/frostmail` and attests the digest.
+- `make install-app` stays the way to run a local build.
+
 ## Application icon
 
 The icon is a faceted ice-blue envelope carrying a snowflake-marked letter,
