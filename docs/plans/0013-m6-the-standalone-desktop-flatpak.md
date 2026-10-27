@@ -25,13 +25,15 @@ built.
 
 ## Who helps
 
-- **Brian:** accepts ADR-0046; pushes the `v*` tag; makes the GHCR package
-  public (ADR-0045); answers the plan's open questions.
+- **Brian:** accepts ADR-0046; pushes the candidate and release tags;
+  makes the GHCR package public (ADR-0045); answers the plan's open
+  questions.
 - **Lucilla** (package delivery): core's amendment of ADR-0058 and plan
-  0010; listing the app in `flatpak-index/apps.json` once an attested
-  `latest` exists.
+  0010; a test remote for a release candidate (Phase 8); the promotion of
+  the tested digest, and the listing in `flatpak-index/apps.json`
+  (Phase 10).
 - **Duncan** (nsl and test machines): `make flatpak-sources` with a third
-  generator in the nsl machine; a disposable desktop VM for Phases 4 to 9:
+  generator in the nsl machine; a disposable desktop VM for Phases 4 to 10:
   Snow (GNOME on Wayland, real xdg-desktop-portal, Flatpak, a user install
   of `org.gnome.Platform//51`), with snapshots, and a route to the
   `frostmail-mailtest` container.
@@ -68,30 +70,38 @@ built.
 - `internal/config` and `paths.rs`: the shared socket under
   `$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/`, and the window's cache
   from its own `XDG_CACHE_HOME` in the Flatpak, with unit tests.
-- maild: the `flock` on `<data dir>/maild.lock`; `-log` with rotation
-  past 1 MiB once it holds the lock; `rpc.shutdown` (caller `local`;
-  `schema/rpc/rpc.yaml`, `make gen`).
-- The launcher: `--background` with the mode gate; the start through
-  `flatpak-spawn` and its `SIGKILL`; the version check against
-  `rpc.hello`'s `server`; the Background request helper (PyGObject).
+- maild: the `flock` on `<data dir>/maild.lock`; in the Flatpak, the mode
+  check of `app.json` under the lock; `-log` with rotation past 1 MiB once
+  it holds the lock; `rpc.shutdown` (caller `local`) and `rpc.hello`'s
+  optional `build` (`schema/rpc/rpc.yaml`, `make gen`); `-build`, which
+  prints the instance's `app-commit`.
+- The launcher: `--background`; the start through `flatpak-spawn
+  --latest-version` and its `SIGKILL`; the forward-only replacement by
+  `build`; the Background request helper (PyGObject).
 - `finish-args` as ADR-0046 lists; `install.sh` keeps its own for the
   development bundle with a host maild.
 - The smoke test in the build, without portals: `frostmail --background`
   at the Flatpak's socket; a second maild on the same data directory
   exits; `mailctl` reads and writes through it; the launcher with a
   stand-in `flatpak-spawn` ends it, and maild lives on; with `app.json`
-  naming lodge, `--background` exits 0 and starts nothing; a launcher with
-  another version shuts the old maild down and starts its own; the log
-  turns over.
+  naming lodge, `--background` exits 0 and starts nothing; a launcher
+  held after it read "local", while `app.json` changes to lodge, starts a
+  maild that exits without opening the database; a running maild whose
+  `build` differs from the stand-in latest commit is shut down and
+  replaced, and one that matches is kept, also when both builds report the
+  same version; the log turns over.
 - **Done when:** the smoke test passes in CI, and `make check` passes.
 
 ## Phase 4 — Secrets, sign-in and notifications in the sandbox (planner, medium)
 
-- `--talk-name=org.freedesktop.secrets`; the Flatpak's no-fallback rule
-  and `ErrNoKeyring`'s message; the probe before account setup saves an
-  account (an IDL method or an option of an existing one, decided in the
-  phase).
-- A notification's click through `flatpak-spawn`.
+- `--talk-name=org.freedesktop.secrets`; the Flatpak's item namespace
+  (`application=org.frostyard.Frostmail`, `store=<store id>`) and the
+  store id in the database; the no-fallback rule and `ErrNoKeyring`'s
+  message; the probe before account setup saves an account (an IDL method
+  or an option of an existing one, decided in the phase). Unit tests on
+  `dbustest`: two stores with an account 1 each on one service keep
+  their own secrets.
+- A notification's click through `flatpak-spawn --latest-version`.
 - [design/accounts.md](../design/accounts.md#secrets) and
   [design/desktop.md](../design/desktop.md) follow.
 - **Done when,** on Duncan's desktop VM with a CI bundle:
@@ -103,7 +113,13 @@ built.
   3. a new message notifies with the window closed, and its click opens the
      window at the message, in its own sandbox (`flatpak ps`);
   4. an OAuth sign-in completes through the loopback redirect (see Open
-     questions for the account).
+     questions for the account);
+  5. with a host maild (from `make install`) and the Flatpak each holding
+     an account 1 with different passwords, both sync, and neither item
+     changes when the other store writes;
+  6. after `flatpak uninstall --delete-data` and a new install, the new
+     store asks for its account's password and does not read the old
+     items.
 
 ## Phase 5 — Files in the sandbox (planner, medium)
 
@@ -120,12 +136,16 @@ built.
 
 - A store with no account opens on account setup, with "Connect to
   lodge…" as a secondary action.
-- The Server pane's texts (ADR-0046) and its call to `rpc.shutdown`;
-  saving local starts maild through the launcher.
+- The Server pane's texts (ADR-0046), from local facts only; the ordered
+  stop (write `app.json`, `rpc.shutdown`, take the data lock, or write
+  local back after 30 s); saving local starts maild through the launcher.
   [specs/settings-ui.md](../specs/settings-ui.md#server-pane) first, then
   the card.
 - An e2e test in the nsl machine: local, then lodge (maild stops, the
-  local data stays), then local again (the same accounts return).
+  local data stays), then local again (the pane warns that the accounts
+  resume, then the same accounts return); the warning also with lodge
+  unreachable; a maild that will not stop leaves the mode local, with the
+  pane's error.
 - **Done when:** the e2e test passes, and on the desktop VM a switch to
   lodge leaves no maild in `flatpak ps`, and a login with the autostart
   still registered starts none.
@@ -138,28 +158,40 @@ built.
   empty.
 - The steps in [design/desktop.md](../design/desktop.md).
 - **Done when,** on the desktop VM with a host maild from `make install`
-  and generated mail: nothing changes until the user runs the steps; after
-  them, the Flatpak's maild lists the same accounts and syncs without a new
-  sign-in, the host's maild is disabled, and the export directory and the
-  host's data are untouched.
+  and generated mail, after the Flatpak's first launch (its maild running,
+  its store empty): nothing changes until the user runs the 3 steps; after
+  them, with the window left open during the import, the Flatpak's maild
+  lists the same accounts and syncs without a new sign-in, the host's maild
+  is disabled, the host's keyring items and data and the export directory
+  are untouched, and the pristine database sits aside. An import into a
+  store with an account refuses and changes nothing.
 
-## Phase 8 — Publication (Brian and Lucilla, small)
+## Phase 8 — A release candidate (Brian and Lucilla, small)
 
-- Brian pushes a `v*` tag; the workflow pushes and attests the image;
-  Brian makes `ghcr.io/frostyard/frostmail` public.
-- Lucilla lists `org.frostyard.Frostmail` in `flatpak-index/apps.json`.
-- **Done when:** `flatpak install frostyard org.frostyard.Frostmail` on the
-  VM installs the attested `latest`.
+The clean-install gate comes before the public release, so the gate tests
+a candidate, and the release promotes that same digest.
+
+- The publishing workflow learns pre-release tags (`vX.Y.Z-rc.N`): it
+  pushes and attests the image with its version and `sha-` tags, and does
+  not move `latest`.
+- A test remote that serves the candidate's digest only, by the Frostyard
+  remote's mechanism (Lucilla names it: a test catalogue of flatpak-index,
+  or a local OCI remote on the VM).
+- Brian pushes the candidate's tag, and a second one for Phase 9's update
+  check.
+- **Done when:** the VM installs the candidate from the test remote, and
+  `flatpak info` shows the attested digest.
 
 ## Phase 9 — The clean-install gate (planner, with Duncan)
 
-On a fresh Snow VM from Duncan, with real portals. Each check is recorded
-here with the bundle's digest and the date.
+On a fresh Snow VM from Duncan, with real portals, against the candidate
+of Phase 8. Each check is recorded here with the candidate's digest and the
+date.
 
 1. Nothing else is installed: no lodge, Tailscale, host maild, sysext or
    other suite app (`flatpak list`, `systemctl --user list-units`, `which
    maild`).
-2. Install from the Frostyard remote.
+2. Install from the test remote.
 3. The core local workflow: add an account (mailtest), receive, read, reply
    with an attachment, Save As, search, a rule that moves a message, Send
    Later.
@@ -167,15 +199,27 @@ here with the bundle's digest and the date.
    Log out and in: maild starts at login (Background portal allowed), and
    a Send Later due during the logout goes at login. Refuse the portal on a
    second VM: maild starts with the first window only.
-5. `flatpak update` to a newer build: the old maild is replaced, the
-   database migrates, nothing is lost.
+5. `flatpak update` to the second candidate, with a window and a
+   notification of the first still open: the old maild is replaced by the
+   new build, never the reverse; the database migrates; nothing is lost.
 6. Opt into lodge (lodge's development build reachable from the VM):
    read, send, Save As, and a notification while the window is open.
 7. Disconnect lodge, then switch modes both ways: no data moves or
    disappears, no second maild runs, and the pane's texts match what
    happened.
 
-- **Done when:** all 7 pass, and plan 0010's Mail row in core records it.
+- **Done when:** all 7 pass on one candidate digest.
+
+## Phase 10 — Release (Brian and Lucilla, small)
+
+- Brian runs the promotion: the OCI tags `vX.Y.Z` and `latest` move to
+  the digest that passed Phase 9, already attested (a step in the
+  workflow that copies by digest and builds nothing).
+- Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045).
+- Lucilla lists `org.frostyard.Frostmail` in `flatpak-index/apps.json`.
+- **Done when:** `flatpak install frostyard org.frostyard.Frostmail` on a
+  fresh VM installs the digest that passed Phase 9, and plan 0010's Mail
+  row in core records it.
 
 ## Later / ideas
 
@@ -185,6 +229,11 @@ here with the bundle's digest and the date.
 - The Secret portal, if the suite moves to it together.
 
 ## Open questions
+
+- **Attestation of a candidate:** flatpak-index lists a digest that the
+  release workflow attested on a tag. Lucilla confirms that a
+  `-rc.N` tag's attestation, and a promotion by digest, satisfy it, by
+  Phase 8.
 
 - **Lodge mode with the window closed:** nothing notifies (ADR-0041,
   ADR-0046). Brian decides whether a background connection is wanted, by

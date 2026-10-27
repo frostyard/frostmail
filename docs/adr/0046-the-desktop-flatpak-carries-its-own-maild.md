@@ -77,13 +77,18 @@ Facts about maild that shape the rest:
   a warning ([design/accounts.md](../design/accounts.md#secrets)).
 - `message.save` writes a file on maild's machine, and `draft.attach`
   reads one by its path; both are `local` only. `draft.attachData` attaches
-  by bytes, for any caller.
+  by bytes, for `local` and `session` callers.
 - `mailctl export DIR` copies a stopped maild's database, blobs and
   secrets into DIR, and `export --check` validates such a copy against a
   build (plan 0011, Phase 7). It refuses while maild answers on its socket.
 - OAuth sign-in listens on a loopback port of maild's machine
   (ADR-0011), and a client off that machine can finish with the pasted
   address ([ADR-0043](0043-finish-a-sign-in-with-a-pasted-address.md)).
+- A secret's item in the Secret Service has only the attributes
+  `application=frostmail` and `key=<key>`, and keys such as
+  `account/1/password` carry the database's own account number. Two
+  stores on one keyring, such as a host maild and a Flatpak maild, both
+  have an account 1, so they would read and replace each other's items.
 
 ## Decision
 
@@ -122,29 +127,58 @@ Facts about maild that shape the rest:
   it exits. A second maild on the same directory exits at once with
   "another maild uses <dir>", whatever its socket. This holds on the host
   too.
-- **The mode gates the start.** The launcher starts maild only in local
-  mode. `frostmail --background`, which the Background portal runs at
-  login, reads `app.json` first; in lodge mode it logs one line and exits
-  0, so an autostart left from local mode starts no engine.
-- **Leaving local mode stops the engine.** When the user saves lodge in
-  the Server pane, the app calls a new `rpc.shutdown` (caller `local`
-  only; additive to protocol 1). maild finishes the transaction it is in,
-  releases its lock and exits. Saving local again starts it through the
-  launcher. The local data stays on disk, unsynced, until then.
-- **The pane says what each change does,** before the user saves:
+- **The mode is checked under the lock.** In the Flatpak, maild reads
+  `app.json` (it reads it, never writes it) after it holds the data lock
+  and before it opens the database. In lodge mode it releases the lock,
+  logs one line and exits 0. The launcher checks the mode too, to skip a
+  needless start, but maild's check is the one that counts: a launcher
+  that read "local" and was delayed past a change of mode starts a maild
+  that exits at once. An autostart left from local mode starts no engine
+  for the same reason.
+- **Leaving local mode stops the engine, in a fixed order.** When the
+  user saves lodge in the Server pane, the app:
+  1. writes `app.json` with lodge (temporary file, synced, renamed);
+  2. calls a new `rpc.shutdown` (caller `local` only; additive to
+     protocol 1) when a maild answers on the socket. maild finishes the
+     transaction it is in, releases its lock and exits;
+  3. takes the data lock itself, waiting up to 30 s and repeating step 2
+     each second, which catches a maild that took the lock before step 1
+     and was not yet listening at step 2; then releases it. From then on
+     every maild that takes the lock reads lodge and exits.
+  4. If the lock is still held after 30 s, the app writes local back to
+     `app.json`, connects to the local maild again, and shows "This
+     computer's maild did not stop. Frostmail still uses it." The mode
+     does not change half-way.
+  Saving local again writes `app.json`, then starts maild through the
+  launcher. The local data stays on disk, unsynced, while lodge is the
+  mode.
+- **The pane says what each change does,** before the user saves, from
+  what the app knows locally (no request to lodge is needed, so the text
+  is the same while lodge is unreachable):
   - to lodge: "This computer's maild stops. Its accounts and mail stay on
     this computer, not synced, until you switch back. Nothing moves to
     lodge.";
-  - to local, when lodge's maild has accounts: "Your mail on lodge keeps
-    running there. If you add the same accounts here, both run their
-    rules, Send Later and reminders."
-  The app cannot stop two machines from syncing one account; it can make
-  sure that no change of mode starts a second engine unseen.
-- **An update replaces the engine.** The launcher compares the `server`
-  string of `rpc.hello` with the bundled maild's version. When they differ,
-  it calls `rpc.shutdown`, waits for the socket to close, and starts the
-  bundled maild. Database migrations run only in the maild that holds the
-  lock.
+  - to local, when the local data directory holds a database: "This
+    computer's maild starts again with the accounts it had. It runs
+    their rules, Send Later and reminders here. If lodge's maild has the
+    same accounts, both run them." The app checks only that the
+    database file exists; it does not open it;
+  - to local, when it holds none: "Mail on lodge keeps running
+    there. If you add the same accounts here, both run their rules, Send
+    Later and reminders."
+  The app cannot stop two machines from syncing one account; it makes
+  sure that no change of mode starts or resumes a second engine unseen.
+- **An update replaces the engine, only forward.** maild's `rpc.hello`
+  gains an optional `build`: in the Flatpak, the `app-commit` of the
+  instance's `/.flatpak-info`, which differs for every build, even of one
+  version. The launcher starts maild with `flatpak-spawn
+  --latest-version`, never in its own deployment, and asks the latest
+  deployment's commit the same way (`maild -build`). When the running
+  maild's `build` is not the latest commit, the launcher calls
+  `rpc.shutdown` and starts the latest. The target is always the latest
+  installed deployment, so an old window or an old notification's click
+  cannot bring back an old maild. Database migrations run only in the
+  maild that holds the lock.
 
 ### The Flatpak's layout and lifecycle
 
@@ -171,7 +205,7 @@ These follow frostnotes ADR-0031; only the names differ.
     $XDG_STATE_HOME/frostmail/maild.log`; maild rotates the log once it
     holds the lock.
   - `frostmail [ARGS]` in local mode: when `mailctl hello` fails, it runs
-    `flatpak-spawn frostmail --background`, waits about 10 s for `mailctl
+    `flatpak-spawn --latest-version frostmail --background`, waits about 10 s for `mailctl
     hello`, then ends `flatpak-spawn` with `SIGKILL`, so the window's
     sandbox does not wait on maild. Without the Flatpak portal it starts no
     maild of its own, and the app shows that maild is not running. It then
@@ -182,8 +216,9 @@ These follow frostnotes ADR-0031; only the names differ.
     maild still runs from the first window of a session until logout.
 - **Notifications in local mode** come from maild on the session bus, as
   on the host (`--talk-name=org.freedesktop.Notifications`, already
-  granted). A click runs the launcher through `flatpak-spawn`, so the
-  window it opens gets its own sandbox and does not die with maild's.
+  granted). A click runs the launcher through `flatpak-spawn
+  --latest-version`, so the window it opens gets its own sandbox, of the
+  latest build, and does not die with maild's.
 - **Lodge mode** is unchanged from ADR-0041: the window holds the
   connection and shows `message.announced` itself, while it is open.
 
@@ -202,10 +237,23 @@ In local mode everything is the app's own, under
 | the socket | `$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/` |
 
 - **Secrets go to the Secret Service**, through
-  `--talk-name=org.freedesktop.secrets`, with the items, labels and
-  attributes of ADR-0011, in the default collection that frostmail#124
-  makes when the session has none. The keyring is not removed with the
-  app's data.
+  `--talk-name=org.freedesktop.secrets`, with the keys and labels of
+  ADR-0011, in the default collection that frostmail#124 makes when the
+  session has none.
+- **The Flatpak's items have a namespace of their own.** In the Flatpak,
+  maild gives each item the attributes
+  `application=org.frostyard.Frostmail`, `store=<store id>` and
+  `key=<key>`, and every search, write and delete uses all three.
+  - The store id is a random value maild draws when it finds a database
+    without one, and keeps in that database.
+  - A host maild searches `application=frostmail`, so it never finds the
+    Flatpak's items, and the Flatpak's maild never searches for the
+    host's. Neither can read, replace or delete the other's secrets.
+  - A reinstall after `flatpak uninstall --delete-data` makes a new
+    database, so a new store id: it never reads the items the old one
+    left. The keyring is not removed with the app's data; `secret-tool
+    clear application org.frostyard.Frostmail` removes them.
+  - Outside a Flatpak, items keep ADR-0011's attributes, unchanged.
 - **No silent plain file in the Flatpak.** With `FLATPAK_ID` set and
   `FROSTMAIL_SECRETS` unset, maild does not fall back to `secrets.json`
   when the Secret Service is missing. It runs, and every secret write
@@ -239,22 +287,37 @@ In local mode everything is the app's own, under
 
 ### Moving from a host maild: optional and explicit
 
-- The app never reads, copies or stops a host maild by itself.
-- When local mode starts with an empty store and the host's data
-  directory (`~/.local/share/frostmail/frostmail.db`, visible through
-  `home:ro`) exists, the app shows a dismissible note with the move's
-  steps. It changes nothing.
-- The move is three commands the user runs:
+- The app never reads, copies or stops a host maild by itself, and never
+  touches the host's data or its keyring items.
+- maild makes its database when it starts, so a first local launch has a
+  database with no account. When the store has no account and the host's
+  data directory (`~/.local/share/frostmail/frostmail.db`, visible
+  through `home:ro`) exists, the app shows a dismissible note with the
+  move's steps. It changes nothing.
+- The move is three commands the user runs, with the window open or not:
   1. `systemctl --user disable --now maild.service` on the host;
   2. the host's `mailctl export DIR` (it refuses while that maild runs);
   3. `flatpak run --command=mailctl org.frostyard.Frostmail import DIR`.
-- `mailctl import DIR` is new. It runs `export --check`'s validation
-  first, refuses while the Flatpak's maild runs or when its data directory
-  holds a database, and then places the database and blobs and a plain
-  `secrets.json` (0600). The next maild moves the secrets into the Secret
-  Service and removes the file (ADR-0011). It never deletes DIR or the
-  host's data; it prints that DIR holds secrets in plain text, to remove
-  once the accounts sync.
+- `mailctl import DIR` is new. In order, it:
+  1. runs `export --check`'s validation of DIR, and stops on any fault;
+  2. calls `rpc.shutdown` when the Flatpak's maild answers, then takes
+     the data lock and holds it to the end, so no maild can start
+     meanwhile (a launcher's maild exits with "another maild uses …");
+  3. checks, under the lock, that the store is pristine: no database, or
+     one with no account, no message, no draft and nothing in the outbox.
+     Otherwise it stops and changes nothing;
+  4. moves the pristine database and its `-wal` and `-shm` aside, as
+     `frostmail.db.before-import-<stamp>`;
+  5. places the export's database and blobs, gives the database a new
+     store id, and places the export's plain `secrets.json` (0600);
+  6. releases the lock, and tells the user to open Frostmail.
+  The next maild moves the secrets into the Flatpak's own items and
+  removes the file (ADR-0011). Import never deletes DIR or the host's
+  data, and it prints that DIR holds secrets in plain text, to remove once
+  the accounts sync.
+- After the move the host maild must stay disabled: re-enabled, it would
+  be a second engine on the same accounts, and a Microsoft account's
+  refresh token, which rotates (ADR-0039), may no longer work for it.
 
 ### What this changes in the earlier decisions
 
@@ -267,7 +330,9 @@ In local mode everything is the app's own, under
   maild on the server is unchanged.
 - **ADR-0045:** the Flatpak gains Go and the `maild` module, a third
   sources file, the launcher, the Background helper and a smoke test, and
-  the permissions below. Publishing is unchanged.
+  the permissions below. Publishing gains a release candidate, which the
+  clean-install gate tests before the same digest becomes `latest`
+  (plan 0013).
 
 The permissions become: `--socket=wayland`, `--socket=fallback-x11`,
 `--share=ipc`, `--device=dri`, `--share=network`,
@@ -285,9 +350,10 @@ Background, FileChooser, OpenURI and Flatpak portals need no finish-arg.
   flatpak-sources`.
 - The socket path, like the data directory, has two sources of truth:
   `internal/config` and `paths.rs`, each with tests.
-- maild gains a lock (on every platform that has `flock`), `rpc.shutdown`,
-  `-log` rotation, the Flatpak's no-fallback rule for secrets, and
-  `mailctl import`. The app gains the SaveFile portal call, attach by bytes
+- maild gains a lock (on every platform that has `flock`), the mode check
+  under it, `rpc.shutdown`, `rpc.hello`'s `build`, `-build` and `-log`,
+  the Flatpak's namespace and no-fallback rule for secrets, and `mailctl
+  import`. The app gains the SaveFile portal call, attach by bytes
   in the Flatpak, the Server pane's texts and its call to stop maild.
 - In local mode maild runs until logout after the window closes, and at
   login when the user allows it. The app has no switch for that yet;
@@ -332,6 +398,11 @@ Background, FileChooser, OpenURI and Flatpak portals need no finish-arg.
   message dialog through zenity, which the GNOME runtime lacks (ADR-0045).
 - **Move a host maild's data on first start:** fast for the owner, but it
   moves data without a decision, which the product rule forbids.
+- **ADR-0011's item attributes in the Flatpak too:** two stores on one
+  keyring both have an account 1, so each would read and replace the
+  other's secrets.
+- **The mode checked by the launcher only:** a launcher delayed past a
+  change of mode would start an engine in lodge mode.
 
 ## References
 
