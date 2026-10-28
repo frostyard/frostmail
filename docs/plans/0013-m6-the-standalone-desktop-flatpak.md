@@ -48,8 +48,9 @@ passes items 1, 2, 5 and 6, fails item 3 (the click, not built) and did not
 run item 4 (OAuth); Phase 7 fails, because a window left open during the
 import does not reconnect, though its other checks pass. Fix PRs: #136 (the
 click), #137 (the setup's error text) and #138 (import starts maild again).
-**Still open:** the click in a sandbox of its own (#136), OAuth (item 4) and
-the import with a window left open (#138), each to check again on the VM.
+The CI bundles of #136 and #138 passed the failed checks on the VM the same
+day (below). **Still open:** merging #136, #137 and #138, and the OAuth check
+(item 4).
 Phases 8 to 10 are not built.
 
 ## Who helps
@@ -299,6 +300,22 @@ The other checks pass.
   account, 312 messages … nothing was moved", exit 1), and every file kept
   its checksum (SQLite added an empty `-wal` and its `-shm`). It also left
   maild stopped (the same fix, #138).
+
+**The fix PRs, checked again on the VM (2026-10-28).**
+
+- #136's bundle: maild's `FROSTMAIL_APP` is `/app/libexec/frostmail-open`.
+  With no window, a click opened the window at the message in a new
+  instance (`flatpak ps`), in another PID namespace than maild. After an
+  update (main's bundle installed as the latest deployment while #136's
+  maild ran), the click on the old maild's notification ran the latest
+  launcher: it replaced the old maild with the latest, and the window opened
+  with the latest `app-commit` and lived on. Until that window closed,
+  the old instance stayed in `flatpak ps`, holding only the `flatpak-spawn`
+  that waits for it.
+- #138's bundle: with the window open, `import` printed "maild started with
+  the imported accounts; open windows reconnect." The window reconnected by
+  itself and listed the imported mail, and a new message synced. A second
+  import refused and printed "maild started again"; maild answered after it.
 
 For Phase 8: the Flatpak's maild reports the version `flatpak`, and the
 bundle's version is 0.0.0.
