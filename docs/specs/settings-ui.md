@@ -713,6 +713,10 @@ interface ServerPaneProps {
     last line.
   - **A new lodge address, lodge to lodge:** it saves and ends every
     window's connection, as outside the Flatpak.
+- After each save, failed or not, the container reads `app_config_get`
+  again and shows the stored choice afresh (the radios and the address),
+  never the one it asked for: a failed stop has written the previous
+  choice back.
 - The container keeps `busy`, `status` and `error` outside the window's connection
   (a store of its own), because a change of mode ends the settings
   window's connection too: the pane remounts on reconnection and still

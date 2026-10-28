@@ -705,6 +705,9 @@ function ServerPaneContainer() {
   const setBusy = useSettingsPane((s) => s.setBusy);
   const setError = useSettingsPane((s) => s.setError);
   const [lodge, setLodge] = useState<string | null>(null);
+  // Each finished save remounts the pane on the stored choice: a failed stop
+  // writes the previous choice back, which can equal what the pane read.
+  const [saves, setSaves] = useState(0);
   const [facts, setFacts] = useState<ServerFacts>({ flatpak: false, localData: false });
   useEffect(() => {
     let active = true;
@@ -743,10 +746,12 @@ function ServerPaneContainer() {
       }
       setError(failure);
       setBusy(false);
+      setSaves((n) => n + 1);
     })();
   };
   return (
     <ServerPane
+      key={saves}
       lodge={lodge}
       flatpak={facts.flatpak}
       localData={facts.localData}
