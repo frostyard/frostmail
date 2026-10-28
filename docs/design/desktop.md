@@ -152,7 +152,11 @@ built).
   `message.save`, lodge mode downloads it there with `save_content`.
   Outside the Flatpak, and on Windows, Save As keeps Tauri's dialog. See
   [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md),
-  Files in the sandbox. Attaching sends the file's bytes
+  Files in the sandbox. The app takes a `Response` only from the unique
+  name of the portal that answered the call, because any peer of the
+  session bus may signal on the request path; and the wait ends with an
+  error when that name leaves the bus, so a portal that goes without an
+  answer cannot keep Save As open. Attaching sends the file's bytes
   (`draft.attachData`) in both modes: Attach Files clicks the webview's own
   file input, whose chooser goes through the FileChooser portal in a
   sandbox, and drops reach the webview because the compose windows leave
@@ -168,8 +172,10 @@ built).
   turnover, and a maild with no Secret Service that refuses to add an
   account and keeps no secrets file. The portal's tests are in the app's
   Rust tests: its helpers (the request path, a URI as a path, a Response's
-  code), and a session-bus test against a portal the test serves itself,
-  which skips without a bus. `SaveAs.flatpak.test.tsx` and
+  code), and 2 session-bus tests against portals the test serves itself,
+  which skip without a bus: one whose answers are a file, a cancel and a
+  failure, with a Response forged by another peer ahead of each, and one
+  whose portal leaves the bus. `SaveAs.flatpak.test.tsx` and
   `ComposeDrop.flatpak.test.tsx` cover Save As and attaching in Vitest, in
   both modes, with a cancel. `FROSTMAIL_BIN_DIR` points the smoke test at
   host-built binaries. The portals themselves need the real-desktop checks
