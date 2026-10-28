@@ -103,7 +103,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	// The secrets file is the snapshot's: what Open would move from it is
 	// nothing, so the user's keyring is only read.
-	sec, err := secrets.Open(ctx, filepath.Join(tmp, "secrets.json"), log)
+	sec, err := secrets.Open(ctx, filepath.Join(tmp, "secrets.json"), log, secrets.HostOptions())
 	if err != nil {
 		return err
 	}

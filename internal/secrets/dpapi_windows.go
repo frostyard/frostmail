@@ -24,8 +24,12 @@ func NewDPAPIFile(path string) *File {
 // or test maild's secrets in the plain file. Secrets still in the plain
 // file are moved over and the file is removed. FROSTMAIL_SECRETS=sealed
 // (a systemd credential, ADR-0044) is an error here, and so is any other
-// value but file.
-func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
+// value but file. It has no Secret Service, so opts changes nothing but the
+// refusal of the Flatpak's namespace with no store id.
+func Open(ctx context.Context, file string, log *slog.Logger, opts Options) (Store, error) {
+	if err := opts.check(); err != nil {
+		return nil, err
+	}
 	plain := NewFile(file)
 	switch v := os.Getenv("FROSTMAIL_SECRETS"); v {
 	case "file":
@@ -35,7 +39,7 @@ func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
 		return nil, errNotOnWindows(v)
 	}
 	sealed := NewDPAPIFile(strings.TrimSuffix(file, filepath.Ext(file)) + ".dpapi")
-	if err := migrate(ctx, plain, sealed); err != nil {
+	if _, err := migrate(ctx, plain, sealed); err != nil {
 		return nil, err
 	}
 	log.Debug("secrets sealed with DPAPI", "file", sealed.path)
@@ -48,7 +52,7 @@ func Open(ctx context.Context, file string, log *slog.Logger) (Store, error) {
 // looked up in the plain file, a leftover Open has not migrated yet. It
 // never moves a secret and never writes. Like Open, it refuses "sealed" and
 // any value it does not know.
-func OpenReader(_ context.Context, file string) (Store, error) {
+func OpenReader(_ context.Context, file string, _ Options) (Store, error) {
 	plain := NewFile(file)
 	switch v := os.Getenv("FROSTMAIL_SECRETS"); v {
 	case "file":

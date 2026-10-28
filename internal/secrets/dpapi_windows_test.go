@@ -42,7 +42,7 @@ func TestOpenMovesThePlainFileIntoDPAPI(t *testing.T) {
 	if err := NewFile(plain).Set(ctx, "k", "v"); err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(ctx, plain, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s, err := Open(ctx, plain, slog.New(slog.NewTextHandler(io.Discard, nil)), HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestOpenMovesThePlainFileIntoDPAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("FROSTMAIL_SECRETS", "file")
-	if s, err := Open(ctx, plain, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+	if s, err := Open(ctx, plain, slog.New(slog.NewTextHandler(io.Discard, nil)), HostOptions()); err != nil {
 		t.Fatal(err)
 	} else if _, ok := s.(*File); !ok || s.(*File).seal != nil {
 		t.Fatalf("FROSTMAIL_SECRETS=file gave %T", s)

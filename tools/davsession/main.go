@@ -104,7 +104,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			return err
 		}
 	}
-	sec, err := secrets.Open(ctx, filepath.Join(tmp, "secrets.json"), log)
+	sec, err := secrets.Open(ctx, filepath.Join(tmp, "secrets.json"), log, secrets.HostOptions())
 	if err != nil {
 		return err
 	}

@@ -27,12 +27,12 @@ core's amendment of ADR-0058 and plan 0010 is still to come.
 mailctl in the Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
 the paths and the smoke test. CI's "Flatpak build and test" runs the smoke
 test; the checks on a real desktop (portals, Background, `flatpak-spawn`)
-wait for Phase 4 and the desktop VM. `--talk-name=org.freedesktop.secrets`
-is **not** in the PR's `finish-args`: it moves to Phase 4, with the
-Flatpak's own keyring namespace, because without that namespace a Flatpak
-maild would share keyring items with a host maild. Until then the
-Flatpak's maild keeps its secrets in its file, as it does with no Secret
-Service. Phases 4 to 10 are not built.
+wait for the desktop VM. **Phase 4's secrets part is built in this PR (in
+review):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
+namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
+message, the probe in `account.create`, and the unit tests on `dbustest`.
+**Not done in Phase 4:** the notification click, the OAuth check and the 6
+checks on the desktop VM. Phases 5 to 10 are not built.
 
 ## Who helps
 
@@ -108,8 +108,12 @@ Service. Phases 4 to 10 are not built.
 - `--talk-name=org.freedesktop.secrets`; the Flatpak's item namespace
   (`application=org.frostyard.Frostmail`, `store=<store id>`) and the
   store id in the database; the no-fallback rule and `ErrNoKeyring`'s
-  message; the probe before account setup saves an account (an IDL method
-  or an option of an existing one, decided in the phase). Unit tests on
+  message; the probe before account setup saves an account. **Decided:**
+  the probe runs inside `account.create`, before the insert: it writes,
+  reads back and deletes a probe secret (`secrets.Probe`), and fails with
+  `unavailable`, adding no account, when the store cannot keep one. It is an
+  existing method, so there is no new IDL method and no app change: the
+  setup screen already shows `account.create`'s error. Unit tests on
   `dbustest`: two stores with an account 1 each on one service keep
   their own secrets.
 - A notification's click through `flatpak-spawn --latest-version`.

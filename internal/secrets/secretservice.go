@@ -13,8 +13,10 @@ import (
 // Keyring, KWallet, KeePassXC (docs/design/accounts.md, Secrets; ADR-0011).
 // Items live in the default collection, which the service names with
 // ReadAlias; when it has none, the store makes one, as libsecret does. Items
-// are labeled "Frostmail: <key>" with the attributes application=frostmail
-// and key=<key>; secrets travel in a plain session, since the bus is local.
+// are labeled "Frostmail: <key>" with the attributes of the store's
+// Namespace (application=frostmail on the host; the Flatpak's own
+// application and store, ADR-0046) and key=<key>; secrets travel in a plain
+// session, since the bus is local.
 
 const (
 	ssName            = "org.freedesktop.secrets"
@@ -36,10 +38,22 @@ var ErrUnavailable = errors.New("secrets: no Secret Service")
 // unlock a collection, or to make the default one.
 var ErrDismissed = errors.New("secrets: the Secret Service's prompt was dismissed")
 
-// ErrNoKeyring means the Secret Service has no default collection and
-// cannot make one, so no secret can be kept in it.
-var ErrNoKeyring = errors.New("secrets: the Secret Service cannot make a default collection: " +
-	"set FROSTMAIL_SECRETS=file to keep secrets in a file")
+// ErrNoKeyring means no keyring can keep a secret: the Secret Service has no
+// default collection and cannot make one, or no Secret Service answers and
+// the store may not fall back to a file. Every error that wraps it says the
+// cause and ends with the hint of the store's Options.
+var ErrNoKeyring = errors.New("secrets: no keyring can keep the secret")
+
+// errNoKeyring wraps ErrNoKeyring with its cause and the hint.
+func errNoKeyring(cause, hint string) error {
+	if cause != "" {
+		cause += ": "
+	}
+	if hint == "" {
+		return fmt.Errorf("%s%w", cause, ErrNoKeyring)
+	}
+	return fmt.Errorf("%s%w: %s", cause, ErrNoKeyring, hint)
+}
 
 // staleObjects are the D-Bus errors that say an object path is not there,
 // which a session with no login keyring gives for the collection its
@@ -74,14 +88,18 @@ type secretStruct struct {
 type SecretService struct {
 	conn    *dbus.Conn
 	session dbus.ObjectPath
+	ns      Namespace
+	hint    string     // the end of ErrNoKeyring's message
 	mu      sync.Mutex // one prompt at a time
 }
 
 var _ Store = (*SecretService)(nil)
 
 // OpenSecretService opens a plain session with the Secret Service on conn,
-// or returns an error wrapping ErrUnavailable.
-func OpenSecretService(ctx context.Context, conn *dbus.Conn) (*SecretService, error) {
+// or returns an error wrapping ErrUnavailable. The store's items are the
+// ones of namespace ns (the zero value is the host's); hint ends the message
+// of the ErrNoKeyring errors it returns.
+func OpenSecretService(ctx context.Context, conn *dbus.Conn, ns Namespace, hint string) (*SecretService, error) {
 	var out dbus.Variant
 	var session dbus.ObjectPath
 	err := conn.Object(ssName, ssPath).CallWithContext(ctx, ssService+".OpenSession", 0, "plain", dbus.MakeVariant("")).
@@ -89,11 +107,18 @@ func OpenSecretService(ctx context.Context, conn *dbus.Conn) (*SecretService, er
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
-	return &SecretService{conn: conn, session: session}, nil
+	return &SecretService{conn: conn, session: session, ns: ns, hint: hint}, nil
 }
 
-func attributes(key string) map[string]string {
-	return map[string]string{"application": "frostmail", "key": key}
+// attributes are the attributes of key's item: the namespace's application,
+// its store when it has one, and the key. Every search, write and delete
+// uses all of them.
+func (s *SecretService) attributes(key string) map[string]string {
+	attrs := map[string]string{"application": s.ns.application(), "key": key}
+	if s.ns.Store != "" {
+		attrs["store"] = s.ns.Store
+	}
+	return attrs
 }
 
 // Get returns the secret stored under key, or ErrNotFound.
@@ -139,7 +164,7 @@ func (s *SecretService) setIn(ctx context.Context, coll dbus.ObjectPath, key, va
 	}
 	props := map[string]dbus.Variant{
 		ssItem + ".Label":      dbus.MakeVariant("Frostmail: " + key),
-		ssItem + ".Attributes": dbus.MakeVariant(attributes(key)),
+		ssItem + ".Attributes": dbus.MakeVariant(s.attributes(key)),
 	}
 	sec := secretStruct{Session: s.session, Value: []byte(value), ContentType: "text/plain; charset=utf8"}
 	var item, prompt dbus.ObjectPath
@@ -178,7 +203,7 @@ func (s *SecretService) createDefault(ctx context.Context) (dbus.ObjectPath, err
 	err := s.conn.Object(ssName, ssPath).CallWithContext(ctx, ssService+".CreateCollection", 0, props, "default").
 		Store(&path, &prompt)
 	if err != nil {
-		return "", fmt.Errorf("make the default collection: %v: %w", err, ErrNoKeyring)
+		return "", errNoKeyring(fmt.Sprintf("make the default collection: %v", err), s.hint)
 	}
 	if prompt != noPrompt {
 		result, err := s.prompt(ctx, prompt)
@@ -187,12 +212,12 @@ func (s *SecretService) createDefault(ctx context.Context) (dbus.ObjectPath, err
 		}
 		made, ok := result.Value().(dbus.ObjectPath)
 		if !ok || made == noPrompt {
-			return "", fmt.Errorf("make the default collection: the prompt named no collection: %w", ErrNoKeyring)
+			return "", errNoKeyring("make the default collection: the prompt named no collection", s.hint)
 		}
 		return made, nil
 	}
 	if path == noPrompt {
-		return "", fmt.Errorf("make the default collection: the service named no collection: %w", ErrNoKeyring)
+		return "", errNoKeyring("make the default collection: the service named no collection", s.hint)
 	}
 	return path, nil
 }
@@ -221,7 +246,7 @@ func (s *SecretService) Delete(ctx context.Context, key string) error {
 // find returns the item holding key, unlocking it when needed.
 func (s *SecretService) find(ctx context.Context, key string) (dbus.ObjectPath, error) {
 	var unlocked, locked []dbus.ObjectPath
-	err := s.conn.Object(ssName, ssPath).CallWithContext(ctx, ssService+".SearchItems", 0, attributes(key)).
+	err := s.conn.Object(ssName, ssPath).CallWithContext(ctx, ssService+".SearchItems", 0, s.attributes(key)).
 		Store(&unlocked, &locked)
 	if err != nil {
 		return "", fmt.Errorf("secrets: search %s: %w", key, err)

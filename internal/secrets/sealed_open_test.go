@@ -45,7 +45,7 @@ func TestOpenSealedMovesAPlainFileIn(t *testing.T) {
 		}
 	}
 	log, logged := logBuf()
-	st, err := Open(ctx, file, log)
+	st, err := Open(ctx, file, log, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestOpenSealedMovesAPlainFileIn(t *testing.T) {
 	if err := st.Set(ctx, AccountPassword(2), "pw2"); err != nil {
 		t.Fatal(err)
 	}
-	again, err := Open(ctx, file, log)
+	again, err := Open(ctx, file, log, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestOpenSealedMovesAPlainFileIn(t *testing.T) {
 
 func TestOpenSealedFirstStartIsEmpty(t *testing.T) {
 	dir, file := sealedEnv(t, testKey(3))
-	st, err := Open(t.Context(), file, slog.New(slog.DiscardHandler))
+	st, err := Open(t.Context(), file, slog.New(slog.DiscardHandler), HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestOpenSealedFirstStartIsEmpty(t *testing.T) {
 // and the sealed file, and leaves a plain secrets.json byte for byte.
 func noFallback(t *testing.T, file string, plainBytes []byte, secrets ...string) {
 	t.Helper()
-	st, err := Open(t.Context(), file, slog.New(slog.DiscardHandler))
+	st, err := Open(t.Context(), file, slog.New(slog.DiscardHandler), HostOptions())
 	if err == nil {
 		t.Fatalf("Open gave %T and no error", st)
 	}
@@ -179,11 +179,11 @@ func TestOpenSealedNeverFallsBack(t *testing.T) {
 func TestOpenRefusesAnUnknownValue(t *testing.T) {
 	t.Setenv("FROSTMAIL_SECRETS", "keyring")
 	file := filepath.Join(t.TempDir(), "secrets.json")
-	_, err := Open(t.Context(), file, slog.New(slog.DiscardHandler))
+	_, err := Open(t.Context(), file, slog.New(slog.DiscardHandler), HostOptions())
 	if err == nil || !strings.Contains(err.Error(), `"keyring"`) || !strings.Contains(err.Error(), "file, sealed") {
 		t.Errorf("Open = %v", err)
 	}
-	if _, err := OpenReader(t.Context(), file); err == nil {
+	if _, err := OpenReader(t.Context(), file, HostOptions()); err == nil {
 		t.Error("OpenReader took the unknown value")
 	}
 }
@@ -192,7 +192,7 @@ func TestOpenFileWarnsOnce(t *testing.T) {
 	t.Setenv("FROSTMAIL_SECRETS", "file")
 	file := filepath.Join(t.TempDir(), "secrets.json")
 	log, logged := logBuf()
-	st, err := Open(t.Context(), file, log)
+	st, err := Open(t.Context(), file, log, HostOptions())
 	if _, ok := st.(*File); err != nil || !ok {
 		t.Fatalf("Open = %T, %v", st, err)
 	}
@@ -226,7 +226,7 @@ func TestOpenReaderSealed(t *testing.T) {
 	plainBefore, _ := os.ReadFile(file)
 	sealedBefore, _ := os.ReadFile(filepath.Join(dir, SealedFileName))
 
-	r, err := OpenReader(ctx, file)
+	r, err := OpenReader(ctx, file, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestOpenReaderSealed(t *testing.T) {
 
 	// Without a key, or with one that does not open the file: an error.
 	t.Setenv("CREDENTIALS_DIRECTORY", "")
-	if _, err := OpenReader(ctx, file); err == nil || !strings.Contains(err.Error(), "frostmail-secrets-key") {
+	if _, err := OpenReader(ctx, file, HostOptions()); err == nil || !strings.Contains(err.Error(), "frostmail-secrets-key") {
 		t.Errorf("OpenReader without a key = %v", err)
 	}
 	other := t.TempDir()
@@ -261,7 +261,7 @@ func TestOpenReaderSealed(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("CREDENTIALS_DIRECTORY", other)
-	if _, err := OpenReader(ctx, file); err == nil || !strings.Contains(err.Error(), SealedFileName) {
+	if _, err := OpenReader(ctx, file, HostOptions()); err == nil || !strings.Contains(err.Error(), SealedFileName) {
 		t.Errorf("OpenReader with a wrong key = %v", err)
 	}
 }
@@ -272,7 +272,7 @@ func TestOpenReaderSealedFallsBackToTheLeftoverWithNoSealedFile(t *testing.T) {
 	if err := NewFile(file).Set(ctx, "c", "from-plain"); err != nil {
 		t.Fatal(err)
 	}
-	r, err := OpenReader(ctx, file)
+	r, err := OpenReader(ctx, file, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestOpenSealedRemovesAnEmptyPlainFile(t *testing.T) {
 	if err := os.WriteFile(file, []byte("{}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Open(t.Context(), file, slog.New(slog.DiscardHandler)); err != nil {
+	if _, err := Open(t.Context(), file, slog.New(slog.DiscardHandler), HostOptions()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(file); !errors.Is(err, os.ErrNotExist) {

@@ -94,27 +94,73 @@ caps responses at 64 KB, and never sends the password anywhere.
 ## Secrets
 
 - `secrets.Store` gains `SecretService`: D-Bus `org.freedesktop.secrets`,
-  default collection, items labeled `Frostmail: <key>` with attributes
-  `application=frostmail`, `key=<key>`, plain session (the bus is local).
-  A locked collection is unlocked with the service's prompt.
+  default collection, items labeled `Frostmail: <key>` with the attributes
+  of the store's namespace (below) and `key=<key>`, plain session (the bus
+  is local). A locked collection is unlocked with the service's prompt.
   - maild reads the `default` alias (`ReadAlias`). When the alias is `/`,
     or names a collection the service does not have, maild makes the
     default collection (label "Default keyring") with `CreateCollection`,
-    as libsecret does. If the service cannot, the error is `ErrNoKeyring`
-    and says to set `FROSTMAIL_SECRETS=file`. A dismissed prompt, to unlock
-    or to make the collection, is `ErrDismissed`.
+    as libsecret does. If the service cannot, the error wraps
+    `ErrNoKeyring`, says why, and ends with a hint on how to keep secrets in
+    a file instead (below). A dismissed prompt, to unlock or to make the
+    collection, is `ErrDismissed`.
   - A prompt wait ends with `ErrUnavailable` when the service leaves the
     bus (`NameOwnerChanged`) or the bus connection closes.
+- **The namespace** is the `application` attribute, and a `store` attribute
+  when there is one. Every search, write and delete uses all of them, so
+  that two namespaces never see each other's items
+  ([ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
+  - Outside the Flatpak: `application=frostmail`, no `store`
+    (ADR-0011, unchanged).
+  - In the Flatpak (`FLATPAK_ID` is the app's ID): `application=org.frostyard.Frostmail`
+    and `store=<store id>`. A Flatpak maild and a host maild on one keyring
+    never read, replace or delete each other's items.
+  - **The store id** is 32 hex characters, 16 random bytes. maild draws it
+    the first time it asks for it (`store.DB.StoreID`) and keeps it in the
+    database's `store_info` table (migration 19), so it goes where the
+    database goes, and a new database (after `flatpak uninstall
+    --delete-data`) has a new id and reads none of the old items. A
+    Flatpak maild refuses to open its secrets with no store id.
+    `mailctl export` copies the source's id into its snapshot and reads the
+    items of that namespace; it never writes to the source.
+  - `secrets.Options` carry the namespace, `NoFallback` and the hint that
+    ends `ErrNoKeyring`'s message: `HostOptions()` and `FlatpakOptions(id)`.
+    `maild` and `mailctl export` choose by `config.InFlatpak`.
 - `FROSTMAIL_SECRETS` chooses the store, and an unknown value is an error:
   - unset: the Secret Service when the session bus offers it, else the
-    file store with a warning;
+    file store with a warning. **In the Flatpak there is no file
+    fallback** (`NoFallback`): see below;
   - `file`: the plain file store, with a warning that a server seals it
-    (tests, CI, development);
+    (tests, CI, development). In the Flatpak the user asks for it with
+    `flatpak override --user --env=FROSTMAIL_SECRETS=file
+    org.frostyard.Frostmail`;
   - `sealed`: the sealed file store, below (Linux only; on Windows it is an
     error).
 - Migration: on start with the Secret Service, every key of an existing
   `secrets.json` is copied in, verified by reading it back, and the file is
-  removed.
+  removed (all or nothing). When it moved a key, maild logs one Info line:
+  the file, the number of keys and the namespace, never a value. In the
+  Flatpak this is the one-time move of the file its maild kept in plan
+  0013's Phases 2 and 3, into the store's own namespace.
+- **No keyring in the Flatpak.** With `FROSTMAIL_SECRETS` unset and no
+  Secret Service, the Flatpak's maild does not use `secrets.json`. It runs,
+  logs one Error line at start, and its secret store fails every `Get`,
+  `Set` and `Delete` with an error that wraps `ErrNoKeyring`, says why and
+  ends with `run flatpak override --user
+  --env=FROSTMAIL_SECRETS=file org.frostyard.Frostmail to keep secrets in a
+  plain file instead`. `Get` never answers `ErrNotFound`, which would make
+  sync ask the user to sign in again. It never reads or writes the file. A
+  `secrets.json` that is there stays as it is (a Warn line says so) until a
+  Secret Service answers on a later start, and then it moves in. `mailctl
+  export` reads that file, and only for that: `OpenReader` with no Secret
+  Service reads it read-only.
+- **The probe.** `account.create` first calls `secrets.Probe`: it writes a
+  random value that is not a secret under the key `probe`, reads it back,
+  compares it and deletes it, before it inserts the account. A store that
+  cannot keep it (no keyring, a dismissed prompt, a service that left) fails
+  `account.create` with `unavailable`, names the cause and the hint, and adds
+  no account. The probe may show the service's prompt (to unlock, or to make
+  the default keyring). It runs in every maild, not only in the Flatpak.
 - On Windows (ADR-0038) the store is `secrets.dpapi` beside the database:
   the same JSON object, sealed for the user with `CryptProtectData`, which
   only the user's Windows sign-in can unseal and which has no size cap,

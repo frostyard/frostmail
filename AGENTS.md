@@ -42,10 +42,12 @@ checked live over lodge's agent socket (2026-10-21).
 M6, the standalone desktop Flatpak
 ([plan 0013](docs/plans/0013-m6-the-standalone-desktop-flatpak.md)), is
 in progress: [ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
-(proposed 2026-10-27) bundles maild and mailctl, runs them by default, and
+(accepted 2026-10-28) bundles maild and mailctl, runs them by default, and
 keeps lodge as a connection the user chooses. Phases 2 and 3 (maild and
-mailctl in the build, the launcher, the data lock, one local maild) are in
-review in one PR; Phases 4 to 10 are not built.
+mailctl in the build, the launcher, the data lock, one local maild) are
+merged (#126); Phase 4's secrets part (the Flatpak's keyring namespace, the
+store id, no plain-file fallback, the probe in `account.create`) is in review;
+the rest of Phases 4 to 10 is not built.
 
 ## Two kinds of agent work
 

@@ -109,7 +109,8 @@ func runExport(ctx context.Context, w io.Writer, opts *rootOptions, dir string) 
 	if err != nil {
 		return err
 	}
-	found, missing, err := exportSecrets(ctx, w, filepath.Join(paths.DataDir, "secrets.json"), filepath.Join(dir, "secrets.json"), snap.Accounts)
+	found, missing, err := exportSecrets(ctx, w, filepath.Join(paths.DataDir, "secrets.json"), filepath.Join(dir, "secrets.json"), snap.Accounts,
+		secrets.OptionsFor(config.InFlatpak(os.Getenv), snap.StoreID))
 	if err != nil {
 		return err
 	}
@@ -228,11 +229,12 @@ func fileSHA256(path string) (string, error) {
 }
 
 // exportSecrets reads the secrets the exported accounts need from the
-// store maild would use (file is its plain file) and writes the found ones
+// store maild would use (file is its plain file; opts name its Secret
+// Service namespace, from the database's store id) and writes the found ones
 // to the new plain file dst, mode 0600. It returns how many it wrote and
 // the accounts that have no credential. It never prints a value.
-func exportSecrets(ctx context.Context, w io.Writer, file, dst string, accounts []store.ExportedAccount) (int, []store.ExportedAccount, error) {
-	reader, err := secrets.OpenReader(ctx, file)
+func exportSecrets(ctx context.Context, w io.Writer, file, dst string, accounts []store.ExportedAccount, opts secrets.Options) (int, []store.ExportedAccount, error) {
+	reader, err := secrets.OpenReader(ctx, file, opts)
 	if err != nil {
 		return 0, nil, fmt.Errorf("open secrets: %w", err)
 	}

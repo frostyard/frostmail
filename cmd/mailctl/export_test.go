@@ -86,6 +86,26 @@ func readManifestFile(t *testing.T, dir string) map[string]string {
 	return m.values
 }
 
+// In the Flatpak, with no Secret Service on the bus, the export reads the
+// secrets file an unmoved maild left. The fixture's database has no store
+// id yet, as one that the Flatpak's maild has not opened since Phase 4.
+func TestExportInTheFlatpakReadsTheUnmovedSecretsFile(t *testing.T) {
+	f := newExportFixture(t)
+	t.Setenv("FLATPAK_ID", "org.frostyard.Frostmail")
+	t.Setenv("FROSTMAIL_SECRETS", "")
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+filepath.Join(t.TempDir(), "no-bus"))
+	out, err := runMailctl(t, "export", f.dir)
+	if err != nil {
+		t.Fatalf("export = %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "3 secrets") {
+		t.Errorf("the summary lacks the 3 secrets:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(f.data, "secrets.json")); err != nil {
+		t.Errorf("the export moved the source's secrets file: %v", err)
+	}
+}
+
 func TestExportWritesTheDatabaseBlobsSecretsAndManifest(t *testing.T) {
 	f := newExportFixture(t)
 	out, err := runMailctl(t, "export", f.dir)

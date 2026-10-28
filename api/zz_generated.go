@@ -530,7 +530,9 @@ type AccountService interface {
 	Get(ctx context.Context, p *AccountGetParams) (*Account, error)
 	// Create implements account.create. Add an account. The email address must be
 	// unique. Gmail and iCloud accounts may leave the servers out; their profiles
-	// fill them in.
+	// fill them in. It first writes, reads back and deletes a probe secret, and
+	// fails with unavailable and adds nothing when the secret store cannot keep
+	// one.
 	Create(ctx context.Context, p *AccountCreateParams) (*Account, error)
 	// Update implements account.update. Change an account's settings. Omitted
 	// fields keep their values.
