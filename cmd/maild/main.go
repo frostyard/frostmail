@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/config"
+	"github.com/frostyard/frostmail/internal/datalock"
 	"github.com/frostyard/frostmail/internal/devgw"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
@@ -60,7 +62,11 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, args []string) (err error) {
+func run(ctx context.Context, args []string) error { return runWith(ctx, args, nil) }
+
+// runWith is run; serving, when set, is called once the socket is open and
+// just before maild accepts on it, for tests.
+func runWith(ctx context.Context, args []string, serving func()) (err error) {
 	fs := flag.NewFlagSet("maild", flag.ContinueOnError)
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	autostart := fs.String("autostart", "", "on or off: start maild when the user signs in to Windows (the per-user Run key), then exit")
@@ -69,12 +75,25 @@ func run(ctx context.Context, args []string) (err error) {
 		"or the same under LODGE_ROOT (docs/specs/lodge-app.md)")
 	devgwAddr := fs.String("devgw", "", "also serve the API over a WebSocket on this loopback address, for UI development "+
 		"(needs FROSTMAIL_DEVGW_TOKEN; docs/design/app.md)")
+	showMode := fs.Bool("mode", false, "print local or lodge, which maild the desktop uses (app.json), and exit")
+	showBuild := fs.Bool("build", false, "print the Flatpak build of this instance (app-commit in /.flatpak-info) and exit")
+	logPath := fs.String("log", "", "Linux: after maild takes the data directory's lock, move FILE to FILE.1 when it is larger "+
+		"than 1 MiB, and append maild's output (stdout and stderr) to FILE")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *showVersion {
 		fmt.Printf("maild %s (%s)\n", version, commit)
 		return nil
+	}
+	if *showMode && *showBuild {
+		return errors.New("-mode and -build print one thing each; give one")
+	}
+	if *showMode {
+		return printMode(os.Stdout)
+	}
+	if *showBuild {
+		return printBuild(os.Stdout)
 	}
 	switch *autostart {
 	case "":
@@ -93,6 +112,20 @@ func run(ctx context.Context, args []string) (err error) {
 			return err
 		}
 	}
+	// One maild per data directory, whatever its socket: the database, the
+	// blobs and the sync state have one owner.
+	release, err := datalock.Acquire(paths.DataDir)
+	if err != nil {
+		return err
+	}
+	defer release()
+	// -log keeps maild's output in a file. It runs here, after the lock: only
+	// the maild that holds the data directory rotates that log.
+	if *logPath != "" {
+		if err := logTo(*logPath); err != nil {
+			return fmt.Errorf("-log %s: %w", *logPath, err)
+		}
+	}
 	level := slog.LevelInfo
 	if *debug {
 		level = slog.LevelDebug
@@ -108,6 +141,13 @@ func run(ctx context.Context, args []string) (err error) {
 			logger.Error("maild stopped", "err", err) // main prints it to stderr too
 		}
 	}()
+	// The mode is checked under the lock, before the database opens.
+	if lodge, err := lodgeMode(logger); lodge || err != nil {
+		return err
+	}
+	// rpc.shutdown, like SIGTERM, ends ctx: everything below stops in order.
+	ctx, shutdown := context.WithCancel(ctx)
+	defer shutdown()
 	db, err := store.Open(ctx, paths.DB)
 	if err != nil {
 		return err
@@ -202,7 +242,7 @@ func run(ctx context.Context, args []string) (err error) {
 	}
 	var sched *reminders.Scheduler // the app coming or going checks reminders
 	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger,
-		OnAttended: func(bool) { sched.Kick() }})
+		OnAttended: func(bool) { sched.Kick() }, Build: serverBuild(logger), Shutdown: shutdown})
 	eng := engine.New(withContent(engine.Deps{
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
 		OAuth: tokens, PIM: pim, Unsubscriber: unsubscribe.New(),
@@ -253,6 +293,9 @@ func run(ctx context.Context, args []string) (err error) {
 		logger.Info("serving lodge's mail app", "socket", lodgeLn.Addr().String())
 	}
 	logger.Info("maild started", "version", version, "socket", paths.Socket, "db", paths.DB)
+	if serving != nil {
+		serving()
+	}
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
 	return err

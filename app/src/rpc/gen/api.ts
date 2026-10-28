@@ -2317,6 +2317,12 @@ export interface Hello {
   nodeName?: string;
   /** A session's display name, when lodge has one. */
   displayName?: string;
+  /**
+   * The Flatpak build this maild runs from: the app-commit of its instance,
+   * which differs for every build, even of one version. Absent outside the
+   * Flatpak (ADR-0046).
+   */
+  build?: string;
 }
 
 /** Params of rpc.hello. */
@@ -2329,6 +2335,9 @@ export interface RPCHelloParams {
 
 /** Params of rpc.ping. */
 export type RPCPingParams = Record<string, never>;
+
+/** Params of rpc.shutdown. */
+export type RPCShutdownParams = Record<string, never>;
 
 /**
  * Connection setup. A client calls rpc.hello first on every connection; the
@@ -2345,12 +2354,20 @@ export interface RPCClient {
    * lodge keeps its session.
    */
   ping(params?: RPCPingParams): Promise<void>;
+  /**
+   * Stop maild as SIGTERM does: it answers, finishes the work in hand,
+   * releases the data directory's lock and exits 0. The Flatpak's app and
+   * launcher call it to leave local mode and to replace an older build
+   * (ADR-0046).
+   */
+  shutdown(params?: RPCShutdownParams): Promise<void>;
 }
 
 function rpcClient(t: Transport): RPCClient {
   return {
     hello: (params) => t.call<Hello>("rpc.hello", params),
     ping: (params = {}) => t.call<null>("rpc.ping", params).then(() => undefined),
+    shutdown: (params = {}) => t.call<null>("rpc.shutdown", params).then(() => undefined),
   };
 }
 
@@ -3242,6 +3259,7 @@ export const METHODS = [
   "people.restore",
   "rpc.hello",
   "rpc.ping",
+  "rpc.shutdown",
   "rule.list",
   "rule.create",
   "rule.update",

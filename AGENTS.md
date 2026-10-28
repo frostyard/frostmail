@@ -40,9 +40,11 @@ checked live over lodge's agent socket (2026-10-21).
 
 M6, the standalone desktop Flatpak
 ([plan 0013](docs/plans/0013-m6-the-standalone-desktop-flatpak.md)), is
-planned: [ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
+in progress: [ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
 (proposed 2026-10-27) bundles maild and mailctl, runs them by default, and
-keeps lodge as a connection the user chooses.
+keeps lodge as a connection the user chooses. Phases 2 and 3 (maild and
+mailctl in the build, the launcher, the data lock, one local maild) are in
+review in one PR; Phases 4 to 10 are not built.
 
 ## Two kinds of agent work
 
@@ -90,10 +92,13 @@ keeps lodge as a connection the user chooses.
   lodge's frame (routes, windows as routes), over
   `app/src/rpc/transport/lodge.ts`.
 - `packaging/flatpak`: the app's Flatpak manifest, its metainfo and desktop
-  entry, and the offline `cargo-sources.json` and `node-sources.json`
-  (`make flatpak-sources`; [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
-  The Flatpak holds the app only, not maild. CI builds it in
-  `.github/workflows/flatpak.yml`. `install.sh` is the local wrapper.
+  entry, and the offline `cargo-sources.json`, `node-sources.json` and
+  `go-sources.json` (`make flatpak-sources`; [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
+  The Flatpak holds the app, maild and mailctl (`/app/bin`, built from
+  `go-sources.json`), the launcher `frostmail.sh`, the Background helper and
+  a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
+  CI builds it in `.github/workflows/flatpak.yml`. `install.sh` is the
+  wrapper for the development bundle, with a host maild.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
@@ -107,9 +112,10 @@ keeps lodge as a connection the user chooses.
 - `make engine-it` runs integration tests against the Dovecot container
   (resetting it first). `make ui-test` and `make app-build` run in the nsl
   machine. `make ci` is verify plus race tests and the app checks.
-- `make flatpak-sources` regenerates the 2 sources files of the Flatpak. Run
-  it after any change to `app/src-tauri/Cargo.lock` or `app/pnpm-lock.yaml`,
-  in the nsl machine (it needs Python 3 with venv, not Node or Rust); CI's job
+- `make flatpak-sources` regenerates the 3 sources files of the Flatpak. Run
+  it after any change to `app/src-tauri/Cargo.lock`, `app/pnpm-lock.yaml`,
+  `go.mod` or `go.sum`, in the nsl machine (it needs Python 3 with venv and
+  Go, not Node or Rust); CI's job
   "Flatpak sources (make flatpak-sources)" fails on a stale file.
 - `make vulncheck` runs govulncheck (pinned in the Makefile; needs the
   network). It is not part of `check`, `verify` or `ci`; the CI job

@@ -6,6 +6,11 @@ import "path/filepath"
 // AppID is the reverse-DNS application ID (frostyard/core ADR-0016).
 const AppID = "org.frostyard.Frostmail"
 
+// InFlatpak reports whether the process runs in this application's Flatpak
+// (FLATPAK_ID is AppID). Another application's Flatpak, such as an editor
+// that runs mailctl, is not.
+func InFlatpak(getenv func(string) string) bool { return getenv("FLATPAK_ID") == AppID }
+
 // Paths are maild's file locations.
 type Paths struct {
 	DataDir  string // database and blob store; must be on a local filesystem

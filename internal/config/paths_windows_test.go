@@ -42,3 +42,13 @@ func TestResolveNeedsLocalAppData(t *testing.T) {
 		t.Fatal("want an error without LOCALAPPDATA or the overrides")
 	}
 }
+
+func TestAppConfigFile(t *testing.T) {
+	got, err := AppConfigFile(env(map[string]string{"APPDATA": `C:\Users\u\AppData\Roaming`}))
+	if err != nil || got != `C:\Users\u\AppData\Roaming\Frostmail\app.json` {
+		t.Fatalf("AppConfigFile = %q, %v", got, err)
+	}
+	if _, err := AppConfigFile(env(nil)); err == nil {
+		t.Fatal("want an error without APPDATA")
+	}
+}

@@ -4,13 +4,15 @@
 #
 #   packaging/flatpak/cargo-sources.json   the app shell's crates, from app/src-tauri/Cargo.lock
 #   packaging/flatpak/node-sources.json    the app's pnpm store, from app/pnpm-lock.yaml
+#   packaging/flatpak/go-sources.json      maild's Go modules, from go.mod and go.sum
 #
-# Run it after any change to those 2 lockfiles; CI regenerates the files and
-# fails when they differ. It needs the network, git and Python 3 on the
-# host, and no Node, pnpm or Rust. The generators are flatpak-builder-tools at
-# the commit below plus a patch (packaging/flatpak/patches), run with a
-# virtual environment in build/ that holds their hashed dependencies
-# (packaging/flatpak/generator-requirements.txt).
+# Run it after any change to those 4 files; CI regenerates the files and
+# fails when they differ. It needs the network, git, Go and Python 3 on the
+# host, and no Node, pnpm or Rust. The cargo and node generators are
+# flatpak-builder-tools at the commit below plus a patch
+# (packaging/flatpak/patches), run with a virtual environment in build/ that
+# holds their hashed dependencies (packaging/flatpak/generator-requirements.txt);
+# the Go generator is tools/flatpakgo, in this repository.
 set -eu
 
 # flatpak-builder-tools, pinned to a commit (frostyard/core ADR-0023).
@@ -58,3 +60,8 @@ export XDG_CACHE_HOME="$root/$work/cache"
 # pnpm 12's lockfile uses store version v11 (see the generator's README).
 PYTHONPATH="$work/tools/node" "$work/venv/bin/python" -m flatpak_node_generator --no-requests-cache --pnpm-store-version v11 \
     -o "$out/node-sources.json" pnpm app/pnpm-lock.yaml
+
+# The Go modules of maild and mailctl: one file source per module, with its
+# checksum, for a file:// GOPROXY (the maild module in the manifest).
+go run ./tools/flatpakgo >"$out/go-sources.json.tmp"
+mv "$out/go-sources.json.tmp" "$out/go-sources.json"

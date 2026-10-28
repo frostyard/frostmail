@@ -70,6 +70,8 @@ type Options struct {
 	// OnAttended learns when the app connects and leaves
 	// (rpcserver.Options.OnAttended).
 	OnAttended func(attended bool)
+	// Build is what rpc.hello reports as build (rpcserver.Options.Build).
+	Build string
 	// Services, when set, may replace the engine's domains with fakes
 	// before the router is built, so a test can run the server against
 	// them.
@@ -92,9 +94,14 @@ type Server struct {
 	OAuth   *oauth.Manager
 	Content *lodge.Content // nil unless Options.Lodge was set
 
-	ctx  context.Context
-	stop func()
+	ctx     context.Context
+	stop    func()
+	stopped chan struct{} // closed when Serve has returned
 }
+
+// Stopped is closed when the server has stopped serving, which rpc.shutdown
+// (or Stop) causes: the socket is closed and answers no more.
+func (s *Server) Stopped() <-chan struct{} { return s.stopped }
 
 // Start runs a server without the sync engine.
 func Start(t testing.TB) *Server { return StartWith(t, Options{}) }
@@ -179,7 +186,10 @@ func StartWith(t testing.TB, o Options) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log, OnAttended: o.OnAttended})
+	ctx, cancel := context.WithCancel(context.Background())
+	// rpc.shutdown ends Serve, as it does maild's.
+	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log, OnAttended: o.OnAttended,
+		Build: o.Build, Shutdown: cancel})
 	srv.RPC = rpc
 	eng := engine.New(deps)
 	services := api.Services{
@@ -197,7 +207,6 @@ func StartWith(t testing.TB, o Options) *Server {
 		t.Fatal(err)
 	}
 	srv.Router = router
-	ctx, cancel := context.WithCancel(context.Background())
 	srv.ctx = ctx
 	go views.Run(ctx)
 	if srv.Sync != nil {
@@ -211,7 +220,12 @@ func StartWith(t testing.TB, o Options) *Server {
 		}
 	}
 	done := make(chan error, 1)
-	go func() { done <- rpc.Serve(ctx, ln, router) }()
+	srv.stopped = make(chan struct{})
+	go func() {
+		err := rpc.Serve(ctx, ln, router)
+		close(srv.stopped)
+		done <- err
+	}()
 	srv.stop = sync.OnceFunc(func() {
 		cancel()
 		select {

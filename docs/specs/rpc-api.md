@@ -2151,6 +2151,15 @@ No params.
 
 Result: none (`null`).
 
+### `rpc.shutdown`
+
+Stop maild as SIGTERM does: it answers, finishes the work in hand, releases the data directory's lock and exits 0. The Flatpak's app and launcher call it to leave local mode and to replace an older build (ADR-0046).
+
+No params.
+
+Result: none (`null`).
+Callers of this method: `local`.
+
 ### Type `Hello`
 
 Server identity, the negotiated protocol, and who the connection serves.
@@ -2163,6 +2172,7 @@ Server identity, the negotiated protocol, and who the connection serves.
 | `login` | `string` (optional) | A session's tailnet login, from lodge. |
 | `nodeName` | `string` (optional) | A session's tailnet node name, from lodge. |
 | `displayName` | `string` (optional) | A session's display name, when lodge has one. |
+| `build` | `string` (optional) | The Flatpak build this maild runs from: the app-commit of its instance, which differs for every build, even of one version. Absent outside the Flatpak (ADR-0046). |
 
 ### Enum `CallerKind`
 
