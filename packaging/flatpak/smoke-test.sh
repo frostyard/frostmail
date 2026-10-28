@@ -454,7 +454,9 @@ printf 'not-a-real-password\n' |
     secctl account add smoke@mailtest.test --imap imap.mailtest.test:993/tls --smtp smtp.mailtest.test:587/starttls --password-stdin \
         >"$work/secrets-add.out" 2>&1 || rc=$?
 [ "$rc" -ne 0 ] || fail "account add succeeded although no keyring can keep its password"
-grep -q "flatpak override --user --env=FROSTMAIL_SECRETS=file org.frostyard.Frostmail" "$work/secrets-add.out" || {
+# mailctl wraps a long error to the terminal's width: join its lines first.
+tr -s '[:space:]' ' ' <"$work/secrets-add.out" |
+    grep -q "flatpak override --user --env=FROSTMAIL_SECRETS=file org.frostyard.Frostmail" || {
     cat "$work/secrets-add.out" >&2
     fail "the failure does not name the flatpak override command"
 }
