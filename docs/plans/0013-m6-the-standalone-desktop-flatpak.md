@@ -32,11 +32,15 @@ review):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
 **Not done in Phase 4:** the notification click, the OAuth check and the 6
-checks on the desktop VM. **Phase 6 is built (in review):** the first-run
-welcome, the Server pane's notes, the ordered change of mode in the shell
-(`mailctl shutdown`, the write-back, `frostmail --start-maild`), the
-settings window without a maild, and their unit and smoke tests; its
-desktop VM check waits for the VM. Phases 5 and 7 to 10 are not built.
+checks on the desktop VM. **Phase 5's code is built (PR #132, in review):**
+Save As through the file chooser portal in both modes, attaching by bytes
+in both modes, with the portal's Rust tests and the Vitest tests; its
+Done-when checks wait for the desktop VM. **Phase 6 is built (PR #131,
+merged 2026-10-28):** the first-run welcome, the Server pane's notes, the
+ordered change of mode in the shell (`mailctl shutdown`, the write-back,
+`frostmail --start-maild`), the settings window without a maild, and their
+unit, smoke and end-to-end tests; its desktop VM check waits for the VM.
+Phases 7 to 10 are not built.
 
 ## Who helps
 
@@ -147,10 +151,14 @@ desktop VM check waits for the VM. Phases 5 and 7 to 10 are not built.
   Tauri's dialog elsewhere.
 - Attaching by `draft.attachData` in the Flatpak, in both modes.
 - ADR-0045's Save As limit is closed in [design/desktop.md](../design/desktop.md).
-- **Done when,** on the desktop VM: Save As writes a message into
-  `~/Documents` in local mode and in lodge mode (lodge's development build
-  on the VM); a 25 MB attachment is sent in both modes; a cancelled Save As
-  writes nothing.
+- **Built (PR in review):** `app/src-tauri/src/portal.rs` (the portal's call
+  and its unit and session-bus tests), the commands `in_flatpak` and
+  `portal_save_file`, `filesAsBytes` in the window's transport,
+  `saveMessage.flatpak.test.ts` and `ComposeDrop.flatpak.test.tsx`.
+- **Done when,** on the desktop VM (the checks wait for it): Save As writes
+  a message into `~/Documents` in local mode and in lodge mode (lodge's
+  development build on the VM); a 25 MB attachment is sent in both modes; a
+  cancelled Save As writes nothing.
 
 ## Phase 6 — First run and the modes (planner and Codex, medium)
 
@@ -245,7 +253,9 @@ date.
 
 - A switch in Settings for maild in the background, beside the portal's.
 - Notifications in lodge mode with the window closed (see Open questions).
-- Narrowing `home:ro` with the file chooser portal for opening (ADR-0045).
+- ~~Narrowing `home:ro` with the file chooser portal for opening (ADR-0045).~~
+  Decided (T387a, Brian, 2026-10-28): `--filesystem=home:ro` stays, as
+  ADR-0046 says, for Phase 7's note; Save As and attaching no longer need it.
 - The Secret portal, if the suite moves to it together.
 
 ## Open questions

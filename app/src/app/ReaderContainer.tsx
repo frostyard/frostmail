@@ -2,7 +2,6 @@
 
 import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
 import {
   forwardRef,
   type RefObject,
@@ -47,9 +46,9 @@ import type {
   Unsubscribe,
   UnsubscribeResult,
 } from "../rpc/gen/api";
-import { remoteMaild } from "../rpc/transport/tauri";
 import { ContactCardContainer } from "./ContactCardContainer";
 import { remindMessages } from "./commands";
+import { saveMessage } from "./saveMessage";
 import { useCalendarFrame } from "./useCalendar";
 
 /** MAX_CONVERSATION is how many messages the reader shows before "Show earlier". */
@@ -90,36 +89,6 @@ async function reportContext(client: Client, id: number, title: string, stale: (
   if (stale()) return;
   const route = m?.messageId ? permalink(m.messageId) : `/message/${id}`;
   l.context({ kind: "message", ref: `mail${route}`, title });
-}
-
-/**
- * saveMessage is Save As, the message as the server holds it in an .eml
- * file (docs/specs/lodge-app.md, The web build): in lodge the browser
- * downloads it from the content route; the desktop app asks where, then
- * maild writes it there, or on a maild behind lodge the app downloads it
- * from lodge's content node there.
- */
-async function saveMessage(client: Client, id: number, subject: string): Promise<void> {
-  const contentPath = async () => {
-    const s = await client.message.source({ id, content: true });
-    if (!s.contentPath) throw new Error("maild did not name the message on lodge's content node");
-    return s.contentPath;
-  };
-  const l = lodge();
-  if (l) {
-    l.open(`${l.contentURL(await contentPath())}?download=1`);
-    return;
-  }
-  if (!isTauri()) return;
-  const name = (subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
-  const path = await save({
-    title: "Save Message",
-    defaultPath: `${name}.eml`,
-    filters: [{ name: "Email Message", extensions: ["eml"] }],
-  });
-  if (path === null) return;
-  if (remoteMaild()) await invoke("save_content", { contentPath: await contentPath(), path });
-  else await client.message.save({ id, path });
 }
 
 /** useReaderHeight sets --reader-height on el to its height: in lodge the

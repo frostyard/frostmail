@@ -17,9 +17,9 @@ default, and keeps lodge as a connection the user chooses. The released
 Flatpak then never uses a host maild.
 [Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
 this document changes with each of its phases. Built so far (Phases 2 and
-3, the secrets part of Phase 4, and Phase 6's first run and modes, in
-review): [The Flatpak's own maild](#the-flatpaks-own-maild). Planned: the
-notification click, Save As and the move from a host maild (Phases 4, 5
+3, the secrets part of Phase 4, Phase 5's files and Phase 6's first run and
+modes, in review): [The Flatpak's own maild](#the-flatpaks-own-maild).
+Planned: the notification click and the move from a host maild (Phases 4
 and 7).
 
 ## Installing for one user
@@ -91,8 +91,8 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 Rationale: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
 The Flatpak runs its own maild, in local mode; lodge is a mode the user
 chooses. Built so far: the layout, the launcher, the lock, the update rule,
-the secrets, the first run and the change of mode (the notification click
-of Phase 4 is not built).
+the secrets, the files, the first run and the change of mode (the
+notification click of Phase 4 is not built).
 
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
@@ -170,6 +170,26 @@ of Phase 4 is not built).
   org.frostyard.Frostmail`. A `secrets.json` that the Flatpak's maild kept
   before this moves into the namespace once, when a Secret Service answers.
   Details: [design/accounts.md](accounts.md#secrets).
+- **Files.** Save As asks `org.freedesktop.portal.FileChooser.SaveFile`
+  over the session bus, from the Rust layer (`src-tauri/src/portal.rs`), in
+  both modes; the path it answers is under the document portal, which every
+  instance of the app can write. Local mode writes the message there with
+  `message.save`, lodge mode downloads it there with `save_content`.
+  Outside the Flatpak, and on Windows, Save As keeps Tauri's dialog. See
+  [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md),
+  Files in the sandbox. The app takes a `Response` only from the unique
+  name of the portal that answered the call, because any peer of the
+  session bus may signal on the request path; and the wait ends with an
+  error when that name leaves the bus, so a portal that goes without an
+  answer cannot keep Save As open. Attaching sends the file's bytes
+  (`draft.attachData`) in both modes: Attach Files clicks the webview's own
+  file input, whose chooser goes through the FileChooser portal in a
+  sandbox, and drops reach the webview because the compose windows leave
+  them to it (`open_compose`). This closes
+  [ADR-0045](../adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)'s
+  known limit of Save As, in both modes. The home permission
+  (`--filesystem=home:ro`) stays for Phase 7's note about the host's data;
+  neither Save As nor attaching needs it.
 - **Tests.** `packaging/flatpak/smoke-test.sh` runs the launcher, maild and
   mailctl against a fake `flatpak-spawn`, with no portal, display or session
   bus: the socket, the lock, a write through mailctl, the replacement and
@@ -180,7 +200,17 @@ of Phase 4 is not built).
   `FROSTMAIL_BIN_DIR` points it at host-built binaries. The change of mode
   has Rust unit tests on its order (`src-tauri/src/mode.rs`) and an
   end-to-end test on the built app (`app/e2e/mode.e2e.ts`, in CI). The
-  portals themselves need the real-desktop checks of plan 0013.
+  portal's tests are in the app's Rust tests: its helpers (the request
+  path, a URI as a path, a Response's code, which Response is the portal's,
+  and that a leave still reads the answers already queued), and 3
+  session-bus tests against portals the test serves itself, which skip
+  without a bus: one whose answers are a file, a cancel and a failure, with
+  a Response forged by another peer ahead of each; one whose portal leaves
+  the bus without an answer; and one whose portal answers, then leaves,
+  then replies, whose answer must win. `saveMessage.flatpak.test.ts` and
+  `ComposeDrop.flatpak.test.tsx` cover Save As and attaching in Vitest, in
+  both modes, with a cancel. The portals themselves need the real-desktop
+  checks of plan 0013.
 
 ## Application icon
 
@@ -370,7 +400,9 @@ tailnet, such as the friend's Windows install.
   file's bytes (`draft.attachData`), and Save As asks where with the
   native dialog as before, then `save_content` downloads the message
   `message.source {content: true}` names (`m/…`) from the content node
-  into that file, in the Rust layer as `open_part` downloads parts.
+  into that file, in the Rust layer as `open_part` downloads parts. In the
+  Flatpak, the file chooser portal's dialog takes the dialog's place
+  ([The Flatpak's own maild](#the-flatpaks-own-maild), Files).
 - **Notifications.** A remote maild has no session bus, so it sends each
   connected client `message.announced` (above), and the app's webview
   hands the notes to `notify_mail` (`src-tauri/src/announce.rs`), which

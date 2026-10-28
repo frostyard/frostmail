@@ -11,7 +11,7 @@ use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{bridge, mode, paths, protocol, remote};
+use crate::{bridge, mode, paths, portal, protocol, remote};
 
 /// File types that run code when opened, on Linux or Windows; Frostmail
 /// never opens them. Windows' list follows the types its shell runs or
@@ -125,6 +125,42 @@ pub async fn save_content(content_path: String, path: String) -> Result<(), Stri
         .map_err(|e| e.to_string())?
 }
 
+/// Whether the app runs in its Flatpak (docs/adr/0046-the-desktop-flatpak-
+/// carries-its-own-maild.md, Files in the sandbox): the webview then asks
+/// the file chooser portal for Save As, and attaches by bytes.
+#[tauri::command]
+pub fn in_flatpak() -> bool {
+    paths::in_flatpak()
+}
+
+/// Save As in the Flatpak: ask the file chooser portal where the file goes,
+/// and answer the path, or None when the user cancels (src/portal.rs).
+/// Outside the Flatpak, and on Windows, Save As keeps Tauri's dialog, and
+/// this refuses.
+#[tauri::command]
+pub async fn portal_save_file(
+    title: String,
+    current_name: String,
+    filter_name: String,
+    extension: String,
+) -> Result<Option<String>, String> {
+    if !paths::in_flatpak() {
+        return Err("Save As through the file chooser portal is only in the Flatpak".to_string());
+    }
+    let path = portal::save_file(&title, &current_name, &filter_name, &extension).await?;
+    path.map(utf8_path).transpose()
+}
+
+/// utf8_path is the path the webview takes for the writer, as JSON text. A
+/// name that is not UTF-8 cannot cross that line unchanged, so the app
+/// refuses it: maild must never write another name than the one the user
+/// chose.
+fn utf8_path(path: std::path::PathBuf) -> Result<String, String> {
+    path.into_os_string()
+        .into_string()
+        .map_err(|_| "Frostmail cannot save to a file name that is not UTF-8".to_string())
+}
+
 /// Refuse a file whose type runs code when opened.
 fn refuse_unsafe(name: &str) -> Result<(), String> {
     let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
@@ -201,10 +237,11 @@ pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<
         ))
         .on_navigation(crate::allowed_navigation)
         .visible(false);
-    // A maild behind lodge cannot read this machine's paths, so files
-    // dropped on the window reach the webview as files, whose bytes it
-    // sends (draft.attachData), as in a browser.
-    if remote::load().is_ok_and(|c| c.lodge.is_some()) {
+    // Files dropped on the window reach the webview as files, whose bytes it
+    // sends (draft.attachData), as in a browser: a maild behind lodge cannot
+    // read this machine's paths, and the Flatpak's maild cannot read the
+    // paths the window sees outside its sandbox.
+    if remote::load().is_ok_and(|c| c.lodge.is_some()) || paths::in_flatpak() {
         window = window.disable_drag_drop_handler();
     }
     window.build().map(crate::show_soon).map_err(|e| e.to_string())
@@ -347,7 +384,14 @@ pub fn second_launch(app: &AppHandle, args: &[String]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{open_request, openable, settings_pane};
+    use std::path::PathBuf;
+
+    #[cfg(unix)]
+    use std::ffi::OsString;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStringExt;
+
+    use super::{open_request, openable, settings_pane, utf8_path};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
@@ -386,5 +430,22 @@ mod tests {
         assert_eq!(open_request(&args(&["frostmail"])), None);
         assert_eq!(open_request(&args(&["frostmail", "--open-message"])), None);
         assert_eq!(open_request(&args(&["frostmail", "--open-message", "x"])), None);
+    }
+
+    #[test]
+    fn a_utf8_path_crosses_unchanged() {
+        assert_eq!(utf8_path(PathBuf::from("/home/u/Out.eml")), Ok("/home/u/Out.eml".to_string()));
+    }
+
+    /// A name that is not UTF-8 is refused, not changed: maild would write
+    /// another file (Windows paths are UTF-16, so this is Unix's own test).
+    #[cfg(unix)]
+    #[test]
+    fn a_path_that_is_not_utf_8_is_refused() {
+        let mut name = b"/home/u/".to_vec();
+        name.push(0xFF);
+        name.extend_from_slice(b".eml");
+        let path = PathBuf::from(OsString::from_vec(name));
+        assert_eq!(utf8_path(path), Err("Frostmail cannot save to a file name that is not UTF-8".to_string()));
     }
 }

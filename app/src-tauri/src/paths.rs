@@ -330,6 +330,15 @@ mod tests {
         assert_eq!(downloads_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail-app/attachments")));
         assert!(downloads_dir_from(env(&[])).is_err());
     }
+
+    #[test]
+    fn in_flatpak_is_this_apps_only() {
+        assert!(in_flatpak_from(env(&[("FLATPAK_ID", "org.frostyard.Frostmail")])));
+        // Another app's Flatpak, an empty ID, and no Flatpak at all.
+        assert!(!in_flatpak_from(env(&[("FLATPAK_ID", "org.example.Editor")])));
+        assert!(!in_flatpak_from(env(&[("FLATPAK_ID", "")])));
+        assert!(!in_flatpak_from(env(&[])));
+    }
 }
 
 #[cfg(windows)]

@@ -12,6 +12,7 @@ mod bridge;
 mod commands;
 mod mode;
 mod paths;
+mod portal;
 mod protocol;
 mod remote;
 
@@ -35,6 +36,8 @@ fn main() {
             commands::open_link,
             commands::open_part,
             commands::save_content,
+            commands::in_flatpak,
+            commands::portal_save_file,
             announce::notify_mail,
             commands::open_compose,
             commands::open_event,

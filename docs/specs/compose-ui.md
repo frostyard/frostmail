@@ -195,6 +195,11 @@ window.
   On a maild behind lodge the desktop app opens its compose windows without
   its own drag-and-drop handler (`open_compose`), so dropped files reach
   the webview as files too, and their bytes go the same way.
+- The Flatpak sends the file's bytes the same way, in both modes: its maild
+  cannot read the paths the window sees outside the sandbox. Attach Files
+  clicks the webview's own file input, whose chooser goes through the file
+  chooser portal, and drops reach the webview as files (`open_compose`
+  leaves them to it; [desktop.md](../design/desktop.md#the-flatpaks-own-maild)).
 - Remove takes the file off the draft (`draft.detach`).
 
 ### Entry points
