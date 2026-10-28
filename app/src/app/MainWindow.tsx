@@ -24,6 +24,7 @@ import type { Client, InviteNotice } from "../rpc/gen/api";
 import { watchAnnouncements } from "./announce";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
+import { FirstRun, useOpenSettingsOnFirstRun } from "./FirstRun";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { calendarPane, narrowPane, peoplePane, tasksPane, useNarrow } from "./narrow";
 import { UndoToasts } from "./OutboxContainer";
@@ -570,6 +571,11 @@ export function MainWindow() {
   // The message bar acts on the selection: the message shown, or the list's.
   const selectedCount = useUI((state) => state.selected.length);
   const messageBar = (narrowToolbar?.pane === "reader" || narrowToolbar?.pane === "list") && selectedCount > 0;
+  // A store with no account opens on account setup (docs/specs/ui.md, First
+  // run): the welcome takes the modules' place, and the window opens the
+  // settings window on Accounts itself, once.
+  const firstRun = useMail((state) => state.accounts).length === 0;
+  useOpenSettingsOnFirstRun(firstRun);
   useWindowEvents(handles, model, people, calendar, tasks);
   const onDelete = useCallback(
     (ids: number[]) => {
@@ -592,22 +598,28 @@ export function MainWindow() {
         searchRef={handles.search}
         narrow={narrowToolbar}
       />
-      {module === "mail" && (!narrowToolbar || narrowToolbar.pane === "list") && <MailScope />}
-      {module === "people" ? (
-        <PeopleModule ref={handles.people} data={people} {...widths} />
-      ) : module === "tasks" ? (
-        <TasksModule ref={handles.tasks} data={tasks} {...widths} />
-      ) : module === "calendar" ? (
-        <CalendarModule ref={handles.calendar} data={calendar} {...widths} />
-      ) : narrow ? (
-        <NarrowMailPanes handles={handles} model={model} onDelete={onDelete} />
+      {firstRun ? (
+        <FirstRun />
       ) : (
-        <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
-      )}
-      {messageBar && <ToolbarContainer part="bar" model={model} onDelete={onDelete} searchRef={handles.search} />}
-      {/* A narrow window's modules: tabs at its foot, where no message bar is. */}
-      {narrow && !messageBar && !editingContact && (
-        <ModuleTabs modules={MODULES} current={module} onSelect={(m) => useUI.getState().setModule(m)} />
+        <>
+          {module === "mail" && (!narrowToolbar || narrowToolbar.pane === "list") && <MailScope />}
+          {module === "people" ? (
+            <PeopleModule ref={handles.people} data={people} {...widths} />
+          ) : module === "tasks" ? (
+            <TasksModule ref={handles.tasks} data={tasks} {...widths} />
+          ) : module === "calendar" ? (
+            <CalendarModule ref={handles.calendar} data={calendar} {...widths} />
+          ) : narrow ? (
+            <NarrowMailPanes handles={handles} model={model} onDelete={onDelete} />
+          ) : (
+            <MailPanes tasks={tasks} handles={handles} model={model} onDelete={onDelete} widths={widths} />
+          )}
+          {messageBar && <ToolbarContainer part="bar" model={model} onDelete={onDelete} searchRef={handles.search} />}
+          {/* A narrow window's modules: tabs at its foot, where no message bar is. */}
+          {narrow && !messageBar && !editingContact && (
+            <ModuleTabs modules={MODULES} current={module} onSelect={(m) => useUI.getState().setModule(m)} />
+          )}
+        </>
       )}
       <UndoToasts />
       <RefusedNotices />

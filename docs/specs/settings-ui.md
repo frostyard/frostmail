@@ -38,8 +38,19 @@ this spec adds no tokens.
   `aria-pressed="true"`. Tabs: General (`Settings2`, M5), Accounts
   (`AtSign`), Signatures (`PenLine`), Rules (`ListFilter`, M5), Sign-In
   (`KeyRound`), and in the desktop app only Server (`Server`, M8). The
-  window opens on Accounts.
+  window opens on Accounts, or on the pane its opener names (M6): the
+  app's `openSettings(pane)`, which the desktop app passes to
+  `open_settings {pane}`. When the window is already open, the shell sends
+  it the `settings-pane` event with that pane, and it switches to it. The
+  open pane is kept outside the window's connection, so a reconnection
+  keeps it.
 - The pane fills the rest of the window.
+- **Without a maild (desktop app, M6):** while no maild answers (the
+  first connection, a lost one, or lodge unreachable), the window still
+  shows its toolbar and the Server pane, so the user can always change the
+  mode. Every other pane shows the main window's connecting text in its
+  place ("Connecting to maild…", or "Reconnecting to maild… (reason)"),
+  centered, `text-secondary`.
 - **In a narrow window** ([ui.md](ui.md#narrow-windows-m8)), a pane with
   a list and a form (Accounts, Signatures) stacks the list, the full width
   and at most 35% of the height, over its form; the labeled grids' label
@@ -612,14 +623,23 @@ interface OAuthClientFormProps {
 
 The desktop app only: which maild it asks (ADR-0041,
 [design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge)). A
-browser reaches the maild that served it, and shows no Server tab.
+browser reaches the maild that served it, and shows no Server tab. In the
+Flatpak the choice is a mode
+([ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)):
+local, the default, runs the Flatpak's own maild; lodge is a connection the
+user chooses, and no maild runs on the desktop. A change of mode stops or
+starts this computer's maild, and never copies, moves, merges or deletes
+mail, accounts or settings.
 
 ### `ServerPane`
 
 ```ts
 interface ServerPaneProps {
   lodge: string | null; // lodge's address, or null for this computer's maild
+  flatpak: boolean; // the Flatpak: a change of mode stops or starts its maild
+  localData: boolean; // this computer's data directory holds a database
   busy: boolean;
+  status: string | null; // what the running save does (saveStatus)
   error: string | null;
   onSave: (lodge: string | null) => void;
 }
@@ -632,18 +652,80 @@ interface ServerPaneProps {
 - Two radios, "maild on this computer" and "maild behind lodge". With the
   second, the `AccountForm` grid shows `lodge:` (`server-lodge`, `input
   type="url"`, placeholder `https://lodge.example.ts.net`).
+- **What the change does (M6, `flatpak` only).** Before the user saves, a
+  `p` with `role="note"` (`mt-3 text-[12px] leading-4 text-secondary`)
+  says what saving the chosen mode does, from these props alone, so the
+  text is the same while lodge is unreachable:
+  - from this computer to lodge: "This computer's maild stops. Its
+    accounts and mail stay on this computer, not synced, until you switch
+    back. Nothing moves to lodge.";
+  - from lodge to this computer, with `localData`: "This computer's maild
+    starts again with the accounts it had. It runs their rules, Send Later
+    and reminders here. If lodge's maild has the same accounts, both run
+    them.";
+  - from lodge to this computer, without it: "Mail on lodge keeps running
+    there. If you add the same accounts here, both run their rules, Send
+    Later and reminders."
+  No note shows when the mode stays the same (a new lodge address, or no
+  change), or outside the Flatpak, where the app neither stops nor starts
+  a maild.
 - An alert as in `AccountForm`, then "Save" (primary), disabled while
   `busy`, while lodge is chosen with an empty address, and while the
   choice equals the stored one. Saving calls `onSave` with the trimmed
   address, or null.
-- The container reads and writes the app's own `app.json` through the
-  `app_config_get` and `app_config_set` commands. The shell checks the
-  address (https, or http on loopback only), saves it, and ends every
-  window's connection, so each reconnects to the maild now chosen.
+- While `busy`, a status `p` (`role="status"`, `mt-3 text-[12px] leading-4
+  text-secondary`) shows `status`. The container fixes it when the save
+  starts, with `saveStatus(flatpak, stored, chosen)`: "Stopping this
+  computer's maild…" for a change to lodge, "Starting this computer's
+  maild…" for a change to this computer, and none otherwise or outside the
+  Flatpak. The pane cannot tell the change from its props during the save:
+  it remounts with the new choice already stored.
+
+### Behavior (container)
+
+- The container reads the stored choice with `app_config_get`, and
+  `flatpak` and `localData` with `server_facts` (`{flatpak, localData}`):
+  `flatpak` is true when `FLATPAK_ID` is `org.frostyard.Frostmail`, and
+  `localData` when `frostmail.db` exists in maild's data directory
+  (`FROSTMAIL_DATA_DIR`, else `$XDG_DATA_HOME/frostmail`, else
+  `~/.local/share/frostmail`, as `internal/config` resolves it). The shell
+  only checks that the file exists; it never opens it.
+- Saving calls `app_config_set {config}`. The shell checks the address
+  (https, or http on loopback only) before anything else. Outside the
+  Flatpak, it saves the choice and ends every window's connection, so each
+  reconnects to the maild now chosen. In the Flatpak it changes the mode
+  in a fixed order (ADR-0046):
+  - **To lodge:** it writes `app.json` with lodge (a temporary file,
+    renamed), then runs `mailctl shutdown`, bounded at 35 s: it calls
+    `rpc.shutdown` while a maild answers, and returns once the socket is
+    silent and the data directory's lock is free, within 30 s. On success
+    it ends every window's connection. On failure it writes the previous
+    `app.json` back, runs `frostmail --start-maild` (which keeps a maild
+    that answers, and starts one that took `rpc.shutdown` late and
+    exited), leaves the windows on this computer's maild, and
+    fails with "This computer's maild did not stop. Frostmail still uses
+    it." The mode never changes half-way.
+  - **To this computer:** it writes `app.json` without lodge, then runs
+    `frostmail --start-maild`, bounded at 60 s, which starts maild through
+    the Flatpak portal as a normal start does, and ends every window's
+    connection. When maild does not start, the mode stays local, and it
+    fails with "This computer's maild did not start: " and the launcher's
+    last line.
+  - **A new lodge address, lodge to lodge:** it saves and ends every
+    window's connection, as outside the Flatpak.
+- The container keeps `busy`, `status` and `error` outside the window's connection
+  (a store of its own), because a change of mode ends the settings
+  window's connection too: the pane remounts on reconnection and still
+  shows that a save runs, or how it failed.
+- In the desktop app, a window that has no maild (the connecting text
+  reads "Reconnecting to maild… (reason)": a lost connection, or a first
+  one that failed) shows a "Server Settings…" button (`BUTTON`, `mt-3`)
+  under that text, which opens the settings window on this pane. The
+  first "Connecting to maild…" of a launch shows none.
 
 ## References
 
-- Rationale: [ADR-0011](../adr/0011-sign-in-and-credentials.md), [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md) (Server)
+- Rationale: [ADR-0011](../adr/0011-sign-in-and-credentials.md), [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md) and [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md) (Server)
 - Context: [design/accounts.md](../design/accounts.md),
   [plan 0006](../plans/0006-m4-daily-driver.md)
 - Shared conventions: [ui.md](ui.md), [compose-ui.md](compose-ui.md)
