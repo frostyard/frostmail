@@ -1,8 +1,9 @@
 # Builds the Flatpak, with its tests, on every pull request and push to main
 # (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md), as igloo's
-# workflow does. The sources job checks that the offline sources match the
-# lockfiles. A v* tag also publishes an OCI image to ghcr.io/frostyard/frostmail
-# and attests its digest. The Frostyard remote
+# workflow does. The sources job checks that the offline sources (crates, pnpm
+# store and Go modules) match the lockfiles and go.mod and go.sum. A v* tag
+# also publishes an OCI image to ghcr.io/frostyard/frostmail and attests its
+# digest. The Frostyard remote
 # (https://github.com/frostyard/flatpak-index) serves the latest tag only when
 # this workflow attested it on a v* tag, so main pushes publish nothing.
 #
@@ -39,9 +40,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
       - name: Regenerate the offline sources
         run: make flatpak-sources
-      - name: The committed sources match the lockfiles
+      - name: The committed sources match the lockfiles and go.mod
         run: git diff --exit-code -- packaging/flatpak
 
   flatpak:
@@ -67,7 +71,7 @@ jobs:
           # The runtime and the SDK extensions come from the cache; the app
           # always rebuilds, and a change of the manifest or of a sources
           # file starts the cache afresh.
-          cache-key: flatpak-builder-${{ hashFiles('packaging/flatpak/org.frostyard.Frostmail.json', 'packaging/flatpak/cargo-sources.json', 'packaging/flatpak/node-sources.json') }}
+          cache-key: flatpak-builder-${{ hashFiles('packaging/flatpak/org.frostyard.Frostmail.json', 'packaging/flatpak/cargo-sources.json', 'packaging/flatpak/node-sources.json', 'packaging/flatpak/go-sources.json') }}
 
       - name: Export the OCI image
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

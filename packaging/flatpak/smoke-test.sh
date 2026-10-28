@@ -1,0 +1,294 @@
+#!/bin/sh
+# The Flatpak's smoke test, run by flatpak-builder's test-commands
+# (docs/plans/0013-m6-the-standalone-desktop-flatpak.md, Phase 3). It runs the
+# launcher, maild and mailctl as the Flatpak does, with fakes for what the
+# build sandbox lacks: no portal, no display, no session bus. It covers:
+#
+#   - the socket in the app's shared runtime directory, and a log over 1 MiB
+#     that turns over;
+#   - a second maild on the same data directory, with another socket, that
+#     exits with "another maild uses";
+#   - a rule written through mailctl that reads back;
+#   - the launcher's normal start through a fake flatpak-spawn, which leaves
+#     no flatpak-spawn behind, while maild lives on;
+#   - a running maild whose build differs from the latest one, which the
+#     launcher stops and replaces, and one whose build is equal, or whose
+#     latest build is unknown, which it keeps;
+#   - app.json naming lodge: `frostmail --background` exits 0 and starts
+#     nothing, a normal start starts no maild and asks no portal, and a
+#     maild run directly exits 0 without making a database;
+#   - a launcher that read "local" while app.json changed to lodge, whose
+#     maild exits 0 without making a database.
+#
+# FROSTMAIL_BIN_DIR is where frostmail (the launcher), maild and mailctl
+# are; the default is the Flatpak's /app/bin. The test cleans up after itself.
+
+set -eu
+
+bin="${FROSTMAIL_BIN_DIR:-/app/bin}"
+
+work="$(mktemp -d)"
+pids=
+cleanup() {
+    for p in $pids; do
+        kill -TERM "$p" 2>/dev/null || true
+    done
+    # maild is not this shell's child (flatpak-spawn started it): give it up
+    # to 10 s before its directories go.
+    for p in $pids; do
+        for _ in $(seq 1 40); do
+            alive "$p" || break
+            sleep 0.25
+        done
+    done
+    rm -rf "$work"
+}
+trap cleanup EXIT
+
+state="$work/state/frostmail"
+config="$work/config/frostmail"
+log="$state/maild.log"
+
+# alive PID: true while the process runs (a zombie has ended).
+alive() {
+    kill -0 "$1" 2>/dev/null || return 1
+    case "$(sed -n 's/^State:[[:space:]]*\(.\).*/\1/p' "/proc/$1/status" 2>/dev/null)" in
+    Z | "") return 1 ;;
+    esac
+    return 0
+}
+
+fail() {
+    echo "smoke test: $*" >&2
+    for f in "$log.1" "$log" "$work/launcher.log"; do
+        if [ -f "$f" ]; then
+            echo "--- $f" >&2
+            tail -n 30 "$f" | tr -d '\000' >&2 || true
+        fi
+    done
+    exit 1
+}
+
+# wait_hello: until a maild answers, for up to 20 s.
+wait_hello() {
+    for _ in $(seq 1 40); do
+        if mailctl hello >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.5
+    done
+    return 1
+}
+
+# wait_gone PID: until the process has ended, for up to 10 s.
+wait_gone() {
+    for _ in $(seq 1 40); do
+        alive "$1" || return 0
+        sleep 0.25
+    done
+    return 1
+}
+
+# wait_file FILE: until it exists, for up to 10 s.
+wait_file() {
+    for _ in $(seq 1 40); do
+        [ -e "$1" ] && return 0
+        sleep 0.25
+    done
+    return 1
+}
+
+# info FILE COMMIT: a stand-in /.flatpak-info.
+info() {
+    printf '[Application]\nname=org.frostyard.Frostmail\n\n[Instance]\napp-commit=%s\n' "$2" >"$1"
+}
+
+# A private runtime directory (mode 0700, as the real one is), home and data.
+mkdir -p "$work/run" "$work/home" "$work/data" "$work/bin" "$work/libexec" "$work/held" "$state" "$config"
+chmod 0700 "$work/run"
+export XDG_RUNTIME_DIR="$work/run" HOME="$work/home" XDG_DATA_HOME="$work/data"
+export XDG_STATE_HOME="$work/state" XDG_CONFIG_HOME="$work/config" XDG_CACHE_HOME="$work/cache"
+export FLATPAK_ID=org.frostyard.Frostmail
+# The Secret Service is absent, as in the build sandbox: maild keeps its
+# secrets in a file. No session bus either.
+export FROSTMAIL_SECRETS=file
+export DBUS_SESSION_BUS_ADDRESS=unix:path="$work/no-bus"
+unset FROSTMAIL_SOCKET FROSTMAIL_DATA_DIR FROSTMAIL_CACHE_DIR FROSTMAIL_FLATPAK_INFO
+
+# A fake flatpak-spawn, first on PATH. It drops --latest-version, and runs the
+# command with FROSTMAIL_FLATPAK_INFO pointing at the "latest" deployment's
+# info file, which the test controls. For `frostmail` it records its own PID
+# and its child's, as the portal's spawn does in a sandbox of its own, and
+# waits for the child. The app and the Background helper are fakes that leave
+# a marker, and exit at once.
+cat >"$work/bin/flatpak-spawn" <<'FAKE'
+#!/bin/sh
+if [ "${1:-}" = "--latest-version" ]; then
+    shift
+fi
+export FROSTMAIL_FLATPAK_INFO="$SMOKE_LATEST_INFO"
+if [ "${1:-}" = "frostmail" ]; then
+    echo "$$" >"$SMOKE_SPAWN_PID"
+    "$@" &
+    echo "$!" >"$SMOKE_CHILD_PID"
+    wait "$!"
+else
+    exec "$@"
+fi
+FAKE
+cat >"$work/libexec/frostmail-app" <<'FAKE'
+#!/bin/sh
+echo "$@" >>"$SMOKE_MARKS/app"
+FAKE
+cat >"$work/libexec/frostmail-request-background" <<'FAKE'
+#!/bin/sh
+echo run >>"$SMOKE_MARKS/background"
+FAKE
+chmod +x "$work/bin/flatpak-spawn" "$work/libexec/frostmail-app" "$work/libexec/frostmail-request-background"
+mkdir -p "$work/marks"
+SMOKE_SPAWN_PID="$work/spawn.pid"
+SMOKE_CHILD_PID="$work/maild.pid"
+SMOKE_LATEST_INFO="$work/info-latest"
+SMOKE_MARKS="$work/marks"
+export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_LATEST_INFO SMOKE_MARKS
+export FROSTMAIL_LIBEXEC_DIR="$work/libexec"
+PATH="$work/bin:$bin:$PATH"
+export PATH
+
+# A maild that held a launcher: it says "local" and flips app.json to lodge
+# before the launcher starts the real maild.
+cat >"$work/held/maild" <<FAKE
+#!/bin/sh
+if [ "\${1:-}" = "-mode" ]; then
+    echo local
+    printf '{"lodge":"https://lodge.test"}\n' >"$config/app.json"
+    exit 0
+fi
+exec "$bin/maild" "\$@"
+FAKE
+chmod +x "$work/held/maild"
+
+socket="$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock"
+
+# --- 1. A maild from an older build, and a log over 1 MiB that turns over.
+info "$work/info-old" oldcommit
+info "$SMOKE_LATEST_INFO" newcommit
+dd if=/dev/zero of="$log" bs=1024 count=1025 2>/dev/null
+# The subshell leaves maild without a parent in this shell, so that it never
+# stays a zombie.
+old="$( (FROSTMAIL_FLATPAK_INFO="$work/info-old" "$bin/frostmail" --background </dev/null >/dev/null 2>&1 &
+    echo $!) )"
+pids="$pids $old"
+wait_hello || fail "maild did not answer within 20 s"
+alive "$old" || fail "maild $old is not running"
+[ -S "$socket" ] || fail "no socket at $socket"
+[ -f "$log.1" ] || fail "the old maild log did not move to $log.1"
+size="$(wc -c <"$log")"
+[ "$size" -le 1048576 ] || fail "maild.log holds $size bytes; want a new log of at most 1 MiB"
+got="$(mailctl hello --build)"
+[ "$got" = "oldcommit" ] || fail "the first maild reports build '$got', not oldcommit"
+
+# --- 2. A second maild on the same data directory exits at once. Another
+# socket shows that the lock, and not the socket check, stops it.
+rc=0
+FROSTMAIL_SOCKET="$work/second.sock" timeout 10 maild >"$work/second.log" 2>&1 || rc=$?
+if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ] || ! grep -q "another maild uses" "$work/second.log"; then
+    cat "$work/second.log" >&2
+    fail "a second maild exited with $rc, not an 'another maild uses' error"
+fi
+mailctl hello >/dev/null || fail "the first maild stopped"
+
+# --- 3. A write through mailctl reads back (a rule needs no network or account).
+printf '%s\n' '[{"name":"smoke test rule","enabled":true,"conditions":{"match":"all","conditions":[]},"actions":[{"kind":"read"}]}]' |
+    mailctl rules import - >/dev/null || fail "mailctl rules import failed"
+mailctl rules ls | grep -q "smoke test rule" || fail "the rule did not read back"
+
+# --- 4. The launcher finds a maild of another build than the latest one,
+# stops it, and starts the latest through flatpak-spawn, which ends.
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
+"$bin/frostmail" --open-message 1 >"$work/launcher.log" 2>&1
+wait_file "$SMOKE_CHILD_PID" || fail "the launcher did not start maild through flatpak-spawn"
+spawned="$(cat "$SMOKE_SPAWN_PID" 2>/dev/null || true)"
+new="$(cat "$SMOKE_CHILD_PID")"
+pids="$pids $new"
+wait_gone "$old" || fail "the old maild $old still runs"
+wait_hello || fail "the replacement maild did not answer within 20 s"
+alive "$new" || fail "the replacement maild $new is not running"
+if [ -n "$spawned" ] && alive "$spawned"; then
+    fail "flatpak-spawn $spawned outlived the launcher"
+fi
+got="$(mailctl hello --build)"
+[ "$got" = "newcommit" ] || fail "the replacement reports build '$got', not newcommit"
+mailctl rules ls | grep -q "smoke test rule" || fail "the rule is gone after the replacement"
+wait_file "$SMOKE_MARKS/background" || fail "the launcher did not ask the Background portal"
+wait_file "$SMOKE_MARKS/app" || fail "the launcher did not run the app"
+[ "$(cat "$SMOKE_MARKS/app")" = "--open-message 1" ] || fail "the app got '$(cat "$SMOKE_MARKS/app")'"
+# maild lives on, with no flatpak-spawn: it holds its own output.
+sleep 1
+alive "$new" || fail "maild $new ended with flatpak-spawn"
+
+# --- 5. The same build is kept, with the same process, although both builds
+# report the same version.
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID"
+"$bin/frostmail" >"$work/launcher.log" 2>&1
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild beside one of the latest build"
+alive "$new" || fail "the maild of the latest build was stopped"
+mailctl hello >/dev/null || fail "the maild of the latest build stopped answering"
+
+# An unknown latest build keeps the running maild too.
+SMOKE_LATEST_INFO="$work/no-info"
+export SMOKE_LATEST_INFO
+"$bin/frostmail" >"$work/launcher.log" 2>&1
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild when the latest build was unknown"
+alive "$new" || fail "the maild was stopped when the latest build was unknown"
+mailctl hello >/dev/null || fail "the maild stopped answering when the latest build was unknown"
+SMOKE_LATEST_INFO="$work/info-latest"
+export SMOKE_LATEST_INFO
+
+# --- 6. Lodge mode. Stop the maild first: a switch to lodge stops it.
+mailctl shutdown >/dev/null || fail "mailctl shutdown failed"
+wait_gone "$new" || fail "maild $new did not stop on mailctl shutdown"
+mailctl hello >/dev/null 2>&1 && fail "maild still answers after mailctl shutdown"
+[ "$(maild -mode)" = "local" ] || fail "maild -mode is not local without app.json"
+printf '{"lodge":"https://lodge.test"}\n' >"$config/app.json"
+[ "$(maild -mode)" = "lodge" ] || fail "maild -mode is not lodge with app.json naming lodge"
+
+# --background exits 0 and starts nothing.
+rc=0
+timeout 20 "$bin/frostmail" --background >"$work/background.out" 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "'frostmail --background' in lodge mode exited with $rc"
+if mailctl hello >/dev/null 2>&1; then
+    fail "'frostmail --background' in lodge mode started a maild"
+fi
+
+# A normal start runs the app only: no maild, no portal request.
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
+"$bin/frostmail" >"$work/launcher.log" 2>&1
+[ -e "$SMOKE_MARKS/app" ] || fail "the launcher did not run the app in lodge mode"
+sleep 1
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild in lodge mode"
+[ ! -e "$SMOKE_MARKS/background" ] || fail "the launcher asked the Background portal in lodge mode"
+if mailctl hello >/dev/null 2>&1; then
+    fail "a maild answers after a normal start in lodge mode"
+fi
+
+# maild, run directly, exits 0 before it makes a database.
+rc=0
+XDG_DATA_HOME="$work/data2" timeout 20 maild >"$work/lodge.log" 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "maild in lodge mode exited with $rc: $(cat "$work/lodge.log")"
+[ ! -e "$work/data2/frostmail/frostmail.db" ] || fail "maild in lodge mode made a database"
+
+# --- 7. A launcher that read "local" while app.json changed to lodge starts
+# a maild that exits 0 without opening the database.
+rm -f "$config/app.json"
+rc=0
+PATH="$work/held:$PATH" XDG_DATA_HOME="$work/data3" timeout 20 "$bin/frostmail" --background >"$work/held.out" 2>&1 || rc=$?
+[ "$rc" -eq 0 ] || fail "the held launcher's maild exited with $rc"
+[ ! -e "$work/data3/frostmail/frostmail.db" ] || fail "the held launcher's maild made a database"
+if mailctl hello >/dev/null 2>&1; then
+    fail "the held launcher's maild answers in lodge mode"
+fi
+[ "$(grep -c lodge "$config/app.json")" -eq 1 ] || fail "app.json did not change to lodge"
+
+pids=
+echo "smoke test passed"

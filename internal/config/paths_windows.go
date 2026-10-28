@@ -40,6 +40,16 @@ func DefaultSocket(func(string) string) (string, error) {
 	return `\\.\pipe\frostmail-` + sid, nil
 }
 
+// AppConfigFile is the app's own configuration, app.json:
+// %APPDATA%\Frostmail\app.json (app/src-tauri/src/paths.rs, config_dir).
+func AppConfigFile(getenv func(string) string) (string, error) {
+	dir := getenv("APPDATA")
+	if !filepath.IsAbs(dir) {
+		return "", errors.New("APPDATA is not set")
+	}
+	return filepath.Join(dir, "Frostmail", "app.json"), nil
+}
+
 // UserSID is the SID of the user the process runs as, in string form.
 func UserSID() (string, error) {
 	user, err := windows.GetCurrentProcessToken().GetTokenUser()

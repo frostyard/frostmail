@@ -3907,6 +3907,10 @@ type Hello struct {
 	NodeName *string `json:"nodeName,omitzero"`
 	// A session's display name, when lodge has one.
 	DisplayName *string `json:"displayName,omitzero"`
+	// The Flatpak build this maild runs from: the app-commit of its instance,
+	// which differs for every build, even of one version. Absent outside the
+	// Flatpak (ADR-0046).
+	Build *string `json:"build,omitzero"`
 }
 
 // RPCHelloParams holds the params of rpc.hello.
@@ -3920,6 +3924,9 @@ type RPCHelloParams struct {
 // RPCPingParams holds the params of rpc.ping.
 type RPCPingParams struct{}
 
+// RPCShutdownParams holds the params of rpc.shutdown.
+type RPCShutdownParams struct{}
+
 // RPCService: Connection setup. A client calls rpc.hello first on every
 // connection; the server answers any other method with notReady until hello
 // succeeds.
@@ -3930,6 +3937,11 @@ type RPCService interface {
 	// Ping implements rpc.ping. Do nothing; a web client calls it at least every
 	// 30 s while visible, so lodge keeps its session.
 	Ping(ctx context.Context, p *RPCPingParams) error
+	// Shutdown implements rpc.shutdown. Stop maild as SIGTERM does: it answers,
+	// finishes the work in hand, releases the data directory's lock and exits 0.
+	// The Flatpak's app and launcher call it to leave local mode and to replace
+	// an older build (ADR-0046).
+	Shutdown(ctx context.Context, p *RPCShutdownParams) error
 }
 
 func registerRPC(r *Router, s RPCService) {
@@ -3946,6 +3958,13 @@ func registerRPC(r *Router, s RPCService) {
 			return nil, err
 		}
 		return nil, s.Ping(ctx, &p)
+	})
+	r.handle("rpc.shutdown", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p RPCShutdownParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return nil, s.Shutdown(ctx, &p)
 	})
 }
 
@@ -3970,6 +3989,11 @@ func (x RPCClient) Hello(ctx context.Context, p *RPCHelloParams) (*Hello, error)
 // Ping calls rpc.ping.
 func (x RPCClient) Ping(ctx context.Context, p *RPCPingParams) error {
 	return x.c.Call(ctx, "rpc.ping", p, nil)
+}
+
+// Shutdown calls rpc.shutdown.
+func (x RPCClient) Shutdown(ctx context.Context, p *RPCShutdownParams) error {
+	return x.c.Call(ctx, "rpc.shutdown", p, nil)
 }
 
 // ---- rule ----
@@ -5653,6 +5677,7 @@ var methodCallers = map[string][]CallerKind{
 	"people.restore":          {CallerKindLocal, CallerKindSession},
 	"rpc.hello":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"rpc.ping":                {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"rpc.shutdown":            {CallerKindLocal},
 	"rule.list":               {CallerKindLocal, CallerKindSession},
 	"rule.create":             {CallerKindLocal, CallerKindSession},
 	"rule.update":             {CallerKindLocal, CallerKindSession},
@@ -5792,6 +5817,7 @@ var Methods = []string{
 	"people.restore",
 	"rpc.hello",
 	"rpc.ping",
+	"rpc.shutdown",
 	"rule.list",
 	"rule.create",
 	"rule.update",

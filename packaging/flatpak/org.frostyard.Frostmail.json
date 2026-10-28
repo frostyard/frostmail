@@ -4,6 +4,7 @@
   "runtime-version": "51",
   "sdk": "org.gnome.Sdk",
   "sdk-extensions": [
+    "org.freedesktop.Sdk.Extension.golang",
     "org.freedesktop.Sdk.Extension.node24",
     "org.freedesktop.Sdk.Extension.rust-stable"
   ],
@@ -15,11 +16,52 @@
     "--device=dri",
     "--share=network",
     "--talk-name=org.freedesktop.Notifications",
-    "--filesystem=xdg-run/frostmail",
-    "--filesystem=xdg-cache/frostmail:ro",
     "--filesystem=home:ro"
   ],
   "modules": [
+    {
+      "name": "maild",
+      "buildsystem": "simple",
+      "build-options": {
+        "append-path": "/usr/lib/sdk/golang/bin",
+        "env": {
+          "GOPROXY": "file:///run/build/maild/goproxy",
+          "GOSUMDB": "off",
+          "GOTOOLCHAIN": "local",
+          "GOFLAGS": "-trimpath -buildvcs=false -modcacherw",
+          "GOMODCACHE": "/run/build/maild/.gomodcache",
+          "GOCACHE": "/run/build/maild/.gocache",
+          "CGO_ENABLED": "0"
+        }
+      },
+      "build-commands": [
+        "go build -ldflags '-s -w -X main.version=flatpak' -o build/ ./cmd/maild ./cmd/mailctl",
+        "install -Dm755 -t /app/bin build/maild build/mailctl"
+      ],
+      "test-commands": [
+        "/app/bin/maild -version",
+        "/app/bin/mailctl --help"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "../..",
+          "skip": [
+            ".git",
+            ".github",
+            ".flatpak-builder",
+            ".worktrees",
+            "app",
+            "build",
+            "dev",
+            "docs",
+            "flatpak_app",
+            "repo"
+          ]
+        },
+        "go-sources.json"
+      ]
+    },
     {
       "name": "frostmail",
       "buildsystem": "simple",
@@ -35,7 +77,9 @@
       "build-commands": [
         "export PATH=\"$PWD/pnpm-bin:$PATH\" && pnpm install --offline --frozen-lockfile --trust-lockfile",
         "export PATH=\"$PWD/pnpm-bin:$PATH\" && pnpm tauri build",
-        "install -Dm755 src-tauri/target/release/frostmail /app/bin/frostmail",
+        "install -Dm755 src-tauri/target/release/frostmail /app/libexec/frostmail-app",
+        "install -Dm755 flatpak/frostmail.sh /app/bin/frostmail",
+        "install -Dm755 flatpak/request-background.py /app/libexec/frostmail-request-background",
         "install -Dm644 flatpak/org.frostyard.Frostmail.desktop -t /app/share/applications",
         "install -Dm644 flatpak/org.frostyard.Frostmail.metainfo.xml -t /app/share/metainfo",
         "install -Dm644 src-tauri/icons/icon.svg /app/share/icons/hicolor/scalable/apps/org.frostyard.Frostmail.svg",
@@ -46,7 +90,10 @@
         "cd src-tauri && if command -v dbus-run-session >/dev/null; then dbus-run-session -- cargo test --release --offline; else env -u DBUS_SESSION_BUS_ADDRESS cargo test --release --offline; fi",
         "desktop-file-validate /app/share/applications/org.frostyard.Frostmail.desktop",
         "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",
-        "libs=$(ldd /app/bin/frostmail) && ! printf '%s\\n' \"$libs\" | grep 'not found'"
+        "libs=$(ldd /app/libexec/frostmail-app) && ! printf '%s\\n' \"$libs\" | grep 'not found'",
+        "python3 -m py_compile flatpak/request-background.py",
+        "python3 -c \"from gi.repository import Gio, GLib\"",
+        "sh flatpak/smoke-test.sh"
       ],
       "sources": [
         {
@@ -57,6 +104,21 @@
             "dist",
             "src-tauri/target"
           ]
+        },
+        {
+          "type": "file",
+          "path": "frostmail.sh",
+          "dest": "flatpak"
+        },
+        {
+          "type": "file",
+          "path": "request-background.py",
+          "dest": "flatpak"
+        },
+        {
+          "type": "file",
+          "path": "smoke-test.sh",
+          "dest": "flatpak"
         },
         {
           "type": "file",

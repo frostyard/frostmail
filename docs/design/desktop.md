@@ -11,18 +11,22 @@ of its own. The desktop app then reaches it through lodge
 [specs/lodge-app.md](../specs/lodge-app.md),
 [plan 0011](../plans/0011-m8-mail-in-lodge.md)'s Phase 6).
 
-Planned, not built: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
+[ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
 (proposed) puts maild and mailctl inside the Flatpak, runs that maild by
 default, and keeps lodge as a connection the user chooses. The released
 Flatpak then never uses a host maild.
 [Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
-this document changes with each of its phases.
+this document changes with each of its phases. Built so far (Phases 2 and
+3): [The Flatpak's own maild](#the-flatpaks-own-maild). Planned: the secrets
+in the Flatpak, Save As, the first-run and mode screens and the move from a
+host maild (Phases 4 to 7).
 
 ## Installing for one user
 
-No root is needed. maild and mailctl run on the host; the app is a local
-Flatpak, because the host may have no WebKitGTK
-([ADR-0013](../adr/0013-app-as-a-local-flatpak.md)).
+No root is needed. This is the development path, with maild and mailctl on
+the host and the app in a local Flatpak, because the host may have no
+WebKitGTK ([ADR-0013](../adr/0013-app-as-a-local-flatpak.md)). The release
+Flatpak does not use it (see below).
 
 - `make install` builds release binaries and installs maild and mailctl
   in `~/.local/bin`, `packaging/systemd/maild.service` in
@@ -33,7 +37,11 @@ Flatpak, because the host may have no WebKitGTK
   (`org.frostyard.Frostmail.desktop`) and icons go into a Flatpak on
   `org.gnome.Platform//51`, installed for the user, and
   `~/.local/bin/frostmail` runs it. The runtime must be installed
-  (`flatpak --user install flathub org.gnome.Platform//51`).
+  (`flatpak --user install flathub org.gnome.Platform//51`). This bundle has
+  no launcher and no maild. It sets `FROSTMAIL_SOCKET` and
+  `FROSTMAIL_CACHE_DIR` in its sandbox to the host's paths, computed at
+  install time, since the app's own defaults in a Flatpak are the release's.
+  It has the release's app ID: install one of the two at a time.
 
 maild's data stays in `$XDG_DATA_HOME/frostmail`, its cache in
 `$XDG_CACHE_HOME/frostmail`, its socket in
@@ -52,22 +60,78 @@ Rationale: [ADR-0045](../adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md),
 and core's
 [Plan 0010, Phase 5](https://github.com/frostyard/core/blob/main/docs/plans/0010-suite-packaging.md).
 `packaging/flatpak/org.frostyard.Frostmail.json` builds the app inside the
-GNOME 51 SDK, offline, with one module: the Tauri app. maild is not in it.
+GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 
-- **Sources.** `cargo-sources.json` comes from `app/src-tauri/Cargo.lock` and
-  `node-sources.json` from `app/pnpm-lock.yaml`. `make flatpak-sources`
-  writes both (in the nsl machine); CI fails when they are stale.
-- **Sandbox.** The same as `install.sh` sets: the permissions of
-  [ADR-0013](../adr/0013-app-as-a-local-flatpak.md) and
-  [ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md).
-- **Tests.** `cargo test --release --offline` (in its own session bus,
-  as `make app-test` does), `desktop-file-validate`,
-  `appstreamcli validate --no-net` and a check that the binary has no
-  missing library.
+- **Sources.** `cargo-sources.json` comes from `app/src-tauri/Cargo.lock`,
+  `node-sources.json` from `app/pnpm-lock.yaml` and `go-sources.json` from
+  `go.mod` and `go.sum` (`tools/flatpakgo`). `make flatpak-sources` writes
+  all 3 (in the nsl machine, with Go); CI fails when they are stale.
+- **Sandbox.** `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`,
+  `--device=dri`, `--share=network`,
+  `--talk-name=org.freedesktop.Notifications` and `--filesystem=home:ro`.
+  It no longer sees the host's socket directory or cache (ADR-0046).
+  `--talk-name=org.freedesktop.secrets` comes with the Flatpak's own keyring
+  namespace (plan 0013, Phase 4): until then maild keeps its secrets in its
+  file, as it does with no Secret Service.
+- **Tests.** The `maild` module runs `maild -version` and `mailctl --help`.
+  The app module runs `cargo test --release --offline` (in its own session
+  bus, as `make app-test` does), `desktop-file-validate`,
+  `appstreamcli validate --no-net`, a check that the binary has no missing
+  library, a compile of the Background helper, an import of PyGObject and
+  `packaging/flatpak/smoke-test.sh`.
 - **Publishing.** `.github/workflows/flatpak.yml` builds on every pull
   request and push to main. A `v*` tag pushes
   `ghcr.io/frostyard/frostmail` and attests the digest.
-- `make install-app` stays the way to run a local build.
+- `make install-app` stays the way to run a local build, with a host maild.
+
+## The Flatpak's own maild
+
+Rationale: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
+The Flatpak runs its own maild, in local mode; lodge is a mode the user
+chooses. Built so far: the layout, the launcher, the lock and the update
+rule.
+
+- **Layout.** `/app/bin/frostmail` is the launcher
+  (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
+  `/app/bin/maild` and `/app/bin/mailctl` are static Go binaries, and
+  `/app/libexec/frostmail-app` is the Tauri binary, with
+  `/app/libexec/frostmail-request-background` (a PyGObject helper).
+  `flatpak run --command=mailctl org.frostyard.Frostmail` works.
+- **Modes.** `maild -mode` prints `local` or `lodge`, from `app.json` in the
+  config directory: a non-empty `lodge` key is lodge mode, anything else
+  local. maild reads it (never writes it) under its data lock, only when
+  `FLATPAK_ID` is the app's, and in lodge mode exits 0 before it opens the
+  database. The launcher reads it too, to skip a needless start.
+- **Paths.** The socket is
+  `$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock`, the one
+  directory Flatpak shares between the app's sandboxes (`FROSTMAIL_SOCKET`
+  still wins; `internal/config` and `paths.rs` derive it, each with tests).
+  The window reads decoded parts from its own `XDG_CACHE_HOME`, which is
+  maild's. Data, cache, config and `maild.log` (state) are under
+  `~/.var/app/org.frostyard.Frostmail/`.
+- **One maild.** maild holds an exclusive `flock` on `<data dir>/maild.lock`
+  from before it opens the database to its exit; a second maild exits with
+  "another maild uses <dir>". `maild -log PATH` rotates PATH to `PATH.1`
+  past 1 MiB once it holds the lock, then writes there.
+- **The launcher.** `frostmail --background` (local mode) runs maild and
+  nothing else; in lodge mode it exits 0. A normal start in local mode
+  starts maild when none answers, with `flatpak-spawn --latest-version
+  frostmail --background`, waits about 10 s for `mailctl hello`, and ends
+  `flatpak-spawn` with `SIGKILL`, so the maild of the new sandbox outlives
+  the window. It then asks the Background portal to run `frostmail
+  --background` at login, and `exec`s the app. In lodge mode it runs the app
+  only. Without `flatpak-spawn` it starts no maild.
+- **Updates replace the engine, only forward.** `rpc.hello`'s `build` (and
+  `maild -build`) is the `app-commit` of the instance's `/.flatpak-info`.
+  When the running maild's build differs from the latest installed
+  deployment's, the launcher calls `mailctl shutdown` and starts the latest;
+  when either is unknown, it keeps the maild that runs.
+- **Tests.** `packaging/flatpak/smoke-test.sh` runs the launcher, maild and
+  mailctl against a fake `flatpak-spawn`, with no portal, display or session
+  bus: the socket, the lock, a write through mailctl, the replacement and
+  the keeping of a maild by build, lodge mode, the held launcher and the log's
+  turnover. `FROSTMAIL_BIN_DIR` points it at host-built binaries. The portals
+  themselves need the real-desktop checks of plan 0013.
 
 ## Application icon
 

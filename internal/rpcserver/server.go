@@ -28,6 +28,14 @@ type Options struct {
 	Logger *slog.Logger
 	// OnAttended, when set, learns when Attended changes.
 	OnAttended func(attended bool)
+	// Build is reported by rpc.hello as build: the Flatpak build maild runs
+	// from. Empty means none (outside the Flatpak, or unknown).
+	Build string
+	// Shutdown stops maild, as SIGTERM does (rpc.shutdown). It must return
+	// at once: the server calls it after the reply is on the wire, so the
+	// caller always has its answer. Nil means this server cannot be stopped
+	// by a call, and rpc.shutdown answers unavailable.
+	Shutdown func()
 }
 
 // AppClient prefixes the rpc.hello client name of the Frostmail app.
@@ -102,6 +110,7 @@ func (s *Server) Hello(ctx context.Context, p *api.RPCHelloParams) (*api.Hello, 
 	}
 	h := &api.Hello{Protocol: api.Protocol, Server: s.opts.Name}
 	h.Caller = &caller.Kind
+	h.Build = optional(s.opts.Build)
 	if caller.Kind == api.CallerKindSession {
 		h.Login = optional(caller.Login)
 		h.NodeName = optional(caller.NodeName)
@@ -124,6 +133,18 @@ func optional(s string) *string {
 
 // Ping implements rpc.ping.
 func (s *Server) Ping(context.Context, *api.RPCPingParams) error { return nil }
+
+// Shutdown implements rpc.shutdown: the reply goes out first, then
+// Options.Shutdown runs (jsonrpc.AfterReply), so the caller has its answer
+// before maild stops. A call that fails never stops maild.
+func (s *Server) Shutdown(ctx context.Context, _ *api.RPCShutdownParams) error {
+	if s.opts.Shutdown == nil {
+		return api.Unavailable("this server cannot be stopped by a call")
+	}
+	s.opts.Logger.Info("rpc.shutdown: stopping", "caller", api.CallerFrom(ctx).Kind)
+	jsonrpc.AfterReply(ctx, s.opts.Shutdown)
+	return nil
+}
 
 // Subscribe implements events.subscribe; delivery starts after the reply.
 func (s *Server) Subscribe(ctx context.Context, p *api.EventsSubscribeParams) (*api.Subscription, error) {

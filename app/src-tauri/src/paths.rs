@@ -1,21 +1,43 @@
 //! File locations, mirroring internal/config: the overrides, then the XDG
 //! base directories on Linux, or the user's local app data and per-user
-//! pipe on Windows (ADR-0038).
+//! pipe on Windows (ADR-0038). Each public function reads the process's
+//! environment through a `_from` function that takes the lookup, so the
+//! tests set their own.
 
+use std::ffi::OsString;
 use std::path::PathBuf;
 
-fn env_abs(key: &str) -> Option<PathBuf> {
-    std::env::var_os(key).map(PathBuf::from).filter(|p| p.is_absolute())
+/// The application ID, as internal/config.AppID.
+#[cfg(not(windows))]
+const APP_ID: &str = "org.frostyard.Frostmail";
+
+fn abs(value: Option<OsString>) -> Option<PathBuf> {
+    value.map(PathBuf::from).filter(|p| p.is_absolute())
 }
 
 /// maild's socket: $FROSTMAIL_SOCKET or $XDG_RUNTIME_DIR/frostmail/maild.sock.
+/// In the Flatpak (FLATPAK_ID is the app ID) it is
+/// $XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock, the one
+/// directory Flatpak shares between the app's sandboxes (ADR-0046). Keep in
+/// step with config.DefaultSocket in internal/config.
 #[cfg(not(windows))]
 pub fn socket() -> Result<PathBuf, String> {
-    if let Some(p) = env_abs("FROSTMAIL_SOCKET") {
+    socket_from(|key| std::env::var_os(key))
+}
+
+#[cfg(not(windows))]
+fn socket_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    if let Some(p) = abs(getenv("FROSTMAIL_SOCKET")) {
         return Ok(p);
     }
-    env_abs("XDG_RUNTIME_DIR")
-        .map(|d| d.join("frostmail").join("maild.sock"))
+    abs(getenv("XDG_RUNTIME_DIR"))
+        .map(|d| {
+            if getenv("FLATPAK_ID").is_some_and(|id| id == APP_ID) {
+                d.join("app").join(APP_ID).join("frostmail").join("maild.sock")
+            } else {
+                d.join("frostmail").join("maild.sock")
+            }
+        })
         .ok_or_else(|| "XDG_RUNTIME_DIR is not set; set FROSTMAIL_SOCKET".to_string())
 }
 
@@ -31,18 +53,23 @@ pub fn socket() -> Result<PathBuf, String> {
 
 /// The cache maild writes decoded parts into:
 /// $FROSTMAIL_CACHE_DIR or $XDG_CACHE_HOME/frostmail or ~/.cache/frostmail.
-/// In a Flatpak, XDG_CACHE_HOME is the app's own, so the host's
-/// ($HOST_XDG_CACHE_HOME, else ~/.cache) is used instead (ADR-0013).
+/// In a Flatpak, XDG_CACHE_HOME is the app's own, the directory maild's
+/// instance uses too (ADR-0046); the development bundle's host maild is
+/// reached through FROSTMAIL_CACHE_DIR, which install.sh sets.
 #[cfg(not(windows))]
 pub fn cache_dir() -> Result<PathBuf, String> {
-    if let Some(p) = env_abs("FROSTMAIL_CACHE_DIR") {
+    cache_dir_from(|key| std::env::var_os(key))
+}
+
+#[cfg(not(windows))]
+fn cache_dir_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    if let Some(p) = abs(getenv("FROSTMAIL_CACHE_DIR")) {
         return Ok(p);
     }
-    let xdg = if std::env::var_os("FLATPAK_ID").is_some() { "HOST_XDG_CACHE_HOME" } else { "XDG_CACHE_HOME" };
-    if let Some(p) = env_abs(xdg) {
+    if let Some(p) = abs(getenv("XDG_CACHE_HOME")) {
         return Ok(p.join("frostmail"));
     }
-    env_abs("HOME")
+    abs(getenv("HOME"))
         .map(|h| h.join(".cache").join("frostmail"))
         .ok_or_else(|| "HOME is not set".to_string())
 }
@@ -51,10 +78,15 @@ pub fn cache_dir() -> Result<PathBuf, String> {
 /// %LOCALAPPDATA%\Frostmail\Cache.
 #[cfg(windows)]
 pub fn cache_dir() -> Result<PathBuf, String> {
-    if let Some(p) = env_abs("FROSTMAIL_CACHE_DIR") {
+    cache_dir_from(|key| std::env::var_os(key))
+}
+
+#[cfg(windows)]
+fn cache_dir_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    if let Some(p) = abs(getenv("FROSTMAIL_CACHE_DIR")) {
         return Ok(p);
     }
-    env_abs("LOCALAPPDATA")
+    abs(getenv("LOCALAPPDATA"))
         .map(|d| d.join("Frostmail").join("Cache"))
         .ok_or_else(|| "LOCALAPPDATA is not set".to_string())
 }
@@ -64,10 +96,15 @@ pub fn cache_dir() -> Result<PathBuf, String> {
 /// or ~/.config/frostmail; in a Flatpak, XDG_CONFIG_HOME is the app's own.
 #[cfg(not(windows))]
 pub fn config_dir() -> Result<PathBuf, String> {
-    if let Some(p) = env_abs("XDG_CONFIG_HOME") {
+    config_dir_from(|key| std::env::var_os(key))
+}
+
+#[cfg(not(windows))]
+fn config_dir_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    if let Some(p) = abs(getenv("XDG_CONFIG_HOME")) {
         return Ok(p.join("frostmail"));
     }
-    env_abs("HOME")
+    abs(getenv("HOME"))
         .map(|h| h.join(".config").join("frostmail"))
         .ok_or_else(|| "HOME is not set".to_string())
 }
@@ -75,7 +112,7 @@ pub fn config_dir() -> Result<PathBuf, String> {
 /// The app's own configuration: %APPDATA%\Frostmail.
 #[cfg(windows)]
 pub fn config_dir() -> Result<PathBuf, String> {
-    env_abs("APPDATA")
+    abs(std::env::var_os("APPDATA"))
         .map(|d| d.join("Frostmail"))
         .ok_or_else(|| "APPDATA is not set".to_string())
 }
@@ -85,8 +122,13 @@ pub fn config_dir() -> Result<PathBuf, String> {
 /// the Flatpak's own cache there.
 #[cfg(not(windows))]
 pub fn downloads_dir() -> Result<PathBuf, String> {
-    let base = env_abs("XDG_CACHE_HOME")
-        .or_else(|| env_abs("HOME").map(|h| h.join(".cache")))
+    downloads_dir_from(|key| std::env::var_os(key))
+}
+
+#[cfg(not(windows))]
+fn downloads_dir_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    let base = abs(getenv("XDG_CACHE_HOME"))
+        .or_else(|| abs(getenv("HOME")).map(|h| h.join(".cache")))
         .ok_or_else(|| "HOME is not set".to_string())?;
     Ok(base.join("frostmail-app").join("attachments"))
 }
@@ -95,9 +137,115 @@ pub fn downloads_dir() -> Result<PathBuf, String> {
 /// %LOCALAPPDATA%\Frostmail\Attachments.
 #[cfg(windows)]
 pub fn downloads_dir() -> Result<PathBuf, String> {
-    env_abs("LOCALAPPDATA")
+    abs(std::env::var_os("LOCALAPPDATA"))
         .map(|d| d.join("Frostmail").join("Attachments"))
         .ok_or_else(|| "LOCALAPPDATA is not set".to_string())
+}
+
+#[cfg(all(test, not(windows)))]
+mod tests {
+    use super::*;
+
+    fn env<'a>(vars: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<OsString> + 'a {
+        move |key| vars.iter().find(|(k, _)| *k == key).map(|(_, v)| OsString::from(v))
+    }
+
+    #[test]
+    fn socket_defaults_to_the_runtime_dir() {
+        let vars = [("HOME", "/home/u"), ("XDG_RUNTIME_DIR", "/run/user/1000")];
+        assert_eq!(socket_from(env(&vars)), Ok(PathBuf::from("/run/user/1000/frostmail/maild.sock")));
+    }
+
+    #[test]
+    fn socket_prefers_an_absolute_override() {
+        let vars = [("FROSTMAIL_SOCKET", "/s/maild.sock"), ("XDG_RUNTIME_DIR", "/run/user/1000")];
+        assert_eq!(socket_from(env(&vars)), Ok(PathBuf::from("/s/maild.sock")));
+        let vars = [("FROSTMAIL_SOCKET", "relative.sock"), ("XDG_RUNTIME_DIR", "/run/user/1000")];
+        assert_eq!(socket_from(env(&vars)), Ok(PathBuf::from("/run/user/1000/frostmail/maild.sock")));
+    }
+
+    #[test]
+    fn socket_in_the_flatpak_is_in_the_shared_app_directory() {
+        let vars = [("XDG_RUNTIME_DIR", "/run/user/1000"), ("FLATPAK_ID", "org.frostyard.Frostmail")];
+        assert_eq!(
+            socket_from(env(&vars)),
+            Ok(PathBuf::from("/run/user/1000/app/org.frostyard.Frostmail/frostmail/maild.sock"))
+        );
+        // Another app's Flatpak, and no Flatpak, keep the plain path.
+        let vars = [("XDG_RUNTIME_DIR", "/run/user/1000"), ("FLATPAK_ID", "org.example.Editor")];
+        assert_eq!(socket_from(env(&vars)), Ok(PathBuf::from("/run/user/1000/frostmail/maild.sock")));
+        let vars = [("XDG_RUNTIME_DIR", "/run/user/1000"), ("FLATPAK_ID", "")];
+        assert_eq!(socket_from(env(&vars)), Ok(PathBuf::from("/run/user/1000/frostmail/maild.sock")));
+        // FROSTMAIL_SOCKET still wins in the Flatpak (the development bundle).
+        let vars = [
+            ("FROSTMAIL_SOCKET", "/s/m.sock"),
+            ("XDG_RUNTIME_DIR", "/run/user/1000"),
+            ("FLATPAK_ID", "org.frostyard.Frostmail"),
+        ];
+        assert_eq!(socket_from(env(&vars)), Ok(PathBuf::from("/s/m.sock")));
+    }
+
+    #[test]
+    fn socket_needs_an_absolute_runtime_dir() {
+        assert!(socket_from(env(&[("HOME", "/home/u")])).is_err());
+        assert!(socket_from(env(&[("XDG_RUNTIME_DIR", "run")])).is_err());
+    }
+
+    #[test]
+    fn cache_dir_follows_internal_config() {
+        let vars = [("HOME", "/home/u")];
+        assert_eq!(cache_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_CACHE_HOME", "/c")];
+        assert_eq!(cache_dir_from(env(&vars)), Ok(PathBuf::from("/c/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_CACHE_HOME", "relative/ignored")];
+        assert_eq!(cache_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_CACHE_HOME", "/c"), ("FROSTMAIL_CACHE_DIR", "/fc")];
+        assert_eq!(cache_dir_from(env(&vars)), Ok(PathBuf::from("/fc")));
+        assert!(cache_dir_from(env(&[])).is_err());
+    }
+
+    #[test]
+    fn cache_dir_in_the_flatpak_is_the_apps_own() {
+        // The window reads maild's cache from its own XDG_CACHE_HOME; the
+        // host's (HOST_XDG_CACHE_HOME) is not used any more.
+        let vars = [
+            ("HOME", "/home/u"),
+            ("FLATPAK_ID", "org.frostyard.Frostmail"),
+            ("XDG_CACHE_HOME", "/home/u/.var/app/org.frostyard.Frostmail/cache"),
+            ("HOST_XDG_CACHE_HOME", "/home/u/.cache"),
+        ];
+        assert_eq!(
+            cache_dir_from(env(&vars)),
+            Ok(PathBuf::from("/home/u/.var/app/org.frostyard.Frostmail/cache/frostmail"))
+        );
+        // The development bundle names the host maild's cache.
+        let vars = [
+            ("FLATPAK_ID", "org.frostyard.Frostmail"),
+            ("XDG_CACHE_HOME", "/home/u/.var/app/org.frostyard.Frostmail/cache"),
+            ("FROSTMAIL_CACHE_DIR", "/home/u/.cache/frostmail"),
+        ];
+        assert_eq!(cache_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail")));
+    }
+
+    #[test]
+    fn config_dir_follows_internal_config() {
+        let vars = [("HOME", "/home/u"), ("XDG_CONFIG_HOME", "/cfg")];
+        assert_eq!(config_dir_from(env(&vars)), Ok(PathBuf::from("/cfg/frostmail")));
+        let vars = [("HOME", "/home/u")];
+        assert_eq!(config_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.config/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_CONFIG_HOME", "rel")];
+        assert_eq!(config_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.config/frostmail")));
+        assert!(config_dir_from(env(&[])).is_err());
+    }
+
+    #[test]
+    fn downloads_dir_is_under_the_apps_cache() {
+        let vars = [("HOME", "/home/u"), ("XDG_CACHE_HOME", "/c")];
+        assert_eq!(downloads_dir_from(env(&vars)), Ok(PathBuf::from("/c/frostmail-app/attachments")));
+        let vars = [("HOME", "/home/u")];
+        assert_eq!(downloads_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail-app/attachments")));
+        assert!(downloads_dir_from(env(&[])).is_err());
+    }
 }
 
 #[cfg(windows)]

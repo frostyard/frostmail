@@ -6,10 +6,21 @@ generated [rpc-api.md](rpc-api.md). Rationale: [ADR-0007](../adr/0007-rpc-contra
 ## Transport
 
 - A Unix stream socket at `$FROSTMAIL_SOCKET`, default
-  `$XDG_RUNTIME_DIR/frostmail/maild.sock`. maild creates the parent
+  `$XDG_RUNTIME_DIR/frostmail/maild.sock`; in this application's Flatpak
+  (`FLATPAK_ID` is `org.frostyard.Frostmail`),
+  `$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock`, the
+  one directory the app's sandboxes share
+  ([ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
+  maild creates the parent
   directory 0700 and refuses one that is not 0700 and owned by the user. The
   socket is 0600 and removed on shutdown. A stale socket is replaced; a live
   one makes a second maild exit.
+- A second maild on the same data directory also exits, whatever its
+  socket: maild holds an exclusive lock on `<data dir>/maild.lock` (Linux).
+  `rpc.shutdown` (local callers only) stops maild: it answers, and then
+  stops as on SIGTERM; `mailctl shutdown` calls it and waits until the
+  socket no longer answers. `rpc.hello`'s optional `build` names the
+  Flatpak build that maild runs from.
 - maild closes connections whose peer UID (`SO_PEERCRED`) is not its own.
 - On Windows ([ADR-0038](../adr/0038-windows-as-a-second-platform.md)),
   a named pipe at `$FROSTMAIL_SOCKET`, default

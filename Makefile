@@ -57,10 +57,11 @@ install-app: app-build ## Package the app as a local Flatpak and install it for 
 	packaging/flatpak/install.sh
 
 # The Flatpak's offline sources (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md):
-# the crates and the pnpm store as flatpak-builder sources. Run it after any
-# change to Cargo.lock or pnpm-lock.yaml; CI's Flatpak sources job fails on a
-# stale file. Needs the network, git and Python 3 with venv (nsl: python3-venv).
-flatpak-sources: ## Regenerate packaging/flatpak/{cargo,node}-sources.json (network, Python 3)
+# the crates, the pnpm store and the Go modules as flatpak-builder sources. Run
+# it after any change to Cargo.lock, pnpm-lock.yaml, go.mod or go.sum; CI's
+# Flatpak sources job fails on a stale file. Needs the network, git, Go and
+# Python 3 with venv (nsl: python3-venv).
+flatpak-sources: ## Regenerate packaging/flatpak/{cargo,node,go}-sources.json (network, Go, Python 3)
 	scripts/flatpak-sources.sh
 
 uninstall: ## Stop maild and remove it, mailctl and the user service; mail data stays

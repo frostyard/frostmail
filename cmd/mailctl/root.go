@@ -22,9 +22,10 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.PersistentFlags().StringVar(&opts.socket, "socket", "", `maild socket (default: $FROSTMAIL_SOCKET, else $XDG_RUNTIME_DIR/frostmail/maild.sock; on Windows \\.\pipe\frostmail-<your SID>)`)
+	root.PersistentFlags().StringVar(&opts.socket, "socket", "", `maild socket (default: $FROSTMAIL_SOCKET, else $XDG_RUNTIME_DIR/frostmail/maild.sock, in the Flatpak $XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock; on Windows \\.\pipe\frostmail-<your SID>)`)
 	root.AddCommand(
 		newHelloCmd(opts),
+		newShutdownCmd(opts),
 		newAccountCmd(opts),
 		newMailboxesCmd(opts),
 		newLsCmd(opts),
@@ -48,15 +49,24 @@ func newRootCmd() *cobra.Command {
 	return root
 }
 
+// socketPath is the socket to dial: --socket, else $FROSTMAIL_SOCKET, else
+// the default for this machine (in the Flatpak, the app's shared one).
+func (o *rootOptions) socketPath() (string, error) {
+	if o.socket != "" {
+		return o.socket, nil
+	}
+	paths, err := config.Resolve(os.Getenv)
+	if err != nil {
+		return "", err
+	}
+	return paths.Socket, nil
+}
+
 // dial connects to maild and completes rpc.hello. The caller closes the client.
 func (o *rootOptions) dial(ctx context.Context) (*api.Client, *api.Hello, error) {
-	socket := o.socket
-	if socket == "" {
-		paths, err := config.Resolve(os.Getenv)
-		if err != nil {
-			return nil, nil, err
-		}
-		socket = paths.Socket
+	socket, err := o.socketPath()
+	if err != nil {
+		return nil, nil, err
 	}
 	return api.Dial(ctx, socket, "mailctl "+version)
 }

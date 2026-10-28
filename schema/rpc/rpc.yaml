@@ -21,6 +21,7 @@ types:
       - {name: login, type: string, optional: true, doc: "A session's tailnet login, from lodge."}
       - {name: nodeName, type: string, optional: true, doc: "A session's tailnet node name, from lodge."}
       - {name: displayName, type: string, optional: true, doc: "A session's display name, when lodge has one."}
+      - {name: build, type: string, optional: true, doc: "The Flatpak build this maild runs from: the app-commit of its instance, which differs for every build, even of one version. Absent outside the Flatpak (ADR-0046)."}
 methods:
   - name: hello
     doc: Negotiate the protocol major version. Changes within a major version are additive only.
@@ -31,3 +32,9 @@ methods:
     errors: [protocolMismatch]
   - name: ping
     doc: Do nothing; a web client calls it at least every 30 s while visible, so lodge keeps its session.
+  - name: shutdown
+    callers: [local]
+    doc: >-
+      Stop maild as SIGTERM does: it answers, finishes the work in hand, releases the data directory's lock and exits 0.
+      The Flatpak's app and launcher call it to leave local mode and to replace
+      an older build (ADR-0046).
