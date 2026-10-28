@@ -26,24 +26,31 @@ core's amendment of ADR-0058 and plan 0010 is still to come.
 **Phases 2 and 3 are built** (PR #126, merged 2026-10-28): maild and
 mailctl in the Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
 the paths and the smoke test. CI's "Flatpak build and test" runs the smoke
-test; the checks on a real desktop (portals, Background, `flatpak-spawn`)
-wait for the desktop VM. **Phase 4's secrets part is built (PR #130, merged
+test; the desktop VM checked the portals, Background and `flatpak-spawn` on
+2026-10-28 (below). **Phase 4's secrets part is built (PR #130, merged
 2026-10-28):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
-**Not done in Phase 4:** the notification click, the OAuth check and the 6
-checks on the desktop VM. **Phase 5's code is built (PR #132, merged 2026-10-28):**
+**Not done in Phase 4:** the notification click (#136) and the OAuth check.
+**Phase 5's code is built (PR #132, merged 2026-10-28):**
 Save As through the file chooser portal in both modes, attaching by bytes
-in both modes, with the portal's Rust tests and the Vitest tests; its
-Done-when checks wait for the desktop VM. **Phase 6 is built (PR #131,
+in both modes, with the portal's Rust tests and the Vitest tests. **Phase 6 is built (PR #131,
 merged 2026-10-28):** the first-run welcome, the Server pane's notes, the
 ordered change of mode in the shell (`mailctl shutdown`, the write-back,
 `frostmail --start-maild`), the settings window without a maild, and their
-unit, smoke and end-to-end tests; its desktop VM check waits for the VM.
-**Phase 7's code is built (PR in review):** `mailctl import DIR`, the
+unit, smoke and end-to-end tests. **Phase 7's code is built (PR #135, merged 2026-10-28):** `mailctl import DIR`, the
 welcome's move note (`host_mail_found`) and the steps in
 [design/desktop.md](../design/desktop.md#the-flatpaks-own-maild), with unit
-tests on staged exports; its Done-when check waits for the desktop VM.
+tests on staged exports.
+**The desktop VM checks of Phases 4 to 7 ran on 2026-10-28**
+([VM check 2026-10-28](#vm-check-2026-10-28)): Phases 5 and 6 pass; Phase 4
+passes items 1, 2, 5 and 6, fails item 3 (the click, not built) and did not
+run item 4 (OAuth); Phase 7 fails, because a window left open during the
+import does not reconnect, though its other checks pass. Fix PRs: #136 (the
+click), #137 (the setup's error text) and #138 (import starts maild again).
+The CI bundles of #136 and #138 passed the failed checks on the VM the same
+day (below). **Still open:** merging #136, #137 and #138, and the OAuth check
+(item 4).
 Phases 8 to 10 are not built.
 
 ## Who helps
@@ -203,6 +210,115 @@ Phases 8 to 10 are not built.
   is disabled, the host's keyring items and data and the export directory
   are untouched, and the pristine database sits aside. An import into a
   store with an account refuses and changes nothing.
+
+## VM check 2026-10-28
+
+On Duncan's desktop VM `frostmail-desktop` (Snow `20261028172907`, GNOME 48
+on Wayland, real portals), with the CI bundle of main at `1fb303c`
+(Flatpak run 40758470007, commit "Built from 1fb303c"; flatpak-index has no
+`frostmail` yet) and the `frostmail-mailtest` container. The container's
+certificate is self-signed, so each maild ran with `FROSTMAIL_INSECURE_TLS=1`
+(`flatpak override --user --env=…`, and a drop-in for the host's
+`maild.service`). Lodge mode used lodge's development build (`lodge-e2e`, lodge
+`e76a17c`) on the VM's loopback and `maild --lodge` with a mailtest account,
+staged as `app/e2e/lodge.e2e.ts` stages it. The screenshots and the check
+scripts are in Irulan's home, `evidence/plan-0013-vm-2026-10-28/`.
+
+**Phase 4.**
+
+1. Pass. test1, added on the setup screen, has its item in the login
+   collection: `application=org.frostyard.Frostmail`, `store=b5cc3370…` (the id
+   in `frostmail.db`), `key=account/1/password`. There is no `secrets.json`,
+   and no file under `~/.var/app/org.frostyard.Frostmail` holds the password.
+2. Pass, with a wrong text. With only the `session` collection (the login
+   keyring moved away, gnome-keyring restarted), Add Account asked "Choose
+   password for new keyring … called 'Default keyring'". Cancel added no
+   account, and maild logged "the Secret Service's prompt was dismissed"; but
+   the setup screen said "Set up your Google client under Sign-In first." Fix:
+   #137, the setup shows `account.create`'s own error.
+3. Fail (not built). With no window, a new message notifies (from maild), and
+   the click opens the window at the message; but that window
+   (`frostmail-app --open-message 13`) is a child of maild, in maild's sandbox,
+   and `flatpak ps` shows no new instance. Fix: #136, the click through
+   `flatpak-spawn --latest-version`.
+4. Not run: it needs a Google account that may sign in from the VM (Open
+   questions).
+5. Pass. The host's maild (`make install`, test1) and the Flatpak's (test2,
+   another password), each with an account 1, both synced a new message. A
+   write of a new value in one store changed only its own item; the other
+   item kept its Modified time and its secret's hash. The host's item has
+   `application=frostmail` and no store.
+6. Pass. After `flatpak uninstall --delete-data` and a new install, test1
+   added with no password in the new store (`store=5ebad2fe…`) showed "Sign in
+   again" ("no password is stored"), though the old store's item
+   (`store=5058caad…`, the same key) was still in the keyring, unchanged.
+   `--delete-data` leaves the old store's items in the keyring.
+
+**Phase 5.** Pass, in both modes.
+
+- Save As opened the portal's "Save Message" dialog and wrote the message
+  into `~/Documents`: mode 0600 in local mode (`message.save`), 0644 in lodge
+  mode (`save_content`). A cancelled Save As wrote nothing, with no error.
+- A 25,000,000-byte attachment (`AttachmentLimit`), attached through the
+  portal, was sent in each mode; test2's copies decode to the file's SHA-256.
+  A 25 MiB file (26,214,400 bytes) is refused: "would take the draft's
+  attachments past the 25 MB limit".
+
+**Phase 6.** Pass.
+
+- The first run showed the welcome ("Add Account…", "Connect to lodge…") and
+  the settings window on Accounts.
+- A switch to lodge (`http://127.0.0.1:8470`) wrote `app.json` and stopped
+  maild; no maild ran. After a log out and in, the autostart entry
+  (`frostmail --background`) ran and started no maild (`flatpak ps`).
+- With lodge down, the window offered "Server Settings…"; the switch back
+  showed the pane's local-mode text, started maild, and brought back test1
+  with its mail. `app/e2e/mode.e2e.ts` passed in CI at `1fb303c`.
+- In this run, `flatpak ps` still listed maild's old instance after the
+  switch, because the window of item 3 above ran in it; no maild ran.
+
+**Phase 7.** Fail: a window left open during the import does not reconnect.
+The other checks pass.
+
+- The host's maild (`make install`) held test1 with 311 generated messages.
+  The Flatpak's first launch showed the welcome with the move note and its
+  3 commands; its store stayed empty, and the host's maild ran until step 1.
+- The 3 steps: `export` (311 blobs, 1 secret, schema 19); `import`, with the
+  window open, validated the export, stopped the Flatpak's maild, placed the
+  export and put the earlier database aside
+  (`frostmail.db.before-import-20261028T204240Z`, and its blobs).
+- At the next start, maild moved the secret into its namespace and synced a
+  new message with no sign-in. The host's `maild.service` stayed disabled;
+  the host's database, its keyring item and the export directory kept their
+  checksums.
+- The gap: the window left open did not reconnect. Import stopped maild and
+  nothing started it, and "open Frostmail again" from the shell only focused
+  the open window, so the launcher did not run. Closing the window and
+  opening it again started maild. Fix: #138, import starts the Flatpak's
+  maild again (`frostmail --start-maild`).
+- A second import, into the store with the account, refused ("holds 1
+  account, 312 messages … nothing was moved", exit 1), and every file kept
+  its checksum (SQLite added an empty `-wal` and its `-shm`). It also left
+  maild stopped (the same fix, #138).
+
+**The fix PRs, checked again on the VM (2026-10-28).**
+
+- #136's bundle: maild's `FROSTMAIL_APP` is `/app/libexec/frostmail-open`.
+  With no window, a click opened the window at the message in a new
+  instance (`flatpak ps`), in another PID namespace than maild. After an
+  update (main's bundle installed as the latest deployment while #136's
+  maild ran), the click on the old maild's notification ran the latest
+  launcher: it replaced the old maild with the latest, and the window opened
+  with the latest `app-commit` and lived on. Until that window closed,
+  the old instance stayed in `flatpak ps`, holding only the `flatpak-spawn`
+  that waits for it.
+- #138's bundle: with the window open, `import` printed "maild started with
+  the imported accounts; open windows reconnect." The window reconnected by
+  itself and listed the imported mail, and a new message synced. A second
+  import refused and printed "maild started again"; maild answered after it.
+
+For Phase 8: the Flatpak's maild reports the version `flatpak`, and the
+bundle's version is 0.0.0.
 
 ## Phase 8 — A release candidate (Brian and Lucilla, small)
 

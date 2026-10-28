@@ -47,8 +47,9 @@ keeps lodge as a connection the user chooses. Phases 2 and 3 (maild and
 mailctl in the build, the launcher, the data lock, one local maild) are
 merged (#126); Phase 4's secrets part (the Flatpak's keyring namespace, the
 store id, no plain-file fallback, the probe in `account.create`), Phase 5's
-files and Phase 6's first run and modes are merged; Phase 7's code (`mailctl
-import`, the move note) is in review; the notification click of Phase 4 and
+files, Phase 6's first run and modes and Phase 7's move (`mailctl import`,
+the move note, #135) are merged. Their desktop VM checks ran on 2026-10-28
+(plan 0013, VM check 2026-10-28); the notification click of Phase 4 and
 Phases 8 to 10 are not built.
 
 ## Two kinds of agent work
