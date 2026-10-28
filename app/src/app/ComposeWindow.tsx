@@ -19,7 +19,7 @@ import { sendChoices } from "../lib/later";
 import { uploadFile } from "../lib/upload";
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
-import { remoteMaild } from "../rpc/transport/tauri";
+import { filesAsBytes, remoteMaild } from "../rpc/transport/tauri";
 import {
   activeFormats,
   composeExtensions,
@@ -204,8 +204,8 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     [client, id],
   );
 
-  // A browser, or the desktop app on a maild behind lodge, sends the
-  // file's bytes: maild cannot read a path on this machine
+  // The webview sends the file's bytes when maild cannot read a path this
+  // machine sees: in a browser, on a maild behind lodge, and in the Flatpak
   // (docs/specs/compose-ui.md, Attachments).
   const attachFiles = useCallback(
     (files: File[]) => {
@@ -222,18 +222,19 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     [client, id],
   );
 
-  // Files dropped anywhere on the window are attached: as paths in the
-  // app, as bytes in a browser, or in the app on a maild behind lodge, whose
-  // compose windows leave drops to the webview (open_compose).
+  // Files dropped anywhere on the window are attached: as paths in the app
+  // on a maild of its own, as bytes in a browser, on a maild behind lodge and
+  // in the Flatpak, whose compose windows leave drops to the webview
+  // (open_compose).
   useEffect(() => {
-    if (!isTauri() || remoteMaild()) return;
+    if (!isTauri() || filesAsBytes()) return;
     const off = getCurrentWebview().onDragDropEvent((e) => {
       if (e.payload.type === "drop") attachPaths(e.payload.paths);
     });
     return () => void off.then((f) => f());
   }, [attachPaths]);
   useEffect(() => {
-    if (isTauri() && !remoteMaild()) return;
+    if (isTauri() && !filesAsBytes()) return;
     const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes("Files") === true;
     const over = (e: DragEvent) => {
       if (hasFiles(e)) e.preventDefault();
@@ -252,7 +253,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   }, [attachFiles]);
 
   const pickFiles = useCallback(async () => {
-    if (!isTauri() || remoteMaild()) {
+    if (!isTauri() || filesAsBytes()) {
       fileInput.current?.click();
       return;
     }

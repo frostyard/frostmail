@@ -23,7 +23,11 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 const onDragDropEvent = vi.fn(async () => () => {});
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ onDragDropEvent }) }));
-vi.mock("../rpc/transport/tauri", () => ({ remoteMaild: () => true }));
+vi.mock("../rpc/transport/tauri", () => ({
+  remoteMaild: () => true,
+  inFlatpak: () => false,
+  filesAsBytes: () => true,
+}));
 
 describe("ComposeWindow on a maild behind lodge", () => {
   it("attaches a dropped file by its bytes, not its path", async () => {

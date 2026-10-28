@@ -32,7 +32,10 @@ review):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
 **Not done in Phase 4:** the notification click, the OAuth check and the 6
-checks on the desktop VM. Phases 5 to 10 are not built.
+checks on the desktop VM. **Phase 5's code is built (PR in review):** Save As
+through the file chooser portal in both modes, attaching by bytes in both
+modes, with the portal's Rust tests and the Vitest tests. Its Done-when
+checks wait for the desktop VM. Phases 6 to 10 are not built.
 
 ## Who helps
 
@@ -143,10 +146,14 @@ checks on the desktop VM. Phases 5 to 10 are not built.
   Tauri's dialog elsewhere.
 - Attaching by `draft.attachData` in the Flatpak, in both modes.
 - ADR-0045's Save As limit is closed in [design/desktop.md](../design/desktop.md).
-- **Done when,** on the desktop VM: Save As writes a message into
-  `~/Documents` in local mode and in lodge mode (lodge's development build
-  on the VM); a 25 MB attachment is sent in both modes; a cancelled Save As
-  writes nothing.
+- **Built (PR in review):** `app/src-tauri/src/portal.rs` (the portal's call
+  and its unit and session-bus tests), the commands `in_flatpak` and
+  `portal_save_file`, `filesAsBytes` in the window's transport,
+  `SaveAs.flatpak.test.tsx` and `ComposeDrop.flatpak.test.tsx`.
+- **Done when,** on the desktop VM (the checks wait for it): Save As writes
+  a message into `~/Documents` in local mode and in lodge mode (lodge's
+  development build on the VM); a 25 MB attachment is sent in both modes; a
+  cancelled Save As writes nothing.
 
 ## Phase 6 — First run and the modes (planner and Codex, medium)
 

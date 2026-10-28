@@ -47,7 +47,7 @@ import type {
   Unsubscribe,
   UnsubscribeResult,
 } from "../rpc/gen/api";
-import { remoteMaild } from "../rpc/transport/tauri";
+import { inFlatpak, remoteMaild } from "../rpc/transport/tauri";
 import { ContactCardContainer } from "./ContactCardContainer";
 import { remindMessages } from "./commands";
 import { useCalendarFrame } from "./useCalendar";
@@ -97,7 +97,9 @@ async function reportContext(client: Client, id: number, title: string, stale: (
  * file (docs/specs/lodge-app.md, The web build): in lodge the browser
  * downloads it from the content route; the desktop app asks where, then
  * maild writes it there, or on a maild behind lodge the app downloads it
- * from lodge's content node there.
+ * from lodge's content node there. In the Flatpak the file chooser portal's
+ * dialog asks where, since the sandbox can write nowhere else
+ * (ADR-0046, Files in the sandbox); elsewhere it is Tauri's dialog.
  */
 async function saveMessage(client: Client, id: number, subject: string): Promise<void> {
   const contentPath = async () => {
@@ -112,11 +114,21 @@ async function saveMessage(client: Client, id: number, subject: string): Promise
   }
   if (!isTauri()) return;
   const name = (subject.trim() || "(no subject)").replace(/[/\\]/g, "-");
-  const path = await save({
-    title: "Save Message",
-    defaultPath: `${name}.eml`,
-    filters: [{ name: "Email Message", extensions: ["eml"] }],
-  });
+  let path: string | null;
+  if (inFlatpak()) {
+    path = await invoke<string | null>("portal_save_file", {
+      title: "Save Message",
+      currentName: `${name}.eml`,
+      filterName: "Email Message",
+      extension: "eml",
+    });
+  } else {
+    path = await save({
+      title: "Save Message",
+      defaultPath: `${name}.eml`,
+      filters: [{ name: "Email Message", extensions: ["eml"] }],
+    });
+  }
   if (path === null) return;
   if (remoteMaild()) await invoke("save_content", { contentPath: await contentPath(), path });
   else await client.message.save({ id, path });

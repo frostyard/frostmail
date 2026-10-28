@@ -8,11 +8,22 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 /// The application ID, as internal/config.AppID.
-#[cfg(not(windows))]
 const APP_ID: &str = "org.frostyard.Frostmail";
 
 fn abs(value: Option<OsString>) -> Option<PathBuf> {
     value.map(PathBuf::from).filter(|p| p.is_absolute())
+}
+
+/// Whether this process runs in this application's Flatpak: FLATPAK_ID is
+/// the app ID, as config.InFlatpak in internal/config. Another
+/// application's Flatpak is not. Windows has no Flatpak, and sets no
+/// FLATPAK_ID (the app is installed per user, ADR-0038).
+pub fn in_flatpak() -> bool {
+    in_flatpak_from(|key| std::env::var_os(key))
+}
+
+fn in_flatpak_from(getenv: impl Fn(&str) -> Option<OsString>) -> bool {
+    getenv("FLATPAK_ID").is_some_and(|id| id == APP_ID)
 }
 
 /// maild's socket: $FROSTMAIL_SOCKET or $XDG_RUNTIME_DIR/frostmail/maild.sock.
@@ -32,7 +43,7 @@ fn socket_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, Str
     }
     abs(getenv("XDG_RUNTIME_DIR"))
         .map(|d| {
-            if getenv("FLATPAK_ID").is_some_and(|id| id == APP_ID) {
+            if in_flatpak_from(&getenv) {
                 d.join("app").join(APP_ID).join("frostmail").join("maild.sock")
             } else {
                 d.join("frostmail").join("maild.sock")
@@ -245,6 +256,15 @@ mod tests {
         let vars = [("HOME", "/home/u")];
         assert_eq!(downloads_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail-app/attachments")));
         assert!(downloads_dir_from(env(&[])).is_err());
+    }
+
+    #[test]
+    fn in_flatpak_is_this_apps_only() {
+        assert!(in_flatpak_from(env(&[("FLATPAK_ID", "org.frostyard.Frostmail")])));
+        // Another app's Flatpak, an empty ID, and no Flatpak at all.
+        assert!(!in_flatpak_from(env(&[("FLATPAK_ID", "org.example.Editor")])));
+        assert!(!in_flatpak_from(env(&[("FLATPAK_ID", "")])));
+        assert!(!in_flatpak_from(env(&[])));
     }
 }
 

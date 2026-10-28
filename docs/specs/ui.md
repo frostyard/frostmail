@@ -450,8 +450,11 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   - **Save As:** the save dialog (title "Save Message", default name the
     subject with `/` and `\` replaced by `-`, "(no subject)" when blank,
     plus `.eml`, filter "Email Message" `eml`), then `message.save {id,
-    path}`; nothing when the dialog is cancelled. On a maild behind
-    lodge the app downloads the message there instead
+    path}`; nothing when the dialog is cancelled. In the Flatpak the file
+    chooser portal's save dialog takes the dialog's place, with the same
+    title, name and filter
+    ([desktop.md](../design/desktop.md#the-flatpaks-own-maild)). On a maild
+    behind lodge the app downloads the message there instead
     ([design/desktop.md](../design/desktop.md#on-a-maild-behind-lodge)),
     and in lodge's web build the browser downloads it
     ([lodge-app.md](lodge-app.md#the-web-build)).

@@ -9,7 +9,7 @@ use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{bridge, protocol, remote};
+use crate::{bridge, paths, portal, protocol, remote};
 
 /// File types that run code when opened, on Linux or Windows; Frostmail
 /// never opens them. Windows' list follows the types its shell runs or
@@ -123,6 +123,37 @@ pub async fn save_content(content_path: String, path: String) -> Result<(), Stri
         .map_err(|e| e.to_string())?
 }
 
+/// Whether the app runs in its Flatpak (docs/adr/0046-the-desktop-flatpak-
+/// carries-its-own-maild.md, Files in the sandbox): the webview then asks
+/// the file chooser portal for Save As, and attaches by bytes.
+#[tauri::command]
+pub fn in_flatpak() -> bool {
+    paths::in_flatpak()
+}
+
+/// Save As in the Flatpak: ask the file chooser portal where the file goes,
+/// and answer the path, or None when the user cancels (src/portal.rs). The
+/// portal opens a window and waits on the user, so this runs on a blocking
+/// thread. Outside the Flatpak, and on Windows, Save As keeps Tauri's
+/// dialog, and this refuses.
+#[tauri::command]
+pub async fn portal_save_file(
+    title: String,
+    current_name: String,
+    filter_name: String,
+    extension: String,
+) -> Result<Option<String>, String> {
+    if !paths::in_flatpak() {
+        return Err("Save As through the file chooser portal is only in the Flatpak".to_string());
+    }
+    let path = tauri::async_runtime::spawn_blocking(move || {
+        portal::save_file(&title, &current_name, &filter_name, &extension)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(path.map(|p| p.to_string_lossy().into_owned()))
+}
+
 /// Refuse a file whose type runs code when opened.
 fn refuse_unsafe(name: &str) -> Result<(), String> {
     let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
@@ -171,10 +202,11 @@ pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<
         ))
         .on_navigation(crate::allowed_navigation)
         .visible(false);
-    // A maild behind lodge cannot read this machine's paths, so files
-    // dropped on the window reach the webview as files, whose bytes it
-    // sends (draft.attachData), as in a browser.
-    if remote::load().is_ok_and(|c| c.lodge.is_some()) {
+    // Files dropped on the window reach the webview as files, whose bytes it
+    // sends (draft.attachData), as in a browser: a maild behind lodge cannot
+    // read this machine's paths, and the Flatpak's maild cannot read the
+    // paths the window sees outside its sandbox.
+    if remote::load().is_ok_and(|c| c.lodge.is_some()) || paths::in_flatpak() {
         window = window.disable_drag_drop_handler();
     }
     window.build().map(crate::show_soon).map_err(|e| e.to_string())
