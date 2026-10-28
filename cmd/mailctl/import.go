@@ -16,6 +16,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -35,6 +36,12 @@ const (
 	// aside: UTC, so that the names sort, and one import's files never
 	// hide another's.
 	importStampFormat = "20060102T150405Z"
+	// importStartWait is how long the Flatpak's launcher gets to start maild
+	// again after the import: its own start waits about 10 s for maild.
+	importStartWait = 60 * time.Second
+	// flatpakLauncher is the Flatpak's launcher, whose --start-maild starts
+	// maild, as the Server pane's return to local mode does.
+	flatpakLauncher = "/app/bin/frostmail"
 )
 
 // newImportCmd builds import: place an export in this build's empty store.
@@ -56,27 +63,73 @@ changes DIR. Apart from stopping maild, it works on files and needs no
 running maild.
 
 DIR holds the secrets in plain text (secrets.json): remove it once the
-accounts sync. Then open Frostmail, which starts maild with the imported
-accounts.`,
+accounts sync. In the Flatpak, import starts maild again with the imported
+accounts, through the launcher (/app/bin/frostmail --start-maild), so open
+windows reconnect; elsewhere, open Frostmail to start maild. An import that
+fails after it stopped maild starts it again too.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if clix.DryRun {
 				return errors.New("import changes the store, so it has no dry run: use export --check DIR")
 			}
-			return runImport(cmd.Context(), cmd.OutOrStdout(), opts, args[0], importLockWait)
+			return runImport(cmd.Context(), cmd.OutOrStdout(), opts, args[0], importLockWait, maildStarter(os.Getenv))
 		},
 	}
 }
 
 // runImport places the export in dir into this store, waiting up to wait for
-// maild to stop and for its data lock.
-func runImport(ctx context.Context, w io.Writer, opts *rootOptions, dir string, wait time.Duration) error {
-	return importInto(ctx, w, opts, dir, wait, time.Now())
+// maild to stop and for its data lock. startMaild, when not nil, starts maild
+// again after the import, and after a fault that stopped it.
+func runImport(ctx context.Context, w io.Writer, opts *rootOptions, dir string, wait time.Duration, startMaild startMaildFunc) error {
+	return importInto(ctx, w, opts, dir, wait, time.Now(), startMaild)
+}
+
+// startMaildFunc starts maild again after an import stopped it, so that a
+// window that was open reconnects. It is nil where nothing starts maild.
+type startMaildFunc func(ctx context.Context) error
+
+// maildStarter is the start of this machine: the Flatpak's launcher, and
+// nothing on the host, which starts maild with its own service manager.
+func maildStarter(getenv func(string) string) startMaildFunc {
+	if !config.InFlatpak(getenv) {
+		return nil
+	}
+	return startFlatpakMaild
+}
+
+// startFlatpakMaild runs the launcher's --start-maild, which starts maild in
+// a new sandbox and waits for it: exit 0 means maild answers. Its last line
+// of output says why when it fails.
+func startFlatpakMaild(parent context.Context) error {
+	ctx, cancel := context.WithTimeout(parent, importStartWait)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, flatpakLauncher, "--start-maild").CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil {
+		return fmt.Errorf("%s --start-maild did not finish within %s: %w", flatpakLauncher, importStartWait, err)
+	}
+	if last := lastLine(string(out)); last != "" {
+		return fmt.Errorf("%s --start-maild: %s: %w", flatpakLauncher, last, err)
+	}
+	return fmt.Errorf("%s --start-maild: %w", flatpakLauncher, err)
+}
+
+// lastLine is the last non-empty line of s, or "".
+func lastLine(s string) string {
+	var last string
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			last = line
+		}
+	}
+	return last
 }
 
 // importInto is runImport with the clock of the import's stamp, so that a
 // test can name the files an import leaves.
-func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string, wait time.Duration, now time.Time) error {
+func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string, wait time.Duration, now time.Time, startMaild startMaildFunc) (err error) {
 	paths, err := config.Resolve(os.Getenv)
 	if err != nil {
 		return err
@@ -107,7 +160,7 @@ func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string,
 
 	// 2. No maild runs from here on: it is stopped, and the lock stays held
 	// until the import ends.
-	release, err := lockStore(ctx, socket, paths.DataDir, wait)
+	release, stopped, err := lockStore(ctx, socket, paths.DataDir, wait)
 	if err != nil {
 		return err
 	}
@@ -118,7 +171,22 @@ func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string,
 			release()
 		}
 	}
-	defer unlock()
+	// A fault leaves the store as it was. The maild that this import stopped
+	// starts again once the lock is free, so that a window that was open
+	// reconnects: a maild that did not run before stays stopped, and the
+	// start's own fault changes neither the store nor this error.
+	defer func() {
+		unlock()
+		if err == nil || !stopped || startMaild == nil {
+			return
+		}
+		if startErr := startMaild(context.WithoutCancel(ctx)); startErr != nil {
+			fmt.Fprintln(w, startErr)
+			fmt.Fprintln(w, "Open Frostmail to start maild again.")
+			return
+		}
+		fmt.Fprintln(w, "maild started again; open windows reconnect.")
+	}()
 
 	// 3. An empty store takes the import: the two must not mix.
 	switch ok, reason, err := store.Pristine(ctx, paths.DB); {
@@ -185,7 +253,21 @@ func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string,
 		fmt.Fprintf(w, "  the store's earlier database is now %s\n", asideDB)
 	}
 	fmt.Fprintf(w, "%s holds the secrets in plain text (secrets.json): remove it once the accounts sync.\n", dir)
-	fmt.Fprintln(w, "Open Frostmail to start maild with the imported accounts.")
+	// maild starts on the imported accounts now, where this machine has a
+	// launcher to start it with: an open window reconnects by itself.
+	var startErr error
+	if startMaild != nil {
+		startErr = startMaild(ctx)
+	}
+	switch {
+	case startMaild == nil:
+		fmt.Fprintln(w, "Open Frostmail to start maild with the imported accounts.")
+	case startErr != nil:
+		fmt.Fprintln(w, startErr)
+		fmt.Fprintln(w, "Open Frostmail to start maild with the imported accounts.")
+	default:
+		fmt.Fprintln(w, "maild started with the imported accounts; open windows reconnect.")
+	}
 	return nil
 }
 
@@ -193,7 +275,9 @@ func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string,
 // lock and returns its release function. A maild that answers is asked to
 // stop, and waited for; a lock that another process holds is tried again,
 // with each such maild asked to stop again, until wait has passed in all.
-func lockStore(parent context.Context, socket, dataDir string, wait time.Duration) (func(), error) {
+// stopped says that a maild answered and was asked to stop, so that the
+// caller can start it again.
+func lockStore(parent context.Context, socket, dataDir string, wait time.Duration) (release func(), stopped bool, err error) {
 	ctx, cancel := context.WithTimeout(parent, wait)
 	defer cancel()
 	tick := time.NewTicker(shutdownPoll)
@@ -204,21 +288,22 @@ func lockStore(parent context.Context, socket, dataDir string, wait time.Duratio
 			// A maild that answers is asked to stop, and waited for: it
 			// releases its lock as it goes.
 			if err := runShutdown(ctx, io.Discard, socket, dataDir, wait); err != nil {
-				return nil, err
+				return nil, stopped, err
 			}
+			stopped = true
 		}
 		release, err := datalock.Acquire(dataDir)
 		var busy *datalock.BusyError
 		switch {
 		case err == nil:
-			return release, nil
+			return release, stopped, nil
 		case !errors.As(err, &busy):
-			return nil, fmt.Errorf("lock %s: %w", dataDir, err)
+			return nil, stopped, fmt.Errorf("lock %s: %w", dataDir, err)
 		}
 		last = err
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("the data directory %s is still locked after %s: stop the maild that holds it, then import again: %w", dataDir, wait, last)
+			return nil, stopped, fmt.Errorf("the data directory %s is still locked after %s: stop the maild that holds it, then import again: %w", dataDir, wait, last)
 		case <-tick.C:
 		}
 	}

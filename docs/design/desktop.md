@@ -218,7 +218,13 @@ from a host maild (the notification click of Phase 4 is not built).
   what the store held aside as `frostmail.db.before-import-<stamp>` (with
   its `-wal` and `-shm`), `blobs.before-import-<stamp>` and
   `secrets.json.before-import-<stamp>`; renames the staged files into
-  place, the database last; and releases the lock. The next maild migrates
+  place, the database last; and releases the lock. In the Flatpak it then
+  runs `/app/bin/frostmail --start-maild` (60 s at most), so maild runs on
+  the imported accounts and a window that was open reconnects by itself;
+  when that start fails, import says why and keeps its line that asks the
+  user to open Frostmail, and it still exits 0. An import that stops a
+  maild and then fails starts it again the same way, and returns its own
+  error. The next maild migrates
   the database and moves the plain secrets into the Flatpak's namespace
   under the new store id ([accounts.md](accounts.md#secrets)). Import never
   changes or deletes DIR, and says that DIR holds the secrets in plain

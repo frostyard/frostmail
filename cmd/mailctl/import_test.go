@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -407,6 +408,113 @@ func TestImportAsksAMaildToStop(t *testing.T) {
 	}
 }
 
+// A fault that a start cannot undo changes neither the store nor the error:
+// the import says why maild did not start, and keeps the old line.
+func TestImportSaysWhenMaildDidNotStart(t *testing.T) {
+	f := newImportFixture(t)
+	boom := errors.New("maild did not answer")
+	var out bytes.Buffer
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), func(context.Context) error { return boom }); err != nil {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), boom.Error()) {
+		t.Errorf("the import does not say why maild did not start (%q):\n%s", boom, out.String())
+	}
+	if !strings.Contains(out.String(), "Open Frostmail to start maild with the imported accounts.") {
+		t.Errorf("the import lost the line about opening Frostmail:\n%s", out.String())
+	}
+}
+
+// Nothing starts maild on the host, where its service manager does: import
+// keeps its line about opening Frostmail, and starts nothing.
+func TestImportWithoutAStartKeepsTheOldLine(t *testing.T) {
+	f := newImportFixture(t)
+	var out bytes.Buffer
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), nil); err != nil {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "Open Frostmail to start maild with the imported accounts.") {
+		t.Errorf("the import lost the line about opening Frostmail:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "open windows reconnect") {
+		t.Errorf("the import says that maild started, and nothing started it:\n%s", out.String())
+	}
+}
+
+// getenvOf is a getenv that answers from m alone.
+func getenvOf(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+
+// Only this app's Flatpak has a launcher that starts maild again: on the
+// host, and in another application's Flatpak, nothing starts.
+func TestMaildStarterOnlyInTheFlatpak(t *testing.T) {
+	if got := maildStarter(getenvOf(nil)); got != nil {
+		t.Errorf("the host's start = %v, want none", got)
+	}
+	if got := maildStarter(getenvOf(map[string]string{"FLATPAK_ID": "org.example.Other"})); got != nil {
+		t.Errorf("another application's Flatpak's start = %v, want none", got)
+	}
+	if got := maildStarter(getenvOf(map[string]string{"FLATPAK_ID": config.AppID})); got == nil {
+		t.Error("the Frostmail Flatpak has no start for maild")
+	}
+}
+
+// lastLine is the last line of the launcher's output that says why it failed.
+func TestLastLine(t *testing.T) {
+	for in, want := range map[string]string{
+		"":                                 "",
+		"\n\n":                             "",
+		"one\n":                            "one",
+		"one\ntwo\n\n":                     "two",
+		"  one  \n  maild did not start\n": "maild did not start",
+	} {
+		if got := lastLine(in); got != want {
+			t.Errorf("lastLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// A refused import into a store that holds an account changes nothing, and
+// the maild that it stopped starts again, so that a window that was open
+// reconnects.
+func TestImportStartsTheMaildItStoppedAfterARefusal(t *testing.T) {
+	f := newImportFixture(t)
+	makePristine(t, f.data)
+	addAccount(t, f.data)
+	srv := rpctest.Start(t)
+	t.Setenv("FROSTMAIL_SOCKET", srv.Socket)
+	var calls int
+	start := func(context.Context) error { calls++; return nil }
+	var out bytes.Buffer
+	err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), start)
+	if err == nil || !strings.Contains(err.Error(), "an import needs an empty store") {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	<-srv.Stopped() // the maild that ran before was stopped
+	if calls != 1 {
+		t.Errorf("the start ran %d times, want 1: the maild that ran before must start again\n%s", calls, out.String())
+	}
+	if !strings.Contains(out.String(), "maild started again; open windows reconnect.") {
+		t.Errorf("the refused import does not say that maild started again:\n%s", out.String())
+	}
+}
+
+// A refused import that found no maild to stop starts none.
+func TestImportStartsNothingWhenNoMaildRan(t *testing.T) {
+	f := newImportFixture(t)
+	makePristine(t, f.data)
+	addAccount(t, f.data)
+	var calls int
+	start := func(context.Context) error { calls++; return nil }
+	var out bytes.Buffer
+	err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), start)
+	if err == nil || !strings.Contains(err.Error(), "an import needs an empty store") {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if calls != 0 {
+		t.Errorf("the start ran %d times with no maild to start, want 0\n%s", calls, out.String())
+	}
+}
+
 // A fault after the moves began puts the store back: placeImport is where
 // the store changes, so it undoes its own moves.
 func TestPlaceImportPutsTheStoreBack(t *testing.T) {
@@ -534,7 +642,7 @@ func TestImportStampIsFreeOfAnEarlierImportsNames(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, now); err != nil {
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, now, nil); err != nil {
 		t.Fatalf("import = %v\n%s", err, out.String())
 	}
 	if b, err := os.ReadFile(earlier); err != nil || !bytes.Equal(b, content) {
