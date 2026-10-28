@@ -26,30 +26,30 @@ core's amendment of ADR-0058 and plan 0010 is still to come.
 **Phases 2 and 3 are built** (PR #126, merged 2026-10-28): maild and
 mailctl in the Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
 the paths and the smoke test. CI's "Flatpak build and test" runs the smoke
-test; the checks on a real desktop (portals, Background, `flatpak-spawn`)
-wait for the desktop VM. **Phase 4's secrets part is built (PR #130, merged
+test; the desktop VM checked the portals, Background and `flatpak-spawn` on
+2026-10-28 (below). **Phase 4's secrets part is built (PR #130, merged
 2026-10-28):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
-**Not done in Phase 4:** the notification click, the OAuth check and the 6
-checks on the desktop VM. **Phase 5's code is built (PR #132, merged 2026-10-28):**
+**Not done in Phase 4:** the notification click (#136) and the OAuth check.
+**Phase 5's code is built (PR #132, merged 2026-10-28):**
 Save As through the file chooser portal in both modes, attaching by bytes
-in both modes, with the portal's Rust tests and the Vitest tests; its
-Done-when checks wait for the desktop VM. **Phase 6 is built (PR #131,
+in both modes, with the portal's Rust tests and the Vitest tests. **Phase 6 is built (PR #131,
 merged 2026-10-28):** the first-run welcome, the Server pane's notes, the
 ordered change of mode in the shell (`mailctl shutdown`, the write-back,
 `frostmail --start-maild`), the settings window without a maild, and their
-unit, smoke and end-to-end tests; its desktop VM check waits for the VM.
-**Phase 7's code is built (PR #135, merged 2026-10-28):** `mailctl import DIR`, the
+unit, smoke and end-to-end tests. **Phase 7's code is built (PR #135, merged 2026-10-28):** `mailctl import DIR`, the
 welcome's move note (`host_mail_found`) and the steps in
 [design/desktop.md](../design/desktop.md#the-flatpaks-own-maild), with unit
 tests on staged exports.
 **The desktop VM checks of Phases 4 to 7 ran on 2026-10-28**
 ([VM check 2026-10-28](#vm-check-2026-10-28)): Phases 5 and 6 pass; Phase 4
 passes items 1, 2, 5 and 6, fails item 3 (the click, not built) and did not
-run item 4 (OAuth); Phase 7 passes but for a window left open, which does
-not reconnect. Fix PRs: #136 (the click), #137 (the setup's error text) and
-#138 (import starts maild again).
+run item 4 (OAuth); Phase 7 fails, because a window left open during the
+import does not reconnect, though its other checks pass. Fix PRs: #136 (the
+click), #137 (the setup's error text) and #138 (import starts maild again).
+**Still open:** the click in a sandbox of its own (#136), OAuth (item 4) and
+the import with a window left open (#138), each to check again on the VM.
 Phases 8 to 10 are not built.
 
 ## Who helps
@@ -276,7 +276,8 @@ scripts are in Irulan's home, `evidence/plan-0013-vm-2026-10-28/`.
 - In this run, `flatpak ps` still listed maild's old instance after the
   switch, because the window of item 3 above ran in it; no maild ran.
 
-**Phase 7.** Pass, but for a window left open.
+**Phase 7.** Fail: a window left open during the import does not reconnect.
+The other checks pass.
 
 - The host's maild (`make install`) held test1 with 311 generated messages.
   The Flatpak's first launch showed the welcome with the move note and its
