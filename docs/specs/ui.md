@@ -477,6 +477,34 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Links** open in the system browser; only `http`, `https` and `mailto`
   open. Others do nothing.
 
+### First run (M6)
+
+A store with no account opens on account setup
+([ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md)):
+local mail is the default, and lodge is a secondary choice.
+
+- When the session is ready and maild lists no account, the main window
+  keeps its toolbar and shows, in place of its modules, a `section`
+  `aria-label="Welcome"`, centered (`max-w-[420px]`, `--bg-window`):
+  - an `h1` "Welcome to Frostmail" (17/22 semibold);
+  - a `p` (13/18 `--text-secondary`, `mt-2`): "Add a mail account to
+    start. Frostmail keeps its mail on this computer." in the desktop app
+    on this computer's maild, and "Add a mail account to start." elsewhere
+    (a browser, or the desktop app on lodge);
+  - in a row (`mt-5`, gap 8): "Add Account…" (`PRIMARY_BUTTON`), which
+    opens the settings window on Accounts (which starts adding an
+    account when there is none); and, in the desktop app on this
+    computer's maild only, "Connect to lodge…" (`BUTTON`), which opens it
+    on the Server pane.
+- In the desktop app, when the main window first renders on a connection
+  and finds no account, it opens the settings window on Accounts itself.
+  It decides on that first render only: once per connection, so again
+  after a reconnection that still finds none, and never when the
+  connection started with an account.
+- When an account appears (`account.changed`), the main window shows its
+  modules. Removing the last account shows the welcome again, without
+  opening the settings window.
+
 ### Narrow windows (M8)
 
 Below 600 CSS pixels wide (frostnotes' measure, a phone in lodge's frame;

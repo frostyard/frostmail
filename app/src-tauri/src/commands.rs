@@ -1,15 +1,17 @@
 //! Commands the webview calls: links open in the system browser and
 //! attachments in their default application (docs/design/app.md, Reader),
-//! drafts open in compose windows (docs/design/send.md), and the settings
-//! window opens (docs/specs/settings-ui.md).
+//! drafts open in compose windows (docs/design/send.md), the settings
+//! window opens on the pane its opener names (docs/specs/settings-ui.md),
+//! and the app's choice of maild is read, changed and described by its own
+//! local facts (docs/design/desktop.md, On a maild behind lodge).
 
 use std::sync::Mutex;
 
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{bridge, protocol, remote};
+use crate::{bridge, mode, paths, protocol, remote};
 
 /// File types that run code when opened, on Linux or Windows; Frostmail
 /// never opens them. Windows' list follows the types its shell runs or
@@ -139,14 +141,42 @@ pub fn app_config_get() -> Result<remote::AppConfig, String> {
     remote::load()
 }
 
-/// Change the app's choice of maild, then end every window's connection, so
-/// each reconnects to the maild now chosen.
+/// Change the app's choice of maild (docs/specs/settings-ui.md, Server pane,
+/// Behavior (container)), then end every window's connection when the change
+/// says so, so each reconnects to the maild now chosen. Outside the Flatpak
+/// it writes the choice and ends them. In the Flatpak a change of mode is
+/// the ordered one of ADR-0046: a change to lodge stops this computer's
+/// maild first, and writes the previous choice back when maild does not
+/// stop; a change to this computer starts it. Those commands block, so they
+/// run off the async runtime; the windows are ended after them, whatever
+/// their result, when the change says the maild now chosen differs.
 #[tauri::command]
 pub async fn app_config_set(bridge: State<'_, bridge::Bridge>, config: remote::AppConfig) -> Result<(), String> {
-    let config = remote::AppConfig { lodge: config.lodge.map(|l| l.trim().to_string()).filter(|l| !l.is_empty()) };
-    remote::save(&config)?;
-    bridge.close_all().await;
-    Ok(())
+    let next = remote::AppConfig { lodge: config.lodge.map(|l| l.trim().to_string()).filter(|l| !l.is_empty()) };
+    let flatpak = paths::in_flatpak();
+    // One change at a time, and no window connects in the middle of one: it
+    // would read a lodge that a failed stop then writes back (bridge.rs).
+    let changing = bridge.changing_mode().await;
+    let outcome = tauri::async_runtime::spawn_blocking(move || mode::change(&mode::Real, flatpak, next))
+        .await
+        .map_err(|e| e.to_string())?;
+    if outcome.close {
+        bridge.close_all().await;
+    }
+    drop(changing);
+    match outcome.error {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
+}
+
+/// The Server pane's local facts (docs/specs/settings-ui.md, Server pane,
+/// Behavior (container)): whether this is the Flatpak, and whether this
+/// computer's data directory holds a database. It reads the environment and
+/// the file's metadata only, so it answers while maild and lodge do not.
+#[tauri::command]
+pub fn server_facts() -> mode::ServerFacts {
+    mode::server_facts()
 }
 
 /// Open a draft in its compose window, labeled compose-<id>, or focus the
@@ -212,22 +242,55 @@ pub async fn open_event(app: AppHandle, label: String, target: serde_json::Value
         .map_err(|e| e.to_string())
 }
 
-/// Open the settings window, labeled settings, or focus it when it is open.
-/// It learns that it is the settings window from an initialization script.
+/// The settings window's panes (docs/specs/settings-ui.md, Layout), which
+/// are the only ones `open_settings` takes.
+const SETTINGS_PANES: &[&str] = &["general", "accounts", "signatures", "rules", "signin", "server"];
+
+/// The pane an opener names, when it is one of the window's own, so that a
+/// value from the webview never reaches an initialization script or an
+/// event as anything else.
+fn settings_pane(pane: Option<&str>) -> Result<Option<&'static str>, String> {
+    match pane {
+        None => Ok(None),
+        Some(pane) => SETTINGS_PANES
+            .iter()
+            .copied()
+            .find(|known| *known == pane)
+            .map(Some)
+            .ok_or_else(|| format!("{pane} is not a settings pane")),
+    }
+}
+
+/// Open the settings window, labeled settings, on the pane its opener names
+/// or on Accounts without one, or focus it when it is open, and tell it the
+/// named pane with the `settings-pane` event. It learns that it is the
+/// settings window, and the pane it opens on, from an initialization script,
+/// so the app's URL stays the same.
 #[tauri::command]
-pub async fn open_settings(app: AppHandle) -> Result<(), String> {
+pub async fn open_settings(app: AppHandle, pane: Option<String>) -> Result<(), String> {
+    let pane = settings_pane(pane.as_deref())?;
     if let Some(w) = app.get_webview_window("settings") {
         let _ = w.unminimize();
         let _ = w.show();
-        return w.set_focus().map_err(|e| e.to_string());
+        let focused = w.set_focus().map_err(|e| e.to_string());
+        // A window that is open switches to the pane; the pane it shows is
+        // kept outside its connection, so a reconnection keeps it.
+        if let Some(pane) = pane {
+            w.emit_to("settings", "settings-pane", pane).map_err(|e| e.to_string())?;
+        }
+        return focused;
     }
+    let script = match pane {
+        Some(pane) => format!("window.__frostmailSettings = true; window.__frostmailSettingsPane = \"{pane}\";"),
+        None => "window.__frostmailSettings = true;".to_string(),
+    };
     crate::window(&app, "settings")
         .title("Settings")
         .inner_size(760.0, 560.0)
         .min_inner_size(640.0, 440.0)
         // The settings toolbar is the title bar (docs/specs/settings-ui.md).
         .decorations(false)
-        .initialization_script("window.__frostmailSettings = true;")
+        .initialization_script(script)
         .on_navigation(crate::allowed_navigation)
         .visible(false)
         .build()
@@ -284,10 +347,21 @@ pub fn second_launch(app: &AppHandle, args: &[String]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{open_request, openable};
+    use super::{open_request, openable, settings_pane};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn takes_only_the_settings_windows_panes() {
+        assert_eq!(settings_pane(None), Ok(None));
+        for pane in ["general", "accounts", "signatures", "rules", "signin", "server"] {
+            assert_eq!(settings_pane(Some(pane)), Ok(Some(pane)), "{pane}");
+        }
+        for pane in ["", "Server", "server\"; alert(1); //", "compose", "settings"] {
+            assert!(settings_pane(Some(pane)).is_err(), "{pane}");
+        }
     }
 
     #[test]

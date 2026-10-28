@@ -3,6 +3,8 @@
 import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+import { useSettingsPane } from "../app/settingsPane";
+
 // Testing Library prints the DOM with a failed query; keep it short enough
 // that the failure itself stays in view.
 process.env.DEBUG_PRINT_LIMIT ??= "1500";
@@ -13,3 +15,7 @@ process.env.DEBUG_PRINT_LIMIT ??= "1500";
 configure({ asyncUtilTimeout: 5000 });
 
 afterEach(cleanup);
+
+// The settings window's pane and the Server pane's save outlive a window's
+// remount by design (app/settingsPane.ts), so each test starts afresh.
+afterEach(() => useSettingsPane.setState(useSettingsPane.getInitialState()));

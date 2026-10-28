@@ -10,6 +10,7 @@
 mod announce;
 mod bridge;
 mod commands;
+mod mode;
 mod paths;
 mod protocol;
 mod remote;
@@ -41,7 +42,8 @@ fn main() {
             commands::open_reminders,
             commands::startup_message,
             commands::app_config_get,
-            commands::app_config_set
+            commands::app_config_set,
+            commands::server_facts
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main, compose, event editor, settings and reminder windows. App commands (maild_*, open_link, open_part, save_content, notify_mail, open_compose, open_event, open_settings, open_reminders, app_config_*) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach, picks where Save As writes, and confirms.",
+  "description": "The main, compose, event editor, settings and reminder windows. App commands (maild_*, open_link, open_part, save_content, notify_mail, open_compose, open_event, open_settings, open_reminders, app_config_*, server_facts) are allowed by default; the window permissions back the app's own title bars, and the dialog picks files to attach, picks where Save As writes, and confirms.",
   "windows": [
     "main",
     "compose-*",

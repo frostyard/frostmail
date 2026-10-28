@@ -32,7 +32,11 @@ review):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
 **Not done in Phase 4:** the notification click, the OAuth check and the 6
-checks on the desktop VM. Phases 5 to 10 are not built.
+checks on the desktop VM. **Phase 6 is built (in review):** the first-run
+welcome, the Server pane's notes, the ordered change of mode in the shell
+(`mailctl shutdown`, the write-back, `frostmail --start-maild`), the
+settings window without a maild, and their unit and smoke tests; its
+desktop VM check waits for the VM. Phases 5 and 7 to 10 are not built.
 
 ## Who helps
 

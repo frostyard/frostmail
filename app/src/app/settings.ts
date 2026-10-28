@@ -7,11 +7,14 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { openFrameWindow } from "../lodge/frameWindow";
 import { openOutside } from "../lodge/lodge";
 import { remoteMaild } from "../rpc/transport/tauri";
+import { type SettingsPane, useSettingsPane } from "./settingsPane";
 
 declare global {
   interface Window {
     /** Set by the settings window's initialization script. */
     __frostmailSettings?: boolean;
+    /** Set by the settings window's initialization script: the pane its opener named. */
+    __frostmailSettingsPane?: string;
   }
 }
 
@@ -20,11 +23,17 @@ export function isSettingsWindow(): boolean {
   return window.__frostmailSettings === true || window.location.hash === "#/settings";
 }
 
-/** openSettings shows the settings window, focusing it when it is open. */
-export async function openSettings(): Promise<void> {
+/**
+ * openSettings shows the settings window, focusing it when it is open, on the
+ * pane given (M6): the shell opens a new window on it or sends the open one
+ * the settings-pane event, and lodge's frame reads it from the store, which is
+ * the frame's own context. A browser tab keeps Accounts.
+ */
+export async function openSettings(pane?: SettingsPane): Promise<void> {
+  if (pane !== undefined) useSettingsPane.getState().setPane(pane);
   if (openFrameWindow({ kind: "settings" })) return;
   if (isTauri()) {
-    await invoke("open_settings");
+    await invoke("open_settings", pane === undefined ? {} : { pane });
     return;
   }
   window.open(`${window.location.pathname}#/settings`, "settings");
