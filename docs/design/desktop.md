@@ -172,10 +172,12 @@ built).
   turnover, and a maild with no Secret Service that refuses to add an
   account and keeps no secrets file. The portal's tests are in the app's
   Rust tests: its helpers (the request path, a URI as a path, a Response's
-  code), and 2 session-bus tests against portals the test serves itself,
-  which skip without a bus: one whose answers are a file, a cancel and a
-  failure, with a Response forged by another peer ahead of each, and one
-  whose portal leaves the bus. `saveMessage.flatpak.test.ts` and
+  code, which Response is the portal's), and 3 session-bus tests against
+  portals the test serves itself, which skip without a bus: one whose
+  answers are a file, a cancel and a failure, with a Response forged by
+  another peer ahead of each; one whose portal leaves the bus without an
+  answer; and one whose portal answers, then leaves, then replies, whose
+  answer must win. `saveMessage.flatpak.test.ts` and
   `ComposeDrop.flatpak.test.tsx` cover Save As and attaching in Vitest, in
   both modes, with a cancel. `FROSTMAIL_BIN_DIR` points the smoke test at
   host-built binaries. The portals themselves need the real-desktop checks

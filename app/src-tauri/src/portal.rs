@@ -135,18 +135,21 @@ mod linux {
         // sender is no portal's.
         let portal = reply.header().sender().map(|s| s.to_string());
         loop {
+            // Answers first: the connection's reader fills both queues in the
+            // order the bus delivers, so a Response the portal sent before it
+            // left is in the answers' queue by the time its leave is in the
+            // owners'. Biased, the loop drains every queued answer before it
+            // looks at a leave, and a valid answer is never lost to one.
             tokio::select! {
+                biased;
                 answer = answers.next() => {
                     let Some(answer) = answer else {
                         return Err("the file chooser portal sent no Response".to_string());
                     };
                     let answer = answer.map_err(|e| format!("the file chooser portal's answer: {e}"))?;
                     let from = answer.header().sender().map(|s| s.to_string());
-                    if from.is_none() || from != portal {
-                        continue;
-                    }
                     let at = answer.header().path().map(|p| p.to_string()).unwrap_or_default();
-                    if at != expected && at != handle.as_str() {
+                    if !ours(from.as_deref(), portal.as_deref(), &at, &expected, handle.as_str()) {
                         continue;
                     }
                     let (code, hints): (u32, HashMap<String, OwnedValue>) =
@@ -168,6 +171,14 @@ mod linux {
                 }
             }
         }
+    }
+
+    /// ours reports whether a Response answers this request: it comes from
+    /// the unique name that sent the SaveFile reply (any peer of the session
+    /// bus may signal on the request path, and an answer without a sender is
+    /// no portal's), on the token's path or the handle the reply named.
+    fn ours(from: Option<&str>, portal: Option<&str>, at: &str, expected: &str, handle: &str) -> bool {
+        from.is_some() && from == portal && (at == expected || at == handle)
     }
 
     /// request_path is the object path the portal answers a request on:
@@ -245,7 +256,7 @@ mod linux {
 
         use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
-        use super::{PORTAL_PATH, REQUEST, chosen, request_path, save_file_on, uri_to_path};
+        use super::{PORTAL_PATH, REQUEST, chosen, ours, request_path, save_file_on, uri_to_path};
 
         #[test]
         fn the_request_path_is_the_token_under_the_callers_name() {
@@ -293,6 +304,7 @@ mod linux {
         /// as the desktop's portal does, so that a test never reaches one.
         const TEST_PORTAL: &str = "org.frostyard.Frostmail.TestPortal";
         const LEAVING_PORTAL: &str = "org.frostyard.Frostmail.TestPortalLeaves";
+        const ANSWERING_PORTAL: &str = "org.frostyard.Frostmail.TestPortalAnswersThenLeaves";
 
         /// WAIT is how long a test waits for a call before it fails it, so
         /// that a wait that never ends fails the test instead of hanging it.
@@ -362,9 +374,13 @@ mod linux {
             }
         }
 
-        /// A portal that leaves the session bus as it answers, and sends no
-        /// Response: the app must end its wait.
+        /// A portal that leaves the session bus as it answers. With an answer,
+        /// it sends that Response first, then leaves, then replies: the app
+        /// must keep the answer. Without one, it sends no Response: the app
+        /// must end its wait.
         struct LeavingPortal {
+            name: &'static str,
+            answer: Mutex<Option<(u32, HashMap<String, OwnedValue>)>>,
             notes: Mutex<Option<mpsc::Sender<()>>>,
         }
 
@@ -384,15 +400,50 @@ mod linux {
                     .unwrap_or_default();
                 let sender = header.sender().map(|s| s.as_str().to_string()).unwrap_or_default();
                 let path = OwnedObjectPath::try_from(request_path(&sender, &token)).expect("a valid request path");
-                // It leaves before it answers, so the app hears the leave
-                // before the reply and the wait cannot hang (the object
-                // stays served, so the reply still goes out).
-                connection.release_name(LEAVING_PORTAL).await.expect("the name is released");
+                let answer = self.answer.lock().unwrap().take();
+                if let Some(answer) = answer {
+                    let destination = (!sender.is_empty()).then_some(sender.as_str());
+                    connection
+                        .emit_signal(destination, path.as_str(), REQUEST, "Response", &answer)
+                        .await
+                        .expect("the Response signal");
+                }
+                // It leaves before it replies, so the app has the leave
+                // queued before the reply (the object stays served, so the
+                // reply still goes out).
+                connection.release_name(self.name).await.expect("the name is released");
                 if let Some(notes) = self.notes.lock().unwrap().take() {
                     notes.send(()).expect("the test hears the call");
                 }
                 path
             }
+        }
+
+        /// leave serves a LeavingPortal under name, asks it for a file on a
+        /// thread of its own, and gives the result, within WAIT.
+        fn leave(name: &'static str, answer: Option<(u32, HashMap<String, OwnedValue>)>) -> Saving {
+            let (notes, heard) = mpsc::channel();
+            let portal = LeavingPortal { name, answer: Mutex::new(answer), notes: Mutex::new(Some(notes)) };
+            let server = zbus::blocking::connection::Builder::session()
+                .unwrap()
+                .name(name)
+                .unwrap()
+                .serve_at(PORTAL_PATH, portal)
+                .unwrap()
+                .build()
+                .unwrap();
+            let (results, answered) = mpsc::channel();
+            std::thread::spawn(move || {
+                let run = tauri::async_runtime::block_on(async {
+                    let conn = zbus::Connection::session().await.map_err(|e| format!("the session bus: {e}"))?;
+                    save_file_on(&conn, name, "Save Message", "Out.eml", "Email Message", "eml").await
+                });
+                let _ = results.send(run);
+            });
+            heard.recv_timeout(WAIT).expect("the portal was asked");
+            let result = answered.recv_timeout(WAIT).expect("the wait ended");
+            drop(server);
+            result
         }
 
         /// save_all asks the portal named destination the 3 answers on a
@@ -460,7 +511,7 @@ mod linux {
             );
         }
 
-        /// The portal leaves the bus as it answers: the wait ends with an
+        /// The portal leaves the bus without an answer: the wait ends with an
         /// error and does not last.
         #[test]
         fn save_file_ends_when_the_portal_leaves_the_bus() {
@@ -468,27 +519,30 @@ mod linux {
                 eprintln!("no session bus: skipped");
                 return;
             }
-            let (notes, heard) = mpsc::channel();
-            let server = zbus::blocking::connection::Builder::session()
-                .unwrap()
-                .name(LEAVING_PORTAL)
-                .unwrap()
-                .serve_at(PORTAL_PATH, LeavingPortal { notes: Mutex::new(Some(notes)) })
-                .unwrap()
-                .build()
-                .unwrap();
-            let (results, answered) = mpsc::channel();
-            std::thread::spawn(move || {
-                let run = tauri::async_runtime::block_on(async {
-                    let conn = zbus::Connection::session().await.map_err(|e| format!("the session bus: {e}"))?;
-                    save_file_on(&conn, LEAVING_PORTAL, "Save Message", "Out.eml", "Email Message", "eml").await
-                });
-                let _ = results.send(run);
-            });
-            heard.recv_timeout(WAIT).expect("the portal was asked");
-            let result = answered.recv_timeout(WAIT).expect("the wait ended when the portal left");
-            assert_eq!(result, Err("the file chooser portal left the session bus".to_string()));
-            drop(server);
+            assert_eq!(leave(LEAVING_PORTAL, None), Err("the file chooser portal left the session bus".to_string()));
+        }
+
+        /// The portal answers, then leaves, then replies: both are queued
+        /// when the wait begins, and the answer wins.
+        #[test]
+        fn an_answer_sent_before_the_portal_leaves_is_kept() {
+            if std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_none() {
+                eprintln!("no session bus: skipped");
+                return;
+            }
+            let answer = (0, uris("file:///home/u/Out.eml"));
+            assert_eq!(leave(ANSWERING_PORTAL, Some(answer)), Ok(Some(PathBuf::from("/home/u/Out.eml"))));
+        }
+
+        #[test]
+        fn only_the_portals_answer_on_the_request_is_ours() {
+            let (path, handle) = ("/r/1_42/frostmail0", "/r/1_42/old");
+            assert!(ours(Some(":1.7"), Some(":1.7"), path, path, handle));
+            assert!(ours(Some(":1.7"), Some(":1.7"), handle, path, handle), "an old portal's own path");
+            assert!(!ours(Some(":1.9"), Some(":1.7"), path, path, handle), "another peer forges it");
+            assert!(!ours(None, Some(":1.7"), path, path, handle), "no sender");
+            assert!(!ours(None, None, path, path, handle), "no sender on either side");
+            assert!(!ours(Some(":1.7"), Some(":1.7"), "/r/1_42/other", path, handle), "another request");
         }
     }
 }
