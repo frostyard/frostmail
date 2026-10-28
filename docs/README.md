@@ -61,7 +61,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0043 — Finish an OAuth sign-in with a pasted address when the browser cannot reach maild](adr/0043-finish-a-sign-in-with-a-pasted-address.md)
 - [0044 — On a server, maild seals its secrets file with a key from a systemd credential](adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
 - [0045 — The desktop app builds as a Flatpak in CI](adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)
-- [0046 — The desktop Flatpak carries its own maild; lodge is a connection the user chooses](adr/0046-the-desktop-flatpak-carries-its-own-maild.md) (proposed)
+- [0046 — The desktop Flatpak carries its own maild; lodge is a connection the user chooses](adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
 
 ### Design
 

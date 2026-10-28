@@ -1,6 +1,7 @@
 # 0013 — The app installs as a local Flatpak; maild stays on the host
 
-- **Status:** Accepted
+- **Status:** Accepted; amended in part by
+  [0046](0046-the-desktop-flatpak-carries-its-own-maild.md)
 - **Date:** 2026-10-08
 
 ## Context

@@ -1,6 +1,6 @@
 # 0046 — The desktop Flatpak carries its own maild; lodge is a connection the user chooses
 
-- **Status:** Proposed
+- **Status:** Accepted (Brian, 2026-10-28)
 - **Date:** 2026-10-27
 
 ## Context

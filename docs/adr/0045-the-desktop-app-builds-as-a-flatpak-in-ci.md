@@ -1,6 +1,7 @@
 # 0045 — The desktop app builds as a Flatpak in CI
 
-- **Status:** Accepted (Brian, 2026-10-26)
+- **Status:** Accepted (Brian, 2026-10-26); amended in part by
+  [0046](0046-the-desktop-flatpak-carries-its-own-maild.md)
 - **Date:** 2026-10-26
 
 ## Context
