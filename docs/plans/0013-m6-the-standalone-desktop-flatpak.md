@@ -149,7 +149,7 @@ checks wait for the desktop VM. Phases 6 to 10 are not built.
 - **Built (PR in review):** `app/src-tauri/src/portal.rs` (the portal's call
   and its unit and session-bus tests), the commands `in_flatpak` and
   `portal_save_file`, `filesAsBytes` in the window's transport,
-  `SaveAs.flatpak.test.tsx` and `ComposeDrop.flatpak.test.tsx`.
+  `saveMessage.flatpak.test.ts` and `ComposeDrop.flatpak.test.tsx`.
 - **Done when,** on the desktop VM (the checks wait for it): Save As writes
   a message into `~/Documents` in local mode and in lodge mode (lodge's
   development build on the VM); a 25 MB attachment is sent in both modes; a
