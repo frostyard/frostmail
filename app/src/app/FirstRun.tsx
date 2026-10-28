@@ -19,16 +19,18 @@ function showSettings(pane: SettingsPane) {
 }
 
 /**
- * useOpenSettingsOnFirstRun opens the settings window on Accounts itself, once
- * per main window load, the first time that window finds no account. Removing
- * the last account later shows the welcome again without opening it.
+ * useOpenSettingsOnFirstRun opens the settings window on Accounts itself when
+ * the main window, as it mounts on a ready connection, finds no account. The
+ * decision is made once, on that first render, whether the store is empty or
+ * not: removing the last account later shows the welcome again without
+ * opening the window. The main window mounts again on each new connection.
  */
 export function useOpenSettingsOnFirstRun(empty: boolean): void {
-  const opened = useRef(false);
+  const decided = useRef(false);
   useEffect(() => {
-    if (!empty || opened.current || !isTauri()) return;
-    opened.current = true;
-    showSettings("accounts");
+    if (decided.current) return;
+    decided.current = true;
+    if (empty && isTauri()) showSettings("accounts");
   }, [empty]);
 }
 

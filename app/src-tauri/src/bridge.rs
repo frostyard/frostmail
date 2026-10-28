@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -15,7 +16,7 @@ use serde::Serialize;
 use tauri::{State, Window, ipc::Channel};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, Notify, RwLock, RwLockWriteGuard};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -57,9 +58,19 @@ pub enum BridgeMessage {
 /// its own connection (docs/design/send.md, Compose windows). Connecting
 /// again replaces the window's connection, which shuts the old one down;
 /// closing the window drops it.
+///
+/// A change of mode (src/mode.rs) holds `mode` for writing from its first
+/// write of app.json to its last connection change, so that no connection
+/// reads a choice the change may still write back, and two changes never
+/// overlap. A connection reads the choice under `mode` for reading, with
+/// the generation that `close_all` advances; one whose generation has
+/// passed by the time it connected is refused, and the window connects
+/// again to the maild now chosen.
 #[derive(Default)]
 pub struct Bridge {
     connections: Mutex<HashMap<String, Connection>>,
+    mode: RwLock<()>,
+    generation: AtomicU64,
 }
 
 impl Bridge {
@@ -71,13 +82,36 @@ impl Bridge {
     /// End every window's connection, which each window's session then
     /// reconnects: the app switched maild.
     pub async fn close_all(&self) {
-        self.connections.lock().await.clear();
+        let mut connections = self.connections.lock().await;
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        connections.clear();
     }
 
-    async fn keep(&self, label: &str, writer: Writer) -> Arc<Notify> {
+    /// Hold off every new connection, and every other change of mode, for
+    /// as long as the guard lives: a change of mode, from its first write of
+    /// app.json to its last connection change.
+    pub async fn changing_mode(&self) -> RwLockWriteGuard<'_, ()> {
+        self.mode.write().await
+    }
+
+    /// The app's choice of maild, read while no change of mode runs, and
+    /// the generation of the connections it is good for.
+    async fn choice(&self) -> Result<(remote::AppConfig, u64), String> {
+        let _reading = self.mode.read().await;
+        Ok((remote::load()?, self.generation.load(Ordering::SeqCst)))
+    }
+
+    /// Keep a window's new connection, unless close_all ran since the
+    /// choice it followed was read: then the connection is dropped, and the
+    /// window connects again.
+    async fn keep(&self, label: &str, writer: Writer, generation: u64) -> Result<Arc<Notify>, String> {
+        let mut connections = self.connections.lock().await;
+        if self.generation.load(Ordering::SeqCst) != generation {
+            return Err("the app changed its maild; connect again".to_string());
+        }
         let stop = Arc::new(Notify::new());
-        self.connections.lock().await.insert(label.to_string(), Connection { writer, stop: stop.clone() });
-        stop
+        connections.insert(label.to_string(), Connection { writer, stop: stop.clone() });
+        Ok(stop)
     }
 }
 
@@ -99,10 +133,11 @@ pub async fn maild_connect(
     bridge: State<'_, Bridge>,
     on_message: Channel<BridgeMessage>,
 ) -> Result<Connected, String> {
-    if let Some(url) = remote::load()?.lodge {
+    let (config, generation) = bridge.choice().await?;
+    if let Some(url) = config.lodge {
         let lodge = remote::Lodge::parse(&url)?;
         let (write, read) = connect_lodge(&lodge).await?.split();
-        let stop = bridge.keep(window.label(), Writer::Lodge(write)).await;
+        let stop = bridge.keep(window.label(), Writer::Lodge(write), generation).await?;
         tauri::async_runtime::spawn(read_frames(read, stop, on_message));
         return Ok(Connected { remote: true });
     }
@@ -110,7 +145,7 @@ pub async fn maild_connect(
     let (read, write) = connect(&path)
         .await
         .map_err(|e| format!("connect to maild at {}: {e}", path.display()))?;
-    let stop = bridge.keep(window.label(), Writer::Stream(write)).await;
+    let stop = bridge.keep(window.label(), Writer::Stream(write), generation).await?;
     tauri::async_runtime::spawn(async move {
         let mut lines = BufReader::new(read).lines();
         let error = loop {
@@ -266,4 +301,41 @@ fn start_maild() -> std::io::Result<()> {
         .spawn()
         .map_err(|e| std::io::Error::new(e.kind(), format!("start {}: {e}", maild.display())))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Bridge, Writer};
+
+    fn writer() -> Writer {
+        Writer::Stream(Box::new(tokio::io::sink()))
+    }
+
+    #[test]
+    fn a_connection_made_across_a_change_of_maild_is_refused() {
+        tauri::async_runtime::block_on(async {
+            let bridge = Bridge::default();
+            let before = bridge.generation.load(std::sync::atomic::Ordering::SeqCst);
+            assert!(bridge.keep("main", writer(), before).await.is_ok());
+            // The app switched maild after this window read its choice.
+            bridge.close_all().await;
+            assert!(bridge.connections.lock().await.is_empty());
+            assert!(bridge.keep("main", writer(), before).await.is_err());
+            assert!(bridge.connections.lock().await.is_empty());
+            let now = bridge.generation.load(std::sync::atomic::Ordering::SeqCst);
+            assert!(bridge.keep("main", writer(), now).await.is_ok());
+        });
+    }
+
+    #[test]
+    fn no_connection_reads_the_choice_during_a_change_of_mode() {
+        tauri::async_runtime::block_on(async {
+            let bridge = Bridge::default();
+            let changing = bridge.changing_mode().await;
+            assert!(bridge.mode.try_read().is_err(), "a reader got in during a change of mode");
+            assert!(bridge.mode.try_write().is_err(), "a second change of mode got in");
+            drop(changing);
+            assert!(bridge.mode.try_read().is_ok());
+        });
+    }
 }

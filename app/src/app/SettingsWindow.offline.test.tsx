@@ -136,4 +136,47 @@ describe("the settings window without a maild", () => {
     );
     expect(save().disabled).toBe(true);
   });
+
+  it("shows the stored choice when a save fails after the pane remounted", async () => {
+    // The shell writes lodge first, then fails to stop maild and writes the
+    // previous choice back; meanwhile the window lost its maild and remounted.
+    let fail: (reason: string) => void = () => {};
+    env.invoke.mockImplementation(async (command: string, args?: { config?: { lodge?: string } }) => {
+      switch (command) {
+        case "app_config_get":
+          server.reads += 1;
+          return server.lodge === null ? {} : { lodge: server.lodge };
+        case "server_facts":
+          return { flatpak: true, localData: true };
+        case "app_config_set":
+          server.lodge = args?.config?.lodge ?? null;
+          return new Promise((_resolve, reject) => {
+            fail = (reason) => {
+              server.lodge = null;
+              reject(reason);
+            };
+          });
+        default:
+          return null;
+      }
+    });
+    useSettingsPane.setState({ pane: "server" });
+    const first = render(<SettingsWindow offline />);
+    await screen.findByRole("form", { name: "Server" });
+    chooseLodge();
+    fireEvent.click(save());
+    await screen.findByRole("status");
+    first.unmount();
+    render(<SettingsWindow offline />);
+    // The new pane read the lodge the shell wrote for the change.
+    await waitFor(() => expect((lodgeField() as HTMLInputElement).value).toBe("https://lodge.example.ts.net"));
+    act(() => fail("This computer's maild did not stop. Frostmail still uses it."));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "This computer's maild did not stop. Frostmail still uses it.",
+    );
+    await waitFor(() =>
+      expect((screen.getByRole("radio", { name: "maild on this computer" }) as HTMLInputElement).checked).toBe(true),
+    );
+    expect(screen.queryByRole("textbox", { name: "lodge:" })).toBeNull();
+  });
 });

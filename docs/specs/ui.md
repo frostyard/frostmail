@@ -496,9 +496,11 @@ local mail is the default, and lodge is a secondary choice.
     account when there is none); and, in the desktop app on this
     computer's maild only, "Connect to lodge…" (`BUTTON`), which opens it
     on the Server pane.
-- In the desktop app, the first time a main window finds no account after
-  it connects, it opens the settings window on Accounts itself: once per
-  connection, so again after a reconnection that still finds none.
+- In the desktop app, when the main window first renders on a connection
+  and finds no account, it opens the settings window on Accounts itself.
+  It decides on that first render only: once per connection, so again
+  after a reconnection that still finds none, and never when the
+  connection started with an account.
 - When an account appears (`account.changed`), the main window shows its
   modules. Removing the last account shows the welcome again, without
   opening the settings window.

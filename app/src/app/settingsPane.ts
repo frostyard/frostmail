@@ -27,9 +27,13 @@ export interface SettingsPaneState {
   status: string | null;
   /** The Server pane's last save's error. */
   error: string | null;
+  /** How many Server pane saves have finished: each makes the mounted pane read the stored choice again. */
+  saved: number;
   setPane: (pane: SettingsPane) => void;
   setBusy: (busy: boolean, status?: string | null) => void;
   setError: (error: string | null) => void;
+  /** finishSave ends a save: not busy, its error, and one more finished save. */
+  finishSave: (error: string | null) => void;
 }
 
 /** useSettingsPane is the settings window's store. */
@@ -40,7 +44,9 @@ export const useSettingsPane = create<SettingsPaneState>((set) => ({
   busy: false,
   status: null,
   error: null,
+  saved: 0,
   setPane: (pane) => set({ pane }),
   setBusy: (busy, status = null) => set({ busy, status }),
   setError: (error) => set({ error }),
+  finishSave: (error) => set((s) => ({ busy: false, status: null, error, saved: s.saved + 1 })),
 }));

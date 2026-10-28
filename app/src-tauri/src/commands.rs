@@ -154,12 +154,16 @@ pub fn app_config_get() -> Result<remote::AppConfig, String> {
 pub async fn app_config_set(bridge: State<'_, bridge::Bridge>, config: remote::AppConfig) -> Result<(), String> {
     let next = remote::AppConfig { lodge: config.lodge.map(|l| l.trim().to_string()).filter(|l| !l.is_empty()) };
     let flatpak = paths::in_flatpak();
+    // One change at a time, and no window connects in the middle of one: it
+    // would read a lodge that a failed stop then writes back (bridge.rs).
+    let changing = bridge.changing_mode().await;
     let outcome = tauri::async_runtime::spawn_blocking(move || mode::change(&mode::Real, flatpak, next))
         .await
         .map_err(|e| e.to_string())?;
     if outcome.close {
         bridge.close_all().await;
     }
+    drop(changing);
     match outcome.error {
         Some(e) => Err(e),
         None => Ok(()),

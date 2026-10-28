@@ -100,6 +100,15 @@ describe("first run", () => {
     expect(opens()).toHaveLength(1);
   });
 
+  it("opens nothing by itself when the last account of a store that had one goes", async () => {
+    const { mock } = await setup(mockData({ inbox: 1, now: new Date("2026-10-08T12:00:00Z") }));
+    await screen.findByRole("tree", { name: "Mailboxes" });
+    const accounts = await mock.call<{ id: number }[]>("account.list", {});
+    for (const account of accounts) await act(() => mock.call("account.delete", { id: account.id }));
+    await screen.findByRole("region", { name: "Welcome" });
+    expect(opens()).toHaveLength(0);
+  });
+
   it("shows the modules and no welcome with an account", async () => {
     await setup(mockData({ inbox: 1, now: new Date("2026-10-08T12:00:00Z") }));
     await screen.findByRole("tree", { name: "Mailboxes" });

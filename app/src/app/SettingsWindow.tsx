@@ -697,18 +697,21 @@ interface ServerFacts {
 }
 
 function ServerPaneContainer() {
-  // A change of mode ends this window's connection, so its progress and its
-  // error live in the store, and the pane remounts with them (M6).
+  // A change of mode ends this window's connection, so its progress, its
+  // error and the count of finished saves live in the store, and the pane
+  // remounts with them (M6).
   const busy = useSettingsPane((s) => s.busy);
   const status = useSettingsPane((s) => s.status);
   const error = useSettingsPane((s) => s.error);
+  const saved = useSettingsPane((s) => s.saved);
   const setBusy = useSettingsPane((s) => s.setBusy);
   const setError = useSettingsPane((s) => s.setError);
+  const finishSave = useSettingsPane((s) => s.finishSave);
   const [lodge, setLodge] = useState<string | null>(null);
-  // Each finished save remounts the pane on the stored choice: a failed stop
-  // writes the previous choice back, which can equal what the pane read.
-  const [saves, setSaves] = useState(0);
   const [facts, setFacts] = useState<ServerFacts>({ flatpak: false, localData: false });
+  // The stored choice, read again after each finished save, failed or not,
+  // by whichever container is mounted then: the shell runs the whole ordered
+  // change, and a failed stop writes the previous choice back.
   useEffect(() => {
     let active = true;
     void Promise.all([invoke<{ lodge?: string }>("app_config_get"), invoke<ServerFacts>("server_facts")]).then(
@@ -718,16 +721,15 @@ function ServerPaneContainer() {
         setFacts(found);
       },
       (err: unknown) => {
-        if (active) setError(message(err));
+        // A finished save's own error says more than the read after it.
+        const shown = saved > 0 && useSettingsPane.getState().error !== null;
+        if (active && !shown) setError(message(err));
       },
     );
     return () => {
       active = false;
     };
-  }, [setError]);
-  // The shell runs the whole ordered change, and a failed stop writes the
-  // previous choice back, so the pane reads it again rather than trust the
-  // argument it saved; it does so after a failure too.
+  }, [setError, saved]);
   const save = (next: string | null) => {
     void (async () => {
       setBusy(true, saveStatus(facts.flatpak, lodge, next));
@@ -738,20 +740,14 @@ function ServerPaneContainer() {
       } catch (err) {
         failure = message(err);
       }
-      try {
-        const config = await invoke<{ lodge?: string }>("app_config_get");
-        setLodge(config.lodge ?? null);
-      } catch (err) {
-        failure ??= message(err);
-      }
-      setError(failure);
-      setBusy(false);
-      setSaves((n) => n + 1);
+      finishSave(failure);
     })();
   };
   return (
+    // Each finished save remounts the pane on the stored choice, which can
+    // equal what the pane read before the user changed it.
     <ServerPane
-      key={saves}
+      key={saved}
       lodge={lodge}
       flatpak={facts.flatpak}
       localData={facts.localData}
