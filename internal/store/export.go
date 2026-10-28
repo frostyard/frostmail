@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -19,6 +20,9 @@ type ExportedAccount struct {
 type Snapshot struct {
 	SchemaVersion int // the highest applied migration in the copy
 	Accounts      []ExportedAccount
+	// StoreID is the source's store id (see DB.StoreID), empty when the
+	// source has none yet. Export never makes one.
+	StoreID string
 }
 
 // KnownSchema is the schema version this build migrates a database to.
@@ -52,6 +56,12 @@ func Export(ctx context.Context, src, dst string) (Snapshot, error) {
 	var snap Snapshot
 	if err := sqlDB.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&snap.SchemaVersion); err != nil {
 		return Snapshot{}, fmt.Errorf("export database: read schema version: %w", err)
+	}
+	// A source from before migration 19 has no store_info table; one that
+	// maild never asked has no row. Both read as an empty id.
+	if err := sqlDB.QueryRowContext(ctx, `SELECT value FROM store_info WHERE key = ?`, storeIDKey).Scan(&snap.StoreID); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
+		return Snapshot{}, fmt.Errorf("export database: read store id: %w", err)
 	}
 	rows, err := sqlDB.QueryContext(ctx, `SELECT id, email, auth FROM accounts ORDER BY id`)
 	if err != nil {

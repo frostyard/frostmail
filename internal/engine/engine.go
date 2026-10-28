@@ -217,6 +217,14 @@ func (a accounts) Create(ctx context.Context, p *api.AccountCreateParams) (*api.
 	if err != nil {
 		return nil, err
 	}
+	// A secret store that cannot keep a secret fails the setup now, not the
+	// account's first sync (ADR-0046). Nothing is added.
+	if a.Secrets != nil {
+		if err := secrets.Probe(ctx, a.Secrets); err != nil {
+			a.Log.Warn("account.create: the secret store cannot keep a secret", "err", err)
+			return nil, api.Unavailable("no account was added: the secret store cannot keep a secret: %v", err)
+		}
+	}
 	in := store.Account{
 		Kind: p.Kind, Email: p.Email, DisplayName: p.DisplayName, Auth: p.Auth,
 		IMAP: toStoreServer(imapCfg), SMTP: toStoreServer(smtpCfg),

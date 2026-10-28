@@ -29,6 +29,10 @@ func TestExportCopiesTheDatabaseWithoutMigratingTheSource(t *testing.T) {
 	if err != nil || version != known {
 		t.Fatalf("SchemaVersion = %d, %v; want %d", version, err, known)
 	}
+	storeID, err := d.StoreID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := d.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -45,6 +49,9 @@ func TestExportCopiesTheDatabaseWithoutMigratingTheSource(t *testing.T) {
 	want := []ExportedAccount{{ID: 1, Email: "a@mailtest.test"}, {ID: 2, Email: "b@mailtest.test", OAuth: true}}
 	if snap.SchemaVersion != known || len(snap.Accounts) != 2 || snap.Accounts[0] != want[0] || snap.Accounts[1] != want[1] {
 		t.Fatalf("Export = %+v, want schema %d and %+v", snap, known, want)
+	}
+	if snap.StoreID != storeID {
+		t.Errorf("Snapshot.StoreID = %q, want %q", snap.StoreID, storeID)
 	}
 	if after, err := os.ReadFile(src); err != nil || !bytes.Equal(before, after) {
 		t.Errorf("the source file changed: %v", err)
@@ -72,5 +79,29 @@ func TestExportCopiesTheDatabaseWithoutMigratingTheSource(t *testing.T) {
 	}
 	if _, err := Export(ctx, src+"?x", filepath.Join(dir, "y.db")); err == nil {
 		t.Error("Export of a path with ? succeeded")
+	}
+}
+
+// A source with no store id row, or with no store_info table at all, exports
+// an empty id and is not changed.
+func TestExportWithoutAStoreID(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "frostmail.db")
+	d, err := Open(ctx, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap, err := Export(ctx, src, filepath.Join(dir, "a.db")); err != nil || snap.StoreID != "" {
+		t.Fatalf("Export with no row = %+v, %v; want an empty StoreID", snap, err)
+	}
+	if _, err := d.db.ExecContext(ctx, `DROP TABLE store_info`); err != nil {
+		t.Fatal(err)
+	}
+	if snap, err := Export(ctx, src, filepath.Join(dir, "b.db")); err != nil || snap.StoreID != "" {
+		t.Fatalf("Export with no table = %+v, %v; want an empty StoreID", snap, err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

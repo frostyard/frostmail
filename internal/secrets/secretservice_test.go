@@ -283,7 +283,7 @@ func openFake(t *testing.T) (*SecretService, *fakeSecrets) {
 	t.Helper()
 	addr := privateBus(t)
 	f := startFake(t, addr)
-	ss, err := OpenSecretService(t.Context(), connect(t, addr))
+	ss, err := OpenSecretService(t.Context(), connect(t, addr), Namespace{}, HostOptions().Hint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +364,7 @@ func TestOpenPicksAndMigrates(t *testing.T) {
 	}
 
 	// No service on the bus: the file store, untouched.
-	st, err := Open(t.Context(), file, log)
+	st, err := Open(t.Context(), file, log, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func TestOpenPicksAndMigrates(t *testing.T) {
 	}
 
 	f := startFake(t, addr)
-	st, err = Open(t.Context(), file, log)
+	st, err = Open(t.Context(), file, log, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +391,7 @@ func TestOpenPicksAndMigrates(t *testing.T) {
 	}
 
 	t.Setenv("FROSTMAIL_SECRETS", "file")
-	st, err = Open(t.Context(), file, log)
+	st, err = Open(t.Context(), file, log, HostOptions())
 	if _, ok := st.(*File); err != nil || !ok {
 		t.Errorf("FROSTMAIL_SECRETS=file gave %T, %v", st, err)
 	}
@@ -415,7 +415,7 @@ func TestOpenReaderReadsTheServiceThenTheLeftoverFileAndWritesNothing(t *testing
 	}
 
 	// No service on the bus: the file alone.
-	st, err := OpenReader(ctx, file)
+	st, err := OpenReader(ctx, file, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +427,7 @@ func TestOpenReaderReadsTheServiceThenTheLeftoverFileAndWritesNothing(t *testing
 	}
 
 	f := startFake(t, addr)
-	ss, err := OpenSecretService(ctx, connect(t, addr))
+	ss, err := OpenSecretService(ctx, connect(t, addr), Namespace{}, HostOptions().Hint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -436,7 +436,7 @@ func TestOpenReaderReadsTheServiceThenTheLeftoverFileAndWritesNothing(t *testing
 	}
 	serviceBefore := f.snapshot()
 
-	st, err = OpenReader(ctx, file)
+	st, err = OpenReader(ctx, file, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -468,7 +468,7 @@ func TestOpenReaderReadsTheServiceThenTheLeftoverFileAndWritesNothing(t *testing
 
 	// FROSTMAIL_SECRETS=file leaves the service alone.
 	t.Setenv("FROSTMAIL_SECRETS", "file")
-	st, err = OpenReader(ctx, file)
+	st, err = OpenReader(ctx, file, HostOptions())
 	if err != nil {
 		t.Fatal(err)
 	}

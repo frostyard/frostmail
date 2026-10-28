@@ -360,7 +360,9 @@ export interface AccountClient {
   get(params: AccountGetParams): Promise<Account>;
   /**
    * Add an account. The email address must be unique. Gmail and iCloud
-   * accounts may leave the servers out; their profiles fill them in.
+   * accounts may leave the servers out; their profiles fill them in. It first
+   * writes, reads back and deletes a probe secret, and fails with unavailable
+   * and adds nothing when the secret store cannot keep one.
    */
   create(params: AccountCreateParams): Promise<Account>;
   /** Change an account's settings. Omitted fields keep their values. */

@@ -16,6 +16,7 @@
     "--device=dri",
     "--share=network",
     "--talk-name=org.freedesktop.Notifications",
+    "--talk-name=org.freedesktop.secrets",
     "--filesystem=home:ro"
   ],
   "modules": [

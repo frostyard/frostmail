@@ -163,8 +163,15 @@ func runWith(ctx context.Context, args []string, serving func()) (err error) {
 	// keeps a development or test maild out of the user's keyring, and
 	// FROSTMAIL_SECRETS=sealed (a server) seals the file with a systemd
 	// credential's key. An Open error stops maild: it never falls back to
-	// a plain file (ADR-0044).
-	sec, err := secrets.Open(ctx, filepath.Join(paths.DataDir, "secrets.json"), logger)
+	// a plain file (ADR-0044). In the Flatpak the Secret Service items have
+	// the namespace of this database's store id, and with no Secret Service
+	// maild keeps no plain file (ADR-0046).
+	storeID, err := db.StoreID(ctx)
+	if err != nil {
+		return err
+	}
+	sec, err := secrets.Open(ctx, filepath.Join(paths.DataDir, "secrets.json"), logger,
+		secrets.OptionsFor(config.InFlatpak(os.Getenv), storeID))
 	if err != nil {
 		return err
 	}

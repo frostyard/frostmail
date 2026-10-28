@@ -25,7 +25,12 @@
 #   - a launcher that read "local" while app.json changed to lodge, whose
 #     maild exits 0 without making a database;
 #   - a socket where something accepts and never answers: the launcher still
-#     runs the app within a bound, and leaves no flatpak-spawn behind.
+#     runs the app within a bound, and leaves no flatpak-spawn behind;
+#   - a maild in the Flatpak with FROSTMAIL_SECRETS unset and no Secret
+#     Service (no session bus), which keeps no plain file: adding an account
+#     fails, its message names `flatpak override --user
+#     --env=FROSTMAIL_SECRETS=file org.frostyard.Frostmail`, and no account
+#     and no secrets.json are left (ADR-0046).
 #
 # The fake flatpak-spawn fails, and records the fault, when the launcher
 # calls it without --latest-version.
@@ -422,6 +427,46 @@ if [ -n "$spawned" ] && alive "$spawned"; then
     fail "flatpak-spawn $spawned outlived the launcher beside a socket that never answers"
 fi
 kill -KILL "$silent" 2>/dev/null || true
+
+# --- 9. No Secret Service, FROSTMAIL_SECRETS unset: the Flatpak's maild keeps
+# no plain file. It runs on a data directory and a socket of its own; adding
+# an account fails with the way to keep secrets in a file, and no account and
+# no secrets file are left behind (ADR-0046). The session bus is the missing
+# one of the environment above.
+secdata="$work/data-secrets"
+secsock="$work/secrets.sock"
+mkdir -p "$secdata"
+env -u FROSTMAIL_SECRETS XDG_DATA_HOME="$secdata" FROSTMAIL_SOCKET="$secsock" maild >"$work/secrets-maild.log" 2>&1 &
+secmaild=$!
+pids="$pids $secmaild"
+secctl() { mailctl --socket "$secsock" "$@"; }
+for _ in $(seq 1 40); do
+    secctl hello >/dev/null 2>&1 && break
+    sleep 0.5
+done
+secctl hello >/dev/null 2>&1 || {
+    cat "$work/secrets-maild.log" >&2
+    fail "the maild with no Secret Service did not answer within 20 s"
+}
+grep -q "no Secret Service" "$work/secrets-maild.log" || fail "the maild with no Secret Service did not log it"
+rc=0
+printf 'not-a-real-password\n' |
+    secctl account add smoke@mailtest.test --imap imap.mailtest.test:993/tls --smtp smtp.mailtest.test:587/starttls --password-stdin \
+        >"$work/secrets-add.out" 2>&1 || rc=$?
+[ "$rc" -ne 0 ] || fail "account add succeeded although no keyring can keep its password"
+# mailctl wraps a long error to the terminal's width: join its lines first.
+tr -s '[:space:]' ' ' <"$work/secrets-add.out" |
+    grep -q "flatpak override --user --env=FROSTMAIL_SECRETS=file org.frostyard.Frostmail" || {
+    cat "$work/secrets-add.out" >&2
+    fail "the failure does not name the flatpak override command"
+}
+if grep -q "not-a-real-password" "$work/secrets-add.out" "$work/secrets-maild.log"; then
+    fail "a password reached the output or the log"
+fi
+[ "$(secctl account list | grep -c '@')" -eq 0 ] || fail "an account was added although the probe failed"
+[ ! -e "$secdata/frostmail/secrets.json" ] || fail "the maild with no Secret Service made a secrets.json"
+secctl shutdown >/dev/null || fail "mailctl shutdown failed for the maild with no Secret Service"
+wait_gone "$secmaild" || fail "the maild with no Secret Service $secmaild did not stop"
 
 [ ! -e "$SMOKE_SPAWN_FAULT" ] || fail "the launcher called flatpak-spawn without --latest-version"
 

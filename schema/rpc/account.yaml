@@ -142,7 +142,9 @@ methods:
   - name: create
     doc: >-
       Add an account. The email address must be unique. Gmail and iCloud
-      accounts may leave the servers out; their profiles fill them in.
+      accounts may leave the servers out; their profiles fill them in. It
+      first writes, reads back and deletes a probe secret, and fails with
+      unavailable and adds nothing when the secret store cannot keep one.
     params:
       - {name: kind, type: AccountKind}
       - {name: email, type: string}
@@ -154,7 +156,7 @@ methods:
       - {name: notify, type: bool, optional: true, doc: "Default true."}
       - {name: syncDays, type: int, optional: true, doc: "Default 0: every message. At most 36500."}
     result: Account
-    errors: [invalidParams, conflict]
+    errors: [invalidParams, conflict, unavailable]
   - name: update
     doc: Change an account's settings. Omitted fields keep their values.
     params:

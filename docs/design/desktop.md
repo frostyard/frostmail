@@ -17,9 +17,10 @@ default, and keeps lodge as a connection the user chooses. The released
 Flatpak then never uses a host maild.
 [Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
 this document changes with each of its phases. Built so far (Phases 2 and
-3): [The Flatpak's own maild](#the-flatpaks-own-maild). Planned: the secrets
-in the Flatpak, Save As, the first-run and mode screens and the move from a
-host maild (Phases 4 to 7).
+3, and the secrets part of Phase 4, in review): [The Flatpak's own
+maild](#the-flatpaks-own-maild). Planned: the notification click, Save As,
+the first-run and mode screens and the move from a host maild (Phases 4 to
+7).
 
 ## Installing for one user
 
@@ -68,11 +69,12 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
   all 3 (in the nsl machine, with Go); CI fails when they are stale.
 - **Sandbox.** `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`,
   `--device=dri`, `--share=network`,
-  `--talk-name=org.freedesktop.Notifications` and `--filesystem=home:ro`.
+  `--talk-name=org.freedesktop.Notifications`,
+  `--talk-name=org.freedesktop.secrets` and `--filesystem=home:ro`.
   It no longer sees the host's socket directory or cache (ADR-0046).
-  `--talk-name=org.freedesktop.secrets` comes with the Flatpak's own keyring
-  namespace (plan 0013, Phase 4): until then maild keeps its secrets in its
-  file, as it does with no Secret Service.
+  The secrets permission goes with the Flatpak's own keyring namespace: see
+  [The Flatpak's own maild](#the-flatpaks-own-maild) and
+  [design/accounts.md](accounts.md#secrets).
 - **Tests.** The `maild` module runs `maild -version` and `mailctl --help`.
   The app module runs `cargo test --release --offline` (in its own session
   bus, as `make app-test` does), `desktop-file-validate`,
@@ -88,8 +90,8 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 
 Rationale: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
 The Flatpak runs its own maild, in local mode; lodge is a mode the user
-chooses. Built so far: the layout, the launcher, the lock and the update
-rule.
+chooses. Built so far: the layout, the launcher, the lock, the update rule
+and the secrets (the notification click of Phase 4 is not built).
 
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
@@ -131,11 +133,23 @@ rule.
   When the running maild's build differs from the latest installed
   deployment's, the launcher calls `mailctl shutdown` and starts the latest;
   when either is unknown, it keeps the maild that runs.
+- **Secrets.** maild keeps them in the Secret Service
+  (`--talk-name=org.freedesktop.secrets`), in a namespace of its own:
+  `application=org.frostyard.Frostmail`, `store=<store id>`, the id kept in
+  its database, so it never reads or replaces a host maild's items. With no
+  Secret Service and `FROSTMAIL_SECRETS` unset, maild keeps no plain file:
+  it runs, and adding an account (`account.create` probes the store first)
+  or any secret write fails with a message that names
+  `flatpak override --user --env=FROSTMAIL_SECRETS=file
+  org.frostyard.Frostmail`. A `secrets.json` that the Flatpak's maild kept
+  before this moves into the namespace once, when a Secret Service answers.
+  Details: [design/accounts.md](accounts.md#secrets).
 - **Tests.** `packaging/flatpak/smoke-test.sh` runs the launcher, maild and
   mailctl against a fake `flatpak-spawn`, with no portal, display or session
   bus: the socket, the lock, a write through mailctl, the replacement and
-  the keeping of a maild by build, lodge mode, the held launcher and the log's
-  turnover. `FROSTMAIL_BIN_DIR` points it at host-built binaries. The portals
+  the keeping of a maild by build, lodge mode, the held launcher, the log's
+  turnover, and a maild with no Secret Service that refuses to add an
+  account and keeps no secrets file. `FROSTMAIL_BIN_DIR` points it at host-built binaries. The portals
   themselves need the real-desktop checks of plan 0013.
 
 ## Application icon

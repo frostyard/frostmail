@@ -44,7 +44,7 @@ func openSealed(ctx context.Context, file string, log *slog.Logger) (Store, erro
 	if err != nil {
 		return nil, err
 	}
-	if err := migrate(ctx, NewFile(file), sealed); err != nil {
+	if _, err := migrate(ctx, NewFile(file), sealed); err != nil {
 		return nil, err
 	}
 	log.Info("secrets sealed with a systemd credential", "file", sealed.path)

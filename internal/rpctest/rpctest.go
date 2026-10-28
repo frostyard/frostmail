@@ -72,6 +72,10 @@ type Options struct {
 	OnAttended func(attended bool)
 	// Build is what rpc.hello reports as build (rpcserver.Options.Build).
 	Build string
+	// Secrets, when set, is the secret store the server's domains use
+	// (account.create's probe, sign-in, sync) in place of Server.Secrets,
+	// which stays the plain file; tests pass a store that fails.
+	Secrets secrets.Store
 	// Services, when set, may replace the engine's domains with fakes
 	// before the router is built, so a test can run the server against
 	// them.
@@ -137,18 +141,22 @@ func StartWith(t testing.TB, o Options) *Server {
 		Blobs:   blob.New(filepath.Join(data, "blobs")),
 		Parts:   &render.PartsCache{Root: filepath.Join(data, "parts")},
 	}
+	var sec secrets.Store = srv.Secrets
+	if o.Secrets != nil {
+		sec = o.Secrets
+	}
 	// Remote images are never fetched in tests: the renderer has no fetcher.
 	undo := o.UndoDelay
 	if undo == 0 {
 		undo = 50 * time.Millisecond
 	}
-	srv.OAuth = &oauth.Manager{DB: db, Secrets: srv.Secrets, Log: log, Endpoints: o.OAuthEndpoints}
+	srv.OAuth = &oauth.Manager{DB: db, Secrets: sec, Log: log, Endpoints: o.OAuthEndpoints}
 	if o.Lodge {
 		if srv.Content, err = lodge.NewContent(srv.Parts, srv.Blobs); err != nil {
 			t.Fatal(err)
 		}
 	}
-	deps := engine.Deps{DB: db, Secrets: srv.Secrets, Log: log, Blobs: srv.Blobs, Views: views,
+	deps := engine.Deps{DB: db, Secrets: sec, Log: log, Blobs: srv.Blobs, Views: views,
 		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery,
 		Unsubscriber: o.Unsubscriber}
 	if srv.Content != nil {
@@ -160,7 +168,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		if cfg.Now == nil {
 			cfg.Now = o.Now
 		}
-		srv.PIM = pimsync.New(db, srv.Secrets, log, cfg)
+		srv.PIM = pimsync.New(db, sec, log, cfg)
 		deps.PIM = srv.PIM
 	}
 	if o.Sync != nil {
@@ -172,7 +180,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		if o.Broadcast {
 			cfg.Announce = notify.Broadcast(broker.Publish)
 		}
-		srv.Sync = mailsync.New(db, srv.Secrets, srv.Blobs, log, cfg, broker.Publish)
+		srv.Sync = mailsync.New(db, sec, srv.Blobs, log, cfg, broker.Publish)
 		deps.Sync = srv.Sync
 		srv.OAuth.SignedIn = func(id int64) { _ = srv.Sync.Restart(context.Background(), id) }
 	}

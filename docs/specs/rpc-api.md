@@ -49,7 +49,7 @@ Errors: `notFound`.
 
 ### `account.create`
 
-Add an account. The email address must be unique. Gmail and iCloud accounts may leave the servers out; their profiles fill them in.
+Add an account. The email address must be unique. Gmail and iCloud accounts may leave the servers out; their profiles fill them in. It first writes, reads back and deletes a probe secret, and fails with unavailable and adds nothing when the secret store cannot keep one.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ Add an account. The email address must be unique. Gmail and iCloud accounts may 
 | `syncDays` | `int` (optional) | Default 0: every message. At most 36500. |
 
 Result: `Account`.
-Errors: `invalidParams`, `conflict`.
+Errors: `invalidParams`, `conflict`, `unavailable`.
 
 ### `account.update`
 
