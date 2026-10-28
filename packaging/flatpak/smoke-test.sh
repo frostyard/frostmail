@@ -151,6 +151,12 @@ if [ "${1:-}" = "frostmail" ]; then
     "$@" &
     echo "$!" >"$SMOKE_CHILD_PID"
     wait "$!"
+elif [ -n "${SMOKE_SPAWN_HANG_BUILD:-}" ] && [ "$*" = "maild -build" ]; then
+    # A portal that never answers, and ignores SIGTERM (the ignore passes on
+    # to sleep): only SIGKILL ends it.
+    trap '' TERM
+    echo "$$" >"$SMOKE_HANG_PID"
+    sleep 60
 else
     exec "$@"
 fi
@@ -170,7 +176,8 @@ SMOKE_CHILD_PID="$work/maild.pid"
 SMOKE_SPAWN_FAULT="$work/spawn.fault"
 SMOKE_LATEST_INFO="$work/info-latest"
 SMOKE_MARKS="$work/marks"
-export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_SPAWN_FAULT SMOKE_LATEST_INFO SMOKE_MARKS
+SMOKE_HANG_PID="$work/hang.pid"
+export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_SPAWN_FAULT SMOKE_LATEST_INFO SMOKE_MARKS SMOKE_HANG_PID
 export FROSTMAIL_LIBEXEC_DIR="$work/libexec"
 PATH="$work/bin:$bin:$PATH"
 export PATH
@@ -278,6 +285,22 @@ alive "$new" || fail "the maild was stopped when the latest build was unknown"
 mailctl hello >/dev/null || fail "the maild stopped answering when the latest build was unknown"
 SMOKE_LATEST_INFO="$work/info-latest"
 export SMOKE_LATEST_INFO
+
+# A latest-build query that hangs and ignores SIGTERM: the launcher's bound
+# kills it, keeps the running maild, and still runs the app.
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_MARKS/app"
+start="$(date +%s)"
+rc=0
+SMOKE_SPAWN_HANG_BUILD=1 timeout 40 "$bin/frostmail" >"$work/launcher.log" 2>&1 || rc=$?
+took=$(($(date +%s) - start))
+[ "$rc" -eq 0 ] || fail "the launcher exited $rc beside a latest-build query that hangs"
+[ "$took" -le 20 ] || fail "the launcher took $took s beside a latest-build query that hangs"
+[ -e "$SMOKE_MARKS/app" ] || fail "the launcher did not run the app beside a latest-build query that hangs"
+hung="$(cat "$SMOKE_HANG_PID" 2>/dev/null || true)"
+[ -n "$hung" ] || fail "the latest-build query did not reach the fake portal"
+wait_gone "$hung" || fail "the latest-build query $hung outlived the launcher"
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild when the latest build did not answer"
+alive "$new" || fail "the maild was stopped when the latest build did not answer"
 
 # --- 6. Lodge mode. Stop the maild first: a switch to lodge stops it.
 mailctl shutdown >/dev/null || fail "mailctl shutdown failed"

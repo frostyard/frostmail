@@ -61,7 +61,9 @@ if command -v timeout >/dev/null 2>&1; then
     bounded() {
         secs=$1
         shift
-        timeout "$secs" "$@"
+        # --kill-after: a command that catches SIGTERM, or a flatpak-spawn
+        # that forwards it to a portal call that hangs, gets SIGKILL 1 s on.
+        timeout --kill-after=1 "$secs" "$@"
     }
 else
     bounded() {

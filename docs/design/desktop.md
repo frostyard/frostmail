@@ -123,7 +123,7 @@ rule.
   only. Without `flatpak-spawn` it starts no maild. Every call that waits on
   maild or the portal is bounded (`timeout`: 2 s for a probe, 10 s for the
   latest build, 35 s for `mailctl shutdown`, about 10 s in all for the
-  start), so a maild that never answers cannot keep the window from
+  start; `SIGKILL` 1 s after a `SIGTERM` that does not end the call), so a maild that never answers cannot keep the window from
   starting, and no `flatpak-spawn` outlives the launcher. The state
   directory and the logs are made private (0700, 0600).
 - **Updates replace the engine, only forward.** `rpc.hello`'s `build` (and
