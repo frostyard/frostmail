@@ -29,11 +29,14 @@ func newShutdownCmd(opts *rootOptions) *cobra.Command {
 		Use:   "shutdown",
 		Short: "Stop maild and wait until it no longer answers",
 		Long: `Call rpc.shutdown, which makes maild finish the work in hand, release its
-data directory's lock and exit, then wait up to 30 seconds in all: until the
-socket no longer answers rpc.hello, and until it can take the data
-directory's lock itself, which it releases at once. It exits 0 once maild has
-stopped, or at once when no maild answers ("maild is not running"), and
-non-zero when maild still answers or still holds the lock after 30 seconds.`,
+data directory's lock and exit, then wait for it, 30 seconds in all (the
+calls and probes too): until the socket no longer answers rpc.hello, and until
+shutdown can take the data directory's lock itself, which it releases at once.
+That also holds when nothing answers at first: a maild that is starting or
+stopping holds the lock, and shutdown waits for it, and asks it to stop again
+if it begins to answer. It exits 0 once the socket is silent and the lock is
+free: with "maild is not running" when nothing answered and the lock was free
+at once, else "maild stopped". It exits non-zero when 30 seconds pass first.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			socket, err := opts.socketPath()
@@ -56,60 +59,87 @@ non-zero when maild still answers or still holds the lock after 30 seconds.`,
 	}
 }
 
-// runShutdown stops the maild on socket and waits up to wait, in all, for it
-// to stop answering rpc.hello and then to let go of dataDir's lock: a maild
-// that has closed its socket can still be finishing its last transaction.
-func runShutdown(ctx context.Context, w io.Writer, socket, dataDir string, wait time.Duration) error {
-	c, _, err := api.Dial(ctx, socket, "mailctl shutdown "+version)
-	if err != nil {
+// runShutdown stops the maild on socket, within wait in all: one deadline
+// covers the dial, rpc.shutdown, every probe and the wait for the lock. It
+// repeats until the socket does not answer rpc.hello and dataDir's lock is
+// free, and then exits 0. Each round:
+//   - a maild that answers is asked to stop (again, when it still answers
+//     after an earlier ask);
+//   - when nothing answers, the lock is tried: a maild that has closed its
+//     socket can still be finishing its last transaction, and one that is
+//     starting holds the lock before it listens. A held lock is waited for.
+//
+// "maild is not running" means nothing answered and the lock was free at
+// once.
+func runShutdown(parent context.Context, w io.Writer, socket, dataDir string, wait time.Duration) error {
+	ctx, cancel := context.WithTimeout(parent, wait)
+	defer cancel()
+	var (
+		asked    bool // a maild answered and was told to stop
+		lockHeld bool // the lock was held at some round
+		asking   bool // inside the rpc.shutdown call
+	)
+	// stuck is the error for the deadline: what was still true when it came.
+	stuck := func() error {
+		switch {
+		case parent.Err() != nil:
+			return parent.Err()
+		case asking:
+			return fmt.Errorf("maild did not answer rpc.shutdown on %s within %s: %w", socket, wait, context.DeadlineExceeded)
+		case lockHeld:
+			return fmt.Errorf("maild still holds the lock of %s after %s: %w", dataDir, wait, context.DeadlineExceeded)
+		case asked:
+			return fmt.Errorf("maild still answers on %s after %s: %w", socket, wait, context.DeadlineExceeded)
+		}
+		return fmt.Errorf("maild did not answer on %s within %s: %w", socket, wait, context.DeadlineExceeded)
+	}
+	// timedOut is true once the deadline has come. A dial or a read stops at
+	// the deadline a moment before the context reports it, and that error
+	// must not count as "nothing answers".
+	limit, _ := ctx.Deadline()
+	timedOut := func() bool { return ctx.Err() != nil || !time.Now().Before(limit) }
+	tick := time.NewTicker(shutdownPoll)
+	defer tick.Stop()
+	for {
+		c, _, err := api.Dial(ctx, socket, "mailctl shutdown "+version)
 		var rpcErr *api.Error
-		if errors.As(err, &rpcErr) {
+		switch {
+		case err == nil:
+			asking = true
+			err = c.RPC().Shutdown(ctx, &api.RPCShutdownParams{})
+			_ = c.Close()
+			if timedOut() {
+				return stuck() // still asking
+			}
+			if err != nil {
+				return fmt.Errorf("rpc.shutdown: %w", err)
+			}
+			asking, asked = false, true
+		case errors.As(err, &rpcErr):
 			return err // something answers, but not as maild does
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		fmt.Fprintln(w, "maild is not running")
-		return nil
-	}
-	err = c.RPC().Shutdown(ctx, &api.RPCShutdownParams{})
-	_ = c.Close()
-	if err != nil {
-		return fmt.Errorf("rpc.shutdown: %w", err)
-	}
-	deadline := time.NewTimer(wait)
-	defer deadline.Stop()
-	// until retries try every shutdownPoll, and says whether it succeeded
-	// before the deadline; its error is the one to report.
-	until := func(try func() (bool, error), timeout error) error {
-		tick := time.NewTicker(shutdownPoll)
-		defer tick.Stop()
-		for {
-			done, err := try()
-			if err != nil || done {
+		case timedOut():
+			return stuck()
+		default: // nothing answers: only the lock is left to wait for
+			free, err := lockFree(dataDir)
+			if err != nil {
 				return err
 			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-deadline.C:
-				return timeout
-			case <-tick.C:
+			if free {
+				if asked || lockHeld {
+					fmt.Fprintln(w, "maild stopped")
+				} else {
+					fmt.Fprintln(w, "maild is not running")
+				}
+				return nil
 			}
+			lockHeld = true
+		}
+		select {
+		case <-ctx.Done():
+			return stuck()
+		case <-tick.C:
 		}
 	}
-	err = until(func() (bool, error) { return !maildAnswers(ctx, socket), ctx.Err() },
-		fmt.Errorf("maild still answers on %s after %s", socket, wait))
-	if err != nil {
-		return err
-	}
-	err = until(func() (bool, error) { return lockFree(dataDir) },
-		fmt.Errorf("maild still holds the lock of %s after %s", dataDir, wait))
-	if err != nil {
-		return err
-	}
-	fmt.Fprintln(w, "maild stopped")
-	return nil
 }
 
 // lockFree takes dataDir's lock without waiting and releases it at once. A

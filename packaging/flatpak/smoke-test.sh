@@ -4,6 +4,8 @@
 # launcher, maild and mailctl as the Flatpak does, with fakes for what the
 # build sandbox lacks: no portal, no display, no session bus. It covers:
 #
+#   - the state directory and the logs the launcher makes, private (0700,
+#     0600), and a launcher whose flatpak-spawn fails still runs the app;
 #   - the socket in the app's shared runtime directory, and a log over 1 MiB
 #     that turns over;
 #   - a second maild on the same data directory, with another socket, that
@@ -18,7 +20,12 @@
 #     nothing, a normal start starts no maild and asks no portal, and a
 #     maild run directly exits 0 without making a database;
 #   - a launcher that read "local" while app.json changed to lodge, whose
-#     maild exits 0 without making a database.
+#     maild exits 0 without making a database;
+#   - a socket where something accepts and never answers: the launcher still
+#     runs the app within a bound, and leaves no flatpak-spawn behind.
+#
+# The fake flatpak-spawn fails, and records the fault, when the launcher
+# calls it without --latest-version.
 #
 # FROSTMAIL_BIN_DIR is where frostmail (the launcher), maild and mailctl
 # are; the default is the Flatpak's /app/bin. The test cleans up after itself.
@@ -31,7 +38,9 @@ work="$(mktemp -d)"
 pids=
 cleanup() {
     for p in $pids; do
-        kill -TERM "$p" 2>/dev/null || true
+        if alive "$p"; then
+            kill -TERM "$p" 2>/dev/null || true
+        fi
     done
     # maild is not this shell's child (flatpak-spawn started it): give it up
     # to 10 s before its directories go.
@@ -40,6 +49,9 @@ cleanup() {
             alive "$p" || break
             sleep 0.25
         done
+        if alive "$p"; then
+            kill -KILL "$p" 2>/dev/null || true
+        fi
     done
     rm -rf "$work"
 }
@@ -60,7 +72,7 @@ alive() {
 
 fail() {
     echo "smoke test: $*" >&2
-    for f in "$log.1" "$log" "$work/launcher.log"; do
+    for f in "$SMOKE_SPAWN_FAULT" "$log.1" "$log" "$work/launcher.log"; do
         if [ -f "$f" ]; then
             echo "--- $f" >&2
             tail -n 30 "$f" | tr -d '\000' >&2 || true
@@ -123,12 +135,19 @@ unset FROSTMAIL_SOCKET FROSTMAIL_DATA_DIR FROSTMAIL_CACHE_DIR FROSTMAIL_FLATPAK_
 # a marker, and exit at once.
 cat >"$work/bin/flatpak-spawn" <<'FAKE'
 #!/bin/sh
-if [ "${1:-}" = "--latest-version" ]; then
-    shift
+# The launcher must ask for the latest deployment (ADR-0046): without the
+# flag, the real portal would run the window's own, perhaps old, build.
+if [ "${1:-}" != "--latest-version" ]; then
+    echo "fake flatpak-spawn: called without --latest-version: $*" | tee -a "$SMOKE_SPAWN_FAULT" >&2
+    exit 2
 fi
+shift
 export FROSTMAIL_FLATPAK_INFO="$SMOKE_LATEST_INFO"
 if [ "${1:-}" = "frostmail" ]; then
     echo "$$" >"$SMOKE_SPAWN_PID"
+    if [ -n "${SMOKE_SPAWN_FAIL:-}" ]; then
+        exit 1
+    fi
     "$@" &
     echo "$!" >"$SMOKE_CHILD_PID"
     wait "$!"
@@ -148,9 +167,10 @@ chmod +x "$work/bin/flatpak-spawn" "$work/libexec/frostmail-app" "$work/libexec/
 mkdir -p "$work/marks"
 SMOKE_SPAWN_PID="$work/spawn.pid"
 SMOKE_CHILD_PID="$work/maild.pid"
+SMOKE_SPAWN_FAULT="$work/spawn.fault"
 SMOKE_LATEST_INFO="$work/info-latest"
 SMOKE_MARKS="$work/marks"
-export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_LATEST_INFO SMOKE_MARKS
+export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_SPAWN_FAULT SMOKE_LATEST_INFO SMOKE_MARKS
 export FROSTMAIL_LIBEXEC_DIR="$work/libexec"
 PATH="$work/bin:$bin:$PATH"
 export PATH
@@ -169,6 +189,20 @@ FAKE
 chmod +x "$work/held/maild"
 
 socket="$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock"
+
+# --- 0. The launcher makes the state directory and its logs private, with the
+# umask a login session has, and runs the app although flatpak-spawn fails.
+rm -rf "$state"
+umask 022
+SMOKE_SPAWN_FAIL=1 "$bin/frostmail" >"$work/launcher.log" 2>&1
+unset SMOKE_SPAWN_FAIL
+wait_file "$SMOKE_MARKS/app" || fail "the launcher did not run the app when flatpak-spawn failed"
+[ "$(stat -c %a "$state")" = "700" ] || fail "the state directory has mode $(stat -c %a "$state"), not 700"
+[ "$(stat -c %a "$log")" = "600" ] || fail "maild.log has mode $(stat -c %a "$log"), not 600"
+[ "$(stat -c %a "$state/background.log")" = "600" ] || fail "background.log has mode $(stat -c %a "$state/background.log"), not 600"
+grep -q "did not start" "$log" || fail "the launcher did not log that maild did not start"
+mailctl hello >/dev/null 2>&1 && fail "a maild answers although flatpak-spawn failed"
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
 
 # --- 1. A maild from an older build, and a log over 1 MiB that turns over.
 info "$work/info-old" oldcommit
@@ -290,5 +324,44 @@ if mailctl hello >/dev/null 2>&1; then
 fi
 [ "$(grep -c lodge "$config/app.json")" -eq 1 ] || fail "app.json did not change to lodge"
 
-pids=
+# --- 8. Something accepts on the socket and never answers: the launcher ends
+# its probes, starts what it can, and still runs the app within a bound, with
+# no flatpak-spawn left behind.
+rm -f "$config/app.json"
+[ "$(maild -mode)" = "local" ] || fail "maild -mode is not local after app.json was removed"
+mkdir -p "$(dirname "$socket")"
+rm -f "$socket"
+python3 - "$socket" <<'PY' &
+import os, socket, sys
+
+s = socket.socket(socket.AF_UNIX)
+s.bind(sys.argv[1])
+s.listen(8)
+held = []
+while True:
+    conn, _ = s.accept()
+    held.append(conn)
+PY
+silent=$!
+pids="$pids $silent"
+wait_file "$socket" || fail "the fake socket did not appear"
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
+started=$(date +%s)
+rc=0
+timeout 40 "$bin/frostmail" >"$work/launcher.log" 2>&1 || rc=$?
+elapsed=$(($(date +%s) - started))
+[ "$rc" -eq 0 ] || fail "the launcher exited with $rc beside a socket that never answers (after $elapsed s)"
+[ "$elapsed" -lt 30 ] || fail "the launcher took $elapsed s beside a socket that never answers"
+[ -e "$SMOKE_MARKS/app" ] || fail "the launcher did not run the app beside a socket that never answers"
+if [ -s "$SMOKE_CHILD_PID" ]; then
+    pids="$pids $(cat "$SMOKE_CHILD_PID")"
+fi
+spawned="$(cat "$SMOKE_SPAWN_PID" 2>/dev/null || true)"
+if [ -n "$spawned" ] && alive "$spawned"; then
+    fail "flatpak-spawn $spawned outlived the launcher beside a socket that never answers"
+fi
+kill -KILL "$silent" 2>/dev/null || true
+
+[ ! -e "$SMOKE_SPAWN_FAULT" ] || fail "the launcher called flatpak-spawn without --latest-version"
+
 echo "smoke test passed"

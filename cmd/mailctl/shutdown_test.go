@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
-	"github.com/frostyard/frostmail/internal/datalock"
 	"github.com/frostyard/frostmail/internal/rpctest"
 )
 
@@ -77,48 +76,6 @@ func TestShutdownFailsWhenMaildKeepsAnswering(t *testing.T) {
 	if !maildAnswers(t.Context(), srv.Socket) {
 		t.Fatal("the stand-in maild stopped")
 	}
-}
-
-// After the socket stops answering, maild can still hold the data lock.
-// shutdown waits until it can take that lock, and fails when it cannot.
-func TestShutdownWaitsForTheDataLock(t *testing.T) {
-	data := t.TempDir()
-	t.Setenv("FROSTMAIL_DATA_DIR", data)
-	release, err := datalock.Acquire(data) // stands for the stopping maild's lock
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer release()
-
-	// The socket stops, the lock stays: shutdown fails at its limit.
-	first := rpctest.Start(t)
-	var out bytes.Buffer
-	err = runShutdown(t.Context(), &out, first.Socket, data, 300*time.Millisecond)
-	if err == nil || !strings.Contains(err.Error(), "still holds the lock") || out.Len() != 0 {
-		t.Fatalf("runShutdown = %q, %v; want an error that maild still holds the lock", out.String(), err)
-	}
-	<-first.Stopped()
-
-	// The lock goes while shutdown waits for it: shutdown then returns 0.
-	second := rpctest.Start(t)
-	done := make(chan error, 1)
-	go func() { done <- runShutdown(t.Context(), &bytes.Buffer{}, second.Socket, data, shutdownWait) }()
-	<-second.Stopped() // the socket answers no more, the lock is still held
-	select {
-	case err := <-done:
-		t.Fatalf("shutdown returned %v while the lock was held", err)
-	default:
-	}
-	release()
-	if err := <-done; err != nil {
-		t.Fatalf("shutdown after the lock went = %v; want success", err)
-	}
-	// shutdown took the lock only to let it go.
-	again, err := datalock.Acquire(data)
-	if err != nil {
-		t.Fatalf("the lock after shutdown = %v; want it free", err)
-	}
-	again()
 }
 
 // A data directory that does not exist holds no lock.

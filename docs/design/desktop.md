@@ -120,7 +120,12 @@ rule.
   `flatpak-spawn` with `SIGKILL`, so the maild of the new sandbox outlives
   the window. It then asks the Background portal to run `frostmail
   --background` at login, and `exec`s the app. In lodge mode it runs the app
-  only. Without `flatpak-spawn` it starts no maild.
+  only. Without `flatpak-spawn` it starts no maild. Every call that waits on
+  maild or the portal is bounded (`timeout`: 2 s for a probe, 10 s for the
+  latest build, 35 s for `mailctl shutdown`, about 10 s in all for the
+  start), so a maild that never answers cannot keep the window from
+  starting, and no `flatpak-spawn` outlives the launcher. The state
+  directory and the logs are made private (0700, 0600).
 - **Updates replace the engine, only forward.** `rpc.hello`'s `build` (and
   `maild -build`) is the `app-commit` of the instance's `/.flatpak-info`.
   When the running maild's build differs from the latest installed

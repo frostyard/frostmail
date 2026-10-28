@@ -53,6 +53,40 @@ request_background="$libexec/frostmail-request-background"
 
 state="${XDG_STATE_HOME:-$HOME/.local/state}/frostmail"
 
+# bounded SECONDS COMMAND...: run the command for at most SECONDS (coreutils
+# timeout, which the GNOME runtime has). Every call that waits on maild or
+# on the portal goes through it, so a maild that accepts and never answers,
+# or a portal that hangs, never keeps the window from starting.
+if command -v timeout >/dev/null 2>&1; then
+    bounded() {
+        secs=$1
+        shift
+        timeout "$secs" "$@"
+    }
+else
+    bounded() {
+        shift
+        "$@"
+    }
+fi
+
+# hello: true when a maild answers within 2 s.
+hello() {
+    bounded 2 mailctl hello >/dev/null 2>&1
+}
+
+# prepare_state: the state directory and the logs, private (0700 and 0600),
+# whatever the umask: the shell's redirects would make a missing log 0644.
+# A subshell keeps the umask of the app and of maild as it is.
+prepare_state() {
+    (
+        umask 077
+        mkdir -p "$state"
+        : >>"$state/maild.log"
+        : >>"$state/background.log"
+    )
+}
+
 # The mode: local or lodge. When maild cannot say (a malformed app.json, no
 # maild), the launcher treats it as local; maild's own check decides.
 mode=$(maild -mode 2>/dev/null) || mode=local
@@ -61,7 +95,7 @@ if [ "${1:-}" = "--background" ]; then
     if [ "$mode" = "lodge" ]; then
         exit 0
     fi
-    mkdir -p "$state"
+    prepare_state
     # maild rotates the log itself, with -log, once it holds the data
     # directory's lock: a shell check cannot tell 2 launchers apart, and a
     # duplicate must not move the log of the maild that runs. The redirect
@@ -76,7 +110,7 @@ if [ "$mode" = "lodge" ]; then
     exec "$app" "$@"
 fi
 
-mkdir -p "$state"
+prepare_state
 
 have_spawn=
 if command -v flatpak-spawn >/dev/null 2>&1; then
@@ -86,17 +120,18 @@ fi
 # An update replaces the engine, only forward: when the running maild's build
 # is not the latest installed one, stop it. `mailctl shutdown` returns once
 # maild has released the data directory's lock, so the maild started below
-# can take it at once. Either build empty, or a failed call, keeps the maild
-# that runs.
-if mailctl hello >/dev/null 2>&1 && [ -n "$have_spawn" ]; then
-    running=$(mailctl hello --build 2>/dev/null) || running=
-    latest=$(flatpak-spawn --latest-version maild -build 2>/dev/null) || latest=
+# can take it at once. Either build empty, or a failed or late call, keeps
+# the maild that runs. The calls are bounded: 2 s for a probe, 10 s for the
+# latest build's query, 35 s for the shutdown (mailctl's own limit is 30 s).
+if hello && [ -n "$have_spawn" ]; then
+    running=$(bounded 2 mailctl hello --build 2>/dev/null) || running=
+    latest=$(bounded 10 flatpak-spawn --latest-version maild -build 2>/dev/null) || latest=
     if [ -n "$running" ] && [ -n "$latest" ] && [ "$running" != "$latest" ]; then
-        mailctl shutdown >>"$state/maild.log" 2>&1 || true
+        bounded 35 mailctl shutdown >>"$state/maild.log" 2>&1 || true
     fi
 fi
 
-if ! mailctl hello >/dev/null 2>&1; then
+if ! hello; then
     spawned=
     if [ -n "$have_spawn" ]; then
         # No --watch-bus: the spawned maild must outlive this sandbox. It
@@ -104,27 +139,28 @@ if ! mailctl hello >/dev/null 2>&1; then
         flatpak-spawn --latest-version frostmail --background </dev/null >>"$state/maild.log" 2>&1 &
         spawned=$!
     fi
-    # Wait, for about 10 s, until that maild answers.
-    tries=0
-    while [ "$tries" -lt 20 ]; do
-        if mailctl hello >/dev/null 2>&1; then
+    # Wait, for about 10 s in all, until that maild answers. The deadline is
+    # the clock's, since each probe may take up to 2 s.
+    deadline=$(($(date +%s) + 10))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        if hello; then
             break
         fi
         if [ -z "$spawned" ] || ! kill -0 "$spawned" 2>/dev/null; then
             break
         fi
-        tries=$((tries + 1))
         sleep 0.5
     done
     # flatpak-spawn forwards catchable signals (TERM, INT, HUP) to the
     # command it spawned, so only SIGKILL ends flatpak-spawn alone; without
     # --watch-bus the portal keeps the spawned maild, and maild already
-    # holds its own stdout and stderr.
-    if [ -n "$spawned" ] && kill -0 "$spawned" 2>/dev/null; then
+    # holds its own stdout and stderr. This runs on every path before the
+    # app starts: no flatpak-spawn outlives the launcher.
+    if [ -n "$spawned" ]; then
         kill -KILL "$spawned" 2>/dev/null
         wait "$spawned" 2>/dev/null
     fi
-    if ! mailctl hello >/dev/null 2>&1; then
+    if ! hello; then
         msg="frostmail: maild did not start through the Flatpak portal (flatpak-spawn); see $state/maild.log"
         echo "$msg" >&2
         echo "$msg" >>"$state/maild.log"
