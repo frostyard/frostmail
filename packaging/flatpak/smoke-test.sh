@@ -16,6 +16,9 @@
 #   - a running maild whose build differs from the latest one, which the
 #     launcher stops and replaces, and one whose build is equal, or whose
 #     latest build is unknown, which it keeps;
+#   - a latest-build query that hangs, and one that leaves a detached process
+#     holding its output, as a stalled portal does: the launcher keeps the
+#     maild and runs the app within its bounds, and leaves no file behind;
 #   - app.json naming lodge: `frostmail --background` exits 0 and starts
 #     nothing, a normal start starts no maild and asks no portal, and a
 #     maild run directly exits 0 without making a database;
@@ -37,6 +40,10 @@ bin="${FROSTMAIL_BIN_DIR:-/app/bin}"
 work="$(mktemp -d)"
 pids=
 cleanup() {
+    # The detached process of the stalled-portal case, when it still runs.
+    if [ -s "$work/detached.pid" ]; then
+        kill -KILL "$(cat "$work/detached.pid")" 2>/dev/null || true
+    fi
     for p in $pids; do
         if alive "$p"; then
             kill -TERM "$p" 2>/dev/null || true
@@ -157,6 +164,12 @@ elif [ -n "${SMOKE_SPAWN_HANG_BUILD:-}" ] && [ "$*" = "maild -build" ]; then
     trap '' TERM
     echo "$$" >"$SMOKE_HANG_PID"
     sleep 60
+elif [ -n "${SMOKE_SPAWN_DETACH:-}" ] && [ "$*" = "maild -build" ]; then
+    # A process in a session of its own that keeps this command's output open
+    # and says nothing, as the portal's new sandbox does; the query itself
+    # ends. The launcher's timeout cannot reach it.
+    setsid sh -c 'echo $$ >"$1"; exec sleep 60' sh "$SMOKE_DETACHED_PID" &
+    exit 0
 else
     exec "$@"
 fi
@@ -177,7 +190,8 @@ SMOKE_SPAWN_FAULT="$work/spawn.fault"
 SMOKE_LATEST_INFO="$work/info-latest"
 SMOKE_MARKS="$work/marks"
 SMOKE_HANG_PID="$work/hang.pid"
-export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_SPAWN_FAULT SMOKE_LATEST_INFO SMOKE_MARKS SMOKE_HANG_PID
+SMOKE_DETACHED_PID="$work/detached.pid"
+export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_SPAWN_FAULT SMOKE_LATEST_INFO SMOKE_MARKS SMOKE_HANG_PID SMOKE_DETACHED_PID
 export FROSTMAIL_LIBEXEC_DIR="$work/libexec"
 PATH="$work/bin:$bin:$PATH"
 export PATH
@@ -301,6 +315,30 @@ hung="$(cat "$SMOKE_HANG_PID" 2>/dev/null || true)"
 wait_gone "$hung" || fail "the latest-build query $hung outlived the launcher"
 [ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild when the latest build did not answer"
 alive "$new" || fail "the maild was stopped when the latest build did not answer"
+
+# A latest-build query that leaves a detached process on its output and prints
+# no build, as a stalled portal does: the launcher does not wait for that
+# process, keeps the maild, and runs the app, all within 20 s (the query's
+# bound is 10 s). The outer timeout only ends a launcher that hangs.
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_MARKS/app"
+start="$(date +%s)"
+rc=0
+SMOKE_SPAWN_DETACH=1 timeout 40 "$bin/frostmail" >"$work/launcher.log" 2>&1 || rc=$?
+took=$(($(date +%s) - start))
+detached="$(cat "$SMOKE_DETACHED_PID" 2>/dev/null || true)"
+if [ -z "$detached" ] || ! alive "$detached"; then
+    fail "the latest-build query did not leave its detached process"
+fi
+[ "$rc" -eq 0 ] || fail "the launcher exited $rc beside a detached process on the query's output"
+[ "$took" -le 20 ] || fail "the launcher took $took s beside a detached process on the query's output"
+[ -e "$SMOKE_MARKS/app" ] || fail "the launcher did not run the app beside a detached process on the query's output"
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild beside a detached process on the query's output"
+alive "$new" || fail "the maild was stopped beside a detached process on the query's output"
+mailctl hello >/dev/null || fail "the maild stopped answering beside a detached process on the query's output"
+if ls "$state"/latest-build.* >/dev/null 2>&1; then
+    fail "the launcher left a latest-build file in $state"
+fi
+kill -KILL "$detached" 2>/dev/null || true
 
 # --- 6. Lodge mode. Stop the maild first: a switch to lodge stops it.
 mailctl shutdown >/dev/null || fail "mailctl shutdown failed"
