@@ -560,9 +560,18 @@ function AccountsPane() {
         if (value.auth === "password" && value.password !== "")
           await client.account.setPassword({ id: a.id, password: value.password });
         const serviceError = await enableServices(client, a.id, value.services ?? []);
-        if (value.auth === "oauth2") await startSignIn(a.id);
+        // Only the sign-in step can mean a missing OAuth client. A create or
+        // password failure keeps maild's own message, such as the secret
+        // store's.
+        if (value.auth === "oauth2") {
+          try {
+            await startSignIn(a.id);
+          } catch (err) {
+            throw new Error(noClient(err) ?? message(err));
+          }
+        }
         if (serviceError) throw new Error(serviceError);
-      }, noClient);
+      });
     } else if (account) {
       void run(async () => {
         const a = await client.account.update({
