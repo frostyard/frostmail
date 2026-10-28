@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -143,7 +144,14 @@ func TestStagedLayout(t *testing.T) {
 			t.Errorf("usr/bin/%s mode %v, want 0755", b, fi.Mode().Perm())
 		}
 	}
-	units := []string{"frostmail.service", "frostmail.socket"}
+	const keyUnit = "frostmail-secrets-key.service"
+	const keyCond = "ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key"
+	units := []string{"frostmail.service", "frostmail.socket", keyUnit}
+	if fi, err := os.Stat(filepath.Join(root, "usr/libexec/frostmail/make-secrets-key")); err != nil {
+		t.Errorf("the key script is not staged: %v", err)
+	} else if fi.Mode().Perm() != 0o755 {
+		t.Errorf("the key script mode %v, want 0755", fi.Mode().Perm())
+	}
 	for _, f := range append([]string{"usr/lib/sysusers.d/frostmail.conf", "usr/share/lodge/apps/mail/web/index.html",
 		"usr/share/lodge/apps/mail/web/icon.svg"}, prefixed("usr/lib/systemd/system/", units)...) {
 		if _, err := os.Stat(filepath.Join(root, f)); err != nil {
@@ -161,21 +169,55 @@ func TestStagedLayout(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		upheld := u != keyUnit
+		var conds []string
+		var requires, after []string
+		var oneshot, install bool
 		for _, l := range strings.Split(string(b), "\n") {
 			switch {
 			case strings.HasPrefix(l, "RequiredBy="):
 				t.Errorf("%s has %q (core ADR-0030)", u, l)
 			case strings.HasPrefix(l, "Condition"):
-				t.Errorf("%s has %q (an upheld unit with an unmet condition is retried forever)", u, l)
+				conds = append(conds, l)
+			case l == "[Install]":
+				install = true
+			case l == "Type=oneshot":
+				oneshot = true
+			case strings.HasPrefix(l, "Requires="):
+				requires = append(requires, strings.Fields(strings.TrimPrefix(l, "Requires="))...)
+			case strings.HasPrefix(l, "After="):
+				after = append(after, strings.Fields(strings.TrimPrefix(l, "After="))...)
 			case strings.HasSuffix(u, ".socket") && strings.HasPrefix(l, "DefaultDependencies="):
 				t.Errorf("%s has %q; a socket keeps its default dependencies", u, l)
 			case strings.HasSuffix(u, ".service") && strings.HasPrefix(l, "ExecStart="):
 				bin := strings.Fields(strings.TrimPrefix(l, "ExecStart="))[0]
-				if filepath.Dir(bin) != "/usr/bin" {
-					t.Errorf("%s ExecStart %q is not in /usr/bin", u, bin)
+				if d := filepath.Dir(bin); d != "/usr/bin" && (u != keyUnit || d != "/usr/libexec/frostmail") {
+					t.Errorf("%s ExecStart %q is not in /usr/bin (or /usr/libexec/frostmail for the key unit)", u, bin)
 				} else if _, err := os.Stat(filepath.Join(root, bin)); err != nil {
 					t.Errorf("%s runs %s, which the script does not stage: %v", u, bin, err)
 				}
+			}
+		}
+		if upheld && len(conds) > 0 {
+			t.Errorf("%s has %q (an upheld unit with an unmet condition is retried forever)", u, conds)
+		}
+		if u == keyUnit {
+			if len(conds) != 1 || conds[0] != keyCond {
+				t.Errorf("%s conditions %q, want exactly %q", u, conds, keyCond)
+			}
+			if !oneshot {
+				t.Errorf("%s is not Type=oneshot", u)
+			}
+			if install || strings.Contains(string(b), "WantedBy=") || strings.Contains(string(b), "UpheldBy=") {
+				t.Errorf("%s has an [Install] section or a WantedBy=, RequiredBy= or UpheldBy= line: it is pulled, never upheld", u)
+			}
+		}
+		if u == "frostmail.service" {
+			if !slices.Contains(requires, keyUnit) {
+				t.Errorf("%s Requires= %q lacks %s", u, requires, keyUnit)
+			}
+			if !slices.Contains(after, keyUnit) {
+				t.Errorf("%s After= %q lacks %s", u, after, keyUnit)
 			}
 		}
 	}
@@ -223,7 +265,7 @@ func TestStagedLayout(t *testing.T) {
 		}
 		write(t, filepath.Join(dir, u), strings.Join(ls, "\n"))
 	}
-	cmd := exec.Command(analyze, "verify", "./frostmail.socket", "./frostmail.service")
+	cmd := exec.Command(analyze, "verify", "./frostmail.socket", "./frostmail.service", "./"+keyUnit)
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Errorf("systemd-analyze verify: %v\n%s", err, out)

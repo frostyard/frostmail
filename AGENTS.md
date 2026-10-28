@@ -31,8 +31,9 @@ and each milestone's plan carries its own status. M8, mail in lodge
   built (`mailctl export`, `scripts/move-mail-to-lodge.sh`), and so is the
   sealed secrets store of [ADR-0044](docs/adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
   (`FROSTMAIL_SECRETS=sealed`, a key from a systemd credential, made by
-  `scripts/seal-mail-secrets.sh`). The key step on lodge's host and the
-  move wait on the user.
+  `frostmail-secrets-key.service` at first start, [ADR-0047](docs/adr/0047-make-the-secrets-key-at-first-start.md);
+  `scripts/seal-mail-secrets.sh` can make it earlier). The move waits on
+  the user.
 
 M8.5 ([plan 0012](docs/plans/0012-calendar-tasks-and-contacts-for-agents.md)),
 calendar, task and contact tools on `/mcp/mail` for Porter, is built and

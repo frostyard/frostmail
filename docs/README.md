@@ -62,6 +62,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0044 — On a server, maild seals its secrets file with a key from a systemd credential](adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
 - [0045 — The desktop app builds as a Flatpak in CI](adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)
 - [0046 — The desktop Flatpak carries its own maild; lodge is a connection the user chooses](adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
+- [0047 — The .deb makes the secrets key at first start](adr/0047-make-the-secrets-key-at-first-start.md)
 
 ### Design
 

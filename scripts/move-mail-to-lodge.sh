@@ -298,7 +298,7 @@ sealed)
 	if [ -f "$(p /etc/credstore.encrypted/frostmail-secrets-key)" ]; then
 		ok "$UNIT seals its secrets (FROSTMAIL_SECRETS=sealed), and the key /etc/credstore.encrypted/frostmail-secrets-key exists"
 	else
-		problem "$UNIT has FROSTMAIL_SECRETS=sealed, and the key /etc/credstore.encrypted/frostmail-secrets-key does not exist: make it first with seal-mail-secrets.sh, or by hand as packaging/lodge/frostmail.service says (ADR-0044)"
+		problem "$UNIT has FROSTMAIL_SECRETS=sealed, and the key /etc/credstore.encrypted/frostmail-secrets-key does not exist: make it first with seal-mail-secrets.sh, with systemctl start frostmail-secrets-key.service, or by hand as packaging/lodge/frostmail.service says (ADR-0044)"
 	fi ;;
 *) problem "$UNIT has FROSTMAIL_SECRETS='${secrets_mode}', not 'file' or 'sealed': the server's maild must keep its secrets in its file store, plain or sealed (ADR-0044)" ;;
 esac

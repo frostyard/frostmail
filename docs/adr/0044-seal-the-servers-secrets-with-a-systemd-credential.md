@@ -1,6 +1,7 @@
 # 0044 — On a server, maild seals its secrets file with a key from a systemd credential
 
-- **Status:** Accepted (Brian, 2026-10-24)
+- **Status:** Accepted (Brian, 2026-10-24); amended in part by
+  [0047](0047-make-the-secrets-key-at-first-start.md)
 - **Date:** 2026-10-24
 
 ## Context

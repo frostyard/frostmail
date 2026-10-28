@@ -41,7 +41,8 @@ names, and their calendars, tasks and contacts
 | What | Where (lodge's contract) | Contents |
 | --- | --- | --- |
 | binaries | `/usr/bin/maild`, `/usr/bin/mailctl` | mode 0755; `frostmail.service` runs `/usr/bin/maild --lodge` |
-| units | `/usr/lib/systemd/system/frostmail.socket`, `frostmail.service` | no `RequiredBy=`, no `Condition*=` line |
+| key helper | `/usr/libexec/frostmail/make-secrets-key` | mode 0755, a `sh` script; `frostmail-secrets-key.service` runs it ([ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)) |
+| units | `/usr/lib/systemd/system/frostmail.socket`, `frostmail.service`, `frostmail-secrets-key.service` | no `RequiredBy=`; the upheld units (`frostmail.socket`, `frostmail.service`) have no `Condition*=` line. The key unit is a oneshot that `frostmail.service` pulls with `Requires=` and `After=`. It has no `[Install]` section, and its one condition is `ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key` |
 | manifest | `/usr/share/lodge/apps/mail/app.json` | the JSON below; `version` is maild's |
 | web build | `/usr/share/lodge/apps/mail/web/` | `make web-build`'s output, built for the base `/app/mail/`, with `icon.svg` |
 | system user | `/usr/lib/sysusers.d/frostmail.conf` | `frostmail`, in group `lodge-apps` and not in `lodge`; the file also declares group `lodge` (`g lodge -`), which owns the socket, so the socket starts without lodge's own package |
@@ -73,7 +74,8 @@ FragmentPath,ExecStart frostmail.service`:
   `/usr/share/lodge/apps/mail/`, copy the stage's `usr/` onto `/usr`, run
   `systemd-sysusers`, and remove the old `/usr/local/bin/maild` and
   `/usr/local/bin/mailctl` once: `/usr/local/bin` comes before `/usr/bin` on
-  `PATH`, so a stale `mailctl` there hides the new one.
+  `PATH`, so a stale `mailctl` there hides the new one. The copy brings the key
+  unit and its helper in `/usr/libexec/frostmail`.
 
 Then run `systemctl daemon-reload`, restart `frostmail.service`, and run
 `lodgectl reload`. The drop-in in `/etc/systemd/system/frostmail.service.d/`
@@ -92,7 +94,10 @@ together by nFPM from `packaging/nfpm.yaml`, and checked by
 fields are right (`Depends: systemd`, no maintainer scripts), and the package holds
 only root-owned, non-writable directories and regular files (no links) under `/usr`, with the
 binaries (mode 0755), the units, the sysusers.d entry, the manifest (whose `version`
-is the package's) and the web build's `index.html`.
+is the package's) and the web build's `index.html`. It also checks the key
+unit and its helper: the helper's mode, and the lines `Type=oneshot` and
+`ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key` in the
+key unit, and `Requires=` and `After=` on it in `frostmail.service`.
 `internal/lodge/debcheck_test.go` feeds it bad packages, and each must fail.
 Verify a download with:
 
@@ -117,9 +122,13 @@ Pull requests build a snapshot, `frostyard-maild_0.0.0-<commit>-snapshot_amd64.d
 `LoadCredentialEncrypted=frostmail-secrets-key:/etc/credstore.encrypted/frostmail-secrets-key`
 (the explicit path needs systemd 250), which gives maild the key in
 `$CREDENTIALS_DIRECTORY/frostmail-secrets-key`, readable by `frostmail`
-only. **Install step, once, as root:** make the key,
-`scripts/seal-mail-secrets.sh --apply`, which also moves a plain
-`secrets.json` in, or by hand:
+only. **The key is made at first start** by
+`frostmail-secrets-key.service`
+([ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)), a
+oneshot that `frostmail.service` requires and orders after. It runs as
+root, and its condition skips it when the key exists.
+Root can make the key earlier: `scripts/seal-mail-secrets.sh --apply`,
+which also moves a plain `secrets.json` in, or by hand:
 
 ```sh
 install -d -m 0700 /etc/credstore.encrypted
@@ -129,10 +138,11 @@ head -c 32 /dev/urandom | systemd-creds encrypt --with-key=auto \
 
 The key is 32 random bytes sealed to the host's TPM2 or host key
 (`--with-key=auto`). It is not part of a backup of `/var/lib/frostmail`.
-Without the key the unit does not start: with `FROSTMAIL_SECRETS=sealed`
-maild exits when the key is missing, is not 32 bytes, or does not open
-`secrets.sealed`, with an error that names the credential and the file,
-and it never falls back to a plain file. A plain `secrets.json` it finds
+If the oneshot fails, `frostmail.service` fails on the dependency. With
+`FROSTMAIL_SECRETS=sealed` maild exits when the key is missing, is not 32
+bytes, or does not open `secrets.sealed` (a restored file under another
+host's key, for one), with an error that names the credential and the
+file, and it never falls back to a plain file. A plain `secrets.json` it finds
 is moved in once, read back, and removed. `FROSTMAIL_SECRETS=file` (a
 plain `secrets.json`, 0600) stays for a server without systemd
 credentials, and maild warns at start. Such a server needs a drop-in that
@@ -708,7 +718,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 | --- | --- |
 | `api/zz_generated.go`, `app/src/rpc/gen/api.ts`, [rpc-api.md](rpc-api.md) | `make gen` from `schema/rpc/` (callers, `rpc.ping`, `Hello`'s fields, `message.render`'s `content`, `contentPath`) |
 | `packaging/lodge/app.json` | the manifest above, its `version` set at build |
-| `packaging/lodge/frostmail.socket`, `frostmail.service`, `sysusers.d/frostmail.conf` | [What maild installs](#what-maild-installs) |
+| `packaging/lodge/frostmail.socket`, `frostmail.service`, `frostmail-secrets-key.service`, `make-secrets-key.sh`, `sysusers.d/frostmail.conf` | [What maild installs](#what-maild-installs) |
 
 ## References
 
