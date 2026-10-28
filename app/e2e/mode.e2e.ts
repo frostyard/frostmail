@@ -221,6 +221,11 @@ exit 1
   }, 120_000);
 
   afterAll(async () => {
+    // What the started maild said, and the stored choice, for a failure.
+    for (const name of ["maild2.log", "config/frostmail/app.json"]) {
+      const file = join(dir, name);
+      if (existsSync(file)) process.stderr.write(`--- ${name}\n${readFileSync(file, "utf8")}\n`);
+    }
     await endMaild();
     await app?.stop();
   });
@@ -268,12 +273,20 @@ exit 1
     await save(s);
 
     // 5. app.json holds no lodge, this computer's maild answers again, and the
-    // main window lists the same account.
+    // main window lists the same account. Each wait names what it waited
+    // for, in order, so a failure says which step of the change did not
+    // happen.
+    const alerts = () => s.findAll('[role="alert"]');
+    const saving = async () => (await s.findAll('[role="status"]')).length > 0;
+    const ended = async () => storedLodge() === undefined || (await alerts()).length > 0;
+    await s.waitFor("the save to finish", async () => !(await saving()) && (await ended()), 60_000);
+    const [failed] = await alerts();
+    if (failed) throw new Error(`the change to this computer failed: ${await s.text(failed)}`);
+    await until("app.json to name this computer again", () => storedLodge() === undefined, 10_000);
+    await until("this computer's maild to answer", hello, 40_000);
     await s.switchTo(main);
     await s.waitFor("the mailbox tree to return", () => s.find(TREE), 60_000);
     expect(await accountNames(s)).toEqual(accounts);
-    await until("this computer's maild to answer", hello, 40_000);
-    expect(storedLodge()).toBeUndefined();
 
     // 6. A shutdown that fails writes the previous choice back: the mode stays
     // this computer's, and the pane says so.
