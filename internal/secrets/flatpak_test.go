@@ -483,3 +483,9 @@ func TestOpenReaderInTheFlatpak(t *testing.T) {
 		t.Errorf("a reader with no store id: Get = %q, %v", got, err)
 	}
 }
+
+// Probes that run at once on one Secret Service all succeed and leave no item.
+func TestConcurrentProbesOnTheSecretService(t *testing.T) {
+	ss, f := openFake(t)
+	runProbes(t, ss, f.snapshot)
+}

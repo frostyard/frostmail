@@ -17,11 +17,13 @@ import (
 //     credential frostmail-secrets-key, never a fallback (ADR-0044); a
 //     plain file moves in once and is removed;
 //   - empty: the Secret Service on the session bus, in opts.Namespace. With
-//     it, secrets still in the file are moved over (all or nothing), with
-//     one Info line, and the file is removed. With no Secret Service, the
-//     plain file with a warning, unless opts.NoFallback: then a store that
-//     fails every call with ErrNoKeyring, an Error line at start, and the
-//     file, if there is one, left as it is (ADR-0046);
+//     it, secrets still in the file are moved over, with one Info line. The
+//     file is removed only after every key is copied and reads back; when
+//     one fails, Open fails, the file stays as it is, the keys copied before
+//     stay in the store, and the next start repeats the move. With no
+//     Secret Service, the plain file with a warning, unless opts.NoFallback:
+//     then a store that fails every call with ErrNoKeyring, an Error line at
+//     start, and the file, if there is one, left as it is (ADR-0046);
 //   - anything else is an error.
 //
 // Options with the Flatpak's namespace and no store id are refused.

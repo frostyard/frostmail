@@ -88,31 +88,35 @@ func (o Options) check() error {
 	return nil
 }
 
-// ProbeKey is the key Probe writes, reads back and deletes.
-const ProbeKey = "probe"
+// ProbeKeyPrefix starts the key of every probe: Probe uses the key
+// ProbeKeyPrefix plus 16 random bytes in hex, so that probes that run at the
+// same time never touch each other's item.
+const ProbeKeyPrefix = "probe/"
 
 // Probe checks that s can keep a secret: it writes a random value that is
-// not a secret under ProbeKey, reads it back, compares it and deletes it. A
-// failure wraps its cause, so that ErrNoKeyring, ErrDismissed and
-// ErrUnavailable stay testable. A probe item that was written is deleted
-// again, whatever the failure.
+// not a secret under a key of its own (ProbeKeyPrefix and a random suffix),
+// reads it back, compares it and deletes that key, and no other. A failure
+// wraps its cause, so that ErrNoKeyring, ErrDismissed and ErrUnavailable
+// stay testable. A probe item that was written is deleted again, whatever
+// the failure.
 func Probe(ctx context.Context, s Store) error {
-	raw := make([]byte, 16)
+	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return fmt.Errorf("secrets: probe: draw a value: %w", err)
 	}
-	want := hex.EncodeToString(raw)
-	if err := s.Set(ctx, ProbeKey, want); err != nil {
+	key := ProbeKeyPrefix + hex.EncodeToString(raw[:16])
+	want := hex.EncodeToString(raw[16:])
+	if err := s.Set(ctx, key, want); err != nil {
 		return fmt.Errorf("secrets: probe: write: %w", err)
 	}
-	got, err := s.Get(ctx, ProbeKey)
+	got, err := s.Get(ctx, key)
 	switch {
 	case err != nil:
 		err = fmt.Errorf("secrets: probe: read back: %w", err)
 	case got != want:
 		err = errors.New("secrets: probe: the store read back another value")
 	}
-	if derr := s.Delete(context.WithoutCancel(ctx), ProbeKey); derr != nil && err == nil {
+	if derr := s.Delete(context.WithoutCancel(ctx), key); derr != nil && err == nil {
 		err = fmt.Errorf("secrets: probe: delete: %w", derr)
 	}
 	return err

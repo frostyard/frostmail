@@ -137,8 +137,10 @@ caps responses at 64 KB, and never sends the password anywhere.
   - `sealed`: the sealed file store, below (Linux only; on Windows it is an
     error).
 - Migration: on start with the Secret Service, every key of an existing
-  `secrets.json` is copied in, verified by reading it back, and the file is
-  removed (all or nothing). When it moved a key, maild logs one Info line:
+  `secrets.json` is copied in and read back. The file is removed only after
+  every key is copied and reads back; when one fails, the file stays as it
+  is, the keys copied before stay in the store, and the next start repeats
+  the move with the same values. When it moved a key, maild logs one Info line:
   the file, the number of keys and the namespace, never a value. In the
   Flatpak this is the one-time move of the file its maild kept in plan
   0013's Phases 2 and 3, into the store's own namespace.
@@ -155,8 +157,9 @@ caps responses at 64 KB, and never sends the password anywhere.
   export` reads that file, and only for that: `OpenReader` with no Secret
   Service reads it read-only.
 - **The probe.** `account.create` first calls `secrets.Probe`: it writes a
-  random value that is not a secret under the key `probe`, reads it back,
-  compares it and deletes it, before it inserts the account. A store that
+  random value that is not a secret under a key of its own (`probe/` and
+  16 random bytes in hex, so that probes that run at once never meet),
+  reads it back, compares it and deletes it, before it inserts the account. A store that
   cannot keep it (no keyring, a dismissed prompt, a service that left) fails
   `account.create` with `unavailable`, names the cause and the hint, and adds
   no account. The probe may show the service's prompt (to unlock, or to make

@@ -209,10 +209,12 @@ func (f *File) Remove() error {
 	return nil
 }
 
-// migrate moves every secret from the file store into another store,
-// reading each back before the file is removed, and returns how many it
-// moved. A file that holds no secret is removed too, and a missing file is
-// nothing to do. It is all or nothing: the file stays when any key fails.
+// migrate moves every secret from the file store into another store, and
+// returns how many it moved. The file is removed only after every key is
+// copied and reads back. When one fails, the file stays as it is, the keys
+// copied before stay in the destination, and the next start repeats the move
+// with the same values. A file that holds no secret is removed too, and a
+// missing file is nothing to do. No error holds a secret value.
 func migrate(ctx context.Context, from *File, to Store) (int, error) {
 	all, err := from.All()
 	if err != nil {
@@ -223,8 +225,11 @@ func migrate(ctx context.Context, from *File, to Store) (int, error) {
 			return 0, fmt.Errorf("secrets: move %s: %w", key, err)
 		}
 		got, err := to.Get(ctx, key)
-		if err != nil || got != value {
-			return 0, fmt.Errorf("secrets: %s did not read back: %v", key, err)
+		if err != nil {
+			return 0, fmt.Errorf("secrets: %s did not read back: %w", key, err)
+		}
+		if got != value {
+			return 0, fmt.Errorf("secrets: %s read back another value", key)
 		}
 	}
 	return len(all), from.Remove()

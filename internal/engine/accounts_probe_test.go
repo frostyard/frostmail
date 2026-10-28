@@ -53,10 +53,16 @@ func TestAccountCreateProbeLeavesNoSecret(t *testing.T) {
 	if _, err := c.Account().Create(ctx, createParams("probe@mailtest.test")); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if _, err := srv.Secrets.Get(ctx, secrets.ProbeKey); !errors.Is(err, secrets.ErrNotFound) {
-		t.Errorf("the probe key is still in the store: %v", err)
+	all, err := srv.Secrets.All()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if all, err := srv.Secrets.All(); err != nil || len(all) != 0 {
-		t.Errorf("the store holds %d secrets, %v; want none", len(all), err)
+	for key := range all {
+		if strings.HasPrefix(key, secrets.ProbeKeyPrefix) {
+			t.Errorf("the probe key %q is still in the store", key)
+		}
+	}
+	if len(all) != 0 {
+		t.Errorf("the store holds %d secrets; want none", len(all))
 	}
 }
