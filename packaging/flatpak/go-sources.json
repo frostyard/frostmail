@@ -637,14 +637,14 @@
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/golang.org/x/net/@v/v0.61.0.mod",
+    "url": "https://proxy.golang.org/golang.org/x/net/@v/v0.62.0.mod",
     "sha256": "7bbcec6b6af859939ec01bbe5234e556c867bf80e171abc23ad16c2c8e3951fe",
     "dest": "goproxy/golang.org/x/net/@v"
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/golang.org/x/net/@v/v0.61.0.zip",
-    "sha256": "f6843a98d608298e48a6ca287292c9a6fae066284050ce174d5ffb781c9b3dcf",
+    "url": "https://proxy.golang.org/golang.org/x/net/@v/v0.62.0.zip",
+    "sha256": "50e869800f4921e910eb6550369f937c7187d130a7f7f78a26ef9b589a7071a6",
     "dest": "goproxy/golang.org/x/net/@v"
   },
   {
