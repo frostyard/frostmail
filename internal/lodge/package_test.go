@@ -13,6 +13,14 @@ import (
 	"github.com/frostyard/lodge/kit/manifest"
 )
 
+// lodgeUserLine is user lodge's line in lodge's own
+// packaging/sysusers.d/lodge.conf
+// (https://github.com/frostyard/lodge/blob/main/packaging/sysusers.d/lodge.conf),
+// byte for byte: maild's lodgeapp.LoadEnv looks user lodge up, so the staged
+// entry must declare it without lodge's sysext. The two lines must stay
+// identical, or systemd-sysusers warns and keeps only the first.
+const lodgeUserLine = `u lodge - "lodge, the tailnet web shell for frostyard's apps" /var/lib/lodge`
+
 // stage runs packaging/lodge/stage.sh, as make lodge-package does.
 func stage(t *testing.T, args ...string) (string, error) {
 	t.Helper()
@@ -239,6 +247,9 @@ func TestStagedLayout(t *testing.T) {
 		if !has(want) {
 			t.Errorf("sysusers.d entry lacks a %q line", want)
 		}
+	}
+	if !slices.Contains(lines, lodgeUserLine) {
+		t.Errorf("sysusers.d entry lacks user lodge's line, byte for byte: %q", lodgeUserLine)
 	}
 	for _, l := range lines {
 		if f := strings.Fields(l); len(f) == 3 && f[0] == "m" && f[1] == "frostmail" && f[2] == "lodge" {

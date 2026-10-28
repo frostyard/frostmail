@@ -45,7 +45,7 @@ names, and their calendars, tasks and contacts
 | units | `/usr/lib/systemd/system/frostmail.socket`, `frostmail.service`, `frostmail-secrets-key.service` | no `RequiredBy=`; the upheld units (`frostmail.socket`, `frostmail.service`) have no `Condition*=` line. The key unit is a oneshot that `frostmail.service` pulls with `Requires=` and `After=`. It has no `[Install]` section, and its one condition is `ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key` |
 | manifest | `/usr/share/lodge/apps/mail/app.json` | the JSON below; `version` is maild's |
 | web build | `/usr/share/lodge/apps/mail/web/` | `make web-build`'s output, built for the base `/app/mail/`, with `icon.svg` |
-| system user | `/usr/lib/sysusers.d/frostmail.conf` | `frostmail`, in group `lodge-apps` and not in `lodge`; the file also declares group `lodge` (`g lodge -`), which owns the socket, so the socket starts without lodge's own package |
+| system user | `/usr/lib/sysusers.d/frostmail.conf` | `frostmail`, in group `lodge-apps` and not in `lodge`; the file also declares group `lodge` (`g lodge -`), which owns the socket, so the socket starts without lodge's own package; and user `lodge`, with [lodge's own line](https://github.com/frostyard/lodge/blob/main/packaging/sysusers.d/lodge.conf) byte for byte, because `lodgeapp.LoadEnv` looks user `lodge` up |
 | the app socket | `frostmail.socket` | `ListenStream=/run/lodge/apps/mail.sock`, `SocketUser=frostmail`, `SocketGroup=lodge`, `SocketMode=0660` |
 | the daemon | `frostmail.service` | `maild --lodge` as `frostmail`, with the environment below |
 
