@@ -275,8 +275,10 @@ func TestPristineAndNewStoreIDRefuseAQueryInThePath(t *testing.T) {
 		if _, err := NewStoreID(ctx, path); err == nil || !strings.Contains(err.Error(), "contains ? or #") {
 			t.Errorf("NewStoreID(%s) = %v; want the path refused", name, err)
 		}
-		if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("%s was made: %v", name, err)
+		// Windows cannot name a file with ?, so Stat fails there with another
+		// error than ErrNotExist: only a Stat that succeeds finds a made file.
+		if _, err := os.Stat(path); err == nil {
+			t.Errorf("%s was made", name)
 		}
 	}
 }

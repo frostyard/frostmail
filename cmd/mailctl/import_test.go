@@ -558,7 +558,9 @@ func TestImportRefusesAStorePathWithAQuery(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "contains ? or #") {
 		t.Fatalf("import = %v\n%s", err, out)
 	}
-	if _, err := os.Stat(data); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("the refused import made %s: %v", data, err)
+	// Windows cannot name a file with ?, so Stat fails there with another
+	// error than ErrNotExist: only a Stat that succeeds finds a made file.
+	if _, err := os.Stat(data); err == nil {
+		t.Errorf("the refused import made %s", data)
 	}
 }

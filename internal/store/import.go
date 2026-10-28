@@ -22,8 +22,9 @@ import (
 // would mix with: no account, no message, no draft and nothing in the
 // outbox. A database that does not exist is pristine, and stays absent (the
 // first maild makes it). reason says what a store that is not pristine
-// holds. The database is opened read-only: not migrated, and not changed,
-// as are not its -wal and -shm files.
+// holds. The database is opened read-only: not migrated, and neither it nor
+// the committed data of its -wal file changes. SQLite may still update the
+// -shm file, which is only an index of the -wal, rebuilt from it.
 func Pristine(ctx context.Context, path string) (ok bool, reason string, err error) {
 	if strings.ContainsAny(path, "?#") {
 		return false, "", fmt.Errorf("check the store: path %q contains ? or #", path)
@@ -35,7 +36,8 @@ func Pristine(ctx context.Context, path string) (ok bool, reason string, err err
 	}
 	// Read-only: SQLite reads the committed rows of a -wal file that a crash
 	// left, and it never checkpoints them into the database, nor removes the
-	// -wal and -shm, so that a refused import changes no file.
+	// -wal and -shm, so that a refused import changes neither the database
+	// nor its -wal (only the -shm index may be rewritten).
 	sqlDB, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return false, "", fmt.Errorf("check the store: %w", err)
