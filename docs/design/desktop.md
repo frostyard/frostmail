@@ -172,7 +172,8 @@ built).
   turnover, and a maild with no Secret Service that refuses to add an
   account and keeps no secrets file. The portal's tests are in the app's
   Rust tests: its helpers (the request path, a URI as a path, a Response's
-  code, which Response is the portal's), and 3 session-bus tests against
+  code, which Response is the portal's, and that a leave still reads the
+  answers already queued), and 3 session-bus tests against
   portals the test serves itself, which skip without a bus: one whose
   answers are a file, a cancel and a failure, with a Response forged by
   another peer ahead of each; one whose portal leaves the bus without an

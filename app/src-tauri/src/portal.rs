@@ -40,10 +40,10 @@ mod linux {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use futures_util::StreamExt;
+    use futures_util::{FutureExt, Stream, StreamExt};
     use zbus::message::Type;
     use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
-    use zbus::{Connection, MatchRule, MessageStream};
+    use zbus::{Connection, MatchRule, Message, MessageStream};
 
     /// The portal: its name, its object path, and the interfaces of the
     /// request, of its answer, and of the bus's own names.
@@ -134,12 +134,10 @@ mod linux {
         // may send a signal on the request path, and an answer without a
         // sender is no portal's.
         let portal = reply.header().sender().map(|s| s.to_string());
+        let portal = portal.as_deref();
         loop {
-            // Answers first: the connection's reader fills both queues in the
-            // order the bus delivers, so a Response the portal sent before it
-            // left is in the answers' queue by the time its leave is in the
-            // owners'. Biased, the loop drains every queued answer before it
-            // looks at a leave, and a valid answer is never lost to one.
+            // Answers first: when both queues hold a message, every queued
+            // answer is read before a leave.
             tokio::select! {
                 biased;
                 answer = answers.next() => {
@@ -147,14 +145,9 @@ mod linux {
                         return Err("the file chooser portal sent no Response".to_string());
                     };
                     let answer = answer.map_err(|e| format!("the file chooser portal's answer: {e}"))?;
-                    let from = answer.header().sender().map(|s| s.to_string());
-                    let at = answer.header().path().map(|p| p.to_string()).unwrap_or_default();
-                    if !ours(from.as_deref(), portal.as_deref(), &at, &expected, handle.as_str()) {
-                        continue;
+                    if let Some(result) = response(&answer, portal, &expected, handle.as_str()) {
+                        return result;
                     }
-                    let (code, hints): (u32, HashMap<String, OwnedValue>) =
-                        answer.body().deserialize().map_err(|e| format!("the file chooser portal's Response: {e}"))?;
-                    return chosen(code, &hints);
                 }
                 owner = owners.next() => {
                     let Some(owner) = owner else {
@@ -165,12 +158,68 @@ mod linux {
                         .body()
                         .deserialize()
                         .map_err(|e| format!("the bus's NameOwnerChanged: {e}"))?;
-                    if Some(old.as_str()) == portal.as_deref() {
+                    if Some(old.as_str()) == portal {
+                        // The answers' queue may have been empty when select!
+                        // polled it, and filled before the leave arrived. The
+                        // connection's reader queues each message in every
+                        // matching stream before it reads the next, so a
+                        // Response the portal sent before it left is queued
+                        // now: read what is queued before giving up.
+                        if let Some(result) = queued_answer(&mut answers, portal, &expected, handle.as_str()) {
+                            return result;
+                        }
                         return Err("the file chooser portal left the session bus".to_string());
                     }
                 }
             }
         }
+    }
+
+    /// response reads a Response that answers this request (ours), or None
+    /// for a message that is another peer's or another request's.
+    fn response(
+        answer: &Message,
+        portal: Option<&str>,
+        expected: &str,
+        handle: &str,
+    ) -> Option<Result<Option<PathBuf>, String>> {
+        let header = answer.header();
+        let from = header.sender().map(|s| s.to_string());
+        let at = header.path().map(|p| p.to_string()).unwrap_or_default();
+        if !ours(from.as_deref(), portal, &at, expected, handle) {
+            return None;
+        }
+        Some(
+            answer
+                .body()
+                .deserialize::<(u32, HashMap<String, OwnedValue>)>()
+                .map_err(|e| format!("the file chooser portal's Response: {e}"))
+                .and_then(|(code, hints)| chosen(code, &hints)),
+        )
+    }
+
+    /// queued_answer reads, without waiting, the answers already queued, and
+    /// gives the first that answers this request, or None when none does.
+    fn queued_answer<S>(
+        answers: &mut S,
+        portal: Option<&str>,
+        expected: &str,
+        handle: &str,
+    ) -> Option<Result<Option<PathBuf>, String>>
+    where
+        S: Stream<Item = zbus::Result<Message>> + Unpin,
+    {
+        while let Some(Some(answer)) = answers.next().now_or_never() {
+            match answer {
+                Ok(answer) => {
+                    if let Some(result) = response(&answer, portal, expected, handle) {
+                        return Some(result);
+                    }
+                }
+                Err(e) => return Some(Err(format!("the file chooser portal's answer: {e}"))),
+            }
+        }
+        None
     }
 
     /// ours reports whether a Response answers this request: it comes from
@@ -256,7 +305,7 @@ mod linux {
 
         use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
-        use super::{PORTAL_PATH, REQUEST, chosen, ours, request_path, save_file_on, uri_to_path};
+        use super::{PORTAL_PATH, REQUEST, chosen, ours, queued_answer, request_path, save_file_on, uri_to_path};
 
         #[test]
         fn the_request_path_is_the_token_under_the_callers_name() {
@@ -532,6 +581,35 @@ mod linux {
             }
             let answer = (0, uris("file:///home/u/Out.eml"));
             assert_eq!(leave(ANSWERING_PORTAL, Some(answer)), Ok(Some(PathBuf::from("/home/u/Out.eml"))));
+        }
+
+        /// A Response from the portal, or a forged one, as the bus delivers it.
+        fn signal(path: &str, sender: &str, uri: &str) -> zbus::Result<zbus::Message> {
+            zbus::Message::signal(path, REQUEST, "Response")?.sender(sender)?.build(&(0u32, uris(uri)))
+        }
+
+        /// After a leave, the answers queued before it still count: a forged
+        /// one is skipped, the portal's is taken, and a queue that holds
+        /// nothing more ends the read without waiting.
+        #[test]
+        fn a_leave_reads_the_answers_already_queued() {
+            use futures_util::stream::{self, StreamExt};
+
+            let path = "/org/freedesktop/portal/desktop/request/1_42/frostmail0";
+            let queued = vec![
+                signal(path, ":1.9", "file:///home/u/Forged.eml"),
+                signal(path, ":1.7", "file:///home/u/Out.eml"),
+            ];
+            let mut answers = stream::iter(queued).chain(stream::pending());
+            assert_eq!(
+                queued_answer(&mut answers, Some(":1.7"), path, path),
+                Some(Ok(Some(PathBuf::from("/home/u/Out.eml"))))
+            );
+
+            // Only another peer's answer, then nothing yet: no answer, at once.
+            let forged = vec![signal(path, ":1.9", "file:///home/u/Forged.eml")];
+            let mut answers = stream::iter(forged).chain(stream::pending());
+            assert_eq!(queued_answer(&mut answers, Some(":1.7"), path, path), None);
         }
 
         #[test]
