@@ -220,6 +220,10 @@ caps responses at 64 KB, and never sends the password anywhere.
   `DIR/secrets.json` (0600) beside a copy of the database and the blobs.
   `scripts/move-mail-to-lodge.sh` uses it to move the desktop's mail to
   lodge's host ([plan 0011](../plans/0011-m8-mail-in-lodge.md), Phase 7).
+  `mailctl import DIR` places such an export into an empty store, with a
+  new store id, and places `secrets.json` as the store's plain file; the
+  next maild moves it into its own store, as above. The Flatpak's move from
+  a host maild uses it ([desktop.md](desktop.md#the-flatpaks-own-maild)).
 
 ## Read-only accounts
 

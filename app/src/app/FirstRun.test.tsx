@@ -1,6 +1,7 @@
 // The first run of a store with no account (docs/specs/ui.md, First run; plan
-// 0013's Phase 6): the welcome in place of the modules, its two actions, and
-// the settings window the main window opens on Accounts itself, once.
+// 0013's Phase 6): the welcome in place of the modules, its two actions, the
+// settings window the main window opens on Accounts itself, once, and the move
+// note with its three commands (plan 0013, Phase 7).
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -132,5 +133,90 @@ describe("first run", () => {
     expect(within(section).getByRole("button", { name: "Add Account…" })).toBeTruthy();
     expect(within(section).queryByRole("button", { name: "Connect to lodge…" })).toBeNull();
     expect(opens()).toHaveLength(0);
+  });
+});
+
+/** MOVE_FOUND and MOVE_SECRETS are the move note's words (docs/specs/ui.md, First run, the move note). */
+const MOVE_FOUND =
+  "This computer also has mail from a Frostmail installed outside Flatpak. Nothing moves by itself. To move it here, run these commands in a terminal:";
+const MOVE_SECRETS =
+  "Then open Frostmail again. The folder ~/frostmail-export holds your passwords in plain text: delete it once your accounts sync.";
+
+/** The move note's top element (docs/specs/ui.md, First run, the move note). */
+const moveNote = () => screen.queryByRole("note", { name: "Mail from another install" });
+
+/** asked reports how often the welcome asked the shell about a host install's mail. */
+const asked = () => env.invoke.mock.calls.filter((call) => call[0] === "host_mail_found").length;
+
+/** answerHostMail answers host_mail_found with found, and every other shell command with null. */
+function answerHostMail(found: boolean) {
+  env.invoke.mockImplementation(async (command: string) => (command === "host_mail_found" ? found : null));
+}
+
+describe("the move note", () => {
+  it("says how to move a host install's mail here, once it is found", async () => {
+    answerHostMail(true);
+    await setup();
+    const note = await screen.findByRole("note", { name: "Mail from another install" });
+    expect(within(note).getByText(MOVE_FOUND)).toBeTruthy();
+    const steps = within(note).getAllByRole("listitem");
+    expect(steps.map((step) => step.textContent)).toEqual([
+      "systemctl --user disable --now maild.service",
+      "mailctl export ~/frostmail-export",
+      "flatpak run --command=mailctl org.frostyard.Frostmail import ~/frostmail-export",
+    ]);
+    for (const step of steps) expect(step.querySelector("code")?.className).toContain("font-mono");
+    expect(within(note).getByText(MOVE_SECRETS)).toBeTruthy();
+    expect(within(note).getByRole("button", { name: "Dismiss" })).toBeTruthy();
+    // Asked once, on the first render.
+    expect(asked()).toBe(1);
+  });
+
+  it("shows no note when no host install's mail is here", async () => {
+    answerHostMail(false);
+    await setup();
+    await screen.findByRole("region", { name: "Welcome" });
+    await waitFor(() => expect(asked()).toBe(1));
+    expect(moveNote()).toBeNull();
+  });
+
+  it("asks nothing on lodge's maild", async () => {
+    env.remote = true;
+    answerHostMail(true);
+    await setup();
+    const section = await screen.findByRole("region", { name: "Welcome" });
+    expect(within(section).getByText("Add a mail account to start.")).toBeTruthy();
+    expect(asked()).toBe(0);
+    expect(moveNote()).toBeNull();
+  });
+
+  it("keeps the note away on this computer after Dismiss", async () => {
+    const user = userEvent.setup();
+    answerHostMail(true);
+    await setup();
+    const note = await screen.findByRole("note", { name: "Mail from another install" });
+    await user.click(within(note).getByRole("button", { name: "Dismiss" }));
+    expect(moveNote()).toBeNull();
+    expect(localStorage.getItem("frostmail.moveNote")).toBe("dismissed");
+  });
+
+  it("shows no note on a computer that dismissed it", async () => {
+    localStorage.setItem("frostmail.moveNote", "dismissed");
+    answerHostMail(true);
+    await setup();
+    await screen.findByRole("region", { name: "Welcome" });
+    await waitFor(() => expect(asked()).toBe(1));
+    expect(moveNote()).toBeNull();
+  });
+
+  it("shows no note when the shell cannot answer", async () => {
+    env.invoke.mockImplementation(async (command: string) => {
+      if (command === "host_mail_found") throw new Error("no shell");
+      return null;
+    });
+    await setup();
+    await screen.findByRole("region", { name: "Welcome" });
+    await waitFor(() => expect(asked()).toBe(1));
+    expect(moveNote()).toBeNull();
   });
 });

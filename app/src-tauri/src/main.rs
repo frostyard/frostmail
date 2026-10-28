@@ -46,7 +46,8 @@ fn main() {
             commands::startup_message,
             commands::app_config_get,
             commands::app_config_set,
-            commands::server_facts
+            commands::server_facts,
+            commands::host_mail_found
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {

@@ -17,10 +17,10 @@ default, and keeps lodge as a connection the user chooses. The released
 Flatpak then never uses a host maild.
 [Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
 this document changes with each of its phases. Built so far (Phases 2 and
-3, the secrets part of Phase 4, Phase 5's files and Phase 6's first run and
-modes, in review): [The Flatpak's own maild](#the-flatpaks-own-maild).
-Planned: the notification click and the move from a host maild (Phases 4
-and 7).
+3, the secrets part of Phase 4, Phase 5's files, Phase 6's first run and
+modes, and Phase 7's move from a host maild, in review):
+[The Flatpak's own maild](#the-flatpaks-own-maild). Planned: the
+notification click (Phase 4).
 
 ## Installing for one user
 
@@ -91,8 +91,8 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 Rationale: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
 The Flatpak runs its own maild, in local mode; lodge is a mode the user
 chooses. Built so far: the layout, the launcher, the lock, the update rule,
-the secrets, the files, the first run and the change of mode (the
-notification click of Phase 4 is not built).
+the secrets, the files, the first run, the change of mode and the move
+from a host maild (the notification click of Phase 4 is not built).
 
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
@@ -188,8 +188,43 @@ notification click of Phase 4 is not built).
   them to it (`open_compose`). This closes
   [ADR-0045](../adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)'s
   known limit of Save As, in both modes. The home permission
-  (`--filesystem=home:ro`) stays for Phase 7's note about the host's data;
-  neither Save As nor attaching needs it.
+  (`--filesystem=home:ro`) stays for the move note about the host's data
+  (below); neither Save As nor attaching needs it.
+- **Moving from a host maild** (plan 0013, Phase 7). The app never reads,
+  copies or stops a host maild, and never touches the host's data or its
+  keyring items. When the store has no account and the host's database
+  exists (`~/.local/share/frostmail/frostmail.db`, seen through
+  `home:ro`), the welcome shows a note with the steps, which the user can
+  dismiss; the shell's `host_mail_found` reads the file's metadata only,
+  and answers false in the development bundle, whose maild is the host's
+  ([ui.md](../specs/ui.md#first-run-m6)). The move is 3 commands, which
+  the user runs with the window open or not:
+  1. `systemctl --user disable --now maild.service`, on the host;
+  2. `mailctl export ~/frostmail-export`, the host's mailctl (it refuses
+     while that maild runs);
+  3. `flatpak run --command=mailctl org.frostyard.Frostmail import
+     ~/frostmail-export`. The directory must be in the home folder, which
+     the sandbox reads; the sandbox's `/tmp` is its own.
+
+  `mailctl import DIR` (`cmd/mailctl/import.go`) runs `export --check`'s
+  validation and stops on any problem; stops the Flatpak's maild
+  (`rpc.shutdown`, as `mailctl shutdown` does) and takes the data lock,
+  30 s at most, and holds it to the end, so a maild that a launcher starts
+  meanwhile exits with "another maild uses …"; checks under the lock that
+  the store is pristine (no database, or one with no account, message,
+  draft or outbox entry), else changes nothing; stages the export's
+  database (its checksum checked again, and a new store id), blobs and
+  `secrets.json` (0600) in `.import-<stamp>` in the data directory; moves
+  what the store held aside as `frostmail.db.before-import-<stamp>` (with
+  its `-wal` and `-shm`), `blobs.before-import-<stamp>` and
+  `secrets.json.before-import-<stamp>`; renames the staged files into
+  place, the database last; and releases the lock. The next maild migrates
+  the database and moves the plain secrets into the Flatpak's namespace
+  under the new store id ([accounts.md](accounts.md#secrets)). Import never
+  changes or deletes DIR, and says that DIR holds the secrets in plain
+  text. The host maild must stay disabled after the move: a second engine
+  on the same accounts, and a Microsoft refresh token that rotates
+  (ADR-0039).
 - **Tests.** `packaging/flatpak/smoke-test.sh` runs the launcher, maild and
   mailctl against a fake `flatpak-spawn`, with no portal, display or session
   bus: the socket, the lock, a write through mailctl, the replacement and
