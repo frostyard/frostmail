@@ -445,21 +445,40 @@ func TestImportWithoutAStartKeepsTheOldLine(t *testing.T) {
 // getenvOf is a getenv that answers from m alone.
 func getenvOf(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
-// writeMode writes the app's app.json with the given lodge value, the file
-// that the Server pane writes, under configHome.
-func writeMode(t *testing.T, configHome, lodge string) {
+// configEnv names configHome as the config directory on every platform:
+// XDG_CONFIG_HOME on Linux, APPDATA on Windows.
+func configEnv(configHome string, more map[string]string) map[string]string {
+	m := map[string]string{"XDG_CONFIG_HOME": configHome, "APPDATA": configHome}
+	for k, v := range more {
+		m[k] = v
+	}
+	return m
+}
+
+// writeAppJSON writes body as the app's app.json, the file that the Server
+// pane writes, where config.AppConfigFile looks for it under configHome.
+func writeAppJSON(t *testing.T, configHome, body string) {
 	t.Helper()
-	dir := filepath.Join(configHome, "frostmail")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	path, err := config.AppConfigFile(getenvOf(configEnv(configHome, nil)))
+	if err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeMode writes an app.json with the given lodge value under configHome.
+func writeMode(t *testing.T, configHome, lodge string) {
+	t.Helper()
 	body := "{}"
 	if lodge != "" {
 		body = `{"lodge":"` + lodge + `"}`
 	}
-	if err := os.WriteFile(filepath.Join(dir, "app.json"), []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeAppJSON(t, configHome, body)
 }
 
 // Only this app's Flatpak in local mode has a launcher that starts maild
@@ -483,17 +502,11 @@ func TestMaildStartFor(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			configHome := t.TempDir()
 			if tc.lodge == "-" {
-				dir := filepath.Join(configHome, "frostmail")
-				if err := os.MkdirAll(dir, 0o700); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(dir, "app.json"), []byte("{not json"), 0o600); err != nil {
-					t.Fatal(err)
-				}
+				writeAppJSON(t, configHome, "{not json")
 			} else if tc.lodge != "" {
 				writeMode(t, configHome, tc.lodge)
 			}
-			got := maildStartFor(getenvOf(map[string]string{"FLATPAK_ID": tc.flatpakID, "XDG_CONFIG_HOME": configHome}))
+			got := maildStartFor(getenvOf(configEnv(configHome, map[string]string{"FLATPAK_ID": tc.flatpakID})))
 			if (got.start != nil) != tc.wantStart {
 				t.Errorf("the start = %v, want one: %v", got.start, tc.wantStart)
 			}
@@ -510,6 +523,13 @@ func TestImportInLodgeModeStartsNoMaild(t *testing.T) {
 	f := newImportFixture(t)
 	configHome := t.TempDir()
 	writeMode(t, configHome, "wss://lodge.test")
+	// The import's own environment names the same config, so the check of
+	// the mode below reads the file that the import sees.
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("APPDATA", configHome)
+	if got := maildStartFor(getenvOf(configEnv(configHome, map[string]string{"FLATPAK_ID": config.AppID}))); !got.lodge || got.start != nil {
+		t.Fatalf("maildStartFor in lodge mode = %+v, want lodge and no start", got)
+	}
 	var calls int
 	start := startMaildFunc(func(context.Context) error { calls++; return nil })
 	var out bytes.Buffer
@@ -525,7 +545,7 @@ func TestImportInLodgeModeStartsNoMaild(t *testing.T) {
 	if strings.Contains(out.String(), "maild started with the imported accounts") || strings.Contains(out.String(), "Open Frostmail to start maild") {
 		t.Errorf("the import says that maild started, and lodge mode starts none:\n%s", out.String())
 	}
-	if mode, err := config.AppMode(getenvOf(map[string]string{"XDG_CONFIG_HOME": configHome})); err != nil || mode != config.ModeLodge {
+	if mode, err := config.AppMode(os.Getenv); err != nil || mode != config.ModeLodge {
 		t.Errorf("the mode = %q, %v; want lodge, unchanged", mode, err)
 	}
 }
