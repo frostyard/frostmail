@@ -2,11 +2,13 @@
 # Stage maild as lodge's mail app under DESTDIR, in lodge's install layout
 # (docs/specs/lodge-app.md, What maild installs): maild and mailctl, the
 # manifest with VERSION, the web build when BUILD/web holds one, the units
-# and the sysusers.d entry. make lodge-package runs it.
+# (with the key unit's helper) and the sysusers.d entry. make lodge-package
+# runs it.
 #
 # It writes only under DESTDIR/usr (core ADR-0058: a sysext payload is /usr
-# only): binaries in usr/bin, units in usr/lib/systemd/system, the sysusers.d
-# entry in usr/lib/sysusers.d, the manifest and web build in usr/share/lodge.
+# only): binaries in usr/bin, the key unit's helper in usr/libexec/frostmail,
+# units in usr/lib/systemd/system, the sysusers.d entry in usr/lib/sysusers.d,
+# the manifest and web build in usr/share/lodge.
 #
 #   packaging/lodge/stage.sh DESTDIR VERSION [BUILD]
 #
@@ -41,3 +43,5 @@ if [ -d "$build/web" ]; then cp -R "$build/web" "$app/web"; fi
 install -Dm644 "$here/frostmail.socket" "$dest/usr/lib/systemd/system/frostmail.socket"
 install -Dm644 "$here/frostmail.service" "$dest/usr/lib/systemd/system/frostmail.service"
 install -Dm644 "$here/sysusers.d-frostmail.conf" "$dest/usr/lib/sysusers.d/frostmail.conf"
+install -Dm644 "$here/frostmail-secrets-key.service" "$dest/usr/lib/systemd/system/frostmail-secrets-key.service"
+install -Dm755 "$here/make-secrets-key.sh" "$dest/usr/libexec/frostmail/make-secrets-key"

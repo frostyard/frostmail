@@ -179,11 +179,16 @@ deb: ## Build dist/frostyard-maild_<DEB_VERSION>_amd64.deb with nFPM, after make
 	DEB_VERSION='$(DEB_VERSION)' nfpm package -p deb -f packaging/nfpm.yaml -t dist/
 	$(MAKE) --no-print-directory deb-check DEB_VERSION='$(DEB_VERSION)'
 
-deb-check: ## Check the .deb that make deb built (metadata, /usr only, root-owned, payload)
+deb-check: ## Check the .deb that make deb built (metadata, /usr only, root-owned, payload, key unit)
 	packaging/deb-check.py "$(DEB_FILE)" frostyard-maild "$(DEB_VERSION)" \
-		--exec /usr/bin/maild --exec /usr/bin/mailctl \
+		--exec /usr/bin/maild --exec /usr/bin/mailctl --exec /usr/libexec/frostmail/make-secrets-key \
 		--file /usr/lib/systemd/system/frostmail.socket --file /usr/lib/systemd/system/frostmail.service \
+		--file /usr/lib/systemd/system/frostmail-secrets-key.service \
 		--file /usr/lib/sysusers.d/frostmail.conf --file /usr/share/lodge/apps/mail/web/index.html \
+		--line /usr/lib/systemd/system/frostmail-secrets-key.service ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key \
+		--line /usr/lib/systemd/system/frostmail-secrets-key.service Type=oneshot \
+		--line /usr/lib/systemd/system/frostmail.service Requires=frostmail-secrets-key.service \
+		--line /usr/lib/systemd/system/frostmail.service After=frostmail-secrets-key.service \
 		--manifest /usr/share/lodge/apps/mail/app.json
 
 svu-version-check:

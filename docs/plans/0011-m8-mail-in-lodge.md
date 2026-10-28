@@ -26,7 +26,9 @@ Status (2026-10-24):
   accepted the same day. `FROSTMAIL_SECRETS=sealed`, the unit and the
   move script's `sealed` (#117), and `scripts/seal-mail-secrets.sh`
   (#118) are tested; the key step on lodge's host is not run yet. The move itself
-  waits on the user.
+  waits on the user. [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)
+  (2026-10-28) makes the key at first start, with `frostmail-secrets-key.service`,
+  so a Snosi host needs no by-hand key step.
 
 ## Decisions for M8
 
@@ -329,6 +331,10 @@ and the desktop's maild stops.
     `scripts/seal_test.go`; #118), and the move script accepts `sealed`;
   - [specs/lodge-app.md](../specs/lodge-app.md) and
     [design/accounts.md](../design/accounts.md#secrets) match.
+
+  [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md) adds
+  `frostmail-secrets-key.service`, which makes the key at first start; the
+  script and the by-hand command stay valid ways to make it earlier.
 
   **For the user, on lodge's host, in order:** install the new packaging
   and run `systemctl daemon-reload`; run `scripts/seal-mail-secrets.sh`

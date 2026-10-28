@@ -23,11 +23,20 @@ const debPkg, debVersion = "frostyard-maild", "1.2.3"
 var debArgs = []string{
 	"--exec", "/usr/bin/maild",
 	"--exec", "/usr/bin/mailctl",
+	"--exec", "/usr/libexec/frostmail/make-secrets-key",
 	"--file", "/usr/lib/systemd/system/frostmail.socket",
 	"--file", "/usr/lib/systemd/system/frostmail.service",
+	"--file", "/usr/lib/systemd/system/frostmail-secrets-key.service",
 	"--file", "/usr/lib/sysusers.d/frostmail.conf",
 	"--file", "/usr/share/lodge/apps/mail/web/index.html",
+	"--line", keyUnitPath, "Type=oneshot",
+	"--line", mainUnitPath, "Requires=frostmail-secrets-key.service",
 }
+
+const (
+	keyUnitPath  = "/usr/lib/systemd/system/frostmail-secrets-key.service"
+	mainUnitPath = "/usr/lib/systemd/system/frostmail.service"
+)
 
 // debManifest is the --manifest path, or "" for none.
 const debManifest = "/usr/share/lodge/apps/mail/app.json"
@@ -54,11 +63,25 @@ func exe(name string) debEntry {
 // --exec as a binary, each --file, and the manifest at debVersion.
 func goodDeb() []debEntry {
 	out := []debEntry{{name: "./usr/", typ: tar.TypeDir, mode: 0o755}, {name: "./usr/bin/", typ: tar.TypeDir, mode: 0o755}}
-	for i := 0; i+1 < len(debArgs); i += 2 {
-		if debArgs[i] == "--exec" {
+	lines := map[string]string{}
+	for i := 0; i < len(debArgs); {
+		switch debArgs[i] {
+		case "--line":
+			lines[debArgs[i+1]] += debArgs[i+2] + "\n"
+			i += 3
+			continue
+		case "--exec":
 			out = append(out, exe("."+debArgs[i+1]))
-		} else {
-			out = append(out, file("."+debArgs[i+1], "x"))
+		default:
+			if _, ok := lines[debArgs[i+1]]; !ok {
+				out = append(out, file("."+debArgs[i+1], "x"))
+			}
+		}
+		i += 2
+	}
+	for i := range out {
+		if body, ok := lines["/"+strings.TrimPrefix(out[i].name, "./")]; ok {
+			out[i].body = "[Unit]\n" + body
 		}
 	}
 	if debManifest != "" {
@@ -69,7 +92,7 @@ func goodDeb() []debEntry {
 
 // firstArg is the path of the first debArgs flag named flag.
 func firstArg(flag string) string {
-	for i := 0; i+1 < len(debArgs); i += 2 {
+	for i := 0; i+1 < len(debArgs); i++ {
 		if debArgs[i] == flag {
 			return debArgs[i+1]
 		}
@@ -195,6 +218,9 @@ func TestDebCheckFailsABadPackage(t *testing.T) {
 		{"a missing binary named with a space", good, append(without("."+bin), exe("."+bin+" backup")), bin + " is missing"},
 		{"a binary that is not executable", good, append(without("."+bin), file("."+bin, "\x7fELF")), "mode 0755"},
 		{"a binary that is a link", good, append(without("."+bin), debEntry{name: "." + bin, typ: tar.TypeSymlink, mode: 0o777, link: "missing"}), bin + " is missing"},
+		{"a line that is missing", good, append(without("."+keyUnitPath), file("."+keyUnitPath, "[Unit]\nType=simple\n")), "has no line"},
+		{"a line that is only part of another", good, append(without("."+mainUnitPath), file("."+mainUnitPath, "[Unit]\nRequires=frostmail-secrets-key.service.bak\n")), "has no line"},
+		{"a line on a missing file", good, without("." + mainUnitPath), mainUnitPath + " is missing"},
 		{"an empty required file", good, append(without("."+req), file("."+req, "")), "is empty"},
 	}
 	if debManifest != "" {

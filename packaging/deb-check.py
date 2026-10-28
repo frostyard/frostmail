@@ -2,7 +2,7 @@
 """Check a built .deb (frostyard/core ADR-0011, ADR-0058).
 
     packaging/deb-check.py DEB PACKAGE VERSION [--exec PATH]... [--file PATH]...
-                           [--manifest PATH]
+                           [--line PATH LINE]... [--manifest PATH]
 
 It fails unless:
   - the control fields are Package PACKAGE, Version VERSION, Architecture
@@ -17,6 +17,7 @@ It fails unless:
     world-writable;
   - each --exec PATH is a regular file with mode 0755 and a nonzero size;
   - each --file PATH is a regular file with a nonzero size;
+  - each --line PATH LINE is a regular file with a line exactly equal to LINE;
   - the --manifest PATH is a JSON object whose top-level "version" is VERSION.
 
 It prints the archive's listing, so that CI logs show it. Python's standard
@@ -60,7 +61,7 @@ def under_usr(path: str) -> bool:
     return path == "/usr" or path.startswith("/usr/")
 
 
-def check(deb: str, package: str, version: str, execs: list[str], files: list[str], manifest: str | None) -> list[str]:
+def check(deb: str, package: str, version: str, execs: list[str], files: list[str], lines: list[tuple[str, str]], manifest: str | None) -> list[str]:
     errors = []
 
     fields = {}
@@ -116,6 +117,12 @@ def check(deb: str, package: str, version: str, execs: list[str], files: list[st
                 errors.append(f"{path} is missing or not a regular file")
             elif m.size == 0:
                 errors.append(f"{path} is empty")
+        for path, line in lines:
+            m = entries.get(path)
+            if m is None or not m.isreg():
+                errors.append(f"{path} is missing or not a regular file")
+            elif line not in data.extractfile(m).read().decode(errors="replace").splitlines():
+                errors.append(f"{path} has no line {line!r}")
         if manifest is not None:
             m = entries.get(manifest)
             if m is None or not m.isreg():
@@ -149,10 +156,11 @@ def main() -> int:
     p.add_argument("version")
     p.add_argument("--exec", dest="execs", action="append", default=[], metavar="PATH")
     p.add_argument("--file", dest="files", action="append", default=[], metavar="PATH")
+    p.add_argument("--line", dest="lines", action="append", default=[], nargs=2, metavar=("PATH", "LINE"))
     p.add_argument("--manifest", metavar="PATH")
     a = p.parse_args()
     try:
-        errors = check(a.deb, a.package, a.version, a.execs, a.files, a.manifest)
+        errors = check(a.deb, a.package, a.version, a.execs, a.files, [tuple(x) for x in a.lines], a.manifest)
     except (OSError, subprocess.CalledProcessError, tarfile.TarError) as e:
         detail = getattr(e, "stderr", b"") or b""
         print(f"deb-check: {a.deb}: {e} {detail.decode(errors='replace').strip()}", file=sys.stderr)

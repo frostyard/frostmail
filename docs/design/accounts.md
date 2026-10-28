@@ -155,8 +155,12 @@ caps responses at 64 KB, and never sends the password anywhere.
   - **The key is not in a backup of the data directory.** A restore
     onto another host cannot open `secrets.sealed`: move it aside, and each
     account shows "Sign in again".
-  - `scripts/seal-mail-secrets.sh` (as root, on lodge's host) makes the
-    key and lets maild seal an existing `secrets.json`: dry run by default,
+  - The key is made at first start by `frostmail-secrets-key.service`, a
+    oneshot that `frostmail.service` requires
+    ([ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)); it
+    skips when the key exists.
+  - `scripts/seal-mail-secrets.sh` (as root, on lodge's host) can make the
+    key earlier and lets maild seal an existing `secrets.json`: dry run by default,
     a backup of the plain file and a manifest, `--rollback`. The move
     script (`scripts/move-mail-to-lodge.sh`) accepts `file` and `sealed`.
   - `FROSTMAIL_SECRETS=file` stays for a server without systemd
