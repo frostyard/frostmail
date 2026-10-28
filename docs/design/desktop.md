@@ -175,8 +175,12 @@ of Phase 4 is not built).
   bus: the socket, the lock, a write through mailctl, the replacement and
   the keeping of a maild by build, lodge mode, the held launcher, the log's
   turnover, and a maild with no Secret Service that refuses to add an
-  account and keeps no secrets file. `FROSTMAIL_BIN_DIR` points it at host-built binaries. The portals
-  themselves need the real-desktop checks of plan 0013.
+  account and keeps no secrets file, and `frostmail --start-maild` (a start
+  without the app, a maild kept, lodge mode, a failed portal).
+  `FROSTMAIL_BIN_DIR` points it at host-built binaries. The change of mode
+  has Rust unit tests on its order (`src-tauri/src/mode.rs`) and an
+  end-to-end test on the built app (`app/e2e/mode.e2e.ts`, in CI). The
+  portals themselves need the real-desktop checks of plan 0013.
 
 ## Application icon
 

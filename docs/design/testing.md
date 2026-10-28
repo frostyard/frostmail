@@ -14,6 +14,7 @@
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | App shell | the M0 spike report (`FROSTMAIL_SPIKE_EXIT=1`) | `make app-run`, or natively from `build/frostmail-app` |
 | Desktop app behind lodge | `app/e2e/lodge.e2e.ts`: lodge's development build, `maild --lodge` and the built app with `app.json` naming lodge (skips without `FROSTMAIL_LODGE_E2E`) | after `make ui-e2e`'s builds, in the nsl machine with `FROSTMAIL_LODGE_E2E` naming a copy of lodge's `make e2e-build` output it can read (under this repository's `build/`), `pnpm exec vitest run -c vitest.e2e.config.ts lodge` under `xvfb-run` |
+| Change of mode (M6) | `app/e2e/mode.e2e.ts`: the built app with `FLATPAK_ID` set, stand-ins for `mailctl` and `frostmail --start-maild` on its PATH: local to lodge (maild stops, the data stays), back to local with lodge unreachable (the note, the same accounts), and a maild that will not stop (the mode stays local, the pane's error) | CI's App shell job, under `dbus-run-session` and `xvfb-run`; `make ui-e2e F=mode` in the nsl machine |
 | Screenshots | `app/e2e/screenshots.e2e.ts`: the built app on `app/e2e/showcase`'s made-up mail (`tools/uifixture -showcase`, maild with `FROSTMAIL_SYNC=off`), written to `docs/images` for the README | `make screenshots` (nsl) |
 
 ## CI
