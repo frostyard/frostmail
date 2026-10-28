@@ -32,9 +32,9 @@
 # read "local" and be delayed past a change of mode, and the maild it then
 # starts exits at once.
 #
-# FROSTMAIL_LIBEXEC_DIR, when set, is the directory of frostmail-app and
-# frostmail-request-background: /app/libexec in the Flatpak, and a test's
-# own directory in its tests.
+# FROSTMAIL_LIBEXEC_DIR, when set, is the directory of frostmail-app,
+# frostmail-request-background and frostmail-open: /app/libexec in the Flatpak,
+# and a test's own directory in its tests.
 #
 # A maild that the window's sandbox started would die with the sandbox, and
 # with a duplicate window that tauri-plugin-single-instance closes at once.
@@ -48,6 +48,13 @@
 # still needs it. Without the portal the launcher says so, and the app shows
 # that maild is not running.
 #
+# A window that maild ran on a notification's click would be a child of
+# maild, in maild's sandbox, and `flatpak ps` would show no instance of its
+# own. So `--background` gives its maild FROSTMAIL_APP, unless the user set
+# one: /app/libexec/frostmail-open (packaging/flatpak/open.sh) runs
+# `flatpak-spawn --latest-version frostmail ARGS`, which opens the window, as
+# a normal start does, in a new sandbox of the latest installed deployment.
+#
 # --latest-version makes the portal start the command from the newest
 # installed deployment of this app, never from the one this window runs. An
 # old window, or an old notification's click, cannot bring back an old maild:
@@ -59,6 +66,7 @@ set -u
 
 libexec="${FROSTMAIL_LIBEXEC_DIR:-/app/libexec}"
 app="$libexec/frostmail-app"
+app_open="$libexec/frostmail-open"
 request_background="$libexec/frostmail-request-background"
 
 state="${XDG_STATE_HOME:-$HOME/.local/state}/frostmail"
@@ -204,6 +212,12 @@ if [ "${1:-}" = "--background" ]; then
         exit 0
     fi
     prepare_state
+    # A click on a notification opens the window in a sandbox of its own,
+    # through the portal: never here, where the window would be maild's child
+    # (see the header). A FROSTMAIL_APP that the user set stays.
+    if [ -z "${FROSTMAIL_APP:-}" ]; then
+        export FROSTMAIL_APP="$app_open"
+    fi
     # maild rotates the log itself, with -log, once it holds the data
     # directory's lock: a shell check cannot tell 2 launchers apart, and a
     # duplicate must not move the log of the maild that runs. The redirect

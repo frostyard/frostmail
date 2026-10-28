@@ -16,11 +16,9 @@ of its own. The desktop app then reaches it through lodge
 default, and keeps lodge as a connection the user chooses. The released
 Flatpak then never uses a host maild.
 [Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
-this document changes with each of its phases. Built so far (Phases 2 and
-3, the secrets part of Phase 4, Phase 5's files, Phase 6's first run and
-modes, and Phase 7's move from a host maild, in review):
-[The Flatpak's own maild](#the-flatpaks-own-maild). Planned: the
-notification click (Phase 4).
+this document changes with each of its phases. Built so far (Phases 2 to
+4, Phase 5's files, Phase 6's first run and modes, and Phase 7's move from a
+host maild): [The Flatpak's own maild](#the-flatpaks-own-maild).
 
 ## Installing for one user
 
@@ -91,14 +89,16 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 Rationale: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
 The Flatpak runs its own maild, in local mode; lodge is a mode the user
 chooses. Built so far: the layout, the launcher, the lock, the update rule,
-the secrets, the files, the first run, the change of mode and the move
-from a host maild (the notification click of Phase 4 is not built).
+the secrets, the files, the first run, the change of mode, the notification
+click and the move from a host maild.
 
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
   `/app/bin/maild` and `/app/bin/mailctl` are static Go binaries, and
   `/app/libexec/frostmail-app` is the Tauri binary, with
-  `/app/libexec/frostmail-request-background` (a PyGObject helper).
+  `/app/libexec/frostmail-request-background` (a PyGObject helper) and
+  `/app/libexec/frostmail-open` (a POSIX sh helper, `packaging/flatpak/open.sh`,
+  which a notification's click runs).
   `flatpak run --command=mailctl org.frostyard.Frostmail` works.
 - **Modes.** `maild -mode` prints `local` or `lodge`, from `app.json` in the
   config directory: a non-empty `lodge` key is lodge mode, anything else
@@ -117,7 +117,9 @@ from a host maild (the notification click of Phase 4 is not built).
   "another maild uses <dir>". `maild -log PATH` rotates PATH to `PATH.1`
   past 1 MiB once it holds the lock, then writes there.
 - **The launcher.** `frostmail --background` (local mode) runs maild and
-  nothing else; in lodge mode it exits 0. A normal start in local mode
+  nothing else, and names the click's helper (`/app/libexec/frostmail-open`)
+  in its `FROSTMAIL_APP` ([Notifications](#notifications)); in lodge mode it
+  exits 0. A normal start in local mode
   starts maild when none answers, with `flatpak-spawn --latest-version
   frostmail --background`, waits about 10 s for `mailctl hello`, and ends
   `flatpak-spawn` with `SIGKILL`, so the maild of the new sandbox outlives
@@ -231,7 +233,10 @@ from a host maild (the notification click of Phase 4 is not built).
   the keeping of a maild by build, lodge mode, the held launcher, the log's
   turnover, and a maild with no Secret Service that refuses to add an
   account and keeps no secrets file, and `frostmail --start-maild` (a start
-  without the app, a maild kept, lodge mode, a failed portal).
+  without the app, a maild kept, lodge mode, a failed portal). The maild of
+  `--background` names the click's helper in `FROSTMAIL_APP`, and the helper
+  asks the portal for the latest `frostmail`, or runs `frostmail` here when
+  it is not there.
   `FROSTMAIL_BIN_DIR` points it at host-built binaries. The change of mode
   has Rust unit tests on its order (`src-tauri/src/mode.rs`) and an
   end-to-end test on the built app (`app/e2e/mode.e2e.ts`, in CI). The
@@ -280,6 +285,15 @@ desktop icon.
 - Clicking one (`ActionInvoked`, action `default`) runs
   `frostmail --open-message <id>` (a group runs `frostmail`);
   `FROSTMAIL_APP` names another binary.
+- In the Flatpak, `frostmail --background` names
+  `/app/libexec/frostmail-open` in its maild's `FROSTMAIL_APP` (unless the
+  user set one), so a click runs `flatpak-spawn --latest-version frostmail
+  --open-message <id>`. The window then opens in a sandbox of its own, made
+  from the latest installed deployment, not inside maild's sandbox, where it
+  would be a child of maild and `flatpak ps` would show no instance. An old
+  maild's notification therefore never brings back an old build. Without
+  `flatpak-spawn` (a host maild, a test) the helper runs `frostmail` in the
+  same sandbox.
 - **Without a session bus** (behind lodge, or a session with none), maild
   sends the same notes to every connected client instead, as the
   transient event `message.announced {accountId, notes: [{title, body,
