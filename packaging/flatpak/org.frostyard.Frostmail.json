@@ -81,6 +81,7 @@
         "install -Dm755 src-tauri/target/release/frostmail /app/libexec/frostmail-app",
         "install -Dm755 flatpak/frostmail.sh /app/bin/frostmail",
         "install -Dm755 flatpak/request-background.py /app/libexec/frostmail-request-background",
+        "install -Dm755 flatpak/open.sh /app/libexec/frostmail-open",
         "install -Dm644 flatpak/org.frostyard.Frostmail.desktop -t /app/share/applications",
         "install -Dm644 flatpak/org.frostyard.Frostmail.metainfo.xml -t /app/share/metainfo",
         "install -Dm644 src-tauri/icons/icon.svg /app/share/icons/hicolor/scalable/apps/org.frostyard.Frostmail.svg",
@@ -93,6 +94,7 @@
         "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",
         "libs=$(ldd /app/libexec/frostmail-app) && ! printf '%s\\n' \"$libs\" | grep 'not found'",
         "python3 -m py_compile flatpak/request-background.py",
+        "sh -n flatpak/open.sh",
         "python3 -c \"from gi.repository import Gio, GLib\"",
         "sh flatpak/smoke-test.sh"
       ],
@@ -114,6 +116,11 @@
         {
           "type": "file",
           "path": "request-background.py",
+          "dest": "flatpak"
+        },
+        {
+          "type": "file",
+          "path": "open.sh",
           "dest": "flatpak"
         },
         {

@@ -12,7 +12,10 @@
 #     exits with "another maild uses";
 #   - a rule written through mailctl that reads back;
 #   - the launcher's normal start through a fake flatpak-spawn, which leaves
-#     no flatpak-spawn behind, while maild lives on;
+#     no flatpak-spawn behind, while maild lives on, and the maild it started
+#     names the click's helper in FROSTMAIL_APP;
+#   - a notification's click: the helper runs the app through flatpak-spawn
+#     with --latest-version, and runs frostmail here when there is none;
 #   - `frostmail --start-maild` in local mode, which starts maild through the
 #     fake portal and runs no app, keeps a maild that already answers, and
 #     leaves no flatpak-spawn behind; in lodge mode, which starts nothing; and
@@ -46,6 +49,8 @@
 set -eu
 
 bin="${FROSTMAIL_BIN_DIR:-/app/bin}"
+# The helpers beside this script, as the manifest copies them (flatpak/).
+here="$(cd "$(dirname "$0")" && pwd)"
 
 work="$(mktemp -d)"
 pids=
@@ -192,7 +197,11 @@ cat >"$work/libexec/frostmail-request-background" <<'FAKE'
 #!/bin/sh
 echo run >>"$SMOKE_MARKS/background"
 FAKE
-chmod +x "$work/bin/flatpak-spawn" "$work/libexec/frostmail-app" "$work/libexec/frostmail-request-background"
+# The click's helper is the real one: the case that runs it puts a fake
+# flatpak-spawn, and then a fake frostmail, first on PATH.
+cp "$here/open.sh" "$work/libexec/frostmail-open"
+chmod +x "$work/bin/flatpak-spawn" "$work/libexec/frostmail-app" "$work/libexec/frostmail-request-background" \
+    "$work/libexec/frostmail-open"
 mkdir -p "$work/marks"
 SMOKE_SPAWN_PID="$work/spawn.pid"
 SMOKE_CHILD_PID="$work/maild.pid"
@@ -201,7 +210,9 @@ SMOKE_LATEST_INFO="$work/info-latest"
 SMOKE_MARKS="$work/marks"
 SMOKE_HANG_PID="$work/hang.pid"
 SMOKE_DETACHED_PID="$work/detached.pid"
+SMOKE_OPEN_CALLS="$work/open.calls"
 export SMOKE_SPAWN_PID SMOKE_CHILD_PID SMOKE_SPAWN_FAULT SMOKE_LATEST_INFO SMOKE_MARKS SMOKE_HANG_PID SMOKE_DETACHED_PID
+export SMOKE_OPEN_CALLS
 export FROSTMAIL_LIBEXEC_DIR="$work/libexec"
 PATH="$work/bin:$bin:$PATH"
 export PATH
@@ -291,6 +302,11 @@ wait_file "$SMOKE_MARKS/app" || fail "the launcher did not run the app"
 # maild lives on, with no flatpak-spawn: it holds its own output.
 sleep 1
 alive "$new" || fail "maild $new ended with flatpak-spawn"
+# A click on a notification must leave this sandbox: maild names the helper,
+# which asks the portal for a sandbox of its own.
+app_env="$(tr '\000' '\n' <"/proc/$new/environ" | sed -n 's/^FROSTMAIL_APP=//p')"
+[ "$app_env" = "$work/libexec/frostmail-open" ] ||
+    fail "maild $new has FROSTMAIL_APP '$app_env', not the click's helper"
 
 # --- 5. The same build is kept, with the same process, although both builds
 # report the same version.
@@ -537,6 +553,30 @@ fi
 [ ! -e "$secdata/frostmail/secrets.json" ] || fail "the maild with no Secret Service made a secrets.json"
 secctl shutdown >/dev/null || fail "mailctl shutdown failed for the maild with no Secret Service"
 wait_gone "$secmaild" || fail "the maild with no Secret Service $secmaild did not stop"
+
+# --- 13. A notification's click opens the window in a NEW sandbox of the
+# latest installed build, never inside maild's. The helper goes to the portal
+# with --latest-version; without flatpak-spawn it runs frostmail here.
+mkdir -p "$work/openspawn" "$work/nospawn"
+cat >"$work/openspawn/flatpak-spawn" <<'FAKE'
+#!/bin/sh
+printf '%s\n' "$*" >>"$SMOKE_OPEN_CALLS"
+FAKE
+cat >"$work/nospawn/frostmail" <<'FAKE'
+#!/bin/sh
+printf '%s\n' "$*" >>"$SMOKE_OPEN_CALLS"
+FAKE
+chmod +x "$work/openspawn/flatpak-spawn" "$work/nospawn/frostmail"
+rm -f "$SMOKE_OPEN_CALLS"
+PATH="$work/openspawn:$bin" "$work/libexec/frostmail-open" --open-message 7 ||
+    fail "the click's helper failed beside a portal"
+[ "$(cat "$SMOKE_OPEN_CALLS" 2>/dev/null)" = "--latest-version frostmail --open-message 7" ] ||
+    fail "the click's helper called '$(cat "$SMOKE_OPEN_CALLS" 2>/dev/null)' through the portal, not the latest frostmail --open-message 7"
+rm -f "$SMOKE_OPEN_CALLS"
+PATH="$work/nospawn" "$work/libexec/frostmail-open" --open-message 7 ||
+    fail "the click's helper failed with no flatpak-spawn"
+[ "$(cat "$SMOKE_OPEN_CALLS" 2>/dev/null)" = "--open-message 7" ] ||
+    fail "the click's helper with no flatpak-spawn ran something else than frostmail"
 
 [ ! -e "$SMOKE_SPAWN_FAULT" ] || fail "the launcher called flatpak-spawn without --latest-version"
 
