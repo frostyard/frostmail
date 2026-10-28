@@ -265,9 +265,20 @@ exit 1
     expect(await s.visible(offered)).toBe(true);
 
     // 4. Back to this computer: the pane stays on Server without a maild, and
-    // the note says what starting this computer's maild again does.
+    // the note says what starting this computer's maild again does. The save
+    // to lodge can still run here (mailctl shutdown waits for the data lock,
+    // then the shell ends the connections): while it runs, Save is disabled,
+    // and when it ends the pane remounts on the stored choice. So the test
+    // waits for its end, and for the pane on the stored lodge address, before
+    // it chooses.
+    const alerts = () => s.findAll('[role="alert"]');
+    const saving = async () => (await s.findAll('[role="status"]')).length > 0;
     await s.switchTo(settings);
-    await s.waitFor("the stored lodge address", () => s.find("#server-lodge"), 40_000);
+    await s.waitFor("the save to lodge to finish", async () => !(await saving()), 60_000);
+    const [toLodgeFailed] = await alerts();
+    if (toLodgeFailed) throw new Error(`the change to lodge failed: ${await s.text(toLodgeFailed)}`);
+    const storedAddress = () => s.execute<string>('return document.getElementById("server-lodge")?.value ?? ""');
+    await s.waitFor("the stored lodge address", async () => (await storedAddress()) === address, 40_000);
     await chooseMode(s, 0);
     expect(await note(s)).toBe(NOTE_TO_LOCAL_DATA);
     await save(s);
@@ -276,8 +287,6 @@ exit 1
     // main window lists the same account. Each wait names what it waited
     // for, in order, so a failure says which step of the change did not
     // happen.
-    const alerts = () => s.findAll('[role="alert"]');
-    const saving = async () => (await s.findAll('[role="status"]')).length > 0;
     const ended = async () => storedLodge() === undefined || (await alerts()).length > 0;
     await s.waitFor("the save to finish", async () => !(await saving()) && (await ended()), 60_000);
     const [failed] = await alerts();
