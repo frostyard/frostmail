@@ -17,10 +17,10 @@ default, and keeps lodge as a connection the user chooses. The released
 Flatpak then never uses a host maild.
 [Plan 0013](../plans/0013-m6-the-standalone-desktop-flatpak.md) builds it;
 this document changes with each of its phases. Built so far (Phases 2 and
-3, the secrets part of Phase 4 and Phase 5, in review): [The Flatpak's own
-maild](#the-flatpaks-own-maild). Planned: the notification click, the
-first-run and mode screens and the move from a host maild (Phases 4, 6 and
-7).
+3, the secrets part of Phase 4, Phase 5's files and Phase 6's first run and
+modes, in review): [The Flatpak's own maild](#the-flatpaks-own-maild).
+Planned: the notification click and the move from a host maild (Phases 4
+and 7).
 
 ## Installing for one user
 
@@ -91,8 +91,8 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 Rationale: [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
 The Flatpak runs its own maild, in local mode; lodge is a mode the user
 chooses. Built so far: the layout, the launcher, the lock, the update rule,
-the secrets and the files (the notification click of Phase 4 is not
-built).
+the secrets, the files, the first run and the change of mode (the
+notification click of Phase 4 is not built).
 
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
@@ -123,7 +123,10 @@ built).
   `flatpak-spawn` with `SIGKILL`, so the maild of the new sandbox outlives
   the window. It then asks the Background portal to run `frostmail
   --background` at login, and `exec`s the app. In lodge mode it runs the app
-  only. Without `flatpak-spawn` it starts no maild. Every call that waits on
+  only. `frostmail --start-maild` does the same start and the same request
+  without the app, and exits 0 once maild answers (1, with a last line
+  that says why, when it does not); in lodge mode it starts nothing. The
+  Server pane runs it when the user returns to local mode. Without `flatpak-spawn` it starts no maild. Every call that waits on
   maild or the portal is bounded (`timeout`: 2 s for a probe, 10 s for the
   latest build, 35 s for `mailctl shutdown`, about 10 s in all for the
   start; `SIGKILL` 1 s after a `SIGTERM` that does not end the call), so a maild that never answers cannot keep the window from
@@ -134,6 +137,28 @@ built).
   When the running maild's build differs from the latest installed
   deployment's, the launcher calls `mailctl shutdown` and starts the latest;
   when either is unknown, it keeps the maild that runs.
+- **First run.** A store with no account opens on account setup: the main
+  window shows a welcome with "Add Account…" and, as a secondary action,
+  "Connect to lodge…", and opens the settings window on Accounts itself,
+  once a connection ([ui.md](../specs/ui.md#first-run-m6)). Nothing about lodge,
+  Tailscale or a host maild is asked.
+- **Changing the mode.** Only the Server pane writes `app.json`, and only
+  when the user saves; before that, the pane says what the change does,
+  from local facts only (whether `frostmail.db` exists), so it says the
+  same while lodge is unreachable
+  ([settings-ui.md](../specs/settings-ui.md#server-pane)). To lodge, the
+  shell writes `app.json`, then runs `mailctl shutdown` (which calls
+  `rpc.shutdown`, asks again while a maild answers, and waits for the data
+  lock, 30 s in all); when maild does not stop, it writes the previous
+  `app.json` back and the pane says "This computer's maild did not stop.
+  Frostmail still uses it." To local, it writes `app.json`, then runs
+  `frostmail --start-maild`. Either way it ends every window's connection,
+  and each reconnects to the maild now chosen. A change of mode never
+  copies, moves, merges or deletes data: the local data stays on disk,
+  unsynced, while lodge is the mode, and the same accounts return with
+  local mode. A window with no maild offers "Server Settings…", so the
+  pane is reachable while lodge is down, and the settings window shows
+  its Server pane without a maild.
 - **Secrets.** maild keeps them in the Secret Service
   (`--talk-name=org.freedesktop.secrets`), in a namespace of its own:
   `application=org.frostyard.Frostmail`, `store=<store id>`, the id kept in
@@ -170,19 +195,22 @@ built).
   bus: the socket, the lock, a write through mailctl, the replacement and
   the keeping of a maild by build, lodge mode, the held launcher, the log's
   turnover, and a maild with no Secret Service that refuses to add an
-  account and keeps no secrets file. The portal's tests are in the app's
-  Rust tests: its helpers (the request path, a URI as a path, a Response's
-  code, which Response is the portal's, and that a leave still reads the
-  answers already queued), and 3 session-bus tests against
-  portals the test serves itself, which skip without a bus: one whose
-  answers are a file, a cancel and a failure, with a Response forged by
-  another peer ahead of each; one whose portal leaves the bus without an
-  answer; and one whose portal answers, then leaves, then replies, whose
-  answer must win. `saveMessage.flatpak.test.ts` and
+  account and keeps no secrets file, and `frostmail --start-maild` (a start
+  without the app, a maild kept, lodge mode, a failed portal).
+  `FROSTMAIL_BIN_DIR` points it at host-built binaries. The change of mode
+  has Rust unit tests on its order (`src-tauri/src/mode.rs`) and an
+  end-to-end test on the built app (`app/e2e/mode.e2e.ts`, in CI). The
+  portal's tests are in the app's Rust tests: its helpers (the request
+  path, a URI as a path, a Response's code, which Response is the portal's,
+  and that a leave still reads the answers already queued), and 3
+  session-bus tests against portals the test serves itself, which skip
+  without a bus: one whose answers are a file, a cancel and a failure, with
+  a Response forged by another peer ahead of each; one whose portal leaves
+  the bus without an answer; and one whose portal answers, then leaves,
+  then replies, whose answer must win. `saveMessage.flatpak.test.ts` and
   `ComposeDrop.flatpak.test.tsx` cover Save As and attaching in Vitest, in
-  both modes, with a cancel. `FROSTMAIL_BIN_DIR` points the smoke test at
-  host-built binaries. The portals themselves need the real-desktop checks
-  of plan 0013.
+  both modes, with a cancel. The portals themselves need the real-desktop
+  checks of plan 0013.
 
 ## Application icon
 

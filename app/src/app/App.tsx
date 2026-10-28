@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { type Connect, Session } from "../data/session";
 import { useMail } from "../data/stores";
+import { BUTTON } from "../features/settings/labels";
 import { useFrameWindow } from "../lodge/frameWindow";
 import { IN_LODGE } from "../lodge/lodge";
 import { ComposeWindow } from "./ComposeWindow";
@@ -17,14 +18,31 @@ import { editorTarget } from "./openEvent";
 import { RemindersWindow } from "./RemindersWindow";
 import { isRemindersWindow } from "./reminders";
 import { SettingsWindow } from "./SettingsWindow";
-import { isSettingsWindow } from "./settings";
+import { isSettingsWindow, openSettings } from "./settings";
 
-function Connecting() {
+/**
+ * Connecting fills the window while it has no maild. In the desktop app a
+ * lost connection also offers the Server pane, so the mode is reachable while
+ * lodge is down (docs/specs/settings-ui.md, Server pane).
+ */
+export function Connecting() {
   const connection = useMail((s) => s.connection);
-  const text = connection.state === "lost" ? `Reconnecting to maild… (${connection.reason})` : "Connecting to maild…";
+  const lost = connection.state === "lost";
+  const text = lost ? `Reconnecting to maild… (${connection.reason})` : "Connecting to maild…";
   return (
     <div data-tauri-drag-region className="flex h-full items-center justify-center bg-window text-empty text-secondary">
-      {text}
+      <div data-tauri-drag-region className="flex flex-col items-center">
+        <span>{text}</span>
+        {lost && isTauri() && (
+          <button
+            type="button"
+            className={`${BUTTON} mt-3`}
+            onClick={() => void openSettings("server").catch((err: unknown) => console.warn("settings", err))}
+          >
+            Server Settings…
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -63,13 +81,16 @@ export function App(props: { connect: Connect }) {
   useHash();
   const target = composeTarget();
   const event = editorTarget();
+  const settings = isSettingsWindow();
   // Tauri creates windows hidden; show this one now that it has rendered,
   // so it never flashes WebKit's blank white page (src-tauri main.rs).
   useEffect(() => {
     if (isTauri()) void getCurrentWindow().show();
   }, []);
   return (
-    <Session connect={props.connect} fallback={<Connecting />}>
+    // The settings window keeps its toolbar and its Server pane without a
+    // maild, so a change of mode is always reachable (M6).
+    <Session connect={props.connect} fallback={settings && !IN_LODGE ? <SettingsWindow offline /> : <Connecting />}>
       {IN_LODGE ? (
         <LodgeFrame />
       ) : target !== null ? (
@@ -78,7 +99,7 @@ export function App(props: { connect: Connect }) {
         <EventWindow target={event} />
       ) : isRemindersWindow() ? (
         <RemindersWindow />
-      ) : isSettingsWindow() ? (
+      ) : settings ? (
         <SettingsWindow />
       ) : (
         <MainWindow />

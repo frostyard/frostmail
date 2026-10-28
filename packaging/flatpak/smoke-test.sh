@@ -13,6 +13,11 @@
 #   - a rule written through mailctl that reads back;
 #   - the launcher's normal start through a fake flatpak-spawn, which leaves
 #     no flatpak-spawn behind, while maild lives on;
+#   - `frostmail --start-maild` in local mode, which starts maild through the
+#     fake portal and runs no app, keeps a maild that already answers, and
+#     leaves no flatpak-spawn behind; in lodge mode, which starts nothing; and
+#     beside a flatpak-spawn that fails, which exits 1 with the launcher's
+#     last line on its error output;
 #   - a running maild whose build differs from the latest one, which the
 #     launcher stops and replaces, and one whose build is equal, or whose
 #     latest build is unknown, which it keeps;
@@ -345,7 +350,72 @@ if ls "$state"/latest-build.* >/dev/null 2>&1; then
 fi
 kill -KILL "$detached" 2>/dev/null || true
 
-# --- 6. Lodge mode. Stop the maild first: a switch to lodge stops it.
+# --- 6. `frostmail --start-maild` is the local start without the app, which
+# the Server pane runs to return to local mode: it starts maild through the
+# portal, asks the Background portal, leaves no flatpak-spawn behind, and runs
+# no app. With no maild, it starts one.
+mailctl shutdown >/dev/null || fail "mailctl shutdown failed before --start-maild"
+wait_gone "$new" || fail "maild $new did not stop before --start-maild"
+mailctl hello >/dev/null 2>&1 && fail "maild still answers before --start-maild"
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
+rc=0
+timeout 40 "$bin/frostmail" --start-maild >"$work/start-maild.out" 2>"$work/start-maild.err" || rc=$?
+[ "$rc" -eq 0 ] || fail "'frostmail --start-maild' exited with $rc: $(cat "$work/start-maild.err")"
+wait_hello || fail "'frostmail --start-maild' started no maild that answers within 20 s"
+[ ! -e "$SMOKE_MARKS/app" ] || fail "'frostmail --start-maild' ran the app"
+started="$(cat "$SMOKE_CHILD_PID" 2>/dev/null || true)"
+[ -n "$started" ] || fail "'frostmail --start-maild' did not start maild through flatpak-spawn"
+alive "$started" || fail "the maild $started of 'frostmail --start-maild' is not running"
+pids="$pids $started"
+spawned="$(cat "$SMOKE_SPAWN_PID" 2>/dev/null || true)"
+if [ -n "$spawned" ] && alive "$spawned"; then
+    fail "flatpak-spawn $spawned outlived 'frostmail --start-maild'"
+fi
+wait_file "$SMOKE_MARKS/background" || fail "'frostmail --start-maild' did not ask the Background portal"
+
+# With a maild of the latest build answering, it keeps that one.
+rm -f "$SMOKE_SPAWN_PID"
+rc=0
+timeout 40 "$bin/frostmail" --start-maild >"$work/start-maild.out" 2>"$work/start-maild.err" || rc=$?
+[ "$rc" -eq 0 ] || fail "'frostmail --start-maild' exited with $rc beside a running maild"
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "'frostmail --start-maild' started a maild beside one of the latest build"
+alive "$started" || fail "'frostmail --start-maild' stopped the maild $started that ran"
+mailctl hello >/dev/null || fail "the maild $started stopped answering after 'frostmail --start-maild'"
+
+# --- 7. In lodge mode, `frostmail --start-maild` exits 0 and starts nothing.
+mailctl shutdown >/dev/null || fail "mailctl shutdown failed before the lodge-mode start"
+wait_gone "$started" || fail "maild $started did not stop before the lodge-mode start"
+printf '{"lodge":"https://lodge.test"}\n' >"$config/app.json"
+[ "$(maild -mode)" = "lodge" ] || fail "maild -mode is not lodge with app.json naming lodge"
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
+rc=0
+timeout 20 "$bin/frostmail" --start-maild >"$work/start-maild.out" 2>"$work/start-maild.err" || rc=$?
+[ "$rc" -eq 0 ] || fail "'frostmail --start-maild' in lodge mode exited with $rc"
+if mailctl hello >/dev/null 2>&1; then
+    fail "'frostmail --start-maild' in lodge mode started a maild"
+fi
+[ ! -e "$SMOKE_SPAWN_PID" ] || fail "'frostmail --start-maild' in lodge mode asked the portal"
+[ ! -e "$SMOKE_MARKS/app" ] || fail "'frostmail --start-maild' in lodge mode ran the app"
+rm -f "$config/app.json"
+
+# --- 8. A flatpak-spawn that fails: `frostmail --start-maild` exits 1, and its
+# error output has the launcher's last line. It never runs the app.
+[ "$(maild -mode)" = "local" ] || fail "maild -mode is not local after app.json was removed"
+rm -f "$SMOKE_SPAWN_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
+rc=0
+SMOKE_SPAWN_FAIL=1 timeout 40 "$bin/frostmail" --start-maild >"$work/start-maild.out" 2>"$work/start-maild.err" || rc=$?
+[ "$rc" -eq 1 ] || fail "'frostmail --start-maild' exited with $rc beside a failing flatpak-spawn, not 1"
+grep -q "did not start" "$work/start-maild.err" || fail "'frostmail --start-maild' did not say that maild did not start"
+if mailctl hello >/dev/null 2>&1; then
+    fail "a maild answers after 'frostmail --start-maild' beside a failing flatpak-spawn"
+fi
+[ ! -e "$SMOKE_MARKS/app" ] || fail "'frostmail --start-maild' ran the app beside a failing flatpak-spawn"
+spawned="$(cat "$SMOKE_SPAWN_PID" 2>/dev/null || true)"
+if [ -n "$spawned" ] && alive "$spawned"; then
+    fail "flatpak-spawn $spawned outlived a failed 'frostmail --start-maild'"
+fi
+
+# --- 9. Lodge mode. Stop the maild first: a switch to lodge stops it.
 mailctl shutdown >/dev/null || fail "mailctl shutdown failed"
 wait_gone "$new" || fail "maild $new did not stop on mailctl shutdown"
 mailctl hello >/dev/null 2>&1 && fail "maild still answers after mailctl shutdown"
@@ -378,7 +448,7 @@ XDG_DATA_HOME="$work/data2" timeout 20 maild >"$work/lodge.log" 2>&1 || rc=$?
 [ "$rc" -eq 0 ] || fail "maild in lodge mode exited with $rc: $(cat "$work/lodge.log")"
 [ ! -e "$work/data2/frostmail/frostmail.db" ] || fail "maild in lodge mode made a database"
 
-# --- 7. A launcher that read "local" while app.json changed to lodge starts
+# --- 10. A launcher that read "local" while app.json changed to lodge starts
 # a maild that exits 0 without opening the database.
 rm -f "$config/app.json"
 rc=0
@@ -390,7 +460,7 @@ if mailctl hello >/dev/null 2>&1; then
 fi
 [ "$(grep -c lodge "$config/app.json")" -eq 1 ] || fail "app.json did not change to lodge"
 
-# --- 8. Something accepts on the socket and never answers: the launcher ends
+# --- 11. Something accepts on the socket and never answers: the launcher ends
 # its probes, starts what it can, and still runs the app within a bound, with
 # no flatpak-spawn left behind.
 rm -f "$config/app.json"
@@ -428,7 +498,7 @@ if [ -n "$spawned" ] && alive "$spawned"; then
 fi
 kill -KILL "$silent" 2>/dev/null || true
 
-# --- 9. No Secret Service, FROSTMAIL_SECRETS unset: the Flatpak's maild keeps
+# --- 12. No Secret Service, FROSTMAIL_SECRETS unset: the Flatpak's maild keeps
 # no plain file. It runs on a data directory and a socket of its own; adding
 # an account fails with the way to keep secrets in a file, and no account and
 # no secrets file are left behind (ADR-0046). The session bus is the missing

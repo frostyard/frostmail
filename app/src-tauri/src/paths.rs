@@ -62,6 +62,43 @@ pub fn socket() -> Result<PathBuf, String> {
     Ok(PathBuf::from(format!(r"\\.\pipe\frostmail-{}", sid::user()?)))
 }
 
+/// maild's data directory, where its database and blob store are:
+/// $FROSTMAIL_DATA_DIR when it is absolute, else $XDG_DATA_HOME/frostmail,
+/// else ~/.local/share/frostmail. Keep in step with config.Resolve and
+/// defaultDataDir in internal/config. A relative FROSTMAIL_DATA_DIR names a
+/// directory in maild's own working directory, which the app cannot know,
+/// so the app reads the default instead.
+#[cfg(not(windows))]
+pub fn data_dir() -> Result<PathBuf, String> {
+    data_dir_from(|key| std::env::var_os(key))
+}
+
+#[cfg(not(windows))]
+fn data_dir_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    if let Some(p) = abs(getenv("FROSTMAIL_DATA_DIR")) {
+        return Ok(p);
+    }
+    if let Some(p) = abs(getenv("XDG_DATA_HOME")) {
+        return Ok(p.join("frostmail"));
+    }
+    abs(getenv("HOME"))
+        .map(|h| h.join(".local").join("share").join("frostmail"))
+        .ok_or_else(|| "HOME is not set".to_string())
+}
+
+/// maild's data directory: $FROSTMAIL_DATA_DIR when it is absolute, else
+/// %LOCALAPPDATA%\Frostmail\Data (defaultDataDir in
+/// internal/config/paths_windows.go).
+#[cfg(windows)]
+pub fn data_dir() -> Result<PathBuf, String> {
+    if let Some(p) = abs(std::env::var_os("FROSTMAIL_DATA_DIR")) {
+        return Ok(p);
+    }
+    abs(std::env::var_os("LOCALAPPDATA"))
+        .map(|d| d.join("Frostmail").join("Data"))
+        .ok_or_else(|| "LOCALAPPDATA is not set".to_string())
+}
+
 /// The cache maild writes decoded parts into:
 /// $FROSTMAIL_CACHE_DIR or $XDG_CACHE_HOME/frostmail or ~/.cache/frostmail.
 /// In a Flatpak, XDG_CACHE_HOME is the app's own, the directory maild's
@@ -236,6 +273,42 @@ mod tests {
             ("FROSTMAIL_CACHE_DIR", "/home/u/.cache/frostmail"),
         ];
         assert_eq!(cache_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.cache/frostmail")));
+    }
+
+    #[test]
+    fn data_dir_follows_internal_config() {
+        let vars = [("HOME", "/home/u")];
+        assert_eq!(data_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.local/share/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_DATA_HOME", "/d")];
+        assert_eq!(data_dir_from(env(&vars)), Ok(PathBuf::from("/d/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_DATA_HOME", "relative/ignored")];
+        assert_eq!(data_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.local/share/frostmail")));
+        let vars = [("HOME", "/home/u"), ("XDG_DATA_HOME", "/d"), ("FROSTMAIL_DATA_DIR", "/fd")];
+        assert_eq!(data_dir_from(env(&vars)), Ok(PathBuf::from("/fd")));
+        // A relative override names a directory in maild's own, so it is not
+        // the app's answer (internal/config.Resolve would pass it on).
+        let vars = [("HOME", "/home/u"), ("FROSTMAIL_DATA_DIR", "data")];
+        assert_eq!(data_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.local/share/frostmail")));
+        assert!(data_dir_from(env(&[])).is_err());
+    }
+
+    #[test]
+    fn only_this_apps_flatpak_is_one() {
+        for (id, want) in [("org.frostyard.Frostmail", true), ("org.example.Editor", false), ("", false)] {
+            assert_eq!(in_flatpak_from(env(&[("FLATPAK_ID", id)])), want, "{id}");
+        }
+        assert!(!in_flatpak_from(env(&[])));
+        // In the Flatpak the data directory is the app's own, from the
+        // XDG base directory the sandbox sets.
+        let vars = [
+            ("FLATPAK_ID", "org.frostyard.Frostmail"),
+            ("XDG_DATA_HOME", "/home/u/.var/app/org.frostyard.Frostmail/data"),
+            ("HOME", "/home/u"),
+        ];
+        assert_eq!(
+            data_dir_from(env(&vars)),
+            Ok(PathBuf::from("/home/u/.var/app/org.frostyard.Frostmail/data/frostmail"))
+        );
     }
 
     #[test]
