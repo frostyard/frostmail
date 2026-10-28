@@ -215,6 +215,16 @@ pub fn server_facts() -> mode::ServerFacts {
     mode::server_facts()
 }
 
+/// Whether this computer also has a Frostmail installed outside Flatpak,
+/// with maild's database (docs/specs/ui.md, First run, the move note): the
+/// welcome then shows the note that says how to move that mail here, and
+/// nothing moves by itself. It reads the environment and the file's
+/// metadata only, so it answers while maild and lodge do not.
+#[tauri::command]
+pub fn host_mail_found() -> bool {
+    paths::host_mail_found()
+}
+
 /// Open a draft in its compose window, labeled compose-<id>, or focus the
 /// window that already shows it. The window learns its draft, and whether
 /// it was just created (fresh: discarded when closed untouched), from an

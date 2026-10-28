@@ -46,8 +46,10 @@ in progress: [ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.
 keeps lodge as a connection the user chooses. Phases 2 and 3 (maild and
 mailctl in the build, the launcher, the data lock, one local maild) are
 merged (#126); Phase 4's secrets part (the Flatpak's keyring namespace, the
-store id, no plain-file fallback, the probe in `account.create`) is in review;
-the rest of Phases 4 to 10 is not built.
+store id, no plain-file fallback, the probe in `account.create`), Phase 5's
+files and Phase 6's first run and modes are merged; Phase 7's code (`mailctl
+import`, the move note) is in review; the notification click of Phase 4 and
+Phases 8 to 10 are not built.
 
 ## Two kinds of agent work
 

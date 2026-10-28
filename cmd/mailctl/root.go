@@ -45,6 +45,7 @@ func newRootCmd() *cobra.Command {
 		newWaitingCmd(opts),
 		newRulesCmd(opts),
 		newExportCmd(opts),
+		newImportCmd(opts),
 	)
 	return root
 }

@@ -313,12 +313,22 @@ func readManifest(path string) (manifestFile, error) {
 // runExportCheck validates the export in dir against this build: it changes
 // nothing, and fails with every problem it found.
 func runExportCheck(ctx context.Context, w io.Writer, dir string) error {
+	_, err := checkExport(ctx, w, dir)
+	return err
+}
+
+// checkExport validates the export in dir against this build and prints one
+// line for each ok, problem and warning it found, in the same words as
+// export --check. It changes nothing, and returns the manifest, which import
+// then reads its checksum and accounts from. It fails whenever it found a
+// problem; a warning alone does not fail it.
+func checkExport(ctx context.Context, w io.Writer, dir string) (manifestFile, error) {
 	m, err := readManifest(filepath.Join(dir, "MANIFEST"))
 	if err != nil {
-		return err
+		return m, err
 	}
 	if m.get("format") != strconv.Itoa(exportFormat) {
-		return fmt.Errorf("MANIFEST format is %q, not %d: this mailctl cannot read the export", m.get("format"), exportFormat)
+		return m, fmt.Errorf("MANIFEST format is %q, not %d: this mailctl cannot read the export", m.get("format"), exportFormat)
 	}
 	var problems []string
 	problem := func(format string, args ...any) {
@@ -346,7 +356,7 @@ func runExportCheck(ctx context.Context, w io.Writer, dir string) error {
 	case serr != nil:
 		problem("%v", serr)
 	case kerr != nil:
-		return kerr
+		return m, kerr
 	case schema > int64(known):
 		problem("the export's schema is %d, newer than this maild's %d: install a newer maild here first", schema, known)
 	default:
@@ -405,13 +415,13 @@ func runExportCheck(ctx context.Context, w io.Writer, dir string) error {
 		}
 	}
 	if len(problems) > 0 {
-		return fmt.Errorf("the export in %s is not usable here: %d problem(s)", dir, len(problems))
+		return m, fmt.Errorf("the export in %s is not usable here: %d problem(s)", dir, len(problems))
 	}
 	fmt.Fprintf(w, "accounts: %s\n", strings.Join(listed, " "))
 	for _, line := range warnings {
 		fmt.Fprintln(w, line)
 	}
-	return nil
+	return m, nil
 }
 
 // countBlobs counts the files under dir; a missing dir holds none.

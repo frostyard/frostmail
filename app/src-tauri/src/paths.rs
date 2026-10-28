@@ -7,6 +7,9 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+#[cfg(not(windows))]
+use std::path::Path;
+
 /// The application ID, as internal/config.AppID.
 const APP_ID: &str = "org.frostyard.Frostmail";
 
@@ -97,6 +100,46 @@ pub fn data_dir() -> Result<PathBuf, String> {
     abs(std::env::var_os("LOCALAPPDATA"))
         .map(|d| d.join("Frostmail").join("Data"))
         .ok_or_else(|| "LOCALAPPDATA is not set".to_string())
+}
+
+/// The data directory of a Frostmail installed outside Flatpak:
+/// $HOME/.local/share/frostmail, from HOME only. In the Flatpak
+/// XDG_DATA_HOME is the app's own, and FROSTMAIL_DATA_DIR may name any
+/// directory, so neither says where the host's install keeps its mail
+/// (docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md, Moving from
+/// a host maild). Windows has no Flatpak, so it has no such directory. The
+/// shell asks through host_mail_found; a getenv lookup keeps it testable.
+#[cfg(not(windows))]
+fn host_data_dir_from(getenv: impl Fn(&str) -> Option<OsString>) -> Result<PathBuf, String> {
+    abs(getenv("HOME"))
+        .map(|h| h.join(".local").join("share").join("frostmail"))
+        .ok_or_else(|| "HOME is not set".to_string())
+}
+
+/// Whether this computer also has a Frostmail installed outside Flatpak,
+/// with maild's database in the host's data directory (docs/specs/ui.md,
+/// First run, the move note). True only in this app's Flatpak, with
+/// FROSTMAIL_SOCKET unset (the development bundle sets it, because its
+/// maild is the host's), when that database exists. It reads the file's
+/// metadata only, never the file. Windows has no Flatpak, so it is always
+/// false there.
+#[cfg(not(windows))]
+pub fn host_mail_found() -> bool {
+    host_mail_found_from(|key| std::env::var_os(key), |path: &Path| path.exists())
+}
+
+#[cfg(not(windows))]
+fn host_mail_found_from(getenv: impl Fn(&str) -> Option<OsString>, exists: impl Fn(&Path) -> bool) -> bool {
+    in_flatpak_from(&getenv)
+        && getenv("FROSTMAIL_SOCKET").is_none_or(|socket| socket.is_empty())
+        && host_data_dir_from(&getenv).is_ok_and(|dir| exists(&dir.join("frostmail.db")))
+}
+
+/// Whether this computer also has a Frostmail installed outside Flatpak:
+/// never, since Windows has no Flatpak (host_mail_found above).
+#[cfg(windows)]
+pub fn host_mail_found() -> bool {
+    false
 }
 
 /// The cache maild writes decoded parts into:
@@ -290,6 +333,104 @@ mod tests {
         let vars = [("HOME", "/home/u"), ("FROSTMAIL_DATA_DIR", "data")];
         assert_eq!(data_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.local/share/frostmail")));
         assert!(data_dir_from(env(&[])).is_err());
+    }
+
+    #[test]
+    fn host_data_dir_comes_from_home_only() {
+        // From HOME only: the Flatpak's XDG_DATA_HOME is the app's own, and a
+        // FROSTMAIL_DATA_DIR names whatever maild uses there.
+        let vars = [
+            ("HOME", "/home/u"),
+            ("XDG_DATA_HOME", "/home/u/.var/app/org.frostyard.Frostmail/data"),
+            ("FROSTMAIL_DATA_DIR", "/srv/mail"),
+        ];
+        assert_eq!(host_data_dir_from(env(&vars)), Ok(PathBuf::from("/home/u/.local/share/frostmail")));
+        assert!(host_data_dir_from(env(&[])).is_err());
+        assert!(host_data_dir_from(env(&[("HOME", "relative")])).is_err());
+    }
+
+    /// A temporary directory, removed when the test ends.
+    struct Temp(PathBuf);
+
+    impl Temp {
+        /// A new, empty directory named after the test.
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("frostmail-paths-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Temp(dir)
+        }
+
+        /// The path, as the environment's text.
+        fn text(&self) -> &str {
+            self.0.to_str().unwrap()
+        }
+
+        /// This directory with a host install's database in it.
+        fn with_host_database(&self) {
+            let dir = self.0.join(".local").join("share").join("frostmail");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("frostmail.db"), b"").unwrap();
+        }
+    }
+
+    impl Drop for Temp {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// The database is there, and its metadata is all that is read.
+    fn host_mail_found_with(vars: &[(&str, &str)]) -> bool {
+        host_mail_found_from(env(vars), |path: &Path| path.exists())
+    }
+
+    #[test]
+    fn host_mail_is_found_in_the_flatpak_when_the_database_is_there() {
+        let home = Temp::new("host-mail");
+        home.with_host_database();
+        let vars = [("HOME", home.text()), ("FLATPAK_ID", "org.frostyard.Frostmail")];
+        assert!(host_mail_found_with(&vars));
+        // An empty FROSTMAIL_SOCKET names no maild, so it is still the
+        // host's database that is asked about.
+        let vars = [("HOME", home.text()), ("FLATPAK_ID", "org.frostyard.Frostmail"), ("FROSTMAIL_SOCKET", "")];
+        assert!(host_mail_found_with(&vars));
+    }
+
+    #[test]
+    fn host_mail_is_not_found_outside_the_flatpak() {
+        let home = Temp::new("host-mail-plain");
+        home.with_host_database();
+        assert!(!host_mail_found_with(&[("HOME", home.text())]));
+        // Another app's Flatpak is no Flatpak of this app.
+        let vars = [("HOME", home.text()), ("FLATPAK_ID", "org.example.Editor")];
+        assert!(!host_mail_found_with(&vars));
+    }
+
+    #[test]
+    fn host_mail_is_not_found_when_a_socket_names_the_maild() {
+        // The development bundle's maild is the host's, so there is nothing
+        // to move.
+        let home = Temp::new("host-mail-socket");
+        home.with_host_database();
+        let vars = [
+            ("HOME", home.text()),
+            ("FLATPAK_ID", "org.frostyard.Frostmail"),
+            ("FROSTMAIL_SOCKET", "/run/user/1000/frostmail/maild.sock"),
+        ];
+        assert!(!host_mail_found_with(&vars));
+    }
+
+    #[test]
+    fn host_mail_is_not_found_without_the_database() {
+        let home = Temp::new("host-mail-empty");
+        let vars = [("HOME", home.text()), ("FLATPAK_ID", "org.frostyard.Frostmail")];
+        assert!(!host_mail_found_with(&vars));
+    }
+
+    #[test]
+    fn host_mail_is_not_found_without_a_home() {
+        assert!(!host_mail_found_with(&[("FLATPAK_ID", "org.frostyard.Frostmail")]));
     }
 
     #[test]

@@ -499,6 +499,34 @@ local mail is the default, and lodge is a secondary choice.
     account when there is none); and, in the desktop app on this
     computer's maild only, "Connect to lodge…" (`BUTTON`), which opens it
     on the Server pane.
+- **The move note** (plan 0013, Phase 7). In the release Flatpak on this
+  computer's maild, when a host install's database exists
+  (`~/.local/share/frostmail/frostmail.db`, which the window sees through
+  `--filesystem=home:ro`), the welcome also shows, below its buttons
+  (`mt-6`), a `div` `role="note"` `aria-label="Mail from another install"`
+  (`--bg-banner`, 6 radius, 12px padding, 12/16 text). The shell's
+  `host_mail_found` command answers whether to show it: true only in the
+  Flatpak (`FLATPAK_ID`), with `FROSTMAIL_SOCKET` unset (the development
+  bundle sets it, because its maild is the host's), and when that file
+  exists. It reads the file's metadata only, never the file. The note
+  changes nothing ([ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md),
+  Moving from a host maild):
+  - a `p`: "This computer also has mail from a Frostmail installed outside
+    Flatpak. Nothing moves by itself. To move it here, run these commands
+    in a terminal:";
+  - an `ol` (`mt-2`, decimal, inside), each item a `code` in the
+    monospace font, selectable:
+    1. `systemctl --user disable --now maild.service`
+    2. `mailctl export ~/frostmail-export`
+    3. `flatpak run --command=mailctl org.frostyard.Frostmail import ~/frostmail-export`
+  - a `p` (`mt-2`): "Then open Frostmail again. The folder
+    ~/frostmail-export holds your passwords in plain text: delete it once
+    your accounts sync.";
+  - a "Dismiss" button (`BUTTON`, `mt-3`). It hides the note and keeps that
+    choice in the window's `localStorage` (`frostmail.moveNote` =
+    `"dismissed"`), so the note does not return on this computer.
+  Elsewhere (a browser, lodge mode, outside the Flatpak) the app does not
+  ask, and shows no note. An error from the command shows no note.
 - In the desktop app, when the main window first renders on a connection
   and finds no account, it opens the settings window on Accounts itself.
   It decides on that first render only: once per connection, so again

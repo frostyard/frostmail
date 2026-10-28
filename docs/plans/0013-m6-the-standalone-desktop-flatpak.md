@@ -27,12 +27,12 @@ core's amendment of ADR-0058 and plan 0010 is still to come.
 mailctl in the Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
 the paths and the smoke test. CI's "Flatpak build and test" runs the smoke
 test; the checks on a real desktop (portals, Background, `flatpak-spawn`)
-wait for the desktop VM. **Phase 4's secrets part is built (PR #130, in
-review):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
+wait for the desktop VM. **Phase 4's secrets part is built (PR #130, merged
+2026-10-28):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
 **Not done in Phase 4:** the notification click, the OAuth check and the 6
-checks on the desktop VM. **Phase 5's code is built (PR #132, in review):**
+checks on the desktop VM. **Phase 5's code is built (PR #132, merged 2026-10-28):**
 Save As through the file chooser portal in both modes, attaching by bytes
 in both modes, with the portal's Rust tests and the Vitest tests; its
 Done-when checks wait for the desktop VM. **Phase 6 is built (PR #131,
@@ -40,7 +40,11 @@ merged 2026-10-28):** the first-run welcome, the Server pane's notes, the
 ordered change of mode in the shell (`mailctl shutdown`, the write-back,
 `frostmail --start-maild`), the settings window without a maild, and their
 unit, smoke and end-to-end tests; its desktop VM check waits for the VM.
-Phases 7 to 10 are not built.
+**Phase 7's code is built (PR in review):** `mailctl import DIR`, the
+welcome's move note (`host_mail_found`) and the steps in
+[design/desktop.md](../design/desktop.md#the-flatpaks-own-maild), with unit
+tests on staged exports; its Done-when check waits for the desktop VM.
+Phases 8 to 10 are not built.
 
 ## Who helps
 
@@ -151,7 +155,7 @@ Phases 7 to 10 are not built.
   Tauri's dialog elsewhere.
 - Attaching by `draft.attachData` in the Flatpak, in both modes.
 - ADR-0045's Save As limit is closed in [design/desktop.md](../design/desktop.md).
-- **Built (PR in review):** `app/src-tauri/src/portal.rs` (the portal's call
+- **Built (PR #132):** `app/src-tauri/src/portal.rs` (the portal's call
   and its unit and session-bus tests), the commands `in_flatpak` and
   `portal_save_file`, `filesAsBytes` in the window's transport,
   `saveMessage.flatpak.test.ts` and `ComposeDrop.flatpak.test.tsx`.
@@ -185,6 +189,12 @@ Phases 7 to 10 are not built.
 - The app's note when the host's data directory exists and the store is
   empty.
 - The steps in [design/desktop.md](../design/desktop.md).
+- **Decided in the build:** the note sits in the first-run welcome
+  ([ui.md](../specs/ui.md#first-run-m6)), its dismissal is kept in the
+  window's `localStorage`, and it does not show in the development bundle
+  (`FROSTMAIL_SOCKET` set). Import stages the export in the data directory
+  first, and also moves aside the store's `blobs` and `secrets.json` when
+  they exist, with the database's stamp.
 - **Done when,** on the desktop VM with a host maild from `make install`
   and generated mail, after the Flatpak's first launch (its maild running,
   its store empty): nothing changes until the user runs the 3 steps; after
