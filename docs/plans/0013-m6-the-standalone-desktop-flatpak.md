@@ -20,9 +20,11 @@ and onboarding, not new mail features. Tests use generated mail and the
 `frostmail-mailtest` container, as plan 0011 does, unless a phase says
 otherwise.
 
-Status (2026-10-28): **Phase 1 is open:** ADR-0046 is proposed.
-**Phases 2 and 3 are built in one PR** (in review): maild and mailctl in the
-Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
+Status (2026-10-28): **Phase 1 is open:** Brian accepted ADR-0046 on
+2026-10-28, and ADR-0013, 0041 and 0045 say that it amends them in part;
+core's amendment of ADR-0058 and plan 0010 is still to come.
+**Phases 2 and 3 are built** (PR #126, merged 2026-10-28): maild and
+mailctl in the Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
 the paths and the smoke test. CI's "Flatpak build and test" runs the smoke
 test; the checks on a real desktop (portals, Background, `flatpak-spawn`)
 wait for Phase 4 and the desktop VM. `--talk-name=org.freedesktop.secrets`
