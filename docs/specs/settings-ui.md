@@ -468,7 +468,9 @@ interface ServicesSectionProps {
   elsewhere) moves the selection to the first account. Servers with an
   empty host are left out, so a Gmail or iCloud profile fills them. An
   `unavailable` error from authorize means no Google client is stored: the
-  error says "Set up your Google client under Sign-In first."
+  error says "Set up your Google client under Sign-In first." An error
+  from any other step, such as `account.create` when the secret store
+  cannot keep a secret, says maild's own message.
 - **Edit:** Save sends `account.update` with every editable field, then
   `account.setPassword` when a new password was typed. Sign In… calls
   `account.authorize`, remembers the account whose sign-in it started and
