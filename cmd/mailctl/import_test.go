@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -407,6 +408,205 @@ func TestImportAsksAMaildToStop(t *testing.T) {
 	}
 }
 
+// A fault that a start cannot undo changes neither the store nor the error:
+// the import says why maild did not start, and keeps the old line.
+func TestImportSaysWhenMaildDidNotStart(t *testing.T) {
+	f := newImportFixture(t)
+	boom := errors.New("maild did not answer")
+	var out bytes.Buffer
+	start := startMaildFunc(func(context.Context) error { return boom })
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), maildStart{start: start}); err != nil {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), boom.Error()) {
+		t.Errorf("the import does not say why maild did not start (%q):\n%s", boom, out.String())
+	}
+	if !strings.Contains(out.String(), "Open Frostmail to start maild with the imported accounts.") {
+		t.Errorf("the import lost the line about opening Frostmail:\n%s", out.String())
+	}
+}
+
+// Nothing starts maild on the host, where its service manager does: import
+// keeps its line about opening Frostmail, and starts nothing.
+func TestImportWithoutAStartKeepsTheOldLine(t *testing.T) {
+	f := newImportFixture(t)
+	var out bytes.Buffer
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), maildStart{}); err != nil {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "Open Frostmail to start maild with the imported accounts.") {
+		t.Errorf("the import lost the line about opening Frostmail:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "open windows reconnect") {
+		t.Errorf("the import says that maild started, and nothing started it:\n%s", out.String())
+	}
+}
+
+// getenvOf is a getenv that answers from m alone.
+func getenvOf(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+
+// configEnv names configHome as the config directory on every platform:
+// XDG_CONFIG_HOME on Linux, APPDATA on Windows.
+func configEnv(configHome string, more map[string]string) map[string]string {
+	m := map[string]string{"XDG_CONFIG_HOME": configHome, "APPDATA": configHome}
+	for k, v := range more {
+		m[k] = v
+	}
+	return m
+}
+
+// writeAppJSON writes body as the app's app.json, the file that the Server
+// pane writes, where config.AppConfigFile looks for it under configHome.
+func writeAppJSON(t *testing.T, configHome, body string) {
+	t.Helper()
+	path, err := config.AppConfigFile(getenvOf(configEnv(configHome, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeMode writes an app.json with the given lodge value under configHome.
+func writeMode(t *testing.T, configHome, lodge string) {
+	t.Helper()
+	body := "{}"
+	if lodge != "" {
+		body = `{"lodge":"` + lodge + `"}`
+	}
+	writeAppJSON(t, configHome, body)
+}
+
+// Only this app's Flatpak in local mode has a launcher that starts maild
+// again: on the host, and in another application's Flatpak, nothing starts,
+// and lodge mode starts nothing either, because the launcher does not there.
+// A mode that cannot be read counts as local.
+func TestMaildStartFor(t *testing.T) {
+	for name, tc := range map[string]struct {
+		flatpakID string
+		lodge     string // "" for no app.json, "-" for one that is not JSON
+		wantStart bool
+		wantLodge bool
+	}{
+		"the host":                                     {},
+		"another application's Flatpak":                {flatpakID: "org.example.Other"},
+		"the Frostmail Flatpak":                        {flatpakID: config.AppID, wantStart: true},
+		"the host in lodge mode":                       {lodge: "wss://lodge.test", wantLodge: true},
+		"the Frostmail Flatpak in lodge mode":          {flatpakID: config.AppID, lodge: "wss://lodge.test", wantLodge: true},
+		"the Frostmail Flatpak with a broken app.json": {flatpakID: config.AppID, lodge: "-", wantStart: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			configHome := t.TempDir()
+			if tc.lodge == "-" {
+				writeAppJSON(t, configHome, "{not json")
+			} else if tc.lodge != "" {
+				writeMode(t, configHome, tc.lodge)
+			}
+			got := maildStartFor(getenvOf(configEnv(configHome, map[string]string{"FLATPAK_ID": tc.flatpakID})))
+			if (got.start != nil) != tc.wantStart {
+				t.Errorf("the start = %v, want one: %v", got.start, tc.wantStart)
+			}
+			if got.lodge != tc.wantLodge {
+				t.Errorf("lodge = %v, want %v", got.lodge, tc.wantLodge)
+			}
+		})
+	}
+}
+
+// In lodge mode the maild runs elsewhere, so import starts none, says where
+// the imported accounts wait, changes no mode, and exits 0.
+func TestImportInLodgeModeStartsNoMaild(t *testing.T) {
+	f := newImportFixture(t)
+	configHome := t.TempDir()
+	writeMode(t, configHome, "wss://lodge.test")
+	// The import's own environment names the same config, so the check of
+	// the mode below reads the file that the import sees.
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("APPDATA", configHome)
+	if got := maildStartFor(getenvOf(configEnv(configHome, map[string]string{"FLATPAK_ID": config.AppID}))); !got.lodge || got.start != nil {
+		t.Fatalf("maildStartFor in lodge mode = %+v, want lodge and no start", got)
+	}
+	var calls int
+	start := startMaildFunc(func(context.Context) error { calls++; return nil })
+	var out bytes.Buffer
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), maildStart{start: start, lodge: true}); err != nil {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if calls != 0 {
+		t.Errorf("the start ran %d times in lodge mode, want 0", calls)
+	}
+	if !strings.Contains(out.String(), lodgeNote) {
+		t.Errorf("the import does not say where the imported accounts wait:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "maild started with the imported accounts") || strings.Contains(out.String(), "Open Frostmail to start maild") {
+		t.Errorf("the import says that maild started, and lodge mode starts none:\n%s", out.String())
+	}
+	if mode, err := config.AppMode(os.Getenv); err != nil || mode != config.ModeLodge {
+		t.Errorf("the mode = %q, %v; want lodge, unchanged", mode, err)
+	}
+}
+
+// lastLine is the last line of the launcher's output that says why it failed.
+func TestLastLine(t *testing.T) {
+	for in, want := range map[string]string{
+		"":                                 "",
+		"\n\n":                             "",
+		"one\n":                            "one",
+		"one\ntwo\n\n":                     "two",
+		"  one  \n  maild did not start\n": "maild did not start",
+	} {
+		if got := lastLine(in); got != want {
+			t.Errorf("lastLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// A refused import into a store that holds an account changes nothing, and
+// the maild that it stopped starts again, so that a window that was open
+// reconnects.
+func TestImportStartsTheMaildItStoppedAfterARefusal(t *testing.T) {
+	f := newImportFixture(t)
+	makePristine(t, f.data)
+	addAccount(t, f.data)
+	srv := rpctest.Start(t)
+	t.Setenv("FROSTMAIL_SOCKET", srv.Socket)
+	var calls int
+	start := startMaildFunc(func(context.Context) error { calls++; return nil })
+	var out bytes.Buffer
+	err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), maildStart{start: start})
+	if err == nil || !strings.Contains(err.Error(), "an import needs an empty store") {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	<-srv.Stopped() // the maild that ran before was stopped
+	if calls != 1 {
+		t.Errorf("the start ran %d times, want 1: the maild that ran before must start again\n%s", calls, out.String())
+	}
+	if !strings.Contains(out.String(), "maild started again; open windows reconnect.") {
+		t.Errorf("the refused import does not say that maild started again:\n%s", out.String())
+	}
+}
+
+// A refused import that found no maild to stop starts none.
+func TestImportStartsNothingWhenNoMaildRan(t *testing.T) {
+	f := newImportFixture(t)
+	makePristine(t, f.data)
+	addAccount(t, f.data)
+	var calls int
+	start := startMaildFunc(func(context.Context) error { calls++; return nil })
+	var out bytes.Buffer
+	err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, time.Now(), maildStart{start: start})
+	if err == nil || !strings.Contains(err.Error(), "an import needs an empty store") {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if calls != 0 {
+		t.Errorf("the start ran %d times with no maild to start, want 0\n%s", calls, out.String())
+	}
+}
+
 // A fault after the moves began puts the store back: placeImport is where
 // the store changes, so it undoes its own moves.
 func TestPlaceImportPutsTheStoreBack(t *testing.T) {
@@ -534,7 +734,7 @@ func TestImportStampIsFreeOfAnEarlierImportsNames(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, now); err != nil {
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, now, maildStart{}); err != nil {
 		t.Fatalf("import = %v\n%s", err, out.String())
 	}
 	if b, err := os.ReadFile(earlier); err != nil || !bytes.Equal(b, content) {

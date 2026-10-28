@@ -220,13 +220,22 @@ click and the move from a host maild.
   what the store held aside as `frostmail.db.before-import-<stamp>` (with
   its `-wal` and `-shm`), `blobs.before-import-<stamp>` and
   `secrets.json.before-import-<stamp>`; renames the staged files into
-  place, the database last; and releases the lock. The next maild migrates
-  the database and moves the plain secrets into the Flatpak's namespace
-  under the new store id ([accounts.md](accounts.md#secrets)). Import never
-  changes or deletes DIR, and says that DIR holds the secrets in plain
-  text. The host maild must stay disabled after the move: a second engine
-  on the same accounts, and a Microsoft refresh token that rotates
-  (ADR-0039).
+  place, the database last; and releases the lock. In the Flatpak it then
+  runs `/app/bin/frostmail --start-maild` (60 s at most), so maild runs on
+  the imported accounts and a window that was open reconnects by itself;
+  when that start fails, import says why and keeps its line that asks the
+  user to open Frostmail, and it still exits 0. In lodge mode it starts
+  nothing, because the launcher does not there, and says that the imported
+  accounts wait on this computer until the user chooses "maild on this
+  computer" in Settings, Server; import never changes the mode. An import
+  that stops a maild and then fails, in the lock or after it, starts that
+  maild again the same way, and returns its own error. The next maild
+  migrates the database and moves the plain secrets into the Flatpak's
+  namespace under the new store id ([accounts.md](accounts.md#secrets)).
+  Import never changes or deletes DIR, and says that DIR holds the secrets
+  in plain text. The host maild must stay disabled after the move: a
+  second engine on the same accounts, and a Microsoft refresh token that
+  rotates (ADR-0039).
 - **Tests.** `packaging/flatpak/smoke-test.sh` runs the launcher, maild and
   mailctl against a fake `flatpak-spawn`, with no portal, display or session
   bus: the socket, the lock, a write through mailctl, the replacement and
