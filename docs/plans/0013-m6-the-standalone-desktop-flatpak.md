@@ -27,7 +27,7 @@ core's amendment of ADR-0058 and plan 0010 is still to come.
 mailctl in the Flatpak's build, the launcher, the lock, `-log`, `rpc.shutdown`, `build`,
 the paths and the smoke test. CI's "Flatpak build and test" runs the smoke
 test; the checks on a real desktop (portals, Background, `flatpak-spawn`)
-wait for the desktop VM. **Phase 4's secrets part is built in this PR (in
+wait for the desktop VM. **Phase 4's secrets part is built (PR #130, in
 review):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
