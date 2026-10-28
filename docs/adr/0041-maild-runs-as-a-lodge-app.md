@@ -1,6 +1,7 @@
 # 0041 — maild runs as a lodge app
 
-- **Status:** Accepted (2026-10-21)
+- **Status:** Accepted (2026-10-21); amended in part by
+  [0046](0046-the-desktop-flatpak-carries-its-own-maild.md)
 - **Date:** 2026-10-18
 
 ## Context
