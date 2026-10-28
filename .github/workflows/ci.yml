@@ -190,6 +190,22 @@ jobs:
         run: make app-build IN_NSL='sh -c'
       - name: The app shell's Rust tests
         run: make app-test IN_NSL='sh -c'
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # The change of mode (ADR-0046) stops and starts this computer's maild
+      # through the app's own shell, so it runs on the built app: WebKitGTK,
+      # WebKitWebDriver and xvfb, as make ui-e2e runs the other app tests.
+      - name: The mode change's end-to-end test on WebKitGTK
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -q --no-install-recommends webkit2gtk-driver xvfb dbus
+          CGO_ENABLED=0 go build -o build/ ./cmd/maild ./cmd/mailctl ./tools/uifixture
+          cd app
+          # A session bus for the app's single-instance plugin, and WebKit's
+          # CPU paths, since the runner has no GPU.
+          env -u WAYLAND_DISPLAY GDK_BACKEND=x11 FROSTMAIL_WEBKIT_SAFE=1 dbus-run-session -- \
+            xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts mode
 
   windows-app:
     name: Windows app (installer, WebView2 e2e)
