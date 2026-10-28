@@ -71,18 +71,31 @@ accounts.`,
 // runImport places the export in dir into this store, waiting up to wait for
 // maild to stop and for its data lock.
 func runImport(ctx context.Context, w io.Writer, opts *rootOptions, dir string, wait time.Duration) error {
-	// 1. The export first, in export --check's words: any problem stops the
-	// import before it changes anything.
-	m, err := checkExport(ctx, w, dir)
-	if err != nil {
-		return err
-	}
+	return importInto(ctx, w, opts, dir, wait, time.Now())
+}
+
+// importInto is runImport with the clock of the import's stamp, so that a
+// test can name the files an import leaves.
+func importInto(ctx context.Context, w io.Writer, opts *rootOptions, dir string, wait time.Duration, now time.Time) error {
 	paths, err := config.Resolve(os.Getenv)
 	if err != nil {
 		return err
 	}
-	if filepath.Clean(dir) == filepath.Clean(paths.DataDir) {
-		return fmt.Errorf("%s is this store's data directory: export into another directory", dir)
+	// The store's path becomes part of a SQLite URI.
+	if strings.ContainsAny(paths.DB, "?#") {
+		return fmt.Errorf("the store's path %q contains ? or #, which SQLite reads as part of a query: set FROSTMAIL_DATA_DIR to a path without them", paths.DB)
+	}
+	// The store and DIR must be two trees: import reads all of DIR, and it
+	// moves and removes files in the store.
+	if err := separateStore(dir, paths.DataDir); err != nil {
+		return err
+	}
+
+	// 1. The export, in export --check's words: any problem stops the import
+	// before it changes anything.
+	m, err := checkExport(ctx, w, dir)
+	if err != nil {
+		return err
 	}
 	socket := opts.socket
 	if socket == "" {
@@ -115,8 +128,12 @@ func runImport(ctx context.Context, w io.Writer, opts *rootOptions, dir string, 
 		return fmt.Errorf("the store in %s holds %s: an import needs an empty store, so nothing was moved", paths.DataDir, reason)
 	}
 
-	// 4. Stage first: a fault leaves the store as it was.
-	stamp := time.Now().UTC().Format(importStampFormat)
+	// 4. Stage first: a fault leaves the store as it was. The stamp names the
+	// stage and what moves aside, and it is free of an earlier import's names.
+	stamp, err := importStamp(paths.DataDir, now)
+	if err != nil {
+		return err
+	}
 	stage := filepath.Join(paths.DataDir, ".import-"+stamp)
 	if err := os.Mkdir(stage, 0o700); err != nil {
 		return fmt.Errorf("make the stage: %w", err)
@@ -266,6 +283,101 @@ func placeImport(paths config.Paths, stage, stamp string) (asideDB string, err e
 		placed = append(placed, m)
 	}
 	return asideDB, nil
+}
+
+// separateStore refuses a dir that overlaps this store's data directory:
+// import reads all of DIR, and it moves and removes files in the store, so
+// the two must be two trees. Symlinks are resolved, so an alias of the data
+// directory counts as the directory itself. It changes nothing.
+func separateStore(dir, dataDir string) error {
+	d, err := resolvePath(dir)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", dir, err)
+	}
+	data, err := resolvePath(dataDir)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", dataDir, err)
+	}
+	switch {
+	case d == data:
+		return fmt.Errorf("%s is this store's data directory: export into another directory", dir)
+	case within(d, data):
+		return fmt.Errorf("%s is inside this store's data directory (%s): export into a directory outside it", dir, dataDir)
+	case within(data, d):
+		return fmt.Errorf("this store's data directory (%s) is inside %s: export into a directory that does not hold it", dataDir, dir)
+	}
+	return nil
+}
+
+// within reports whether path is dir itself, or inside it.
+func within(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))))
+}
+
+// resolvePath is p as an absolute path whose symlinks are resolved. Only the
+// part of p that exists is resolved: a missing tail cannot hold a symlink,
+// and EvalSymlinks fails on a path that does not exist.
+func resolvePath(p string) (string, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", err
+	}
+	rest := ""
+	for cur := abs; ; cur = filepath.Dir(cur) {
+		real, err := filepath.EvalSymlinks(cur)
+		if err == nil {
+			return filepath.Join(real, rest), nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur { // nothing of the path exists
+			return abs, nil
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+	}
+}
+
+// importStamp is the stamp of this import's stage and aside names at now:
+// the UTC second, and -2, -3 and so on when that second already named files
+// in dataDir, so that an import never replaces an earlier import's files.
+func importStamp(dataDir string, now time.Time) (string, error) {
+	base := now.UTC().Format(importStampFormat)
+	for i := 1; i <= 100; i++ {
+		stamp := base
+		if i > 1 {
+			stamp = fmt.Sprintf("%s-%d", base, i)
+		}
+		taken, err := stampTaken(dataDir, stamp)
+		if err != nil {
+			return "", err
+		}
+		if !taken {
+			return stamp, nil
+		}
+	}
+	return "", fmt.Errorf("%s holds 100 sets of before-import names of %s: remove the ones you no longer need, then import again", dataDir, base)
+}
+
+// stampTaken reports whether the stage directory or any file that import
+// moves aside already carries stamp, so that os.Rename would replace it.
+func stampTaken(dataDir, stamp string) (bool, error) {
+	names := []string{".import-" + stamp}
+	for _, name := range []string{"frostmail.db", "frostmail.db-wal", "frostmail.db-shm", "blobs", "secrets.json"} {
+		names = append(names, asideName(name, stamp))
+	}
+	for _, name := range names {
+		_, err := os.Lstat(filepath.Join(dataDir, name))
+		switch {
+		case err == nil:
+			return true, nil
+		case !errors.Is(err, fs.ErrNotExist):
+			return false, fmt.Errorf("check %s: %w", name, err)
+		}
+	}
+	return false, nil
 }
 
 // asideName is where import moves the store's file name aside, under stamp:

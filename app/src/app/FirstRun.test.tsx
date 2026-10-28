@@ -12,7 +12,7 @@ import { mockData } from "../rpc/mock/fixture";
 import { type MockData, MockTransport } from "../rpc/mock/mock";
 import { MainWindow } from "./MainWindow";
 
-const env = vi.hoisted(() => ({ tauri: true, remote: false, invoke: vi.fn(), listen: vi.fn() }));
+const env = vi.hoisted(() => ({ tauri: true, remote: false, flatpak: true, invoke: vi.fn(), listen: vi.fn() }));
 
 vi.mock("@tauri-apps/api/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tauri-apps/api/core")>()),
@@ -36,6 +36,7 @@ vi.mock("@tauri-apps/api/event", async (importOriginal) => ({
 vi.mock("../rpc/transport/tauri", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../rpc/transport/tauri")>()),
   remoteMaild: () => env.remote,
+  inFlatpak: () => env.flatpak,
 }));
 
 /** EMPTY is a maild with no account at all. */
@@ -60,6 +61,7 @@ beforeEach(() => {
   useUI.setState(useUI.getInitialState());
   env.tauri = true;
   env.remote = false;
+  env.flatpak = true;
   env.invoke.mockReset();
   env.invoke.mockImplementation(async () => null);
   env.listen.mockReset();
@@ -186,6 +188,16 @@ describe("the move note", () => {
     await setup();
     const section = await screen.findByRole("region", { name: "Welcome" });
     expect(within(section).getByText("Add a mail account to start.")).toBeTruthy();
+    expect(asked()).toBe(0);
+    expect(moveNote()).toBeNull();
+  });
+
+  it("asks nothing outside the Flatpak", async () => {
+    env.flatpak = false;
+    answerHostMail(true);
+    await setup();
+    const section = await screen.findByRole("region", { name: "Welcome" });
+    expect(within(section).getByRole("button", { name: "Add Account…" })).toBeTruthy();
     expect(asked()).toBe(0);
     expect(moveNote()).toBeNull();
   });

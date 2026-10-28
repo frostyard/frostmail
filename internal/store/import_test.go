@@ -1,8 +1,10 @@
 package store
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -191,6 +193,90 @@ func TestNewStoreIDLeavesNoWAL(t *testing.T) {
 	for _, p := range []string{path + "-wal", path + "-shm"} {
 		if _, err := os.Stat(p); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("%s stays: %v", p, err)
+		}
+	}
+}
+
+// A crash can leave committed rows in the -wal file that no checkpoint has
+// moved into the database. Pristine reads them, and it never checkpoints them
+// away: the database and the -wal are as they were.
+func TestPristineReadsACrashLeftWALWithoutChangingIt(t *testing.T) {
+	ctx := t.Context()
+	live := t.TempDir()
+	d, err := Open(ctx, filepath.Join(live, "frostmail.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	insertAccount(t, d, sampleAccount("a@mailtest.test"))
+	// The three files as a crash leaves them: the row is still in the -wal.
+	crash := t.TempDir()
+	for _, name := range []string{"frostmail.db", "frostmail.db-wal", "frostmail.db-shm"} {
+		b, err := os.ReadFile(filepath.Join(live, name))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(crash, name), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	path := filepath.Join(crash, "frostmail.db")
+	// The -shm is SQLite's own cache and it rewrites it; the database and
+	// the -wal hold the rows, and must stay as they are.
+	before := map[string]string{}
+	for _, name := range []string{"frostmail.db", "frostmail.db-wal"} {
+		sum, err := fileSHA256Of(filepath.Join(crash, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		before[name] = sum
+	}
+	ok, reason, err := Pristine(ctx, path)
+	if err != nil {
+		t.Fatalf("Pristine = %v", err)
+	}
+	if ok || reason != "1 account" {
+		t.Fatalf("Pristine = %v, %q; want the account in the -wal", ok, reason)
+	}
+	for name, was := range before {
+		sum, err := fileSHA256Of(filepath.Join(crash, name))
+		if err != nil {
+			t.Errorf("%s after Pristine: %v", name, err)
+			continue
+		}
+		if sum != was {
+			t.Errorf("%s changed: %s, was %s", name, sum, was)
+		}
+	}
+}
+
+// fileSHA256Of is the checksum of a file.
+func fileSHA256Of(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(b)), nil
+}
+
+// The path becomes part of a SQLite URI: a ? or # in it is refused before
+// anything is opened or made.
+func TestPristineAndNewStoreIDRefuseAQueryInThePath(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	for _, name := range []string{"frostmail.db?x", "frostmail.db#x"} {
+		path := filepath.Join(dir, name)
+		if _, _, err := Pristine(ctx, path); err == nil || !strings.Contains(err.Error(), "contains ? or #") {
+			t.Errorf("Pristine(%s) = %v; want the path refused", name, err)
+		}
+		if _, err := NewStoreID(ctx, path); err == nil || !strings.Contains(err.Error(), "contains ? or #") {
+			t.Errorf("NewStoreID(%s) = %v; want the path refused", name, err)
+		}
+		if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s was made: %v", name, err)
 		}
 	}
 }

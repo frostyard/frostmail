@@ -4,6 +4,7 @@ package main
 // empty store.
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
@@ -453,5 +455,110 @@ func TestImportHasNoDryRun(t *testing.T) {
 	}
 	if _, err := os.Stat(f.data); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("import --dry-run made %s: %v", f.data, err)
+	}
+}
+
+// DIR and the store must be two trees: whatever lies inside the other would
+// change, and a symlink alias counts as the directory itself.
+func TestImportRefusesADirectoryThatOverlapsTheStore(t *testing.T) {
+	for name, tc := range map[string]struct {
+		dir  func(t *testing.T, data string) string
+		want string
+	}{
+		"the data directory": {func(t *testing.T, data string) string {
+			makePristine(t, data)
+			return data
+		}, "is this store's data directory"},
+		"inside the data directory": {func(t *testing.T, data string) string {
+			makePristine(t, data)
+			dir := filepath.Join(data, "blobs", "export-here")
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			return dir
+		}, "is inside this store's data directory"},
+		"the data directory inside DIR": {func(t *testing.T, data string) string {
+			return filepath.Dir(data)
+		}, "export into a directory that does not hold it"},
+		"a symlink alias of the data directory": {func(t *testing.T, data string) string {
+			if runtime.GOOS == "windows" {
+				t.Skip("Windows needs a privilege for a symlink")
+			}
+			makePristine(t, data)
+			link := filepath.Join(t.TempDir(), "alias")
+			if err := os.Symlink(data, link); err != nil {
+				t.Fatal(err)
+			}
+			return link
+		}, "is this store's data directory"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newImportFixture(t)
+			dir := tc.dir(t, f.data)
+			var before map[string]string
+			if _, err := os.Stat(f.data); err == nil {
+				before = snapshotTree(t, f.data)
+			}
+			out, err := runMailctl(t, "import", dir)
+			if err == nil {
+				t.Fatalf("the import went through:\n%s", out)
+			}
+			if got := out + err.Error(); !strings.Contains(got, tc.want) {
+				t.Errorf("the refusal lacks %q:\n%s\n%v", tc.want, out, err)
+			}
+			if before != nil {
+				if after := snapshotTree(t, f.data); !maps.Equal(before, after) {
+					t.Errorf("the data directory changed:\n before: %v\n after: %v", before, after)
+				}
+			}
+			if m, _ := filepath.Glob(filepath.Join(f.data, ".import-*")); len(m) != 0 {
+				t.Errorf("the refused import left the stage %v", m)
+			}
+			if m, _ := filepath.Glob(filepath.Join(f.data, "*before-import*")); len(m) != 0 {
+				t.Errorf("the refused import moved %v aside", m)
+			}
+		})
+	}
+}
+
+// A second import in the same second takes the next stamp: it never replaces
+// a name that an earlier import already moved a file aside to.
+func TestImportStampIsFreeOfAnEarlierImportsNames(t *testing.T) {
+	f := newImportFixture(t)
+	makePristine(t, f.data)
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	earlier := filepath.Join(f.data, "frostmail.db.before-import-20261028T120000Z")
+	content := []byte("the database of an earlier import")
+	if err := os.WriteFile(earlier, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if err := importInto(t.Context(), &out, &rootOptions{}, f.export.dir, 5*time.Second, now); err != nil {
+		t.Fatalf("import = %v\n%s", err, out.String())
+	}
+	if b, err := os.ReadFile(earlier); err != nil || !bytes.Equal(b, content) {
+		t.Errorf("the earlier import's file = %q, %v; want it unchanged", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(f.data, "frostmail.db.before-import-20261028T120000Z-2")); err != nil {
+		t.Errorf("the aside database of this import: %v", err)
+	}
+	if m, _ := filepath.Glob(filepath.Join(f.data, ".import-*")); len(m) != 0 {
+		t.Errorf("the import left the stage %v", m)
+	}
+}
+
+// The store's path becomes part of a SQLite URI: a ? or # in it is refused
+// before the import changes or makes any file.
+func TestImportRefusesAStorePathWithAQuery(t *testing.T) {
+	f := newImportFixture(t)
+	data := filepath.Join(t.TempDir(), "da?ta")
+	t.Setenv("FROSTMAIL_DATA_DIR", data)
+	out, err := runMailctl(t, "import", f.export.dir)
+	if err == nil || !strings.Contains(err.Error(), "contains ? or #") {
+		t.Fatalf("import = %v\n%s", err, out)
+	}
+	if _, err := os.Stat(data); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the refused import made %s: %v", data, err)
 	}
 }

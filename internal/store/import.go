@@ -22,14 +22,21 @@ import (
 // would mix with: no account, no message, no draft and nothing in the
 // outbox. A database that does not exist is pristine, and stays absent (the
 // first maild makes it). reason says what a store that is not pristine
-// holds. The database is opened as it is: not migrated, and not changed.
+// holds. The database is opened read-only: not migrated, and not changed,
+// as are not its -wal and -shm files.
 func Pristine(ctx context.Context, path string) (ok bool, reason string, err error) {
+	if strings.ContainsAny(path, "?#") {
+		return false, "", fmt.Errorf("check the store: path %q contains ? or #", path)
+	}
 	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		return true, "", nil
 	} else if err != nil {
 		return false, "", fmt.Errorf("check the store: %w", err)
 	}
-	sqlDB, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)")
+	// Read-only: SQLite reads the committed rows of a -wal file that a crash
+	// left, and it never checkpoints them into the database, nor removes the
+	// -wal and -shm, so that a refused import changes no file.
+	sqlDB, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return false, "", fmt.Errorf("check the store: %w", err)
 	}
@@ -65,6 +72,9 @@ func Pristine(ctx context.Context, path string) (ok bool, reason string, err err
 // 19: maild makes an id after it migrates. path must be a copy that no maild
 // uses: it is not migrated, and no -wal or -shm file stays beside it.
 func NewStoreID(ctx context.Context, path string) (string, error) {
+	if strings.ContainsAny(path, "?#") {
+		return "", fmt.Errorf("new store id: path %q contains ? or #", path)
+	}
 	// DELETE rather than the store's WAL, so that the copy has no -wal file
 	// to leave behind; maild sets WAL again when it opens the store.
 	sqlDB, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(DELETE)")

@@ -6,7 +6,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 
 import { BUTTON, PRIMARY_BUTTON } from "../features/settings/labels";
-import { remoteMaild } from "../rpc/transport/tauri";
+import { inFlatpak, remoteMaild } from "../rpc/transport/tauri";
 import { openSettings } from "./settings";
 import type { SettingsPane } from "./settingsPane";
 
@@ -101,17 +101,20 @@ function MoveNote() {
 /** FirstRun is the welcome a store with no account shows in place of the modules. */
 export function FirstRun() {
   const thisComputer = onThisComputer();
+  // The move note is the Flatpak's: elsewhere the app does not ask about a
+  // host install (docs/specs/ui.md, First run, the move note).
+  const flatpak = thisComputer && inFlatpak();
   const [hostMail, setHostMail] = useState(false);
   const asked = useRef(false);
   // The shell answers whether another install's mail is here, once. A shell
   // that cannot answer, and any answer other than true, shows no note.
   useEffect(() => {
-    if (asked.current || !thisComputer) return;
+    if (asked.current || !flatpak) return;
     asked.current = true;
     void invoke<boolean>("host_mail_found")
       .then((found) => setHostMail(found === true))
       .catch(() => setHostMail(false));
-  }, [thisComputer]);
+  }, [flatpak]);
   const text = thisComputer
     ? "Add a mail account to start. Frostmail keeps its mail on this computer."
     : "Add a mail account to start.";
@@ -130,7 +133,7 @@ export function FirstRun() {
             </button>
           )}
         </div>
-        {thisComputer && hostMail && !moveNoteDismissed() && <MoveNote />}
+        {flatpak && hostMail && !moveNoteDismissed() && <MoveNote />}
       </div>
     </section>
   );
