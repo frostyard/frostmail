@@ -22,8 +22,8 @@ const shell = vi.hoisted(() => {
   return {
     state,
     save: vi.fn(async () => "/home/u/Lunch.eml"),
-    invoke: vi.fn(async (cmd: string, _args?: unknown): Promise<unknown> =>
-      cmd === "portal_save_file" ? state.portal : null,
+    invoke: vi.fn(
+      async (cmd: string, _args?: unknown): Promise<unknown> => (cmd === "portal_save_file" ? state.portal : null),
     ),
   };
 });
