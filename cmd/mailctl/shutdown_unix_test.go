@@ -15,6 +15,7 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -109,6 +110,139 @@ func TestShutdownWithNoSocketWaitsForTheLock(t *testing.T) {
 	if err := runShutdown(t.Context(), &out, socket, data, shutdownWait); err != nil || out.String() != "maild is not running\n" {
 		t.Fatalf("runShutdown = %q, %v; want %q", out.String(), err, "maild is not running\n")
 	}
+}
+
+// A connection that ends before rpc.shutdown answers is not a failure:
+// maild closes its connections as it stops, so the reply can be lost. The
+// wait then checks the socket and the lock, as it does after any ask.
+func TestShutdownTakesAClosedConnectionAsAnAsk(t *testing.T) {
+	// A maild that stops on rpc.shutdown, closing the connection before it
+	// replies: the lock it held goes, and shutdown exits 0.
+	t.Run("a maild that stops", func(t *testing.T) {
+		data := t.TempDir()
+		release, err := datalock.Acquire(data) // stands for the stopping maild's lock
+		if err != nil {
+			t.Fatal(err)
+		}
+		letGo := sync.OnceFunc(release)
+		t.Cleanup(letGo)
+		socket, stopped := standIn(t, true)
+
+		var out bytes.Buffer
+		done := make(chan error, 1)
+		go func() {
+			done <- runShutdown(t.Context(), &out, socket, data, shutdownWait)
+		}()
+		<-stopped // the stand-in answered rpc.hello, got rpc.shutdown and stopped
+		select {
+		case err := <-done:
+			t.Fatalf("shutdown returned %v after a lost reply; want it to wait for the lock", err)
+		default:
+		}
+		letGo()
+		if err := <-done; err != nil {
+			t.Fatalf("shutdown after the lock went = %v; want success", err)
+		}
+		if got := out.String(); got != "maild stopped\n" {
+			t.Fatalf("output = %q; want %q", got, "maild stopped\n")
+		}
+		again, err := datalock.Acquire(data)
+		if err != nil {
+			t.Fatalf("the lock after shutdown = %v; want it free", err)
+		}
+		again()
+	})
+
+	// A maild that drops the connection on rpc.shutdown but keeps answering
+	// rpc.hello does not stop: shutdown asks again, and ends at its deadline.
+	t.Run("a maild that still answers", func(t *testing.T) {
+		socket, _ := standIn(t, false)
+		var out bytes.Buffer
+		err := runShutdown(t.Context(), &out, socket, t.TempDir(), 300*time.Millisecond)
+		if err == nil || !strings.Contains(err.Error(), "still answers") || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("runShutdown = %v; want an error that maild still answers at the deadline", err)
+		}
+		if out.Len() != 0 {
+			t.Fatalf("output = %q; want none", out.String())
+		}
+	})
+
+	// A lost reply with a lock that stays held: the wait for the lock is
+	// proven, and the deadline reports the lock, not the ask.
+	t.Run("the lock stays", func(t *testing.T) {
+		data := t.TempDir()
+		release, err := datalock.Acquire(data) // stands for the stopping maild's lock
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(sync.OnceFunc(release))
+		socket, _ := standIn(t, true)
+
+		var out bytes.Buffer
+		err = runShutdown(t.Context(), &out, socket, data, 300*time.Millisecond)
+		if err == nil || !strings.Contains(err.Error(), "still holds the lock") || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("runShutdown = %v; want an error that maild still holds the lock at the deadline", err)
+		}
+		if out.Len() != 0 {
+			t.Fatalf("output = %q; want none", out.String())
+		}
+	})
+}
+
+// standIn is a maild that closes its connection on rpc.shutdown without a
+// reply: with stop, it also stops, closing its listener. It answers
+// rpc.hello as maild does. stopped is closed once it has stopped, and nil
+// when it does not stop.
+func standIn(t *testing.T, stop bool) (socket string, stopped <-chan struct{}) {
+	t.Helper()
+	socket, cleanup, err := rpctest.SocketPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(sync.OnceFunc(func() { _ = ln.Close() }))
+	gone := make(chan struct{})
+	var goneOnce sync.Once
+	go func() {
+		for {
+			nc, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			closeConn := sync.OnceFunc(func() { _ = nc.Close() })
+			t.Cleanup(closeConn)
+			go func() {
+				sc := bufio.NewScanner(nc)
+				for sc.Scan() {
+					var req struct {
+						ID     json.RawMessage `json:"id"`
+						Method string          `json:"method"`
+					}
+					if json.Unmarshal(sc.Bytes(), &req) != nil {
+						continue
+					}
+					switch req.Method {
+					case "rpc.hello":
+						_, _ = fmt.Fprintf(nc, `{"jsonrpc":"2.0","id":%s,"result":{"protocol":1,"server":"stand-in"}}`+"\n", req.ID)
+					case "rpc.shutdown":
+						closeConn() // no reply: maild closes its connections as it stops
+						if stop {
+							_ = ln.Close() // it stops: no new connection, no new ask
+							goneOnce.Do(func() { close(gone) })
+						}
+					}
+				}
+			}()
+		}
+	}()
+	if !stop {
+		return socket, nil
+	}
+	return socket, gone
 }
 
 // listen runs a stand-in on a new socket: it answers rpc.hello when hello is

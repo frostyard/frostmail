@@ -36,7 +36,11 @@ That also holds when nothing answers at first: a maild that is starting or
 stopping holds the lock, and shutdown waits for it, and asks it to stop again
 if it begins to answer. It exits 0 once the socket is silent and the lock is
 free: with "maild is not running" when nothing answered and the lock was free
-at once, else "maild stopped". It exits non-zero when 30 seconds pass first.`,
+at once, else "maild stopped". It exits non-zero when 30 seconds pass first.
+
+A connection that ends before rpc.shutdown answers counts as an ask, because
+maild closes its connections as it stops: the wait then checks that the socket
+is silent and the lock is free.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			socket, err := opts.socketPath()
@@ -64,7 +68,10 @@ at once, else "maild stopped". It exits non-zero when 30 seconds pass first.`,
 // repeats until the socket does not answer rpc.hello and dataDir's lock is
 // free, and then exits 0. Each round:
 //   - a maild that answers is asked to stop (again, when it still answers
-//     after an earlier ask);
+//     after an earlier ask). A connection that ends before rpc.shutdown
+//     answers counts as an ask, because maild closes its connections as it
+//     stops: the wait then checks that the socket is silent and the lock is
+//     free; an error the server answers with still fails at once;
 //   - when nothing answers, the lock is tried: a maild that has closed its
 //     socket can still be finishing its last transaction, and one that is
 //     starting holds the lock before it listens. A held lock is waited for.
@@ -111,9 +118,12 @@ func runShutdown(parent context.Context, w io.Writer, socket, dataDir string, wa
 			if timedOut() {
 				return stuck() // still asking
 			}
-			if err != nil {
-				return fmt.Errorf("rpc.shutdown: %w", err)
+			if errors.As(err, &rpcErr) {
+				return fmt.Errorf("rpc.shutdown: %w", err) // an answer from the server
 			}
+			// Any other error is the connection, not an answer: maild closes
+			// its connections as it stops, so a reply can be lost. The next
+			// round asks again if maild still answers, or waits for the lock.
 			asking, asked = false, true
 		case errors.As(err, &rpcErr):
 			return err // something answers, but not as maild does
