@@ -54,7 +54,7 @@ day (below), and all 3 are merged. The OAuth check (item 4) passed on
 2026-10-29, so every desktop VM check of Phases 4 to 7 passes.
 **Phase 8's workflow part is built (PR #143):** a `vX.Y.Z-rc.N` tag
 publishes and attests a candidate without moving `latest`, with a dry-run
-test. **Phase 10's workflows are built (this PR):** the Promote workflow
+test. **Phase 10's workflows are built (PR #145):** the Promote workflow
 copies the tested candidate's digest to `vX.Y.Z` and `latest`, and a
 `vX.Y.Z` tag no longer publishes the Flatpak. Phase 8's test remote and
 tags, Phase 9, and the release itself are not done.
@@ -414,7 +414,7 @@ date.
 A Flatpak release is always a promoted candidate: the digest that passed
 Phase 9 becomes the release, and nothing is built again.
 
-- **The promotion workflow:** Built (this PR).
+- **The promotion workflow:** Built (PR #145).
   `.github/workflows/promote.yml` (Promote) runs only by hand
   (`workflow_dispatch`), with the inputs `candidate` (`vX.Y.Z-rc.N`) and
   `version` (`vX.Y.Z`). It runs on a GitHub-hosted runner, has no
@@ -445,14 +445,14 @@ Phase 9 becomes the release, and nothing is built again.
   candidate, no valid attestation from `flatpak.yml`, or `vX.Y.Z` on
   another digest. `scripts/flatpak_promote_test.go` runs the job's steps
   with stub `skopeo`, `gh` and `docker` for each case.
-- **A `vX.Y.Z` tag no longer publishes the Flatpak** (this PR). In
+- **A `vX.Y.Z` tag no longer publishes the Flatpak** (PR #145). In
   `flatpak.yml`, the step "Name the OCI tags" lets a `vX.Y.Z` tag build
   and test, and publish nothing, with a notice; only a `vX.Y.Z-rc.N` tag
   publishes and attests. So the release tag cannot replace the tested
   digest with a new build, and only the promotion moves `vX.Y.Z` and
   `latest`. `scripts/flatpak_publish_test.go` checks it.
 - **The .deb and the GitHub release** (Irulan's choice, 2026-10-29, for
-  Brian's review in this PR):
+  Brian's review in PR #145):
   `make bump` makes them, as for every release (core ADR-0012: it stays
   the only way to tag a release). `release.yml` ignores the candidates'
   tags; the release tag `vX.Y.Z` runs it as before, and it builds

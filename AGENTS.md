@@ -51,7 +51,7 @@ files, Phase 6's first run and modes and Phase 7's move (`mailctl import`,
 the move note, #135) are merged, with the notification click (#136). Their
 desktop VM checks all pass (plan 0013, VM check 2026-10-28, and the OAuth
 check of 2026-10-29). Phase 8's candidate tags (#143) and Phase 10's
-promotion workflow are built; the test remote, Phase 9's gate and the
+promotion workflow (#145) are built; the test remote, Phase 9's gate and the
 release are not done.
 
 ## Two kinds of agent work
