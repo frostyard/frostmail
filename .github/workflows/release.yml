@@ -2,11 +2,16 @@
 # make bump, builds frostyard-maild_X.Y.Z_amd64.deb, attests it and attaches
 # it to the GitHub release. The build job runs third-party npm code, so it has
 # no write token and no id-token; the release job runs none of it.
+#
+# A pre-release tag vX.Y.Z-rc.N publishes only the Flatpak candidate
+# (.github/workflows/flatpak.yml, plan 0013, Phase 8): it builds no .deb and
+# makes no GitHub release. Without the !v*-* exclusion the tag check below
+# fails the run.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*", "!v*-*"]
 
 permissions: {}
 
