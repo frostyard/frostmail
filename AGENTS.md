@@ -50,7 +50,7 @@ store id, no plain-file fallback, the probe in `account.create`), Phase 5's
 files, Phase 6's first run and modes and Phase 7's move (`mailctl import`,
 the move note, #135) are merged, with the notification click (#136). Their
 desktop VM checks all pass (plan 0013, VM check 2026-10-28, and the OAuth
-check of 2026-10-29). Phase 10's promotion workflow (#145) is built.
+check of 2026-10-29). Phase 10's promotion workflow (#145) and release tag (#147) are built.
 Phase 8 is done: Brian tagged `v0.4.0-rc.1` and `v0.4.0-rc.2`, and the clean
 VM installed rc.1 from flatpak-index's staged catalogue. Phase 9's
 clean-install gate ran on 2026-10-29 and is not done: items 1 to 4, 6 and 7
