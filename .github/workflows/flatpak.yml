@@ -1,14 +1,16 @@
 # Builds the Flatpak, with its tests, on every pull request and push to main
 # (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md), as igloo's
 # workflow does. The sources job checks that the offline sources (crates, pnpm
-# store and Go modules) match the lockfiles and go.mod and go.sum. A v* tag
-# also publishes an OCI image to ghcr.io/frostyard/frostmail and attests its
-# digest. A vX.Y.Z tag moves latest to the attested digest. A vX.Y.Z-rc.N tag
-# publishes and attests the version and sha- tags only, and leaves latest where
-# it is: a release candidate is not the release (plan 0013, Phase 8). Any
-# other v* tag fails in the publish job and publishes nothing. The Frostyard
-# remote (https://github.com/frostyard/flatpak-index) serves the latest tag
-# only when this workflow attested it on a v* tag, so main pushes publish
+# store and Go modules) match the lockfiles and go.mod and go.sum. A
+# vX.Y.Z-rc.N tag publishes an OCI image to ghcr.io/frostyard/frostmail with
+# its version and sha- tags, and attests its digest: a release candidate is
+# not the release (plan 0013, Phase 8). A vX.Y.Z release tag publishes nothing
+# here: the Promote workflow (.github/workflows/promote.yml) moves the version
+# and latest tags to the digest of the candidate the gate passed (plan 0013,
+# Phase 10), so the release serves exactly the image that was attested and
+# tested. Any other v* tag fails in the publish job and publishes nothing. The
+# Frostyard remote (https://github.com/frostyard/flatpak-index) serves a digest
+# only when this workflow, on a v* tag, attested it, so main pushes publish
 # nothing.
 #
 # Every action is pinned to a commit SHA (core ADR-0021); Dependabot bumps the
@@ -101,46 +103,46 @@ jobs:
       packages: write
       id-token: write
       attestations: write
-    env:
-      # Optional: a fine-grained token with Actions write access to
-      # frostyard/flatpak-index, so the remote refreshes right away instead of
-      # at its next hourly run.
-      DISPATCH_TOKEN: ${{ secrets.FLATPAK_INDEX_DISPATCH_TOKEN }}
     steps:
-      # A release tag vX.Y.Z moves latest. A release candidate vX.Y.Z-rc.N
-      # (plan 0013, Phase 8) gets its version and sha- tags and its
-      # attestation, but latest stays on the last release. Any other v* tag
-      # fails here and publishes nothing.
+      # A release candidate vX.Y.Z-rc.N (plan 0013, Phase 8) publishes and
+      # attests its version and sha- tags. A release tag vX.Y.Z publishes
+      # nothing: the Promote workflow (.github/workflows/promote.yml) moves the
+      # version and latest tags to the digest the gate passed (plan 0013,
+      # Phase 10). Any other v* tag fails here and publishes nothing.
       - name: Name the OCI tags
         id: tags
         env:
           TAG: ${{ github.ref_name }}
         run: |
           if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "latest=true" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::the release $TAG publishes no image: the Promote workflow moves the version tag and latest to the digest of an attested candidate"
           elif [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
-            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "tag $TAG is neither vX.Y.Z nor vX.Y.Z-rc.N" >&2
             exit 1
           fi
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.tags.outputs.publish == 'true'
         with:
           name: frostmail-oci
           path: frostmail.oci
 
       - name: Log in to GHCR
+        if: steps.tags.outputs.publish == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTOR: ${{ github.actor }}
         run: echo "$GITHUB_TOKEN" | skopeo login ghcr.io --username "$ACTOR" --password-stdin
 
-      # The version and commit tags go first. latest moves only after the
-      # digest is attested, so the remote never sees an unattested latest. A
-      # release candidate never moves latest at all.
+      # The version and commit tags of the candidate, in one push of the image
+      # the build made. The release tags come later, from the promotion, so
+      # the remote never serves a digest this workflow did not attest.
       - name: Push the version to GHCR
         id: push
+        if: steps.tags.outputs.publish == 'true'
         env:
           VERSION: ${{ github.ref_name }}
         run: |
@@ -150,21 +152,8 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Attest the image
+        if: steps.tags.outputs.publish == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.push.outputs.digest }}
-
-      - name: Move latest to the attested digest
-        if: steps.tags.outputs.latest == 'true'
-        env:
-          DIGEST: ${{ steps.push.outputs.digest }}
-        run: skopeo copy --preserve-digests "docker://$IMAGE@$DIGEST" "docker://$IMAGE:latest"
-
-      # The public remote serves latest only, so a candidate has nothing to
-      # refresh.
-      - name: Refresh the Frostyard remote
-        if: steps.tags.outputs.latest == 'true' && env.DISPATCH_TOKEN != ''
-        env:
-          GH_TOKEN: ${{ env.DISPATCH_TOKEN }}
-        run: gh workflow run publish.yml --repo frostyard/flatpak-index

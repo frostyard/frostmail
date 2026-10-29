@@ -16,11 +16,12 @@ import (
 )
 
 // The tests of the Flatpak publishing workflow (.github/workflows/flatpak.yml,
-// ADR-0045, plan 0013 Phase 8) are a dry run of its publish job: they parse
-// the job's steps, run them in order in a temp work dir, and play skopeo and
-// gh with stubs that log the command they are given. So they check which OCI
-// tags a tag pushes, and that a release candidate leaves latest alone, without
-// a registry, a token or a Flatpak build.
+// ADR-0045, plan 0013 Phases 8 and 10) are a dry run of its publish job: they
+// parse the job's steps, run them in order in a temp work dir, and play skopeo
+// and gh with stubs that log the command they are given. So they check which
+// OCI tags a tag pushes, and that a release tag publishes nothing and moves no
+// release tag, without a registry, a token or a Flatpak build. The promotion
+// of a candidate to its release is flatpak_promote_test.go.
 
 const (
 	publishImage = "ghcr.io/frostyard/frostmail"
@@ -101,7 +102,7 @@ type publishRun struct {
 }
 
 // newPublishRun stages a work dir and the stub commands for tag.
-func newPublishRun(t *testing.T, tag, dispatch string) *publishRun {
+func newPublishRun(t *testing.T, tag string) *publishRun {
 	t.Helper()
 	root := t.TempDir()
 	r := &publishRun{
@@ -117,7 +118,6 @@ func newPublishRun(t *testing.T, tag, dispatch string) *publishRun {
 			// The stubs' log and digest.
 			"PUBLISH_LOG":    filepath.Join(root, "log"),
 			"PUBLISH_DIGEST": publishDigest,
-			"DISPATCH_TOKEN": dispatch,
 			"PATH":           filepath.Join(root, "bin") + ":" + os.Getenv("PATH"),
 		},
 	}
@@ -204,12 +204,8 @@ func (r *publishRun) condition(cond string) bool {
 	switch strings.TrimSpace(cond) {
 	case "":
 		return true
-	case "steps.tags.outputs.latest == 'true'":
-		return r.outputs["tags"]["latest"] == "true"
-	case "steps.tags.outputs.latest == 'true' && env.DISPATCH_TOKEN != ''":
-		return r.outputs["tags"]["latest"] == "true" && r.job["DISPATCH_TOKEN"] != ""
-	case "env.DISPATCH_TOKEN != ''":
-		return r.job["DISPATCH_TOKEN"] != ""
+	case "steps.tags.outputs.publish == 'true'":
+		return r.outputs["tags"]["publish"] == "true"
 	}
 	r.t.Fatalf("the step condition %q is new to the dry run: teach the dry run this condition", cond)
 	return false
@@ -235,8 +231,6 @@ func (r *publishRun) subst(v string) string {
 			return "token"
 		case "github.actor":
 			return "actor"
-		case "env.DISPATCH_TOKEN":
-			return r.job["DISPATCH_TOKEN"]
 		default:
 			unknown = name
 			return e
@@ -293,52 +287,70 @@ func (r *publishRun) commands() []string {
 	return out
 }
 
-// publishCommands is the log of a publish of tag that passed: the login, the
-// version tag, the sha- tag and, with latest, the latest tag.
-func publishCommands(tag string, latest bool) []string {
-	out := []string{
+// publishCommands is the log of a publish of a candidate tag that passed: the
+// login, the version tag and the sha- tag.
+func publishCommands(tag string) []string {
+	return []string{
 		"skopeo login ghcr.io --username actor --password-stdin",
 		"skopeo copy --digestfile digest oci:frostmail.oci docker://" + publishImage + ":" + tag,
 		"skopeo copy --preserve-digests docker://" + publishImage + "@" + publishDigest +
 			" docker://" + publishImage + ":sha-" + publishSHA[:12],
 	}
-	if latest {
-		out = append(out, "skopeo copy --preserve-digests docker://"+publishImage+"@"+publishDigest+
-			" docker://"+publishImage+":latest")
-	}
-	return out
 }
 
-func TestFlatpakPublishMovesLatestOnlyForARelease(t *testing.T) {
+func TestFlatpakPublishPublishesCandidatesOnly(t *testing.T) {
 	steps := publishSteps(t)
-	dispatch := "gh workflow run publish.yml --repo frostyard/flatpak-index"
 	for _, tc := range []struct {
-		name  string
-		tag   string
-		token string
-		want  []string
+		name string
+		tag  string
+		want []string
 	}{
-		{name: "a release", tag: "v0.4.0", want: publishCommands("v0.4.0", true)},
-		{name: "a release and the dispatch token", tag: "v0.4.0", token: "x",
-			want: append(publishCommands("v0.4.0", true), dispatch)},
-		{name: "a release candidate", tag: "v0.4.0-rc.1", token: "x",
-			want: publishCommands("v0.4.0-rc.1", false)},
-		{name: "a later release candidate", tag: "v0.4.0-rc.12",
-			want: publishCommands("v0.4.0-rc.12", false)},
+		// A release publishes no image at all: the Promote workflow moves the
+		// release tags to a candidate's digest instead.
+		{name: "a release", tag: "v0.4.0"},
+		{name: "a release candidate", tag: "v0.4.0-rc.1", want: publishCommands("v0.4.0-rc.1")},
+		{name: "a later release candidate", tag: "v0.4.0-rc.12", want: publishCommands("v0.4.0-rc.12")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r := newPublishRun(t, tc.tag, tc.token)
+			r := newPublishRun(t, tc.tag)
 			if fail, out := r.run(steps); fail != "" {
 				t.Fatalf("step %q failed:\n%s", fail, out)
 			}
-			// The exact log: a release candidate has no latest copy at all.
+			// The exact log, and no latest copy and no dispatch for either tag.
 			if got := r.commands(); !slices.Equal(got, tc.want) {
 				t.Fatalf("tag %s ran\n%s\nwant\n%s", tc.tag, strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
 			}
-			if r.attested != publishDigest {
-				t.Fatalf("tag %s attested %q, want the pushed digest %q", tc.tag, r.attested, publishDigest)
+			// Only a candidate's image is attested, and it is the pushed digest.
+			want := ""
+			if len(tc.want) > 0 {
+				want = publishDigest
+			}
+			if r.attested != want {
+				t.Fatalf("tag %s attested %q, want %q", tc.tag, r.attested, want)
 			}
 		})
+	}
+}
+
+// TestFlatpakPublishMovesNoReleaseTag checks the publish job's texts and
+// scripts: only the Promote workflow copies to latest or dispatches the
+// Frostyard remote.
+func TestFlatpakPublishMovesNoReleaseTag(t *testing.T) {
+	for _, s := range publishSteps(t) {
+		for line := range strings.SplitSeq(s.Run, "\n") {
+			if strings.Contains(line, "skopeo copy") && strings.Contains(line, "latest") {
+				t.Fatalf("step %q copies to latest: %s", s.label(), strings.TrimSpace(line))
+			}
+		}
+		if strings.Contains(s.Run, "gh workflow run") {
+			t.Fatalf("step %q dispatches the Frostyard remote; the Promote workflow does that", s.label())
+		}
+		if strings.Contains(s.Run, "latest=") {
+			t.Fatalf("step %q still writes a latest output", s.label())
+		}
+		if strings.Contains(s.If, "latest") {
+			t.Fatalf("step %q still tests a latest output", s.label())
+		}
 	}
 }
 
@@ -346,7 +358,7 @@ func TestFlatpakPublishRefusesOtherTags(t *testing.T) {
 	steps := publishSteps(t)
 	for _, tag := range []string{"v0.4", "v0.4.0-beta.1", "v0.4.0-rc", "v0.4.0-rc.1-x", "vnext", "v0.4.0.1"} {
 		t.Run(tag, func(t *testing.T) {
-			r := newPublishRun(t, tag, "x")
+			r := newPublishRun(t, tag)
 			fail, out := r.run(steps)
 			if fail != "Name the OCI tags" {
 				t.Fatalf("tag %s failed at %q, want %q:\n%s", tag, fail, "Name the OCI tags", out)
@@ -361,7 +373,7 @@ func TestFlatpakPublishRefusesOtherTags(t *testing.T) {
 	}
 }
 
-func TestFlatpakPublishChecksTheTagFirstAndAttestsBeforeLatest(t *testing.T) {
+func TestFlatpakPublishChecksTheTagFirstAndAttestsAfterThePush(t *testing.T) {
 	steps := publishSteps(t)
 	if len(steps) == 0 {
 		t.Fatal("the publish job has no steps")
@@ -383,13 +395,12 @@ func TestFlatpakPublishChecksTheTagFirstAndAttestsBeforeLatest(t *testing.T) {
 	if attest < 0 {
 		t.Fatal("the publish job never attests the image")
 	}
-	push, latest := index("Push the version to GHCR"), index("Move latest to the attested digest")
-	if push >= attest || attest >= latest {
-		t.Fatalf("the order is push %d, attest %d, latest %d: the attestation must come between them", push, attest, latest)
+	if push := index("Push the version to GHCR"); push >= attest {
+		t.Fatalf("the order is push %d, attest %d: the push must come first", push, attest)
 	}
 	// The actions' order, as the dry run meets it: the tag check first, then
 	// the artifact it publishes.
-	r := newPublishRun(t, "v0.4.0", "")
+	r := newPublishRun(t, "v0.4.0-rc.1")
 	if fail, out := r.run(steps); fail != "" {
 		t.Fatalf("step %q failed:\n%s", fail, out)
 	}
