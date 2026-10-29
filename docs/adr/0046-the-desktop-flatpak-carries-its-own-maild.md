@@ -215,10 +215,11 @@ These follow frostnotes ADR-0031; only the names differ.
     command line `frostmail --background`, through a PyGObject helper that
     waits for the portal's `Response`, and `exec`s the app.
   - A refusal of the Background portal stops the start at login, and
-    maild runs only while a window is open: the desktop ends its instance
+    maild runs only while a window is open: maild and its instance end
     when the last window closes (Brian, T491c, 2026-10-29: the accepted
     behaviour; seen on GNOME 48 with xdg-desktop-portal 1.20.3 in plan
-    0013's clean-install gate). The next window starts maild again.
+    0013's clean-install gate; the cause was not traced). The next window
+    starts maild again.
 - **Notifications in local mode** come from maild on the session bus, as
   on the host (`--talk-name=org.freedesktop.Notifications`, already
   granted). A click runs the launcher through `flatpak-spawn

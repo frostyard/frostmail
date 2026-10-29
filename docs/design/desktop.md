@@ -140,10 +140,10 @@ click and the move from a host maild.
   `flatpak-spawn` with `SIGKILL`, so the maild of the new sandbox outlives
   the window. It then asks the Background portal to run `frostmail
   --background` at login, and `exec`s the app. When the user refuses the
-  Background portal, nothing starts at login, and the desktop ends maild's
-  instance when the app's last window closes (on GNOME 48 with
+  Background portal, nothing starts at login, and maild and its instance
+  end when the app's last window closes (on GNOME 48 with
   xdg-desktop-portal 1.20.3, within a second, with no "maild stopped" in
-  its log): maild then runs only while a window is open, and the next
+  its log; the cause was not traced): maild then runs only while a window is open, and the next
   window starts it again. This is the accepted behaviour (Brian, T491c,
   2026-10-29; ADR-0046). In lodge mode it runs the app
   only. `frostmail --start-maild` does the same start and the same request

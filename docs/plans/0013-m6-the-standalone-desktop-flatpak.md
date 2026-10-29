@@ -70,7 +70,7 @@ counts as tested as it is, that the update of the same schema satisfies
 item 5 for this release, and that maild's end with the last window when the
 Background portal is refused is the accepted behaviour, which ADR-0046 and
 [design/desktop.md](../design/desktop.md) now say
-([Decisions](#decisions-2026-10-29)). One finding stays open as an issue: a
+([Decisions](#decisions-2026-10-29)). One finding stays open as issue #149: a
 click on the old build's notification after the update replaced maild but
 did not open its message in the open window. The release of `v0.4.0` from
 rc.2 is not done ([Phase 10](#phase-10--release-brian-and-lucilla-small)).
@@ -543,7 +543,7 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
    - **Finding:** that click did not open its message in the open rc.1
      window, which stayed on All Inboxes with no message selected. A later
      click on an rc.2 notification opened its message in the same window.
-     It stays open as a GitHub issue; it does not block the release.
+     It stays open as issue #149; it does not block the release.
 6. **Pass,** with the windows of rc.2 (closed and opened again after the
    update). Lodge's development build (lodge `dd0cb0f`, `lodge-e2e`) and
    `maild --lodge` (built from `v0.4.0-rc.1`), built on the team VM, ran on
