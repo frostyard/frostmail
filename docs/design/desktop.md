@@ -81,10 +81,19 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
   `packaging/flatpak/smoke-test.sh`.
 - **Publishing.** `.github/workflows/flatpak.yml` builds on every pull
   request and push to main. A `v*` tag starts the publish job, but only a
-  `vX.Y.Z` or a `vX.Y.Z-rc.N` tag publishes an image and attests it; any
-  other `v*` tag fails before it pushes. A `vX.Y.Z` tag also moves
-  `latest`, and only it does. A `vX.Y.Z-rc.N` tag gets its version and
-  `sha-` tags and leaves `latest` alone (plan 0013, Phase 8).
+  `vX.Y.Z-rc.N` tag, a release candidate, publishes an image: its version
+  and `sha-` tags, and an attestation of its digest. It leaves `latest`
+  alone (plan 0013, Phase 8). A `vX.Y.Z` tag builds and tests, and
+  publishes nothing; any other `v*` tag fails before it pushes.
+- **Release by promotion.** A release is a candidate that passed the
+  clean-install gate (plan 0013, Phases 9 and 10). Brian runs
+  `.github/workflows/promote.yml` by hand with the candidate's tag and the
+  version, after `make bump`. It checks that the release tag contains the
+  candidate's commit and that the candidate's digest has an attestation
+  from `flatpak.yml` on the candidate's tag, the one flatpak-index accepts.
+  Then it copies that digest to `vX.Y.Z` and `latest`, builds and attests
+  nothing, and asks flatpak-index to refresh. It refuses when the version
+  tag already names another digest.
 - `make install-app` stays the way to run a local build, with a host maild.
 
 ## The Flatpak's own maild

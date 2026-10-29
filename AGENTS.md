@@ -50,11 +50,12 @@ store id, no plain-file fallback, the probe in `account.create`), Phase 5's
 files, Phase 6's first run and modes and Phase 7's move (`mailctl import`,
 the move note, #135) are merged, with the notification click (#136). Their
 desktop VM checks all pass (plan 0013, VM check 2026-10-28, and the OAuth
-check of 2026-10-29). Phase 8 is done: Brian tagged `v0.4.0-rc.1` and
-`v0.4.0-rc.2`, and the clean VM installed rc.1 from flatpak-index's staged
-catalogue. Phase 9's clean-install gate passed all 7 items on 2026-10-29,
-items 1 to 4 on rc.1 and 6 and 7 on rc.2, with 2 findings (plan 0013,
-Clean-install gate 2026-10-29); Phase 10 is not done.
+check of 2026-10-29). Phase 10's promotion workflow (#145) is built.
+Phase 8 is done: Brian tagged `v0.4.0-rc.1` and `v0.4.0-rc.2`, and the clean
+VM installed rc.1 from flatpak-index's staged catalogue. Phase 9's
+clean-install gate passed all 7 items on 2026-10-29, items 1 to 4 on rc.1
+and 6 and 7 on rc.2, with 2 findings (plan 0013, Clean-install gate
+2026-10-29); the release is not done.
 
 ## Two kinds of agent work
 
@@ -139,7 +140,12 @@ Clean-install gate 2026-10-29); Phase 10 is not done.
 - A pushed `v*` tag runs `.github/workflows/release.yml`: it checks the tag is
   `vX.Y.Z`, builds the web UI and `frostyard-maild_X.Y.Z_amd64.deb` (`make deb`, nfpm),
   attests it, and makes the GitHub release with `gh release create` (generated notes).
-- Brian tags. Agents never tag, push tags or release. `make bump` (on a clean, current
+- The Flatpak releases by promotion (plan 0013, Phase 10). A `vX.Y.Z-rc.N` tag
+  publishes and attests a candidate (`flatpak.yml`); a `vX.Y.Z` tag publishes no
+  image, and `release.yml` ignores candidates. After the gate and `make bump`,
+  Brian runs `.github/workflows/promote.yml` by hand: it copies the attested
+  candidate's digest to `vX.Y.Z` and `latest`, and builds nothing.
+- Brian tags and promotes. Agents never tag, push tags, release or run Promote. `make bump` (on a clean, current
   `main`, after `make verify`) tags `svu next` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
   `github.com/frostyard/lodge/kit` v0.3.1, `github.com/frostyard/std` v0.3.0 (indirect, from clix).

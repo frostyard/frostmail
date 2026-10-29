@@ -54,25 +54,27 @@ day (below), and all 3 are merged. The OAuth check (item 4) passed on
 2026-10-29, so every desktop VM check of Phases 4 to 7 passes.
 **Phase 8's workflow part is built (PR #143):** a `vX.Y.Z-rc.N` tag
 publishes and attests a candidate without moving `latest`, with a dry-run
-test. **Phase 8 is done (2026-10-29):** Brian pushed `v0.4.0-rc.1` and
-`v0.4.0-rc.2`, and the clean VM installed rc.1 from flatpak-index's staged
-catalogue with its attested digest ([below](#phase-8-check-2026-10-29)).
-**Phase 9 ran on 2026-10-29** ([Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)):
-all 7 items pass, items 1 to 4 on rc.1 and items 6 and 7 on rc.2 after item
-5's update, with 2 findings: with the Background portal refused, maild ends
+test. **Phase 10's workflows are built (PR #145):** the Promote workflow
+copies the tested candidate's digest to `vX.Y.Z` and `latest`, and a
+`vX.Y.Z` tag no longer publishes the Flatpak. **Phase 8 is done
+(2026-10-29):** Brian pushed `v0.4.0-rc.1` and `v0.4.0-rc.2`, and the clean
+VM installed rc.1 from flatpak-index's staged catalogue with its attested
+digest ([below](#phase-8-check-2026-10-29)). **Phase 9 ran on 2026-10-29**
+([Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)): all 7
+items pass, items 1 to 4 on rc.1 and items 6 and 7 on rc.2 after item 5's
+update, with 2 findings: with the Background portal refused, maild ends
 when the last window closes, not at logout as ADR-0046 says; and a click on
 the old build's notification after the update replaced maild but did not
-open its message in the open window. Phase 10 is not done.
+open its message in the open window. The release itself is not done.
 
 ## Who helps
 
 - **Brian:** accepts ADR-0046; pushes the candidate and release tags;
-  makes the GHCR package public (ADR-0045); answers the plan's open
+  runs the promotion (Phase 10); makes the GHCR package public (ADR-0045); answers the plan's open
   questions.
 - **Lucilla** (package delivery): core's amendment of ADR-0058 and plan
-  0010; a test remote for a release candidate (Phase 8); the promotion of
-  the tested digest, and the listing in `flatpak-index/apps.json`
-  (Phase 10).
+  0010; a test remote for a release candidate (Phase 8); the listing in
+  `flatpak-index/apps.json` (Phase 10).
 - **Duncan** (nsl and test machines): `make flatpak-sources` with a third
   generator in the nsl machine; a disposable desktop VM for Phases 4 to 10:
   Snow (GNOME on Wayland, real xdg-desktop-portal, Flatpak, a user install
@@ -366,10 +368,11 @@ a candidate, and the release promotes that same digest.
 
 - The publishing workflow learns pre-release tags: Built (PR #143). In
   `.github/workflows/flatpak.yml`, the step "Name the OCI tags" sorts the
-  tag: `vX.Y.Z` pushes the version and `sha-` tags, attests the digest and
-  then moves `latest`; `vX.Y.Z-rc.N` pushes and attests the same way and
-  leaves `latest` and the Frostyard remote alone; any other `v*` tag fails
-  before it pushes. `release.yml` ignores `v*-*` tags, so a candidate makes
+  tag: `vX.Y.Z-rc.N` pushes the version and `sha-` tags and attests the
+  digest, and leaves `latest` and the Frostyard remote alone; any other
+  `v*` tag fails before it pushes. (PR #143 also let `vX.Y.Z` publish and
+  move `latest`; Phase 10 took that away: a `vX.Y.Z` tag now publishes
+  nothing, and the promotion moves `latest`.) `release.yml` ignores `v*-*` tags, so a candidate makes
   no `.deb` and no GitHub release. `scripts/flatpak_publish_test.go` runs
   the publish job's steps with stub `skopeo` and `gh` for each kind of tag.
 - A test remote that serves the candidate's digest only: Lucilla chose
@@ -535,11 +538,61 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
 
 ## Phase 10 — Release (Brian and Lucilla, small)
 
-- Brian runs the promotion: the OCI tags `vX.Y.Z` and `latest` move to
-  the digest that passed Phase 9, already attested (a step in the
-  workflow that copies by digest and builds nothing). The promotion makes
-  no second attestation: flatpak-index accepts only `flatpak.yml`'s
-  attestation, which the candidate's tag made.
+A Flatpak release is always a promoted candidate: the digest that passed
+Phase 9 becomes the release, and nothing is built again.
+
+- **The promotion workflow:** Built (PR #145).
+  `.github/workflows/promote.yml` (Promote) runs only by hand
+  (`workflow_dispatch`), with the inputs `candidate` (`vX.Y.Z-rc.N`) and
+  `version` (`vX.Y.Z`). It runs on a GitHub-hosted runner, has no
+  `id-token` and no `attestations: write`, and uses no action. In order:
+  1. The inputs: `candidate` is `vX.Y.Z-rc.N`, `version` is `vX.Y.Z`, and
+     the candidate is a candidate of that version.
+  2. The candidate's digest, from its OCI tag (`skopeo inspect`).
+  3. The git tag `vX.Y.Z` exists and contains the candidate's commit (the
+     compare API answers `identical` or `ahead`): the release is
+     `make bump`'s, below.
+  4. The attestation: `gh attestation verify` on the digest, with
+     `--signer-workflow` `flatpak.yml`, `--source-ref
+     refs/tags/vX.Y.Z-rc.N` and `--deny-self-hosted-runners`, and an
+     attestation whose `buildSignerURI` is `flatpak.yml` on the candidate's
+     tag, as flatpak-index's `build-index.py` checks (T488). An attestation
+     from another workflow file does not count. The promotion makes no
+     second attestation: an attestation binds the digest, so a copy by
+     digest keeps it.
+  5. The OCI tag `vX.Y.Z` is free, or already names the candidate's digest
+     (a run again after a failure passes).
+  6. `skopeo copy --preserve-digests` of the digest to `:vX.Y.Z`, then to
+     `:latest`.
+  7. With `FLATPAK_INDEX_DISPATCH_TOKEN`, the refresh of flatpak-index
+     (`gh workflow run publish.yml`), as a release did before.
+
+  It refuses, before any copy, when a check fails: bad inputs, no
+  candidate image, no release tag or one that does not contain the
+  candidate, no valid attestation from `flatpak.yml`, or `vX.Y.Z` on
+  another digest. `scripts/flatpak_promote_test.go` runs the job's steps
+  with stub `skopeo`, `gh` and `docker` for each case.
+- **A `vX.Y.Z` tag no longer publishes the Flatpak** (PR #145). In
+  `flatpak.yml`, the step "Name the OCI tags" lets a `vX.Y.Z` tag build
+  and test, and publish nothing, with a notice; only a `vX.Y.Z-rc.N` tag
+  publishes and attests. So the release tag cannot replace the tested
+  digest with a new build, and only the promotion moves `vX.Y.Z` and
+  `latest`. `scripts/flatpak_publish_test.go` checks it.
+- **The .deb and the GitHub release** (Irulan's choice, 2026-10-29, for
+  Brian's review in PR #145):
+  `make bump` makes them, as for every release (core ADR-0012: it stays
+  the only way to tag a release). `release.yml` ignores the candidates'
+  tags; the release tag `vX.Y.Z` runs it as before, and it builds
+  `frostyard-maild_X.Y.Z_amd64.deb` from the tag's commit. The tag marks
+  main's head, which contains the candidate's commit and may be later: the
+  .deb (lodge's server) can carry commits that the Flatpak does not. The
+  order for Brian:
+  1. Phase 9 passes on a candidate `vX.Y.Z-rc.N`.
+  2. `make bump` on main. `svu next` must give `vX.Y.Z`, the candidate's
+     version; if it gives another, Brian stops and pushes a new candidate.
+  3. Promote, with `candidate` `vX.Y.Z-rc.N` and `version` `vX.Y.Z`
+     (GitHub, Actions, Promote, Run workflow; or `gh workflow run
+     promote.yml -f candidate=vX.Y.Z-rc.N -f version=vX.Y.Z`).
 - Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It already
   answers anonymous pulls (its tag list, checked 2026-10-29), so this step
   may be done; Brian confirms.
