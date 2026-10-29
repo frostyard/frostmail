@@ -13,15 +13,16 @@
 #
 # It refuses a candidate that is not vX.Y.Z-rc.N, a version that is not
 # vX.Y.Z or is not the candidate's release, a version tag that already points
-# to another digest, a release tag that is missing or does not contain the
-# candidate's commit, and a candidate with no digest or no attestation from
-# flatpak.yml on its own tag. A re-run that finds the candidate's digest at
-# the version tag goes on, and copies again.
+# to another digest, a release tag that is missing or is not the candidate's
+# commit, and a candidate with no digest or no attestation from flatpak.yml on
+# its own tag. A re-run that finds the candidate's digest at the version tag
+# goes on, and copies again.
 #
 # The order for a release: push the candidate tag; pass plan 0013's Phase 9
-# gate on it; run make bump, which pushes vX.Y.Z and so builds the .deb and
-# makes the GitHub release (.github/workflows/release.yml); then run this
-# workflow with the candidate and the version.
+# gate on it; run `make bump CANDIDATE=vX.Y.Z-rc.N`, which tags vX.Y.Z on the
+# candidate's commit, so release.yml builds the .deb from the same code and
+# makes the GitHub release; then run this workflow with the candidate and the
+# version.
 name: Promote
 
 on:
@@ -103,16 +104,17 @@ jobs:
           fi
           echo "digest=$digest" >>"$GITHUB_OUTPUT"
 
-      # The release tag is made after the gate, so it must also contain the
-      # candidate's commit: a release of other work is not this candidate.
-      - name: Check the release tag contains the candidate
+      # The release tag is the candidate's very commit (make bump), never a
+      # later commit of main: the .deb release.yml builds and the Flatpak this
+      # workflow promotes must hold the same code. So only "identical" passes.
+      - name: Check the release tag is the candidate's commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           status=$(gh api "repos/$REPO/compare/$CANDIDATE...$VERSION" --jq .status)
-          if [[ $status != identical && $status != ahead ]]; then
-            echo "the git tag $VERSION must exist (make it with make bump) and contain the candidate's commit: $CANDIDATE...$VERSION is $status" >&2
+          if [[ $status != identical ]]; then
+            echo "the git tag $VERSION must exist (make it with make bump CANDIDATE=$CANDIDATE) and be the candidate's commit: $CANDIDATE...$VERSION is $status" >&2
             exit 1
           fi
 

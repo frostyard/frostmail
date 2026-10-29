@@ -11,7 +11,8 @@ GOVULNCHECK_VERSION := v1.9.0
 
 # golangci-lint's release, read from mise.toml (frostyard/core ADR-0043).
 GOLANGCI_LINT_VERSION := $(strip $(shell sed -n 's/^golangci-lint = "\(.*\)"/\1/p' mise.toml))
-# svu's release, read from the same mise.toml pin; it tags releases in make bump.
+# svu's release, read from the same mise.toml pin; svu next names the version of
+# the next candidate tag vX.Y.Z-rc.N.
 SVU_VERSION := $(strip $(shell sed -n 's/^svu = "\(.*\)"/\1/p' mise.toml))
 SVU ?= svu
 # The Go release the project builds with: go.mod's toolchain line (its go line is
@@ -201,19 +202,47 @@ svu-version-check:
 	fi
 
 # bump is the only sanctioned way to tag a release (core ADR-0012): the tag
-# starts .github/workflows/release.yml.
-bump: svu-version-check ## Tag the next version with svu and push the tag (main, clean, up to date, gate green)
-	@test "$$(git rev-parse --abbrev-ref HEAD)" = main || { echo "make bump runs on main"; exit 1; }
-	@test -z "$$(git status --porcelain)" || { echo "the working tree is not clean"; exit 1; }
-	@git fetch origin main
-	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || { echo "HEAD is not origin/main"; exit 1; }
-	$(MAKE) --no-print-directory verify
-	@test -z "$$(git status --porcelain)" || { echo "make verify left the working tree unclean"; exit 1; }
+# starts .github/workflows/release.yml. It tags the commit of a tested
+# candidate (plan 0013, Phase 10), never a later commit of main, so the .deb
+# and the Flatpak of a release hold the same code (Brian, T492a). It runs
+# `make verify` in the candidate's worktree, so the recipe calls `make`, not
+# `$(MAKE)`: a recipe line that holds $(MAKE) is executed even under make -n,
+# and this target pushes a tag. The temporary worktree is a new path, so mise
+# would refuse its mise.toml (the candidate's own, from main) as untrusted:
+# MISE_TRUSTED_CONFIG_PATHS trusts that path for the verify run only.
+CANDIDATE ?=
+bump: ## Tag the candidate's commit as the release and push the tag (CANDIDATE=vX.Y.Z-rc.N)
 	@set -eu; \
-	version=$$($(SVU) next); \
-	printf '%s\n' "$$version" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+' || { echo "svu next gave '$$version', not vX.Y.Z"; exit 1; }; \
-	git tag -a "$$version" -m "Version $$version"; \
-	echo "Tagged $$version; pushing it to origin..."; \
+	candidate='$(CANDIDATE)'; \
+	printf '%s\n' "$$candidate" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+' || { \
+		echo "make bump needs CANDIDATE=vX.Y.Z-rc.N, the candidate that passed the gate"; exit 1; }; \
+	version=$${candidate%-rc.*}; \
+	git fetch --tags origin main; \
+	commit=$$(git rev-parse --verify "refs/tags/$$candidate^{commit}") || { \
+		echo "the candidate tag $$candidate does not exist"; exit 1; }; \
+	git merge-base --is-ancestor "$$commit" origin/main || { \
+		echo "the candidate $$candidate is not on origin/main"; exit 1; }; \
+	if git rev-parse -q --verify "refs/tags/$$version" >/dev/null; then \
+		echo "the tag $$version already exists"; exit 1; \
+	fi; \
+	if git ls-remote --exit-code --tags origin "refs/tags/$$version" >/dev/null; then \
+		echo "the tag $$version already exists on origin"; exit 1; \
+	fi; \
+	newest=$$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$$' | sort -V | tail -1); \
+	if [ -n "$$newest" ]; then \
+		if [ "$$version" = "$$newest" ] || [ "$$(printf '%s\n%s\n' "$$newest" "$$version" | sort -V | tail -1)" != "$$version" ]; then \
+			echo "$$version is not newer than the newest release tag $$newest"; exit 1; \
+		fi; \
+	fi; \
+	dir=$$(mktemp -d); \
+	trap 'rm -rf "$$dir"; git worktree prune' EXIT; \
+	git worktree add --detach "$$dir" "$$commit" >/dev/null; \
+	MISE_TRUSTED_CONFIG_PATHS="$$dir$${MISE_TRUSTED_CONFIG_PATHS:+:$$MISE_TRUSTED_CONFIG_PATHS}" \
+		make -C "$$dir" --no-print-directory verify; \
+	test -z "$$(git -C "$$dir" status --porcelain)" || { \
+		echo "make verify left the candidate's worktree unclean"; exit 1; }; \
+	git tag -a "$$version" "$$commit" -m "Version $$version (candidate $$candidate)"; \
+	echo "Tagged $$version at $$commit (the candidate $$candidate); pushing it to origin..."; \
 	git push origin "refs/tags/$$version"
 
 # The shell's notifications test needs a session bus: dbus-run-session gives

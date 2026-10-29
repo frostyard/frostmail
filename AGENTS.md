@@ -137,17 +137,22 @@ release is not done.
 ## Releases and dependencies
 
 - Tags look like `v1.2.3` (`.svu.yml`: prefix `v`, `v0: true`). The next version is
-  `svu next`, from Conventional Commits; on v0 a breaking change gives a minor.
+  `svu next`, from Conventional Commits; on v0 a breaking change gives a minor. It names
+  the candidate `vX.Y.Z-rc.N`; the release takes the candidate's version.
 - A pushed `v*` tag runs `.github/workflows/release.yml`: it checks the tag is
-  `vX.Y.Z`, builds the web UI and `frostyard-maild_X.Y.Z_amd64.deb` (`make deb`, nfpm),
+  `vX.Y.Z` on the commit of a `vX.Y.Z-rc.N` tag, builds the web UI and
+  `frostyard-maild_X.Y.Z_amd64.deb` (`make deb`, nfpm) from that commit,
   attests it, and makes the GitHub release with `gh release create` (generated notes).
 - The Flatpak releases by promotion (plan 0013, Phase 10). A `vX.Y.Z-rc.N` tag
   publishes and attests a candidate (`flatpak.yml`); a `vX.Y.Z` tag publishes no
   image, and `release.yml` ignores candidates. After the gate and `make bump`,
   Brian runs `.github/workflows/promote.yml` by hand: it copies the attested
   candidate's digest to `vX.Y.Z` and `latest`, and builds nothing.
-- Brian tags and promotes. Agents never tag, push tags, release or run Promote. `make bump` (on a clean, current
-  `main`, after `make verify`) tags `svu next` and pushes the tag; Brian runs it.
+- The `.deb` and the Flatpak of `vX.Y.Z` hold the same code (ADR-0048): the git tag
+  `vX.Y.Z` is the candidate's commit, and `release.yml` and Promote refuse it on any other.
+- Brian tags and promotes. Agents never tag, push tags, release or run Promote.
+  `make bump CANDIDATE=vX.Y.Z-rc.N` runs `make verify` on the candidate's commit, tags
+  that commit `vX.Y.Z` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
   `github.com/frostyard/lodge/kit` v0.3.1, `github.com/frostyard/std` v0.3.0 (indirect, from clix).
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
