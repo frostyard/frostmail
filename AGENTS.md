@@ -128,6 +128,26 @@ Phases 8 to 10 are not built.
   "Vulnerabilities (make vulncheck)" runs it. Keep it at 0 reachable findings.
 - Fix a lint finding rather than loosening `.golangci.yml`.
 
+## Releases and dependencies
+
+- Tags look like `v1.2.3` (`.svu.yml`: prefix `v`, `v0: true`). The next version is
+  `svu next`, from Conventional Commits; on v0 a breaking change gives a minor.
+- A pushed `v*` tag runs `.github/workflows/release.yml`: it checks the tag is
+  `vX.Y.Z`, builds the web UI and `frostyard-maild_X.Y.Z_amd64.deb` (`make deb`, nfpm),
+  attests it, and makes the GitHub release with `gh release create` (generated notes).
+- Brian tags. Agents never tag, push tags or release. `make bump` (on a clean, current
+  `main`, after `make verify`) tags `svu next` and pushes the tag; Brian runs it.
+- Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
+  `github.com/frostyard/lodge/kit` v0.3.1, `github.com/frostyard/std` v0.3.0 (indirect, from clix).
+- Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
+  `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
+- `mise.toml`, `packaging/`, the workflows and `scripts/` pin no frostyard or bketelsen
+  module; they only cite frostyard/core ADRs.
+- After a change to `go.mod` or `go.sum`, run `make flatpak-sources`
+  (`packaging/flatpak/go-sources.json` lists every Go module).
+- Users: lodge hosts maild as its `mail` app, and Porter calls `/mcp/mail`. Other users:
+  not stated.
+
 ## Conventions
 
 - Go: `ctx` first; errors are lowercase, wrapped with `%w`; `slog` for logs;
