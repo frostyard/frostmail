@@ -88,7 +88,10 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
 - **Release by promotion.** A release is a candidate that passed the
   clean-install gate (plan 0013, Phases 9 and 10). Brian runs
   `.github/workflows/promote.yml` by hand with the candidate's tag and the
-  version, after `make bump`. It checks that the release tag contains the
+  version, after `make bump CANDIDATE=vX.Y.Z-rc.N` tagged the candidate's
+  commit `vX.Y.Z`, so the `.deb` of the version holds the same code
+  ([ADR-0048](../adr/0048-tag-each-release-on-its-tested-candidates-commit.md)).
+  It checks that the release tag is the
   candidate's commit and that the candidate's digest has an attestation
   from `flatpak.yml` on the candidate's tag, the one flatpak-index accepts.
   Then it copies that digest to `vX.Y.Z` and `latest`, builds and attests
