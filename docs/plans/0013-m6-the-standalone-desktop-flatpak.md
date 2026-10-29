@@ -54,7 +54,7 @@ day (below), and all 3 are merged. The OAuth check (item 4) passed on
 2026-10-29, so every desktop VM check of Phases 4 to 7 passes.
 **Phase 8's workflow part is built (PR #143):** a `vX.Y.Z-rc.N` tag
 publishes and attests a candidate without moving `latest`, with a dry-run
-test. **Phase 10's workflows are built (PR #145, and PR #NNN for the release tag):** the Promote workflow
+test. **Phase 10's workflows are built (PR #145, and PR #147 for the release tag):** the Promote workflow
 copies the tested candidate's digest to `vX.Y.Z` and `latest`, a
 `vX.Y.Z` tag no longer publishes the Flatpak, and `make bump
 CANDIDATE=vX.Y.Z-rc.N` tags the candidate's commit, so the `.deb` holds the
@@ -453,7 +453,7 @@ Phase 9 becomes the release, and nothing is built again.
   publishes and attests. So the release tag cannot replace the tested
   digest with a new build, and only the promotion moves `vX.Y.Z` and
   `latest`. `scripts/flatpak_publish_test.go` checks it.
-- **The .deb and the GitHub release come from the candidate's commit:** Built (PR #NNN)
+- **The .deb and the GitHub release come from the candidate's commit:** Built (PR #147)
   (Brian, T492a, 2026-10-29: "vX.Y.Z should have same code in both
   versions";
   [ADR-0048](../adr/0048-tag-each-release-on-its-tested-candidates-commit.md)).
