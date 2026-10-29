@@ -3,9 +3,13 @@
 # workflow does. The sources job checks that the offline sources (crates, pnpm
 # store and Go modules) match the lockfiles and go.mod and go.sum. A v* tag
 # also publishes an OCI image to ghcr.io/frostyard/frostmail and attests its
-# digest. The Frostyard remote
-# (https://github.com/frostyard/flatpak-index) serves the latest tag only when
-# this workflow attested it on a v* tag, so main pushes publish nothing.
+# digest. A vX.Y.Z tag moves latest to the attested digest. A vX.Y.Z-rc.N tag
+# publishes and attests the version and sha- tags only, and leaves latest where
+# it is: a release candidate is not the release (plan 0013, Phase 8). Any
+# other v* tag fails in the publish job and publishes nothing. The Frostyard
+# remote (https://github.com/frostyard/flatpak-index) serves the latest tag
+# only when this workflow attested it on a v* tag, so main pushes publish
+# nothing.
 #
 # Every action is pinned to a commit SHA (core ADR-0021); Dependabot bumps the
 # SHA and the version comment together.
@@ -103,6 +107,24 @@ jobs:
       # at its next hourly run.
       DISPATCH_TOKEN: ${{ secrets.FLATPAK_INDEX_DISPATCH_TOKEN }}
     steps:
+      # A release tag vX.Y.Z moves latest. A release candidate vX.Y.Z-rc.N
+      # (plan 0013, Phase 8) gets its version and sha- tags and its
+      # attestation, but latest stays on the last release. Any other v* tag
+      # fails here and publishes nothing.
+      - name: Name the OCI tags
+        id: tags
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          elif [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag $TAG is neither vX.Y.Z nor vX.Y.Z-rc.N" >&2
+            exit 1
+          fi
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: frostmail-oci
@@ -115,7 +137,8 @@ jobs:
         run: echo "$GITHUB_TOKEN" | skopeo login ghcr.io --username "$ACTOR" --password-stdin
 
       # The version and commit tags go first. latest moves only after the
-      # digest is attested, so the remote never sees an unattested latest.
+      # digest is attested, so the remote never sees an unattested latest. A
+      # release candidate never moves latest at all.
       - name: Push the version to GHCR
         id: push
         env:
@@ -133,12 +156,15 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
 
       - name: Move latest to the attested digest
+        if: steps.tags.outputs.latest == 'true'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: skopeo copy --preserve-digests "docker://$IMAGE@$DIGEST" "docker://$IMAGE:latest"
 
+      # The public remote serves latest only, so a candidate has nothing to
+      # refresh.
       - name: Refresh the Frostyard remote
-        if: env.DISPATCH_TOKEN != ''
+        if: steps.tags.outputs.latest == 'true' && env.DISPATCH_TOKEN != ''
         env:
           GH_TOKEN: ${{ env.DISPATCH_TOKEN }}
         run: gh workflow run publish.yml --repo frostyard/flatpak-index

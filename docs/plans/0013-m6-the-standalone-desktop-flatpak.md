@@ -52,7 +52,9 @@ click), #137 (the setup's error text) and #138 (import starts maild again).
 The CI bundles of #136 and #138 passed the failed checks on the VM the same
 day (below), and all 3 are merged. The OAuth check (item 4) passed on
 2026-10-29, so every desktop VM check of Phases 4 to 7 passes.
-Phases 8 to 10 are not built.
+**Phase 8's workflow part is built (PR #143):** a `vX.Y.Z-rc.N` tag
+publishes and attests a candidate without moving `latest`, with a dry-run
+test. Phase 8's test remote and tags, and Phases 9 and 10, are not done.
 
 ## Who helps
 
@@ -354,14 +356,25 @@ desk (T421c); its address stays out of this record.
 The clean-install gate comes before the public release, so the gate tests
 a candidate, and the release promotes that same digest.
 
-- The publishing workflow learns pre-release tags (`vX.Y.Z-rc.N`): it
-  pushes and attests the image with its version and `sha-` tags, and does
-  not move `latest`.
-- A test remote that serves the candidate's digest only, by the Frostyard
-  remote's mechanism (Lucilla names it: a test catalogue of flatpak-index,
-  or a local OCI remote on the VM).
-- Brian pushes the candidate's tag, and a second one for Phase 9's update
-  check.
+- The publishing workflow learns pre-release tags: Built (PR #143). In
+  `.github/workflows/flatpak.yml`, the step "Name the OCI tags" sorts the
+  tag: `vX.Y.Z` pushes the version and `sha-` tags, attests the digest and
+  then moves `latest`; `vX.Y.Z-rc.N` pushes and attests the same way and
+  leaves `latest` and the Frostyard remote alone; any other `v*` tag fails
+  before it pushes. `release.yml` ignores `v*-*` tags, so a candidate makes
+  no `.deb` and no GitHub release. `scripts/flatpak_publish_test.go` runs
+  the publish job's steps with stub `skopeo` and `gh` for each kind of tag.
+- A test remote that serves the candidate's digest only: Lucilla chose
+  flatpak-index's staged catalogue
+  ([Stage a candidate](https://github.com/frostyard/flatpak-index#stage-a-candidate),
+  core [ADR-0062](https://github.com/frostyard/core/blob/main/docs/adr/0062-make-desktop-suite-apps-standalone-flatpaks-with-opt-in-lodge.md)):
+  `scripts/build-index.py` builds it with the candidate's digest as the tag,
+  and the VM serves it at `127.0.0.1:8765`. Lucilla writes the VM's steps
+  (T488).
+- Brian pushes 2 candidate tags: `v0.4.0-rc.1` for the gate, and
+  `v0.4.0-rc.2` on a later commit of main for Phase 9's update check
+  (item 5). `svu next` gives `v0.4.0` today, and still gives `v0.4.0`
+  after the candidates, so the release tag follows them.
 - **Done when:** the VM installs the candidate from the test remote, and
   `flatpak info` shows the attested digest.
 
@@ -397,8 +410,12 @@ date.
 
 - Brian runs the promotion: the OCI tags `vX.Y.Z` and `latest` move to
   the digest that passed Phase 9, already attested (a step in the
-  workflow that copies by digest and builds nothing).
-- Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045).
+  workflow that copies by digest and builds nothing). The promotion makes
+  no second attestation: flatpak-index accepts only `flatpak.yml`'s
+  attestation, which the candidate's tag made.
+- Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It already
+  answers anonymous pulls (its tag list, checked 2026-10-29), so this step
+  may be done; Brian confirms.
 - Lucilla lists `org.frostyard.Frostmail` in `flatpak-index/apps.json`.
 - **Done when:** `flatpak install frostyard org.frostyard.Frostmail` on a
   fresh VM installs the digest that passed Phase 9, and plan 0010's Mail
@@ -415,10 +432,14 @@ date.
 
 ## Open questions
 
-- **Attestation of a candidate:** flatpak-index lists a digest that the
+- ~~**Attestation of a candidate:** flatpak-index lists a digest that the
   release workflow attested on a tag. Lucilla confirms that a
   `-rc.N` tag's attestation, and a promotion by digest, satisfy it, by
-  Phase 8.
+  Phase 8.~~ Decided (T488, Lucilla, 2026-10-29): yes. `build-index.py`
+  accepts an attestation from `flatpak.yml` on a GitHub-hosted runner whose
+  ref matches `refs/tags/v[0-9][^/]*`, which `refs/tags/v0.4.0-rc.1` does.
+  An attestation binds the digest, so Phase 10's copy by digest keeps it;
+  an attestation from another workflow file would not count.
 
 - **Lodge mode with the window closed:** nothing notifies (ADR-0041,
   ADR-0046). Brian decides whether a background connection is wanted, by

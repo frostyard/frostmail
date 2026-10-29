@@ -80,8 +80,11 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
   library, a compile of the Background helper, an import of PyGObject and
   `packaging/flatpak/smoke-test.sh`.
 - **Publishing.** `.github/workflows/flatpak.yml` builds on every pull
-  request and push to main. A `v*` tag pushes
-  `ghcr.io/frostyard/frostmail` and attests the digest.
+  request and push to main. A `v*` tag starts the publish job, but only a
+  `vX.Y.Z` or a `vX.Y.Z-rc.N` tag publishes an image and attests it; any
+  other `v*` tag fails before it pushes. A `vX.Y.Z` tag also moves
+  `latest`, and only it does. A `vX.Y.Z-rc.N` tag gets its version and
+  `sha-` tags and leaves `latest` alone (plan 0013, Phase 8).
 - `make install-app` stays the way to run a local build, with a host maild.
 
 ## The Flatpak's own maild
