@@ -20,7 +20,7 @@ and onboarding, not new mail features. Tests use generated mail and the
 `frostmail-mailtest` container, as plan 0011 does, unless a phase says
 otherwise.
 
-Status (2026-10-28): **Phase 1 is open:** Brian accepted ADR-0046 on
+Status (2026-10-29): **Phase 1 is open:** Brian accepted ADR-0046 on
 2026-10-28, and ADR-0013, 0041 and 0045 say that it amends them in part;
 core's amendment of ADR-0058 and plan 0010 is still to come.
 **Phases 2 and 3 are built** (PR #126, merged 2026-10-28): maild and
@@ -31,7 +31,8 @@ test; the desktop VM checked the portals, Background and `flatpak-spawn` on
 2026-10-28):** `--talk-name=org.freedesktop.secrets`, the Flatpak's keyring
 namespace and the store id, the no-fallback rule with `ErrNoKeyring`'s
 message, the probe in `account.create`, and the unit tests on `dbustest`.
-**Not done in Phase 4:** the notification click (#136) and the OAuth check.
+**Phase 4 is done:** the notification click (#136, merged 2026-10-28), and
+the OAuth check passed on the VM on 2026-10-29 ([below](#oauth-check-2026-10-29)).
 **Phase 5's code is built (PR #132, merged 2026-10-28):**
 Save As through the file chooser portal in both modes, attaching by bytes
 in both modes, with the portal's Rust tests and the Vitest tests. **Phase 6 is built (PR #131,
@@ -49,8 +50,8 @@ run item 4 (OAuth); Phase 7 fails, because a window left open during the
 import does not reconnect, though its other checks pass. Fix PRs: #136 (the
 click), #137 (the setup's error text) and #138 (import starts maild again).
 The CI bundles of #136 and #138 passed the failed checks on the VM the same
-day (below). **Still open:** merging #136, #137 and #138, and the OAuth check
-(item 4).
+day (below), and all 3 are merged. The OAuth check (item 4) passed on
+2026-10-29, so every desktop VM check of Phases 4 to 7 passes.
 Phases 8 to 10 are not built.
 
 ## Who helps
@@ -241,8 +242,8 @@ scripts are in Irulan's home, `evidence/plan-0013-vm-2026-10-28/`.
    (`frostmail-app --open-message 13`) is a child of maild, in maild's sandbox,
    and `flatpak ps` shows no new instance. Fix: #136, the click through
    `flatpak-spawn --latest-version`.
-4. Not run: it needs a Google account that may sign in from the VM (Open
-   questions).
+4. Not run on 2026-10-28: it needs a Google account that may sign in from
+   the VM. It passed on 2026-10-29 ([OAuth check](#oauth-check-2026-10-29)).
 5. Pass. The host's maild (`make install`, test1) and the Flatpak's (test2,
    another password), each with an account 1, both synced a new message. A
    write of a new value in one store changed only its own item; the other
@@ -320,6 +321,34 @@ The other checks pass.
 For Phase 8: the Flatpak's maild reports the version `flatpak`, and the
 bundle's version is 0.0.0.
 
+### OAuth check 2026-10-29
+
+Phase 4 item 4 passed, with the CI bundle of main at `8c5a5a7` (Flatpak run
+40878636033). The account is the Google test account Brian named on the
+desk (T421c); its address stays out of this record.
+
+- The VM needed 2 things first. The clean Snow image has no web browser, so
+  Firefox from Flathub became the default, for the OpenURI portal. The
+  bridge's resolver answered `192.0.0.88` for `accounts.google.com`, so the
+  VM used public resolvers for this check only (Duncan fixes the bridge).
+- Brian entered his own Google Desktop-app client in Settings, Sign-In
+  (Frostmail has no verified client yet), added the account as Gmail with
+  OAuth, and signed in. Firefox went through Google's sign-in, the
+  unverified-app warning and the consent page, then to
+  `http://127.0.0.1:<port>/`: the loopback redirect reached maild, with no
+  pasted address (ADR-0043).
+- The account is `signedIn`, and it synced: INBOX 12, All Mail 16, Sent 2,
+  Drafts 1, Spam 6, Trash 11 and a label; Google's "new sign-in" alert of
+  the minute arrived in the INBOX.
+- The keyring holds `account/1/refresh-token` and
+  `oauth/google/client-secret` under `application=org.frostyard.Frostmail`
+  and the store's id; the data directory has no `secrets.json`.
+- maild logged "sync stopped: sign in again" once, in the same millisecond
+  as the account's creation, before the sign-in: the setup creates the
+  account, then authorizes it. The account synced after the sign-in.
+- Afterwards the VM went back to its `clean` snapshot; no snapshot keeps the
+  client's secret or the token.
+
 ## Phase 8 — A release candidate (Brian and Lucilla, small)
 
 The clean-install gate comes before the public release, so the gate tests
@@ -394,9 +423,9 @@ date.
 - **Lodge mode with the window closed:** nothing notifies (ADR-0041,
   ADR-0046). Brian decides whether a background connection is wanted, by
   Phase 6.
-- **The OAuth check of Phase 4:** it needs a Google account that may sign
-  in from the test VM; generated mail cannot. Brian names one, or the
-  check is recorded as not run, by Phase 4.
+- ~~**The OAuth check of Phase 4:** it needs a Google account that may sign
+  in from the test VM.~~ Decided (T421c, Brian, 2026-10-28): his test
+  account; he signs in himself. Passed on 2026-10-29.
 
 ## References
 
