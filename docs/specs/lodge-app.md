@@ -83,10 +83,14 @@ that `seal-mail-secrets.sh` writes stays in both cases.
 
 ### Release
 
-`make bump` is the only way to tag a release: on a clean, up-to-date `main`
-it runs `make verify`, then tags `svu next` and pushes the tag
-([core ADR-0012](https://github.com/frostyard/core/blob/main/docs/adr/0012-svu-versioning-and-rolling-dev-prerelease.md)).
-The tag's workflow, `.github/workflows/release.yml`, builds
+`make bump CANDIDATE=vX.Y.Z-rc.N` is the only way to tag a release
+([core ADR-0012](https://github.com/frostyard/core/blob/main/docs/adr/0012-svu-versioning-and-rolling-dev-prerelease.md)):
+it runs `make verify` on the commit of the candidate that passed the
+Flatpak's gate, tags that commit `vX.Y.Z` and pushes the tag, so the `.deb`
+and the Flatpak of a version hold the same code
+([ADR-0048](../adr/0048-tag-each-release-on-its-tested-candidates-commit.md)).
+The tag's workflow, `.github/workflows/release.yml`, first refuses a tag that
+is not the commit of a `vX.Y.Z-rc.N` tag, then builds
 `frostyard-maild_X.Y.Z_amd64.deb` with `make deb` (the staged layout above, put
 together by nFPM from `packaging/nfpm.yaml`, and checked by
 `packaging/deb-check.py`), attests it, and attaches it to the GitHub release.

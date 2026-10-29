@@ -54,9 +54,11 @@ day (below), and all 3 are merged. The OAuth check (item 4) passed on
 2026-10-29, so every desktop VM check of Phases 4 to 7 passes.
 **Phase 8's workflow part is built (PR #143):** a `vX.Y.Z-rc.N` tag
 publishes and attests a candidate without moving `latest`, with a dry-run
-test. **Phase 10's workflows are built (PR #145):** the Promote workflow
-copies the tested candidate's digest to `vX.Y.Z` and `latest`, and a
-`vX.Y.Z` tag no longer publishes the Flatpak. Phase 8's test remote and
+test. **Phase 10's workflows are built (PR #145, and PR #147 for the release tag):** the Promote workflow
+copies the tested candidate's digest to `vX.Y.Z` and `latest`, a
+`vX.Y.Z` tag no longer publishes the Flatpak, and `make bump
+CANDIDATE=vX.Y.Z-rc.N` tags the candidate's commit, so the `.deb` holds the
+same code ([ADR-0048](../adr/0048-tag-each-release-on-its-tested-candidates-commit.md)). Phase 8's test remote and
 tags, Phase 9, and the release itself are not done.
 
 ## Who helps
@@ -376,8 +378,8 @@ a candidate, and the release promotes that same digest.
   (T488).
 - Brian pushes 2 candidate tags: `v0.4.0-rc.1` for the gate, and
   `v0.4.0-rc.2` on a later commit of main for Phase 9's update check
-  (item 5). `svu next` gives `v0.4.0` today, and still gives `v0.4.0`
-  after the candidates, so the release tag follows them.
+  (item 5). `svu next` gave `v0.4.0` for them. The release tag `v0.4.0`
+  goes on the commit of the candidate that passes the gate (Phase 10).
 - **Done when:** the VM installs the candidate from the test remote, and
   `flatpak info` shows the attested digest.
 
@@ -422,9 +424,9 @@ Phase 9 becomes the release, and nothing is built again.
   1. The inputs: `candidate` is `vX.Y.Z-rc.N`, `version` is `vX.Y.Z`, and
      the candidate is a candidate of that version.
   2. The candidate's digest, from its OCI tag (`skopeo inspect`).
-  3. The git tag `vX.Y.Z` exists and contains the candidate's commit (the
-     compare API answers `identical` or `ahead`): the release is
-     `make bump`'s, below.
+  3. The git tag `vX.Y.Z` exists and is the candidate's commit (the
+     compare API answers `identical`; `ahead` is refused): the release
+     tag is `make bump`'s, below.
   4. The attestation: `gh attestation verify` on the digest, with
      `--signer-workflow` `flatpak.yml`, `--source-ref
      refs/tags/vX.Y.Z-rc.N` and `--deny-self-hosted-runners`, and an
@@ -441,8 +443,8 @@ Phase 9 becomes the release, and nothing is built again.
      (`gh workflow run publish.yml`), as a release did before.
 
   It refuses, before any copy, when a check fails: bad inputs, no
-  candidate image, no release tag or one that does not contain the
-  candidate, no valid attestation from `flatpak.yml`, or `vX.Y.Z` on
+  candidate image, no release tag or one on another commit than the
+  candidate's, no valid attestation from `flatpak.yml`, or `vX.Y.Z` on
   another digest. `scripts/flatpak_promote_test.go` runs the job's steps
   with stub `skopeo`, `gh` and `docker` for each case.
 - **A `vX.Y.Z` tag no longer publishes the Flatpak** (PR #145). In
@@ -451,21 +453,36 @@ Phase 9 becomes the release, and nothing is built again.
   publishes and attests. So the release tag cannot replace the tested
   digest with a new build, and only the promotion moves `vX.Y.Z` and
   `latest`. `scripts/flatpak_publish_test.go` checks it.
-- **The .deb and the GitHub release** (Irulan's choice, 2026-10-29, for
-  Brian's review in PR #145):
-  `make bump` makes them, as for every release (core ADR-0012: it stays
-  the only way to tag a release). `release.yml` ignores the candidates'
-  tags; the release tag `vX.Y.Z` runs it as before, and it builds
-  `frostyard-maild_X.Y.Z_amd64.deb` from the tag's commit. The tag marks
-  main's head, which contains the candidate's commit and may be later: the
-  .deb (lodge's server) can carry commits that the Flatpak does not. The
-  order for Brian:
+- **The .deb and the GitHub release come from the candidate's commit:** Built (PR #147)
+  (Brian, T492a, 2026-10-29: "vX.Y.Z should have same code in both
+  versions";
+  [ADR-0048](../adr/0048-tag-each-release-on-its-tested-candidates-commit.md)).
+  `make bump` stays the only way to tag a release (core ADR-0012), and
+  now takes the candidate: `make bump CANDIDATE=vX.Y.Z-rc.N`. It takes
+  the version from the candidate's tag (no `svu next`), and refuses a
+  candidate tag that is missing or not on `origin/main`, a version tag
+  that exists locally or on origin, and a version that is not newer than
+  the last `vX.Y.Z` tag. It runs `make verify` on the candidate's commit
+  in a temporary worktree, then tags that commit `vX.Y.Z` and pushes the
+  tag. `release.yml` ignores the candidates' tags; on the release tag its
+  first job, "The tag is a tested candidate's commit", refuses unless a
+  `vX.Y.Z-rc.N` tag names the same commit (GitHub's API, before any
+  build), and its build job checks that its checkout is that commit. Then
+  it builds `frostyard-maild_X.Y.Z_amd64.deb`, attests it and makes the
+  GitHub release, as before; it builds and publishes no Flatpak.
+  `scripts/release_candidate_test.go` runs the check with a stub `gh`.
+  So the `.deb` and the Flatpak of `vX.Y.Z` hold the same code, and
+  `release.yml` and Promote each refuse a release tag on another commit.
+  The order for Brian:
   1. Phase 9 passes on a candidate `vX.Y.Z-rc.N`.
-  2. `make bump` on main. `svu next` must give `vX.Y.Z`, the candidate's
-     version; if it gives another, Brian stops and pushes a new candidate.
+  2. `make bump CANDIDATE=vX.Y.Z-rc.N`, from any clean checkout: it
+     tags the candidate's commit, and the tag builds the `.deb`.
   3. Promote, with `candidate` `vX.Y.Z-rc.N` and `version` `vX.Y.Z`
      (GitHub, Actions, Promote, Run workflow; or `gh workflow run
      promote.yml -f candidate=vX.Y.Z-rc.N -f version=vX.Y.Z`).
+
+  A consequence: every release, a fix for the server only too, starts
+  with a candidate tag, which builds and publishes a candidate Flatpak.
 - Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It already
   answers anonymous pulls (its tag list, checked 2026-10-29), so this step
   may be done; Brian confirms.

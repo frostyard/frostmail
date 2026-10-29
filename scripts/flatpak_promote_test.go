@@ -39,7 +39,7 @@ const (
 	// The names of the steps the cases check.
 	stepInputs  = "Check the inputs"
 	stepDigest  = "Resolve the candidate's digest"
-	stepCompare = "Check the release tag contains the candidate"
+	stepCompare = "Check the release tag is the candidate's commit"
 	stepVerify  = "Verify the candidate's attestation"
 	stepFree    = "Check the version tag is free"
 	stepVersion = "Copy the candidate to the version"
@@ -479,8 +479,6 @@ func TestFlatpakPromoteCopiesTheCandidateToTheRelease(t *testing.T) {
 	}{
 		{name: "the candidate", status: "identical"},
 		{name: "the candidate and the dispatch token", status: "identical", dispatch: "x"},
-		// The release tag holds the candidate's commit as well.
-		{name: "a release tag ahead of the candidate", status: "ahead"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newPromoteRun(t, wf, promoteCandidate, promoteVersion, tc.dispatch)
@@ -578,7 +576,7 @@ func TestFlatpakPromoteRefusesAnUnverifiedCandidate(t *testing.T) {
 	}
 }
 
-func TestFlatpakPromoteRefusesAReleaseTagThatLacksTheCandidate(t *testing.T) {
+func TestFlatpakPromoteRefusesAReleaseTagThatIsNotTheCandidate(t *testing.T) {
 	wf := promoteJob(t)
 	for _, tc := range []struct {
 		name   string
@@ -586,6 +584,9 @@ func TestFlatpakPromoteRefusesAReleaseTagThatLacksTheCandidate(t *testing.T) {
 	}{
 		// No compare file: the tag does not exist, so gh exits 1.
 		{name: "no release tag"},
+		// The release tag is on a later commit of main: the .deb would hold
+		// other code than the candidate's Flatpak.
+		{name: "ahead", status: "ahead"},
 		{name: "behind", status: "behind"},
 		{name: "diverged", status: "diverged"},
 	} {

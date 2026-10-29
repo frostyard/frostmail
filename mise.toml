@@ -9,7 +9,7 @@ lockfile = true
 [tools]
 # make lint, and so make verify, check and ci; the Makefile checks this release.
 golangci-lint = "2.15.0"
-# make bump: svu computes the next version from the commits (the Makefile checks this release).
+# svu next names the version of the next candidate tag vX.Y.Z-rc.N (make bump takes it from the candidate; svu-version-check checks this release).
 svu = "3.4.1"
 # make deb: nFPM builds the .deb.
 nfpm = "2.48.0"
