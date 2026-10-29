@@ -477,3 +477,51 @@ func TestReleasePublishesNoFlatpak(t *testing.T) {
 		}
 	}
 }
+
+// TestReleaseCheckoutCheckRefusesAnotherCommit runs the build job's checkout
+// check in a real git repository: it passes when HEAD is the candidate job's
+// commit, and fails when HEAD is any other commit.
+func TestReleaseCheckoutCheckRefusesAnotherCommit(t *testing.T) {
+	build := releaseJobs(t)[releaseBuildJob]
+	i := slices.IndexFunc(build.Steps, func(s publishStep) bool { return s.label() == stepCheckoutHead })
+	if i < 0 {
+		t.Fatalf("the build job has no step %q", stepCheckoutHead)
+	}
+	step := build.Steps[i]
+	repo := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), "git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.test",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.test",
+			"GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q")
+	git("commit", "-q", "--allow-empty", "-m", "the candidate")
+	head := git("rev-parse", "HEAD")
+	for _, tc := range []struct {
+		name   string
+		commit string
+		pass   bool
+	}{
+		{name: "the candidate's commit", commit: head, pass: true},
+		{name: "another commit", commit: releaseCommitLater, pass: false},
+		{name: "no commit", commit: "", pass: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := exec.CommandContext(t.Context(), "bash", "-e", "-c", step.Run)
+			cmd.Dir = repo
+			cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "COMMIT=" + tc.commit}
+			out, code := runScript(t, cmd)
+			if got := code == 0; got != tc.pass {
+				t.Fatalf("the checkout check with COMMIT=%q passed=%v, want %v:\n%s", tc.commit, got, tc.pass, out)
+			}
+		})
+	}
+}
