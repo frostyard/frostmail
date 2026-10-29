@@ -143,9 +143,9 @@ Phases 8 to 10 are not built.
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
 - The generated Flatpak sources (`packaging/flatpak/go-sources.json` and
   `node-sources.json`, from `make flatpak-sources`) mirror the Go and UI versions above
-  and change with every bump. `mise.toml`, the other `packaging/` files, the workflows,
-  `scripts/`, `cargo-sources.json` and `app/src-tauri/Cargo.toml` pin no frostyard or
-  bketelsen module; they only cite frostyard/core ADRs.
+  and change with every bump. Run `make flatpak-sources` after a change to `go.mod` or
+  `go.sum`. `mise.toml`, the other `packaging/` files, the workflows, `scripts/`,
+  `cargo-sources.json` and `app/src-tauri/Cargo.toml` pin no frostyard or bketelsen module.
 - Users: lodge hosts maild as its `mail` app, and Porter calls `/mcp/mail`. Other users:
   not stated.
 
