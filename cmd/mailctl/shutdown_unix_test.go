@@ -166,6 +166,27 @@ func TestShutdownTakesAClosedConnectionAsAnAsk(t *testing.T) {
 			t.Fatalf("output = %q; want none", out.String())
 		}
 	})
+
+	// A lost reply with a lock that stays held: the wait for the lock is
+	// proven, and the deadline reports the lock, not the ask.
+	t.Run("the lock stays", func(t *testing.T) {
+		data := t.TempDir()
+		release, err := datalock.Acquire(data) // stands for the stopping maild's lock
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(sync.OnceFunc(release))
+		socket, _ := standIn(t, true)
+
+		var out bytes.Buffer
+		err = runShutdown(t.Context(), &out, socket, data, 300*time.Millisecond)
+		if err == nil || !strings.Contains(err.Error(), "still holds the lock") || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("runShutdown = %v; want an error that maild still holds the lock at the deadline", err)
+		}
+		if out.Len() != 0 {
+			t.Fatalf("output = %q; want none", out.String())
+		}
+	})
 }
 
 // standIn is a maild that closes its connection on rpc.shutdown without a
