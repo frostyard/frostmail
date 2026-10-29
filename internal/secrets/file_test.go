@@ -93,6 +93,16 @@ func TestFileRefusesReadableFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"a":"1"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// WriteFile's mode passes through the umask (0077 leaves 0600), so
+	// set 0644 explicitly: the test needs a file others can read.
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	} else if fi.Mode().Perm() != 0o644 {
+		t.Fatalf("test file mode = %o, want 644", fi.Mode().Perm())
+	}
 	ctx := t.Context()
 	_, err := f.Get(ctx, "a")
 	if err == nil || errors.Is(err, ErrNotFound) || !strings.Contains(err.Error(), path) {
