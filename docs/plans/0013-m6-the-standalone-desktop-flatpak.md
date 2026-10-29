@@ -61,9 +61,9 @@ copies the tested candidate's digest to `vX.Y.Z` and `latest`, and a
 VM installed rc.1 from flatpak-index's staged catalogue with its attested
 digest ([below](#phase-8-check-2026-10-29)). **Phase 9 ran on 2026-10-29**
 ([Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)), but is
-not done: each of the 7 items passed, items 1 to 4 on rc.1 and items 6 and
-7 on rc.2 after item 5's update, so no one digest has passed all 7, and
-item 5 did not exercise a migration. 2 findings: with the Background portal refused, maild ends
+not done: items 1 to 4, 6 and 7 passed, and item 5 passed in part (it
+exercised no migration); items 1 to 4 ran on rc.1 and items 6 and 7 on rc.2
+after item 5's update, so no one digest has passed all 7. 2 findings: with the Background portal refused, maild ends
 when the last window closes, not at logout as ADR-0046 says; and a click on
 the old build's notification after the update replaced maild but did not
 open its message in the open window. The release itself is not done.
@@ -440,8 +440,8 @@ date.
 
 ### Clean-install gate 2026-10-29
 
-Each item passed, with 2 findings (items 4 and 5), but Phase 9 is **not
-done**: its "Done when" needs all 7 on one candidate digest, and item 5's
+Items 1 to 4, 6 and 7 passed, and item 5 passed in part, with 2 findings
+(items 4 and 5), but Phase 9 is **not done**: its "Done when" needs all 7 on one candidate digest, and item 5's
 migration was not exercised. Items 1 to 4 ran on rc.1
 (`sha256:db7b2d97…c60645a`), item 5 updated to rc.2
 (`sha256:89980a48d4492400636022d8db44ef64dcc16e3c405f501617d4357f7b90cf2a`,
