@@ -60,9 +60,10 @@ copies the tested candidate's digest to `vX.Y.Z` and `latest`, and a
 (2026-10-29):** Brian pushed `v0.4.0-rc.1` and `v0.4.0-rc.2`, and the clean
 VM installed rc.1 from flatpak-index's staged catalogue with its attested
 digest ([below](#phase-8-check-2026-10-29)). **Phase 9 ran on 2026-10-29**
-([Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)): all 7
-items pass, items 1 to 4 on rc.1 and items 6 and 7 on rc.2 after item 5's
-update, with 2 findings: with the Background portal refused, maild ends
+([Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)), but is
+not done: each of the 7 items passed, items 1 to 4 on rc.1 and items 6 and
+7 on rc.2 after item 5's update, so no one digest has passed all 7, and
+item 5 did not exercise a migration. 2 findings: with the Background portal refused, maild ends
 when the last window closes, not at logout as ADR-0046 says; and a click on
 the old build's notification after the update replaced maild but did not
 open its message in the open window. The release itself is not done.
@@ -400,7 +401,7 @@ Pass. The candidate `v0.4.0-rc.1` is
   only tag: `build-index.py` verified the attestation and wrote 1 image.
   The VM served it at `127.0.0.1:8765` and needed no credentials.
 - On the clean VM, `flatpak install --user frostyard-staged
-  org.frostyard.Frostmail` installed it (18.9 MB download; the runtime
+  org.frostyard.Frostmail` installed it (a listed download below 18.9 MB; the runtime
   `org.gnome.Platform//51` was already there). `flatpak info`: origin
   `frostyard-staged`, branch `master`, version 0.0.0, commit `71d31938…`,
   Alt-id `db7b2d97b06b2b7da8806375bdefc35a2dbce3e22023fe5c86eff3ccec60645a`,
@@ -439,12 +440,15 @@ date.
 
 ### Clean-install gate 2026-10-29
 
-All 7 items pass, with 2 findings (items 4 and 5). Items 1 to 4 ran on rc.1
+Each item passed, with 2 findings (items 4 and 5), but Phase 9 is **not
+done**: its "Done when" needs all 7 on one candidate digest, and item 5's
+migration was not exercised. Items 1 to 4 ran on rc.1
 (`sha256:db7b2d97…c60645a`), item 5 updated to rc.2
 (`sha256:89980a48d4492400636022d8db44ef64dcc16e3c405f501617d4357f7b90cf2a`,
 Flatpak run 40932553706, "Built from 32d764c", attested), and items 6
 and 7 ran on rc.2. rc.2 differs from rc.1 only by a test file (`4ccacba`).
-So no single digest has run all 7 yet.
+So no single digest has run all 7 yet. Whether rc.2 may count as tested
+is an open question below, not a result.
 
 The VM: Duncan's `frostmail-desktop`, restored to its `clean` snapshot at
 14:43 EDT. It runs Snow `20261028172907`, GNOME Shell 48.7 on Wayland,
@@ -452,7 +456,7 @@ xdg-desktop-portal 1.20.3, Flatpak 1.16.6 and kernel 7.2.12+deb14-amd64.
 The mail server: `frostmail-mailtest`, reset to its `clean` snapshot. The
 only override: `FROSTMAIL_INSECURE_TLS=1`, for the container's self-signed
 certificate. Test messages came from the container's SMTP port 25.
-Afterwards both went back to `clean`. The screenshots and command outputs
+Afterwards both went back to `clean` (`80-sources-and-final-reset.txt`). The screenshots and command outputs
 are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
 
 1. **Pass.** The user installation held only the GNOME 51 runtime and
@@ -499,7 +503,7 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
      hold here. The likely cause is xdg-desktop-portal's background
      monitor, which ends a refused app's instances once it has no window;
      this is inferred, not traced.
-5. **Pass, with a finding.** With rc.1's window open and rc.1's
+5. **Pass in part, with a finding.** With rc.1's window open and rc.1's
    notification shown, `flatpak update` (after removing the 2 cached index
    files, as flatpak-index's README says) installed rc.2 (commit
    `b6a266a5…`, Alt-id `89980a48…`). rc.1's maild ran on until the click
@@ -508,7 +512,9 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
    reconnected and listed the next message, which rc.2's maild synced; the
    account, mailboxes and messages were all there. rc.1's launcher, run
    again in rc.1's sandbox, left rc.2's maild running: never the reverse.
-   No migration ran, as rc.2 has the same schema.
+   - **Not exercised:** the migration. rc.2 has rc.1's schema (they
+     differ only in `internal/secrets/file_test.go`), so no migration ran;
+     this shows an update with the same schema, not a migration.
    - **Finding:** that click did not open its message in the open rc.1
      window, which stayed on All Inboxes with no message selected. A later
      click on an rc.2 notification opened its message in the same window.
@@ -630,7 +636,9 @@ Phase 9 becomes the release, and nothing is built again.
   the window without the portal.
 - **The gate's digest:** items 1 to 4 passed on rc.1 and items 6 and 7 on
   rc.2. Brian and Lucilla decide whether Phase 10 promotes rc.2 as it is
-  (rc.2 adds only a test file), or items 1 to 4 run again on rc.2 first.
+  (rc.2 adds only a test file), or items 1 to 4 run again on rc.2 first;
+  and whether item 5's migration needs 2 candidates with different
+  schemas, or an update with the same schema satisfies it.
 - ~~**The OAuth check of Phase 4:** it needs a Google account that may sign
   in from the test VM.~~ Decided (T421c, Brian, 2026-10-28): his test
   account; he signs in himself. Passed on 2026-10-29.
