@@ -50,6 +50,7 @@ type publishStep struct {
 	If   string            `yaml:"if"`
 	Uses string            `yaml:"uses"`
 	Env  map[string]string `yaml:"env"`
+	With map[string]string `yaml:"with"`
 	Run  string            `yaml:"run"`
 }
 
@@ -95,6 +96,8 @@ type publishRun struct {
 	outputs map[string]map[string]string
 	// order is the label of every step the run met, run or skipped.
 	order []string
+	// attested is the digest the attestation named, or "".
+	attested string
 }
 
 // newPublishRun stages a work dir and the stub commands for tag.
@@ -141,12 +144,13 @@ func (r *publishRun) run(steps []publishStep) (string, string) {
 	r.t.Helper()
 	for _, s := range steps {
 		r.order = append(r.order, s.label())
-		if s.Uses != "" {
-			// An action: the download and the attestation are played here by
-			// the steps after them, which read their outputs.
+		// The condition comes first, so a new one on an action step fails the
+		// test too.
+		if !r.condition(s.If) {
 			continue
 		}
-		if !r.condition(s.If) {
+		if s.Uses != "" {
+			r.attest(s)
 			continue
 		}
 		output := filepath.Join(r.work, "github-output-"+r.slot(s))
@@ -163,6 +167,24 @@ func (r *publishRun) run(steps []publishStep) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+// attest records the attestation the attest step makes: the digest it names,
+// which the push step wrote. The other actions are skipped here: the download
+// is played by the steps that read the image.
+func (r *publishRun) attest(s publishStep) {
+	r.t.Helper()
+	if !strings.Contains(s.Uses, "attest-build-provenance") {
+		return
+	}
+	if got := r.subst(s.With["subject-name"]); got != publishImage {
+		r.t.Fatalf("the attestation names the image %q, want %q", got, publishImage)
+	}
+	digest := r.subst(s.With["subject-digest"])
+	if digest != publishDigest {
+		r.t.Fatalf("the attestation names the digest %q, want %q", digest, publishDigest)
+	}
+	r.attested = digest
 }
 
 // slot is a file name piece for a step's GITHUB_OUTPUT, since a step may
@@ -205,6 +227,8 @@ func (r *publishRun) subst(v string) string {
 		switch name := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(e, "${{"), "}}")); name {
 		case "github.ref_name":
 			return r.tag
+		case "env.IMAGE":
+			return publishImage
 		case "steps.push.outputs.digest":
 			return r.outputs["push"]["digest"]
 		case "secrets.GITHUB_TOKEN":
@@ -219,7 +243,7 @@ func (r *publishRun) subst(v string) string {
 		}
 	})
 	if unknown != "" {
-		r.t.Fatalf("the step env expression %q is new to the dry run: teach the dry run this expression", unknown)
+		r.t.Fatalf("the expression %q is new to the dry run: teach the dry run this expression", unknown)
 	}
 	return out
 }
@@ -311,6 +335,9 @@ func TestFlatpakPublishMovesLatestOnlyForARelease(t *testing.T) {
 			if got := r.commands(); !slices.Equal(got, tc.want) {
 				t.Fatalf("tag %s ran\n%s\nwant\n%s", tc.tag, strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
 			}
+			if r.attested != publishDigest {
+				t.Fatalf("tag %s attested %q, want the pushed digest %q", tc.tag, r.attested, publishDigest)
+			}
 		})
 	}
 }
@@ -326,6 +353,9 @@ func TestFlatpakPublishRefusesOtherTags(t *testing.T) {
 			}
 			if cmds := r.commands(); len(cmds) != 0 {
 				t.Fatalf("tag %s published:\n%s", tag, strings.Join(cmds, "\n"))
+			}
+			if r.attested != "" {
+				t.Fatalf("tag %s attested %q, want no attestation", tag, r.attested)
 			}
 		})
 	}
