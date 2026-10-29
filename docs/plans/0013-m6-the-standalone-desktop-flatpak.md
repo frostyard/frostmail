@@ -62,14 +62,18 @@ same code ([ADR-0048](../adr/0048-tag-each-release-on-its-tested-candidates-comm
 **Phase 8 is done (2026-10-29):** Brian pushed `v0.4.0-rc.1` and
 `v0.4.0-rc.2`, and the clean VM installed rc.1 from flatpak-index's staged
 catalogue with its attested digest ([below](#phase-8-check-2026-10-29)).
-**Phase 9 ran on 2026-10-29**
-([Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)), but is
-not done: items 1 to 4, 6 and 7 passed, and item 5 passed in part (it
-exercised no migration); items 1 to 4 ran on rc.1 and items 6 and 7 on rc.2
-after item 5's update, so no one digest has passed all 7. 2 findings: with the Background portal refused, maild ends
-when the last window closes, not at logout as ADR-0046 says; and a click on
-the old build's notification after the update replaced maild but did not
-open its message in the open window. The release itself is not done.
+**Phase 9 is done on rc.2 (2026-10-29,
+[Clean-install gate 2026-10-29](#clean-install-gate-2026-10-29)):** items 1
+to 4, 6 and 7 passed, and item 5 passed with an update of the same schema;
+items 1 to 4 ran on rc.1 and items 6 and 7 on rc.2. Brian decided that rc.2
+counts as tested as it is, that the update of the same schema satisfies
+item 5 for this release, and that maild's end with the last window when the
+Background portal is refused is the accepted behaviour, which ADR-0046 and
+[design/desktop.md](../design/desktop.md) now say
+([Decisions](#decisions-2026-10-29)). One finding stays open as issue #149: a
+click on the old build's notification after the update replaced maild but
+did not open its message in the open window. The release of `v0.4.0` from
+rc.2 is not done ([Phase 10](#phase-10--release-brian-and-lucilla-small)).
 
 ## Who helps
 
@@ -444,14 +448,30 @@ date.
 ### Clean-install gate 2026-10-29
 
 Items 1 to 4, 6 and 7 passed, and item 5 passed in part, with 2 findings
-(items 4 and 5), but Phase 9 is **not done**: its "Done when" needs all 7 on one candidate digest, and item 5's
-migration was not exercised. Items 1 to 4 ran on rc.1
+(items 4 and 5). As run, Phase 9 was not done: its "Done when" needs all 7
+on one candidate digest, and item 5's migration was not exercised. Brian's
+[decisions](#decisions-2026-10-29) close both points: **Phase 9 is done on
+rc.2.** Items 1 to 4 ran on rc.1
 (`sha256:db7b2d97…c60645a`), item 5 updated to rc.2
 (`sha256:89980a48d4492400636022d8db44ef64dcc16e3c405f501617d4357f7b90cf2a`,
 Flatpak run 40932553706, "Built from 32d764c", attested), and items 6
 and 7 ran on rc.2. rc.2 differs from rc.1 only by a test file (`4ccacba`).
-So no single digest has run all 7 yet. Whether rc.2 may count as tested
-is an open question below, not a result.
+So no single digest has run all 7.
+
+#### Decisions 2026-10-29
+
+Brian answered the gate's 3 questions on Odrade's desk (T491):
+
+- **T491a, the gate's digest:** "rc.2 as is". Phase 10 promotes
+  `v0.4.0-rc.2`
+  (`sha256:89980a48d4492400636022d8db44ef64dcc16e3c405f501617d4357f7b90cf2a`,
+  commit `32d764c`). Items 1 to 4 do not run again on rc.2.
+- **T491b, item 5's migration:** "same-schema update is sufficient". Item 5
+  passes for this release; a release that changes the schema tests its
+  migration in its own gate.
+- **T491c, the refused Background portal:** "the ADR and design". maild's
+  end with the last window, when the portal is refused, is the accepted
+  behaviour; ADR-0046 and [design/desktop.md](../design/desktop.md) say so.
 
 The VM: Duncan's `frostmail-desktop`, restored to its `clean` snapshot at
 14:43 EDT. It runs Snow `20261028172907`, GNOME Shell 48.7 on Wayland,
@@ -505,7 +525,8 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
      still runs from the first window of a session until logout" does not
      hold here. The likely cause is xdg-desktop-portal's background
      monitor, which ends a refused app's instances once it has no window;
-     this is inferred, not traced.
+     this is inferred, not traced. Decided (T491c, Brian, 2026-10-29): the
+     accepted behaviour; ADR-0046 and design/desktop.md now say so.
 5. **Pass in part, with a finding.** With rc.1's window open and rc.1's
    notification shown, `flatpak update` (after removing the 2 cached index
    files, as flatpak-index's README says) installed rc.2 (commit
@@ -517,10 +538,12 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
    again in rc.1's sandbox, left rc.2's maild running: never the reverse.
    - **Not exercised:** the migration. rc.2 has rc.1's schema (they
      differ only in `internal/secrets/file_test.go`), so no migration ran;
-     this shows an update with the same schema, not a migration.
+     this shows an update with the same schema, not a migration. Decided
+     (T491b, Brian, 2026-10-29): sufficient for this release.
    - **Finding:** that click did not open its message in the open rc.1
      window, which stayed on All Inboxes with no message selected. A later
      click on an rc.2 notification opened its message in the same window.
+     It stays open as issue #149; it does not block the release.
 6. **Pass,** with the windows of rc.2 (closed and opened again after the
    update). Lodge's development build (lodge `dd0cb0f`, `lodge-e2e`) and
    `maild --lodge` (built from `v0.4.0-rc.1`), built on the team VM, ran on
@@ -617,6 +640,11 @@ Phase 9 becomes the release, and nothing is built again.
 
   A consequence: every release, a fix for the server only too, starts
   with a candidate tag, which builds and publishes a candidate Flatpak.
+- **For `v0.4.0`** (T491a): the candidate is `v0.4.0-rc.2`
+  (`sha256:89980a48…cf2a`, commit `32d764c`), so the steps are
+  `make bump CANDIDATE=v0.4.0-rc.2`, then Promote with `candidate`
+  `v0.4.0-rc.2` and `version` `v0.4.0`. Before the tag, Brian settles the
+  open question on rc.2's own `flatpak.yml` ([Open questions](#open-questions)).
 - Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It already
   answers anonymous pulls (its tag list, checked 2026-10-29), so this step
   may be done; Brian confirms.
@@ -648,15 +676,23 @@ Phase 9 becomes the release, and nothing is built again.
 - **Lodge mode with the window closed:** nothing notifies (ADR-0041,
   ADR-0046). Brian decides whether a background connection is wanted, by
   Phase 6.
-- **The Background portal refused** (gate item 4): maild ends with the
-  last window, not at logout. Brian decides whether ADR-0046 and
-  [design/desktop.md](../design/desktop.md) say so, or maild must outlive
-  the window without the portal.
-- **The gate's digest:** items 1 to 4 passed on rc.1 and items 6 and 7 on
-  rc.2. Brian and Lucilla decide whether Phase 10 promotes rc.2 as it is
-  (rc.2 adds only a test file), or items 1 to 4 run again on rc.2 first;
-  and whether item 5's migration needs 2 candidates with different
-  schemas, or an update with the same schema satisfies it.
+- ~~**The Background portal refused** (gate item 4): maild ends with the
+  last window, not at logout.~~ Decided (T491c, Brian, 2026-10-29): "the
+  ADR and design"; ADR-0046 and design/desktop.md say so.
+- ~~**The gate's digest:** items 1 to 4 passed on rc.1 and items 6 and 7 on
+  rc.2; and item 5's migration.~~ Decided (T491a and T491b, Brian,
+  2026-10-29): "rc.2 as is", and "same-schema update is sufficient".
+- **The release tag on rc.2's commit runs that commit's `flatpak.yml`.**
+  GitHub runs a tag's workflows from the tagged commit. `32d764c` predates
+  PR #145, so its `flatpak.yml` still publishes a `vX.Y.Z` tag: it would
+  build again, push `v0.4.0` and move `latest` to that new, untested
+  digest, and Promote would then refuse (`v0.4.0` on another digest).
+  Its `release.yml` builds the `.deb` from that commit, as wanted, but
+  without PR #147's check that the tag is a candidate's commit.
+  Brian decides, before `make bump CANDIDATE=v0.4.0-rc.2`: disable the
+  Flatpak workflow while the tag is pushed (a repository setting), or tag a
+  new candidate from main and run the gate on it. Later candidates carry
+  PR #145's `flatpak.yml` and do not have this problem.
 - ~~**The OAuth check of Phase 4:** it needs a Google account that may sign
   in from the test VM.~~ Decided (T421c, Brian, 2026-10-28): his test
   account; he signs in himself. Passed on 2026-10-29.

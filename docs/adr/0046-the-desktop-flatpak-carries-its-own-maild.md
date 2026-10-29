@@ -1,6 +1,8 @@
 # 0046 — The desktop Flatpak carries its own maild; lodge is a connection the user chooses
 
-- **Status:** Accepted (Brian, 2026-10-28)
+- **Status:** Accepted (Brian, 2026-10-28); amended 2026-10-29 (Brian,
+  T491c): with the Background portal refused, maild runs only while a
+  window is open
 - **Date:** 2026-10-27
 
 ## Context
@@ -111,7 +113,7 @@ Facts about maild that shape the rest:
 
 | Mode | Engine | What runs on the desktop |
 | --- | --- | --- |
-| Local | the Flatpak's own maild | the window, and maild in its own sandbox instance, through logout, and from login when the Background portal allows it |
+| Local | the Flatpak's own maild | the window, and maild in its own sandbox instance; when the Background portal allows it, maild runs through logout and from login; when the portal is refused, only while a window is open |
 | Lodge | lodge's maild | the window only; no maild |
 
 - **Never a host maild.** The released Flatpak neither starts nor
@@ -212,8 +214,12 @@ These follow frostnotes ADR-0031; only the names differ.
     asks the Background portal for `background` and `autostart` with the
     command line `frostmail --background`, through a PyGObject helper that
     waits for the portal's `Response`, and `exec`s the app.
-  - A refusal of the Background portal stops only the start at login.
-    maild still runs from the first window of a session until logout.
+  - A refusal of the Background portal stops the start at login, and
+    maild runs only while a window is open: maild and its instance end
+    when the last window closes (Brian, T491c, 2026-10-29: the accepted
+    behaviour; seen on GNOME 48 with xdg-desktop-portal 1.20.3 in plan
+    0013's clean-install gate; the cause was not traced). The next window
+    starts maild again.
 - **Notifications in local mode** come from maild on the session bus, as
   on the host (`--talk-name=org.freedesktop.Notifications`, already
   granted). A click runs the launcher through `flatpak-spawn
@@ -355,8 +361,10 @@ Background, FileChooser, OpenURI and Flatpak portals need no finish-arg.
   the Flatpak's namespace and no-fallback rule for secrets, and `mailctl
   import`. The app gains the SaveFile portal call, attach by bytes
   in the Flatpak, the Server pane's texts and its call to stop maild.
-- In local mode maild runs until logout after the window closes, and at
-  login when the user allows it. The app has no switch for that yet;
+- In local mode, when the user allows the Background portal, maild runs
+  until logout after the window closes, and at login. When the user
+  refuses it, maild runs only while a window is open, and nothing
+  notifies with the window closed. The app has no switch for that yet;
   `flatpak kill org.frostyard.Frostmail` stops it.
 - In lodge mode nothing runs on the desktop when the window is closed, so
   new mail does not notify then. ADR-0041 already accepted this.
