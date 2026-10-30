@@ -672,7 +672,8 @@ flatpak-index's public catalogue lists it with the ref
 `app/org.frostyard.Frostmail/x86_64/master`.
 
 - The VM: Duncan's `frostmail-desktop`, restored to its `clean` snapshot
-  at 19:55 EDT, as in the [gate](#clean-install-gate-2026-10-29). The
+  at 19:55 EDT, as in the [gate](#clean-install-gate-2026-10-29), with no
+  Frostmail and no system remote `frostyard` before the first command. The
   mail server was not used. As the user `tester`, in a Ptyxis window of
   the GNOME session, the commands of flatpak-index's README, as typed:
   1. `flatpak remote-add --if-not-exists frostyard https://frostyard.github.io/flatpak-index/frostyard.flatpakrepo`
@@ -694,8 +695,9 @@ flatpak-index's public catalogue lists it with the ref
   host maild or mailctl.
 - A finding for the README, not for frostmail: Snow's `clean` image
   already has a user remote `frostyard` (the same URL), so the README's
-  system remote makes a second one, and step 2 asks which. Either answer
-  installs the same digest.
+  system remote makes a second one, and step 2 asks which. Both remotes
+  use the same URL. This check used the system remote; the user remote
+  was not tested.
 - Afterwards the VM went back to `clean` at 20:00 EDT: no Frostmail and no
   system remote `frostyard`. The screenshots and command outputs are in
   Irulan's home, `evidence/plan-0013-phase10-2026-10-29/`.
