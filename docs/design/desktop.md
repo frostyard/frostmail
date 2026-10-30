@@ -520,3 +520,12 @@ later ones arrive as the `open-message` event (`app/src/app/openMessage.ts`). `-
 <id>` shows the main window, selects the message's inbox (or All Inboxes)
 and the message, and focuses the window; with no running app it starts on
 that message.
+
+A request waits for the connection to maild. The window drops its
+client while maild is away, but its `open-message` listener stays, so the
+window keeps the latest request until it is connected again. A request
+that fails because the connection broke is kept too; one that maild
+refuses is dropped. This matters after an update: a click on a
+notification of the old maild runs the new launcher, which replaces maild
+and runs the app while the window reconnects (issue #149). The message
+opens once the window has its new connection.
