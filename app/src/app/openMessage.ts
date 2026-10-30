@@ -10,25 +10,46 @@ import { useMail, useUI } from "../data/stores";
 import type { Client } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 
-/** revealMessage shows a message in its account's inbox (or its first mailbox) and selects it. */
-export async function revealMessage(client: Client, id: number): Promise<void> {
+type Source = ReturnType<typeof useUI.getState>["source"];
+interface Target {
+  source: Source;
+  id: number;
+}
+
+/** lookup finds what to show for a message: its account's inbox (or its first mailbox), or null. */
+async function lookup(client: Client, id: number): Promise<Target | null> {
   const [s] = await client.message.summaries({ ids: [id] });
-  if (!s) return;
+  if (!s) return null;
   const inbox = useMail.getState().mailboxes.find((mb) => mb.accountId === s.accountId && mb.role === "inbox");
   const mailboxId = inbox && s.mailboxIds.includes(inbox.id) ? inbox.id : s.mailboxIds[0];
+  const source: Source = mailboxId === undefined ? { kind: "allInboxes" } : { kind: "mailbox", mailboxId };
+  return { source, id };
+}
+
+function apply(t: Target): void {
   const ui = useUI.getState();
-  ui.setSource(mailboxId === undefined ? { kind: "allInboxes" } : { kind: "mailbox", mailboxId });
-  ui.select([id], id);
+  ui.setSource(t.source);
+  ui.select([t.id], t.id);
+}
+
+/** revealMessage shows a message in its account's inbox (or its first mailbox) and selects it. */
+export async function revealMessage(client: Client, id: number): Promise<void> {
+  const t = await lookup(client, id);
+  if (t) apply(t);
 }
 
 // One request waits here until a connected window can show it. The window
 // loses its client whenever maild stops (an update replaces it), and the
 // notification click that follows can arrive before the next client exists
 // (issue #149). So the listeners live as long as the webview, not as long as
-// one client.
-let pending: number | null = null;
+// one client. Each request is an object: a late answer for an older request
+// finds that pending is another object, and changes nothing.
+interface Request {
+  id: number;
+}
+let pending: Request | null = null;
 let current: Client | null = null;
-let inFlight: { client: Client; id: number } | null = null;
+let inFlight: { client: Client; req: Request } | null = null;
 let listening = false;
 
 /** lostConnection tells a lost connection to maild from maild's own refusal. */
@@ -39,19 +60,21 @@ function lostConnection(err: unknown): boolean {
 
 function deliver(): void {
   const client = current;
-  const id = pending;
-  if (client === null || id === null) return;
-  if (inFlight?.client === client && inFlight.id === id) return;
-  const mine = { client, id };
+  const req = pending;
+  if (client === null || req === null) return;
+  if (inFlight?.client === client && inFlight.req === req) return;
+  const mine = { client, req };
   inFlight = mine;
-  revealMessage(client, id)
-    .then(() => {
-      if (pending === id) pending = null;
+  lookup(client, req.id)
+    .then((t) => {
+      if (pending !== req) return; // replaced, or delivered by another client
+      if (t) apply(t);
+      pending = null;
     })
     .catch((err: unknown) => {
       if (lostConnection(err)) return; // the next client delivers it
       console.warn("open message", err);
-      if (pending === id) pending = null;
+      if (pending === req) pending = null;
     })
     .finally(() => {
       if (inFlight === mine) inFlight = null;
@@ -59,7 +82,7 @@ function deliver(): void {
 }
 
 function request(id: number): void {
-  pending = id;
+  pending = { id };
   deliver();
 }
 
