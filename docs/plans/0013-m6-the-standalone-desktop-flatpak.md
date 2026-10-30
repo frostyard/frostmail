@@ -694,7 +694,7 @@ flatpak-index's public catalogue lists it with the ref
   maild ran, and `mailctl account list` answered with no accounts. No
   host maild or mailctl.
 - A finding for the README, not for frostmail: Snow's `clean` image
-  already has a user remote `frostyard` (the same URL), so the README's
+  already has a user remote `frostyard`, so the README's
   system remote makes a second one, and step 2 asks which. Both remotes
   use the same URL. This check used the system remote; the user remote
   was not tested.
