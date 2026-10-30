@@ -72,8 +72,13 @@ Background portal is refused is the accepted behaviour, which ADR-0046 and
 [design/desktop.md](../design/desktop.md) now say
 ([Decisions](#decisions-2026-10-29)). One finding stays open as issue #149: a
 click on the old build's notification after the update replaced maild but
-did not open its message in the open window. The release of `v0.4.0` from
-rc.2 is not done ([Phase 10](#phase-10--release-brian-and-lucilla-small)).
+did not open its message in the open window.
+**Phase 10's release and its install check are done (2026-10-29):** Brian
+tagged `v0.4.0` on rc.2's commit and ran Promote, so `v0.4.0` and `latest`
+name rc.2's digest; flatpak-index lists it (flatpak-index#6), and a fresh VM
+installed it with the README's commands
+([Phase 10 check](#phase-10-check-2026-10-29)). Left: core's plan 0010
+Mail row records it (Lucilla).
 
 ## Who helps
 
@@ -643,15 +648,59 @@ Phase 9 becomes the release, and nothing is built again.
 - **For `v0.4.0`** (T491a): the candidate is `v0.4.0-rc.2`
   (`sha256:89980a48…cf2a`, commit `32d764c`), so the steps are
   `make bump CANDIDATE=v0.4.0-rc.2`, then Promote with `candidate`
-  `v0.4.0-rc.2` and `version` `v0.4.0`. Before the tag, Brian settles the
-  open question on rc.2's own `flatpak.yml` ([Open questions](#open-questions)).
-- Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It already
-  answers anonymous pulls (its tag list, checked 2026-10-29), so this step
-  may be done; Brian confirms.
+  `v0.4.0-rc.2` and `version` `v0.4.0`. Done (2026-10-29): the tag
+  `v0.4.0` is commit `32d764c`, the same as `v0.4.0-rc.2`; Release (run
+  40950765175) made `frostyard-maild_0.4.0_amd64.deb` and the GitHub
+  release; Promote (run 40951117442) passed; and Flatpak made no run for
+  the tag ([Open questions](#open-questions)).
+- Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It
+  answers anonymous pulls: the VM's install below needed no credentials.
 - Lucilla lists `org.frostyard.Frostmail` in `flatpak-index/apps.json`.
+  Done: flatpak-index#6, merged 2026-10-29 (`ec8b85e`).
 - **Done when:** `flatpak install frostyard org.frostyard.Frostmail` on a
   fresh VM installs the digest that passed Phase 9, and plan 0010's Mail
-  row in core records it.
+  row in core records it. The install passed on 2026-10-29 (below); core's
+  row is left, for Lucilla.
+
+### Phase 10 check 2026-10-29
+
+Pass. The release `v0.4.0` is
+`ghcr.io/frostyard/frostmail@sha256:89980a48d4492400636022d8db44ef64dcc16e3c405f501617d4357f7b90cf2a`,
+rc.2's digest, which passed Phase 9. GHCR names that digest for
+`v0.4.0`, `latest` and `v0.4.0-rc.2` (anonymous manifest requests), and
+flatpak-index's public catalogue lists it with the ref
+`app/org.frostyard.Frostmail/x86_64/master`.
+
+- The VM: Duncan's `frostmail-desktop`, restored to its `clean` snapshot
+  at 19:55 EDT, as in the [gate](#clean-install-gate-2026-10-29), with no
+  Frostmail and no system remote `frostyard` before the first command. The
+  mail server was not used. As the user `tester`, in a Ptyxis window of
+  the GNOME session, the commands of flatpak-index's README, as typed:
+  1. `flatpak remote-add --if-not-exists frostyard https://frostyard.github.io/flatpak-index/frostyard.flatpakrepo`
+     asked for the user's password (polkit, "configure software
+     repositories") and added the system remote `frostyard`.
+  2. `flatpak install frostyard org.frostyard.Frostmail` asked "Remote
+     'frostyard' found in multiple installations: 1) system 2) user"; the
+     answer `1` (the remote of step 1) installed it, `< 18.9 MB`, with no
+     password and no credentials.
+- `flatpak info org.frostyard.Frostmail`: origin `frostyard`, installation
+  `system`, ref `app/org.frostyard.Frostmail/x86_64/master`, commit
+  `b6a266a5…`, subject "Built from 32d764c1dfd59d5178621bcf17290a6e6dc68963",
+  Alt-id `89980a48d4492400636022d8db44ef64dcc16e3c405f501617d4357f7b90cf2a`,
+  the digest without its prefix. The version is still 0.0.0
+  ([Phase 8 check](#phase-8-check-2026-10-29)).
+- The app started from the Activities search: the window showed All
+  Inboxes and Add Account, `/app/libexec/frostmail-app` and the Flatpak's
+  maild ran, and `mailctl account list` answered with no accounts. No
+  host maild or mailctl.
+- A finding for the README, not for frostmail: Snow's `clean` image
+  already has a user remote `frostyard`, so the README's
+  system remote makes a second one, and step 2 asks which. Both remotes
+  use the same URL. This check used the system remote; the user remote
+  was not tested.
+- Afterwards the VM went back to `clean` at 20:00 EDT: no Frostmail and no
+  system remote `frostyard`. The screenshots and command outputs are in
+  Irulan's home, `evidence/plan-0013-phase10-2026-10-29/`.
 
 ## Later / ideas
 
@@ -682,7 +731,7 @@ Phase 9 becomes the release, and nothing is built again.
 - ~~**The gate's digest:** items 1 to 4 passed on rc.1 and items 6 and 7 on
   rc.2; and item 5's migration.~~ Decided (T491a and T491b, Brian,
   2026-10-29): "rc.2 as is", and "same-schema update is sufficient".
-- **The release tag on rc.2's commit runs that commit's `flatpak.yml`.**
+- ~~**The release tag on rc.2's commit runs that commit's `flatpak.yml`.**
   GitHub runs a tag's workflows from the tagged commit. `32d764c` predates
   PR #145, so its `flatpak.yml` still publishes a `vX.Y.Z` tag: it would
   build again, push `v0.4.0` and move `latest` to that new, untested
@@ -692,7 +741,10 @@ Phase 9 becomes the release, and nothing is built again.
   Brian decides, before `make bump CANDIDATE=v0.4.0-rc.2`: disable the
   Flatpak workflow while the tag is pushed (a repository setting), or tag a
   new candidate from main and run the gate on it. Later candidates carry
-  PR #145's `flatpak.yml` and do not have this problem.
+  PR #145's `flatpak.yml` and do not have this problem.~~ Settled for
+  `v0.4.0` (observed 2026-10-29): Brian tagged rc.2's commit, Flatpak made
+  no run for the tag, the workflow is active again, and `v0.4.0` and
+  `latest` name rc.2's digest.
 - ~~**The OAuth check of Phase 4:** it needs a Google account that may sign
   in from the test VM.~~ Decided (T421c, Brian, 2026-10-28): his test
   account; he signs in himself. Passed on 2026-10-29.

@@ -55,7 +55,10 @@ Phase 8 is done: Brian tagged `v0.4.0-rc.1` and `v0.4.0-rc.2`, and the clean
 VM installed rc.1 from flatpak-index's staged catalogue. Phase 9 is done on
 rc.2 (Brian's decisions T491a to T491c, 2026-10-29; plan 0013, Clean-install
 gate 2026-10-29): with the Background portal refused, maild runs only while a
-window is open (ADR-0046). The release of `v0.4.0` from rc.2 is not done.
+window is open (ADR-0046). Phase 10: Brian released `v0.4.0` from rc.2 (the
+`make bump` tag, then Promote), flatpak-index lists it, and a fresh VM
+installed it with the README's commands (plan 0013, Phase 10 check
+2026-10-29). Core's plan 0010 Mail row is left (Lucilla).
 
 ## Two kinds of agent work
 
