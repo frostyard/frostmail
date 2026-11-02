@@ -85,6 +85,15 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
   and `sha-` tags, and an attestation of its digest. It leaves `latest`
   alone (plan 0013, Phase 8). A `vX.Y.Z` tag builds and tests, and
   publishes nothing; any other `v*` tag fails before it pushes.
+- **The version.** Before a `v*` tag's build,
+  `packaging/flatpak/stamp-version.sh` stamps `X.Y.Z`, the tag without its
+  `v` and its `-rc.N`, into the build: maild's and mailctl's
+  `-X main.version` and `-X main.commit`, and a first `<release>` in the
+  metainfo, dated with the build's UTC date. A candidate is stamped with
+  the version that Promote releases it as, so `flatpak info` and software
+  centres show `X.Y.Z`, and `maild -version` prints it. The committed files
+  keep `flatpak` and 0.0.0, which builds of main and of pull requests
+  report.
 - **Release by promotion.** A release is a candidate that passed the
   clean-install gate (plan 0013, Phases 9 and 10). Brian runs
   `.github/workflows/promote.yml` by hand with the candidate's tag and the
