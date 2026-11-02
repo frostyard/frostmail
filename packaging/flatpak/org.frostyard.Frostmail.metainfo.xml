@@ -14,9 +14,9 @@
       sends mail, and it also has a calendar, tasks and contacts.
     </p>
     <p>
-      This app is the desktop client. It talks to maild, the Frostmail
-      daemon, which syncs and stores your mail. maild runs on your host or
-      behind a lodge server; it is not part of this Flatpak.
+      This app carries its own maild, the Frostmail daemon, which syncs
+      and stores your mail on this computer. If you choose, it can connect
+      to the maild of a lodge server instead.
     </p>
   </description>
   <launchable type="desktop-id">org.frostyard.Frostmail.desktop</launchable>

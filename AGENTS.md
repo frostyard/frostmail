@@ -111,7 +111,9 @@ installed it with the README's commands (plan 0013, Phase 10 check
   The Flatpak holds the app, maild and mailctl (`/app/bin`, built from
   `go-sources.json`), the launcher `frostmail.sh`, the Background helper and
   a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
-  CI builds it in `.github/workflows/flatpak.yml`. `install.sh` is the
+  CI builds it in `.github/workflows/flatpak.yml`; on a `v*` tag,
+  `stamp-version.sh` first stamps the version (without `-rc.N`) into the
+  manifest and the metainfo, which keep `flatpak` and 0.0.0 in git. `install.sh` is the
   wrapper for the development bundle, with a host maild.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).

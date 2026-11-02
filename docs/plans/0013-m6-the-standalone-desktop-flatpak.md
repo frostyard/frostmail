@@ -344,7 +344,8 @@ The other checks pass.
   import refused and printed "maild started again"; maild answered after it.
 
 For Phase 8: the Flatpak's maild reports the version `flatpak`, and the
-bundle's version is 0.0.0.
+bundle's version is 0.0.0. (Fixed for the next candidate: see Phase 8,
+"The candidate names its version".)
 
 ### OAuth check 2026-10-29
 
@@ -388,6 +389,16 @@ a candidate, and the release promotes that same digest.
   nothing, and the promotion moves `latest`.) `release.yml` ignores `v*-*` tags, so a candidate makes
   no `.deb` and no GitHub release. `scripts/flatpak_publish_test.go` runs
   the publish job's steps with stub `skopeo` and `gh` for each kind of tag.
+- The candidate names its version: Built (2026-11-02). `v0.4.0` and
+  `v0.4.1` installed as 0.0.0 (`flatpak info`), because nothing put the
+  tag into the build. Now the flatpak job's step "Stamp the release
+  version" runs `packaging/flatpak/stamp-version.sh` on a `v*` tag before
+  the build: `X.Y.Z`, without `-rc.N`, goes into maild's ldflags and, with
+  the build's UTC date, first into the metainfo's `<releases>`. The
+  promoted digest is the candidate's, so the release shows `X.Y.Z`. The
+  build's `appstreamcli validate` checks the stamped metainfo before
+  anything is published. `scripts/flatpak_stamp_test.go` runs the step for
+  each kind of tag and tests the script.
 - A test remote that serves the candidate's digest only: Lucilla chose
   flatpak-index's staged catalogue
   ([Stage a candidate](https://github.com/frostyard/flatpak-index#stage-a-candidate),

@@ -1,7 +1,9 @@
 # Builds the Flatpak, with its tests, on every pull request and push to main
 # (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md), as igloo's
 # workflow does. The sources job checks that the offline sources (crates, pnpm
-# store and Go modules) match the lockfiles and go.mod and go.sum. A
+# store and Go modules) match the lockfiles and go.mod and go.sum. A v* tag
+# stamps its version, without -rc.N, into the manifest and the metainfo
+# (packaging/flatpak/stamp-version.sh) before the build. A
 # vX.Y.Z-rc.N tag publishes an OCI image to ghcr.io/frostyard/frostmail with
 # its version and sha- tags, and attests its digest: a release candidate is
 # not the release (plan 0013, Phase 8). A vX.Y.Z release tag publishes nothing
@@ -67,6 +69,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # maild and mailctl report the version the Flatpak was built with
+      # (maild -version), and software centres and `flatpak info` show the
+      # metainfo's newest release. A candidate vX.Y.Z-rc.N is the build that
+      # Promote releases as vX.Y.Z, so it is stamped X.Y.Z, with the date of
+      # its build; a vX.Y.Z tag builds the same version and publishes nothing.
+      # The committed files keep "flatpak" and 0.0.0, for builds of main.
+      - name: Stamp the release version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          if [[ ! $TAG =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-rc\.[0-9]+)?$ ]]; then
+            echo "tag $TAG is neither vX.Y.Z nor vX.Y.Z-rc.N" >&2
+            exit 1
+          fi
+          packaging/flatpak/stamp-version.sh "${BASH_REMATCH[1]}" "${COMMIT::12}"
       - name: Build and test
         uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
         with:
