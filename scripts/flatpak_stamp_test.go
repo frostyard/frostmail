@@ -154,10 +154,74 @@ func TestFlatpakStampRefusesBadArguments(t *testing.T) {
 			if !strings.Contains(out, "stamp-version.sh:") {
 				t.Errorf("no message for %q %q:\n%s", tc.version, tc.commit, out)
 			}
+			src := filepath.Join("..", "packaging", "flatpak")
+			stampUnchanged(t, dir, readFile(t, src, stampManifest), readFile(t, src, stampMetainfo))
+		})
+	}
+}
+
+// stampUnchanged fails the test unless the manifest and the metainfo in dir
+// are byte for byte manifest and meta: a refused run edits nothing.
+func stampUnchanged(t *testing.T, dir, manifest, meta string) {
+	t.Helper()
+	if got := readString(t, filepath.Join(dir, stampManifest)); got != manifest {
+		t.Errorf("a refused stamp changed the manifest:\n%s", got)
+	}
+	if got := readString(t, filepath.Join(dir, stampMetainfo)); got != meta {
+		t.Errorf("a refused stamp changed the metainfo:\n%s", got)
+	}
+}
+
+// The script refuses a manifest or a metainfo without exactly one of the
+// markers it edits, and edits neither file.
+func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
+	const placeholder = "-X main.version=flatpak"
+	for _, tc := range []struct {
+		name           string
+		manifest, meta func(string) string
+		message        string
+	}{
+		{
+			name:     "no version placeholder",
+			manifest: func(s string) string { return strings.Replace(s, placeholder, "-X main.version=other", 1) },
+			message:  "0 times, want exactly once",
+		},
+		{
+			name:     "two version placeholders",
+			manifest: func(s string) string { return strings.Replace(s, placeholder, placeholder+" "+placeholder, 1) },
+			message:  "2 times, want exactly once",
+		},
+		{
+			name:    "no releases",
+			meta:    func(s string) string { return strings.Replace(s, "<releases>", "<!-- none -->", 1) },
+			message: "<releases> 0 times, want exactly once",
+		},
+		{
+			name:    "two releases",
+			meta:    func(s string) string { return strings.Replace(s, "<releases>", "<releases>\n  <releases>", 1) },
+			message: "<releases> 2 times, want exactly once",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, script := stampInputs(t)
 			manifest := readString(t, filepath.Join(dir, stampManifest))
-			if !strings.Contains(manifest, "-X main.version=flatpak") {
-				t.Error("the manifest changed under bad arguments")
+			meta := readString(t, filepath.Join(dir, stampMetainfo))
+			if tc.manifest != nil {
+				manifest = tc.manifest(manifest)
+				writeFile(t, dir, stampManifest, manifest)
 			}
+			if tc.meta != nil {
+				meta = tc.meta(meta)
+				writeFile(t, dir, stampMetainfo, meta)
+			}
+			out, err := stampVersion(t, dir, script, "1.2.3", "0123456789ab")
+			if err == nil {
+				t.Fatalf("stamp succeeded:\n%s", out)
+			}
+			if !strings.Contains(out, tc.message) {
+				t.Errorf("the message does not say %q:\n%s", tc.message, out)
+			}
+			stampUnchanged(t, dir, manifest, meta)
 		})
 	}
 }
@@ -194,6 +258,7 @@ func TestFlatpakStampRefusesAVersionAlreadyListed(t *testing.T) {
 	if !strings.Contains(out, "already lists version 1.2.3") {
 		t.Errorf("the message does not name the listed version:\n%s", out)
 	}
+	stampUnchanged(t, dir, readFile(t, filepath.Join("..", "packaging", "flatpak"), stampManifest), meta)
 }
 
 // stampSteps is the flatpak job's steps of .github/workflows/flatpak.yml, in
