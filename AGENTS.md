@@ -158,7 +158,7 @@ installed it with the README's commands (plan 0013, Phase 10 check
   `make bump CANDIDATE=vX.Y.Z-rc.N` runs `make verify` on the candidate's commit, tags
   that commit `vX.Y.Z` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
-  `github.com/frostyard/lodge/kit` v0.3.1, `github.com/frostyard/std` v0.3.0 (indirect, from clix).
+  `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.3.0 (indirect, from clix).
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
 - The generated Flatpak sources (`packaging/flatpak/go-sources.json` and

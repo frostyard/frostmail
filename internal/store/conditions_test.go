@@ -337,3 +337,12 @@ func TestCountView(t *testing.T) {
 		t.Errorf("CountView(Sent) = %d, %d, %v; want 1, 0", total, unread, err)
 	}
 }
+
+// TestInboxUnread: the inbox's unread messages, and no other mailbox's.
+func TestInboxUnread(t *testing.T) {
+	f := newConditionsFixture(t)
+	got, err := f.d.InboxUnread(t.Context())
+	if err != nil || got != 1 {
+		t.Errorf("InboxUnread() = %d, %v; want 1", got, err)
+	}
+}

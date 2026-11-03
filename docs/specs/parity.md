@@ -42,7 +42,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
 | P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
-| P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry) |
+| P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry). In lodge, the rail and the home-screen icon show the inboxes' unread count (`/health`'s `badge`): `TestHealthBadge` |
 
 ## The message list
 

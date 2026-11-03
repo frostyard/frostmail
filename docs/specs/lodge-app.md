@@ -216,6 +216,14 @@ path admits one caller kind, and any other is 403:
 `protocol` is maild's RPC protocol major. maild opens the app socket only
 once its store is open, so a maild that answers is serving.
 
+`badge` is the unread messages in every inbox: the sidebar's Inboxes
+count. It is left out at 0. lodge draws it on the app's rail button, on
+its row of the switcher and on the home-screen icon
+([lodge ADR-0020](https://github.com/frostyard/lodge/blob/main/docs/adr/0020-apps-report-an-unread-count-for-the-rail-in-their-health.md)).
+The count is maild's, not a caller's: `/health` carries no identity. A
+count that fails, or that takes longer than 1 s, sends no badge, and it
+does not change `ok`: a failed count never makes maild degraded.
+
 ### `/api`
 
 - A WebSocket (RFC 6455). Each text frame carries one message of

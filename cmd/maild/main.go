@@ -291,7 +291,9 @@ func runWith(ctx context.Context, args []string, serving func()) (err error) {
 		}()
 	}
 	if lodgeLn != nil {
-		lsrv := lodge.NewServer(lodge.Options{Ctx: ctx, Version: version, RPC: srv, Router: router, Content: content, Log: logger})
+		lsrv := lodge.NewServer(lodge.Options{Ctx: ctx, Version: version, RPC: srv, Router: router, Content: content, Log: logger,
+			// lodge's rail badge: the sidebar's Inboxes count (lodge ADR-0020).
+			Unread: db.InboxUnread})
 		go func() {
 			if err := lsrv.Serve(ctx, lodgeLn); err != nil {
 				logger.Error("lodge socket stopped", "err", err)

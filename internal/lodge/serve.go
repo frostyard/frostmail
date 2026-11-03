@@ -35,6 +35,9 @@ type Options struct {
 	Log     *slog.Logger
 	// Now is the MCP tools' clock; nil is time.Now.
 	Now func() time.Time
+	// Unread is the count for lodge's rail badge (lodge ADR-0020): the
+	// unread messages in every inbox. nil sends no badge.
+	Unread func(ctx context.Context) (int, error)
 }
 
 // NewServer is maild's side of lodge's app socket, through the kit: /health,
@@ -53,8 +56,21 @@ func NewServer(o Options) *lodgeapp.Server {
 	// The sessions' janitor runs until maild stops serving.
 	context.AfterFunc(o.Ctx, func() { _ = mcp.Close() })
 	return &lodgeapp.Server{
-		Health: func(context.Context) lodgeapp.Health {
-			return lodgeapp.Health{OK: true, Version: o.Version, Protocol: api.Protocol}
+		Health: func(ctx context.Context) lodgeapp.Health {
+			h := lodgeapp.Health{OK: true, Version: o.Version, Protocol: api.Protocol}
+			if o.Unread == nil {
+				return h
+			}
+			// lodge's poll allows 2s; a slow count sends no badge.
+			ctx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			n, err := o.Unread(ctx)
+			if err != nil {
+				log.Warn("inbox unread count failed", "err", err)
+				return h
+			}
+			h.Badge = n
+			return h
 		},
 		API: func(ctx context.Context, nc net.Conn, c lodgeapp.Caller) {
 			log.Info("lodge session started", "session", c.Session, "node", c.NodeName)

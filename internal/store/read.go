@@ -136,6 +136,16 @@ func (d *DB) CountView(ctx context.Context, f ViewFilter) (total, unread int, er
 	return total, unread, nil
 }
 
+// InboxUnread is the unread messages in every inbox: the app's sidebar
+// Inboxes count, and the badge maild reports to lodge (lodge ADR-0020).
+func (d *DB) InboxUnread(ctx context.Context) (int, error) {
+	_, unread, err := d.CountView(ctx, ViewFilter{Role: string(api.MailboxRoleInbox)})
+	if err != nil {
+		return 0, fmt.Errorf("inbox unread: %w", err)
+	}
+	return unread, nil
+}
+
 // viewWhere is the condition over messages m that a view filter makes.
 func (d *DB) viewWhere(ctx context.Context, f ViewFilter) (string, []any, error) {
 	conds := []string{"m.deleted = 0"}
