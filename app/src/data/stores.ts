@@ -17,6 +17,7 @@ import type {
   BlockedSender,
   Mailbox,
   MailboxRole,
+  MessageSummary,
   OutboxItem,
   Rule,
   Settings,
@@ -110,8 +111,11 @@ export interface UIState {
   listFilter: ListFilter;
   /** Selected message IDs; the first is the one the reader shows. */
   selected: number[];
-  /** The message a reveal must show in the list, which loads its row (docs/specs/ui.md, Follow Up). */
-  revealing: number | null;
+  /**
+   * The message a reveal must keep selected, with its own summary: the list
+   * may never load its row (docs/specs/ui.md, Follow Up).
+   */
+  revealing: MessageSummary | null;
   /** The row a Shift-click or Shift-arrow extends from. */
   anchor: number | null;
   focus: Pane;
@@ -166,7 +170,7 @@ export interface UIActions {
   setConversations: (conversations: boolean) => void;
   setContactPhotos: (contactPhotos: boolean) => void;
   select: (ids: number[], anchor?: number | null) => void;
-  setRevealing: (id: number | null) => void;
+  setRevealing: (summary: MessageSummary | null) => void;
   setFocus: (p: Pane) => void;
   toggleSidebar: () => void;
   openMailboxes: (open: boolean) => void;

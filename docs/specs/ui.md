@@ -222,11 +222,15 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   shows its message where it lives and selects it (`revealMessage`,
   `app/src/app/openMessage.ts`), which drops a list filter that would hide
   it. The selection stays on the message even when the list has not loaded
-  its row; the list scrolls to the row when it is already loaded. The
-  selection goes back to the list's rules when the user selects, changes
-  the source or the filter, or the message is removed. In a narrow window
-  the click closes Mailboxes. The section is the same in the desktop app
-  and in lodge's web build, whose caller is `session` instead of `local`.
+  its row; the list scrolls to the row when it is already loaded. Commands
+  and the toolbar act on the pinned message as on a loaded row; moving or
+  deleting it out of the source releases the pin, and so does removing the
+  message. From a pinned message that the list has not loaded, the arrow
+  keys go to the first row. The selection goes back to the list's rules
+  when the user selects, changes the source or the filter, or the message
+  is removed. In a narrow window the click closes Mailboxes. The section is
+  the same in the desktop app and in lodge's web build, whose caller is
+  `session` instead of `local`.
 - **Mailboxes** (M5, [organize.md](../design/organize.md#mailboxes)): an
   account's section header shows, on hover and while focused, a 14px `plus`
   named "New Mailbox" (not on a read-only account), which opens the

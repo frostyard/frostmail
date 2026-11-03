@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
-import type { Mailbox, MailboxRole } from "../rpc/gen/api";
-import { archiveOf, moveParams } from "./commands";
+import { afterEach, describe, expect, it } from "vitest";
+import { useUI } from "../data/stores";
+import type { Mailbox, MailboxRole, MessageSummary } from "../rpc/gen/api";
+import { archiveOf, moveParams, selectedSummaries, sourceHolds } from "./commands";
 
 function mb(id: number, accountId: number, path: string, role: MailboxRole, label = false): Mailbox {
   return { id, accountId, path, name: path, delimiter: "/", role, total: 0, unread: 0, label };
@@ -52,5 +53,49 @@ describe("moveParams", () => {
       mailboxId: 12,
       fromMailboxId: 10,
     });
+  });
+});
+
+function summary(id: number, over: Partial<MessageSummary> = {}): MessageSummary {
+  return {
+    id,
+    accountId: 1,
+    mailboxIds: [1],
+    threadId: id,
+    subject: `Message ${id}`,
+    from: { name: "Test One", address: "test1@mailtest.test" },
+    date: "2026-10-04T12:00:00Z",
+    preview: "",
+    flags: { seen: true, flagged: false, answered: false, forwarded: false, draft: false, flagColor: 0 },
+    hasAttachments: false,
+    size: 2000,
+    threadCount: 1,
+    ...over,
+  };
+}
+
+afterEach(() => {
+  useUI.setState({ revealing: null });
+});
+
+describe("sourceHolds", () => {
+  it("holds a message in the source's mailbox", () => {
+    expect(sourceHolds({ kind: "mailbox", mailboxId: 1 }, summary(1), mailboxes)).toBe(true);
+    expect(sourceHolds({ kind: "mailbox", mailboxId: 3 }, summary(1), mailboxes)).toBe(false);
+  });
+  it("holds a message in an inbox for All Inboxes", () => {
+    expect(sourceHolds({ kind: "allInboxes" }, summary(1), mailboxes)).toBe(true);
+    expect(sourceHolds({ kind: "allInboxes" }, summary(1, { mailboxIds: [2] }), mailboxes)).toBe(false);
+  });
+  it("holds every message for a source that is not one mailbox", () => {
+    expect(sourceHolds({ kind: "flagged" }, summary(1, { mailboxIds: [2] }), mailboxes)).toBe(true);
+  });
+});
+
+describe("selectedSummaries", () => {
+  it("uses the pinned summary of a message the list has not loaded", () => {
+    useUI.setState({ revealing: summary(7, { subject: "Pinned" }) });
+    expect(selectedSummaries(null, [7]).map((s) => s.subject)).toEqual(["Pinned"]);
+    expect(selectedSummaries(null, [8])).toEqual([]);
   });
 });

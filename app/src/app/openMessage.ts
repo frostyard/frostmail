@@ -7,13 +7,13 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import { useMail, useUI } from "../data/stores";
-import type { Client } from "../rpc/gen/api";
+import type { Client, MessageSummary } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 
 type Source = ReturnType<typeof useUI.getState>["source"];
 interface Target {
   source: Source;
-  id: number;
+  summary: MessageSummary;
 }
 
 /** lookup finds what to show for a message: its account's inbox (or its first mailbox), or null. */
@@ -23,7 +23,7 @@ async function lookup(client: Client, id: number): Promise<Target | null> {
   const inbox = useMail.getState().mailboxes.find((mb) => mb.accountId === s.accountId && mb.role === "inbox");
   const mailboxId = inbox && s.mailboxIds.includes(inbox.id) ? inbox.id : s.mailboxIds[0];
   const source: Source = mailboxId === undefined ? { kind: "allInboxes" } : { kind: "mailbox", mailboxId };
-  return { source, id };
+  return { source, summary: s };
 }
 
 function apply(t: Target): void {
@@ -31,9 +31,9 @@ function apply(t: Target): void {
   // A list filter could hide the message: revealing it shows it.
   if (ui.listFilter !== "all") ui.setListFilter("all");
   ui.setSource(t.source);
-  ui.select([t.id], t.id);
-  // The list finds the row even when it is not loaded yet (ListContainer).
-  ui.setRevealing(t.id);
+  ui.select([t.summary.id], t.summary.id);
+  // The list keeps the message selected with its summary, loaded or not.
+  ui.setRevealing(t.summary);
 }
 
 /** revealMessage shows a message in its account's inbox (or its first mailbox) and selects it. */

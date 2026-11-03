@@ -1,6 +1,6 @@
 // Commands on the selection and the window, shared by the keyboard, the
 // toolbar and context menus (docs/specs/ui.md, Behavior).
-import type { Source } from "../data/stores";
+import { type Source, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
 import type { Client, Mailbox, MessageSummary } from "../rpc/gen/api";
 import { startDraft } from "./compose";
@@ -9,14 +9,35 @@ import { undoableFlags, undoableMove } from "./undo";
 /** DRAG_TYPE identifies messages dragged from the list to a mailbox. */
 export const DRAG_TYPE = "application/x-frostmail-messages";
 
-/** selectedSummaries returns the loaded summaries of the selected IDs. */
+/**
+ * selectedSummaries returns the summaries of the selected IDs: their loaded
+ * rows, and for a message the list has not loaded, the one a reveal pinned,
+ * so a command acts on it as on a row.
+ */
 export function selectedSummaries(model: ViewModel | null, ids: number[]) {
-  if (!model) return [];
+  const pinned = useUI.getState().revealing;
   return ids.flatMap((id) => {
-    const i = model.indexOf(id);
-    const row = i >= 0 ? model.row(i) : undefined;
-    return row ? [row] : [];
+    const i = model === null ? -1 : model.indexOf(id);
+    const row = i >= 0 ? model?.row(i) : undefined;
+    if (row) return [row];
+    return pinned?.id === id ? [pinned] : [];
   });
+}
+
+/**
+ * sourceHolds reports whether a source still lists a message: its mailbox for
+ * a mailbox source, an inbox for All Inboxes, and anything else for a source
+ * that is not one mailbox (docs/specs/ui.md, Follow Up).
+ */
+export function sourceHolds(source: Source, summary: MessageSummary, mailboxes: Mailbox[]): boolean {
+  switch (source.kind) {
+    case "mailbox":
+      return summary.mailboxIds.includes(source.mailboxId);
+    case "allInboxes":
+      return summary.mailboxIds.some((id) => mailboxes.find((mb) => mb.id === id)?.role === "inbox");
+    default:
+      return true;
+  }
 }
 
 /** toggleRead marks the messages seen, or unseen when all already are. */
