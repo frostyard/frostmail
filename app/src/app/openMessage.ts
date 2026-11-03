@@ -28,8 +28,12 @@ async function lookup(client: Client, id: number): Promise<Target | null> {
 
 function apply(t: Target): void {
   const ui = useUI.getState();
+  // A list filter could hide the message: revealing it shows it.
+  if (ui.listFilter !== "all") ui.setListFilter("all");
   ui.setSource(t.source);
   ui.select([t.id], t.id);
+  // The list finds the row even when it is not loaded yet (ListContainer).
+  ui.setRevealing(t.id);
 }
 
 /** revealMessage shows a message in its account's inbox (or its first mailbox) and selects it. */

@@ -138,3 +138,45 @@ describe("ViewModel ordering", () => {
     expect(vm.count).toBe(1);
   });
 });
+
+describe("ViewModel locate", () => {
+  it("finds a row on a later page and keeps it loaded", async () => {
+    const data = mockData({ inbox: 250, now: new Date("2026-10-07T12:00:00Z") });
+    const client = new Client(new MockTransport(data));
+    const vm = new ViewModel(client, { mailboxId: FIXTURE.inbox });
+    vm.ensure(0, 20);
+    await settle();
+    await settle();
+    const loaded = new Set(Array.from({ length: 100 }, (_, i) => vm.row(i)?.id));
+    const wanted = data.messages
+      .filter((m) => m.summary.mailboxIds.includes(FIXTURE.inbox))
+      .map((m) => m.summary.id)
+      .find((id) => !loaded.has(id));
+    if (wanted === undefined) throw new Error("no message beyond the first page");
+    const index = await vm.locate(wanted);
+    expect(index).toBeGreaterThanOrEqual(100);
+    expect(vm.indexOf(wanted)).toBe(index);
+    expect(vm.row(index)?.id).toBe(wanted);
+  });
+
+  it("answers -1 for a message the view does not hold", async () => {
+    const { client } = setup(60);
+    const vm = new ViewModel(client, { mailboxId: FIXTURE.inbox });
+    vm.ensure(0, 20);
+    await settle();
+    await settle();
+    expect(await vm.locate(999_999)).toBe(-1);
+  });
+
+  it("stops when the model closes", async () => {
+    const t = new ManualTransport();
+    const vm = new ViewModel(new Client(t), {});
+    t.take("view.open").resolve({ id: 5, count: 300 });
+    await settle();
+    const locating = vm.locate(999);
+    const page = t.take("view.range");
+    vm.close();
+    page.resolve([row(1), row(2)]);
+    expect(await locating).toBe(-1);
+  });
+});

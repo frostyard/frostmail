@@ -152,10 +152,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       source,
       search,
       listFilter,
+      revealing,
       select,
       setFocus,
       setSource,
       setListFilter,
+      setRevealing,
     } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
@@ -230,7 +232,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       return [...addresses];
     }, [model, version, first, last]);
     const photos = useContactPhotos(client, contactPhotos, senderAddresses);
-    // biome-ignore lint/correctness/useExhaustiveDependencies: version re-runs this after every view change.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: version and revealing re-run this after every view change.
     useEffect(() => {
       if (!model || selected.length === 0) return;
       const found = selected.map((id) => model.indexOf(id)).filter((i) => i >= 0);
@@ -238,13 +240,43 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         lastIndex.current = Math.min(...found);
         return;
       }
+      // A revealed message's row loads still: the effect below places it.
+      if (revealing !== null && selected.includes(revealing)) return;
       if (model.count === 0) {
         select([], null);
         return;
       }
       const row = model.row(Math.min(lastIndex.current, model.count - 1));
       if (row) select([row.id], row.id);
-    }, [model, version, selected, select]);
+    }, [model, version, selected, select, revealing]);
+
+    // Put a revealed message in sight: its row can be past the loaded pages
+    // (docs/specs/ui.md, Follow Up). locate runs once for each model and ID.
+    const located = useRef<{ model: ViewModel; id: number } | null>(null);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: version re-runs this after every view change.
+    useEffect(() => {
+      if (!model || revealing === null || !selected.includes(revealing)) return;
+      const index = model.indexOf(revealing);
+      if (index >= 0) {
+        lastIndex.current = index;
+        virtualizer.scrollToIndex(index, { align: "center" });
+        setRevealing(null);
+        return;
+      }
+      if (!model.ready) return;
+      if (located.current?.model === model && located.current.id === revealing) return;
+      located.current = { model, id: revealing };
+      void model.locate(revealing).then((found) => {
+        const ui = useUI.getState();
+        if (ui.revealing !== revealing) return;
+        if (found >= 0) {
+          lastIndex.current = found;
+          virtualizer.scrollToIndex(found, { align: "center" });
+        }
+        // A row locate could not find lets the fallback above pick one.
+        ui.setRevealing(null);
+      });
+    }, [model, version, selected, revealing, setRevealing, virtualizer]);
 
     const selectIndex = useCallback(
       (i: number, extend: boolean) => {

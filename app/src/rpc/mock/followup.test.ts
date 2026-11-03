@@ -2,7 +2,7 @@
 // (docs/specs/rpc-api.md, thread.awaitingOthers).
 import { describe, expect, it } from "vitest";
 
-import { type Address, Client, ErrorCode } from "../gen/api";
+import { type Account, type Address, Client, ErrorCode } from "../gen/api";
 import { RPCError } from "../transport";
 import { FIXTURE, mockData } from "./fixture";
 import { type MockData, type MockMessage, MockTransport } from "./mock";
@@ -147,5 +147,37 @@ describe("thread.awaitingOthers", () => {
       expect(err).toBeInstanceOf(RPCError);
       expect((err as RPCError).code).toBe(ErrorCode.invalidParams);
     }
+  });
+});
+
+describe("thread.awaitingOthers and identities", () => {
+  const alias: Address = { name: "Test One Alias", address: "alias@mailtest.test" };
+
+  it("lists a message an address of the account sent", async () => {
+    const made = mock([sent({ id: 1, daysAgo: 4, to: [ann], from: alias })]);
+    await made.call("identity.create", { accountId: FIXTURE.accountId, email: alias.address });
+    const got = await new Client(made).thread.awaitingOthers({ waitingDays: 3 });
+    expect(got.threads.map((t) => t.message.id)).toEqual([1]);
+  });
+
+  it("leaves out mail sent to an address of an account", async () => {
+    const made = mock([sent({ id: 1, daysAgo: 4, to: [alias] })]);
+    await made.call("identity.create", { accountId: FIXTURE.accountId, email: alias.address });
+    expect((await new Client(made).thread.awaitingOthers({ waitingDays: 3 })).threads).toHaveLength(0);
+  });
+
+  it("leaves out a sender that is another account's address", async () => {
+    const base = mockData({ inbox: 0, now: new Date() });
+    const first = base.accounts[0];
+    if (!first) throw new Error("the fixture has no account");
+    const other: Account = { ...first, id: 2, email: "test2@mailtest.test", displayName: "Test Two" };
+    const from: Address = { name: "Test Two", address: other.email };
+    const data: MockData = {
+      ...base,
+      accounts: [...base.accounts, other],
+      messages: [sent({ id: 1, daysAgo: 4, to: [ann], from })],
+    };
+    const got = await new Client(new MockTransport(data)).thread.awaitingOthers({ waitingDays: 3 });
+    expect(got.threads).toHaveLength(0);
   });
 });

@@ -220,9 +220,11 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   When `total` is larger than the rows, a line after them says "Showing N
   of TOTAL". The header's chevron collapses the list. Clicking a row
   shows its message where it lives and selects it (`revealMessage`,
-  `app/src/app/openMessage.ts`); in a narrow window that closes
-  Mailboxes. The section is the same in the desktop app and in lodge's
-  web build, whose caller is `session` instead of `local`.
+  `app/src/app/openMessage.ts`), which drops a list filter that would hide
+  it and finds its row in the list even when the list has not loaded that
+  row yet; in a narrow window that closes Mailboxes. The section is the
+  same in the desktop app and in lodge's web build, whose caller is
+  `session` instead of `local`.
 - **Mailboxes** (M5, [organize.md](../design/organize.md#mailboxes)): an
   account's section header shows, on hover and while focused, a 14px `plus`
   named "New Mailbox" (not on a read-only account), which opens the

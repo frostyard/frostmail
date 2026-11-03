@@ -579,14 +579,29 @@ export class MockTransport implements Transport {
   }
 
   /** awaitingOthers answers maild's thread.awaitingOthers: the threads whose
-   *  newest message is from an account's address to someone who is none of
-   *  any account's addresses, not muted, dated between withinDays and
+   *  newest message is from an address of its own account to someone who is
+   *  none of any account's addresses, not muted, dated between withinDays and
    *  waitingDays ago, those with a VIP first, then the newest first. */
   private awaitingOthers(p: Params): Awaiting {
     const { limit, waiting, within } = awaitingRange(p);
     const day = 86_400_000;
     const now = Date.now();
-    const own = new Set(this.accounts.map((a) => a.email.trim().toLowerCase()));
+    // maild reads the sender against its account's identities and the
+    // recipients against every account's (internal/engine/threads.go).
+    const identities = this.compose.identities();
+    const lower = (address: string) => address.trim().toLowerCase();
+    const anyone = new Set([...this.accounts.map((a) => lower(a.email)), ...identities.map((i) => lower(i.email))]);
+    const senders = new Map<number, Set<string>>();
+    const senderOf = (accountId: number): Set<string> => {
+      let mine = senders.get(accountId);
+      if (!mine) {
+        mine = new Set(identities.filter((i) => i.accountId === accountId).map((i) => lower(i.email)));
+        const account = this.accounts.find((a) => a.id === accountId);
+        if (account) mine.add(lower(account.email));
+        senders.set(accountId, mine);
+      }
+      return mine;
+    };
     const picked: { thread: AwaitingThread; vip: boolean; time: number }[] = [];
     for (const m of this.newestAwaitable().values()) {
       const s = m.summary;
@@ -594,8 +609,8 @@ export class MockTransport implements Transport {
       const time = Date.parse(s.date);
       const age = now - time;
       if (age < waiting * day || age >= within * day) continue;
-      if (!own.has(s.from.address.trim().toLowerCase())) continue;
-      if (!recipients.some((a) => !own.has(a.address.trim().toLowerCase()))) continue;
+      if (!senderOf(s.accountId).has(lower(s.from.address))) continue;
+      if (!recipients.some((a) => !anyone.has(lower(a.address)))) continue;
       if (s.muted === true) continue;
       const vip = recipients.some((a) => this.organize.isVip(a.address));
       picked.push({

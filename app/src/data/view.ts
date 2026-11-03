@@ -24,6 +24,9 @@ export class ViewModel {
   private total = 0;
   private rows = new Map<number, MessageSummary>();
   private loading = new Set<number>();
+  private pending = new Map<number, Promise<void>>();
+  /** A locate runs: its rows stay loaded until it places its window. */
+  private searching = false;
   private generation = 0;
   private window: [number, number] = [0, 0];
   private version = 0;
@@ -54,6 +57,35 @@ export class ViewModel {
   indexOf(id: number): number {
     for (const [i, r] of this.rows) if (r.id === id) return i;
     return -1;
+  }
+
+  /**
+   * locate finds the row of a message ID that ensure has not loaded, fetching
+   * pages in order until it finds it or has looked at maxRows rows. It
+   * returns the index, or -1; a row it finds stays loaded for the scroll.
+   */
+  async locate(id: number, maxRows = 5000): Promise<number> {
+    const end = Math.min(this.total, maxRows);
+    this.searching = true;
+    try {
+      for (let page = 0; page * PAGE < end; page++) {
+        if (this.closed) return -1;
+        const found = this.indexOf(id);
+        if (found >= 0) {
+          this.ensure(found, found + 1);
+          return found;
+        }
+        if (!this.pageLoaded(page)) await this.fetchPage(page);
+        if (this.closed) return -1;
+      }
+      const found = this.indexOf(id);
+      if (found < 0) return -1;
+      this.ensure(found, found + 1);
+      return found;
+    } finally {
+      this.searching = false;
+      this.evict();
+    }
   }
 
   /** ensure asks for rows [start, end) and remembers them as the visible window. */
@@ -130,11 +162,23 @@ export class ViewModel {
     // Replies to requests sent before this delta carry stale indices; they
     // are dropped by the generation check, so ask again.
     this.loading.clear();
+    this.pending.clear();
     this.notify();
     this.ensure(...this.window);
   }
 
   private async fetchPage(p: number): Promise<void> {
+    const running = this.pending.get(p);
+    if (running) return running;
+    const task = this.loadPage(p);
+    this.pending.set(p, task);
+    void task.then(() => {
+      if (this.pending.get(p) === task) this.pending.delete(p);
+    });
+    return task;
+  }
+
+  private async loadPage(p: number): Promise<void> {
     const id = this.viewId;
     if (id === null) return;
     const gen = this.generation;
@@ -183,6 +227,8 @@ export class ViewModel {
   }
 
   private evict(): void {
+    // A locate keeps the rows it reads until it places the list's window.
+    if (this.searching) return;
     const lo = (Math.floor(this.window[0] / PAGE) - KEEP_PAGES) * PAGE;
     const hi = (Math.ceil(this.window[1] / PAGE) + KEEP_PAGES) * PAGE;
     for (const i of this.rows.keys()) if (i < lo || i >= hi) this.rows.delete(i);

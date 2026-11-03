@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { Session } from "../data/session";
@@ -79,5 +79,33 @@ describe("Follow Up in the main window", () => {
     expect(mock.calls.filter((c) => c.method === "message.summaries").map((c) => c.params)).toContainEqual({
       ids: [9001],
     });
+  });
+
+  it("clears a list filter that would hide the message", async () => {
+    setup([sent(9001, 9001, "Offsite plan", ANN, 4)]);
+    const section = await screen.findByRole("region", { name: "Follow Up" });
+    act(() => useUI.getState().setListFilter("unread"));
+    fireEvent.click(await within(section).findByText("Offsite plan"));
+    await waitFor(() => expect(useUI.getState().selected).toEqual([9001]));
+    expect(useUI.getState().listFilter).toBe("all");
+    expect(useUI.getState().source).toEqual({ kind: "mailbox", mailboxId: FIXTURE.sent });
+    await waitFor(() => expect(useUI.getState().revealing).toBeNull());
+    expect(useUI.getState().selected).toEqual([9001]);
+  });
+
+  it("keeps an old message selected while the list loads its row", async () => {
+    // Newer sent mail fills the first page of Sent: the old message is past it.
+    const newer = Array.from({ length: 150 }, (_, i) => sent(7000 + i, 7000 + i, `Newer ${i}`, ANN, (i + 1) / 1440));
+    const { mock } = setup([...newer, sent(9001, 9001, "Offsite plan", ANN, 4)]);
+    const section = await screen.findByRole("region", { name: "Follow Up" });
+    fireEvent.click(await within(section).findByText("Offsite plan"));
+    await waitFor(() =>
+      expect(mock.calls.some((c) => c.method === "view.range" && (c.params as { start?: number }).start === 100)).toBe(
+        true,
+      ),
+    );
+    await waitFor(() => expect(useUI.getState().revealing).toBeNull());
+    expect(useUI.getState().selected).toEqual([9001]);
+    expect(useUI.getState().source).toEqual({ kind: "mailbox", mailboxId: FIXTURE.sent });
   });
 });
