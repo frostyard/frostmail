@@ -12,6 +12,7 @@ import { Sidebar, type SyncIndicator } from "../features/sidebar/Sidebar";
 import { buildSidebar, vipGroups } from "../lib/mailboxTree";
 import type { Mailbox, MailboxRole } from "../rpc/gen/api";
 import { copyMessages, DRAG_TYPE, moveMessages } from "./commands";
+import { FollowUpContainer } from "./FollowUpContainer";
 import { OutboxSection, SendLaterSection } from "./OutboxContainer";
 import { useSidebarCounts } from "./useSidebarCounts";
 import { useSmartCounts } from "./useSmartCounts";
@@ -269,6 +270,7 @@ export function SidebarContainer({ modules = true }: { modules?: boolean }) {
             if (s) setSource(s);
           }}
         />
+        <FollowUpContainer />
       </div>
       <div className="max-h-[40%] shrink-0 overflow-y-auto">
         <OutboxSection />

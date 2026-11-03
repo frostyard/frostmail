@@ -95,7 +95,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` |
 | P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` |
 | P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` |
-| P-413 | Follow Up: sent mail with no reply after three days returns | | Later | A suggestion heuristic; after Remind Me |
+| P-413 | Follow Up: sent mail with no reply after three days returns | A sidebar section of sent mail with no reply after 3 days, VIPs first, at most 25 shown with the count | Have | `FollowUp.test.tsx`, `followup.test.ts`, `TestAwaitingOthers` |
 | P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` |
 | P-415 | Move to the predicted mailbox | | Out | On-device learning |
 

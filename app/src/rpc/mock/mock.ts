@@ -8,6 +8,8 @@ import {
   type AccountCreateParams,
   type AccountUpdateParams,
   type Address,
+  type Awaiting,
+  type AwaitingThread,
   type Condition,
   type Conditions,
   type Discovery,
@@ -467,6 +469,8 @@ export class MockTransport implements Transport {
         return null;
       case "thread.messages":
         return this.thread(num(p.id));
+      case "thread.awaitingOthers":
+        return this.awaitingOthers(p);
       case "view.open":
         return this.openView((p.query ?? {}) as ViewQuery);
       case "view.count":
@@ -558,6 +562,60 @@ export class MockTransport implements Transport {
     const rows = [...this.messages.values()].map((m) => m.summary).filter((s) => s.threadId === id);
     if (rows.length === 0) throw notFound(`thread ${id} does not exist`);
     return rows.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+  }
+
+  /** newestAwaitable is a thread's newest message, leaving out drafts and
+   *  messages only in Drafts, Trash or Junk, as maild's waiting queries do. */
+  private newestAwaitable(): Map<number, MockMessage> {
+    const newest = new Map<number, MockMessage>();
+    for (const m of this.messages.values()) {
+      if (m.summary.flags.draft) continue;
+      const roles = m.summary.mailboxIds.map((id) => this.mailboxes.find((mb) => mb.id === id)?.role);
+      if (!roles.some((role) => role !== "drafts" && role !== "trash" && role !== "junk")) continue;
+      const seen = newest.get(m.summary.threadId);
+      if (!seen || newestFirst(m.summary, seen.summary) < 0) newest.set(m.summary.threadId, m);
+    }
+    return newest;
+  }
+
+  /** awaitingOthers answers maild's thread.awaitingOthers: the threads whose
+   *  newest message is from an account's address to someone who is none of
+   *  any account's addresses, not muted, dated between withinDays and
+   *  waitingDays ago, those with a VIP first, then the newest first. */
+  private awaitingOthers(p: Params): Awaiting {
+    const { limit, waiting, within } = awaitingRange(p);
+    const day = 86_400_000;
+    const now = Date.now();
+    const own = new Set(this.accounts.map((a) => a.email.trim().toLowerCase()));
+    const picked: { thread: AwaitingThread; vip: boolean; time: number }[] = [];
+    for (const m of this.newestAwaitable().values()) {
+      const s = m.summary;
+      const recipients = [...m.to, ...m.cc];
+      const time = Date.parse(s.date);
+      const age = now - time;
+      if (age < waiting * day || age >= within * day) continue;
+      if (!own.has(s.from.address.trim().toLowerCase())) continue;
+      if (!recipients.some((a) => !own.has(a.address.trim().toLowerCase()))) continue;
+      if (s.muted === true) continue;
+      const vip = recipients.some((a) => this.organize.isVip(a.address));
+      picked.push({
+        vip,
+        time,
+        thread: {
+          threadId: s.threadId,
+          accountId: s.accountId,
+          message: s,
+          recipients: recipients.slice(0, 10),
+          recipientCount: recipients.length,
+          vip,
+          waitingDays: Math.floor(age / day),
+        },
+      });
+    }
+    picked.sort((a, b) =>
+      a.vip === b.vip ? b.time - a.time || b.thread.message.id - a.thread.message.id : a.vip ? -1 : 1,
+    );
+    return { total: picked.length, threads: picked.slice(0, limit).map((pick) => pick.thread) };
   }
 
   private setFlags(list: number[], c: FlagChanges): void {
@@ -1058,6 +1116,28 @@ function notFound(message: string): RPCError {
 
 function num(v: unknown): number {
   if (typeof v !== "number") throw new RPCError(ErrorCode.invalidParams, "expected a number");
+  return v;
+}
+
+/** awaitingRange checks the waiting query's params and fills in their defaults, as maild does. */
+function awaitingRange(p: Params): { limit: number; waiting: number; within: number } {
+  const range = {
+    limit: bounded(p.limit, 10),
+    waiting: bounded(p.waitingDays, 5),
+    within: bounded(p.withinDays, 30),
+  };
+  if (range.limit < 1 || range.limit > 25) throw new RPCError(ErrorCode.invalidParams, "limit must be 1 to 25");
+  if (range.waiting < 0 || range.waiting > 30)
+    throw new RPCError(ErrorCode.invalidParams, "waitingDays must be 0 to 30");
+  if (range.within < 1 || range.within > 90) throw new RPCError(ErrorCode.invalidParams, "withinDays must be 1 to 90");
+  return range;
+}
+
+/** bounded is an optional whole number, or its default when absent. */
+function bounded(v: unknown, fallback: number): number {
+  if (v === undefined || v === null) return fallback;
+  if (typeof v !== "number" || !Number.isInteger(v))
+    throw new RPCError(ErrorCode.invalidParams, "expected a whole number");
   return v;
 }
 
