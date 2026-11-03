@@ -74,6 +74,11 @@ export class MockCompose {
     }));
   }
 
+  /** identities are the addresses accounts send as, as maild keeps them. */
+  identities(): readonly Identity[] {
+    return this.identityList;
+  }
+
   /** dispatch serves draft.*, outbox.*, identity.* and address.*, else returns NOT_HANDLED. */
   dispatch(method: string, p: Params): unknown {
     switch (method) {

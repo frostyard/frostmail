@@ -17,6 +17,7 @@ import type {
   BlockedSender,
   Mailbox,
   MailboxRole,
+  MessageSummary,
   OutboxItem,
   Rule,
   Settings,
@@ -110,6 +111,11 @@ export interface UIState {
   listFilter: ListFilter;
   /** Selected message IDs; the first is the one the reader shows. */
   selected: number[];
+  /**
+   * The message a reveal must keep selected, with its own summary: the list
+   * may never load its row (docs/specs/ui.md, Follow Up).
+   */
+  revealing: MessageSummary | null;
   /** The row a Shift-click or Shift-arrow extends from. */
   anchor: number | null;
   focus: Pane;
@@ -164,6 +170,7 @@ export interface UIActions {
   setConversations: (conversations: boolean) => void;
   setContactPhotos: (contactPhotos: boolean) => void;
   select: (ids: number[], anchor?: number | null) => void;
+  setRevealing: (summary: MessageSummary | null) => void;
   setFocus: (p: Pane) => void;
   toggleSidebar: () => void;
   openMailboxes: (open: boolean) => void;
@@ -198,6 +205,7 @@ const initialUI: UIState = {
   searchScope: "all",
   listFilter: "all",
   selected: [],
+  revealing: null,
   anchor: null,
   focus: "list",
   sidebarVisible: true,
@@ -240,17 +248,19 @@ export const useUI = create<UIState & UIActions>()(
       clearPeopleSearch: () => set({ peopleSearch: "", peopleSearchDraft: "" }),
       setPeopleFocus: (peopleFocus) => set({ peopleFocus }),
       setSource: (source) =>
-        set({ source, search: "", searchDraft: "", selected: [], anchor: null, mailboxesOpen: false }),
+        set({ source, search: "", searchDraft: "", selected: [], anchor: null, revealing: null, mailboxesOpen: false }),
       setSearchDraft: (searchDraft) => set({ searchDraft }),
       commitSearch: (search) => set({ search, selected: [], anchor: null }),
       clearSearch: () => set({ search: "", searchDraft: "", selected: [], anchor: null }),
       setSearchScope: (searchScope) => set({ searchScope, selected: [], anchor: null }),
-      setListFilter: (listFilter) => set({ listFilter, selected: [], anchor: null }),
+      setListFilter: (listFilter) => set({ listFilter, selected: [], anchor: null, revealing: null }),
       setSort: (sort) => set({ sort, ascending: sort === "from" || sort === "to" || sort === "subject" }),
       setAscending: (ascending) => set({ ascending }),
       setConversations: (conversations) => set({ conversations }),
       setContactPhotos: (contactPhotos) => set({ contactPhotos }),
-      select: (selected, anchor) => set((s) => ({ selected, anchor: anchor === undefined ? s.anchor : anchor })),
+      select: (selected, anchor) =>
+        set((s) => ({ selected, revealing: null, anchor: anchor === undefined ? s.anchor : anchor })),
+      setRevealing: (revealing) => set({ revealing }),
       setFocus: (focus) => set({ focus }),
       toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
       openMailboxes: (mailboxesOpen) => set({ mailboxesOpen }),

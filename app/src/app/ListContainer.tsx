@@ -40,6 +40,7 @@ import {
   remindMessages,
   selectedSummaries,
   setFlagColor,
+  sourceHolds,
   spamTarget,
   step,
   toggleFlag,
@@ -152,10 +153,12 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       source,
       search,
       listFilter,
+      revealing,
       select,
       setFocus,
       setSource,
       setListFilter,
+      setRevealing,
     } = useUI();
     const scroller = useRef<HTMLDivElement>(null);
     const [menu, setMenu] = useState<Menu | null>(null);
@@ -230,7 +233,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       return [...addresses];
     }, [model, version, first, last]);
     const photos = useContactPhotos(client, contactPhotos, senderAddresses);
-    // biome-ignore lint/correctness/useExhaustiveDependencies: version re-runs this after every view change.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: version and revealing re-run this after every view change.
     useEffect(() => {
       if (!model || selected.length === 0) return;
       const found = selected.map((id) => model.indexOf(id)).filter((i) => i >= 0);
@@ -238,13 +241,72 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         lastIndex.current = Math.min(...found);
         return;
       }
+      // A revealed message stays selected while the list has not loaded its row.
+      if (revealing !== null && selected.includes(revealing.id)) return;
       if (model.count === 0) {
         select([], null);
         return;
       }
       const row = model.row(Math.min(lastIndex.current, model.count - 1));
       if (row) select([row.id], row.id);
-    }, [model, version, selected, select]);
+    }, [model, version, selected, select, revealing]);
+
+    // Put a revealed message in sight when its row is loaded: a message the
+    // list has not loaded stays selected without one (docs/specs/ui.md, Follow Up).
+    const revealed = useRef<{ model: ViewModel; id: number } | null>(null);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: version re-runs this after every view change.
+    useEffect(() => {
+      if (!model || revealing === null || !selected.includes(revealing.id)) return;
+      const index = model.indexOf(revealing.id);
+      // The first page has not come yet: the reveal has not been evaluated.
+      if (index < 0 && model.count > 0 && model.row(0) === undefined) return;
+      const held = revealed.current;
+      const first = held === null || held.model !== model || held.id !== revealing.id;
+      if (first) revealed.current = { model, id: revealing.id };
+      if (index < 0) return; // pinned: the row may never come into view
+      lastIndex.current = index;
+      // A row that was there when the reveal began is the one to scroll to;
+      // one that loads later is not, so the list does not jump.
+      if (first) virtualizer.scrollToIndex(index, { align: "center" });
+      setRevealing(null);
+    }, [model, version, selected, revealing, setRevealing, virtualizer]);
+
+    // The next reveal is a first evaluation again, and no old model is kept.
+    useEffect(() => {
+      if (revealing === null) revealed.current = null;
+    }, [revealing]);
+
+    // A pinned message that changes, or goes, hands the selection back to the
+    // list's rules unless its source still holds it (docs/specs/ui.md, Follow Up).
+    useEffect(() => {
+      let stopped = false;
+      let refreshes = 0;
+      const off = client.transport.onEvent((event) => {
+        const pinned = useUI.getState().revealing;
+        if (pinned === null) return;
+        if (event.event === "message.removed") {
+          if (event.data.ids.includes(pinned.id)) useUI.getState().setRevealing(null);
+          return;
+        }
+        if (event.event !== "message.changed" || !event.data.ids.includes(pinned.id)) return;
+        // Only the newest refresh of this same pin may change it.
+        const version = ++refreshes;
+        void client.message
+          .summaries({ ids: [pinned.id] })
+          .then((found) => {
+            const ui = useUI.getState();
+            if (stopped || version !== refreshes || ui.revealing !== pinned) return;
+            const fresh = found[0];
+            if (!fresh || !sourceHolds(ui.source, fresh, useMail.getState().mailboxes)) ui.setRevealing(null);
+            else ui.setRevealing(fresh);
+          })
+          .catch((err: unknown) => console.warn("refresh revealed message", err));
+      });
+      return () => {
+        stopped = true;
+        off();
+      };
+    }, [client]);
 
     const selectIndex = useCallback(
       (i: number, extend: boolean) => {
@@ -313,16 +375,27 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         focus: () => scroller.current?.focus(),
         command: (c) => {
           if (!model) return false;
-          const current = selected.length > 0 ? model.indexOf(selected[selected.length - 1] ?? -1) : -1;
+          const last = selected[selected.length - 1];
+          const current = last === undefined ? -1 : model.indexOf(last);
+          // A pinned message the list has not loaded: the arrow keys go to the first row.
+          const pinnedUnloaded = current < 0 && last !== undefined && revealing?.id === last;
           switch (c) {
             case "previous":
             case "next": {
+              if (pinnedUnloaded) {
+                selectIndex(0, false);
+                return true;
+              }
               const i = step(model, selected, c === "next" ? 1 : -1);
               if (i !== null) selectIndex(i, false);
               return true;
             }
             case "extendPrevious":
             case "extendNext": {
+              if (pinnedUnloaded) {
+                selectIndex(0, false);
+                return true;
+              }
               if (current < 0) return true;
               selectIndex(Math.max(0, Math.min(model.count - 1, current + (c === "extendNext" ? 1 : -1))), true);
               return true;
@@ -345,7 +418,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
               return true;
             }
             case "redirect": {
-              const row = current >= 0 ? model.row(current) : undefined;
+              const row = last === undefined ? undefined : selectedSummaries(model, [last])[0];
               if (!row || accounts.find((account) => account.id === row.accountId)?.readOnly) return false;
               setRedirectSheet({ id: row.id, subject: row.subject });
               return true;
@@ -361,7 +434,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           }
         },
       }),
-      [model, selected, selectIndex, select, onDelete, openMenu, openIfDraft, accounts],
+      [model, selected, selectIndex, select, onDelete, openMenu, openIfDraft, accounts, revealing?.id],
     );
 
     const menuItems = useMemo((): MenuItem[] => {
@@ -494,7 +567,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
         } else if (id === "redirect") {
           const lastId = ids.at(-1);
-          const row = lastId === undefined ? undefined : model?.row(model.indexOf(lastId));
+          const row = lastId === undefined ? undefined : selectedSummaries(model, [lastId])[0];
           if (row) setRedirectSheet({ id: row.id, subject: row.subject });
         } else if (id === "applyRules") {
           void applyRules(client, ids).catch((err: unknown) => console.warn("apply rules", err));

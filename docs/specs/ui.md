@@ -201,6 +201,36 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   (`outbox.reschedule {id, sendAt: now}`) and Change Time… (the time sheet
   titled "Send Later", starting at its time; OK calls
   `outbox.reschedule`). The Outbox section leaves these messages out.
+- **Follow Up**: after the mailbox tree and before the Outbox, a
+  section of the same look, titled "Follow Up", with the tooltip "Sent
+  mail with no reply for 3 days or more". It calls `thread.awaitingOthers
+  {limit: 25, waitingDays: 3}`, which maild answers with the conversations
+  whose newest message is the user's and waits on someone else: when the
+  window connects, 1000 ms after the last `mailbox.changed`,
+  `message.changed`, `message.removed`, `vip.changed`, `account.changed`
+  or `settings.changed`, and every 15 minutes; an answer to an older
+  request is dropped, and a failed refresh keeps the list it had. The
+  section is hidden while the call has not answered and when no
+  conversation waits. A row per conversation, in maild's order (those with
+  a VIP recipient first, then the newest first): the subject (13/400
+  truncated, "(No Subject)" when blank) after a 12px `star` in
+  `--accent` named "VIP" when a recipient is one; then "To: " and the
+  first two recipients, then " & N more" for the rest (`recipientCount`);
+  then "Waiting 1 day" or "Waiting N days" 12/400 `--text-secondary`.
+  When `total` is larger than the rows, a line after them says "Showing N
+  of TOTAL". The header's chevron collapses the list. Clicking a row
+  shows its message where it lives and selects it (`revealMessage`,
+  `app/src/app/openMessage.ts`), which drops a list filter that would hide
+  it. The selection stays on the message even when the list has not loaded
+  its row; the list scrolls to the row when it is already loaded. Commands
+  and the toolbar act on the pinned message as on a loaded row; moving or
+  deleting it out of the source releases the pin, and so does removing the
+  message. From a pinned message that the list has not loaded, the arrow
+  keys go to the first row. The selection goes back to the list's rules
+  when the user selects, changes the source or the filter, or the message
+  is removed. In a narrow window the click closes Mailboxes. The section is
+  the same in the desktop app and in lodge's web build, whose caller is
+  `session` instead of `local`.
 - **Mailboxes** (M5, [organize.md](../design/organize.md#mailboxes)): an
   account's section header shows, on hover and while focused, a 14px `plus`
   named "New Mailbox" (not on a read-only account), which opens the
