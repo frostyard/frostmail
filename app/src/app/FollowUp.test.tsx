@@ -160,6 +160,15 @@ describe("a pinned message the list has not loaded", () => {
     expect(flagCalls(mock).at(-1)).toEqual({ ids: [9001], changes: { flagColor: 1 } });
   });
 
+  it("opens Redirect for it from the keyboard", async () => {
+    await pinned();
+    act(() => useUI.getState().setFocus("list"));
+    fireEvent.keyDown(window, { key: "e", ctrlKey: true, shiftKey: true });
+    const dialog = await screen.findByRole("dialog", { name: "Redirect" });
+    expect(within(dialog).getByText(/Offsite plan/)).toBeTruthy();
+    expect(useUI.getState().revealing?.id).toBe(9001);
+  });
+
   it("goes to the first row on the arrow keys", async () => {
     const { list } = await pinned();
     act(() => useUI.getState().setFocus("list"));

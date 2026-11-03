@@ -279,6 +279,8 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     // A pinned message that changes, or goes, hands the selection back to the
     // list's rules unless its source still holds it (docs/specs/ui.md, Follow Up).
     useEffect(() => {
+      let stopped = false;
+      let refreshes = 0;
       const off = client.transport.onEvent((event) => {
         const pinned = useUI.getState().revealing;
         if (pinned === null) return;
@@ -287,18 +289,23 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           return;
         }
         if (event.event !== "message.changed" || !event.data.ids.includes(pinned.id)) return;
+        // Only the newest refresh of this same pin may change it.
+        const version = ++refreshes;
         void client.message
           .summaries({ ids: [pinned.id] })
           .then((found) => {
             const ui = useUI.getState();
-            if (ui.revealing?.id !== pinned.id) return;
+            if (stopped || version !== refreshes || ui.revealing !== pinned) return;
             const fresh = found[0];
             if (!fresh || !sourceHolds(ui.source, fresh, useMail.getState().mailboxes)) ui.setRevealing(null);
             else ui.setRevealing(fresh);
           })
           .catch((err: unknown) => console.warn("refresh revealed message", err));
       });
-      return () => off();
+      return () => {
+        stopped = true;
+        off();
+      };
     }, [client]);
 
     const selectIndex = useCallback(
@@ -411,7 +418,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
               return true;
             }
             case "redirect": {
-              const row = current >= 0 ? model.row(current) : undefined;
+              const row = last === undefined ? undefined : selectedSummaries(model, [last])[0];
               if (!row || accounts.find((account) => account.id === row.accountId)?.readOnly) return false;
               setRedirectSheet({ id: row.id, subject: row.subject });
               return true;
@@ -560,7 +567,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
           void compose(client, id, ids).catch((err: unknown) => console.warn("compose", err));
         } else if (id === "redirect") {
           const lastId = ids.at(-1);
-          const row = lastId === undefined ? undefined : model?.row(model.indexOf(lastId));
+          const row = lastId === undefined ? undefined : selectedSummaries(model, [lastId])[0];
           if (row) setRedirectSheet({ id: row.id, subject: row.subject });
         } else if (id === "applyRules") {
           void applyRules(client, ids).catch((err: unknown) => console.warn("apply rules", err));
