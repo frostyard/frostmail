@@ -240,7 +240,7 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
         lastIndex.current = Math.min(...found);
         return;
       }
-      // A revealed message's row loads still: the effect below places it.
+      // A revealed message stays selected while the list has not loaded its row.
       if (revealing !== null && selected.includes(revealing)) return;
       if (model.count === 0) {
         select([], null);
@@ -250,33 +250,40 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
       if (row) select([row.id], row.id);
     }, [model, version, selected, select, revealing]);
 
-    // Put a revealed message in sight: its row can be past the loaded pages
-    // (docs/specs/ui.md, Follow Up). locate runs once for each model and ID.
-    const located = useRef<{ model: ViewModel; id: number } | null>(null);
+    // Put a revealed message in sight when its row is loaded: a message the
+    // list has not loaded stays selected without one (docs/specs/ui.md, Follow Up).
+    const revealed = useRef<{ model: ViewModel; id: number } | null>(null);
     // biome-ignore lint/correctness/useExhaustiveDependencies: version re-runs this after every view change.
     useEffect(() => {
       if (!model || revealing === null || !selected.includes(revealing)) return;
       const index = model.indexOf(revealing);
-      if (index >= 0) {
-        lastIndex.current = index;
-        virtualizer.scrollToIndex(index, { align: "center" });
-        setRevealing(null);
-        return;
-      }
-      if (!model.ready) return;
-      if (located.current?.model === model && located.current.id === revealing) return;
-      located.current = { model, id: revealing };
-      void model.locate(revealing).then((found) => {
-        const ui = useUI.getState();
-        if (ui.revealing !== revealing) return;
-        if (found >= 0) {
-          lastIndex.current = found;
-          virtualizer.scrollToIndex(found, { align: "center" });
-        }
-        // A row locate could not find lets the fallback above pick one.
-        ui.setRevealing(null);
-      });
+      // The first page has not come yet: the reveal has not been evaluated.
+      if (index < 0 && model.count > 0 && model.row(0) === undefined) return;
+      const held = revealed.current;
+      const first = held === null || held.model !== model || held.id !== revealing;
+      if (first) revealed.current = { model, id: revealing };
+      if (index < 0) return; // pinned: the row may never come into view
+      lastIndex.current = index;
+      // A row that was there when the reveal began is the one to scroll to;
+      // one that loads later is not, so the list does not jump.
+      if (first) virtualizer.scrollToIndex(index, { align: "center" });
+      setRevealing(null);
     }, [model, version, selected, revealing, setRevealing, virtualizer]);
+
+    // The next reveal is a first evaluation again, and no old model is kept.
+    useEffect(() => {
+      if (revealing === null) revealed.current = null;
+    }, [revealing]);
+
+    // A revealed message that is gone gives the selection back to the list's rules.
+    useEffect(() => {
+      const off = client.transport.onEvent((event) => {
+        if (event.event !== "message.removed") return;
+        const ui = useUI.getState();
+        if (ui.revealing !== null && event.data.ids.includes(ui.revealing)) ui.setRevealing(null);
+      });
+      return () => off();
+    }, [client]);
 
     const selectIndex = useCallback(
       (i: number, extend: boolean) => {

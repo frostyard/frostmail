@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { Session } from "../data/session";
 import { useMail, useUI } from "../data/stores";
-import type { Address, MessageSummary } from "../rpc/gen/api";
+import { type Address, Client, type MessageSummary } from "../rpc/gen/api";
 import { FIXTURE, mockData } from "../rpc/mock/fixture";
 import { type MockMessage, MockTransport } from "../rpc/mock/mock";
 import { MainWindow } from "./MainWindow";
@@ -93,17 +93,36 @@ describe("Follow Up in the main window", () => {
     expect(useUI.getState().selected).toEqual([9001]);
   });
 
-  it("keeps an old message selected while the list loads its row", async () => {
+  it("keeps an old message selected while the list has not loaded its row", async () => {
     // Newer sent mail fills the first page of Sent: the old message is past it.
     const newer = Array.from({ length: 150 }, (_, i) => sent(7000 + i, 7000 + i, `Newer ${i}`, ANN, (i + 1) / 1440));
     const { mock } = setup([...newer, sent(9001, 9001, "Offsite plan", ANN, 4)]);
     const section = await screen.findByRole("region", { name: "Follow Up" });
+    const before = mock.calls.length;
     fireEvent.click(await within(section).findByText("Offsite plan"));
+    // The Sent view opens and answers its first page, which holds no row for it.
     await waitFor(() =>
-      expect(mock.calls.some((c) => c.method === "view.range" && (c.params as { start?: number }).start === 100)).toBe(
-        true,
-      ),
+      expect(
+        mock.calls.slice(before).some((c) => c.method === "view.range" && (c.params as { start?: number }).start === 0),
+      ).toBe(true),
     );
+    const list = await screen.findByRole("listbox", { name: "Messages" });
+    await waitFor(() => expect(within(list).queryAllByRole("option").length).toBeGreaterThan(0));
+    expect(useUI.getState().source).toEqual({ kind: "mailbox", mailboxId: FIXTURE.sent });
+    expect(useUI.getState().selected).toEqual([9001]);
+    expect(useUI.getState().revealing).toBe(9001);
+
+    // Removing the message hands the selection back to the list's rules.
+    const client = new Client(mock);
+    await client.message.move({ ids: [9001], mailboxId: FIXTURE.trash });
+    await client.message.delete({ ids: [9001] });
+    await waitFor(() => expect(useUI.getState().revealing).toBeNull());
+  });
+
+  it("scrolls to a revealed message whose row is loaded, and clears the reveal", async () => {
+    setup([sent(9001, 9001, "Offsite plan", ANN, 4)]);
+    const section = await screen.findByRole("region", { name: "Follow Up" });
+    fireEvent.click(await within(section).findByText("Offsite plan"));
     await waitFor(() => expect(useUI.getState().revealing).toBeNull());
     expect(useUI.getState().selected).toEqual([9001]);
     expect(useUI.getState().source).toEqual({ kind: "mailbox", mailboxId: FIXTURE.sent });

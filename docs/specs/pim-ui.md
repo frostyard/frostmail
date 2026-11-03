@@ -823,7 +823,8 @@ segment fills the list's width and the right segment the pane's.
 - **From elsewhere:** the To-Do bar's tasks open in Tasks with their list
   and the task selected; Open Message shows the message in Mail as a
   notification's does (`revealMessage`), which also drops a list filter
-  that would hide it and loads its row when the list has not yet.
+  that would hide it and keeps the selection on the message while the
+  list has not loaded its row.
 
 ## To-Do bar
 
