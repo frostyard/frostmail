@@ -46,6 +46,10 @@ lexically. Highlights:
   it.
 - `changes`: the durable event log; `seq` is AUTOINCREMENT, so it is never
   reused after `PruneChanges`.
+- `messages_unseen`: a partial index on `messages (id)` where `seen = 0 AND
+  deleted = 0`. It serves the unread count of every inbox, which maild
+  reports to lodge as the rail's badge
+  ([lodge-app.md](../specs/lodge-app.md#health), [lodge ADR-0020](https://github.com/frostyard/lodge/blob/main/docs/adr/0020-apps-report-an-unread-count-for-the-rail-in-their-health.md)).
 
 ## Writes and events
 

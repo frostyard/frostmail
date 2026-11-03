@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/frostyard/lodge/kit/lodgeapp"
@@ -35,6 +36,9 @@ type Options struct {
 	Log     *slog.Logger
 	// Now is the MCP tools' clock; nil is time.Now.
 	Now func() time.Time
+	// Unread is the count for lodge's rail badge (lodge ADR-0020): the
+	// unread messages in every inbox. nil sends no badge.
+	Unread func(ctx context.Context) (int, error)
 }
 
 // NewServer is maild's side of lodge's app socket, through the kit: /health,
@@ -52,9 +56,17 @@ func NewServer(o Options) *lodgeapp.Server {
 		mcpsession.Options{CheckScope: checkScope, Logger: log})
 	// The sessions' janitor runs until maild stops serving.
 	context.AfterFunc(o.Ctx, func() { _ = mcp.Close() })
+	var badge *badgeCounter
+	if o.Unread != nil {
+		badge = &badgeCounter{unread: o.Unread, log: log}
+	}
 	return &lodgeapp.Server{
-		Health: func(context.Context) lodgeapp.Health {
-			return lodgeapp.Health{OK: true, Version: o.Version, Protocol: api.Protocol}
+		Health: func(ctx context.Context) lodgeapp.Health {
+			h := lodgeapp.Health{OK: true, Version: o.Version, Protocol: api.Protocol}
+			if badge != nil {
+				h.Badge = badge.badge(ctx)
+			}
+			return h
 		},
 		API: func(ctx context.Context, nc net.Conn, c lodgeapp.Caller) {
 			log.Info("lodge session started", "session", c.Session, "node", c.NodeName)
@@ -64,6 +76,52 @@ func NewServer(o Options) *lodgeapp.Server {
 		Content: o.Content,
 		MCP:     mcp,
 		Logger:  log,
+	}
+}
+
+// badgeCounter reads the count lodge draws in its rail (lodge ADR-0020). It
+// runs one count at a time, and a count never holds /health past the 1 s
+// lodge's poll allows: the query may outlive its context (the driver's
+// PRAGMAs and the 5000 ms busy timeout run first).
+type badgeCounter struct {
+	unread func(ctx context.Context) (int, error)
+	log    *slog.Logger
+	busy   atomic.Bool
+}
+
+// badgeResult is a count, or the error that stopped it.
+type badgeResult struct {
+	n   int
+	err error
+}
+
+// badge returns the unread count, or 0 when the count failed, took longer
+// than 1 s, or still runs from an earlier call. A 0 badge never makes the
+// app degraded.
+func (b *badgeCounter) badge(ctx context.Context) int {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	// A count that outlives this call is interrupted where the driver can.
+	defer cancel()
+	if !b.busy.CompareAndSwap(false, true) {
+		return 0
+	}
+	// The buffer lets a count that ends after the timeout go.
+	done := make(chan badgeResult, 1)
+	go func() {
+		defer b.busy.Store(false)
+		n, err := b.unread(ctx)
+		done <- badgeResult{n: n, err: err}
+	}()
+	select {
+	case res := <-done:
+		if res.err != nil {
+			b.log.Warn("inbox unread count failed", "err", res.err)
+			return 0
+		}
+		return res.n
+	case <-ctx.Done():
+		b.log.Warn("inbox unread count timed out")
+		return 0
 	}
 }
 

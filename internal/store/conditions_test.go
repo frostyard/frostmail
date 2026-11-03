@@ -337,3 +337,87 @@ func TestCountView(t *testing.T) {
 		t.Errorf("CountView(Sent) = %d, %d, %v; want 1, 0", total, unread, err)
 	}
 }
+
+// TestInboxUnread: the unread messages in every inbox, counting neither a
+// deleted message, an archived one, nor a read one, and counting a message
+// that two inboxes hold once. It equals the sidebar's Inboxes count.
+func TestInboxUnread(t *testing.T) {
+	d, _ := openTest(t)
+	ctx := t.Context()
+	acct := insertAccount(t, d, sampleAccount("me@mailtest.test")).ID
+	err := d.Tx(ctx, func(tx *Tx) error {
+		mbs, err := tx.ReplaceMailboxes(ctx, acct, []ServerMailbox{
+			{Path: "INBOX", Role: api.MailboxRoleInbox, Selectable: true},
+			{Path: "Gmail/Inbox", Role: api.MailboxRoleInbox, Selectable: true},
+			{Path: "Archive", Role: api.MailboxRoleArchive, Selectable: true}})
+		if err != nil {
+			return err
+		}
+		inbox, label, archive := mbs[0].ID, mbs[1].ID, mbs[2].ID
+		// The second inbox is a Gmail label (ADR-0012).
+		if _, err := tx.ExecContext(ctx, `UPDATE mailboxes SET is_gmail_label = 1 WHERE id = ?`, label); err != nil {
+			return err
+		}
+		header := func(uid uint32, f Flags) MessageHeader {
+			return MessageHeader{UID: uid, Subject: "Mail", From: Address{Addr: "ann@x.test"},
+				To: []Address{{Addr: "me@mailtest.test"}}, Flags: f}
+		}
+		// An unread inbox message, which the label holds too, with no UID.
+		ids, err := tx.InsertHeaders(ctx, acct, inbox, []MessageHeader{header(1, Flags{})})
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id, uid) VALUES (?, ?, NULL)`,
+			ids[0], label); err != nil {
+			return err
+		}
+		if _, err := tx.InsertHeaders(ctx, acct, inbox, []MessageHeader{header(2, Flags{Seen: true})}); err != nil {
+			return err
+		}
+		if _, err := tx.InsertHeaders(ctx, acct, inbox, []MessageHeader{header(3, Flags{Deleted: true})}); err != nil {
+			return err
+		}
+		_, err = tx.InsertHeaders(ctx, acct, archive, []MessageHeader{header(1, Flags{})})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := d.InboxUnread(ctx)
+	if err != nil || got != 1 {
+		t.Errorf("InboxUnread() = %d, %v; want 1", got, err)
+	}
+	_, unread, err := d.CountView(ctx, ViewFilter{Role: string(api.MailboxRoleInbox)})
+	if err != nil || got != unread {
+		t.Errorf("InboxUnread() = %d, CountView(inbox)'s unread = %d, %v; want them equal", got, unread, err)
+	}
+}
+
+// TestInboxUnreadUsesTheIndex: the count's query plan reads the messages
+// through messages_unseen, not a full scan of messages.
+func TestInboxUnreadUsesTheIndex(t *testing.T) {
+	d, _ := openTest(t)
+	rows, err := d.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+inboxUnreadSQL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var plan []string
+	for rows.Next() {
+		var id, parent, unused int
+		var detail string
+		if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(plan, func(s string) bool { return strings.Contains(s, "messages_unseen") }) {
+		t.Errorf("the count's plan does not use messages_unseen: %q", plan)
+	}
+	if slices.ContainsFunc(plan, func(s string) bool { return s == "SCAN m" }) {
+		t.Errorf("the count's plan scans every message: %q", plan)
+	}
+}
