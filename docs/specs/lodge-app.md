@@ -220,9 +220,12 @@ once its store is open, so a maild that answers is serving.
 count. It is left out at 0. lodge draws it on the app's rail button, on
 its row of the switcher and on the home-screen icon
 ([lodge ADR-0020](https://github.com/frostyard/lodge/blob/main/docs/adr/0020-apps-report-an-unread-count-for-the-rail-in-their-health.md)).
-The count is maild's, not a caller's: `/health` carries no identity. A
-count that fails, or that takes longer than 1 s, sends no badge, and it
-does not change `ok`: a failed count never makes maild degraded.
+The count is maild's, not a caller's: `/health` carries no identity. One
+count runs at a time: while a count runs, `/health` sends no badge and
+starts none. A count that fails, or that takes longer than 1 s, sends no
+badge, and it does not change `ok`: a failed count never makes maild
+degraded. The `messages_unseen` index serves the count
+([storage.md](../design/storage.md#schema)).
 
 ### `/api`
 

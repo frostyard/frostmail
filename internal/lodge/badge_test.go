@@ -3,7 +3,10 @@ package lodge_test
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	kitlodgeapp "github.com/frostyard/lodge/kit/lodgeapp"
 
@@ -103,4 +106,62 @@ func TestHealthBadgeAbsent(t *testing.T) {
 			t.Errorf("health = %+v, %v; want ok with no badge", h, err)
 		}
 	})
+}
+
+// TestHealthBadgeTimeout: a count that outlives 1 s sends no badge and does
+// not hold /health, and a second call starts no second count.
+func TestHealthBadgeTimeout(t *testing.T) {
+	srv := rpctest.StartWith(t, rpctest.Options{Lodge: true})
+	release := make(chan struct{})
+	var once sync.Once
+	free := func() { once.Do(func() { close(release) }) }
+	// An early t.Fatal must not leave the count blocked.
+	t.Cleanup(free)
+	var counted atomic.Int64
+	unread := func(context.Context) (int, error) {
+		counted.Add(1)
+		<-release
+		return 7, nil
+	}
+	l := startLodge(t, badgeServer(t, srv, unread))
+	h, err := l.Health(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !h.OK || h.Badge != 0 {
+		t.Fatalf("health with a slow count = %+v, %v; want ok with no badge", h, err)
+	}
+	// The first count still runs: this call starts none, and answers at once.
+	h, err = l.Health(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !h.OK || h.Badge != 0 {
+		t.Fatalf("health while a count runs = %+v, %v; want ok with no badge", h, err)
+	}
+	if n := counted.Load(); n != 1 {
+		t.Fatalf("counts so far = %d, want 1", n)
+	}
+	free()
+	// The count that ended cleared the guard, so a later call counts again.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	for {
+		h, err = l.Health(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !h.OK {
+			t.Fatalf("health = %+v, want ok", h)
+		}
+		if h.Badge == 7 {
+			break
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("no badge came back after the count was released: %+v", h)
+		}
+	}
+	if n := counted.Load(); n != 2 {
+		t.Fatalf("counts = %d, want 2", n)
+	}
 }

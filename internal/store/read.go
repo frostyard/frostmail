@@ -136,14 +136,22 @@ func (d *DB) CountView(ctx context.Context, f ViewFilter) (total, unread int, er
 	return total, unread, nil
 }
 
+// inboxUnreadSQL counts the unread messages in every inbox. Its conditions
+// are literal, so the planner uses the messages_unseen index (migration 20).
+const inboxUnreadSQL = `SELECT COUNT(*) FROM messages m
+	WHERE m.seen = 0 AND m.deleted = 0
+	AND EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes mb ON mb.id = mm.mailbox_id
+		WHERE mm.message_id = m.id AND mb.role = 'inbox')`
+
 // InboxUnread is the unread messages in every inbox: the app's sidebar
-// Inboxes count, and the badge maild reports to lodge (lodge ADR-0020).
+// Inboxes count, and the badge maild reports to lodge (lodge ADR-0020). It
+// is CountView with ViewFilter{Role: "inbox"}'s unread value.
 func (d *DB) InboxUnread(ctx context.Context) (int, error) {
-	_, unread, err := d.CountView(ctx, ViewFilter{Role: string(api.MailboxRoleInbox)})
-	if err != nil {
+	var n int
+	if err := d.db.QueryRowContext(ctx, inboxUnreadSQL).Scan(&n); err != nil {
 		return 0, fmt.Errorf("inbox unread: %w", err)
 	}
-	return unread, nil
+	return n, nil
 }
 
 // viewWhere is the condition over messages m that a view filter makes.
