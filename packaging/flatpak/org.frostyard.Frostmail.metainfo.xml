@@ -20,6 +20,27 @@
     </p>
   </description>
   <launchable type="desktop-id">org.frostyard.Frostmail.desktop</launchable>
+  <!-- The README's screenshots in docs/images, which make screenshots
+       takes of the app on made-up mail, served from main of the public
+       repository. scripts/flatpak_metainfo_test.go checks them. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Mail in three panes: mailboxes, messages and the reader</caption>
+      <image>https://raw.githubusercontent.com/frostyard/frostmail/main/docs/images/main.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The calendar's week, with an event's details</caption>
+      <image>https://raw.githubusercontent.com/frostyard/frostmail/main/docs/images/calendar.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Tasks: lists, subtasks, due dates and the task pane</caption>
+      <image>https://raw.githubusercontent.com/frostyard/frostmail/main/docs/images/tasks.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>People: a contact with recent mail and upcoming events</caption>
+      <image>https://raw.githubusercontent.com/frostyard/frostmail/main/docs/images/people.png</image>
+    </screenshot>
+  </screenshots>
   <url type="homepage">https://github.com/frostyard/frostmail</url>
   <url type="bugtracker">https://github.com/frostyard/frostmail/issues</url>
   <content_rating type="oars-1.1"/>
