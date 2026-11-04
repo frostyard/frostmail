@@ -134,7 +134,7 @@ ui-e2e: app-build ## Drive the built app in WebKitGTK against fixture maild data
 	CGO_ENABLED=0 go build -o build/ ./cmd/maild ./tools/uifixture ./tools/smtpsink
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && env -u WAYLAND_DISPLAY GDK_BACKEND=x11 xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts $(F)'
 
-screenshots: app-build ## Retake the README's screenshots (docs/images) of the app on made-up mail, headless (nsl)
+screenshots: app-build ## Retake the README's and Flatpak metainfo's screenshots (docs/images) of the app on made-up mail, headless (nsl)
 	CGO_ENABLED=0 go build -o build/ ./cmd/maild ./tools/uifixture ./tools/smtpsink
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && env -u WAYLAND_DISPLAY GDK_BACKEND=x11 FROSTMAIL_SCREENSHOTS=docs/images xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts screenshots'
 
