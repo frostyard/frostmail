@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/frostyard/std/problems"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/notify"
@@ -63,6 +65,10 @@ type Config struct {
 	// while the server cannot be reached, else 1, 2, 5 and 15 units by
 	// attempt, then 60.
 	SendRetry time.Duration
+	// Problems, when set, records CodeApplyFailed in the local journal when
+	// a store write that applies the server's state fails (ADR-0049); nil
+	// records nothing.
+	Problems *problems.Recorder
 }
 
 func (c Config) withDefaults() Config {

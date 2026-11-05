@@ -23,6 +23,7 @@ import (
 	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
 
 	"github.com/frostyard/lodge/kit/lodgeapp"
+	"github.com/frostyard/std/problems"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/blob"
@@ -38,6 +39,7 @@ import (
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/pimsync"
+	"github.com/frostyard/frostmail/internal/problemrec"
 	"github.com/frostyard/frostmail/internal/reminders"
 	"github.com/frostyard/frostmail/internal/render"
 	"github.com/frostyard/frostmail/internal/rpcserver"
@@ -53,20 +55,39 @@ var (
 	commit  = "none"
 )
 
+// The problem codes maild records itself (ADR-0049); mailsync and render
+// record their own.
+const (
+	codeMigrateFailed = "store.migrate_failed"
+	codeUnsealFailed  = "secrets.unseal_failed"
+)
+
 func main() {
+	// Problem records (ADR-0049): a panic of the main goroutine here, a
+	// crash of any goroutine at the next start (CrashOutput in runWith).
+	rec := problemrec.New(version, problems.ComponentDaemon)
+	defer rec.RecoverPanic()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, os.Args[1:]); err != nil {
+	if err := runWith(ctx, os.Args[1:], runOptions{problems: rec}); err != nil {
 		fmt.Fprintln(os.Stderr, "maild:", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error { return runWith(ctx, args, nil) }
+// runOptions are what main and tests give runWith.
+type runOptions struct {
+	// serving, when set, is called once the socket is open and just before
+	// maild accepts on it, for tests.
+	serving func()
+	// problems records maild's problems in the local journal; nil records
+	// nothing.
+	problems *problems.Recorder
+}
 
-// runWith is run; serving, when set, is called once the socket is open and
-// just before maild accepts on it, for tests.
-func runWith(ctx context.Context, args []string, serving func()) (err error) {
+// runWith runs maild with args: main gives opts its problem recorder, and
+// tests their hooks.
+func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	fs := flag.NewFlagSet("maild", flag.ContinueOnError)
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	autostart := fs.String("autostart", "", "on or off: start maild when the user signs in to Windows (the per-user Run key), then exit")
@@ -141,6 +162,7 @@ func runWith(ctx context.Context, args []string, serving func()) (err error) {
 			logger.Error("maild stopped", "err", err) // main prints it to stderr too
 		}
 	}()
+	crashOutput(opts.problems, logger)
 	// The mode is checked under the lock, before the database opens.
 	if lodge, err := lodgeMode(logger); lodge || err != nil {
 		return err
@@ -150,6 +172,9 @@ func runWith(ctx context.Context, args []string, serving func()) (err error) {
 	defer shutdown()
 	db, err := store.Open(ctx, paths.DB)
 	if err != nil {
+		if errors.Is(err, store.ErrMigrate) && ctx.Err() == nil {
+			opts.problems.Error(codeMigrateFailed, err)
+		}
 		return err
 	}
 	defer func() { _ = db.Close() }()
@@ -173,16 +198,20 @@ func runWith(ctx context.Context, args []string, serving func()) (err error) {
 	sec, err := secrets.Open(ctx, filepath.Join(paths.DataDir, "secrets.json"), logger,
 		secrets.OptionsFor(config.InFlatpak(os.Getenv), storeID))
 	if err != nil {
+		if errors.Is(err, secrets.ErrUnseal) {
+			opts.problems.Error(codeUnsealFailed, err)
+		}
 		return err
 	}
 	blobs := blob.New(paths.Blobs)
 	parts := &render.PartsCache{Root: filepath.Join(paths.CacheDir, "parts")}
-	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil)}
+	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil), Problems: opts.problems}
 	tokens := &oauth.Manager{DB: db, Secrets: sec, Log: logger}
 	syncCfg := mailsync.Config{
 		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
 		Parts:              parts,
 		Tokens:             tokens,
+		Problems:           opts.problems,
 	}
 	if dir := os.Getenv("MAILD_IMAP_TRACE"); dir != "" {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -302,12 +331,27 @@ func runWith(ctx context.Context, args []string, serving func()) (err error) {
 		logger.Info("serving lodge's mail app", "socket", lodgeLn.Addr().String())
 	}
 	logger.Info("maild started", "version", version, "socket", paths.Socket, "db", paths.DB)
-	if serving != nil {
-		serving()
+	if opts.serving != nil {
+		opts.serving()
 	}
 	err = srv.Serve(ctx, ln, router)
 	logger.Info("maild stopped")
 	return err
+}
+
+// crashOutput has the Go runtime keep a crash report of this maild, which
+// the next start turns into a problem record, and records the reports that
+// earlier maild processes left (problems.Recorder.CrashOutput). It runs once
+// the data directory's lock is held, so one maild at a time reads them. A
+// build that is no release keeps no report.
+func crashOutput(rec *problems.Recorder, logger *slog.Logger) {
+	if err := rec.Err(); err != nil {
+		logger.Debug("problem records are off", "reason", err)
+		return
+	}
+	if err := rec.CrashOutput(); err != nil {
+		logger.Warn("keep crash reports for problem records", "err", err)
+	}
 }
 
 // withContent gives the engine lodge's content route when maild serves

@@ -3,11 +3,15 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/frostyard/frostmail/api"
+
+	"modernc.org/sqlite"
 )
 
 func TestOpenMigratesAndReopens(t *testing.T) {
@@ -41,8 +45,36 @@ func TestOpenRefusesNewerSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = d.Close()
-	if _, err := Open(t.Context(), path); err == nil || !strings.Contains(err.Error(), "newer") {
-		t.Fatalf("Open = %v, want a newer-schema error", err)
+	ms, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Open(t.Context(), path)
+	// ErrMigrate marks it for maild's problem record (store.migrate_failed),
+	// and the text stays as it was.
+	want := fmt.Sprintf("migrate: database schema 999 is newer than this maild (%d)", len(ms))
+	if err == nil || err.Error() != want || !errors.Is(err, ErrMigrate) {
+		t.Fatalf("Open = %v, want %q matching ErrMigrate", err, want)
+	}
+}
+
+// A migration that fails (here a file that is no database) matches
+// ErrMigrate and keeps its text and its cause.
+func TestOpenMarksFailedMigrations(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "frostmail.db")
+	if err := os.WriteFile(path, []byte(strings.Repeat("not a database ", 100)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Open(t.Context(), path)
+	if err == nil || !errors.Is(err, ErrMigrate) || !strings.HasPrefix(err.Error(), "migrate: ") {
+		t.Fatalf("Open = %v, want a migrate error matching ErrMigrate", err)
+	}
+	var se *sqlite.Error
+	if !errors.As(err, &se) {
+		t.Fatalf("Open = %v (%T), want the SQLite error kept", err, err)
+	}
+	if errors.Is(err, ErrNotFound) {
+		t.Fatal("a migrate error matches ErrNotFound")
 	}
 }
 

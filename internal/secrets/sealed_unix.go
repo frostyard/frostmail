@@ -19,19 +19,20 @@ func sealedPath(file string) string {
 
 // sealedStore opens the sealed file beside file with the key from
 // $CREDENTIALS_DIRECTORY, and reads it once, so that a key that does not
-// open it is refused here, by name, and never later.
+// open it is refused here, by name, and never later. Each refusal matches
+// ErrUnseal.
 func sealedStore(file string) (*File, error) {
 	path := sealedPath(file)
 	key, err := LoadKey(os.Getenv("CREDENTIALS_DIRECTORY"))
 	if err != nil {
-		return nil, fmt.Errorf("secrets: FROSTMAIL_SECRETS=sealed needs the key to open %s: %w", path, err)
+		return nil, unsealError{fmt.Errorf("secrets: FROSTMAIL_SECRETS=sealed needs the key to open %s: %w", path, err)}
 	}
 	sealed, err := NewSealedFile(path, key)
 	if err != nil {
-		return nil, err
+		return nil, unsealError{err}
 	}
 	if _, err := sealed.All(); err != nil {
-		return nil, fmt.Errorf("secrets: the credential %s does not open %s: %w", CredentialName, path, err)
+		return nil, unsealError{fmt.Errorf("secrets: the credential %s does not open %s: %w", CredentialName, path, err)}
 	}
 	return sealed, nil
 }

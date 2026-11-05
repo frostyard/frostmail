@@ -19,6 +19,10 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-single-instance = "2.5.2"
+# Problem records in the local journal (ADR-0049): frostyard/std's crate,
+# which uses only the standard library and writes nothing on Windows. It is
+# not on crates.io: a git dependency on a std release tag.
+frostyard-problems = { git = "https://github.com/frostyard/std", tag = "v0.5.0" }
 
 # A maild behind lodge (docs/design/desktop.md): lodge's WebSocket and the
 # content node's downloads, over rustls with ring and the web's roots on

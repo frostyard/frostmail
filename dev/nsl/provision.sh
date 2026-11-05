@@ -39,6 +39,7 @@ apt-get install -y -q --no-install-recommends \
 	build-essential ca-certificates curl file git make pkg-config wget xz-utils \
 	libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev \
 	librsvg2-dev webkit2gtk-driver xvfb xauth \
+	python3-venv \
 	llvm # llvm-rc: the Windows resource step of `make app-check-windows`
 
 if [[ "$(/opt/node/bin/node --version 2>/dev/null)" != "v$NODE_VERSION" ]]; then

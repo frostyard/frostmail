@@ -19,15 +19,15 @@ import (
 func BodyText(raw []byte) (string, bool, error) {
 	root, err := message.Read(bytes.NewReader(raw))
 	if err != nil && !isDecodingError(err) {
-		return "", false, fmt.Errorf("mimex: read message: %w", err)
+		return "", false, parseFailed(fmt.Errorf("mimex: read message: %w", err))
 	}
 	if root == nil {
-		return "", false, errors.New("mimex: read message: no entity")
+		return "", false, parseFailed(errors.New("mimex: read message: no entity"))
 	}
 
 	var body bodyParts
 	if err := root.Walk(body.visit); err != nil && !body.visited {
-		return "", false, err
+		return "", false, parseFailed(err)
 	}
 
 	text := body.plain
@@ -43,14 +43,14 @@ func BodyText(raw []byte) (string, bool, error) {
 func BodyHTML(raw []byte) (string, error) {
 	root, err := message.Read(bytes.NewReader(raw))
 	if err != nil && !isDecodingError(err) {
-		return "", fmt.Errorf("mimex: read message: %w", err)
+		return "", parseFailed(fmt.Errorf("mimex: read message: %w", err))
 	}
 	if root == nil {
-		return "", errors.New("mimex: read message: no entity")
+		return "", parseFailed(errors.New("mimex: read message: no entity"))
 	}
 	var body bodyParts
 	if err := root.Walk(body.visit); err != nil && !body.visited {
-		return "", err
+		return "", parseFailed(err)
 	}
 	return body.html, nil
 }

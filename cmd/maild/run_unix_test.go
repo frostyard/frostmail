@@ -17,13 +17,16 @@ import (
 	"github.com/frostyard/frostmail/internal/rpctest"
 )
 
+// run is maild with no test hook and no problem records.
+func run(ctx context.Context, args []string) error { return runWith(ctx, args, runOptions{}) }
+
 // sandbox is one maild's environment in a temporary directory.
 type sandbox struct {
 	data, appJSON, info, socket string
 }
 
-// newSandbox points maild at temporary directories, with no keyring and no
-// session bus, and no sync, as a Flatpak instance (FLATPAK_ID) when flatpak.
+// newSandbox points maild at temporary directories, with no keyring, no
+// session bus, no sync and a state directory of its own, as a Flatpak instance (FLATPAK_ID) when flatpak.
 func newSandbox(t *testing.T, flatpak bool) sandbox {
 	t.Helper()
 	root := t.TempDir()
@@ -43,6 +46,8 @@ func newSandbox(t *testing.T, flatpak bool) sandbox {
 		"FROSTMAIL_SOCKET": socket, "XDG_CONFIG_HOME": filepath.Join(root, "config"),
 		"FROSTMAIL_FLATPAK_INFO": sb.info, "FROSTMAIL_SECRETS": "file", "FROSTMAIL_SYNC": "off",
 		"DBUS_SESSION_BUS_ADDRESS": "unix:path=" + filepath.Join(root, "no-bus"),
+		// The crash reports of problem records (ADR-0049) stay in the test.
+		"XDG_STATE_HOME": filepath.Join(root, "state"), "STATE_DIRECTORY": "",
 	} {
 		t.Setenv(k, v)
 	}
@@ -73,7 +78,7 @@ func (sb sandbox) noDatabase(t *testing.T) {
 func (sb sandbox) start(t *testing.T, ctx context.Context) (ready <-chan struct{}, done <-chan error) {
 	t.Helper()
 	r, d := make(chan struct{}), make(chan error, 1)
-	go func() { d <- runWith(ctx, nil, func() { close(r) }) }()
+	go func() { d <- runWith(ctx, nil, runOptions{serving: func() { close(r) }}) }()
 	return r, d
 }
 

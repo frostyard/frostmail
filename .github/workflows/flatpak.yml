@@ -2,8 +2,10 @@
 # (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md), as igloo's
 # workflow does. The sources job checks that the offline sources (crates, pnpm
 # store and Go modules) match the lockfiles and go.mod and go.sum. A v* tag
-# stamps its version, without -rc.N, into the manifest and the metainfo
-# (packaging/flatpak/stamp-version.sh) before the build. A
+# stamps its version, without -rc.N, into the manifest, the metainfo and the
+# shell's app/src-tauri/tauri.conf.json, whose version the shell's problem
+# records carry (packaging/flatpak/stamp-version.sh, ADR-0049) before the
+# build. A
 # vX.Y.Z-rc.N tag publishes an OCI image to ghcr.io/frostyard/frostmail with
 # its version and sha- tags, and attests its digest: a release candidate is
 # not the release (plan 0013, Phase 8). A vX.Y.Z release tag publishes nothing
@@ -74,6 +76,8 @@ jobs:
       # metainfo's newest release. A candidate vX.Y.Z-rc.N is the build that
       # Promote releases as vX.Y.Z, so it is stamped X.Y.Z, with the date of
       # its build; a vX.Y.Z tag builds the same version and publishes nothing.
+      # The shell's tauri.conf.json gets the version too: its problem records
+      # carry it (ADR-0049), and an unstamped 0.0.0 records nothing.
       # The committed files keep "flatpak" and 0.0.0, for builds of main.
       - name: Stamp the release version
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

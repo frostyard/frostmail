@@ -45,11 +45,11 @@ func (a *actor) mustSearch(ok bool, st store.SyncState, sel imapx.Selected, stor
 // actor it restarts, searched the old window: its state would undo the
 // clear and let the fast path skip the new window.
 func (a *actor) storeSyncState(ctx context.Context, mailboxID int64, st store.SyncState) error {
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		days, err := tx.AccountSyncDays(ctx, a.acct.ID)
 		if err != nil || days != a.acct.SyncDays {
 			return err
 		}
 		return tx.SetMailboxSyncState(ctx, mailboxID, st)
-	})
+	}))
 }

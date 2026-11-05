@@ -34,14 +34,14 @@ type PartInfo struct {
 // charset are also converted to UTF-8. A message that is not multipart is the single part
 // "1"; parts of a multipart are numbered from 1 per level, joined with dots.
 // Forwarded messages (message/rfc822) are one leaf. fn's error stops the walk
-// and is returned.
+// and is returned as it is; an error of the message itself matches ErrParse.
 func WalkParts(raw []byte, fn func(p PartInfo, body io.Reader) error) error {
 	root, err := message.Read(bytes.NewReader(raw))
 	if err != nil && !isDecodingError(err) {
-		return fmt.Errorf("mimex: read message: %w", err)
+		return parseFailed(fmt.Errorf("mimex: read message: %w", err))
 	}
 	if root == nil {
-		return errors.New("mimex: read message: no entity")
+		return parseFailed(errors.New("mimex: read message: no entity"))
 	}
 	var stop error
 	walkErr := root.Walk(func(path []int, part *message.Entity, err error) error {
@@ -81,7 +81,7 @@ func WalkParts(raw []byte, fn func(p PartInfo, body io.Reader) error) error {
 		return stop
 	}
 	if walkErr != nil && !isDecodingError(walkErr) {
-		return walkErr
+		return parseFailed(walkErr)
 	}
 	return nil
 }

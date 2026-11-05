@@ -111,6 +111,10 @@ func noFallback(t *testing.T, file string, plainBytes []byte, secrets ...string)
 	if err == nil {
 		t.Fatalf("Open gave %T and no error", st)
 	}
+	// maild records secrets.unseal_failed for an error that matches it.
+	if !errors.Is(err, ErrUnseal) {
+		t.Errorf("the error %q does not match ErrUnseal", err)
+	}
 	for _, want := range []string{"frostmail-secrets-key", filepath.Join(filepath.Dir(file), "secrets.sealed")} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the error %q lacks %q", err, want)

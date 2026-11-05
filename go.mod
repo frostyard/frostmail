@@ -13,6 +13,7 @@ require (
 	github.com/emersion/go-smtp v0.25.0
 	github.com/frostyard/clix v0.5.0
 	github.com/frostyard/lodge/kit v0.4.0
+	github.com/frostyard/std v0.4.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.10.2
@@ -37,7 +38,6 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/frostyard/std v0.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
