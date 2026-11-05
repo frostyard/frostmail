@@ -218,6 +218,32 @@ and limits.
 - **Remembered:** `unsubscribes (key, at)`, keyed `list:<List-Id>`, else
   `message:<id>`; later mail from the list reports `done`.
 
+## Snippets
+
+Named pieces of text the user inserts in compose (plan 0014 Phase 3,
+[specs/parity.md](../specs/parity.md) P-503). They are a list preference
+as [ADR-0026](../adr/0026-preferences-live-in-maild.md) has them: a table,
+methods and an event of their own, local to this machine.
+
+- `snippets (id, name, html, updated_at)` (a migration). `name` is
+  trimmed, 1 to 60 characters, with no control characters, and unique
+  without case. `html` is at most 64 KiB; the app makes it from plain text
+  as it makes a signature (`signatureHtml`), and maild stores it as it is
+  given, as it stores a signature. At most 200 snippets.
+- `snippet.list` returns every snippet by name without case, then by id.
+  `snippet.create {name, html}` and `snippet.update {id, name?, html?}`
+  return the snippet; `snippet.delete {id}`. A taken name is `conflict`,
+  an unknown id `notFound`, a name or text out of bounds and the 201st
+  snippet `invalidParams`. Every change emits the durable
+  `snippet.changed`.
+- The methods keep the IDL's default callers (`local`, `session`):
+  agents do not get them.
+- `mailctl` has no snippet commands, as it has none for VIPs or smart
+  mailboxes.
+- A snippet is not a signature: it goes in at the cursor, and a draft's
+  signature is still the identity's
+  ([Drafts](#drafts)). A second signature is a snippet named for it.
+
 ## Operational notes
 
 - `mailctl send` builds and sends a draft from flags and stdin, for tests and

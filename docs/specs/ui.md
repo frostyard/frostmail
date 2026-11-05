@@ -427,6 +427,23 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   9:41 AM"); line 2 the subject (13/600); then "To:" and, when present,
   "Cc:" lines (12/400 `--text-secondary`, names, else addresses, comma
   separated, truncated with "& N more" after 3).
+- **Sender check banner** (plan 0014 Phase 1,
+  [ADR-0050](../adr/0050-warn-when-the-providers-sender-checks-fail.md);
+  the first banner under the header, before the reminder banner, drawn as
+  the remote content banner is, `role="status"`): when the message's
+  `senderCheck` is `fail`
+  ([rendering.md](../design/rendering.md#sender-check)), a 14px Lucide
+  `shield-alert` in `--flag-1`, 6px before the text "**Sender not
+  verified.** This message says it is from <domain>, but <domain> did not
+  vouch for it. Be careful with its links and attachments." ("Sender not
+  verified." 12/600; <domain> is the sender address's domain, lowercased;
+  with no sender address, the second sentence reads "Its sender did not
+  pass the provider's checks."),
+  then at the right a button Show Details, which shows the message's All
+  Headers as More Actions' Show All Headers does, and reads Hide Details
+  while they show. No banner for `pass` or an absent `senderCheck`, and
+  nothing else in the reader marks a pass. The banner prints with the
+  message, without its button.
 - **Reminder banner** (M5, between header and the remote content banner,
   `--bg-banner`, 12/400, `role="status"`, as that banner is drawn): when
   the message has a pending reminder, "Remind Me: " and the time

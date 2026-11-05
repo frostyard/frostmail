@@ -36,7 +36,8 @@ this spec adds no tokens.
   over its 11/13 label, `--text-secondary`; the open pane's tab is
   `--selection-inactive` filled with `--text-primary` and
   `aria-pressed="true"`. Tabs: General (`Settings2`, M5), Accounts
-  (`AtSign`), Signatures (`PenLine`), Rules (`ListFilter`, M5), Sign-In
+  (`AtSign`), Signatures (`PenLine`), Snippets (`ScrollText`, plan 0014
+  Phase 3), Rules (`ListFilter`, M5), Sign-In
   (`KeyRound`), and in the desktop app only Server (`Server`, M8). The
   window opens on Accounts, or on the pane its opener names (M6): the
   app's `openSettings(pane)`, which the desktop app passes to
@@ -52,7 +53,7 @@ this spec adds no tokens.
   place ("Connecting to maild…", or "Reconnecting to maild… (reason)"),
   centered, `text-secondary`.
 - **In a narrow window** ([ui.md](ui.md#narrow-windows-m8)), a pane with
-  a list and a form (Accounts, Signatures) stacks the list, the full width
+  a list and a form (Accounts, Signatures, Snippets) stacks the list, the full width
   and at most 35% of the height, over its form; the labeled grids' label
   column is 104 and their controls shrink to fit; panes have 16px
   padding, and the Rules pane's buttons wrap.
@@ -267,6 +268,8 @@ interface AccountFormValue {
   smtp: ServerConfig;
   readOnly: boolean;
   notify: boolean;
+  eraseTrashDays: 0 | 1 | 7 | 30; // plan 0014 Phase 4; 0 is Never
+  eraseJunkDays: 0 | 1 | 7 | 30;
   password: string; // a new password; "" keeps the stored one
   services?: ServiceKind[]; // add mode: turned on with mail; absent means none
 }
@@ -289,6 +292,7 @@ interface AccountFormProps {
   error: string | null;      // the last request's error
   onSubmit: () => void;
   onCancel: () => void;      // add mode
+  eraseMailboxes?: { trash?: string; junk?: string }; // edit mode: the names of the account's trash and junk mailboxes
 }
 ```
 
@@ -364,6 +368,21 @@ interface AccountFormProps {
   items-center gap-2 text-[13px] leading-[18px]`) around an `input
   type="checkbox"` and its text: "Read only: never change anything on the
   server" (`readOnly`), "Notify me about new mail" (`notify`).
+- **Mailbox behaviors (edit mode, plan 0014 Phase 4,
+  [ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)):**
+  after the options, a `section` (`mt-5`) labeled by its `h3` "Mailbox
+  Behaviors" (as `ServicesSection`'s), holding a `GRID` with two rows:
+  `Erase deleted messages:` (`account-erase-trash`, a `select`,
+  `eraseTrashDays`) and `Erase junk messages:` (`account-erase-junk`,
+  `eraseJunkDays`), each with the options Never (0), After One Day (1),
+  After One Week (7) and After One Month (30). A select is disabled while
+  `busy`, while `readOnly` is checked, and when `eraseMailboxes` names no
+  mailbox for it (then it shows Never). Under them a `p` (`col-start-2
+  text-[12px] leading-4 text-secondary`): "Messages are erased from the
+  server after they have been in “<trash>” or “<junk>” that long, and
+  cannot be recovered. Mail older than this account's sync window is
+  left on the server." (only the names it has, joined with " or "). Not
+  in add mode, where both are Never.
 - **Add mode, after the options:** a `section` labeled by its `h3`,
   "Contacts, Calendars and Tasks" (as `ServicesSection`'s), with a `label`
   (as the options') around an `input type="checkbox"` per service
@@ -471,7 +490,10 @@ interface ServicesSectionProps {
   error says "Set up your Google client under Sign-In first." An error
   from any other step, such as `account.create` when the secret store
   cannot keep a secret, says maild's own message.
-- **Edit:** Save sends `account.update` with every editable field, then
+- **Edit:** the form's `eraseMailboxes` are the names of the selected
+  account's mailboxes with the `trash` and `junk` roles (`mailbox.list`,
+  again on `mailbox.changed`). Save sends `account.update` with every
+  editable field (`eraseTrashDays` and `eraseJunkDays` among them), then
   `account.setPassword` when a new password was typed. Sign In… calls
   `account.authorize`, remembers the account whose sign-in it started and
   whether it was signed in then, and opens the URL; `account.changed`
@@ -587,6 +609,62 @@ text the editor shows:
 - `signatureText(html)`: the text of each top-level block, one per line,
   with `<br>` inside a block becoming a line break; text outside blocks is
   kept as is.
+
+## Snippets pane
+
+Plan 0014 Phase 3: the snippets of [send.md](../design/send.md#snippets),
+which compose inserts ([compose-ui.md](compose-ui.md#snippets-plan-0014-phase-3)).
+`app/src/features/settings/SnippetsPane.tsx` is presentational; the
+window's container calls maild.
+
+```ts
+interface SnippetChange { name: string; html: string }
+interface SnippetsPaneProps {
+  snippets: Snippet[];   // in maild's order
+  busy: boolean;
+  error: string | null;
+  onCreate: (change: SnippetChange) => void;
+  onSave: (id: number, change: SnippetChange) => void;
+  onRemove: (id: number) => void;
+}
+```
+
+- A `div` (`flex h-full`) with the list and the form, laid out as
+  `IdentityEditor`'s.
+- **List:** a `ul` with `aria-label="Snippets"` and the identity list's
+  classes, one `li` per snippet holding a `button type="button"` with its
+  name (`truncate text-[13px] leading-[18px]`), selected as identities
+  are (`bg-selection-sidebar`, `aria-current="true"`). Below it, the
+  identity list's bar with `aria-label="Add Snippet"` (`Plus`), which
+  opens the new form, disabled while it is open or while `busy`, and
+  `aria-label="Remove Snippet"` (`Minus`), calling `onRemove(id)` for the
+  selected snippet, disabled while `busy`, while the new form is open, or
+  with nothing selected.
+- The first snippet starts selected; clicking another selects it and
+  closes the new form. A snippet that appears with the name just added
+  (ignoring case) becomes selected and the new form closes; an error
+  leaves it open. When the selected snippet leaves the list, the first is
+  selected.
+- **Form** (for the selected snippet, or the new form while open): the
+  `AccountForm` grid with an `h2` "New Snippet" in the new form, else the
+  snippet's name; `Name:` (`snippet-name`, `input type="text"`,
+  `maxLength={60}`) and `Text:` (`snippet-text`, the signature's
+  `textarea` and classes, label `self-start pt-1`). The text field shows
+  `signatureText(html)` and saves `signatureHtml(text)`
+  ([Signature text](#signature-text)). Then the alert, then the buttons:
+  in the new form "Cancel" (closes it) and an "Add" submit button; else a
+  "Save" submit button; each disabled while `busy` or while the trimmed
+  name is empty, and Save also while nothing differs from the stored
+  snippet. Submitting calls `onCreate` or `onSave` with the trimmed name.
+- With no snippets and the new form closed, the form's place shows a `p`
+  (`px-6 py-5 text-[13px] leading-[18px] text-secondary`): "Snippets are
+  text you insert in a message with Insert Snippet in the compose
+  window."
+- **Container:** `snippet.list` when the pane opens and again on
+  `snippet.changed`. Add calls `snippet.create`, Save `snippet.update`.
+  Remove asks "Remove the snippet “<name>”?" (the app's dialog, or
+  `window.confirm` in a browser) and calls `snippet.delete` when
+  confirmed. maild's errors show in the alert.
 
 ## Sign-In pane
 

@@ -65,6 +65,8 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0047 — The .deb makes the secrets key at first start](adr/0047-make-the-secrets-key-at-first-start.md)
 - [0048 — Tag each release on its tested candidate's commit](adr/0048-tag-each-release-on-its-tested-candidates-commit.md)
 - [0049 — Record problems in the local journal](adr/0049-record-problems-in-the-local-journal.md)
+- [0050 — Warn when the provider's sender checks fail](adr/0050-warn-when-the-providers-sender-checks-fail.md) (Proposed)
+- [0051 — maild erases old Trash and Junk mail when the user asks](adr/0051-erase-old-trash-and-junk-when-the-user-asks.md) (Proposed)
 
 ### Design
 
@@ -109,6 +111,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0011 — M8 Mail in lodge](plans/0011-m8-mail-in-lodge.md)
 - [0012 — M8.5 Calendar, tasks and contacts for agents](plans/0012-calendar-tasks-and-contacts-for-agents.md)
 - [0013 — M6 The standalone desktop Flatpak](plans/0013-m6-the-standalone-desktop-flatpak.md)
+- [0014 — Small features from the nexmail review](plans/0014-small-features-from-the-nexmail-review.md): the sender check, the attachment reminder, snippets, erasing old Trash and Junk
 
 ## Conventions
 
