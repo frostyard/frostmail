@@ -204,11 +204,15 @@ fn record_end(rec: &Recorder, end: &End) {
 
 /// Passes each line maild's local socket sends to `deliver`, until the
 /// socket ends, `deliver` returns false (the webview stopped listening), or
-/// `stop` is notified.
+/// `stop` is notified. `stop` is polled first: a connection that was
+/// replaced ends as replaced even when its socket is at its end too, so it
+/// records no problem.
 async fn read_lines(read: impl AsyncRead + Unpin, stop: &Notify, mut deliver: impl FnMut(String) -> bool) -> End {
     let mut lines = BufReader::new(read).lines();
     loop {
         tokio::select! {
+            biased;
+            () = stop.notified() => return End::Replaced,
             next = lines.next_line() => match next {
                 Ok(Some(line)) => {
                     if !deliver(line) {
@@ -218,7 +222,6 @@ async fn read_lines(read: impl AsyncRead + Unpin, stop: &Notify, mut deliver: im
                 Ok(None) => return End::MaildClosed,
                 Err(e) => return End::ReadError(e),
             },
-            () = stop.notified() => return End::Replaced,
         }
     }
 }
@@ -435,6 +438,33 @@ mod tests {
             problems::recorder("0.0.0").with_socket(&journal.path).error(problems::SOCKET_LOST, None);
             record_end(&problems::recorder("0.0.0").with_socket(&journal.path), &End::MaildClosed);
             assert!(journal.records().is_empty(), "an unstamped build recorded a problem");
+        });
+    }
+
+    /// A connection that is replaced while maild's end is closed too ends
+    /// as replaced, and records nothing: the stop wins over the socket's end.
+    /// Without a biased select, either branch could win; 50 rounds catch it.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_replaced_connection_at_eof_records_nothing() {
+        use super::{read_lines, record_end};
+        use crate::problems::{self, testing::Journal};
+        use tokio::net::UnixStream;
+        use tokio::sync::Notify;
+
+        tauri::async_runtime::block_on(async {
+            let journal = Journal::new();
+            let rec = problems::recorder("1.2.3").with_socket(&journal.path);
+            for round in 0..50 {
+                let (shell, maild) = UnixStream::pair().unwrap();
+                drop(maild);
+                let stop = Notify::new();
+                stop.notify_one();
+                let end = read_lines(shell, &stop, |_| true).await;
+                assert!(matches!(end, End::Replaced), "round {round}: {end:?}");
+                record_end(&rec, &end);
+            }
+            assert!(journal.records().is_empty(), "a replaced connection recorded a problem");
         });
     }
 

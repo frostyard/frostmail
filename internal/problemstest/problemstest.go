@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -130,18 +131,39 @@ func (r Record) check(t testing.TB, component problems.Component, class string) 
 // under test sees every record it wrote.
 func (j *Journal) None(t testing.TB) {
 	t.Helper()
-	if err := j.conn.SetReadDeadline(time.Now()); err != nil {
-		t.Fatal(err)
-	}
-	buf := make([]byte, 1<<16)
-	n, err := j.conn.Read(buf)
-	var ne net.Error
-	if errors.As(err, &ne) && ne.Timeout() {
-		return
-	}
+	b, err := j.pending()
 	if err != nil {
 		t.Fatal(err)
+		return
 	}
-	fields, _ := problems.DecodeEntry(buf[:n])
-	t.Fatalf("an unexpected problem record: %q", fields)
+	if b != nil {
+		fields, _ := problems.DecodeEntry(b)
+		t.Fatalf("an unexpected problem record: %q", fields)
+	}
+}
+
+// pending receives the datagram that waits in the socket, without blocking,
+// or returns nil when none waits. A read deadline cannot do this: with a
+// deadline in the past, Go returns a timeout before it tries the read.
+func (j *Journal) pending() ([]byte, error) {
+	raw, err := j.conn.SyscallConn()
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, 1<<16)
+	var n int
+	var rerr error
+	if err := raw.Read(func(fd uintptr) bool {
+		n, _, rerr = syscall.Recvfrom(int(fd), buf, syscall.MSG_DONTWAIT)
+		return true // never wait for the socket to become readable
+	}); err != nil {
+		return nil, err
+	}
+	if errors.Is(rerr, syscall.EAGAIN) || errors.Is(rerr, syscall.EWOULDBLOCK) {
+		return nil, nil
+	}
+	if rerr != nil {
+		return nil, rerr
+	}
+	return buf[:n], nil
 }
