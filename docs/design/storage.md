@@ -28,7 +28,7 @@ lexically. Highlights:
 - `message_mailbox`: memberships. Generic IMAP has exactly one row per
   message; Gmail has one per label, with the UID on the All Mail row.
   `(mailbox_id, uid)` is unique when `uid` is set.
-  `added_at` is when maild first stored the row, the age that erasing old
+  `added_at` is when maild first saw the message in that mailbox, the age that erasing old
   Trash and Junk uses ([organize.md](organize.md#erase-old-mail); plan
   0014).
 - `threads`, `thread_refs`: thread rows and every Message-ID seen, mapped to a

@@ -37,7 +37,9 @@ What maild knows and does not know:
   `syncDays` ([ADR-0026](0026-preferences-live-in-maild.md) keeps
   per-account settings there).
 - **Age is time in the mailbox as maild saw it.** `message_mailbox` gains
-  `added_at`, the time maild first stored that membership. A message is
+  `added_at`, the time maild first saw the message in that mailbox: set
+  when a row is made and whenever a row moves to another mailbox (a local
+  move updates the row in place), kept while it stays. A message is
   old when its `added_at` is at least the setting's days ago. Rows that
   exist when the column arrives get the migration's time, so nothing is
   erased until a full period after the upgrade. `INTERNALDATE` is never
@@ -46,6 +48,12 @@ What maild knows and does not know:
   has the `trash` or `junk` role for the account when it runs (the
   server's role, or the user's choice with Use This Mailbox For, P-109).
   It never touches a mailbox without one of those roles.
+- **The UIDs are bound to `UIDVALIDITY`.** The `expunge` op records the
+  mailbox's `UIDVALIDITY` when it is queued, and replays only when the
+  server still has it; otherwise it erases nothing and the mailbox
+  resyncs. maild replays ops before its first sync after a start, so a
+  server whose UIDs were reset could otherwise see a stale UID erase a
+  new message.
 - **The same erase as the menu's.** The reminder scheduler runs the pass
   at maild's start and then once an hour. For each writable account with
   a setting above 0, one transaction hides the old members of the

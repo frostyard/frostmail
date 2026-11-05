@@ -195,19 +195,25 @@ mentions an attachment has one.
   attachments and Forward as Attachment's `.eml` count) or at least one image in the body outside every
   `blockquote` (an image the user pasted; a quoted message's images do
   not count).
+- **Text of HTML** (`htmlText(html)`, pure, used for the body and the
+  signature alike): the text of the nodes in document order; each block
+  (`p`, `div`, `li`, `blockquote`, `h1`–`h6`, `pre`) and each `br` ends a
+  line, so `<p>I attached</p><p>the file.</p>` is "I attached" and "the
+  file." on two lines; inline elements (`b`, `i`, `a`, `span`, and the
+  rest) add nothing, so `<b>attach</b>ed` is "attached". Then every run of
+  white space, line ends included, becomes one space, and the ends are
+  trimmed.
 - **Own text** (`ownText(html, signatureHtml)` in
-  `app/src/features/compose/attachmentReminder.ts`, pure): the text of the
-  body's HTML without:
+  `app/src/features/compose/attachmentReminder.ts`, pure): `htmlText` of
+  the body's HTML without:
   - every `blockquote` and all it holds: a reply's or a forward's quote,
     and quotes the user made with the format bar's Quote;
   - the paragraph right before a top-level `blockquote` when its trimmed
     text ends with "wrote:" (a reply's attribution line, "On <date>,
     <name> wrote:") or is "Begin forwarded message:";
-  - the From identity's signature: the text of its `signatureHtml`
-    (`signatureText`, [settings-ui.md](settings-ui.md#signature-text)),
-    removed once, at its last place in the text, with runs of white space
-    made one space on both sides first. A signature that is not found
-    (the user changed it) removes nothing.
+  - the From identity's signature: `htmlText` of its `signatureHtml`,
+    removed once, at its last place in the text. A signature that is not
+    found (the user changed it) removes nothing.
 
   The subject is not checked: in a reply or a forward it is the other
   person's.

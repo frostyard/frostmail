@@ -87,10 +87,11 @@ Status (2026-11-05):
   [specs/settings-ui.md](../specs/settings-ui.md#accountform).
 - Card (a), maild: the migration (`message_mailbox.added_at`,
   `accounts.erase_trash_days`, `erase_junk_days`), the `Account` fields
-  and `account.update`, every membership insert sets `added_at`,
+  and `account.update`, `added_at` set on every insert and on every move
+  of a row to another mailbox,
   `mailctl account set --erase-trash-days --erase-junk-days`.
-- Card (b), maild: `Manager.EraseOld` and its run from the reminder
-  scheduler.
+- Card (b), maild: `Manager.EraseOld`, its run from the reminder
+  scheduler, and `expungeOp`'s `uidValidity` check.
 - Card (c), the app: `AccountForm`'s Mailbox Behaviors.
 - P-114 becomes Have, with the tests.
 - **Done when:** on the test Dovecot, with Erase deleted messages set to

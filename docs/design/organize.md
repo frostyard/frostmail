@@ -281,11 +281,15 @@ or Junk for a chosen time, when the user asks for it.
   7 or 30; any other value is `invalidParams`. `account.update` sets
   them, and `mailctl account set ID --erase-trash-days N
   --erase-junk-days N`.
-- **Age:** `message_mailbox.added_at`, the time maild first stored the
-  membership (a migration; rows that exist then get the migration's
-  time). Every insert of a membership sets it: sync, a local move or copy
-  (the `pending` row), a Gmail label. A row that changes, such as a
-  pending row that gets its UID, keeps its time.
+- **Age:** `message_mailbox.added_at`, the time maild first saw the
+  message in that mailbox (a migration; rows that exist then get the
+  migration's time). It is set to now whenever a row comes to name a
+  mailbox: an insert (sync, a local copy, a Gmail label) and every update
+  that changes `mailbox_id` to another mailbox (a local move,
+  `MoveMembership`, which updates the row in place; `SetMembership` when
+  the server's answer names another mailbox). An update that keeps the
+  mailbox, such as a pending row that gets its UID, keeps the time. So a
+  message that sat 8 days in the Inbox starts at 0 days in Trash.
 - **The pass** (`Manager.EraseOld`): the reminder scheduler
   (`internal/reminders`) runs it at maild's start and then once an hour.
   For each account that is writable and has a setting above 0, and for
@@ -295,6 +299,14 @@ or Junk for a chosen time, when the user asks for it.
   setting's days before now, oldest first, at most 1,000; hidden at
   once, one `expunge` op, `message.changed` and `mailbox.changed`. A
   mailbox with no such role is never looked at.
+- **The UIDs stay bound to their mailbox's `UIDVALIDITY`.** `expungeOp`
+  gains `uidValidity`, the mailbox's stored `UIDVALIDITY` when the op is
+  queued; `mailbox.erase` and the pass both set it. At replay, when the
+  `SELECT` answers another `UIDVALIDITY`, the op stores and expunges
+  nothing: it is dropped as failed, its messages are shown again, and the
+  next full pass syncs the mailbox anew (with new rows and new
+  `added_at`). A UID the server has given to a new message is never
+  erased. Ops queued before the field have none and replay as today.
 - **Not erased:** a read-only account's mail; a message whose move into
   the mailbox is still pending (no UID yet, as for `mailbox.erase`); mail
   outside the sync window, which is not in the store.
