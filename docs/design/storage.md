@@ -28,6 +28,9 @@ lexically. Highlights:
 - `message_mailbox`: memberships. Generic IMAP has exactly one row per
   message; Gmail has one per label, with the UID on the All Mail row.
   `(mailbox_id, uid)` is unique when `uid` is set.
+  `added_at` is when maild first stored the row, the age that erasing old
+  Trash and Junk uses ([organize.md](organize.md#erase-old-mail); plan
+  0014).
 - `threads`, `thread_refs`: thread rows and every Message-ID seen, mapped to a
   thread (JWZ containers, [sync.md](sync.md)).
 - `parts`: the MIME structure from BODYSTRUCTURE.
@@ -37,7 +40,7 @@ lexically. Highlights:
   `pending_op_messages` names the messages each action covers, whose flags
   sync leaves alone until the action is replayed or fails.
 - `settings`, `vips`, `smart_mailboxes`, `rules`, `message_reminders`
-  (M5): preferences and what is built on them
+  (M5), `snippets` (plan 0014, [send.md](send.md#snippets)): preferences and what is built on them
   ([organize.md](organize.md)). Views order by `messages.list_date`, the
   arrival date until a Remind Me reminder fires, unless `ViewQuery.sort`
   names another key (from, to, subject, size, flags, unread,

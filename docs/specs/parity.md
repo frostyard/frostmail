@@ -43,6 +43,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
 | P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
 | P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry). In lodge, the rail and the home-screen icon show the inboxes' unread count (`/health`'s `badge`): `TestHealthBadge` |
+| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Later | Plan 0014 Phase 4 ([#162](https://github.com/frostyard/frostmail/issues/162)) |
 
 ## The message list
 
@@ -105,14 +106,14 @@ tasks are not Mail's and are not listed; their parity is
 | --- | --- | --- | --- | --- |
 | P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` |
 | P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` |
-| P-503 | Several signatures per account, chosen in compose | | Later | One per identity covers the user |
+| P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Later | Plan 0014 Phase 3 ([#161](https://github.com/frostyard/frostmail/issues/161)) |
 | P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |
 | P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |
 | P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` |
 | P-507 | Message priority | | Later | Rarely used |
 | P-508 | Reply quoting the selected text | | Later | Needs the frame's selection |
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |
-| P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence |
+| P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |
 
 ## Search
 
@@ -121,7 +122,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-601 | Search all mailboxes or the current one | The search language and scope bar | Have | `TestViewSearchLanguage`, `TestParseTerms`, `SearchField.test.tsx` |
 | P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` |
 | P-603 | Search suggestions as tokens (People, Subjects) | | Later | The language covers the operators |
-| P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window |
+| P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window; on demand, with a line that says how far the search looked ([#163](https://github.com/frostyard/frostmail/issues/163)) |
 
 ## Rules
 
@@ -159,7 +160,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` |
 | P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |
 | P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |
-| P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts |
+| P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts; the backlog's [#164](https://github.com/frostyard/frostmail/issues/164) |
 | P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` |
 | P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |
 

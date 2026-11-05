@@ -270,6 +270,35 @@ changes at once, and the server follows when the op replays.
 - `pending_ops.kind` takes `mbcreate`, `mbrename` and `mbdelete`
   (migration 0012 rebuilds the table, keeping its rows).
 
+## Erase old mail
+
+[ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md),
+plan 0014 Phase 4, P-114: maild erases what has been in an account's Trash
+or Junk for a chosen time, when the user asks for it.
+
+- **Settings:** `accounts.erase_trash_days` and `erase_junk_days`
+  (`Account.eraseTrashDays`, `eraseJunkDays`): 0 (Never, the default), 1,
+  7 or 30; any other value is `invalidParams`. `account.update` sets
+  them, and `mailctl account set ID --erase-trash-days N
+  --erase-junk-days N`.
+- **Age:** `message_mailbox.added_at`, the time maild first stored the
+  membership (a migration; rows that exist then get the migration's
+  time). Every insert of a membership sets it: sync, a local move or copy
+  (the `pending` row), a Gmail label. A row that changes, such as a
+  pending row that gets its UID, keeps its time.
+- **The pass** (`Manager.EraseOld`): the reminder scheduler
+  (`internal/reminders`) runs it at maild's start and then once an hour.
+  For each account that is writable and has a setting above 0, and for
+  each of its mailboxes with the `trash` or `junk` role when the pass
+  runs (after `mailbox_roles`), one transaction as `mailbox.erase`'s:
+  the members `mailbox.erase` would take whose `added_at` is at least the
+  setting's days before now, oldest first, at most 1,000; hidden at
+  once, one `expunge` op, `message.changed` and `mailbox.changed`. A
+  mailbox with no such role is never looked at.
+- **Not erased:** a read-only account's mail; a message whose move into
+  the mailbox is still pending (no UID yet, as for `mailbox.erase`); mail
+  outside the sync window, which is not in the store.
+
 ## Mute and block
 
 [ADR-0028](../adr/0028-mute-and-block-in-maild-undo-in-the-app.md):

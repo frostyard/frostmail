@@ -17,7 +17,7 @@ window.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ ➤   New Message                        📎  Aa  🗑    – □ ✕ │  toolbar 52
+│ ➤   New Message                    ≣  📎  Aa  🗑    – □ ✕ │  toolbar 52
 ├──────────────────────────────────────────────────────────────┤
 │      To: (Ann Example) (bob@x.test) typed…                    │  30+
 │      Cc:                                                      │  30+
@@ -43,9 +43,10 @@ window.
     named "Send Later", enabled with Send, which opens the Send Later menu.
   - Then the title (toolbar title role, truncated) in the flexible middle,
     which is part of the drag region.
-  - Right: Attach Files (`Paperclip`), Show Format Bar (`Type`, pressed
-    while the format bar shows), Delete Draft (`Trash2`), then the window
-    controls exactly as in the main toolbar.
+  - Right: Insert Snippet (`ScrollText`, plan 0014 Phase 3; it opens the
+    Snippets menu), Attach Files (`Paperclip`), Show Format Bar (`Type`,
+    pressed while the format bar shows), Delete Draft (`Trash2`), then the
+    window controls exactly as in the main toolbar.
   - Buttons are the main toolbar's: 28 × 28, 16px icons in
     `--text-secondary`, hover `--selection-inactive`, a tooltip naming the
     action and its shortcut.
@@ -181,6 +182,72 @@ window.
 - maild builds the message with that time as its `Date` and sends it then,
   with the app closed or not; a time already past sends it now
   ([send.md](../design/send.md#outbox)).
+
+### Attachment reminder (plan 0014 Phase 2)
+
+Before a message goes, the window checks that a message whose own text
+mentions an attachment has one.
+
+- **When:** Send (the button or Ctrl+Enter), a Send Later choice, and the
+  Send Later time sheet's OK, before `draft.send`. Not Redirect, which has
+  no text of the user's, and not `mailctl` or agents.
+- **Attached** means at least one attachment chip (a forward's
+  attachments and Forward as Attachment's `.eml` count) or at least one image in the body outside every
+  `blockquote` (an image the user pasted; a quoted message's images do
+  not count).
+- **Own text** (`ownText(html, signatureHtml)` in
+  `app/src/features/compose/attachmentReminder.ts`, pure): the text of the
+  body's HTML without:
+  - every `blockquote` and all it holds: a reply's or a forward's quote,
+    and quotes the user made with the format bar's Quote;
+  - the paragraph right before a top-level `blockquote` when its trimmed
+    text ends with "wrote:" (a reply's attribution line, "On <date>,
+    <name> wrote:") or is "Begin forwarded message:";
+  - the From identity's signature: the text of its `signatureHtml`
+    (`signatureText`, [settings-ui.md](settings-ui.md#signature-text)),
+    removed once, at its last place in the text, with runs of white space
+    made one space on both sides first. A signature that is not found
+    (the user changed it) removes nothing.
+
+  The subject is not checked: in a reply or a forward it is the other
+  person's.
+- **Mentions** (`mentionsAttachment(text)`, pure): the own text holds,
+  without regard to case, one of these words as a whole word: `attach`,
+  `attaches`, `attached`, `attaching`, `attachment`, `attachments`,
+  `enclosed`, `enclosure`, `enclosures`. A whole word has no letter or
+  digit (Unicode) right before or after it, so "unattached",
+  "detached" and "attachés" do not match. The list is English, as the
+  app is.
+- **The dialog** (the time sheet's frame, as the unsubscribe dialog in
+  [ui.md](ui.md#reader)): titled "Send without an attachment?", the text
+  "Your message mentions an attachment, but nothing is attached.", and
+  three buttons: Cancel (Escape too; nothing is sent and the window stays),
+  Attach Files… (closes the dialog and opens Attach Files; nothing is
+  sent), and Send Anyway, which sends as the user first chose (now, or
+  the Send Later time). Attach Files… has focus.
+- **Skipping it:** Send Anyway sends the message this once; a draft that
+  comes back (Undo, Edit in the Outbox) is checked again at its next send.
+  There is no setting to turn the check off.
+
+### Snippets (plan 0014 Phase 3)
+
+Named pieces of text kept by maild
+([send.md](../design/send.md#snippets)), edited in Settings
+([settings-ui.md](settings-ui.md#snippets-pane)).
+
+- The window lists them with `snippet.list` when it opens and again on
+  `snippet.changed`.
+- **The Snippets menu** (`menu`, as the Send Later menu), opened by
+  Insert Snippet: one item per snippet, its name, in maild's order; a
+  separator; and "Edit Snippets…", which opens the settings window on its
+  Snippets pane (`openSettings("snippets")`). With no snippets, a disabled
+  "No Snippets" item comes first.
+- Choosing a snippet inserts its HTML at the editor's selection,
+  replacing selected text, through the editor's own schema
+  (`composeExtensions`), so a snippet holds only what a typed body can
+  hold. Focus returns to the editor, after the inserted text. The draft
+  saves as after any edit.
+- There is no shortcut; Insert Snippet is in the toolbar's tab order.
 
 ### Attachments
 

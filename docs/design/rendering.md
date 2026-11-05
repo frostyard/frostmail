@@ -90,6 +90,49 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
 - **Parts cache** files are written to a temp file in the same directory and
   renamed. In M2 nothing evicts them; M4 adds a size cap with LRU eviction.
 
+## Sender check
+
+[ADR-0050](../adr/0050-warn-when-the-providers-sender-checks-fail.md):
+the reader warns when the receiving provider's checks of the sender
+failed. `message.get` returns `Message.senderCheck`, which a small
+package (`internal/authres`) works out from the stored first
+`Authentication-Results` header (`messages.auth_results`). It reads no
+other header, verifies nothing, and makes no request.
+
+- **Parsing** (RFC 8601): the value is unfolded and its comments (text in
+  parentheses, nested, outside quoted strings) are removed. It splits on
+  `;` outside quoted strings; the first piece is the `authserv-id` and is
+  not checked. Each other piece starts with
+  `method=result`, where the method may carry a `/version`; method and
+  result compare without case, and the rest of the piece (`header.d=`,
+  `smtp.mailfrom=`, and so on) is not read. A piece that does not parse
+  is skipped. `dkim` may appear many times (one per signature); the
+  first `dmarc` counts and later ones are skipped.
+- **The verdict**, in this order:
+  1. a `dmarc` result `pass` gives `pass`;
+  2. a `dmarc` result `fail` gives `fail`;
+  3. any other `dmarc` result (`none`, `temperror`, `permerror`, and
+     the rest) gives none, whatever DKIM says;
+  4. with no `dmarc` result: any `dkim=pass` gives `pass`; else any
+     `dkim=fail` gives `fail`;
+  5. anything else, an empty header included, gives none (the field is
+     absent).
+- `spf`, `arc`, `iprev`, `auth` and other methods never decide.
+  `softfail`, `neutral`, `policy`, `temperror` and `permerror` are never
+  a fail.
+- Examples: `mx.google.com; dkim=pass header.i=@a.example; spf=pass;
+  dmarc=pass (p=REJECT) header.from=a.example` is a pass;
+  `mx.example; dkim=fail; spf=pass; dmarc=fail header.from=bank.example`
+  a fail; `mx.example; dkim=fail (body hash did not verify); dkim=pass
+  header.d=list.example` a pass; `mx.example; dkim=fail` a fail;
+  `mx.example; dkim=fail; dmarc=none` none; `mx.example; spf=fail` none;
+  `mx.example; dkim=passed` none (not a known result).
+- ADR-0027's one-click rule keeps its own test (`dkim=pass` anywhere in
+  the header); this package may serve it later without changing what it
+  accepts.
+- The reader's banner: [specs/ui.md](../specs/ui.md#reader) (Sender
+  check banner).
+
 ## Behind lodge
 
 In lodge ([ADR-0041](../adr/0041-maild-runs-as-a-lodge-app.md)), the
@@ -114,7 +157,8 @@ reader's page is served from lodge's content node rather than put in a
 - `render` needs the body: like `message.body`, it fails with
   `unavailable` while the account is offline and neither the display copy
   nor the whole message was ever fetched.
-- Tests: golden files for the sanitizer (`internal/render/testdata/*.html`
+- Tests: a table test of `internal/authres` over every example and
+  rule of [Sender check](#sender-check); golden files for the sanitizer (`internal/render/testdata/*.html`
   and `*.golden.html`); a fuzz test asserting that output reparses to
   allowlisted elements and attributes only; fetcher tests against
   `httptest` servers through an injected resolver, including refused private
