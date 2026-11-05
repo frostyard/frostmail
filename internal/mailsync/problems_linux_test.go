@@ -4,6 +4,7 @@ package mailsync_test
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,28 +18,73 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-// refuseInserts makes the store refuse every new message in a mailbox, as
-// a broken database would; allowInserts takes that back.
-func refuseInserts(t *testing.T, h *harness) {
+// installRefusal adds, once, a trigger that makes the store refuse every new
+// message in a mailbox, as a broken database would, while the row in
+// test_refuse says so; refuseInserts and allowInserts flip that row.
+//
+// The switch is a row, not a CREATE and DROP of the trigger: SQLite checks a
+// CREATE against the schema that the pooled connection cached, and BEGIN
+// IMMEDIATE does not refresh it, so a trigger dropped on one connection can
+// still "already exist" on another.
+func installRefusal(t *testing.T, db *store.DB) {
 	t.Helper()
-	execStore(t, h, `CREATE TRIGGER test_refuse BEFORE INSERT ON message_mailbox
-		BEGIN SELECT RAISE(ABORT, 'test: the store refuses the insert'); END`)
+	err := db.Tx(t.Context(), func(tx *store.Tx) error {
+		if _, err := tx.ExecContext(t.Context(), `CREATE TABLE test_refuse (refuse INTEGER NOT NULL)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(t.Context(), `INSERT INTO test_refuse (refuse) VALUES (0)`); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(t.Context(), `CREATE TRIGGER test_refuse_switch BEFORE INSERT ON message_mailbox WHEN (SELECT refuse FROM test_refuse) BEGIN SELECT RAISE(ABORT, 'test: the store refuses the insert'); END`)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
-func allowInserts(t *testing.T, h *harness) {
+func refuseInserts(t *testing.T, db *store.DB) {
 	t.Helper()
-	execStore(t, h, `DROP TRIGGER test_refuse`)
+	execStore(t, db, `UPDATE test_refuse SET refuse = 1`)
 }
 
-func execStore(t *testing.T, h *harness, sql string) {
+func allowInserts(t *testing.T, db *store.DB) {
 	t.Helper()
-	err := h.srv.DB.Tx(t.Context(), func(tx *store.Tx) error {
+	execStore(t, db, `UPDATE test_refuse SET refuse = 0`)
+}
+
+func execStore(t *testing.T, db *store.DB, sql string) {
+	t.Helper()
+	err := db.Tx(t.Context(), func(tx *store.Tx) error {
 		_, err := tx.ExecContext(t.Context(), sql)
 		return err
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+// The refusal switch works from any connection: two handles are two
+// connections with separate schema caches, as the store's pool can give.
+func TestRefusalSwitchAcrossConnections(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "frostmail.db")
+	a, err := store.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = a.Close() })
+	b, err := store.Open(t.Context(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = b.Close() })
+
+	installRefusal(t, a)
+	refuseInserts(t, a)
+	allowInserts(t, b)
+	refuseInserts(t, a)
+	allowInserts(t, b)
+	refuseInserts(t, a)
 }
 
 // A store write that fails to apply the server's state records
@@ -55,7 +101,8 @@ func TestApplyFailureRecordsOncePerStreak(t *testing.T) {
 	h.waitPhase(api.SyncPhaseUnauthorized)
 	j.None(t)
 
-	refuseInserts(t, h)
+	installRefusal(t, h.srv.DB)
+	refuseInserts(t, h.srv.DB)
 	if err := h.c.Account().SetPassword(t.Context(), &api.AccountSetPasswordParams{ID: h.acct, Password: imapxtest.Password}); err != nil {
 		t.Fatal(err)
 	}
@@ -73,12 +120,12 @@ func TestApplyFailureRecordsOncePerStreak(t *testing.T) {
 	j.None(t)
 
 	// A healthy pass ends the streak.
-	allowInserts(t, h)
+	allowInserts(t, h.srv.DB)
 	h.waitPhase(api.SyncPhaseIdle)
 	j.None(t)
 
 	// A new failure records again.
-	refuseInserts(t, h)
+	refuseInserts(t, h.srv.DB)
 	msg := "From: a@mailtest.test\r\nSubject: late\r\nMessage-ID: <late@mailtest.test>\r\n\r\nlate\r\n"
 	if _, err := mem.User.Append("INBOX", bytes.NewReader([]byte(msg)), &imap.AppendOptions{}); err != nil {
 		t.Fatal(err)
