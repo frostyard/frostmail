@@ -150,8 +150,12 @@ func (a *actor) phase(p api.SyncPhase, errText string) {
 // run connects and syncs until ctx ends, retrying failures with backoff.
 // A rejected login waits for a restart (a new password) or a sync request;
 // a mailbox the server cannot open now (imapx.ErrUnavailable) is retried.
+//
+// A store write that fails to apply the server's state records
+// CodeApplyFailed once in each streak of failed sessions (recordApply).
 func (a *actor) run(ctx context.Context) {
 	backoff := a.m.cfg.MinBackoff
+	applyReported := false
 	for {
 		healthy, err := a.connected(ctx)
 		if ctx.Err() != nil {
@@ -160,6 +164,7 @@ func (a *actor) run(ctx context.Context) {
 		if healthy {
 			backoff = a.m.cfg.MinBackoff
 		}
+		applyReported = a.recordApply(err, healthy, applyReported)
 		a.m.log.Warn("sync stopped", "account", a.acct.ID, "err", err)
 		var retry <-chan time.Time
 		switch {
@@ -395,7 +400,7 @@ func (a *actor) fullPass(ctx context.Context, cmd *imapx.Session) ([]store.Mailb
 		return tx.MarkGmailLabels(ctx, a.acct.ID)
 	})
 	if err != nil {
-		return nil, err
+		return nil, applied(ctx, err)
 	}
 	if a.gmail {
 		return mailboxes, a.gmailPass(ctx, cmd)

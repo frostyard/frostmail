@@ -1089,6 +1089,7 @@ dependencies = [
 name = "frostmail"
 version = "0.0.0"
 dependencies = [
+ "frostyard-problems",
  "futures-util",
  "rustls",
  "serde",
@@ -1104,6 +1105,11 @@ dependencies = [
  "windows-sys 0.61.2",
  "zbus",
 ]
+
+[[package]]
+name = "frostyard-problems"
+version = "0.1.0"
+source = "git+https://github.com/frostyard/std?tag=v0.5.0#f3858d08d1e01197108816c0b684f76f02c6bacb"
 
 [[package]]
 name = "futures-channel"

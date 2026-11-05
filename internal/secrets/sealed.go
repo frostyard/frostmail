@@ -26,6 +26,19 @@ const (
 	keySize     = 32 // AES-256
 )
 
+// ErrUnseal matches every error of a store that cannot be unsealed: with
+// FROSTMAIL_SECRETS=sealed, a key that is missing, of the wrong size or that
+// does not open the file, and any file whose bytes do not unseal. The error's
+// own text says which.
+var ErrUnseal = errors.New("secrets: unseal")
+
+// unsealError marks err with ErrUnseal and keeps its text.
+type unsealError struct{ err error }
+
+func (e unsealError) Error() string        { return e.err.Error() }
+func (e unsealError) Unwrap() error        { return e.err }
+func (e unsealError) Is(target error) bool { return target == ErrUnseal }
+
 // NewSealedFile returns a File store at path whose bytes are sealed with
 // AES-256-GCM under key, which must be 32 bytes (ADR-0044). A file is the
 // magic "FMSEAL01", a fresh random 12-byte nonce, then the ciphertext with

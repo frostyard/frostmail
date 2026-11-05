@@ -97,6 +97,14 @@ installed it with the README's commands (plan 0013, Phase 10 check
   `third_party/go-imap` is a patched fork (Gmail X-GM-EXT-1); see its
   `FROSTMAIL-PATCHES.md` and [ADR-0004](docs/adr/0004-go-imap-fork.md).
 - `internal/mimex`: message parsing and normalization helpers.
+- Problem records ([ADR-0049](docs/adr/0049-record-problems-in-the-local-journal.md)):
+  `internal/problemrec` makes the recorders of maild and mailctl (std's
+  `problems`; the version rule); `cmd/maild` records `store.migrate_failed`,
+  `secrets.unseal_failed` and crashes (`CrashOutput`), `internal/mailsync`
+  `sync.apply_failed` (`apply.go`), `internal/render` `mime.parse_failed`;
+  `app/src-tauri/src/problems.rs` is the shell's (`bridge.socket_lost` in
+  `bridge.rs`). Tests read records from a test socket
+  (`internal/problemstest`; `problems::testing` in Rust).
 - `internal/compose`: outgoing mail (reply rules, the message builder).
   `internal/smtpx`: the only package that imports go-smtp.
 - `app/`: Tauri v2 + React + TypeScript. `app/src-tauri/src/bridge.rs` only
@@ -113,7 +121,8 @@ installed it with the README's commands (plan 0013, Phase 10 check
   a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
   CI builds it in `.github/workflows/flatpak.yml`; on a `v*` tag,
   `stamp-version.sh` first stamps the version (without `-rc.N`) into the
-  manifest and the metainfo, which keep `flatpak` and 0.0.0 in git. `install.sh` is the
+  manifest, the metainfo and `app/src-tauri/tauri.conf.json` (the shell's
+  version, ADR-0049), which keep `flatpak` and 0.0.0 in git. `install.sh` is the
   wrapper for the development bundle, with a host maild.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
@@ -158,14 +167,19 @@ installed it with the README's commands (plan 0013, Phase 10 check
   `make bump CANDIDATE=vX.Y.Z-rc.N` runs `make verify` on the candidate's commit, tags
   that commit `vX.Y.Z` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
-  `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.3.0 (indirect, from clix).
+  `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.4.0 (direct:
+  `problems`; clix needs it too).
+- Internal Rust crate (`app/src-tauri/Cargo.toml`): `frostyard-problems`, a cargo git
+  dependency on std's tag `v0.5.0` (the crate in std's `rust/`, not on crates.io);
+  `Cargo.lock` and `packaging/flatpak/cargo-sources.json` pin its commit.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
 - The generated Flatpak sources (`packaging/flatpak/go-sources.json` and
-  `node-sources.json`, from `make flatpak-sources`) mirror the Go and UI versions above
-  and change with every bump. Run `make flatpak-sources` after a change to `go.mod` or
-  `go.sum`. `mise.toml`, the other `packaging/` files, the workflows, `scripts/`,
-  `cargo-sources.json` and `app/src-tauri/Cargo.toml` pin no frostyard or bketelsen module.
+  `node-sources.json`, from `make flatpak-sources`) mirror the Go and UI versions above,
+  and `cargo-sources.json` the Rust crate's tag; they change with every bump. Run
+  `make flatpak-sources` after a change to `go.mod`, `go.sum` or `Cargo.lock`.
+  `mise.toml`, the other `packaging/` files, the workflows and `scripts/` pin no
+  frostyard or bketelsen module.
 - Users: lodge hosts maild as its `mail` app, and Porter calls `/mcp/mail`. Other users:
   not stated.
 

@@ -102,6 +102,12 @@ may open, and runs as the system user `frostmail`.
   maild keeps the ordered ID snapshot and sends deltas, so the virtualized
   list never pages through SQL.
 - **One IMAP door.** Only `internal/imapx` imports go-imap.
+- **Problems go to the journal** ([ADR-0049](../adr/0049-record-problems-in-the-local-journal.md)):
+  maild, mailctl and the shell record panics and a few coded errors with
+  frostyard/std, under `org.frostyard.Frostmail`. maild's recorder comes from
+  `internal/problemrec` and reaches mailsync (`Config.Problems`) and the
+  renderer (`Renderer.Problems`); the shell's is `src/problems.rs`. A code
+  names the failure; the error text stays in the record's local `MESSAGE`.
 
 ## Configuration
 

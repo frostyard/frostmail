@@ -199,7 +199,7 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
 	})
-	return created, err
+	return created, applied(ctx, err)
 }
 
 // remove deletes local copies of UIDs the server no longer has.
@@ -207,7 +207,7 @@ func (a *actor) remove(ctx context.Context, mb store.Mailbox, uids []uint32) err
 	if len(uids) == 0 {
 		return nil
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		threads, err := tx.ThreadsOfUIDs(ctx, mb.ID, uids)
 		if err != nil {
 			return err
@@ -225,7 +225,7 @@ func (a *actor) remove(ctx context.Context, mb store.Mailbox, uids []uint32) err
 			}
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
-	})
+	}))
 }
 
 // applyFlags stores flags the server reports and emits the messages whose
@@ -239,7 +239,7 @@ func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.Fl
 	if providers.ForKind(a.acct.Kind).Quirks.NoKeywords {
 		update = (*store.Tx).UpdateSystemFlags
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		changed, err := update(tx, ctx, mb.ID, ups)
 		if err != nil || len(changed) == 0 {
 			return err
@@ -255,5 +255,5 @@ func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.Fl
 			return err
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
-	})
+	}))
 }

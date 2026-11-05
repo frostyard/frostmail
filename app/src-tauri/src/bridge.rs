@@ -6,10 +6,12 @@
 //! (src/rpc/transport.ts), so the bridge cannot drift from the API.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use frostyard_problems::Recorder;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -21,7 +23,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-use crate::{paths, remote};
+use crate::{paths, problems, remote};
 
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -131,6 +133,7 @@ pub struct Connected {
 pub async fn maild_connect(
     window: Window,
     bridge: State<'_, Bridge>,
+    rec: State<'_, Recorder>,
     on_message: Channel<BridgeMessage>,
 ) -> Result<Connected, String> {
     let (config, generation) = bridge.choice().await?;
@@ -146,25 +149,81 @@ pub async fn maild_connect(
         .await
         .map_err(|e| format!("connect to maild at {}: {e}", path.display()))?;
     let stop = bridge.keep(window.label(), Writer::Stream(write), generation).await?;
+    let rec = rec.inner().clone();
     tauri::async_runtime::spawn(async move {
-        let mut lines = BufReader::new(read).lines();
-        let error = loop {
-            tokio::select! {
-                next = lines.next_line() => match next {
-                    Ok(Some(line)) => {
-                        if on_message.send(BridgeMessage::Line { line }).is_err() {
-                            break "the webview stopped listening".to_string();
-                        }
-                    }
-                    Ok(None) => break "maild closed the connection".to_string(),
-                    Err(e) => break format!("read from maild: {e}"),
-                },
-                () = stop.notified() => break "the connection was replaced".to_string(),
-            }
-        };
-        let _ = on_message.send(BridgeMessage::Closed { error });
+        let end = read_lines(read, &stop, |line| on_message.send(BridgeMessage::Line { line }).is_ok()).await;
+        record_end(&rec, &end);
+        let _ = on_message.send(BridgeMessage::Closed { error: end.to_string() });
     });
     Ok(Connected { remote: false })
+}
+
+/// Why the read loop of maild's local socket ended. Its text is what the
+/// webview's Closed says.
+#[derive(Debug)]
+enum End {
+    /// The window connected again, closed, or the app switched maild.
+    Replaced,
+    /// The webview no longer takes lines.
+    WebviewGone,
+    /// maild closed the socket.
+    MaildClosed,
+    /// A read from the socket failed.
+    ReadError(std::io::Error),
+}
+
+impl fmt::Display for End {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            End::Replaced => f.write_str("the connection was replaced"),
+            End::WebviewGone => f.write_str("the webview stopped listening"),
+            End::MaildClosed => f.write_str("maild closed the connection"),
+            End::ReadError(e) => write!(f, "read from maild: {e}"),
+        }
+    }
+}
+
+impl End {
+    /// Whether the shell lost maild's socket under a window, which records
+    /// [`problems::SOCKET_LOST`]: maild closed it, or a read failed. The
+    /// app's own ends (a replaced connection, a webview that went away)
+    /// are no problem. Lodge's WebSocket never comes here: its losses are
+    /// the network's.
+    fn socket_lost(&self) -> bool {
+        matches!(self, End::MaildClosed | End::ReadError(_))
+    }
+}
+
+/// Records [`problems::SOCKET_LOST`] when `end` lost maild's socket, with
+/// the end's text as the record's message.
+fn record_end(rec: &Recorder, end: &End) {
+    if end.socket_lost() {
+        rec.error(problems::SOCKET_LOST, Some(end));
+    }
+}
+
+/// Passes each line maild's local socket sends to `deliver`, until the
+/// socket ends, `deliver` returns false (the webview stopped listening), or
+/// `stop` is notified. `stop` is polled first: a connection that was
+/// replaced ends as replaced even when its socket is at its end too, so it
+/// records no problem.
+async fn read_lines(read: impl AsyncRead + Unpin, stop: &Notify, mut deliver: impl FnMut(String) -> bool) -> End {
+    let mut lines = BufReader::new(read).lines();
+    loop {
+        tokio::select! {
+            biased;
+            () = stop.notified() => return End::Replaced,
+            next = lines.next_line() => match next {
+                Ok(Some(line)) => {
+                    if !deliver(line) {
+                        return End::WebviewGone;
+                    }
+                }
+                Ok(None) => return End::MaildClosed,
+                Err(e) => return End::ReadError(e),
+            },
+        }
+    }
 }
 
 /// Open lodge's /app/mail/api from this machine's tailnet node, with
@@ -305,7 +364,109 @@ fn start_maild() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Bridge, Writer};
+    use super::{Bridge, End, Writer};
+
+    #[test]
+    fn only_a_lost_socket_is_a_problem() {
+        assert!(End::MaildClosed.socket_lost());
+        assert!(End::ReadError(std::io::Error::other("reset")).socket_lost());
+        assert!(!End::Replaced.socket_lost());
+        assert!(!End::WebviewGone.socket_lost());
+        // The webview's Closed keeps its words.
+        assert_eq!(End::MaildClosed.to_string(), "maild closed the connection");
+        assert_eq!(End::Replaced.to_string(), "the connection was replaced");
+        assert_eq!(End::WebviewGone.to_string(), "the webview stopped listening");
+        assert_eq!(End::ReadError(std::io::Error::other("reset")).to_string(), "read from maild: reset");
+    }
+
+    /// maild closing its socket under a window records bridge.socket_lost;
+    /// the window's own ends record nothing.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_socket_maild_closes_records_socket_lost() {
+        use super::{read_lines, record_end};
+        use crate::problems::{self, testing::Journal};
+        use tokio::io::AsyncWriteExt;
+        use tokio::net::UnixStream;
+        use tokio::sync::Notify;
+
+        tauri::async_runtime::block_on(async {
+            let journal = Journal::new();
+            let rec = problems::recorder("1.2.3").with_socket(&journal.path);
+            let stop = Notify::new();
+
+            // maild sends a line, then closes the socket.
+            let (shell, mut maild) = UnixStream::pair().unwrap();
+            maild.write_all(b"{\"jsonrpc\":\"2.0\"}\n").await.unwrap();
+            drop(maild);
+            let mut lines = Vec::new();
+            let end = read_lines(shell, &stop, |line| {
+                lines.push(line);
+                true
+            })
+            .await;
+            assert!(matches!(end, End::MaildClosed), "{end:?}");
+            assert_eq!(lines, ["{\"jsonrpc\":\"2.0\"}"]);
+            record_end(&rec, &end);
+            let records = journal.records();
+            assert_eq!(records.len(), 1, "records after maild closed the socket");
+            let (fields, detail) = &records[0];
+            assert_eq!(fields["MESSAGE"], "maild closed the connection");
+            assert_eq!(
+                (detail.app_id.as_str(), detail.app_version.as_str(), detail.runtime.as_str()),
+                ("org.frostyard.Frostmail", "1.2.3", "rust")
+            );
+            assert_eq!((detail.component.as_str(), detail.class.as_str()), ("shell", "error"));
+            assert_eq!(detail.code.as_deref(), Some(problems::SOCKET_LOST));
+
+            // The connection is replaced while maild is still there.
+            let (shell, _maild) = UnixStream::pair().unwrap();
+            stop.notify_one();
+            let end = read_lines(shell, &stop, |_| true).await;
+            assert!(matches!(end, End::Replaced), "{end:?}");
+            record_end(&rec, &end);
+
+            // The webview stops listening.
+            let (shell, mut maild) = UnixStream::pair().unwrap();
+            maild.write_all(b"{}\n").await.unwrap();
+            let end = read_lines(shell, &stop, |_| false).await;
+            assert!(matches!(end, End::WebviewGone), "{end:?}");
+            record_end(&rec, &end);
+            assert!(journal.records().is_empty(), "a window's own end recorded a problem");
+
+            // An unstamped build records nothing, even for a lost socket.
+            problems::recorder("0.0.0").with_socket(&journal.path).error(problems::SOCKET_LOST, None);
+            record_end(&problems::recorder("0.0.0").with_socket(&journal.path), &End::MaildClosed);
+            assert!(journal.records().is_empty(), "an unstamped build recorded a problem");
+        });
+    }
+
+    /// A connection that is replaced while maild's end is closed too ends
+    /// as replaced, and records nothing: the stop wins over the socket's end.
+    /// Without a biased select, either branch could win; 50 rounds catch it.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_replaced_connection_at_eof_records_nothing() {
+        use super::{read_lines, record_end};
+        use crate::problems::{self, testing::Journal};
+        use tokio::net::UnixStream;
+        use tokio::sync::Notify;
+
+        tauri::async_runtime::block_on(async {
+            let journal = Journal::new();
+            let rec = problems::recorder("1.2.3").with_socket(&journal.path);
+            for round in 0..50 {
+                let (shell, maild) = UnixStream::pair().unwrap();
+                drop(maild);
+                let stop = Notify::new();
+                stop.notify_one();
+                let end = read_lines(shell, &stop, |_| true).await;
+                assert!(matches!(end, End::Replaced), "round {round}: {end:?}");
+                record_end(&rec, &end);
+            }
+            assert!(journal.records().is_empty(), "a replaced connection recorded a problem");
+        });
+    }
 
     fn writer() -> Writer {
         Writer::Stream(Box::new(tokio::io::sink()))

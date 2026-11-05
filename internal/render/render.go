@@ -20,6 +20,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/frostyard/std/problems"
+
 	"github.com/frostyard/frostmail/internal/mimex"
 )
 
@@ -89,6 +91,24 @@ type PartFile struct {
 type Renderer struct {
 	Parts   *PartsCache
 	Fetcher *Fetcher
+	// Problems, when set, records CodeParseFailed in the local journal each
+	// time a stored message cannot be parsed for display (ADR-0049). nil
+	// records nothing.
+	Problems *problems.Recorder
+}
+
+// CodeParseFailed is the problem code of a stored message that mimex cannot
+// parse for display (mimex.ErrParse). The record's MESSAGE is the error's
+// text; the code names no mail.
+const CodeParseFailed = "mime.parse_failed"
+
+// parseFailed records CodeParseFailed when err is a parse error of the
+// message, and returns err as it is.
+func (r *Renderer) parseFailed(err error) error {
+	if errors.Is(err, mimex.ErrParse) {
+		r.Problems.Error(CodeParseFailed, err)
+	}
+	return err
 }
 
 var dataImage = regexp.MustCompile(`^data:image/(png|gif|jpeg|webp);base64,[A-Za-z0-9+/=\s]+$`)
@@ -98,11 +118,11 @@ var dataImage = regexp.MustCompile(`^data:image/(png|gif|jpeg|webp);base64,[A-Za
 func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remote bool) (Rendering, error) {
 	text, _, err := mimex.BodyText(raw)
 	if err != nil {
-		return Rendering{}, err
+		return Rendering{}, r.parseFailed(err)
 	}
 	src, err := mimex.BodyHTML(raw)
 	if err != nil {
-		return Rendering{}, err
+		return Rendering{}, r.parseFailed(err)
 	}
 	out := Rendering{Text: text}
 	if strings.TrimSpace(src) == "" {
@@ -110,7 +130,7 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	}
 	inline, err := inlineParts(raw)
 	if err != nil {
-		return Rendering{}, err
+		return Rendering{}, r.parseFailed(err)
 	}
 	nonce, err := randomHex(16)
 	if err != nil {
@@ -277,7 +297,7 @@ func (r *Renderer) Part(messageID int64, raw []byte, path string) (PartFile, err
 		return errStop
 	})
 	if err != nil && !errors.Is(err, errStop) {
-		return PartFile{}, err
+		return PartFile{}, r.parseFailed(err)
 	}
 	if !found {
 		return PartFile{}, fmt.Errorf("%w: %q", ErrNoPart, path)

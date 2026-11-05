@@ -34,7 +34,18 @@ var (
 	ErrNotFound = errors.New("store: not found")
 	// ErrConflict means a uniqueness rule rejected the write.
 	ErrConflict = errors.New("store: conflict")
+	// ErrMigrate matches every error of Open's migrations: the schema
+	// could not be brought up to this maild's, or the database is newer.
+	ErrMigrate = errors.New("store: migrate")
 )
+
+// migrateError marks an error of the migrations with ErrMigrate and keeps
+// its text.
+type migrateError struct{ err error }
+
+func (e migrateError) Error() string        { return e.err.Error() }
+func (e migrateError) Unwrap() error        { return e.err }
+func (e migrateError) Is(target error) bool { return target == ErrMigrate }
 
 // TimeFormat is how times are stored: UTC, fixed width, lexically sortable.
 const TimeFormat = "2006-01-02T15:04:05.000Z"
@@ -68,7 +79,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	d := &DB{db: sqlDB, Now: time.Now}
 	if err := d.migrate(ctx); err != nil {
 		_ = sqlDB.Close()
-		return nil, err
+		return nil, migrateError{err}
 	}
 	return d, nil
 }

@@ -13,6 +13,7 @@ mod commands;
 mod mode;
 mod paths;
 mod portal;
+mod problems;
 mod protocol;
 mod remote;
 
@@ -20,6 +21,12 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 fn main() {
     apply_webkit_workarounds();
+    let context = tauri::generate_context!();
+    // Problem records (docs/adr/0049-record-problems-in-the-local-journal.md),
+    // as early as the version is known. The hook is installed here, in
+    // main.rs, so that panic locations are those of this crate.
+    let rec = problems::recorder(&context.package_info().version.to_string());
+    rec.install_panic_hook(env!("CARGO_MANIFEST_DIR"));
     let args: Vec<String> = std::env::args().collect();
     tauri::Builder::default()
         // First, so a second launch hands over before anything else starts.
@@ -27,6 +34,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(bridge::Bridge::default())
+        .manage(rec)
         .manage(announce::Notifier::default())
         .manage(commands::Launch(std::sync::Mutex::new(commands::open_request(&args))))
         .register_asynchronous_uri_scheme_protocol("mailpart", protocol::mailpart)
@@ -72,7 +80,7 @@ fn main() {
             show_soon(main);
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("frostmail failed to start");
 }
 

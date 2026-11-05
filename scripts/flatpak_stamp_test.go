@@ -16,7 +16,7 @@ import (
 
 // The tests of the release version stamp (packaging/flatpak/stamp-version.sh,
 // plan 0013, Phase 8) are two: a run of the script on copies of the committed
-// manifest and metainfo, and a dry run of the flatpak job's step that calls it,
+// manifest, metainfo and app/src-tauri/tauri.conf.json, and a dry run of the flatpak job's step that calls it,
 // parsed out of .github/workflows/flatpak.yml. So they check what a v* tag
 // writes into the Flatpak, without a registry and without a Flatpak build. A
 // candidate vX.Y.Z-rc.N is the build that Promote releases as vX.Y.Z, so the
@@ -25,14 +25,23 @@ import (
 const (
 	stampManifest = "org.frostyard.Frostmail.json"
 	stampMetainfo = "org.frostyard.Frostmail.metainfo.xml"
+	// stampTauri is the shell's Tauri configuration, whose version the
+	// shell's problem records carry (ADR-0049).
+	stampTauri = "tauri.conf.json"
+	// tauriUnstamped is the version line the committed tauri.conf.json holds.
+	tauriUnstamped = `"version": "0.0.0"`
 	// stampName is the flatpak job's step that stamps the version.
 	stampName = "Stamp the release version"
 	// stampCommit is the commit every case stamps, as github's GITHUB_SHA.
 	stampCommit = "0123456789abcdef0123456789abcdef01234567"
 )
 
-// stampInputs copies the Flatpak's manifest and metainfo into a temporary
-// directory, so that stamp-version.sh edits the copies and not the tree.
+// tauriSrc is the committed tauri.conf.json's directory.
+var tauriSrc = filepath.Join("..", "app", "src-tauri")
+
+// stampInputs copies the Flatpak's manifest and metainfo, and the shell's
+// tauri.conf.json, into a temporary directory, so that stamp-version.sh
+// edits the copies and not the tree.
 func stampInputs(t *testing.T) (dir, script string) {
 	t.Helper()
 	src := filepath.Join("..", "packaging", "flatpak")
@@ -41,13 +50,15 @@ func stampInputs(t *testing.T) (dir, script string) {
 	for _, name := range []string{stampManifest, stampMetainfo} {
 		writeFile(t, dir, name, readFile(t, src, name))
 	}
+	writeFile(t, dir, stampTauri, readFile(t, tauriSrc, stampTauri))
 	return dir, script
 }
 
-// stampVersion runs stamp-version.sh on dir.
+// stampVersion runs stamp-version.sh on dir, with dir's tauri.conf.json.
 func stampVersion(t *testing.T, dir, script, version, commit string) (string, error) {
 	t.Helper()
-	out, err := exec.CommandContext(t.Context(), "sh", script, version, commit, dir).CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "sh", script, version, commit, dir,
+		filepath.Join(dir, stampTauri)).CombinedOutput()
 	return string(out), err
 }
 
@@ -132,6 +143,12 @@ func TestFlatpakStampWritesTheTagIntoTheFlatpak(t *testing.T) {
 	if !strings.Contains(meta, `<release version="0.0.0"`) {
 		t.Error("the metainfo lost its 0.0.0 release")
 	}
+
+	tauri := readString(t, filepath.Join(dir, stampTauri))
+	want1 := strings.Replace(readFile(t, tauriSrc, stampTauri), tauriUnstamped, `"version": "1.2.3"`, 1)
+	if tauri != want1 {
+		t.Errorf("tauri.conf.json = %s\nwant only its version stamped:\n%s", tauri, want1)
+	}
 }
 
 // The script refuses input that no tag produces, and leaves the files as
@@ -156,6 +173,7 @@ func TestFlatpakStampRefusesBadArguments(t *testing.T) {
 			}
 			src := filepath.Join("..", "packaging", "flatpak")
 			stampUnchanged(t, dir, readFile(t, src, stampManifest), readFile(t, src, stampMetainfo))
+			tauriUnchanged(t, dir, readFile(t, tauriSrc, stampTauri))
 		})
 	}
 }
@@ -172,14 +190,23 @@ func stampUnchanged(t *testing.T, dir, manifest, meta string) {
 	}
 }
 
-// The script refuses a manifest or a metainfo without exactly one of the
-// markers it edits, and edits neither file.
+// tauriUnchanged fails the test unless dir's tauri.conf.json is byte for byte
+// conf.
+func tauriUnchanged(t *testing.T, dir, conf string) {
+	t.Helper()
+	if got := readString(t, filepath.Join(dir, stampTauri)); got != conf {
+		t.Errorf("a refused stamp changed tauri.conf.json:\n%s", got)
+	}
+}
+
+// The script refuses a manifest, a metainfo or a tauri.conf.json without
+// exactly one of the markers it edits, and edits none of them.
 func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
 	const placeholder = "-X main.version=flatpak"
 	for _, tc := range []struct {
-		name           string
-		manifest, meta func(string) string
-		message        string
+		name                  string
+		manifest, meta, tauri func(string) string
+		message               string
 	}{
 		{
 			name:     "no version placeholder",
@@ -201,6 +228,18 @@ func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
 			meta:    func(s string) string { return strings.Replace(s, "<releases>", "<releases>\n  <releases>", 1) },
 			message: "<releases> 2 times, want exactly once",
 		},
+		{
+			name:    "no tauri version",
+			tauri:   func(s string) string { return strings.Replace(s, tauriUnstamped, `"version": "0.4.0"`, 1) },
+			message: tauriUnstamped + "' 0 times, want exactly once",
+		},
+		{
+			name: "two tauri versions",
+			tauri: func(s string) string {
+				return strings.Replace(s, tauriUnstamped, tauriUnstamped+", "+tauriUnstamped, 1)
+			},
+			message: tauriUnstamped + "' 2 times, want exactly once",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir, script := stampInputs(t)
@@ -214,6 +253,11 @@ func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
 				meta = tc.meta(meta)
 				writeFile(t, dir, stampMetainfo, meta)
 			}
+			tauri := readString(t, filepath.Join(dir, stampTauri))
+			if tc.tauri != nil {
+				tauri = tc.tauri(tauri)
+				writeFile(t, dir, stampTauri, tauri)
+			}
 			out, err := stampVersion(t, dir, script, "1.2.3", "0123456789ab")
 			if err == nil {
 				t.Fatalf("stamp succeeded:\n%s", out)
@@ -222,6 +266,7 @@ func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
 				t.Errorf("the message does not say %q:\n%s", tc.message, out)
 			}
 			stampUnchanged(t, dir, manifest, meta)
+			tauriUnchanged(t, dir, tauri)
 		})
 	}
 }
@@ -259,6 +304,7 @@ func TestFlatpakStampRefusesAVersionAlreadyListed(t *testing.T) {
 		t.Errorf("the message does not name the listed version:\n%s", out)
 	}
 	stampUnchanged(t, dir, readFile(t, filepath.Join("..", "packaging", "flatpak"), stampManifest), meta)
+	tauriUnchanged(t, dir, readFile(t, tauriSrc, stampTauri))
 }
 
 // stampSteps is the flatpak job's steps of .github/workflows/flatpak.yml, in
@@ -341,8 +387,9 @@ func stampSubst(t *testing.T, v, tag string) string {
 	return out
 }
 
-// stampWork stages a work dir with the commit's script, manifest and metainfo,
-// as a checkout of the repository has them.
+// stampWork stages a work dir with the commit's script, manifest, metainfo
+// and tauri.conf.json, as a checkout of the repository has them: the step
+// names no tauri.conf.json, so the script finds it by its own path.
 func stampWork(t *testing.T) (work string) {
 	t.Helper()
 	src := filepath.Join("..", "packaging", "flatpak")
@@ -350,6 +397,7 @@ func stampWork(t *testing.T) (work string) {
 	for _, name := range []string{"stamp-version.sh", stampManifest, stampMetainfo} {
 		writeFile(t, work, "packaging/flatpak/"+name, readFile(t, src, name))
 	}
+	writeFile(t, work, "app/src-tauri/"+stampTauri, readFile(t, tauriSrc, stampTauri))
 	script := filepath.Join(work, "packaging", "flatpak", "stamp-version.sh")
 	if err := os.Chmod(script, 0o755); err != nil {
 		t.Fatal(err)
@@ -404,6 +452,11 @@ func TestFlatpakStampStepStampsTheReleaseVersion(t *testing.T) {
 			if strings.Contains(manifest, "-X main.version=flatpak") {
 				t.Errorf("tag %s leaves the manifest naming flatpak", tc.tag)
 			}
+
+			tauri := readFile(t, work, "app/src-tauri/"+stampTauri)
+			if want := `"version": "` + tc.version + `"`; !strings.Contains(tauri, want) || strings.Contains(tauri, tauriUnstamped) {
+				t.Errorf("tag %s leaves tauri.conf.json without %s:\n%s", tc.tag, want, tauri)
+			}
 		})
 	}
 }
@@ -424,6 +477,9 @@ func TestFlatpakStampStepRefusesOtherTags(t *testing.T) {
 				if got, want := readFile(t, work, "packaging/flatpak/"+name), readFile(t, src, name); got != want {
 					t.Errorf("tag %s changed %s", tag, name)
 				}
+			}
+			if got, want := readFile(t, work, "app/src-tauri/"+stampTauri), readFile(t, tauriSrc, stampTauri); got != want {
+				t.Errorf("tag %s changed %s", tag, stampTauri)
 			}
 		})
 	}

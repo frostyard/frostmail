@@ -132,7 +132,7 @@ func (f *File) read() (map[string]string, error) {
 	}
 	if f.unseal != nil {
 		if data, err = f.unseal(data); err != nil {
-			return nil, fmt.Errorf("secrets: unseal %s: %w", f.path, err)
+			return nil, unsealError{fmt.Errorf("secrets: unseal %s: %w", f.path, err)}
 		}
 	}
 	var m map[string]string

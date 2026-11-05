@@ -158,8 +158,8 @@ func TestSealedRefusals(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err = f.Get(ctx, secretName)
-			if err == nil || errors.Is(err, ErrNotFound) {
-				t.Fatalf("Get = %v, want a refusal", err)
+			if err == nil || errors.Is(err, ErrNotFound) || !errors.Is(err, ErrUnseal) {
+				t.Fatalf("Get = %v, want a refusal that matches ErrUnseal", err)
 			}
 			if _, err := f.All(); err == nil {
 				t.Fatal("All opened the file")

@@ -102,13 +102,13 @@ func (a *actor) gmailPoll(ctx context.Context, conn conn, mailboxes []store.Mail
 
 // pruneGmail deletes messages no synced folder holds any more.
 func (a *actor) pruneGmail(ctx context.Context) error {
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		ids, err := tx.PruneGmail(ctx, a.acct.ID)
 		if err != nil || len(ids) == 0 {
 			return err
 		}
 		return tx.Emit(ctx, api.MessageRemoved{AccountID: a.acct.ID, IDs: ids})
-	})
+	}))
 }
 
 // reconcileGmail is reconcile for a Gmail synced folder.
@@ -247,7 +247,7 @@ func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool,
 		}
 		return a.announce(ctx, tx, ids, append([]int64{mb.ID}, r.Mailboxes...))
 	})
-	return added, err
+	return added, applied(ctx, err)
 }
 
 // applyGmail stores flag and label changes reported for kept UIDs.
@@ -255,7 +255,7 @@ func (a *actor) applyGmail(ctx context.Context, mb store.Mailbox, allMail bool, 
 	if len(ups) == 0 {
 		return nil
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		changed, err := tx.UpdateFlags(ctx, mb.ID, ups)
 		if err != nil {
 			return err
@@ -289,7 +289,7 @@ func (a *actor) applyGmail(ctx context.Context, mb store.Mailbox, allMail bool, 
 			return err
 		}
 		return a.announce(ctx, tx, changed, touched)
-	})
+	}))
 }
 
 // removeGmail drops UIDs a synced folder no longer has; the messages wait
@@ -298,13 +298,13 @@ func (a *actor) removeGmail(ctx context.Context, mb store.Mailbox, uids []uint32
 	if len(uids) == 0 {
 		return nil
 	}
-	return a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		msgs, mbs, err := tx.RemoveGmailUIDs(ctx, mb.ID, uids)
 		if err != nil || len(msgs) == 0 {
 			return err
 		}
 		return a.announce(ctx, tx, msgs, append([]int64{mb.ID}, mbs...))
-	})
+	}))
 }
 
 // announce emits message.changed and mailbox.changed for each mailbox once.

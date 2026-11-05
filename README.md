@@ -38,6 +38,16 @@ app; `make screenshots` retakes them.</sub>
 - **The app** is Tauri v2 with a React UI in the system WebKitGTK.
 - **mailctl** is a command-line client of the same socket.
 
+## Problem records
+
+maild, mailctl and the app write their panics and a few coded errors (a
+database that does not migrate, secrets that do not unseal, a sync that cannot
+store what the server says, a message that cannot be parsed, the app losing
+maild) to the local systemd journal. They send nothing and open no network
+connection for it. On snosi images, chairlift can show these records, and it
+sends nothing without the user's consent. Only release builds record; see
+[ADR-0049](docs/adr/0049-record-problems-in-the-local-journal.md).
+
 ## Develop
 
 Requirements: Go 1.27 and `mise install` (golangci-lint) on the host;

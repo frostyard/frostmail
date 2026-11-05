@@ -64,6 +64,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0046 — The desktop Flatpak carries its own maild; lodge is a connection the user chooses](adr/0046-the-desktop-flatpak-carries-its-own-maild.md)
 - [0047 — The .deb makes the secrets key at first start](adr/0047-make-the-secrets-key-at-first-start.md)
 - [0048 — Tag each release on its tested candidate's commit](adr/0048-tag-each-release-on-its-tested-candidates-commit.md)
+- [0049 — Record problems in the local journal](adr/0049-record-problems-in-the-local-journal.md)
 
 ### Design
 
