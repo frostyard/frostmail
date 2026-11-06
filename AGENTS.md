@@ -9,8 +9,10 @@ where the same UI runs in a browser. Start at [docs/README.md](docs/README.md);
 the architecture entry point is
 [docs/design/overview.md](docs/design/overview.md).
 
-This is the canonical agent instruction file. `CLAUDE.md` and `GEMINI.md` are
-symlinks to it; edit this file only.
+This is the canonical agent instruction file. `CLAUDE.md`, `GEMINI.md`,
+`.cursorrules` and `.github/copilot-instructions.md` are relative symlinks
+to it, and `.claude/skills` is a symlink to `.agents/skills/`; edit this
+file only.
 
 ## Status
 
@@ -135,6 +137,9 @@ take its ideas only, never its code.
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
   runner.
+- `internal/workflowcheck`: tests of the repository's own files, not of
+  product code: the workflows follow frostyard/core ADR-0021, and the
+  baseline files (below) are complete.
 
 ## Gates
 
@@ -214,6 +219,30 @@ take its ideas only, never its code.
 - SQLite databases never live on `/mnt/host` (WAL needs shared memory).
 - Downloads in scripts are version-pinned and checksum-verified
   (frostyard/core ADR-0023).
+
+## Repository baseline
+
+The repository follows core's baseline (frostyard/core ADR-0071, its spec
+`docs/specs/repository-baseline.md`, rows B1 to B16; [org-adrs.md](docs/org-adrs.md)).
+`internal/workflowcheck` fails `make verify` when one of these files breaks:
+
+- The instruction symlinks above (B1). Edit `AGENTS.md`, never a link.
+- `.memory/corrections.jsonl` (B2): 1 JSON object per line with exactly
+  `date`, `scope`, `correction`, `evidence` and `promoted_to`. Append only:
+  never edit or remove a line (no test checks this). A fix of a blocking
+  review point adds its guard and 1 line.
+- `.github/risk-paths.json` (B6, core ADR-0068): a PR that touches a listed
+  path gets `risk:high` from `.github/workflows/risk-paths.yml`. Its PR body
+  names each matched path and why the change is safe. A new release
+  workflow, install script, privileged helper, secrets store or sign-in path
+  joins the list in the PR that adds it; a glob that matches no file fails.
+- `.github/dependabot.yml` (B13): 1 entry for each manifest (`go.mod`,
+  `app/package.json`, each `Cargo.toml`). A new manifest gets an entry.
+
+`.github/pull_request_template.md` (B7) holds the risk tier. Vulnerabilities
+are reported privately ([SECURITY.md](SECURITY.md), B14). No `CODEOWNERS`
+file (B15), and no other agent framework's tree (B16): the task-card loop
+(`docs/tasks/`, ADR-0008, ADR-0021) is this repository's own.
 
 ## Repository boundary
 
