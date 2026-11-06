@@ -24,7 +24,9 @@ Status (2026-11-05):
   are Accepted.
 - **Phase 2 is built** in [PR #168](https://github.com/frostyard/frostmail/pull/168)
   (issue [#160](https://github.com/frostyard/frostmail/issues/160)).
-- **Phases 1, 3 and 4 wait** for a day shift.
+- **Phase 1 is built** in [PR #169](https://github.com/frostyard/frostmail/pull/169)
+  (issue [#159](https://github.com/frostyard/frostmail/issues/159)).
+- **Phases 3 and 4 wait** for a day shift.
 
 ## Phase 0 — The specs and the decisions (planner, small)
 
