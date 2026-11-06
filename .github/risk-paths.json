@@ -30,8 +30,8 @@
       "why": "governance: the tests that hold the workflows (ADR-0021) and the repository baseline files"
     },
     {
-      "glob": "packaging/flatpak/{org.frostyard.Frostmail.json,frostmail.sh,stamp-version.sh,request-background.py,install.sh,open.sh}",
-      "why": "publication: the Flatpak manifest and its sandbox permissions, the launcher, the version stamp and the install wrapper"
+      "glob": "packaging/flatpak/{org.frostyard.Frostmail.json,frostmail,frostmail.sh,stamp-version.sh,request-background.py,install.sh,open.sh}",
+      "why": "publication: the Flatpak manifest and its sandbox permissions, the launcher, the version stamp, the install wrapper and the wrapper it installs"
     },
     {
       "glob": "packaging/{nfpm.yaml,deb-check.py}",
@@ -40,6 +40,10 @@
     {
       "glob": "packaging/systemd/**",
       "why": "publication: the user unit that make install puts in place"
+    },
+    {
+      "glob": "app/src-tauri/{tauri.windows.conf.json,windows/**}",
+      "why": "destructive operations: the Windows installer and its NSIS hooks, which stop processes, register startup and URI handlers, and delete app data at uninstall"
     },
     {
       "glob": "packaging/lodge/**",

@@ -2,7 +2,6 @@ package workflowcheck
 
 import (
 	"encoding/json/v2"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
@@ -142,6 +142,68 @@ func relativeSymlink(t *testing.T, name string) (string, bool) {
 // carries (row B2).
 var correctionsMember = []string{"date", "scope", "correction", "evidence", "promoted_to"}
 
+// datePattern is the form of a correction's date.
+var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// correctionProblems returns the problems of 1 line of
+// .memory/corrections.jsonl, after frostyard/core scripts/check-corrections.mjs
+// (row B2); no problem means a valid line. promoted_to may be empty, the way an
+// unpromoted correction has it.
+func correctionProblems(line string) []string {
+	if strings.TrimSpace(line) == "" {
+		return []string{"blank line"}
+	}
+	var value any
+	if err := json.Unmarshal([]byte(line), &value); err != nil {
+		return []string{fmt.Sprintf("invalid JSON: %v", err)}
+	}
+	obj, ok := value.(map[string]any)
+	if !ok {
+		return []string{"not a plain object"}
+	}
+
+	var problems, missing, unknown []string
+	for _, name := range correctionsMember {
+		if _, ok := obj[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	for name := range obj {
+		if !slices.Contains(correctionsMember, name) {
+			unknown = append(unknown, name)
+		}
+	}
+	slices.Sort(unknown)
+	if len(missing) > 0 {
+		problems = append(problems, "missing key(s): "+strings.Join(missing, ", "))
+	}
+	if len(unknown) > 0 {
+		problems = append(problems, "unknown key(s): "+strings.Join(unknown, ", "))
+	}
+	for _, name := range correctionsMember {
+		v, ok := obj[name]
+		if !ok {
+			continue
+		}
+		if _, ok := v.(string); !ok {
+			problems = append(problems, "value for "+name+" is not a string")
+		}
+	}
+	if s, ok := obj["date"].(string); ok {
+		if !datePattern.MatchString(s) {
+			problems = append(problems, "invalid date: "+s)
+		} else if _, err := time.Parse("2006-01-02", s); err != nil {
+			problems = append(problems, "invalid date: "+s)
+		}
+	}
+	for _, name := range []string{"scope", "correction", "evidence"} {
+		if s, ok := obj[name].(string); ok && strings.TrimSpace(s) == "" {
+			problems = append(problems, name+" is empty")
+		}
+	}
+	return problems
+}
+
 // TestCorrectionsInbox guards row B2 of frostyard/core
 // docs/specs/repository-baseline.md: .memory/corrections.jsonl holds one JSON
 // object per line, with exactly the 5 fields of a correction.
@@ -160,43 +222,43 @@ func TestCorrectionsInbox(t *testing.T) {
 	if len(lines) == 0 {
 		t.Fatal(".memory/corrections.jsonl holds no line")
 	}
-	date := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	for i, line := range lines {
-		n := i + 1
-		if strings.TrimSpace(line) == "" {
-			t.Errorf("line %d: blank line", n)
-			continue
-		}
-		var m map[string]any
-		if err := json.Unmarshal([]byte(line), &m); err != nil {
-			t.Errorf("line %d: %v", n, err)
-			continue
-		}
-		for _, name := range correctionsMember {
-			v, ok := m[name]
-			if !ok {
-				t.Errorf("line %d: no %q member", n, name)
-				continue
-			}
-			s, ok := v.(string)
-			if !ok {
-				t.Errorf("line %d: %q is not a string", n, name)
-				continue
-			}
-			if s == "" {
-				t.Errorf("line %d: %q is empty", n, name)
-			}
-		}
-		for name := range m {
-			if !slices.Contains(correctionsMember, name) {
-				t.Errorf("line %d: unknown member %q", n, name)
-			}
-		}
-		if s, ok := m["date"].(string); ok && !date.MatchString(s) {
-			t.Errorf("line %d: date %q is not YYYY-MM-DD", n, s)
+		for _, problem := range correctionProblems(line) {
+			t.Errorf("line %d: %s", i+1, problem)
 		}
 	}
 	t.Logf("%d corrections lines", len(lines))
+}
+
+// TestCorrectionProblems checks the line rules of row B2 on the cases
+// frostyard/core scripts/check-corrections.mjs names.
+func TestCorrectionProblems(t *testing.T) {
+	const valid = `{"date": "2026-11-05", "scope": "socket", "correction": "c", "evidence": "e", "promoted_to": ""}`
+	for _, tc := range []struct {
+		name  string
+		line  string
+		valid bool
+	}{
+		{"unpromoted", valid, true},
+		{"promoted", `{"date": "2026-11-05", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": "a_test.go"}`, true},
+		{"blank scope", `{"date": "2026-11-05", "scope": "  ", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"month 13", `{"date": "2026-13-99", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"february 30", `{"date": "2026-02-30", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"number value", `{"date": "2026-11-05", "scope": 1, "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"missing member", `{"date": "2026-11-05", "scope": "s", "correction": "c", "evidence": "e"}`, false},
+		{"unknown member", `{"date": "2026-11-05", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": "", "extra": "x"}`, false},
+		{"duplicate member", `{"date": "2026-11-05", "date": "2026-11-05", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"not an object", `["2026-11-05"]`, false},
+		{"blank line", "  ", false},
+	} {
+		problems := correctionProblems(tc.line)
+		switch {
+		case tc.valid && len(problems) > 0:
+			t.Errorf("%s: correctionProblems(%s) = %v, want none", tc.name, tc.line, problems)
+		case !tc.valid && len(problems) == 0:
+			t.Errorf("%s: correctionProblems(%s) = none, want at least 1", tc.name, tc.line)
+		}
+	}
 }
 
 // riskPath is 1 entry of .github/risk-paths.json.
@@ -221,7 +283,10 @@ var governedPaths = []string{
 	"mise.lock",
 	".svu.yml",
 	"packaging/flatpak/org.frostyard.Frostmail.json",
+	"packaging/flatpak/frostmail",
 	"packaging/nfpm.yaml",
+	"app/src-tauri/tauri.windows.conf.json",
+	"app/src-tauri/windows/hooks.nsh",
 	"packaging/lodge/make-secrets-key.sh",
 	"packaging/lodge/frostmail.service",
 	"scripts/seal-mail-secrets.sh",
@@ -251,8 +316,8 @@ func TestRiskPaths(t *testing.T) {
 	globs := make([]string, 0, len(cfg.Paths))
 	seen := make(map[string]bool, len(cfg.Paths))
 	for i, p := range cfg.Paths {
-		if err := validGlob(p.Glob); err != nil {
-			t.Errorf("entry %d: %v", i, err)
+		for _, problem := range validGlob(p.Glob) {
+			t.Errorf("entry %d: glob %q: %s", i, p.Glob, problem)
 		}
 		if seen[p.Glob] {
 			t.Errorf("entry %d: glob %q appears twice", i, p.Glob)
@@ -290,23 +355,6 @@ func TestRiskPaths(t *testing.T) {
 	t.Logf("%d globs; %d required paths listed; %d files searched", len(globs), len(want), len(files))
 }
 
-// validGlob reports why glob is not a path glob of frostyard/core
-// docs/specs/risk-paths.md, or nil when it is one.
-func validGlob(glob string) error {
-	if glob == "" {
-		return errors.New("empty glob")
-	}
-	if strings.HasPrefix(glob, "/") || strings.HasPrefix(glob, "./") {
-		return fmt.Errorf("glob %q must be relative to the repository root", glob)
-	}
-	for _, seg := range strings.Split(glob, "/") {
-		if seg == "" || seg == ".." {
-			return fmt.Errorf("glob %q has an empty or .. segment", glob)
-		}
-	}
-	return nil
-}
-
 // matchAny reports whether p matches 1 of globs.
 func matchAny(globs []string, p string) bool {
 	for _, g := range globs {
@@ -327,86 +375,255 @@ func anyMatch(glob string, paths []string) bool {
 	return false
 }
 
+// maxBraceExpansions is the most globs 1 brace group set may give
+// (frostyard/core scripts/lib/risk-paths.mjs).
+const maxBraceExpansions = 256
+
 // matchGlob reports whether glob matches the whole slash-separated path
 // (frostyard/core docs/specs/risk-paths.md): {a,b} is 1 of the alternatives,
-// ** is 0 or more whole segments, * and ? never cross a slash, and every
-// other character is literal.
+// ** as a whole segment is 0 or more whole segments, * and ? never cross a
+// slash, and every other character is literal. An empty path matches nothing,
+// and a glob that cannot be expanded matches nothing.
 func matchGlob(glob, p string) bool {
-	for _, alt := range expandBraces(glob) {
-		if globRegexp(alt).MatchString(p) {
+	if p == "" {
+		return false
+	}
+	expansions, errs := expandBraces(glob)
+	if len(errs) > 0 {
+		return false
+	}
+	pathSegments := strings.Split(p, "/")
+	for _, expansion := range expansions {
+		if matchSegments(strings.Split(expansion, "/"), pathSegments) {
 			return true
 		}
 	}
 	return false
 }
 
-// expandBraces returns glob with each {a,b,c} group replaced by its
-// alternatives in turn. Groups do not nest.
-func expandBraces(glob string) []string {
-	open := strings.IndexByte(glob, '{')
-	if open < 0 {
-		return []string{glob}
+// expandBraces returns 1 expansion of glob for each combination of its brace
+// groups, and the reasons glob cannot be expanded; a glob with a reason expands
+// to nothing. Groups do not nest.
+func expandBraces(glob string) (expansions []string, errs []string) {
+	var parts [][]string
+	literal := ""
+	for i := 0; i < len(glob); {
+		switch glob[i] {
+		case '}':
+			errs = append(errs, "unmatched '}'")
+			i++
+		case '{':
+			rest := glob[i+1:]
+			close, nextOpen := strings.IndexByte(rest, '}'), strings.IndexByte(rest, '{')
+			if close < 0 {
+				return nil, append(errs, "unmatched '{'")
+			}
+			if nextOpen >= 0 && nextOpen < close {
+				return nil, append(errs, "nested braces are not supported")
+			}
+			alternatives := strings.Split(rest[:close], ",")
+			if len(alternatives) < 2 {
+				errs = append(errs, "a brace group needs at least 2 alternatives")
+			}
+			if slices.Contains(alternatives, "") {
+				errs = append(errs, "a brace group has an empty alternative")
+			}
+			parts = append(parts, []string{literal}, alternatives)
+			literal = ""
+			i += close + 2
+		default:
+			literal += glob[i : i+1]
+			i++
+		}
 	}
-	end := strings.IndexByte(glob[open:], '}')
-	if end < 0 {
-		return []string{glob}
+	if len(errs) > 0 {
+		return nil, errs
 	}
-	end += open
-	var out []string
-	for _, alt := range strings.Split(glob[open+1:end], ",") {
-		out = append(out, expandBraces(glob[:open]+alt+glob[end+1:])...)
+	parts = append(parts, []string{literal})
+
+	expansions = []string{""}
+	for _, alternatives := range parts {
+		next := make([]string, 0, len(expansions)*len(alternatives))
+		for _, prefix := range expansions {
+			for _, alternative := range alternatives {
+				next = append(next, prefix+alternative)
+			}
+		}
+		if len(next) > maxBraceExpansions {
+			return nil, []string{fmt.Sprintf("brace expansion gives more than %d globs", maxBraceExpansions)}
+		}
+		expansions = next
 	}
-	return out
+	return expansions, nil
 }
 
-// globRegexp compiles 1 brace-free glob, which holds no { and no }, into the
-// regular expression that matches the whole path.
-func globRegexp(glob string) *regexp.Regexp {
-	if glob == "**" {
-		return regexp.MustCompile(`^.*$`)
+// matchSegments reports whether the path segments match the glob segments,
+// where a ** segment is 0 or more whole segments.
+func matchSegments(globSegments, pathSegments []string) bool {
+	patterns := make([]*regexp.Regexp, len(globSegments))
+	for i, segment := range globSegments {
+		if segment != "**" {
+			patterns[i] = segmentPattern(segment)
+		}
 	}
+	memo := make(map[[2]int]bool, len(globSegments)*len(pathSegments)+1)
+	var visit func(g, p int) bool
+	visit = func(g, p int) bool {
+		if match, ok := memo[[2]int{g, p}]; ok {
+			return match
+		}
+		var match bool
+		switch {
+		case g == len(patterns):
+			match = p == len(pathSegments)
+		case patterns[g] == nil:
+			match = visit(g+1, p) || (p < len(pathSegments) && visit(g, p+1))
+		default:
+			match = p < len(pathSegments) && patterns[g].MatchString(pathSegments[p]) && visit(g+1, p+1)
+		}
+		memo[[2]int{g, p}] = match
+		return match
+	}
+	return visit(0, 0)
+}
+
+// segmentPattern compiles 1 glob segment: * is any run of characters within the
+// segment, ? is 1 such character, and every other character is literal.
+func segmentPattern(segment string) *regexp.Regexp {
 	var b strings.Builder
 	b.WriteString("^")
-	for i := 0; i < len(glob); {
-		switch {
-		case strings.HasPrefix(glob[i:], "/**/"):
-			b.WriteString(`/(?:[^/]+/)*`)
-			i += len("/**/")
-		case strings.HasPrefix(glob[i:], "**/"):
-			b.WriteString(`(?:[^/]+/)*`)
-			i += len("**/")
-		case strings.HasPrefix(glob[i:], "/**") && i+len("/**") == len(glob):
-			b.WriteString(`(?:/.*)?`)
-			i += len("/**")
-		case glob[i] == '*':
+	for _, c := range segment {
+		switch c {
+		case '*':
 			b.WriteString(`[^/]*`)
-			i++
-		case glob[i] == '?':
+		case '?':
 			b.WriteString(`[^/]`)
-			i++
 		default:
-			j := i
-			for j < len(glob) && glob[j] != '*' && glob[j] != '?' {
-				j++
-			}
-			b.WriteString(regexp.QuoteMeta(glob[i:j]))
-			i = j
+			b.WriteString(regexp.QuoteMeta(string(c)))
 		}
 	}
 	b.WriteString("$")
 	return regexp.MustCompile(b.String())
 }
 
+// validGlob returns the reasons glob is not a path glob of frostyard/core
+// docs/specs/risk-paths.md; no reason means a valid glob.
+func validGlob(glob string) []string {
+	if glob == "" {
+		return []string{"glob is empty"}
+	}
+	var errs []string
+	for _, c := range []string{"[", "]", "!", `\`} {
+		if strings.Contains(glob, c) {
+			errs = append(errs, fmt.Sprintf("%q is not supported", c))
+		}
+	}
+	expansions, braceErrs := expandBraces(glob)
+	errs = append(errs, braceErrs...)
+	for _, expansion := range expansions {
+		if strings.HasPrefix(expansion, "/") {
+			errs = append(errs, "a glob must not start with '/'")
+		}
+		if strings.HasPrefix(expansion, "./") {
+			errs = append(errs, "a glob must not start with './'")
+		}
+		for _, segment := range strings.Split(expansion, "/") {
+			switch {
+			case segment == "":
+				errs = append(errs, "a glob must not have an empty segment")
+			case segment == "..":
+				errs = append(errs, "a glob must not have a '..' segment")
+			case strings.Contains(segment, "**") && segment != "**":
+				errs = append(errs, "'**' must be a whole segment")
+			}
+		}
+	}
+	return unique(errs)
+}
+
+// unique returns list without a repeated entry, in the order of 1st appearance.
+func unique(list []string) []string {
+	seen := make(map[string]bool, len(list))
+	out := make([]string, 0, len(list))
+	for _, s := range list {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// TestValidGlob checks the glob validation of frostyard/core
+// docs/specs/risk-paths.md on the cases a repository's list can hold.
+func TestValidGlob(t *testing.T) {
+	for _, glob := range []string{"a/**", "{a,b}/c", "**"} {
+		if problems := validGlob(glob); len(problems) > 0 {
+			t.Errorf("validGlob(%q) = %v, want no problem", glob, problems)
+		}
+	}
+	for _, glob := range []string{
+		"internal/secrets/{sealed.go,}",
+		"{a}",
+		"{a,{b,c}}",
+		"a}",
+		"{a,b",
+		"[ab]",
+		"!a",
+		`a\b`,
+		"a**",
+		"a/**b",
+		"/a",
+		"./a",
+		"a//b",
+		"a/../b",
+		strings.Repeat("{a,b}", 9),
+	} {
+		if problems := validGlob(glob); len(problems) == 0 {
+			t.Errorf("validGlob(%q) = no problem, want at least 1", glob)
+		}
+	}
+}
+
 // TestMatchGlob checks the glob rules of frostyard/core
-// docs/specs/risk-paths.md on the cases .github/risk-paths.json uses.
+// docs/specs/risk-paths.md on its own cases and the ones this repository's
+// list holds.
 func TestMatchGlob(t *testing.T) {
 	for _, tc := range []struct {
 		glob string
 		path string
 		want bool
 	}{
+		{"**/x", "x", true},
+		{"**/x", "a/x", true},
+		{"**/x", "a/b/x", true},
+		{"**/x", "a/x/y", false},
+		{"**", "x", true},
+		{"**", "a/b", true},
+		{"**", ".github/x.yml", true},
+		{"x*", "x", true},
+		{"x*", "xy", true},
+		{"x*", "a/x", false},
+		{"x*", "a/xy", false},
+		{"docs/*.md", "docs/a.md", true},
+		{"docs/*.md", "docs/.md", true},
+		{"docs/*.md", "docs/a/b.md", false},
+		{"docs/*.md", "src/a.md", false},
+		{"shared/**", "shared/a", true},
+		{"shared/**", "shared/a/b", true},
+		{"shared/**", "other/a", false},
+		{".github/{risk-paths.json,settings.yml}", ".github/risk-paths.json", true},
+		{".github/{risk-paths.json,settings.yml}", ".github/settings.yml", true},
+		{".github/{risk-paths.json,settings.yml}", ".github/workflows/ci.yml", false},
 		{".github/workflows/**", ".github/workflows/ci.yml", true},
 		{".github/workflows/**", ".github/risk-paths.json", false},
+		{"packaging/lodge/**", "packaging/lodge/a/b.sh", true},
+		{"packaging/flatpak/{org.frostyard.Frostmail.json,frostmail,frostmail.sh}", "packaging/flatpak/frostmail", true},
+		{"a/**/x", "a/x", true},
+		{"a/**/x", "a/b/x", true},
+		{"app/src-tauri/{tauri.windows.conf.json,windows/**}", "app/src-tauri/windows/hooks.nsh", true},
+		{"app/src-tauri/{tauri.windows.conf.json,windows/**}", "app/src-tauri/tauri.windows.conf.json", true},
+		{"app/src-tauri/{tauri.windows.conf.json,windows/**}", "app/src-tauri/tauri.conf.json", false},
 		{"{mise.toml,mise.lock}", "mise.toml", true},
 		{"{mise.toml,mise.lock}", "mise.lock", true},
 		{"{mise.toml,mise.lock}", "mise.tom", false},
@@ -414,11 +631,10 @@ func TestMatchGlob(t *testing.T) {
 		{"scripts/{a,b}.sh", "scripts/c.sh", false},
 		{"Makefile", "Makefile", true},
 		{"Makefile", "app/Makefile", false},
-		{"**/x", "x", true},
-		{"**/x", "a/b/x", true},
 		{"a/*", "a/b", true},
 		{"a/*", "a/b/c", false},
-		{"**", "a/b", true},
+		{"**", "", false},
+		{"*.md", "", false},
 	} {
 		if got := matchGlob(tc.glob, tc.path); got != tc.want {
 			t.Errorf("matchGlob(%q, %q) = %v, want %v", tc.glob, tc.path, got, tc.want)
