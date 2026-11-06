@@ -829,7 +829,7 @@ func TestDependabotLeavesInternalGitCratesAlone(t *testing.T) {
 	if crates == 0 {
 		t.Fatal("no internal git crate found; the Cargo.toml files changed")
 	}
-	t.Logf("%d internal git crates ignored", crates)
+	t.Logf("%d internal git crates checked", crates)
 }
 
 // TestInternalGitCrates checks the Cargo.toml forms an internal git crate can
