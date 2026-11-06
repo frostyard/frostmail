@@ -196,6 +196,7 @@ func TestCorrectionsInbox(t *testing.T) {
 			t.Errorf("line %d: date %q is not YYYY-MM-DD", n, s)
 		}
 	}
+	t.Logf("%d corrections lines", len(lines))
 }
 
 // riskPath is 1 entry of .github/risk-paths.json.
@@ -286,6 +287,7 @@ func TestRiskPaths(t *testing.T) {
 			t.Errorf("glob %q matches no file in the repository", g)
 		}
 	}
+	t.Logf("%d globs; %d required paths listed; %d files searched", len(globs), len(want), len(files))
 }
 
 // validGlob reports why glob is not a path glob of frostyard/core
@@ -509,4 +511,5 @@ func TestDependabotCoversManifests(t *testing.T) {
 	if manifests == 0 {
 		t.Fatal("no dependency manifest found")
 	}
+	t.Logf("%d manifests, %d Dependabot entries", manifests, len(cfg.Updates))
 }
