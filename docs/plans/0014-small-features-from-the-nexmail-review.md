@@ -45,6 +45,7 @@ Status (2026-11-05):
 
 ## Phase 1 — Sender check banner (S; [#159](https://github.com/frostyard/frostmail/issues/159))
 
+- **Status:** built (#159's PR), 2026-11-05.
 - [ADR-0050](../adr/0050-warn-when-the-providers-sender-checks-fail.md);
   the rules in [design/rendering.md](../design/rendering.md#sender-check);
   the banner in [specs/ui.md](../specs/ui.md#reader).

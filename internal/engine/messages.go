@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/authres"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/mimex"
 	"github.com/frostyard/frostmail/internal/store"
@@ -34,6 +35,10 @@ func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Messag
 		ReplyTo: toAPIAddresses(d.ReplyTo), MessageID: d.MessageID, InReplyTo: d.InReplyTo,
 		References: d.References, ListID: d.ListID, ListUnsubscribe: d.ListUnsubscribe,
 		BodyFetched: d.BlobID != "",
+	}
+	if v := authres.SenderCheck(d.AuthResults); v != authres.None {
+		check := api.SenderCheck(v)
+		out.SenderCheck = &check
 	}
 	for _, pt := range d.Parts {
 		out.Parts = append(out.Parts, api.Part{

@@ -239,3 +239,28 @@ func TestForwardAsAttachment(t *testing.T) {
 		t.Errorf("sent:\n%s", sent)
 	}
 }
+
+// TestMessageGetSenderCheck: message.get returns the provider's sender
+// check, and leaves it out when the header says nothing (ADR-0050).
+func TestMessageGetSenderCheck(t *testing.T) {
+	e := newListEnv(t, &fakePoster{})
+	ctx := t.Context()
+	raw := "From: Ann <ann@x.test>\r\nSubject: Hi\r\n\r\nHi\r\n"
+	for _, tt := range []struct {
+		name, auth string
+		want       *api.SenderCheck
+	}{
+		{"fail", "mx.example; dkim=fail; dmarc=fail header.from=x.test", ptr(api.SenderCheckFail)},
+		{"pass", "mx.example; dkim=pass; dmarc=pass header.from=x.test", ptr(api.SenderCheckPass)},
+		{"no header", "", nil},
+	} {
+		id := e.message(store.MessageHeader{Subject: "Hi", From: store.Address{Addr: "ann@x.test"}, AuthResults: tt.auth}, raw)
+		got, err := e.c.Message().Get(ctx, &api.MessageGetParams{ID: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (got.SenderCheck == nil) != (tt.want == nil) || (tt.want != nil && *got.SenderCheck != *tt.want) {
+			t.Errorf("%s: senderCheck = %v, want %v", tt.name, got.SenderCheck, tt.want)
+		}
+	}
+}
