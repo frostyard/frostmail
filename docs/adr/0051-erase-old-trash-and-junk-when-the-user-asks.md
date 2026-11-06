@@ -1,6 +1,6 @@
 # 0051 — maild erases old Trash and Junk mail when the user asks
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-05
 
 ## Context

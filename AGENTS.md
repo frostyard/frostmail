@@ -61,11 +61,11 @@ installed it with the README's commands (plan 0013, Phase 10 check
 2026-10-29). Core's plan 0010 Mail row is left (Lucilla).
 
 Plan 0014 ([small features from the nexmail review](docs/plans/0014-small-features-from-the-nexmail-review.md),
-Brian's T929a, 2026-11-05) is specified, with ADRs 0050 and 0051: the
-sender check banner (#159), the attachment reminder (#160), snippets
-(#161) and erasing old Trash and Junk (#162) wait for a day shift; #163
-to #166 are its backlog. nexmail is AGPL-3.0: take its ideas only, never
-its code.
+Brian's T929a, 2026-11-05) is specified, with ADRs 0050 and 0051
+(accepted). Phase 2, the attachment reminder (#160), is built. The sender
+check banner (#159), snippets (#161) and erasing old Trash and Junk (#162)
+wait for a day shift; #163 to #166 are its backlog. nexmail is AGPL-3.0:
+take its ideas only, never its code.
 
 ## Two kinds of agent work
 

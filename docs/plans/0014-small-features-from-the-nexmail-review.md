@@ -20,16 +20,17 @@ backlog"), after Odrade's review of nexmail, a self-hosted mail client.
   integration test.
 
 Status (2026-11-05):
-- **Phase 0 is open:** this plan, its specs, and ADRs 0050 and 0051
-  (Proposed), in one docs PR.
-- **Phases 1 to 4 wait** for a day shift.
+- **Phase 0 is done:** PR #167 merged on 2026-11-05; ADRs 0050 and 0051
+  are Accepted.
+- **Phase 2 is built** in its PR ([#160](https://github.com/frostyard/frostmail/issues/160)).
+- **Phases 1, 3 and 4 wait** for a day shift.
 
 ## Phase 0 — The specs and the decisions (planner, small)
 
 - [ADR-0050](../adr/0050-warn-when-the-providers-sender-checks-fail.md)
   (sender check) and
   [ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)
-  (erase old Trash and Junk), Proposed.
+  (erase old Trash and Junk), Accepted.
 - The specs: [design/rendering.md](../design/rendering.md#sender-check),
   [specs/ui.md](../specs/ui.md#reader) (Sender check banner),
   [specs/compose-ui.md](../specs/compose-ui.md) (Attachment reminder,
@@ -115,8 +116,7 @@ needs a plan (or a spec change) before it is built.
 
 ## Open questions
 
-- None. ADRs 0050 and 0051 are Proposed; merging Phase 0 accepts them,
-  and a change Brian asks for in review changes them first.
+- None. ADRs 0050 and 0051 are Accepted (PR #167, 2026-11-05).
 
 ## References
 

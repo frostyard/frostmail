@@ -1,6 +1,6 @@
 # 0050 — Warn when the provider's sender checks fail
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-05
 
 ## Context
