@@ -108,6 +108,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const dirty = useRef(false);
   const touched = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const identitiesReady = useRef<Promise<Identity[] | null>>(Promise.resolve(null));
   const saving = useRef<Promise<void>>(Promise.resolve());
 
   const flush = useCallback((): Promise<void> => {
@@ -161,10 +162,13 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const active = useEditorState({ editor, selector: ({ editor: e }) => (e ? activeFormats(e) : {}) }) ?? {};
 
   useEffect(() => {
-    void client.identity
-      .list({ accountId: initial.accountId })
-      .then(setIdentities)
-      .catch(() => {});
+    const listed = client.identity.list({ accountId: initial.accountId });
+    // send awaits this promise to read the signature; null means the request failed.
+    identitiesReady.current = listed.then(
+      (list) => list,
+      () => null,
+    );
+    void listed.then(setIdentities).catch(() => {});
   }, [client, initial.accountId]);
 
   useEffect(() => {
@@ -287,15 +291,18 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const send = useCallback(
     async (at?: Date) => {
       if (!canSend) return;
+      // Send can be clicked before identity.list answers: wait for it. When the
+      // request failed the signature is "": a reminder too many is safe, a missed one is not.
+      const list = await identitiesReady.current;
       const current = latest.current;
-      const signature = identities.find((i) => i.id === current.identityId)?.signatureHtml ?? "";
+      const signature = list?.find((i) => i.id === current.identityId)?.signatureHtml ?? "";
       if (needsAttachmentReminder(current.html, signature, attachments.length)) {
         setReminder({ at });
         return;
       }
       await sendNow(at);
     },
-    [canSend, identities, attachments.length, sendNow],
+    [canSend, attachments.length, sendNow],
   );
 
   const isEmpty = useCallback(

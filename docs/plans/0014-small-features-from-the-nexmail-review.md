@@ -22,7 +22,8 @@ backlog"), after Odrade's review of nexmail, a self-hosted mail client.
 Status (2026-11-05):
 - **Phase 0 is done:** PR #167 merged on 2026-11-05; ADRs 0050 and 0051
   are Accepted.
-- **Phase 2 is built** in its PR ([#160](https://github.com/frostyard/frostmail/issues/160)).
+- **Phase 2 is built** in [PR #168](https://github.com/frostyard/frostmail/pull/168)
+  (issue [#160](https://github.com/frostyard/frostmail/issues/160)).
 - **Phases 1, 3 and 4 wait** for a day shift.
 
 ## Phase 0 — The specs and the decisions (planner, small)

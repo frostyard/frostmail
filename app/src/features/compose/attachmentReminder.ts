@@ -35,7 +35,7 @@ export function ownText(html: string, signatureHtml: string): string {
     while (before && before.nodeType === Node.TEXT_NODE && (before.textContent ?? "").trim() === "") {
       before = before.previousSibling;
     }
-    if (before && before.nodeType === Node.ELEMENT_NODE) {
+    if (before && before.nodeType === Node.ELEMENT_NODE && (before as Element).tagName === "P") {
       const line = htmlText((before as Element).outerHTML);
       if (line.endsWith("wrote:") || line === "Begin forwarded message:") before.parentNode?.removeChild(before);
     }

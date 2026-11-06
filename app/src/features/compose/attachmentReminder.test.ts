@@ -36,6 +36,11 @@ describe("ownText", () => {
     const html = `<p>On x wrote:</p>${quote}<p>see attached</p><p>On y wrote:</p>${quote}`;
     expect(ownText(html, "")).toBe("see attached");
   });
+  it("keeps a list before a quote that ends with wrote:", () => {
+    const html = `<ul><li>I attached what Ann wrote:</li></ul>${quote}`;
+    expect(ownText(html, "")).toBe("I attached what Ann wrote:");
+    expect(needsAttachmentReminder(html, "", 0)).toBe(true);
+  });
   it("removes nothing when the signature is not found", () => {
     expect(ownText("<p>Hello</p>", "<p>Ann</p>")).toBe("Hello");
   });

@@ -3,12 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
+import { atLocal, sendChoices } from "../lib/later";
 import { Client } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { ComposeWindow } from "./ComposeWindow";
 
-async function setup(html: string, opts: { signature?: string; attach?: boolean } = {}) {
+async function setup(
+  html: string,
+  opts: { signature?: string; attach?: boolean; holdIdentities?: Promise<void> } = {},
+) {
   const mock = new MockTransport(mockData({ inbox: 3, now: new Date("2026-10-07T12:00:00Z") }), { undoMs: 50 });
   const client = new Client(mock);
   const draft = await client.draft.create({ kind: "new" });
@@ -20,6 +24,14 @@ async function setup(html: string, opts: { signature?: string; attach?: boolean 
     await client.identity.update({ id: draft.content.identityId, signatureHtml: opts.signature });
   }
   if (opts.attach) await client.draft.attach({ id: draft.id, path: "/tmp/a.txt" });
+  if (opts.holdIdentities) {
+    const hold = opts.holdIdentities;
+    const original = mock.call.bind(mock);
+    vi.spyOn(mock, "call").mockImplementation(async (method: string, params: unknown) => {
+      if (method === "identity.list") await hold;
+      return original(method, params);
+    });
+  }
   const close = vi.spyOn(window, "close").mockImplementation(() => {});
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
@@ -34,6 +46,8 @@ async function setup(html: string, opts: { signature?: string; attach?: boolean 
 }
 
 const SEE = "<p>see attached</p>";
+const tomorrow = () =>
+  (sendChoices(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone, "en-US").at(-1) as { at: Date }).at;
 const TITLE = "Send without an attachment?";
 
 afterEach(() => {
@@ -78,7 +92,7 @@ describe("attachment reminder in the compose window", () => {
 
   it("Send Anyway keeps the Send Later choice", async () => {
     const user = userEvent.setup();
-    const { sends } = await setup(SEE);
+    const { sends, draft } = await setup(SEE);
     await user.click(screen.getByRole("button", { name: "Send Later" }));
     await user.click(within(screen.getByRole("menu")).getByText(/^Send .+ Tomorrow$/));
     expect(sends()).toEqual([]);
@@ -86,7 +100,7 @@ describe("attachment reminder in the compose window", () => {
       within(await screen.findByRole("dialog", { name: TITLE })).getByRole("button", { name: "Send Anyway" }),
     );
     await waitFor(() => expect(sends()).toHaveLength(1));
-    expect((sends()[0] as { sendAt?: string }).sendAt).toBeTruthy();
+    expect(sends()).toEqual([{ id: draft.id, sendAt: tomorrow().toISOString() }]);
   });
 
   it("Attach Files… opens the file picker and sends nothing", async () => {
@@ -147,5 +161,41 @@ describe("attachment reminder in the compose window", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(sends()).toHaveLength(1));
     expect(screen.queryByRole("dialog", { name: TITLE })).toBeNull();
+  });
+
+  it("waits for the identity list before it decides", async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => {};
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const sig = "<p>Ann</p><p>Attached Corp</p>";
+    const { sends } = await setup(`<p>Ok</p><p><br></p>${sig}`, { signature: sig, holdIdentities: hold });
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(sends()).toEqual([]);
+    release();
+    await waitFor(() => expect(sends()).toHaveLength(1));
+    expect(screen.queryByRole("dialog", { name: TITLE })).toBeNull();
+  });
+
+  it("checks the Send Later time sheet's OK", async () => {
+    const user = userEvent.setup();
+    const { sends, draft } = await setup(SEE);
+    await user.click(screen.getByRole("button", { name: "Send Later" }));
+    await user.click(within(screen.getByRole("menu")).getByText("Send Later…"));
+    const sheet = screen.getByRole("dialog", { name: "Send Later" });
+    const date = within(sheet).getByLabelText("Date");
+    await user.clear(date);
+    await user.type(date, "2030-01-02");
+    const time = within(sheet).getByLabelText("Time");
+    await user.clear(time);
+    await user.type(time, "09:30");
+    await user.click(within(sheet).getByRole("button", { name: "OK" }));
+    const dialog = await screen.findByRole("dialog", { name: TITLE });
+    expect(sends()).toEqual([]);
+    await user.click(within(dialog).getByRole("button", { name: "Send Anyway" }));
+    await waitFor(() => expect(sends()).toHaveLength(1));
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    expect(sends()).toEqual([{ id: draft.id, sendAt: atLocal("2030-01-02", 9, 30, zone).toISOString() }]);
   });
 });
