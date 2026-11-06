@@ -119,25 +119,49 @@ func splitPieces(s string) []string {
 }
 
 // parsePiece reads the method and the result at the start of a piece:
-// method[/version]=result. Both are lowercased.
+// method [ "/" version ] "=" result, with white space allowed around "/" and
+// "=" (comments are already removed). The method and the result are keywords
+// of letters, digits and "-", the version is digits. Both are lowercased.
+// Any other form does not parse.
 func parsePiece(piece string) (method, result string, ok bool) {
-	piece = strings.TrimSpace(piece)
-	name, rest, found := strings.Cut(piece, "=")
+	s := strings.TrimSpace(piece)
+	method, s = keyword(s)
+	if method == "" {
+		return "", "", false
+	}
+	s = strings.TrimLeft(s, " \t")
+	if rest, found := strings.CutPrefix(s, "/"); found {
+		rest = strings.TrimLeft(rest, " \t")
+		end := 0
+		for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+			end++
+		}
+		if end == 0 {
+			return "", "", false
+		}
+		s = strings.TrimLeft(rest[end:], " \t")
+	}
+	s, found := strings.CutPrefix(s, "=")
 	if !found {
 		return "", "", false
 	}
-	name = strings.TrimSpace(name)
-	method, version, hasVersion := strings.Cut(name, "/")
-	if method == "" || strings.ContainsAny(name, " \t\"") || (hasVersion && version == "") {
+	result, s = keyword(strings.TrimLeft(s, " \t"))
+	if result == "" || (s != "" && s[0] != ' ' && s[0] != '\t') {
 		return "", "", false
 	}
-	rest = strings.TrimSpace(rest)
-	end := strings.IndexAny(rest, " \t")
-	if end >= 0 {
-		rest = rest[:end]
+	return strings.ToLower(method), strings.ToLower(result), true
+}
+
+// keyword splits a leading run of letters, digits and "-" from s.
+func keyword(s string) (word, rest string) {
+	end := 0
+	for end < len(s) {
+		c := s[end]
+		if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' {
+			end++
+			continue
+		}
+		break
 	}
-	if rest == "" || strings.Contains(rest, "\"") {
-		return "", "", false
-	}
-	return strings.ToLower(method), strings.ToLower(rest), true
+	return s[:end], s[end:]
 }

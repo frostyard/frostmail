@@ -32,6 +32,12 @@ func TestSenderCheck(t *testing.T) {
 		{"policy", "mx.example; dkim=policy", None},
 		{"folded", "mx.example;\r\n\tdkim=pass\r\n header.d=a.example", Pass},
 		{"garbage piece skipped", "mx.example; ???; =x; dkim=pass", Pass},
+		{"space around slash", "mx.example; dmarc / 1=fail", Fail},
+		{"comment before slash", "mx.example; dkim=fail; dmarc(comment)/1=pass", Pass},
+		{"bad version skipped", "mx.example; dkim=fail; dmarc/1/2=none", Fail},
+		{"double equals skipped", "mx.example; dkim=fail; dmarc==pass", Fail},
+		{"non-numeric version skipped", "mx.example; dmarc/garbage=fail", None},
+		{"space around equals", "mx.example; dkim = pass", Pass},
 		{"spf, arc, iprev, auth never decide", "mx.example; spf=pass; arc=pass; iprev=pass; auth=pass", None},
 	}
 	for _, tt := range tests {
