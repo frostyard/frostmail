@@ -37,7 +37,7 @@ ureq = { version = "3.4", default-features = false, features = ["rustls"] }
 # (src/announce.rs): the zbus single-instance already brings, with its
 # blocking API.
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = "5.13"
+zbus = "6.2"
 
 [target.'cfg(windows)'.dependencies]
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
