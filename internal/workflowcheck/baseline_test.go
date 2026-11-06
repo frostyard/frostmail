@@ -647,6 +647,12 @@ func TestMatchGlob(t *testing.T) {
 type dependabotUpdate struct {
 	Ecosystem string `yaml:"package-ecosystem"`
 	Directory string `yaml:"directory"`
+	Ignore    []struct {
+		Name string `yaml:"dependency-name"`
+	} `yaml:"ignore"`
+	Groups map[string]struct {
+		UpdateTypes []string `yaml:"update-types"`
+	} `yaml:"groups"`
 }
 
 // dependabotFile is the whole of .github/dependabot.yml.
@@ -680,10 +686,9 @@ func normalizeDir(dir string) string {
 	return strings.TrimSuffix(dir, "/")
 }
 
-// TestDependabotCoversManifests guards row B13 of frostyard/core
-// docs/specs/repository-baseline.md: .github/dependabot.yml has 1 entry for
-// each manifest of the repository, and the github-actions entry at "/".
-func TestDependabotCoversManifests(t *testing.T) {
+// readDependabot parses .github/dependabot.yml.
+func readDependabot(t *testing.T) dependabotFile {
+	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "..", ".github", "dependabot.yml"))
 	if err != nil {
 		t.Fatalf(".github/dependabot.yml: %v", err)
@@ -692,6 +697,75 @@ func TestDependabotCoversManifests(t *testing.T) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		t.Fatalf(".github/dependabot.yml: %v", err)
 	}
+	return cfg
+}
+
+// internalGitCrate finds a Cargo.toml dependency line on a frostyard or
+// bketelsen git repository, such as
+// frostyard-problems = { git = "https://github.com/frostyard/std", tag = "v0.5.0" }.
+var internalGitCrate = regexp.MustCompile(`(?m)^\s*([A-Za-z0-9_-]+)\s*=\s*\{[^}\n]*\bgit\s*=\s*"https://github\.com/(?:frostyard|bketelsen)/`)
+
+// TestDependabotLeavesInternalGitCratesAlone: Dependabot cannot resolve a
+// cargo git dependency on a frostyard tag (its job for app/src-tauri failed on
+// frostyard-problems), and internal bumps go by hand, so its entry ignores each
+// such crate.
+func TestDependabotLeavesInternalGitCratesAlone(t *testing.T) {
+	cfg := readDependabot(t)
+	ignored := map[[2]string]bool{}
+	for _, u := range cfg.Updates {
+		for _, ig := range u.Ignore {
+			ignored[[2]string{normalizeDir(u.Directory), ig.Name}] = true
+		}
+	}
+	crates := 0
+	for _, f := range repoFiles(t, "third_party", "docs") {
+		if path.Base(f) != "Cargo.toml" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(f)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dir := "/" + path.Dir(f)
+		for _, m := range internalGitCrate.FindAllStringSubmatch(string(data), -1) {
+			crates++
+			if !ignored[[2]string{dir, m[1]}] {
+				t.Errorf("%s: the internal git crate %s has no ignore entry in the cargo entry for %s", f, m[1], dir)
+			}
+		}
+	}
+	if crates == 0 {
+		t.Fatal("no internal git crate found; the pattern or the Cargo.toml files changed")
+	}
+	t.Logf("%d internal git crates ignored", crates)
+}
+
+// TestDependabotGroupsLeaveMajorsOut: a group takes only minor and patch
+// updates, so that a major update, which can break the build, comes as a PR of
+// its own.
+func TestDependabotGroupsLeaveMajorsOut(t *testing.T) {
+	groups := 0
+	for _, u := range readDependabot(t).Updates {
+		for name, g := range u.Groups {
+			groups++
+			types := slices.Clone(g.UpdateTypes)
+			slices.Sort(types)
+			if !slices.Equal(types, []string{"minor", "patch"}) {
+				t.Errorf("%s %s: group %s has update-types %v, want [minor patch]", u.Ecosystem, u.Directory, name, g.UpdateTypes)
+			}
+		}
+	}
+	if groups == 0 {
+		t.Fatal("no Dependabot group found")
+	}
+	t.Logf("%d groups", groups)
+}
+
+// TestDependabotCoversManifests guards row B13 of frostyard/core
+// docs/specs/repository-baseline.md: .github/dependabot.yml has 1 entry for
+// each manifest of the repository, and the github-actions entry at "/".
+func TestDependabotCoversManifests(t *testing.T) {
+	cfg := readDependabot(t)
 	if cfg.Version != 2 {
 		t.Errorf("version = %d, want 2", cfg.Version)
 	}
