@@ -1410,6 +1410,13 @@ function mailboxClient(t: Transport): MailboxClient {
 export type UnsubscribeMethod = "oneclick" | "mail" | "web";
 export const UnsubscribeMethodValues: readonly UnsubscribeMethod[] = ["oneclick", "mail", "web"];
 
+/**
+ * What the receiving provider's checks said about the sender (ADR-0050);
+ * absent when they said nothing either way.
+ */
+export type SenderCheck = "pass" | "fail";
+export const SenderCheckValues: readonly SenderCheck[] = ["pass", "fail"];
+
 /** One mailbox address. */
 export interface Address {
   /** Display name; may be empty. */
@@ -1545,6 +1552,11 @@ export interface Message {
   parts: Part[];
   /** Whether the full message is stored locally. */
   bodyFetched: boolean;
+  /**
+   * The provider's sender check, from the first Authentication-Results
+   * header; absent when it is neither pass nor fail (ADR-0050).
+   */
+  senderCheck?: SenderCheck;
 }
 
 /** A message's readable text. */

@@ -2488,6 +2488,28 @@ func (v UnsubscribeMethod) Valid() bool {
 	return false
 }
 
+// SenderCheck: What the receiving provider's checks said about the sender
+// (ADR-0050); absent when they said nothing either way.
+type SenderCheck string
+
+const (
+	// The provider's DMARC check passed, or its DKIM did when there was no DMARC
+	// result.
+	SenderCheckPass SenderCheck = "pass"
+	// The provider's DMARC check failed, or its DKIM did when there was no DMARC
+	// result and no pass.
+	SenderCheckFail SenderCheck = "fail"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v SenderCheck) Valid() bool {
+	switch v {
+	case SenderCheckPass, SenderCheckFail:
+		return true
+	}
+	return false
+}
+
 // Address: One mailbox address.
 type Address struct {
 	// Display name; may be empty.
@@ -2611,6 +2633,9 @@ type Message struct {
 	Parts           []Part   `json:"parts"`
 	// Whether the full message is stored locally.
 	BodyFetched bool `json:"bodyFetched"`
+	// The provider's sender check, from the first Authentication-Results header;
+	// absent when it is neither pass nor fail (ADR-0050).
+	SenderCheck *SenderCheck `json:"senderCheck,omitzero"`
 }
 
 // Body: A message's readable text.

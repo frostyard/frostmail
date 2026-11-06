@@ -28,6 +28,7 @@ import {
 } from "../features/reader/MessageHeader";
 import { PlainText } from "../features/reader/PlainText";
 import { RawSourceSheet } from "../features/reader/RawSourceSheet";
+import { SenderCheckBanner } from "../features/reader/SenderCheckBanner";
 import { UnsubscribeBanner } from "../features/reader/UnsubscribeBanner";
 import { zoned } from "../lib/calendarDates";
 import { whenText } from "../lib/later";
@@ -366,6 +367,17 @@ function ConversationMessage({
           onAddress={onAddress}
           onMore={setMore}
           vip={isVip(message.summary.from.address, vipAddresses)}
+        />
+      )}
+      {message?.senderCheck === "fail" && (
+        <SenderCheckBanner
+          address={message.summary.from.address}
+          showing={headers !== null}
+          onToggle={() => {
+            void moreAction("headers").catch((err: unknown) =>
+              setError(err instanceof Error ? err.message : String(err)),
+            );
+          }}
         />
       )}
       {more && (

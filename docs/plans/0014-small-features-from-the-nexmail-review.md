@@ -24,7 +24,9 @@ Status (2026-11-05):
   are Accepted.
 - **Phase 2 is built** in [PR #168](https://github.com/frostyard/frostmail/pull/168)
   (issue [#160](https://github.com/frostyard/frostmail/issues/160)).
-- **Phases 1, 3 and 4 wait** for a day shift.
+- **Phase 1 is built** in [PR #169](https://github.com/frostyard/frostmail/pull/169)
+  (issue [#159](https://github.com/frostyard/frostmail/issues/159)).
+- **Phases 3 and 4 wait** for a day shift.
 
 ## Phase 0 — The specs and the decisions (planner, small)
 
@@ -45,6 +47,7 @@ Status (2026-11-05):
 
 ## Phase 1 — Sender check banner (S; [#159](https://github.com/frostyard/frostmail/issues/159))
 
+- **Status:** built (#159's PR), 2026-11-05.
 - [ADR-0050](../adr/0050-warn-when-the-providers-sender-checks-fail.md);
   the rules in [design/rendering.md](../design/rendering.md#sender-check);
   the banner in [specs/ui.md](../specs/ui.md#reader).

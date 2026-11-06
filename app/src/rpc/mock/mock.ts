@@ -24,6 +24,7 @@ import {
   type Part,
   type Rendering,
   type RuleApplied,
+  type SenderCheck,
   type SyncStatus,
   type Unsubscribe,
   type UnsubscribeMethod,
@@ -53,6 +54,8 @@ export interface MockMessage {
   trackers: number;
   /** How the message can be left, for mail from a list; done is the mock's own. */
   unsubscribe?: Omit<Unsubscribe, "done">;
+  /** The provider's sender check; absent when it said nothing (ADR-0050). */
+  senderCheck?: SenderCheck;
 }
 
 /** MockMailbox is a mailbox without counts; the mock computes them. */
@@ -539,6 +542,7 @@ export class MockTransport implements Transport {
         : "",
       parts: m.parts,
       bodyFetched: true,
+      ...(m.senderCheck ? { senderCheck: m.senderCheck } : {}),
     };
   }
 

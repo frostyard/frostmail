@@ -9,6 +9,11 @@ enums:
       - {name: oneclick, doc: "An HTTPS POST that maild sends (RFC 8058), for a sender the provider's DKIM vouches for."}
       - {name: mail, doc: "A message to the list's mailto: address, through the outbox."}
       - {name: web, doc: "The list's https: page, which the app opens in the browser."}
+  - name: SenderCheck
+    doc: What the receiving provider's checks said about the sender (ADR-0050); absent when they said nothing either way.
+    values:
+      - {name: pass, doc: "The provider's DMARC check passed, or its DKIM did when there was no DMARC result."}
+      - {name: fail, doc: "The provider's DMARC check failed, or its DKIM did when there was no DMARC result and no pass."}
 types:
   - name: Address
     doc: One mailbox address.
@@ -90,6 +95,7 @@ types:
       - {name: listUnsubscribe, type: string}
       - {name: parts, type: "[]Part"}
       - {name: bodyFetched, type: bool, doc: "Whether the full message is stored locally."}
+      - {name: senderCheck, type: SenderCheck, optional: true, doc: "The provider's sender check, from the first Authentication-Results header; absent when it is neither pass nor fail (ADR-0050)."}
   - name: Body
     doc: A message's readable text.
     fields:

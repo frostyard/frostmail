@@ -1648,6 +1648,7 @@ Everything about a message except its body.
 | `listUnsubscribe` | `string` |  |
 | `parts` | `[]Part` |  |
 | `bodyFetched` | `bool` | Whether the full message is stored locally. |
+| `senderCheck` | `SenderCheck` (optional) | The provider's sender check, from the first Authentication-Results header; absent when it is neither pass nor fail (ADR-0050). |
 
 ### Type `Body`
 
@@ -1702,6 +1703,15 @@ How a list message can be left (ADR-0027), best first.
 | `oneclick` | An HTTPS POST that maild sends (RFC 8058), for a sender the provider's DKIM vouches for. |
 | `mail` | A message to the list's mailto: address, through the outbox. |
 | `web` | The list's https: page, which the app opens in the browser. |
+
+### Enum `SenderCheck`
+
+What the receiving provider's checks said about the sender (ADR-0050); absent when they said nothing either way.
+
+| Value | Meaning |
+| --- | --- |
+| `pass` | The provider's DMARC check passed, or its DKIM did when there was no DMARC result. |
+| `fail` | The provider's DMARC check failed, or its DKIM did when there was no DMARC result and no pass. |
 
 ## oauth
 
