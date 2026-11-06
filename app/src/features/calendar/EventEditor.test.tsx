@@ -29,26 +29,29 @@ const calendars: CalendarChoice[] = [
   { id: 401, name: "Family", color: "", account: "ann@icloud.example" },
 ];
 
-function editor(start: EventDraft = review, opts: { readOnly?: boolean; invited?: boolean } = {}) {
+type EditorOpts = { readOnly?: boolean; invited?: boolean };
+
+function Harness({ start, seen, opts }: { start: EventDraft; seen: EventDraft[]; opts: EditorOpts }) {
+  const [draft, setDraft] = useState(start);
+  return (
+    <EventEditor
+      draft={draft}
+      onChange={(d) => {
+        seen.push(d);
+        setDraft(d);
+      }}
+      errors={{}}
+      calendars={calendars}
+      zones={["Europe/Berlin", "America/New_York", "UTC"]}
+      locale="en-US"
+      {...opts}
+    />
+  );
+}
+
+function editor(start: EventDraft = review, opts: EditorOpts = {}) {
   const seen: EventDraft[] = [];
-  function Harness() {
-    const [draft, setDraft] = useState(start);
-    return (
-      <EventEditor
-        draft={draft}
-        onChange={(d) => {
-          seen.push(d);
-          setDraft(d);
-        }}
-        errors={{}}
-        calendars={calendars}
-        zones={["Europe/Berlin", "America/New_York", "UTC"]}
-        locale="en-US"
-        {...opts}
-      />
-    );
-  }
-  render(<Harness />);
+  render(<Harness start={start} seen={seen} opts={opts} />);
   return { last: () => seen.at(-1) };
 }
 

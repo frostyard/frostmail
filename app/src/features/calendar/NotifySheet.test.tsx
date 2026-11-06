@@ -8,6 +8,34 @@ import { NotifySheet, useNotify } from "./NotifySheet";
 
 const buttons = () => screen.getAllByRole("button").map((b) => b.textContent);
 
+// Host opens the sheet from a button, so focus can go back to it.
+function Host() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open
+      </button>
+      {open && <NotifySheet notice={{ kind: "updates", count: 2 }} onSend={() => {}} onCancel={() => setOpen(false)} />}
+    </>
+  );
+}
+
+// Asker asks through useNotify and shows the answer.
+function Asker({ notice }: { notice: InviteNotice }) {
+  const { ask, sheet } = useNotify();
+  const [answer, setAnswer] = useState("none");
+  return (
+    <>
+      <button type="button" onClick={() => ask(notice).then((yes) => setAnswer(String(yes)))}>
+        Change
+      </button>
+      <output>{answer}</output>
+      {sheet}
+    </>
+  );
+}
+
 describe("NotifySheet", () => {
   it("asks before updates go out", () => {
     const onSend = vi.fn();
@@ -47,19 +75,6 @@ describe("NotifySheet", () => {
   });
 
   it("keeps Tab inside, and gives focus back when it closes", () => {
-    function Host() {
-      const [open, setOpen] = useState(false);
-      return (
-        <>
-          <button type="button" onClick={() => setOpen(true)}>
-            Open
-          </button>
-          {open && (
-            <NotifySheet notice={{ kind: "updates", count: 2 }} onSend={() => {}} onCancel={() => setOpen(false)} />
-          )}
-        </>
-      );
-    }
     render(<Host />);
     const opener = screen.getByRole("button", { name: "Open" });
     opener.focus();
@@ -78,20 +93,6 @@ describe("NotifySheet", () => {
 });
 
 describe("useNotify", () => {
-  function Asker({ notice }: { notice: InviteNotice }) {
-    const { ask, sheet } = useNotify();
-    const [answer, setAnswer] = useState("none");
-    return (
-      <>
-        <button type="button" onClick={() => ask(notice).then((yes) => setAnswer(String(yes)))}>
-          Change
-        </button>
-        <output>{answer}</output>
-        {sheet}
-      </>
-    );
-  }
-
   it("shows the sheet while it asks, and answers with the choice", async () => {
     render(<Asker notice={{ kind: "updates", count: 2 }} />);
     expect(screen.queryByRole("dialog")).toBeNull();
