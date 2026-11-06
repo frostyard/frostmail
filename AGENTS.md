@@ -238,6 +238,12 @@ The repository follows core's baseline (frostyard/core ADR-0071, its spec
   joins the list in the PR that adds it; a glob that matches no file fails.
 - `.github/dependabot.yml` (B13): 1 entry for each manifest (`go.mod`,
   `app/package.json`, each `Cargo.toml`). A new manifest gets an entry.
+  Groups take only minor and patch updates; a major comes as its own PR.
+  Each cargo git crate of frostyard or bketelsen has an `ignore` entry
+  (Dependabot cannot resolve it; internal bumps go by hand). A gomod, npm
+  or `app/src-tauri` cargo PR fails the Flatpak sources check until the
+  owner runs `make flatpak-sources` (nsl) on its branch and pushes the
+  result during triage.
 
 `.github/pull_request_template.md` (B7) holds the risk tier. Vulnerabilities
 are reported privately ([SECURITY.md](SECURITY.md), B14). No `CODEOWNERS`

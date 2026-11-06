@@ -15,6 +15,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/pelletier/go-toml/v2"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -642,11 +643,23 @@ func TestMatchGlob(t *testing.T) {
 	}
 }
 
+// dependabotIgnore is 1 entry of an update's ignore list; an ignore with
+// versions or update-types lets some updates through.
+type dependabotIgnore struct {
+	Name        string   `yaml:"dependency-name"`
+	Versions    []string `yaml:"versions"`
+	UpdateTypes []string `yaml:"update-types"`
+}
+
 // dependabotUpdate is 1 entry of the updates list of
 // .github/dependabot.yml.
 type dependabotUpdate struct {
-	Ecosystem string `yaml:"package-ecosystem"`
-	Directory string `yaml:"directory"`
+	Ecosystem string             `yaml:"package-ecosystem"`
+	Directory string             `yaml:"directory"`
+	Ignore    []dependabotIgnore `yaml:"ignore"`
+	Groups    map[string]struct {
+		UpdateTypes []string `yaml:"update-types"`
+	} `yaml:"groups"`
 }
 
 // dependabotFile is the whole of .github/dependabot.yml.
@@ -680,10 +693,9 @@ func normalizeDir(dir string) string {
 	return strings.TrimSuffix(dir, "/")
 }
 
-// TestDependabotCoversManifests guards row B13 of frostyard/core
-// docs/specs/repository-baseline.md: .github/dependabot.yml has 1 entry for
-// each manifest of the repository, and the github-actions entry at "/".
-func TestDependabotCoversManifests(t *testing.T) {
+// readDependabot parses .github/dependabot.yml.
+func readDependabot(t *testing.T) dependabotFile {
+	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "..", ".github", "dependabot.yml"))
 	if err != nil {
 		t.Fatalf(".github/dependabot.yml: %v", err)
@@ -692,6 +704,259 @@ func TestDependabotCoversManifests(t *testing.T) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		t.Fatalf(".github/dependabot.yml: %v", err)
 	}
+	return cfg
+}
+
+// internalGitCrates returns the name of each dependency of Cargo.toml data that
+// is a git dependency on a frostyard or bketelsen repository, from the tables
+// dependencies, dev-dependencies, build-dependencies, workspace.dependencies
+// and target.<any>.*. A renamed crate has its package name, the name
+// Dependabot uses.
+func internalGitCrates(data []byte) ([]string, error) {
+	var manifest map[string]any
+	if err := toml.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+	tables := []map[string]any{manifest}
+	if workspace, ok := manifest["workspace"].(map[string]any); ok {
+		tables = append(tables, workspace)
+	}
+	if targets, ok := manifest["target"].(map[string]any); ok {
+		for _, target := range targets {
+			if t, ok := target.(map[string]any); ok {
+				tables = append(tables, t)
+			}
+		}
+	}
+	var out []string
+	for _, table := range tables {
+		for _, kind := range []string{"dependencies", "dev-dependencies", "build-dependencies"} {
+			deps, ok := table[kind].(map[string]any)
+			if !ok {
+				continue
+			}
+			out = append(out, internalCrates(deps)...)
+		}
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+// internalCrates returns the internal git crates of 1 dependency table.
+func internalCrates(deps map[string]any) []string {
+	var out []string
+	for key, value := range deps {
+		spec, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		url, ok := spec["git"].(string)
+		if !ok || !internalGitRemote(url) {
+			continue
+		}
+		name := key
+		if pkg, ok := spec["package"].(string); ok && pkg != "" {
+			name = pkg
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
+// internalGitRemote reports whether url is a frostyard or bketelsen git
+// repository. Dependabot cannot resolve those (a tag there is not on
+// crates.io), so internal bumps go by hand.
+func internalGitRemote(url string) bool {
+	for _, owner := range []string{"https://github.com/frostyard/", "https://github.com/bketelsen/"} {
+		if strings.HasPrefix(url, owner) {
+			return true
+		}
+	}
+	return false
+}
+
+// cargoIgnores returns the (directory, crate) pairs the cargo entries of the
+// Dependabot configuration ignore completely. An ignore with versions or
+// update-types lets some updates through, so it does not count, and neither does
+// an ignore of another ecosystem.
+func cargoIgnores(cfg dependabotFile) map[[2]string]bool {
+	out := map[[2]string]bool{}
+	for _, u := range cfg.Updates {
+		if u.Ecosystem != "cargo" {
+			continue
+		}
+		for _, ig := range u.Ignore {
+			if ig.Name == "" || len(ig.Versions) > 0 || len(ig.UpdateTypes) > 0 {
+				continue
+			}
+			out[[2]string{normalizeDir(u.Directory), ig.Name}] = true
+		}
+	}
+	return out
+}
+
+// TestDependabotLeavesInternalGitCratesAlone: Dependabot cannot resolve a
+// cargo git dependency on a frostyard tag (its job for app/src-tauri failed on
+// frostyard-problems), and internal bumps go by hand, so its cargo entry ignores
+// each such crate.
+func TestDependabotLeavesInternalGitCratesAlone(t *testing.T) {
+	ignored := cargoIgnores(readDependabot(t))
+	crates := 0
+	for _, f := range repoFiles(t, "third_party", "docs") {
+		if path.Base(f) != "Cargo.toml" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(f)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		names, err := internalGitCrates(data)
+		if err != nil {
+			t.Errorf("%s: %v", f, err)
+			continue
+		}
+		dir := "/"
+		if d := path.Dir(f); d != "." {
+			dir += d
+		}
+		for _, name := range names {
+			crates++
+			if !ignored[[2]string{dir, name}] {
+				t.Errorf("%s: the internal git crate %s has no ignore entry in the cargo entry for %s", f, name, dir)
+			}
+		}
+	}
+	if crates == 0 {
+		t.Fatal("no internal git crate found; the Cargo.toml files changed")
+	}
+	t.Logf("%d internal git crates checked", crates)
+}
+
+// TestInternalGitCrates checks the Cargo.toml forms an internal git crate can
+// take.
+func TestInternalGitCrates(t *testing.T) {
+	const crate = "frostyard-problems"
+	const url = "https://github.com/frostyard/std"
+	for _, tc := range []struct {
+		name string
+		data string
+		want string // "" when no internal git crate is expected
+	}{
+		{"inline", `[dependencies]
+frostyard-problems = { git = "` + url + `", tag = "v0.5.0" }
+`, crate},
+		{"table", `[dependencies.frostyard-problems]
+git = "` + url + `"
+tag = "v0.5.0"
+`, crate},
+		{"single quoted url", `[dependencies]
+frostyard-problems = { git = 'https://github.com/bketelsen/codex' }
+`, crate},
+		{"quoted key", `[dependencies]
+"frostyard-problems" = { git = "` + url + `" }
+`, crate},
+		{"target table", `[target.'cfg(windows)'.dependencies]
+frostyard-problems = { git = "` + url + `" }
+`, crate},
+		{"dev dependencies", `[dev-dependencies]
+frostyard-problems = { git = "` + url + `" }
+`, crate},
+		{"workspace dependencies", `[workspace.dependencies]
+frostyard-problems = { git = "` + url + `" }
+`, crate},
+		{"renamed crate", `[dependencies]
+problems = { package = "frostyard-problems", git = "` + url + `" }
+`, crate},
+		{"crates.io", `[dependencies]
+frostyard-problems = { version = "0.5" }
+serde = "1"
+`, ""},
+		{"another owner", `[dependencies]
+other = { git = "https://github.com/other/std" }
+`, ""},
+	} {
+		crates, err := internalGitCrates([]byte(tc.data))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if tc.want == "" {
+			if len(crates) > 0 {
+				t.Errorf("%s: internalGitCrates = %v, want none", tc.name, crates)
+			}
+			continue
+		}
+		if !slices.Equal(crates, []string{tc.want}) {
+			t.Errorf("%s: internalGitCrates = %v, want [%s]", tc.name, crates, tc.want)
+		}
+	}
+	if _, err := internalGitCrates([]byte("[dependencies\n")); err == nil {
+		t.Error("invalid TOML: internalGitCrates gave no error")
+	}
+}
+
+// TestCargoIgnores checks what counts as a full ignore of a crate: the cargo
+// entry of its directory, with no versions and no update-types.
+func TestCargoIgnores(t *testing.T) {
+	const crate = "frostyard-problems"
+	for _, tc := range []struct {
+		name   string
+		update dependabotUpdate
+		want   bool
+	}{
+		{"cargo full ignore", dependabotUpdate{
+			Ecosystem: "cargo", Directory: "/app/src-tauri",
+			Ignore: []dependabotIgnore{{Name: crate}},
+		}, true},
+		{"cargo full ignore, trailing slash", dependabotUpdate{
+			Ecosystem: "cargo", Directory: "/app/src-tauri/",
+			Ignore: []dependabotIgnore{{Name: crate}},
+		}, true},
+		{"gomod ignore, same directory", dependabotUpdate{
+			Ecosystem: "gomod", Directory: "/app/src-tauri",
+			Ignore: []dependabotIgnore{{Name: crate}},
+		}, false},
+		{"ignore with update-types", dependabotUpdate{
+			Ecosystem: "cargo", Directory: "/app/src-tauri",
+			Ignore: []dependabotIgnore{{Name: crate, UpdateTypes: []string{"version-update:semver-major"}}},
+		}, false},
+		{"ignore with versions", dependabotUpdate{
+			Ecosystem: "cargo", Directory: "/app/src-tauri",
+			Ignore: []dependabotIgnore{{Name: crate, Versions: []string{">= 1"}}},
+		}, false},
+	} {
+		cfg := dependabotFile{Version: 2, Updates: []dependabotUpdate{tc.update}}
+		if got := cargoIgnores(cfg)[[2]string{"/app/src-tauri", crate}]; got != tc.want {
+			t.Errorf("%s: cargoIgnores counts %s at /app/src-tauri = %v, want %v", tc.name, crate, got, tc.want)
+		}
+	}
+}
+
+// TestDependabotGroupsLeaveMajorsOut: a group takes only minor and patch
+// updates, so that a major update, which can break the build, comes as a PR of
+// its own.
+func TestDependabotGroupsLeaveMajorsOut(t *testing.T) {
+	groups := 0
+	for _, u := range readDependabot(t).Updates {
+		for name, g := range u.Groups {
+			groups++
+			types := slices.Clone(g.UpdateTypes)
+			slices.Sort(types)
+			if !slices.Equal(types, []string{"minor", "patch"}) {
+				t.Errorf("%s %s: group %s has update-types %v, want [minor patch]", u.Ecosystem, u.Directory, name, g.UpdateTypes)
+			}
+		}
+	}
+	if groups == 0 {
+		t.Fatal("no Dependabot group found")
+	}
+	t.Logf("%d groups", groups)
+}
+
+// TestDependabotCoversManifests guards row B13 of frostyard/core
+// docs/specs/repository-baseline.md: .github/dependabot.yml has 1 entry for
+// each manifest of the repository, and the github-actions entry at "/".
+func TestDependabotCoversManifests(t *testing.T) {
+	cfg := readDependabot(t)
 	if cfg.Version != 2 {
 		t.Errorf("version = %d, want 2", cfg.Version)
 	}
