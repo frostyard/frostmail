@@ -9,6 +9,8 @@ import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
+import { AttachmentReminderSheet } from "../features/compose/AttachmentReminderSheet";
+import { needsAttachmentReminder } from "../features/compose/attachmentReminder";
 import { ComposeAttachments, type PendingAttachment } from "../features/compose/ComposeAttachments";
 import { ComposeHeader } from "../features/compose/ComposeHeader";
 import { type ComposeCommand, ComposeToolbar, FormatBar, type FormatCommand } from "../features/compose/ComposeToolbar";
@@ -88,6 +90,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const [attachments, setAttachments] = useState<DraftAttachment[]>(initial.attachments);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [identities, setIdentities] = useState<Identity[]>([]);
+  const [identitiesSettled, setIdentitiesSettled] = useState(false);
   const [showBcc, setShowBcc] = useState(initial.content.bcc.length > 0);
   const [formatBar, setFormatBar] = useState(false);
   const [maximized, setMaximized] = useState(false);
@@ -95,6 +98,8 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const [linkUrl, setLinkUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sendLater, setSendLater] = useState<Date | null>(null);
+  // The send the attachment reminder holds back; `at` is the user's Send Later choice.
+  const [reminder, setReminder] = useState<{ at?: Date } | null>(null);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const laterChoices = sendChoices(new Date(), timeZone, appLocale(navigator.language));
 
@@ -157,10 +162,14 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const active = useEditorState({ editor, selector: ({ editor: e }) => (e ? activeFormats(e) : {}) }) ?? {};
 
   useEffect(() => {
+    // Send waits for this answer (canSend) so the reminder can read the signature.
+    // A failed list keeps identities empty: the signature is "", and a reminder
+    // too many is safe, a missed one is not.
     void client.identity
       .list({ accountId: initial.accountId })
       .then(setIdentities)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIdentitiesSettled(true));
   }, [client, initial.accountId]);
 
   useEffect(() => {
@@ -180,7 +189,11 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
 
   const recipients = [...content.to, ...content.cc, ...content.bcc];
   const canSend =
-    !busy && pending.length === 0 && recipients.length > 0 && recipients.every((a) => isValidAddress(a.address));
+    identitiesSettled &&
+    !busy &&
+    pending.length === 0 &&
+    recipients.length > 0 &&
+    recipients.every((a) => isValidAddress(a.address));
 
   const attachPaths = useCallback(
     (paths: string[]) => {
@@ -262,7 +275,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     attachPaths(Array.isArray(picked) ? picked : [picked]);
   }, [attachPaths]);
 
-  const send = useCallback(
+  const sendNow = useCallback(
     async (at?: Date) => {
       if (!canSend) return;
       setBusy(true);
@@ -277,6 +290,21 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
       }
     },
     [canSend, flush, client, id],
+  );
+
+  // send checks the attachment reminder first; Send Anyway calls sendNow.
+  const send = useCallback(
+    async (at?: Date) => {
+      if (!canSend) return;
+      const current = latest.current;
+      const signature = identities.find((i) => i.id === current.identityId)?.signatureHtml ?? "";
+      if (needsAttachmentReminder(current.html, signature, attachments.length)) {
+        setReminder({ at });
+        return;
+      }
+      await sendNow(at);
+    },
+    [canSend, identities, attachments.length, sendNow],
   );
 
   const isEmpty = useCallback(
@@ -402,6 +430,20 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
             void send(at);
           }}
           onCancel={() => setSendLater(null)}
+        />
+      )}
+      {reminder && (
+        <AttachmentReminderSheet
+          onCancel={() => setReminder(null)}
+          onAttach={() => {
+            setReminder(null);
+            void pickFiles();
+          }}
+          onSendAnyway={() => {
+            const { at } = reminder;
+            setReminder(null);
+            void sendNow(at);
+          }}
         />
       )}
       <ComposeHeader
