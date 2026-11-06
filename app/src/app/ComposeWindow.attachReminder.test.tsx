@@ -11,7 +11,7 @@ import { ComposeWindow } from "./ComposeWindow";
 
 async function setup(
   html: string,
-  opts: { signature?: string; attach?: boolean; holdIdentities?: Promise<void> } = {},
+  opts: { signature?: string; attach?: boolean; holdIdentities?: Promise<void>; failIdentities?: boolean } = {},
 ) {
   const mock = new MockTransport(mockData({ inbox: 3, now: new Date("2026-10-07T12:00:00Z") }), { undoMs: 50 });
   const client = new Client(mock);
@@ -24,11 +24,14 @@ async function setup(
     await client.identity.update({ id: draft.content.identityId, signatureHtml: opts.signature });
   }
   if (opts.attach) await client.draft.attach({ id: draft.id, path: "/tmp/a.txt" });
-  if (opts.holdIdentities) {
+  if (opts.holdIdentities || opts.failIdentities) {
     const hold = opts.holdIdentities;
     const original = mock.call.bind(mock);
     vi.spyOn(mock, "call").mockImplementation(async (method: string, params: unknown) => {
-      if (method === "identity.list") await hold;
+      if (method === "identity.list") {
+        if (hold) await hold;
+        if (opts.failIdentities) throw new Error("identity.list failed");
+      }
       return original(method, params);
     });
   }
@@ -39,7 +42,11 @@ async function setup(
     </Session>,
   );
   await screen.findByRole("toolbar", { name: "Compose" });
-  await waitFor(() => expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(false));
+  if (!opts.holdIdentities) {
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(false),
+    );
+  }
   if (opts.attach) await screen.findByText("a.txt");
   const sends = () => mock.calls.filter((c) => c.method === "draft.send").map((c) => c.params);
   return { mock, draft, close, sends };
@@ -171,11 +178,32 @@ describe("attachment reminder in the compose window", () => {
     });
     const sig = "<p>Ann</p><p>Attached Corp</p>";
     const { sends } = await setup(`<p>Ok</p><p><br></p>${sig}`, { signature: sig, holdIdentities: hold });
-    await user.click(screen.getByRole("button", { name: "Send" }));
+    const send = screen.getByRole("button", { name: "Send" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    await user.keyboard("{Control>}{Enter}{/Control}");
     expect(sends()).toEqual([]);
     release();
+    await waitFor(() => expect(send.disabled).toBe(false));
+    await user.click(send);
     await waitFor(() => expect(sends()).toHaveLength(1));
     expect(screen.queryByRole("dialog", { name: TITLE })).toBeNull();
+  });
+
+  it("a failed identity list still asks", async () => {
+    const user = userEvent.setup();
+    const { sends } = await setup("<p>Ok</p><p><br></p><p>Ann</p><p>Attached Corp</p>", { failIdentities: true });
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByRole("dialog", { name: TITLE });
+    expect(sends()).toEqual([]);
+  });
+
+  it("sends once on a double click", async () => {
+    const user = userEvent.setup();
+    const { sends, close } = await setup(SEE, { attach: true });
+    const send = screen.getByRole("button", { name: "Send" });
+    await user.dblClick(send);
+    await waitFor(() => expect(close).toHaveBeenCalled());
+    expect(sends()).toHaveLength(1);
   });
 
   it("checks the Send Later time sheet's OK", async () => {

@@ -90,6 +90,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const [attachments, setAttachments] = useState<DraftAttachment[]>(initial.attachments);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [identities, setIdentities] = useState<Identity[]>([]);
+  const [identitiesSettled, setIdentitiesSettled] = useState(false);
   const [showBcc, setShowBcc] = useState(initial.content.bcc.length > 0);
   const [formatBar, setFormatBar] = useState(false);
   const [maximized, setMaximized] = useState(false);
@@ -108,7 +109,6 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const dirty = useRef(false);
   const touched = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const identitiesReady = useRef<Promise<Identity[] | null>>(Promise.resolve(null));
   const saving = useRef<Promise<void>>(Promise.resolve());
 
   const flush = useCallback((): Promise<void> => {
@@ -162,13 +162,14 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const active = useEditorState({ editor, selector: ({ editor: e }) => (e ? activeFormats(e) : {}) }) ?? {};
 
   useEffect(() => {
-    const listed = client.identity.list({ accountId: initial.accountId });
-    // send awaits this promise to read the signature; null means the request failed.
-    identitiesReady.current = listed.then(
-      (list) => list,
-      () => null,
-    );
-    void listed.then(setIdentities).catch(() => {});
+    // Send waits for this answer (canSend) so the reminder can read the signature.
+    // A failed list keeps identities empty: the signature is "", and a reminder
+    // too many is safe, a missed one is not.
+    void client.identity
+      .list({ accountId: initial.accountId })
+      .then(setIdentities)
+      .catch(() => {})
+      .finally(() => setIdentitiesSettled(true));
   }, [client, initial.accountId]);
 
   useEffect(() => {
@@ -188,7 +189,11 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
 
   const recipients = [...content.to, ...content.cc, ...content.bcc];
   const canSend =
-    !busy && pending.length === 0 && recipients.length > 0 && recipients.every((a) => isValidAddress(a.address));
+    identitiesSettled &&
+    !busy &&
+    pending.length === 0 &&
+    recipients.length > 0 &&
+    recipients.every((a) => isValidAddress(a.address));
 
   const attachPaths = useCallback(
     (paths: string[]) => {
@@ -291,18 +296,15 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const send = useCallback(
     async (at?: Date) => {
       if (!canSend) return;
-      // Send can be clicked before identity.list answers: wait for it. When the
-      // request failed the signature is "": a reminder too many is safe, a missed one is not.
-      const list = await identitiesReady.current;
       const current = latest.current;
-      const signature = list?.find((i) => i.id === current.identityId)?.signatureHtml ?? "";
+      const signature = identities.find((i) => i.id === current.identityId)?.signatureHtml ?? "";
       if (needsAttachmentReminder(current.html, signature, attachments.length)) {
         setReminder({ at });
         return;
       }
       await sendNow(at);
     },
-    [canSend, attachments.length, sendNow],
+    [canSend, identities, attachments.length, sendNow],
   );
 
   const isEmpty = useCallback(
