@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "paths": [
+    {
+      "glob": ".github/risk-paths.json",
+      "why": "governance: the high-risk path list"
+    },
+    {
+      "glob": ".github/workflows/**",
+      "why": "governance: CI, the risk-paths caller and token permissions"
+    },
+    {
+      "glob": ".github/workflows/{release,flatpak,promote}.yml",
+      "why": "publication: the .deb release, the Flatpak candidates and their attestations, and Promote"
+    },
+    {
+      "glob": "Makefile",
+      "why": "governance: the verify, check and ci gate, and make bump, which tags a release"
+    },
+    {
+      "glob": "{mise.toml,mise.lock}",
+      "why": "governance: the checksummed pins of golangci-lint, svu and nFPM"
+    },
+    {
+      "glob": ".svu.yml",
+      "why": "publication: the version rule of every tag"
+    },
+    {
+      "glob": "internal/workflowcheck/**",
+      "why": "governance: the tests that hold the workflows (ADR-0021) and the repository baseline files"
+    },
+    {
+      "glob": "packaging/flatpak/{org.frostyard.Frostmail.json,frostmail,frostmail.sh,stamp-version.sh,request-background.py,install.sh,open.sh}",
+      "why": "publication: the Flatpak manifest and its sandbox permissions, the launcher, the version stamp, the install wrapper and the wrapper it installs"
+    },
+    {
+      "glob": "packaging/{nfpm.yaml,deb-check.py}",
+      "why": "publication: the contents of the .deb and its check"
+    },
+    {
+      "glob": "packaging/systemd/**",
+      "why": "publication: the user unit that make install puts in place"
+    },
+    {
+      "glob": "app/src-tauri/{tauri.windows.conf.json,windows/**}",
+      "why": "destructive operations: the Windows installer and its NSIS hooks, which stop processes, register startup and URI handlers, and delete app data at uninstall"
+    },
+    {
+      "glob": "packaging/lodge/**",
+      "why": "secrets and credentials: lodge's units that load the sealed secrets key, the key helper and the system user"
+    },
+    {
+      "glob": "scripts/{seal-mail-secrets,move-mail-to-lodge}.sh",
+      "why": "secrets and credentials: root scripts that seal the secrets and move the mail and its secrets to lodge's host"
+    },
+    {
+      "glob": "internal/secrets/**",
+      "why": "secrets and credentials: the Secret Service, sealed, DPAPI and file stores of account secrets"
+    },
+    {
+      "glob": "internal/oauth/**",
+      "why": "auth: OAuth sign-in, token refresh and SASL"
+    },
+    {
+      "glob": "{api/scope.go,internal/lodge/serve.go}",
+      "why": "auth: an agent's MCP scope and its check on lodge's socket"
+    },
+    {
+      "glob": "internal/store/migrations/**",
+      "why": "destructive operations: schema migrations of the user's mail database"
+    }
+  ]
+}
