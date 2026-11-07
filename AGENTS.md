@@ -265,3 +265,7 @@ Start new docs from the category's `TEMPLATE.md` and index them in
 `docs/README.md`. Record repo-local decisions as ADRs before changing the
 design they shape. Frostmail is pre-release: rewrite designs, specs and code
 in place when decisions change.
+
+A check's record (a plan's gate or VM check) states what its evidence
+shows: the observed times, counts and texts. Never state a limit, a cause
+or a pass that the samples do not establish.
