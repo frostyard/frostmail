@@ -433,19 +433,6 @@ func (d *DB) MatchingIDs(ctx context.Context, c api.Conditions, ids []int64, loc
 	if err != nil {
 		return nil, fmt.Errorf("matching ids: %w", err)
 	}
-	rows, err := d.db.QueryContext(ctx, `SELECT m.id FROM messages m WHERE m.id IN (SELECT value FROM json_each(?)) AND `+
+	return queryIDs(ctx, d.db, "matching ids", `SELECT m.id FROM messages m WHERE m.id IN (SELECT value FROM json_each(?)) AND `+
 		p.SQL+` ORDER BY m.id`, append([]any{string(in)}, p.Args...)...)
-	if err != nil {
-		return nil, fmt.Errorf("matching ids: %w", err)
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("matching ids: %w", err)
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }

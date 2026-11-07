@@ -43,21 +43,8 @@ func (t *Tx) ClearMessageReminders(ctx context.Context, ids []int64) ([]int64, e
 	if err != nil {
 		return nil, fmt.Errorf("clear reminders: %w", err)
 	}
-	rows, err := t.QueryContext(ctx, `DELETE FROM message_reminders WHERE message_id IN (SELECT value FROM json_each(?))
+	return queryIDs(ctx, t, "clear reminders", `DELETE FROM message_reminders WHERE message_id IN (SELECT value FROM json_each(?))
 		RETURNING message_id`, string(in))
-	if err != nil {
-		return nil, fmt.Errorf("clear reminders: %w", err)
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("clear reminders: %w", err)
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 // DueMessageReminders returns the reminders due by now, oldest first.

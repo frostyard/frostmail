@@ -43,6 +43,33 @@ type querier interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
+// queryIDs runs a query whose rows hold 1 int64 column and returns the
+// values in row order, nil for none. A query or scan error is wrapped as
+// "op: err" (unwrapped when op is empty); the rows' final error is returned
+// as it is.
+func queryIDs(ctx context.Context, q querier, op, query string, args ...any) ([]int64, error) {
+	wrap := func(err error) error {
+		if op == "" {
+			return err
+		}
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, wrap(err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, wrap(err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 func listMailboxes(ctx context.Context, q querier, accountID int64) ([]Mailbox, error) {
 	rows, err := q.QueryContext(ctx, `
 		SELECT mb.id, mb.account_id, mb.path, mb.name, mb.delimiter, mb.role, mb.is_gmail_label,
@@ -237,25 +264,12 @@ func (t *Tx) ReplaceMailboxes(ctx context.Context, accountID int64, list []Serve
 // orphanMessageIDs returns the IDs of messages whose only membership is in
 // mailboxID, ascending.
 func orphanMessageIDs(ctx context.Context, t *Tx, mailboxID int64) ([]int64, error) {
-	rows, err := t.QueryContext(ctx, `
+	return queryIDs(ctx, t, "find orphan messages", `
 		SELECT mm.message_id FROM message_mailbox mm
 		WHERE mm.mailbox_id = ?
 		  AND NOT EXISTS (SELECT 1 FROM message_mailbox o
 		                WHERE o.message_id = mm.message_id AND o.mailbox_id <> ?)
 		ORDER BY mm.message_id`, mailboxID, mailboxID)
-	if err != nil {
-		return nil, fmt.Errorf("find orphan messages: %w", err)
-	}
-	defer rows.Close()
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("find orphan messages: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
 }
 
 // deleteMailbox deletes a mailbox and the messages left in no mailbox, with

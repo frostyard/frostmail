@@ -165,20 +165,7 @@ func (t *Tx) MarkRulesWaiting(ctx context.Context, ids []int64) error {
 // RulesWaiting returns an account's messages waiting for the rules,
 // ascending.
 func (d *DB) RulesWaiting(ctx context.Context, accountID int64) ([]int64, error) {
-	rows, err := d.db.QueryContext(ctx, `SELECT id FROM messages WHERE account_id = ? AND rules_waiting = 1 ORDER BY id`, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("rules waiting: %w", err)
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("rules waiting: %w", err)
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
+	return queryIDs(ctx, d.db, "rules waiting", `SELECT id FROM messages WHERE account_id = ? AND rules_waiting = 1 ORDER BY id`, accountID)
 }
 
 // ClearRulesWaiting marks messages as no longer waiting for the rules.
