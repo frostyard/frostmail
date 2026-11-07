@@ -95,21 +95,8 @@ func (d *DB) BlockedAmong(ctx context.Context, ids []int64) ([]int64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("blocked among: %w", err)
 	}
-	rows, err := d.db.QueryContext(ctx, `SELECT id FROM messages WHERE id IN (SELECT value FROM json_each(?))
+	return queryIDs(ctx, d.db, "blocked among", `SELECT id FROM messages WHERE id IN (SELECT value FROM json_each(?))
 		AND lower(from_addr) IN (SELECT address FROM blocked) ORDER BY id`, string(in))
-	if err != nil {
-		return nil, fmt.Errorf("blocked among: %w", err)
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("blocked among: %w", err)
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 // Block blocks addresses (lowercased; ones already blocked stay as they

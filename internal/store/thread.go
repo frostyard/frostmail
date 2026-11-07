@@ -105,21 +105,8 @@ func (t *Tx) threadsFor(ctx context.Context, accountID int64, keys []string) ([]
 	for _, k := range keys {
 		args = append(args, k)
 	}
-	rows, err := t.QueryContext(ctx, `SELECT DISTINCT thread_id FROM thread_refs WHERE account_id = ? AND msgid_hdr IN (`+
+	return queryIDs(ctx, t, "", `SELECT DISTINCT thread_id FROM thread_refs WHERE account_id = ? AND msgid_hdr IN (`+
 		strings.TrimSuffix(strings.Repeat("?, ", len(keys)), ", ")+`) ORDER BY thread_id`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 func (t *Tx) threadBySubject(ctx context.Context, accountID int64, norm, internal string) (int64, error) {
@@ -183,21 +170,8 @@ func (t *Tx) ThreadsOf(ctx context.Context, messageIDs []int64) ([]int64, error)
 	for i, id := range messageIDs {
 		args[i] = id
 	}
-	rows, err := t.QueryContext(ctx, `SELECT DISTINCT thread_id FROM messages WHERE thread_id IS NOT NULL AND id IN (`+
+	return queryIDs(ctx, t, "", `SELECT DISTINCT thread_id FROM messages WHERE thread_id IS NOT NULL AND id IN (`+
 		strings.TrimSuffix(strings.Repeat("?, ", len(messageIDs)), ", ")+`) ORDER BY thread_id`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 // ThreadsOfUIDs returns the distinct thread IDs of the messages at uids in
