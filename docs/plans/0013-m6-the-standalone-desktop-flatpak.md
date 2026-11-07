@@ -643,9 +643,10 @@ screenshots and command outputs are in Irulan's home,
      org.frostyard.Frostmail no` ran before the first start. The
      launcher's request got response 1 (`background` and `autostart`
      false), and it wrote no autostart entry. maild started with the
-     first window. When the last window closed, maild ended within 5 s,
-     with no "maild stopped" in its log, as ADR-0046 says. No maild
-     started at the next login.
+     first window. The last window closed at 10:07:22. maild still ran
+     at 10:07:27.1 and was gone at 10:07:28.1 (samples 1 s apart), with no
+     "maild stopped" in its log, as ADR-0046 says. No maild started at
+     the next login.
    - **Finding:** with no account, a close of the main window left the
      Add Account settings sheet open as its own window. That window kept
      the app, and so maild, running until the logout.
