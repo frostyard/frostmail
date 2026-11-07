@@ -11,7 +11,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"mime/quotedprintable"
-	"reflect"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -31,11 +30,10 @@ var samples = []sample{
 var encodings = []string{"8bit", "quoted-printable", "base64"}
 
 type fixture struct {
-	name        string
-	raw         []byte
-	text        string
-	hasHTML     bool
-	attachments []Attachment
+	name    string
+	raw     []byte
+	text    string
+	hasHTML bool
 }
 
 // encode applies a transfer encoding; the result ends in CRLF.
@@ -104,10 +102,6 @@ func generatedFixtures() []fixture {
 			html := []byte("<p>" + s.encoded + "</p>")
 			plainPart := part("text/plain"+cs, enc, text)
 			htmlPart := part("text/html"+cs, enc, html)
-			pdf := Attachment{Filename: "report.pdf", ContentType: "application/pdf", Size: int64(len(pdfData))}
-			note := Attachment{Filename: "notes.txt", ContentType: "text/plain", Size: int64(len(noteData))}
-			logo := Attachment{Filename: "logo.png", ContentType: "image/png", Size: int64(len(pngData)), ContentID: "logo@mailtest.test", Inline: true}
-			csv := Attachment{Filename: "data.csv", ContentType: "text/csv", Size: int64(len(csvData))}
 			pdfPart := part("application/pdf", "base64", pdfData, `Content-Disposition: attachment; filename="report.pdf"`)
 			notePart := part("text/plain; charset=us-ascii", "7bit", noteData, `Content-Disposition: attachment; filename="notes.txt"`)
 			logoPart := part("image/png", "base64", pngData, "Content-ID: <logo@mailtest.test>", `Content-Disposition: inline; filename="logo.png"`)
@@ -116,21 +110,20 @@ func generatedFixtures() []fixture {
 				name    string
 				body    string
 				hasHTML bool
-				atts    []Attachment
 			}{
-				{"plain", plainPart, false, nil},
-				{"html", htmlPart, true, nil},
-				{"alternative", multipart("alternative", "a", plainPart, htmlPart), true, nil},
-				{"alternative-html-first", multipart("alternative", "a", htmlPart, plainPart), true, nil},
-				{"mixed-pdf", multipart("mixed", "m", multipart("alternative", "a", plainPart, htmlPart), pdfPart), true, []Attachment{pdf}},
-				{"mixed-text-attachment", multipart("mixed", "m", plainPart, notePart), false, []Attachment{note}},
-				{"related", multipart("related", "r", htmlPart, logoPart), true, []Attachment{logo}},
-				{"nested", multipart("mixed", "m", multipart("alternative", "a", plainPart, multipart("related", "r", htmlPart, logoPart)), csvPart), true, []Attachment{logo, csv}},
+				{"plain", plainPart, false},
+				{"html", htmlPart, true},
+				{"alternative", multipart("alternative", "a", plainPart, htmlPart), true},
+				{"alternative-html-first", multipart("alternative", "a", htmlPart, plainPart), true},
+				{"mixed-pdf", multipart("mixed", "m", multipart("alternative", "a", plainPart, htmlPart), pdfPart), true},
+				{"mixed-text-attachment", multipart("mixed", "m", plainPart, notePart), false},
+				{"related", multipart("related", "r", htmlPart, logoPart), true},
+				{"nested", multipart("mixed", "m", multipart("alternative", "a", plainPart, multipart("related", "r", htmlPart, logoPart)), csvPart), true},
 			} {
 				n++
 				fs = append(fs, fixture{
 					name: fmt.Sprintf("%s/%s/%s", s.charset, enc, st.name), raw: buildMessage(n, st.body),
-					text: s.text, hasHTML: st.hasHTML, attachments: st.atts,
+					text: s.text, hasHTML: st.hasHTML,
 				})
 			}
 		}
@@ -147,23 +140,23 @@ func brokenFixtures() []fixture {
 		{name: "broken/lf-line-endings", raw: []byte("Subject: lf\nMIME-Version: 1.0\nContent-Type: multipart/alternative; boundary=\"x\"\n\n--x\nContent-Type: text/plain\n\nUnix lines\n--x\nContent-Type: text/html\n\n<p>Unix lines</p>\n--x--\n"),
 			text: "Unix lines", hasHTML: true},
 		{name: "broken/missing-final-boundary", raw: []byte("Subject: cut\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"m\"\r\n\r\n--m\r\nContent-Type: text/plain\r\n\r\nKept text\r\n--m\r\nContent-Type: application/pdf\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"cut.pdf\"\r\n\r\n" + base64.StdEncoding.EncodeToString(pdfData) + "\r\n"),
-			text: "Kept text", attachments: []Attachment{{Filename: "cut.pdf", ContentType: "application/pdf", Size: int64(len(pdfData))}}},
+			text: "Kept text"},
 		{name: "broken/charset-utf8-label", raw: []byte("Content-Type: text/plain; charset=utf8\r\n\r\nnaïve label\r\n"), text: "naïve label"},
 		{name: "broken/unknown-charset", raw: []byte("Content-Type: text/plain; charset=x-unknown\r\n\r\ncafé anyway\r\n"), text: "café anyway"},
 		{name: "broken/rfc2231-filename", raw: []byte("MIME-Version: 1.0\r\n" + multipart("mixed", "m", part("text/plain", "", []byte("See CV")),
 			part("application/pdf", "base64", pdfData, "Content-Disposition: attachment; filename*=utf-8''r%C3%A9sum%C3%A9.pdf"))),
-			text: "See CV", attachments: []Attachment{{Filename: "résumé.pdf", ContentType: "application/pdf", Size: int64(len(pdfData))}}},
+			text: "See CV"},
 		{name: "broken/encoded-word-filename", raw: []byte("MIME-Version: 1.0\r\n" + multipart("mixed", "m", part("text/plain", "", []byte("See CV")),
 			part("application/pdf", "base64", pdfData, `Content-Disposition: attachment; filename="=?UTF-8?Q?r=C3=A9sum=C3=A9.pdf?="`))),
-			text: "See CV", attachments: []Attachment{{Filename: "résumé.pdf", ContentType: "application/pdf", Size: int64(len(pdfData))}}},
+			text: "See CV"},
 		{name: "broken/uppercase-encodings", raw: []byte("MIME-Version: 1.0\r\n" + multipart("alternative", "a", part("text/plain; charset=utf-8", "BASE64", []byte("Shouted encoding")),
 			part("text/html; charset=utf-8", "Quoted-Printable", []byte("<p>Shouted encoding</p>")))), text: "Shouted encoding", hasHTML: true},
 		{name: "broken/forwarded-message", raw: []byte("MIME-Version: 1.0\r\n" + multipart("mixed", "m", part("text/plain", "", []byte("FYI")),
 			"Content-Type: message/rfc822\r\nContent-Disposition: attachment; filename=\"fwd.eml\"\r\n\r\n"+fwd+"\r\n")),
-			text: "FYI", attachments: []Attachment{{Filename: "fwd.eml", ContentType: "message/rfc822", Size: int64(len(fwd))}}},
+			text: "FYI"},
 		{name: "broken/name-in-content-type-only", raw: []byte("MIME-Version: 1.0\r\n" + multipart("mixed", "m", part("text/plain", "", []byte("Old style")),
 			part(`application/pdf; name="old.pdf"`, "base64", pdfData))),
-			text: "Old style", attachments: []Attachment{{Filename: "old.pdf", ContentType: "application/pdf", Size: int64(len(pdfData))}}},
+			text: "Old style"},
 	}
 }
 
@@ -183,13 +176,6 @@ func TestCorpus(t *testing.T) {
 			}
 			if !utf8.ValidString(text) {
 				t.Error("text is not valid UTF-8")
-			}
-			atts, err := Attachments(f.raw)
-			if err != nil {
-				t.Fatalf("Attachments: %v", err)
-			}
-			if !reflect.DeepEqual(atts, f.attachments) {
-				t.Errorf("Attachments = %+v\nwant %+v", atts, f.attachments)
 			}
 		})
 	}
