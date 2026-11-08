@@ -2497,6 +2497,76 @@ One smart mailbox.
 | `includeSent` | `bool` | Also list messages that are only in Sent. |
 | `unread` | `int` | Unread messages it lists. |
 
+## snippet
+
+Snippets: named pieces of text the user inserts in compose, a list preference kept by maild (docs/design/send.md, Snippets).
+
+Callers: `local`, `session`.
+
+### `snippet.list`
+
+Every snippet, by name without case, then by id.
+
+No params.
+
+Result: `[]Snippet`.
+
+### `snippet.create`
+
+Add a snippet; at most 200 are kept.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | `string` |  |
+| `html` | `string` |  |
+
+Result: `Snippet`.
+Errors: `invalidParams`, `conflict`.
+
+### `snippet.update`
+
+Change the fields given.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` (optional) |  |
+| `html` | `string` (optional) |  |
+
+Result: `Snippet`.
+Errors: `invalidParams`, `conflict`, `notFound`.
+
+### `snippet.delete`
+
+Remove a snippet.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: none (`null`).
+Errors: `notFound`.
+
+### Event `snippet.changed` (durable)
+
+A snippet was created, changed or deleted.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `deleted` | `bool` |  |
+
+### Type `Snippet`
+
+One snippet.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `name` | `string` | Trimmed, 1 to 60 characters, unique without case. |
+| `html` | `string` | The text as HTML, at most 64 KiB, stored as it was given. |
+| `updatedAt` | `time` | When it was created or last changed. |
+
 ## sync
 
 Account synchronization state and control.

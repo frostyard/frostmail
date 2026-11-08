@@ -19,14 +19,16 @@ backlog"), after Odrade's review of nexmail, a self-hosted mail client.
   nsl machine for the app; `make engine-it` where a phase names an
   integration test.
 
-Status (2026-11-05):
+Status (2026-11-07):
 - **Phase 0 is done:** PR #167 merged on 2026-11-05; ADRs 0050 and 0051
   are Accepted.
 - **Phase 2 is built** in [PR #168](https://github.com/frostyard/frostmail/pull/168)
   (issue [#160](https://github.com/frostyard/frostmail/issues/160)).
 - **Phase 1 is built** in [PR #169](https://github.com/frostyard/frostmail/pull/169)
   (issue [#159](https://github.com/frostyard/frostmail/issues/159)).
-- **Phases 3 and 4 wait** for a day shift.
+- **Phase 3 is built** in the PR that closes
+  [#161](https://github.com/frostyard/frostmail/issues/161).
+- **Phase 4 waits** for a day shift.
 
 ## Phase 0 — The specs and the decisions (planner, small)
 
@@ -71,6 +73,7 @@ Status (2026-11-05):
 
 ## Phase 3 — Snippets (S; [#161](https://github.com/frostyard/frostmail/issues/161))
 
+- **Status:** built (#161's PR), 2026-11-07.
 - [design/send.md](../design/send.md#snippets),
   [specs/settings-ui.md](../specs/settings-ui.md#snippets-pane),
   [specs/compose-ui.md](../specs/compose-ui.md#snippets-plan-0014-phase-3);

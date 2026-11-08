@@ -1,0 +1,43 @@
+domain: snippet
+doc: >-
+  Snippets: named pieces of text the user inserts in compose, a list
+  preference kept by maild (docs/design/send.md, Snippets).
+types:
+  - name: Snippet
+    doc: One snippet.
+    fields:
+      - {name: id, type: int}
+      - {name: name, type: string, doc: "Trimmed, 1 to 60 characters, unique without case."}
+      - {name: html, type: string, doc: "The text as HTML, at most 64 KiB, stored as it was given."}
+      - {name: updatedAt, type: time, doc: "When it was created or last changed."}
+methods:
+  - name: list
+    doc: Every snippet, by name without case, then by id.
+    result: "[]Snippet"
+  - name: create
+    doc: Add a snippet; at most 200 are kept.
+    params:
+      - {name: name, type: string}
+      - {name: html, type: string}
+    result: Snippet
+    errors: [invalidParams, conflict]
+  - name: update
+    doc: Change the fields given.
+    params:
+      - {name: id, type: int}
+      - {name: name, type: string, optional: true}
+      - {name: html, type: string, optional: true}
+    result: Snippet
+    errors: [invalidParams, conflict, notFound]
+  - name: delete
+    doc: Remove a snippet.
+    params:
+      - {name: id, type: int}
+    errors: [notFound]
+events:
+  - name: changed
+    doc: A snippet was created, changed or deleted.
+    durable: true
+    fields:
+      - {name: id, type: int}
+      - {name: deleted, type: bool}

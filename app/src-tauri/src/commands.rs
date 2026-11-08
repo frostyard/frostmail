@@ -291,7 +291,7 @@ pub async fn open_event(app: AppHandle, label: String, target: serde_json::Value
 
 /// The settings window's panes (docs/specs/settings-ui.md, Layout), which
 /// are the only ones `open_settings` takes.
-const SETTINGS_PANES: &[&str] = &["general", "accounts", "signatures", "rules", "signin", "server"];
+const SETTINGS_PANES: &[&str] = &["general", "accounts", "signatures", "snippets", "rules", "signin", "server"];
 
 /// The pane an opener names, when it is one of the window's own, so that a
 /// value from the webview never reaches an initialization script or an
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn takes_only_the_settings_windows_panes() {
         assert_eq!(settings_pane(None), Ok(None));
-        for pane in ["general", "accounts", "signatures", "rules", "signin", "server"] {
+        for pane in ["general", "accounts", "signatures", "snippets", "rules", "signin", "server"] {
             assert_eq!(settings_pane(Some(pane)), Ok(Some(pane)), "{pane}");
         }
         for pane in ["", "Server", "server\"; alert(1); //", "compose", "settings"] {

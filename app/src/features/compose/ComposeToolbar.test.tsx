@@ -39,6 +39,7 @@ describe("ComposeToolbar", () => {
     expect(names).toEqual([
       "Send",
       "Send Later",
+      "Insert Snippet",
       "Attach Files",
       "Show Format Bar",
       "Delete Draft",

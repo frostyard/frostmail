@@ -15,6 +15,7 @@ import {
   Minus,
   Paperclip,
   RemoveFormatting,
+  ScrollText,
   Send,
   Square,
   Strikethrough,
@@ -31,6 +32,7 @@ import type { LaterChoice } from "../../lib/later";
 export type ComposeCommand =
   | "send"
   | "sendLater"
+  | "editSnippets"
   | "attach"
   | "toggleFormatBar"
   | "delete"
@@ -47,6 +49,8 @@ export interface ComposeToolbarProps {
   formatBarShown: boolean;
   maximized: boolean;
   laterChoices?: LaterChoice[];
+  snippets?: { id: number; name: string }[];
+  onInsertSnippet?: (id: number) => void;
   onSendAt?: (at: Date) => void;
   onCommand: (command: ComposeCommand) => void;
   /** Minimize and Maximize; only the desktop app's windows have them (default true). Close always shows. */
@@ -87,6 +91,47 @@ function ComposeButton(props: ComposeButtonProps) {
     >
       {icon}
     </button>
+  );
+}
+
+function SnippetsButton(props: ComposeToolbarProps) {
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const snippets = props.snippets ?? [];
+  const items: MenuItem[] = [];
+  if (snippets.length === 0) {
+    items.push({ kind: "item", id: "none", label: "No Snippets", disabled: true });
+  } else {
+    for (const snippet of snippets) items.push({ kind: "item", id: String(snippet.id), label: snippet.name });
+  }
+  items.push({ kind: "separator" }, { kind: "item", id: "edit", label: "Edit Snippets…" });
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Insert Snippet"
+        title="Insert Snippet"
+        aria-haspopup="menu"
+        className={BUTTON_CLASS}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          setMenu({ x: rect.left, y: rect.bottom });
+        }}
+      >
+        <ScrollText size={16} />
+      </button>
+      {menu && (
+        <ContextMenu
+          items={items}
+          x={menu.x}
+          y={menu.y}
+          onSelect={(id) => {
+            if (id === "edit") props.onCommand("editSnippets");
+            else if (id !== "none") props.onInsertSnippet?.(Number(id));
+          }}
+          onClose={() => setMenu(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -158,6 +203,7 @@ export function ComposeToolbar(props: ComposeToolbarProps) {
       <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-toolbar-title">
         {title}
       </span>
+      <SnippetsButton {...props} />
       <ComposeButton
         name="Attach Files"
         title="Attach Files (Ctrl+Shift+A)"

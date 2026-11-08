@@ -289,7 +289,7 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
-		Settings: eng.Settings(), Vip: eng.Vips(), Block: eng.Blocks(), Smart: eng.Smart(), Rule: eng.Rules(),
+		Settings: eng.Settings(), Vip: eng.Vips(), Block: eng.Blocks(), Smart: eng.Smart(), Rule: eng.Rules(), Snippet: eng.Snippets(),
 	})
 	if err != nil {
 		return err
