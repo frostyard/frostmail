@@ -102,25 +102,53 @@ func (t *Tx) CreateRule(ctx context.Context, r Rule) (Rule, error) {
 	return getRule(t.QueryRowContext(ctx, ruleColumns+` WHERE id = ?`, id))
 }
 
-// UpdateRule stores r's name, enabled, conditions and actions, and emits
-// api.RuleChanged; ErrNotFound when there is no such rule.
-func (t *Tx) UpdateRule(ctx context.Context, r Rule) (Rule, error) {
-	conds, actions, err := encodeRule(r)
-	if err != nil {
-		return Rule{}, fmt.Errorf("update rule: %w", err)
-	}
-	res, err := t.ExecContext(ctx, `UPDATE rules SET name = ?, enabled = ?, conditions_json = ?, actions_json = ?
-		WHERE id = ?`, r.Name, bit(r.Enabled), conds, actions, r.ID)
-	if err != nil {
-		return Rule{}, fmt.Errorf("update rule: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
+// RuleUpdate changes the non-nil fields of a rule; a nil field keeps what
+// is stored. Actions is a pointer so that an empty list, which a rule may
+// not have, is still told apart from actions that are not given.
+type RuleUpdate struct {
+	Name       *string
+	Enabled    *bool
+	Conditions *api.Conditions
+	Actions    *[]api.RuleAction
+}
+
+// UpdateRule changes the given fields of a rule and emits api.RuleChanged,
+// returning the row as stored. It reads the row inside its transaction, so
+// a change it does not give is kept (ErrNotFound when there is no such
+// rule). The caller has checked the conditions and actions it gives.
+func (t *Tx) UpdateRule(ctx context.Context, id int64, u RuleUpdate) (Rule, error) {
+	cur, err := scanRule(t.QueryRowContext(ctx, ruleColumns+` WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
 		return Rule{}, ErrNotFound
 	}
-	if err := t.Emit(ctx, api.RuleChanged{ID: r.ID}); err != nil {
+	if err != nil {
+		return Rule{}, fmt.Errorf("find rule %d: %w", id, err)
+	}
+	if u.Name != nil {
+		cur.Name = *u.Name
+	}
+	if u.Enabled != nil {
+		cur.Enabled = *u.Enabled
+	}
+	if u.Conditions != nil {
+		cur.Conditions = *u.Conditions
+	}
+	if u.Actions != nil {
+		cur.Actions = *u.Actions
+	}
+	conds, actions, err := encodeRule(cur)
+	if err != nil {
+		return Rule{}, fmt.Errorf("update rule %d: %w", id, err)
+	}
+	_, err = t.ExecContext(ctx, `UPDATE rules SET name = ?, enabled = ?, conditions_json = ?, actions_json = ?
+		WHERE id = ?`, cur.Name, bit(cur.Enabled), conds, actions, id)
+	if err != nil {
+		return Rule{}, fmt.Errorf("update rule %d: %w", id, err)
+	}
+	if err := t.Emit(ctx, api.RuleChanged{ID: id}); err != nil {
 		return Rule{}, err
 	}
-	return getRule(t.QueryRowContext(ctx, ruleColumns+` WHERE id = ?`, r.ID))
+	return getRule(t.QueryRowContext(ctx, ruleColumns+` WHERE id = ?`, id))
 }
 
 // DeleteRule removes a rule, closes the gap in the positions and emits
