@@ -258,31 +258,23 @@ func (s smartMailboxes) Create(ctx context.Context, p *api.SmartCreateParams) (*
 }
 
 func (s smartMailboxes) Update(ctx context.Context, p *api.SmartUpdateParams) (*api.SmartMailbox, error) {
-	cur, err := s.DB.SmartMailbox(ctx, p.ID)
-	if err != nil {
-		return nil, apiError(err, fmt.Sprintf("smart mailbox %d", p.ID))
-	}
+	u := store.SmartMailboxUpdate{Conditions: p.Conditions, IncludeTrash: p.IncludeTrash, IncludeSent: p.IncludeSent}
 	if p.Name != nil {
-		if cur.Name, err = smartName(*p.Name); err != nil {
+		name, err := smartName(*p.Name)
+		if err != nil {
 			return nil, err
 		}
+		u.Name = &name
 	}
 	if p.Conditions != nil {
 		if err := store.CheckConditions(*p.Conditions); err != nil {
 			return nil, api.InvalidParams("%v", err)
 		}
-		cur.Conditions = *p.Conditions
-	}
-	if p.IncludeTrash != nil {
-		cur.IncludeTrash = *p.IncludeTrash
-	}
-	if p.IncludeSent != nil {
-		cur.IncludeSent = *p.IncludeSent
 	}
 	var out store.SmartMailbox
-	err = s.DB.Tx(ctx, func(tx *store.Tx) error {
+	err := s.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
-		out, err = tx.UpdateSmartMailbox(ctx, cur)
+		out, err = tx.UpdateSmartMailbox(ctx, p.ID, u)
 		return err
 	})
 	if err != nil {
@@ -386,40 +378,31 @@ func (r rules) Create(ctx context.Context, p *api.RuleCreateParams) (*api.Rule, 
 }
 
 func (r rules) Update(ctx context.Context, p *api.RuleUpdateParams) (*api.Rule, error) {
-	cur, err := r.DB.Rule(ctx, p.ID)
-	if err != nil {
-		return nil, apiError(err, fmt.Sprintf("rule %d", p.ID))
-	}
+	u := store.RuleUpdate{Enabled: p.Enabled, Conditions: p.Conditions}
 	if p.Name != nil {
-		if cur.Name, err = smartName(*p.Name); err != nil {
+		name, err := smartName(*p.Name)
+		if err != nil {
 			return nil, api.InvalidParams("a rule's name must be 1 to %d characters without control characters", maxSmartName)
 		}
-	}
-	if p.Conditions != nil {
-		cur.Conditions = *p.Conditions
-	}
-	if p.Actions != nil {
-		cur.Actions = p.Actions
-	}
-	if p.Enabled != nil {
-		cur.Enabled = *p.Enabled
+		u.Name = &name
 	}
 	// Only what changes is checked, so a rule whose mailbox is gone can
 	// still be renamed or turned off.
 	if p.Conditions != nil {
-		if err := store.CheckConditions(cur.Conditions); err != nil {
+		if err := store.CheckConditions(*p.Conditions); err != nil {
 			return nil, api.InvalidParams("%v", err)
 		}
 	}
 	if p.Actions != nil {
-		if err := r.checkActions(ctx, cur.Actions); err != nil {
+		if err := r.checkActions(ctx, p.Actions); err != nil {
 			return nil, err
 		}
+		u.Actions = &p.Actions
 	}
 	var out store.Rule
-	err = r.DB.Tx(ctx, func(tx *store.Tx) error {
+	err := r.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
-		out, err = tx.UpdateRule(ctx, cur)
+		out, err = tx.UpdateRule(ctx, p.ID, u)
 		return err
 	})
 	if err != nil {

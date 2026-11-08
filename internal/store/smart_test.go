@@ -38,6 +38,59 @@ func smartNames(t *testing.T, d *DB) []string {
 	return out
 }
 
+// TestUpdateSmartMailboxKeepsFieldsNotGiven: a partial conditions update
+// leaves the name and the includes unchanged, and a partial include update
+// leaves the new conditions in place.
+func TestUpdateSmartMailboxKeepsFieldsNotGiven(t *testing.T) {
+	d, _ := openTest(t)
+	flagged := one("flagged", "is", "true")
+	unread := one("unread", "is", "true")
+	created := createSmart(t, d, SmartMailbox{Name: "Flagged", Conditions: flagged, IncludeTrash: true, IncludeSent: true})
+	update := func(id int64, u SmartMailboxUpdate) (SmartMailbox, error) {
+		t.Helper()
+		var out SmartMailbox
+		err := d.Tx(t.Context(), func(tx *Tx) error {
+			var err error
+			out, err = tx.UpdateSmartMailbox(t.Context(), id, u)
+			return err
+		})
+		return out, err
+	}
+
+	got, err := update(created.ID, SmartMailboxUpdate{Conditions: &unread})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Flagged" || !got.IncludeTrash || !got.IncludeSent || got.Conditions.Match != unread.Match ||
+		!slices.Equal(got.Conditions.Conditions, unread.Conditions) {
+		t.Fatalf("conditions-only update = %+v", got)
+	}
+
+	name := "Unread"
+	got, err = update(created.ID, SmartMailboxUpdate{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != name || !got.IncludeTrash || !got.IncludeSent || got.Conditions.Match != unread.Match ||
+		!slices.Equal(got.Conditions.Conditions, unread.Conditions) {
+		t.Fatalf("name-only update = %+v", got)
+	}
+
+	no := false
+	got, err = update(created.ID, SmartMailboxUpdate{IncludeSent: &no})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != name || !got.IncludeTrash || got.IncludeSent || got.Conditions.Match != unread.Match ||
+		!slices.Equal(got.Conditions.Conditions, unread.Conditions) {
+		t.Fatalf("include-only update = %+v", got)
+	}
+
+	if _, err := update(9999, SmartMailboxUpdate{Name: &name}); !errors.Is(err, ErrNotFound) {
+		t.Errorf("update of a missing smart mailbox: %v", err)
+	}
+}
+
 // TestSmartMailboxesKeepOrder: created at the end, moved, deleted, the
 // positions stay 0..n-1 and the conditions read back as stored.
 func TestSmartMailboxesKeepOrder(t *testing.T) {

@@ -118,25 +118,53 @@ func (t *Tx) CreateSmartMailbox(ctx context.Context, s SmartMailbox) (SmartMailb
 	return getSmart(t.QueryRowContext(ctx, smartColumns+` WHERE id = ?`, id))
 }
 
-// UpdateSmartMailbox stores s's name, conditions and includes, and emits
-// api.SmartChanged; ErrNotFound when there is no such smart mailbox.
-func (t *Tx) UpdateSmartMailbox(ctx context.Context, s SmartMailbox) (SmartMailbox, error) {
-	conds, err := encodeConditions(s.Conditions)
-	if err != nil {
-		return SmartMailbox{}, fmt.Errorf("update smart mailbox: %w", err)
-	}
-	res, err := t.ExecContext(ctx, `UPDATE smart_mailboxes SET name = ?, conditions_json = ?, include_trash = ?, include_sent = ?
-		WHERE id = ?`, s.Name, conds, bit(s.IncludeTrash), bit(s.IncludeSent), s.ID)
-	if err != nil {
-		return SmartMailbox{}, fmt.Errorf("update smart mailbox: %w", err)
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
+// SmartMailboxUpdate changes the non-nil fields of a smart mailbox; a nil
+// field keeps what is stored.
+type SmartMailboxUpdate struct {
+	Name         *string
+	Conditions   *api.Conditions
+	IncludeTrash *bool
+	IncludeSent  *bool
+}
+
+// UpdateSmartMailbox changes the given fields of a smart mailbox and emits
+// api.SmartChanged, returning the row as stored. It reads the row inside
+// its transaction, so a change it does not give is kept (ErrNotFound when
+// there is no such smart mailbox). The caller has checked the conditions it
+// gives.
+func (t *Tx) UpdateSmartMailbox(ctx context.Context, id int64, u SmartMailboxUpdate) (SmartMailbox, error) {
+	cur, err := scanSmart(t.QueryRowContext(ctx, smartColumns+` WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
 		return SmartMailbox{}, ErrNotFound
 	}
-	if err := t.Emit(ctx, api.SmartChanged{ID: s.ID}); err != nil {
+	if err != nil {
+		return SmartMailbox{}, fmt.Errorf("find smart mailbox %d: %w", id, err)
+	}
+	if u.Name != nil {
+		cur.Name = *u.Name
+	}
+	if u.Conditions != nil {
+		cur.Conditions = *u.Conditions
+	}
+	if u.IncludeTrash != nil {
+		cur.IncludeTrash = *u.IncludeTrash
+	}
+	if u.IncludeSent != nil {
+		cur.IncludeSent = *u.IncludeSent
+	}
+	conds, err := encodeConditions(cur.Conditions)
+	if err != nil {
+		return SmartMailbox{}, fmt.Errorf("update smart mailbox %d: %w", id, err)
+	}
+	_, err = t.ExecContext(ctx, `UPDATE smart_mailboxes SET name = ?, conditions_json = ?, include_trash = ?, include_sent = ?
+		WHERE id = ?`, cur.Name, conds, bit(cur.IncludeTrash), bit(cur.IncludeSent), id)
+	if err != nil {
+		return SmartMailbox{}, fmt.Errorf("update smart mailbox %d: %w", id, err)
+	}
+	if err := t.Emit(ctx, api.SmartChanged{ID: id}); err != nil {
 		return SmartMailbox{}, err
 	}
-	return getSmart(t.QueryRowContext(ctx, smartColumns+` WHERE id = ?`, s.ID))
+	return getSmart(t.QueryRowContext(ctx, smartColumns+` WHERE id = ?`, id))
 }
 
 // DeleteSmartMailbox removes a smart mailbox, closes the gap in the
