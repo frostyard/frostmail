@@ -25,7 +25,7 @@ import {
   Underline,
   X,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { LaterChoice } from "../../lib/later";
 
 /** ComposeCommand is what a compose toolbar control asks for. */
@@ -96,6 +96,20 @@ function ComposeButton(props: ComposeButtonProps) {
 
 function SnippetsButton(props: ComposeToolbarProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (menu === null) return;
+    const reveal = () => {
+      const menuElement = document.querySelector('[role="menu"][aria-label="Snippets"]');
+      const highlighted = menuElement?.querySelector('[data-highlighted="true"]');
+      if (highlighted instanceof HTMLElement) highlighted.scrollIntoView({ block: "nearest" });
+    };
+    reveal();
+    const menuElement = document.querySelector('[role="menu"][aria-label="Snippets"]');
+    if (!menuElement) return;
+    const observer = new MutationObserver(reveal);
+    observer.observe(menuElement, { subtree: true, attributes: true, attributeFilter: ["data-highlighted"] });
+    return () => observer.disconnect();
+  }, [menu]);
   const snippets = props.snippets ?? [];
   const items: MenuItem[] = [];
   if (snippets.length === 0) {
@@ -121,6 +135,7 @@ function SnippetsButton(props: ComposeToolbarProps) {
       </button>
       {menu && (
         <ContextMenu
+          label="Snippets"
           items={items}
           x={menu.x}
           y={menu.y}

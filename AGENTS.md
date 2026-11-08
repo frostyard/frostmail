@@ -203,6 +203,9 @@ take its ideas only, never its code.
   sleeps for synchronization.
 - Every write goes through `store.DB.Tx`; emit durable events with `Tx.Emit`
   in the same transaction as the change.
+- An update of optional fields reads the row inside the `store.DB.Tx` that
+  writes it (`IdentityUpdate`, `SnippetUpdate`): a read before the
+  transaction can undo a concurrent change.
 - API changes: edit `schema/rpc/*.yaml`, run `make gen`, implement. Changes
   within protocol 1 are additive only. Quote doc strings inside inline YAML
   `{...}` mappings.

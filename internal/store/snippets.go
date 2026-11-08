@@ -27,6 +27,12 @@ type Snippet struct {
 	UpdatedAt time.Time
 }
 
+// SnippetUpdate changes the non-nil fields of a snippet.
+type SnippetUpdate struct {
+	Name *string
+	HTML *string
+}
+
 const snippetColumns = `SELECT id, name, html, updated_at FROM snippets`
 
 func scanSnippet(row rowScanner) (Snippet, error) {
@@ -114,31 +120,38 @@ func (t *Tx) CreateSnippet(ctx context.Context, s Snippet) (Snippet, error) {
 	return t.Snippet(ctx, id)
 }
 
-// UpdateSnippet stores s and emits api.SnippetChanged; ErrNotFound for an
-// unknown id, ErrConflict when another snippet has its name without case.
-func (t *Tx) UpdateSnippet(ctx context.Context, s Snippet) (Snippet, error) {
-	var exists int
-	if err := t.QueryRowContext(ctx, `SELECT COUNT(*) FROM snippets WHERE id = ?`, s.ID).Scan(&exists); err != nil {
-		return Snippet{}, fmt.Errorf("find snippet: %w", err)
-	}
-	if exists == 0 {
+// UpdateSnippet changes the given fields of a snippet and returns it as
+// stored; an unknown id wraps ErrNotFound. It emits api.SnippetChanged.
+func (t *Tx) UpdateSnippet(ctx context.Context, id int64, u SnippetUpdate) (Snippet, error) {
+	cur, err := scanSnippet(t.QueryRowContext(ctx, snippetColumns+` WHERE id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) {
 		return Snippet{}, ErrNotFound
 	}
-	if err := t.checkSnippetName(ctx, s.Name, s.ID); err != nil {
+	if err != nil {
+		return Snippet{}, fmt.Errorf("find snippet %d: %w", id, err)
+	}
+	if u.Name != nil {
+		cur.Name = *u.Name
+	}
+	if u.HTML != nil {
+		cur.HTML = *u.HTML
+	}
+	if err := t.checkSnippetName(ctx, cur.Name, id); err != nil {
 		return Snippet{}, err
 	}
 	updated := FormatTime(t.Now())
-	_, err := t.ExecContext(ctx, `UPDATE snippets SET name = ?, html = ?, updated_at = ? WHERE id = ?`, s.Name, s.HTML, updated, s.ID)
+	_, err = t.ExecContext(ctx, `UPDATE snippets SET name = ?, html = ?, updated_at = ? WHERE id = ?`,
+		cur.Name, cur.HTML, updated, id)
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return Snippet{}, ErrConflict
 		}
-		return Snippet{}, fmt.Errorf("update snippet: %w", err)
+		return Snippet{}, fmt.Errorf("update snippet %d: %w", id, err)
 	}
-	if err := t.Emit(ctx, api.SnippetChanged{ID: s.ID}); err != nil {
+	if err := t.Emit(ctx, api.SnippetChanged{ID: id}); err != nil {
 		return Snippet{}, err
 	}
-	return t.Snippet(ctx, s.ID)
+	return t.Snippet(ctx, id)
 }
 
 // DeleteSnippet removes a snippet and emits api.SnippetChanged.

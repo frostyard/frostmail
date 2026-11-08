@@ -15,9 +15,11 @@ func TestSnippets(t *testing.T) {
 	srv := rpctest.Start(t)
 	c := srv.Dial(t)
 	ctx := t.Context()
-	if _, err := c.Events().Subscribe(ctx, nil); err != nil {
+	sub, err := c.Events().Subscribe(ctx, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
+	seq0 := sub.Seq
 
 	// Inserted in neither order: the list sorts by name without case, so
 	// "apple" comes before "Mango", which a byte order would put first.
@@ -54,6 +56,37 @@ func TestSnippets(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitSnippetChanged(t, c, b.ID, true)
+
+	// A second connection replays the five durable changes made above,
+	// in sequence, after the first subscription's starting sequence.
+	second := srv.Dial(t)
+	if _, err := second.Events().Subscribe(ctx, &api.EventsSubscribeParams{SinceSeq: &seq0}); err != nil {
+		t.Fatal(err)
+	}
+	replay := []struct {
+		id      int64
+		deleted bool
+	}{
+		{id: b.ID, deleted: false},
+		{id: a.ID, deleted: false},
+		{id: a2.ID, deleted: false},
+		{id: b.ID, deleted: false},
+		{id: b.ID, deleted: true},
+	}
+	var previous int64
+	for i, want := range replay {
+		env := waitSnippetChangedEnvelope(t, second)
+		if env.Seq <= previous {
+			t.Fatalf("replayed snippet sequence %d is not greater than %d", env.Seq, previous)
+		}
+		previous = env.Seq
+		ev, err := api.DecodeEvent(env.Event, env.Data)
+		changed, ok := ev.(api.SnippetChanged)
+		if err != nil || !ok || changed.ID != want.id || changed.Deleted != want.deleted {
+			t.Fatalf("replay %d = %v, %+v; want id %d deleted %v", i, err, ev, want.id, want.deleted)
+		}
+	}
+
 	list, err = c.Snippet().List(ctx, &api.SnippetListParams{})
 	if err != nil || len(list) != 2 {
 		t.Fatalf("after delete = %+v, %v", list, err)
@@ -108,12 +141,33 @@ func TestSnippets(t *testing.T) {
 	}
 }
 
+func waitSnippetChangedEnvelope(t *testing.T, c *api.Client) api.EventEnvelope {
+	t.Helper()
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case env := <-c.Notifications():
+			if env.Seq <= 0 {
+				t.Fatalf("replayed snippet.changed has no durable sequence: %+v", env)
+			}
+			if env.Event == "snippet.changed" {
+				return env
+			}
+		case <-timeout:
+			t.Fatal("no replayed snippet.changed")
+		}
+	}
+}
+
 func waitSnippetChanged(t *testing.T, c *api.Client, id int64, deleted bool) {
 	t.Helper()
 	timeout := time.After(5 * time.Second)
 	for {
 		select {
 		case env := <-c.Notifications():
+			if env.Seq <= 0 {
+				t.Fatalf("snippet.changed has no durable sequence: %+v", env)
+			}
 			ev, err := api.DecodeEvent(env.Event, env.Data)
 			changed, ok := ev.(api.SnippetChanged)
 			if err == nil && ok && changed.ID == id && changed.Deleted == deleted {

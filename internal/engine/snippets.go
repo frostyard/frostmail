@@ -56,30 +56,30 @@ func (s snippets) Create(ctx context.Context, p *api.SnippetCreateParams) (*api.
 }
 
 func (s snippets) Update(ctx context.Context, p *api.SnippetUpdateParams) (*api.Snippet, error) {
-	cur, err := s.DB.Snippet(ctx, p.ID)
-	if err != nil {
-		return nil, apiError(err, fmt.Sprintf("snippet %d", p.ID))
-	}
+	var name string
+	u := store.SnippetUpdate{Name: p.Name, HTML: p.HTML}
 	if p.Name != nil {
-		cur.Name, err = snippetName(*p.Name)
+		var err error
+		name, err = snippetName(*p.Name)
 		if err != nil {
 			return nil, err
 		}
+		u.Name = &name
 	}
 	if p.HTML != nil {
 		if err := snippetHTML(*p.HTML); err != nil {
 			return nil, err
 		}
-		cur.HTML = *p.HTML
 	}
 	var out store.Snippet
-	err = s.DB.Tx(ctx, func(tx *store.Tx) error {
+	err := s.DB.Tx(ctx, func(tx *store.Tx) error {
 		var err error
-		out, err = tx.UpdateSnippet(ctx, cur)
+		out, err = tx.UpdateSnippet(ctx, p.ID, u)
 		return err
 	})
 	if err != nil {
-		return nil, snippetError(err, fmt.Sprintf("snippet %d", p.ID), cur.Name)
+		// Only a new name can be taken, so name is set on a conflict.
+		return nil, snippetError(err, fmt.Sprintf("snippet %d", p.ID), name)
 	}
 	a := toAPISnippet(out)
 	return &a, nil

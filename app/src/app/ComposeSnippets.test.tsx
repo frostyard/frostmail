@@ -32,7 +32,7 @@ async function setup(
   );
   await screen.findByRole("toolbar", { name: "Compose" });
   await waitFor(() => expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(false));
-  return { mock, draft };
+  return { mock, client, draft };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -76,6 +76,29 @@ describe("snippets in compose", () => {
       const updates = mock.calls.filter((call) => call.method === "draft.update");
       expect(JSON.stringify(updates.at(-1)?.params)).toContain("Bee");
     });
+  });
+
+  it("reloads the menu after snippet changed events", async () => {
+    const user = userEvent.setup();
+    const { mock, client } = await setup("<p>Old</p>", []);
+
+    const created = await client.snippet.create({ name: "Greeting", html: "<p>Hello</p>" });
+    await waitFor(() => expect(mock.calls.filter((call) => call.method === "snippet.list").length).toBeGreaterThan(1));
+    fireEvent.click(screen.getByRole("button", { name: "Insert Snippet" }));
+    await screen.findByRole("menuitem", { name: "Greeting" });
+    await user.keyboard("{Escape}");
+
+    await client.snippet.update({ id: created.id, name: "Welcome" });
+    await waitFor(() => expect(mock.calls.filter((call) => call.method === "snippet.list").length).toBeGreaterThan(2));
+    fireEvent.click(screen.getByRole("button", { name: "Insert Snippet" }));
+    await screen.findByRole("menuitem", { name: "Welcome" });
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Greeting" })).toBeNull());
+    await user.keyboard("{Escape}");
+
+    await client.snippet.delete({ id: created.id });
+    await waitFor(() => expect(mock.calls.filter((call) => call.method === "snippet.list").length).toBeGreaterThan(3));
+    fireEvent.click(screen.getByRole("button", { name: "Insert Snippet" }));
+    await screen.findByRole("menuitem", { name: "No Snippets" });
   });
 
   it("drops a remote image and reaches draft.update", async () => {
