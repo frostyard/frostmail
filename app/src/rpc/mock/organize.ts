@@ -12,6 +12,7 @@ import {
   type RuleAction,
   type Settings,
   type SmartMailbox,
+  type Snippet,
   type Vip,
 } from "../gen/api";
 import { RPCError } from "../transport";
@@ -30,6 +31,19 @@ const KINDS: readonly RuleAction["kind"][] = ["move", "copy", "read", "flag", "d
 
 const invalid = (message: string) => new RPCError(ErrorCode.invalidParams, message);
 
+function snippetName(value: unknown): string {
+  const name = String(value ?? "").trim();
+  if (name === "" || [...name].length > 60 || /\p{Cc}/u.test(name))
+    throw invalid("snippet name must be 1 to 60 characters without control characters");
+  return name;
+}
+
+function snippetHTML(value: unknown): string {
+  const html = String(value ?? "");
+  if (new TextEncoder().encode(html).length > 65536) throw invalid("snippet text must be at most 65536 bytes");
+  return html;
+}
+
 /** MockOrganize keeps settings and VIPs. */
 export class MockOrganize {
   private settings: Settings = {
@@ -47,6 +61,9 @@ export class MockOrganize {
   private nextSmart = 1;
   /** unread counts a smart mailbox's unread messages (MockTransport's views). */
   unread: (id: number) => number = () => 0;
+  /** Named snippets in maild's order. */
+  private snippets: Snippet[];
+  private nextSnippet: number;
   /** Rules in position order. */
   private rules: Rule[] = [];
   private nextRule = 1;
@@ -54,11 +71,15 @@ export class MockOrganize {
   mailboxExists: (id: number) => boolean = () => true;
 
   constructor(
+    initialSnippets: Snippet[],
     private readonly emit: (e: Event) => void,
     private readonly person: MockPersonEmails,
     private readonly personOf: (address: string) => { id: number; name: string } | undefined,
     private readonly seenName: (address: string) => string,
-  ) {}
+  ) {
+    this.snippets = structuredClone(initialSnippets);
+    this.nextSnippet = Math.max(0, ...this.snippets.map((snippet) => snippet.id)) + 1;
+  }
 
   /** smart is a smart mailbox, for views of it. */
   smart(id: number): SmartMailbox | undefined {
@@ -110,6 +131,53 @@ export class MockOrganize {
       case "block.remove": {
         const removed = this.blockAddresses(p).filter((a) => this.blocked.delete(a));
         if (removed.length > 0) this.emit({ event: "block.changed", data: {} });
+        return null;
+      }
+      case "snippet.list":
+        return structuredClone(
+          [...this.snippets].sort((a, b) => {
+            const left = a.name.toLowerCase();
+            const right = b.name.toLowerCase();
+            return left < right ? -1 : left > right ? 1 : a.id - b.id;
+          }),
+        );
+      case "snippet.create": {
+        if (this.snippets.length >= 200) throw invalid("at most 200 snippets");
+        const name = snippetName(p.name);
+        const html = snippetHTML(p.html);
+        if (this.snippets.some((snippet) => snippet.name.toLowerCase() === name.toLowerCase()))
+          throw new RPCError(ErrorCode.conflict, `snippet ${name} already exists`);
+        const snippet: Snippet = {
+          id: this.nextSnippet++,
+          name,
+          html,
+          updatedAt: new Date().toISOString(),
+        };
+        this.snippets.push(snippet);
+        this.emit({ event: "snippet.changed", data: { id: snippet.id, deleted: false } });
+        return structuredClone(snippet);
+      }
+      case "snippet.update": {
+        const id = Number(p.id);
+        const snippet = this.snippets.find((item) => item.id === id);
+        if (!snippet) throw new RPCError(ErrorCode.notFound, `snippet ${id} does not exist`);
+        if (p.name !== undefined) {
+          const name = snippetName(p.name);
+          if (this.snippets.some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase()))
+            throw new RPCError(ErrorCode.conflict, `snippet ${name} already exists`);
+          snippet.name = name;
+        }
+        if (p.html !== undefined) snippet.html = snippetHTML(p.html);
+        snippet.updatedAt = new Date().toISOString();
+        this.emit({ event: "snippet.changed", data: { id, deleted: false } });
+        return structuredClone(snippet);
+      }
+      case "snippet.delete": {
+        const id = Number(p.id);
+        const index = this.snippets.findIndex((item) => item.id === id);
+        if (index < 0) throw new RPCError(ErrorCode.notFound, `snippet ${id} does not exist`);
+        this.snippets.splice(index, 1);
+        this.emit({ event: "snippet.changed", data: { id, deleted: true } });
         return null;
       }
       case "smart.list":

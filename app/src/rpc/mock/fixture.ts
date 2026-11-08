@@ -10,6 +10,7 @@ import type {
   MessageSummary,
   Part,
   Person,
+  Snippet,
   Task,
 } from "../gen/api";
 import type { MockCalendarData, MockEvent } from "./calendar";
@@ -30,6 +31,8 @@ export interface FixtureOptions {
   reminders?: boolean;
   /** Add a mail invitation to Lunch with Ann (default false). */
   invitation?: boolean;
+  /** Named snippets seeded in the mock maild. */
+  snippets?: Snippet[];
 }
 
 /** Mailbox IDs of the fixture account. */
@@ -320,6 +323,7 @@ export function mockData(opts: FixtureOptions = {}): MockData {
       invitations: invitation ? [{ messageId: invitation.summary.id, eventId: 303 }] : [],
     },
     tasks: fixtureTasks(now, linked?.summary.id),
+    snippets: opts.snippets,
   };
 }
 

@@ -2665,6 +2665,70 @@ function smartClient(t: Transport): SmartClient {
   };
 }
 
+// ---- snippet ----
+
+/** One snippet. */
+export interface Snippet {
+  id: number;
+  /** Trimmed, 1 to 60 characters, unique without case. */
+  name: string;
+  /** The text as HTML, at most 64 KiB, stored as it was given. */
+  html: string;
+  /** When it was created or last changed. */
+  updatedAt: string /* RFC 3339 */;
+}
+
+/** Params of snippet.list. */
+export type SnippetListParams = Record<string, never>;
+
+/** Params of snippet.create. */
+export interface SnippetCreateParams {
+  name: string;
+  html: string;
+}
+
+/** Params of snippet.update. */
+export interface SnippetUpdateParams {
+  id: number;
+  name?: string;
+  html?: string;
+}
+
+/** Params of snippet.delete. */
+export interface SnippetDeleteParams {
+  id: number;
+}
+
+/** A snippet was created, changed or deleted. */
+export interface SnippetChanged {
+  id: number;
+  deleted: boolean;
+}
+
+/**
+ * Snippets: named pieces of text the user inserts in compose, a list
+ * preference kept by maild (docs/design/send.md, Snippets).
+ */
+export interface SnippetClient {
+  /** Every snippet, by name without case, then by id. */
+  list(params?: SnippetListParams): Promise<Snippet[]>;
+  /** Add a snippet; at most 200 are kept. */
+  create(params: SnippetCreateParams): Promise<Snippet>;
+  /** Change the fields given. */
+  update(params: SnippetUpdateParams): Promise<Snippet>;
+  /** Remove a snippet. */
+  delete(params: SnippetDeleteParams): Promise<void>;
+}
+
+function snippetClient(t: Transport): SnippetClient {
+  return {
+    list: (params = {}) => t.call<Snippet[]>("snippet.list", params),
+    create: (params) => t.call<Snippet>("snippet.create", params),
+    update: (params) => t.call<Snippet>("snippet.update", params),
+    delete: (params) => t.call<null>("snippet.delete", params).then(() => undefined),
+  };
+}
+
 // ---- sync ----
 
 /** What an account's sync is doing. */
@@ -3177,6 +3241,7 @@ export type Event =
   | { event: "rule.changed"; seq?: number; data: RuleChanged }
   | { event: "settings.changed"; seq?: number; data: SettingsChanged }
   | { event: "smart.changed"; seq?: number; data: SmartChanged }
+  | { event: "snippet.changed"; seq?: number; data: SnippetChanged }
   | { event: "sync.progress"; seq?: number; data: SyncProgress }
   | { event: "tasks.changed"; seq?: number; data: TasksChanged }
   | { event: "view.delta"; seq?: number; data: ViewDelta }
@@ -3288,6 +3353,10 @@ export const METHODS = [
   "smart.fromSearch",
   "smart.delete",
   "smart.move",
+  "snippet.list",
+  "snippet.create",
+  "snippet.update",
+  "snippet.delete",
   "sync.status",
   "sync.now",
   "sync.pim",
@@ -3326,6 +3395,7 @@ export class Client {
   readonly rule: RuleClient;
   readonly settings: SettingsClient;
   readonly smart: SmartClient;
+  readonly snippet: SnippetClient;
   readonly sync: SyncClient;
   readonly tasks: TasksClient;
   readonly thread: ThreadClient;
@@ -3349,6 +3419,7 @@ export class Client {
     this.rule = ruleClient(transport);
     this.settings = settingsClient(transport);
     this.smart = smartClient(transport);
+    this.snippet = snippetClient(transport);
     this.sync = syncClient(transport);
     this.tasks = tasksClient(transport);
     this.thread = threadClient(transport);
