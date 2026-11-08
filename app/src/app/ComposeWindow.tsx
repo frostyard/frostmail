@@ -31,6 +31,8 @@ import {
   toEditorHTML,
   toMailHTML,
 } from "./composeEditor";
+import { openSettings } from "./settings";
+import { useSnippets } from "./useSnippets";
 
 /** SAVE_MS is how long edits wait before draft.update. */
 export const SAVE_MS = 500;
@@ -85,6 +87,7 @@ function basename(path: string): string {
 /** Composer edits one loaded draft. */
 function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const { client, initial } = props;
+  const snippets = useSnippets();
   const id = initial.id;
   const [content, setContent] = useState<DraftContent>(initial.content);
   const [attachments, setAttachments] = useState<DraftAttachment[]>(initial.attachments);
@@ -354,6 +357,9 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
           if (canSend && tomorrow) setSendLater(tomorrow.at);
           break;
         }
+        case "editSnippets":
+          void openSettings("snippets").catch((err) => console.warn("settings", err));
+          break;
         case "attach":
           void pickFiles();
           break;
@@ -415,6 +421,11 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         formatBarShown={formatBar}
         maximized={maximized}
         laterChoices={laterChoices}
+        snippets={snippets}
+        onInsertSnippet={(snippetId) => {
+          const snippet = snippets.find((item) => item.id === snippetId);
+          if (snippet && editor) editor.chain().focus().insertContent(snippet.html).run();
+        }}
         onSendAt={(at) => void send(at)}
         onCommand={onCommand}
         windowControls={isTauri()}

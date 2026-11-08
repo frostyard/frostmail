@@ -18,6 +18,11 @@
    app/narrow.ts's NARROW. */
 @custom-variant narrow (@media (max-width: 599px));
 
+/* Bound the portalled Snippets menu so Menu's position clamp keeps it in the window; Menu scrolls it. */
+[role="menu"][aria-label="Snippets"] {
+  max-height: calc(100vh - 8px);
+}
+
 @media print {
   body * {
     visibility: hidden;

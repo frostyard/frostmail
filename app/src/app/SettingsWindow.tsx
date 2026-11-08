@@ -1,12 +1,12 @@
 // The settings window (docs/specs/settings-ui.md): the pane tabs and the
-// containers that connect the General, Accounts, Signatures, Rules and Sign-In
+// containers that connect the General, Accounts, Signatures, Snippets, Rules and Sign-In
 // panes to maild, and the Server pane to the shell, which stays usable while
 // the window has no maild (M6).
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { AtSign, KeyRound, ListFilter, PenLine, Server, Settings2, X } from "lucide-react";
+import { AtSign, KeyRound, ListFilter, PenLine, ScrollText, Server, Settings2, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
@@ -25,6 +25,7 @@ import { OAuthClientForm } from "../features/settings/OAuthClientForm";
 import { RulesPane } from "../features/settings/RulesPane";
 import { ServerPane, saveStatus } from "../features/settings/ServerPane";
 import { ServicesSection } from "../features/settings/ServicesSection";
+import { type SnippetChange, SnippetsPane } from "../features/settings/SnippetsPane";
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type {
   Account,
@@ -42,11 +43,13 @@ import { RPCError } from "../rpc/transport";
 import { browserNotifications } from "./announce";
 import { openInBrowser } from "./settings";
 import { paneFrom, type SettingsPane, useSettingsPane } from "./settingsPane";
+import { useSnippets } from "./useSnippets";
 
 const TABS: { pane: SettingsPane; label: string; icon: ReactNode }[] = [
   { pane: "general", label: "General", icon: <Settings2 size={18} /> },
   { pane: "accounts", label: "Accounts", icon: <AtSign size={18} /> },
   { pane: "signatures", label: "Signatures", icon: <PenLine size={18} /> },
+  { pane: "snippets", label: "Snippets", icon: <ScrollText size={18} /> },
   { pane: "rules", label: "Rules", icon: <ListFilter size={18} /> },
   { pane: "signin", label: "Sign-In", icon: <KeyRound size={18} /> },
   // Which maild the desktop app asks: not in a browser, which reaches the
@@ -128,6 +131,7 @@ const PANES: Record<SettingsPane, () => ReactNode> = {
   general: () => <GeneralPaneContainer />,
   accounts: () => <AccountsPane />,
   signatures: () => <SignaturesPane />,
+  snippets: () => <SnippetsPaneContainer />,
   rules: () => <RulesPaneContainer />,
   signin: () => <SignInPane />,
   server: () => <ServerPaneContainer />,
@@ -646,6 +650,35 @@ function AccountsPane() {
         />
       )}
     </div>
+  );
+}
+
+function SnippetsPaneContainer() {
+  const client = useClient();
+  const snippets = useSnippets();
+  const { busy, error, run } = useRequest();
+  const create = (change: SnippetChange) =>
+    void run(async () => {
+      await client.snippet.create(change);
+    });
+  const save = (id: number, change: SnippetChange) =>
+    void run(async () => {
+      await client.snippet.update({ id, ...change });
+    });
+  const remove = (id: number) => {
+    const snippet = snippets.find((item) => item.id === id);
+    if (!snippet) return;
+    void run(async () => {
+      const text = `Remove the snippet “${snippet.name}”?`;
+      const confirmed = isTauri()
+        ? await ask(text, { title: "Remove Snippet?", kind: "warning", okLabel: "Remove" })
+        : window.confirm(text);
+      if (!confirmed) return;
+      await client.snippet.delete({ id });
+    });
+  };
+  return (
+    <SnippetsPane snippets={snippets} busy={busy} error={error} onCreate={create} onSave={save} onRemove={remove} />
   );
 }
 

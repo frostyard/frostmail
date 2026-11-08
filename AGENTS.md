@@ -65,8 +65,8 @@ installed it with the README's commands (plan 0013, Phase 10 check
 Plan 0014 ([small features from the nexmail review](docs/plans/0014-small-features-from-the-nexmail-review.md),
 Brian's T929a, 2026-11-05) is specified, with ADRs 0050 and 0051
 (accepted). Phase 1, the sender check banner (#159), and Phase 2, the
-attachment reminder (#160), are built. Snippets (#161) and erasing old
-Trash and Junk (#162) wait for a day shift; #163 to #166 are its backlog. nexmail is AGPL-3.0:
+attachment reminder (#160), and Phase 3, snippets (#161), are built.
+Erasing old Trash and Junk (#162) waits for a day shift; #163 to #166 are its backlog. nexmail is AGPL-3.0:
 take its ideas only, never its code.
 
 ## Two kinds of agent work
@@ -203,6 +203,9 @@ take its ideas only, never its code.
   sleeps for synchronization.
 - Every write goes through `store.DB.Tx`; emit durable events with `Tx.Emit`
   in the same transaction as the change.
+- An update of optional fields reads the row inside the `store.DB.Tx` that
+  writes it (`IdentityUpdate`, `SnippetUpdate`): a read before the
+  transaction can undo a concurrent change.
 - API changes: edit `schema/rpc/*.yaml`, run `make gen`, implement. Changes
   within protocol 1 are additive only. Quote doc strings inside inline YAML
   `{...}` mappings.
@@ -265,3 +268,7 @@ Start new docs from the category's `TEMPLATE.md` and index them in
 `docs/README.md`. Record repo-local decisions as ADRs before changing the
 design they shape. Frostmail is pre-release: rewrite designs, specs and code
 in place when decisions change.
+
+A check's record (a plan's gate or VM check) states what its evidence
+shows: the observed times, counts and texts. Never state a limit, a cause
+or a pass that the samples do not establish.

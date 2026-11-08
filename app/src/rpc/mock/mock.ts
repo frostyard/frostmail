@@ -25,6 +25,7 @@ import {
   type Rendering,
   type RuleApplied,
   type SenderCheck,
+  type Snippet,
   type SyncStatus,
   type Unsubscribe,
   type UnsubscribeMethod,
@@ -72,6 +73,8 @@ export interface MockData {
   calendar?: MockCalendarData;
   /** Tasks in pim's task lists; none when absent. */
   tasks?: MockTasksData;
+  /** Named snippets; none means an empty list. */
+  snippets?: Snippet[];
 }
 
 /** MockOptions tune the mock. */
@@ -158,6 +161,7 @@ export class MockTransport implements Transport {
       (email) => this.calendar.upcoming(email),
     );
     this.organize = new MockOrganize(
+      data.snippets ?? [],
       (e) => {
         this.emit(e);
         if (e.event === "vip.changed" || e.event === "smart.changed") this.refreshViews();

@@ -584,6 +584,129 @@ are in Irulan's home, `evidence/plan-0013-gate-2026-10-29/`.
      mail. Back to local: 1 local maild, test1 with the same counts.
    - At no step did a second app maild run.
 
+### Clean-install gate 2026-11-07 (v0.5.0-rc.1)
+
+**Pass: all 7 items on one candidate digest.** The candidate is
+`v0.5.0-rc.1`
+(`sha256:0e6f1e07c475224c4a315d2705e9c867d2f6a19b33d5a83807c7257b747ec07b`,
+commit `88d71ce`, Flatpak run 41846843974, attested; Flatpak commit
+`e9b50fa9…`, "Built from 88d71ce", version 0.5.0). Item 5 updates to that
+digest from `v0.4.1`, so it exercises migration `0020_messages_unseen`,
+the only schema change since `v0.4.1` (T491b: a release that changes the
+schema tests its migration in its own gate). There are 3 findings, and
+none blocks the release.
+
+The VM: Duncan's `frostmail-desktop`, restored to its `clean` snapshot
+at 09:35 EST (Snow `20261028172907`, GNOME Shell 48.7 on Wayland,
+Flatpak 1.16.6). The mail server: `frostmail-mailtest`, reset to its
+`clean` snapshot. Each build came from flatpak-index's staged catalogue
+(flatpak-index `9df122f`, `scripts/build-index.py`), served on the VM at
+`127.0.0.1:8765` as the user remote `frostyard-staged`. The only override:
+`FROSTMAIL_INSECURE_TLS=1`. Test messages came from the container's SMTP
+port 25. Afterwards both went back to `clean` at 10:12 EST. The
+screenshots and command outputs are in Irulan's home,
+`evidence/plan-0013-gate-v0.5.0-rc.1-2026-11-07/`.
+
+1. **Pass.** The user installation held only the GNOME 51 runtime and
+   its extensions, the system installation only Snow's apps. There was no
+   lodge, Tailscale, maild or mailctl on the PATH, no suite unit and no
+   sysext. The permission store keeps the leftover `background` entry
+   `yes` for `org.frostyard.Frostnotes`, which is not installed.
+2. **Pass.** `flatpak install` from `frostyard-staged`: `flatpak info`
+   shows version 0.5.0, commit `e9b50fa9…`, Alt-id `0e6f1e07…`.
+3. **Pass.** Each step through the app's window:
+   - test1 was added on the setup screen by hand (IMAP 993 TLS, SMTP 587
+     STARTTLS). Its 5 messages synced.
+   - A rule "From contains test3@mailtest.test, move to Archive" moved
+     test3's message to Archive. test2's message stayed in the INBOX, and
+     it notified.
+   - test2's message was read. A reply went out with a 528,894-byte
+     attachment, chosen through the file chooser portal. test2's copy and
+     the Sent copy decode to the file's SHA-256 (`b493cc44…`).
+   - Save As: the portal's "Save Message" wrote the `.eml` into
+     `~/Documents`, mode 0600.
+   - A search for a word in the body (`aurora-gate`) found the message.
+   - Send Later at 9:48 AM, from the Send Later sheet, waited in the
+     Send Later section and reached test2 at 09:48:00.
+4. **Pass, with a finding.**
+   - With the window closed, maild kept running, synced a new message
+     and notified (09:45:38). A click on the notification opened a window
+     on the same maild, showing that message.
+   - A Send Later due at 9:54 AM was queued. The logout was at 09:49:23,
+     and maild stopped at 09:49:33. At 09:55:15 test2 had not received
+     the message. At the login, the autostart entry
+     (`frostmail --background`, Background portal allowed) started maild
+     at 09:55:51 with no window, and the message reached test2 at
+     09:55:52.
+   - **Refused,** on the VM restored to `clean`: rc.1 was installed again,
+     and `flatpak permission-set background background
+     org.frostyard.Frostmail no` ran before the first start. The
+     launcher's request got response 1 (`background` and `autostart`
+     false), and it wrote no autostart entry. maild started with the
+     first window. The last window closed at 10:07:22. maild still ran
+     at 10:07:27.1 and was gone at 10:07:28.1 (samples 1 s apart), with no
+     "maild stopped" in its log, as ADR-0046 says. No maild started at
+     the next login.
+   - **Finding:** with no account, a close of the main window left the
+     Add Account settings sheet open as its own window. That window kept
+     the app, and so maild, running until the logout.
+5. **Pass, with the migration.** On the VM restored to `clean`, `v0.4.1`
+   (`sha256:2482b2ab…`, the promoted `v0.4.1-rc.2`) was installed from
+   the staged catalogue. Then test1 was added (schema at `0019`), and a
+   message notified with the window open.
+   - The catalogue was staged again with rc.1, and the 2 cached index
+     files were removed. Then `flatpak update` installed `e9b50fa9…`.
+     v0.4.1's window and maild ran on.
+   - A click on v0.4.1's notification ran the latest launcher. It stopped
+     v0.4.1's maild (`rpc.shutdown`, 10:10:46.768) and started rc.1's
+     (10:10:47.024). rc.1's maild applied `0020_messages_unseen` at start.
+     The account and all 6 messages were there, and v0.4.1's window
+     reconnected and opened the notified message.
+   - v0.4.1's launcher, run again in v0.4.1's sandbox
+     (`flatpak run --commit=b1627738…`): its maild stopped at the data
+     lock ("another maild uses …"), and rc.1's maild ran on. The old build
+     never replaced the new one.
+   - A new message synced on the migrated store, and `mailctl verify`
+     reported "INBOX: 7 on the server, 7 here".
+6. **Pass.** Lodge's development build (lodge `6966a91`, `lodge-e2e`) and
+   `maild --lodge` (built from `v0.5.0-rc.1`, `88d71ce`) were built on the
+   team VM. They ran on the VM's loopback (`127.0.0.1:8470` and `:8471`)
+   with mailtest's test4, staged as `app/e2e/lodge.e2e.ts` stages them.
+   The Server pane switched to `http://127.0.0.1:8470`: `app.json` names
+   lodge, and the local maild stopped (`rpc.shutdown`). The window read
+   test4's message and saved it through the portal (`~/Documents`, mode
+   0644). It sent a reply (test2 received it), and a new message notified
+   with the window open.
+7. **Pass, with a finding.** With lodge stopped, the window showed
+   "Reconnecting to maild… (connect to maild through lodge at
+   http://127.0.0.1:8470: IO error: Connection refused (os error 111))"
+   and "Server Settings…".
+   - Lodge to local, lodge down: the pane said "This computer's maild
+     starts again with the accounts it had. It runs their rules, Send
+     Later and reminders here. If lodge's maild has the same accounts,
+     both run them." Save started 1 local maild, with test1.
+   - Local to lodge, lodge still down: the pane said "This computer's
+     maild stops. Its accounts and mail stay on this computer, not synced,
+     until you switch back. Nothing moves to lodge." Save stopped maild,
+     and none ran. The local data's checksum (`565dc3f1…`) did not change
+     while in lodge mode.
+   - With lodge started again, the window reconnected and listed test4's
+     mail. Back to local: 1 local maild, test1 with the same counts (INBOX
+     7, 4 unread; Sent 3; Archive 1), and an empty outbox.
+   - At no step did a second app maild run.
+   - **Finding:** after the switch from lodge to local, the window
+     selected the local message with id 1 (test1's "Welcome to the
+     frostmail test server") and marked it read. In lodge mode, the
+     selected message was test4's message with id 1 in lodge's maild. The
+     selection seems to be kept by message id across a change of mode, so
+     it can open, and mark read, an unrelated message of the other maild.
+     No mail moved or disappeared.
+
+A third finding, in items 3 and 5: right after the account was added,
+maild logged once "sync stopped … no password is stored; use
+account.setPassword", in `v0.4.1` and in rc.1. Sync ran normally from the
+next pass.
+
 ## Phase 10 — Release (Brian and Lucilla, small)
 
 A Flatpak release is always a promoted candidate: the digest that passed
@@ -664,6 +787,11 @@ Phase 9 becomes the release, and nothing is built again.
   40950765175) made `frostyard-maild_0.4.0_amd64.deb` and the GitHub
   release; Promote (run 40951117442) passed; and Flatpak made no run for
   the tag ([Open questions](#open-questions)).
+- **For `v0.5.0`:** the candidate is `v0.5.0-rc.1`
+  (`sha256:0e6f1e07…ec07b`, commit `88d71ce`), which passed the
+  [gate of 2026-11-07](#clean-install-gate-2026-11-07-v050-rc1). The steps
+  are `make bump CANDIDATE=v0.5.0-rc.1`, then Promote with `candidate`
+  `v0.5.0-rc.1` and `version` `v0.5.0`.
 - Brian makes `ghcr.io/frostyard/frostmail` public (ADR-0045). It
   answers anonymous pulls: the VM's install below needed no credentials.
 - Lucilla lists `org.frostyard.Frostmail` in `flatpak-index/apps.json`.

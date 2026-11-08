@@ -105,20 +105,7 @@ func (d *DB) ViewIDs(ctx context.Context, f ViewFilter) ([]int64, error) {
 			` ORDER BY ` + viewOrder + `) AS rn FROM messages m WHERE ` + where + `) t` +
 			` JOIN messages m ON m.id = t.id WHERE t.rn = 1 ORDER BY ` + orderOf(f)
 	}
-	rows, err := d.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("view ids: %w", err)
-	}
-	defer rows.Close()
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("view ids: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+	return queryIDs(ctx, d.db, "view ids", query, args...)
 }
 
 // CountView counts the messages f lists, and the unread ones among them;
@@ -286,21 +273,8 @@ func (d *DB) FilterIDs(ctx context.Context, f ViewFilter, ids []int64) ([]int64,
 	if err != nil {
 		return nil, fmt.Errorf("filter ids: %w", err)
 	}
-	rows, err := d.db.QueryContext(ctx, `SELECT m.id FROM messages m WHERE m.id IN (SELECT value FROM json_each(?)) AND `+
+	return queryIDs(ctx, d.db, "filter ids", `SELECT m.id FROM messages m WHERE m.id IN (SELECT value FROM json_each(?)) AND `+
 		where+` ORDER BY m.id`, append([]any{string(in)}, args...)...)
-	if err != nil {
-		return nil, fmt.Errorf("filter ids: %w", err)
-	}
-	defer rows.Close()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("filter ids: %w", err)
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 // Summary is a message list row (api.MessageSummary).
@@ -697,7 +671,7 @@ func (t *Tx) SetDisplay(ctx context.Context, id int64, blobID string) error {
 // can be fetched (a mailbox holds them by UID), and have neither their
 // whole body nor a display copy stored (ADR-0037).
 func (d *DB) PrefetchCandidates(ctx context.Context, accountID int64, since time.Time, limit int) ([]int64, error) {
-	rows, err := d.db.QueryContext(ctx, `SELECT m.id FROM messages m
+	return queryIDs(ctx, d.db, "prefetch candidates", `SELECT m.id FROM messages m
 		WHERE m.account_id = ? AND m.internal_date >= ? AND m.deleted = 0
 		  AND m.blob_sha IS NULL AND m.display_sha IS NULL
 		  AND (EXISTS (SELECT 1 FROM message_mailbox mm JOIN mailboxes b ON b.id = mm.mailbox_id
@@ -706,19 +680,6 @@ func (d *DB) PrefetchCandidates(ctx context.Context, accountID int64, since time
 		  AND EXISTS (SELECT 1 FROM message_mailbox mm WHERE mm.message_id = m.id AND mm.uid IS NOT NULL)
 		ORDER BY m.internal_date DESC, m.id DESC LIMIT ?`,
 		accountID, since.UTC().Format(TimeFormat), limit)
-	if err != nil {
-		return nil, fmt.Errorf("prefetch candidates: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var out []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("prefetch candidates: %w", err)
-		}
-		out = append(out, id)
-	}
-	return out, rows.Err()
 }
 
 // SetBody records that a message's raw body is stored in the blob store

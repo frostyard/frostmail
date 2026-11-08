@@ -6,7 +6,7 @@
 import { create } from "zustand";
 
 /** SETTINGS_PANES are the settings window's panes, in tab order. */
-export const SETTINGS_PANES = ["general", "accounts", "signatures", "rules", "signin", "server"] as const;
+export const SETTINGS_PANES = ["general", "accounts", "signatures", "snippets", "rules", "signin", "server"] as const;
 
 /** SettingsPane names a pane of the settings window. */
 export type SettingsPane = (typeof SETTINGS_PANES)[number];

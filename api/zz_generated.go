@@ -4586,6 +4586,137 @@ func (SmartChanged) EventName() string { return "smart.changed" }
 // Durable reports whether SmartChanged is kept in the changes log.
 func (SmartChanged) Durable() bool { return true }
 
+// ---- snippet ----
+
+// Snippet: One snippet.
+type Snippet struct {
+	ID int64 `json:"id"`
+	// Trimmed, 1 to 60 characters, unique without case.
+	Name string `json:"name"`
+	// The text as HTML, at most 64 KiB, stored as it was given.
+	HTML string `json:"html"`
+	// When it was created or last changed.
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// SnippetListParams holds the params of snippet.list.
+type SnippetListParams struct{}
+
+// SnippetCreateParams holds the params of snippet.create.
+type SnippetCreateParams struct {
+	Name string `json:"name"`
+	HTML string `json:"html"`
+}
+
+// SnippetUpdateParams holds the params of snippet.update.
+type SnippetUpdateParams struct {
+	ID   int64   `json:"id"`
+	Name *string `json:"name,omitzero"`
+	HTML *string `json:"html,omitzero"`
+}
+
+// SnippetDeleteParams holds the params of snippet.delete.
+type SnippetDeleteParams struct {
+	ID int64 `json:"id"`
+}
+
+// SnippetService: Snippets: named pieces of text the user inserts in compose,
+// a list preference kept by maild (docs/design/send.md, Snippets).
+type SnippetService interface {
+	// List implements snippet.list. Every snippet, by name without case, then by
+	// id.
+	List(ctx context.Context, p *SnippetListParams) ([]Snippet, error)
+	// Create implements snippet.create. Add a snippet; at most 200 are kept.
+	Create(ctx context.Context, p *SnippetCreateParams) (*Snippet, error)
+	// Update implements snippet.update. Change the fields given.
+	Update(ctx context.Context, p *SnippetUpdateParams) (*Snippet, error)
+	// Delete implements snippet.delete. Remove a snippet.
+	Delete(ctx context.Context, p *SnippetDeleteParams) error
+}
+
+func registerSnippet(r *Router, s SnippetService) {
+	r.handle("snippet.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SnippetListParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.List(ctx, &p)
+	})
+	r.handle("snippet.create", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SnippetCreateParams
+		if err := decodeParams(raw, &p, []string{"name", "html"}); err != nil {
+			return nil, err
+		}
+		return s.Create(ctx, &p)
+	})
+	r.handle("snippet.update", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SnippetUpdateParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.Update(ctx, &p)
+	})
+	r.handle("snippet.delete", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p SnippetDeleteParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return nil, s.Delete(ctx, &p)
+	})
+}
+
+// SnippetClient calls the snippet methods; it implements SnippetService.
+type SnippetClient struct{ c *Client }
+
+// Snippet returns the snippet methods.
+func (c *Client) Snippet() SnippetClient { return SnippetClient{c} }
+
+var _ SnippetService = SnippetClient{}
+
+// List calls snippet.list.
+func (x SnippetClient) List(ctx context.Context, p *SnippetListParams) ([]Snippet, error) {
+	var r []Snippet
+	err := x.c.Call(ctx, "snippet.list", p, &r)
+	return r, err
+}
+
+// Create calls snippet.create.
+func (x SnippetClient) Create(ctx context.Context, p *SnippetCreateParams) (*Snippet, error) {
+	var r Snippet
+	err := x.c.Call(ctx, "snippet.create", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Update calls snippet.update.
+func (x SnippetClient) Update(ctx context.Context, p *SnippetUpdateParams) (*Snippet, error) {
+	var r Snippet
+	err := x.c.Call(ctx, "snippet.update", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Delete calls snippet.delete.
+func (x SnippetClient) Delete(ctx context.Context, p *SnippetDeleteParams) error {
+	return x.c.Call(ctx, "snippet.delete", p, nil)
+}
+
+// SnippetChanged: A snippet was created, changed or deleted.
+type SnippetChanged struct {
+	ID      int64 `json:"id"`
+	Deleted bool  `json:"deleted"`
+}
+
+// EventName is the wire name of SnippetChanged.
+func (SnippetChanged) EventName() string { return "snippet.changed" }
+
+// Durable reports whether SnippetChanged is kept in the changes log.
+func (SnippetChanged) Durable() bool { return true }
+
 // ---- sync ----
 
 // SyncPhase: What an account's sync is doing.
@@ -5519,6 +5650,7 @@ type Services struct {
 	Rule     RuleService
 	Settings SettingsService
 	Smart    SmartService
+	Snippet  SnippetService
 	Sync     SyncService
 	Tasks    TasksService
 	Thread   ThreadService
@@ -5591,6 +5723,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Smart is nil")
 	}
 	registerSmart(r, s.Smart)
+	if s.Snippet == nil {
+		return errors.New("api: Services.Snippet is nil")
+	}
+	registerSnippet(r, s.Snippet)
 	if s.Sync == nil {
 		return errors.New("api: Services.Sync is nil")
 	}
@@ -5719,6 +5855,10 @@ var methodCallers = map[string][]CallerKind{
 	"smart.fromSearch":        {CallerKindLocal, CallerKindSession},
 	"smart.delete":            {CallerKindLocal, CallerKindSession},
 	"smart.move":              {CallerKindLocal, CallerKindSession},
+	"snippet.list":            {CallerKindLocal, CallerKindSession},
+	"snippet.create":          {CallerKindLocal, CallerKindSession},
+	"snippet.update":          {CallerKindLocal, CallerKindSession},
+	"snippet.delete":          {CallerKindLocal, CallerKindSession},
 	"sync.status":             {CallerKindLocal, CallerKindSession},
 	"sync.now":                {CallerKindLocal, CallerKindSession},
 	"sync.pim":                {CallerKindLocal, CallerKindSession},
@@ -5859,6 +5999,10 @@ var Methods = []string{
 	"smart.fromSearch",
 	"smart.delete",
 	"smart.move",
+	"snippet.list",
+	"snippet.create",
+	"snippet.update",
+	"snippet.delete",
 	"sync.status",
 	"sync.now",
 	"sync.pim",
@@ -5974,6 +6118,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 		return e, nil
 	case "smart.changed":
 		var e SmartChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "snippet.changed":
+		var e SnippetChanged
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

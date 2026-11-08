@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"slices"
 	"testing"
 
@@ -36,8 +37,11 @@ func TestRulesKeepOrder(t *testing.T) {
 	if err != nil || len(list) != 2 || list[0].ID != b.ID || list[1].ID != a.ID || list[0].Position != 0 {
 		t.Errorf("after the move = %+v, %v", list, err)
 	}
-	a.Enabled, a.Name = false, "A2"
-	if err := d.Tx(ctx, func(tx *Tx) error { _, err := tx.UpdateRule(ctx, a); return err }); err != nil {
+	name, off := "A2", false
+	if err := d.Tx(ctx, func(tx *Tx) error {
+		_, err := tx.UpdateRule(ctx, a.ID, RuleUpdate{Name: &name, Enabled: &off})
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := d.Rule(ctx, a.ID); got.Enabled || got.Name != "A2" {
@@ -48,6 +52,73 @@ func TestRulesKeepOrder(t *testing.T) {
 	}
 	if list, _ := d.Rules(ctx); len(list) != 1 || list[0].Position != 0 {
 		t.Errorf("after the delete = %+v", list)
+	}
+}
+
+// TestUpdateRuleKeepsFieldsNotGiven: a partial enabled update leaves the
+// name, conditions and actions unchanged, and a partial name update leaves
+// the enabled flag and the rest unchanged.
+func TestUpdateRuleKeepsFieldsNotGiven(t *testing.T) {
+	d, _ := openTest(t)
+	ctx := t.Context()
+	color := int64(3)
+	actions := []api.RuleAction{{Kind: api.RuleActionKindFlag, Color: &color}, {Kind: api.RuleActionKindStop}}
+	sameActions := func(as []api.RuleAction) bool {
+		if len(as) != len(actions) {
+			return false
+		}
+		for i := range as {
+			if as[i].Kind != actions[i].Kind || (as[i].Color == nil) != (actions[i].Color == nil) {
+				return false
+			}
+			if as[i].Color != nil && *as[i].Color != *actions[i].Color {
+				return false
+			}
+		}
+		return true
+	}
+	unread := one("unread", "is", "true")
+	var created Rule
+	if err := d.Tx(ctx, func(tx *Tx) error {
+		var err error
+		created, err = tx.CreateRule(ctx, Rule{Name: "Flag unread", Enabled: true, Conditions: unread, Actions: actions})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	update := func(id int64, u RuleUpdate) (Rule, error) {
+		t.Helper()
+		var out Rule
+		err := d.Tx(ctx, func(tx *Tx) error {
+			var err error
+			out, err = tx.UpdateRule(ctx, id, u)
+			return err
+		})
+		return out, err
+	}
+
+	off := false
+	got, err := update(created.ID, RuleUpdate{Enabled: &off})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled || got.Name != "Flag unread" || got.Conditions.Match != unread.Match ||
+		!slices.Equal(got.Conditions.Conditions, unread.Conditions) || !sameActions(got.Actions) {
+		t.Fatalf("enabled-only update = %+v", got)
+	}
+
+	name := "Flag anything unread"
+	got, err = update(created.ID, RuleUpdate{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled || got.Name != name || got.Conditions.Match != unread.Match ||
+		!slices.Equal(got.Conditions.Conditions, unread.Conditions) || !sameActions(got.Actions) {
+		t.Fatalf("name-only update = %+v", got)
+	}
+
+	if _, err := update(9999, RuleUpdate{Name: &name}); !errors.Is(err, ErrNotFound) {
+		t.Errorf("update of a missing rule: %v", err)
 	}
 }
 
