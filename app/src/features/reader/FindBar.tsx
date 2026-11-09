@@ -92,6 +92,10 @@ export function FindBar({ scroller, onClose, inputRef }: FindBarProps) {
     // close). Only the field's Enter moves the match.
     if (event.key === "Enter") {
       event.stopPropagation();
+      // An input method's Enter confirms the text it composes: no move, and
+      // the input method keeps the key (keyCode 229 where isComposing is not
+      // set).
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (event.target !== field.current) return;
       event.preventDefault();
       step(event.shiftKey ? -1 : 1);

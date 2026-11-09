@@ -123,7 +123,25 @@ describe("the find bar", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("takes its marks away when it goes", async () => {
+  it("leaves an input method's Enter to the input method", async () => {
+    const { field, type } = await setup();
+    type("red");
+    expect(screen.getByText("1 of 2")).toBeTruthy();
+    const onWindow = vi.fn();
+    window.addEventListener("keydown", onWindow);
+    try {
+      // The Enter that confirms a composition: by isComposing, and by
+      // keyCode 229 where an engine does not set it.
+      expect(fireEvent.keyDown(field, { key: "Enter", isComposing: true })).toBe(true);
+      expect(fireEvent.keyDown(field, { key: "Enter", keyCode: 229 })).toBe(true);
+    } finally {
+      window.removeEventListener("keydown", onWindow);
+    }
+    expect(screen.getByText("1 of 2")).toBeTruthy();
+    expect(onWindow).not.toHaveBeenCalled();
+  });
+
+    it("takes its marks away when it goes", async () => {
     const { type, unmount } = await setup();
     type("red");
     expect(vi.mocked(markRanges)).toHaveBeenCalled();
