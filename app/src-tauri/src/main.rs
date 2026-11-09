@@ -62,6 +62,11 @@ fn main() {
             if let tauri::WindowEvent::Destroyed = event {
                 let app = window.app_handle().clone();
                 let label = window.label().to_string();
+                for closing in closes_with(&label) {
+                    if let Some(owned) = app.get_webview_window(closing) {
+                        let _ = owned.close();
+                    }
+                }
                 tauri::async_runtime::spawn(async move { app.state::<bridge::Bridge>().forget(&label).await });
             }
         })
@@ -100,6 +105,14 @@ pub(crate) fn window<'a, R: tauri::Runtime, M: Manager<R>>(manager: &'a M, label
         return builder.additional_browser_args(&args);
     }
     builder
+}
+
+/// The windows that close with the window labeled `closed`: the settings
+/// window belongs to the main window, which opens it on first run, so it goes
+/// when the main window does. Compose and reminder windows are the user's and
+/// outlive it.
+fn closes_with(closed: &str) -> &'static [&'static str] {
+    if closed == "main" { &["settings"] } else { &[] }
 }
 
 /// wry's default WebView2 arguments with a DevTools port, if port is one.
@@ -161,7 +174,15 @@ fn apply_webkit_workarounds() {}
 
 #[cfg(test)]
 mod tests {
-    use super::{allowed_navigation, browser_args};
+    use super::{allowed_navigation, browser_args, closes_with};
+
+    #[test]
+    fn only_the_settings_window_closes_with_the_main_window() {
+        assert_eq!(closes_with("main"), ["settings"].as_slice());
+        for label in ["settings", "reminders", "compose-1"] {
+            assert!(closes_with(label).is_empty(), "{label}");
+        }
+    }
 
     #[test]
     fn a_devtools_port_only_when_one_is_named() {

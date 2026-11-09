@@ -29,7 +29,9 @@ this spec adds no tokens.
 - One window, label `settings`, 760 × 560, minimum 640 × 440, no system
   title bar. Opening it again (Ctrl+, in the main window, or the main
   toolbar's Settings button) shows and focuses the open one. It is created
-  hidden and shown after its first render, like compose windows.
+  hidden and shown after its first render, like compose windows. It closes
+  when the main window closes: the shell closes it on the main window's
+  `Destroyed` event, so that it never keeps the app running alone.
 - **Toolbar (52, `--bg-toolbar`, 1px `--separator` bottom, drag region):**
   the pane tabs centered, the Close button (`X`, as in the main toolbar) at
   the right. A tab is a `button` 72 × 44, rounded 6, an 18px Lucide icon

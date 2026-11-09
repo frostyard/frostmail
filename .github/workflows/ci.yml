@@ -194,9 +194,11 @@ jobs:
         with:
           go-version-file: go.mod
       # The change of mode (ADR-0046) stops and starts this computer's maild
-      # through the app's own shell, so it runs on the built app: WebKitGTK,
-      # WebKitWebDriver and xvfb, as make ui-e2e runs the other app tests.
-      - name: The mode change's end-to-end test on WebKitGTK
+      # through the app's own shell, and the first run's settings window
+      # closes with the main window through it too, so both run on the built
+      # app: WebKitGTK, WebKitWebDriver and xvfb, as make ui-e2e runs the
+      # other app tests.
+      - name: The shell's end-to-end tests on WebKitGTK (mode, first run)
         run: |
           set -euo pipefail
           sudo apt-get install -y -q --no-install-recommends webkit2gtk-driver xvfb dbus
@@ -205,7 +207,7 @@ jobs:
           # A session bus for the app's single-instance plugin, and WebKit's
           # CPU paths, since the runner has no GPU.
           env -u WAYLAND_DISPLAY GDK_BACKEND=x11 FROSTMAIL_WEBKIT_SAFE=1 dbus-run-session -- \
-            xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts mode
+            xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts mode firstrun
 
   windows-app:
     name: Windows app (installer, WebView2 e2e)
