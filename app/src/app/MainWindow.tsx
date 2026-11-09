@@ -267,7 +267,16 @@ function runCommand(
     ui.openPalette(true);
     return true;
   }
-  if (command === "focusSearch") {
+  if (command === "find" && ui.module === "mail") {
+    // Ctrl+F finds in the message shown while one shows; the reader says
+    // whether it acted (ADR-0052). Without one, Ctrl+F has the search
+    // field's meaning, below.
+    if (handles.reader.current?.find()) return true;
+    // In lodge's web build the browser's own find reaches the reader's
+    // content-origin frame, which the app cannot; leave Ctrl+F to it.
+    if (IN_LODGE && ui.selected.length === 1) return false;
+  }
+  if (command === "focusSearch" || command === "find") {
     // Calendar and Tasks have no search field: the key does nothing there.
     if (ui.module === "calendar" || ui.module === "tasks") return false;
     handles.search.current?.focus();

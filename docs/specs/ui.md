@@ -551,6 +551,53 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Links** open in the system browser; only `http`, `https` and `mailto`
   open. Others do nothing.
 
+### Find in the message
+
+Ctrl+F finds in the message shown, as Mail.app's ⌘F does (P-309,
+[ADR-0052](../adr/0052-find-in-the-message-shown.md)).
+
+- **When:** the mail module's reader shows a message (one message
+  selected). Ctrl+F then opens the find bar, or focuses its field and
+  selects its text when it is open. With no message shown, Ctrl+F focuses
+  the search field, as Ctrl+Alt+F always does (Keyboard map). The palette's
+  Find in Message does what Ctrl+F does with a message shown.
+- **The bar** (desktop app only): a row at the top of the reader, above
+  the part that scrolls, so it stays in view; 8 / 12 padding,
+  `--bg-window`, a 1px `--separator` line under it. From the left: a field
+  named "Find in Message" (placeholder "Find in Message", the search
+  field's look, at most 280 wide); 8px; the count (12/400
+  `--text-secondary`, `aria-live="polite"`): "3 of 12", "No Matches" when
+  the text finds nothing, nothing while the field is empty; then the
+  buttons Previous Match (`chevron-up`) and Next Match (`chevron-down`),
+  disabled with no match; and at the right a button Done. The bar is not
+  part of the print.
+- **Finding:** in what the reader shows, in the order it shows it: the
+  headers, the banners and the bodies of the expanded messages, a
+  plain-text body and an HTML frame's document alike; not a collapsed
+  message's row, not text in a `style`, `script`, `noscript` or
+  `template` element. Case-insensitive, and across inline elements ("New
+  <b>York</b>" matches "new york"). Matches do not overlap. The first
+  match after the text changes is the first one shown.
+- **Marks:** the CSS Custom Highlight API: every match as the highlight
+  `frostmail-find`, the current one as `frostmail-find-current`, in the
+  app's document and in each frame's (each document keeps its own
+  highlights). In the app, a match is `--flag-3` at 40% over the text and
+  the current one `--flag-2` at 60%; the frame's page style has the same
+  colors as literals (#ffcc00 at 40%, #ff9500 at 60%). Without the API,
+  the bar counts and scrolls, and marks nothing.
+- **Moving:** Enter and Next Match go to the next match, Shift+Enter and
+  Previous Match to the previous one, both wrapping around. The reader
+  scrolls so that the current match shows, centred when it was out of
+  view. Each move and each change of the text finds the matches again, so
+  a message that expanded while the bar was open joins at the next move.
+- **Closing:** Escape in the bar, or Done, closes it, removes the marks,
+  and focuses the reader. The bar also closes when the selection changes
+  or the module changes.
+- **lodge's web build:** no find bar. With a message shown, the window
+  leaves Ctrl+F to the browser, whose find reaches the reader's
+  content-origin frame (specs/lodge-app.md); the palette lists no Find in
+  Message.
+
 ### First run (M6)
 
 A store with no account opens on account setup
@@ -884,6 +931,7 @@ finds a menu command by name (parity P-958).
   | selectAll | Select All | Mail | |
   | getMail | Get Mail | Mail | |
   | focusSearch | Search | Mail, People | |
+  | find | Find in Message | Mail (not the web build) | one message |
   | print | Print… | Mail | one message |
   | rawSource | Raw Source… | Mail | one message |
   | allHeaders | Show/Hide All Headers | Mail | one message |
@@ -901,7 +949,7 @@ finds a menu command by name (parity P-958).
 - **The shortcut** of a row comes from the keymap's bindings, written as
   this map writes keys: Ctrl, then Alt, then Shift, then the key, a letter
   in capitals, the arrows as ← and →. A command with two keys shows both
-  ("Ctrl+Alt+F, Ctrl+F").
+  ("Delete, Backspace").
 - **The sheet:** lodge-ui's `Sheet` named "Commands" (480 wide, no heading
   and no close button), with a field named "Command" (placeholder "Find a
   Command"), which has focus, and under it a listbox named "Commands" of at
@@ -955,8 +1003,10 @@ finds a menu command by name (parity P-958).
 | Ctrl+Shift+U | toggle read | anywhere with a selection |
 | Ctrl+Shift+L | toggle flag (red when setting) | anywhere with a selection |
 | Ctrl+Shift+J | mark as spam, or not spam in the junk mailbox | anywhere with a selection |
-| Ctrl+Alt+F, Ctrl+F | focus the search field | anywhere |
-| Escape | clear search, close a menu | search field, menus |
+| Ctrl+Alt+F | focus the search field | anywhere |
+| Ctrl+F | [find in the message](#find-in-the-message); with no message shown, focus the search field | anywhere |
+| Enter / Shift+Enter | next / previous match | the find bar |
+| Escape | clear search, close a menu, close the find bar | search field, menus, the find bar |
 | Ctrl+Shift+N | get new mail | anywhere |
 | Ctrl+1 | All Inboxes | anywhere |
 | Ctrl+Alt+S | toggle sidebar | anywhere |

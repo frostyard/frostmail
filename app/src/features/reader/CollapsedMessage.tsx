@@ -17,10 +17,13 @@ export interface CollapsedMessageProps {
 export function CollapsedMessage({ summary, now, onExpand }: CollapsedMessageProps) {
   const date = new Date(summary.date);
   const name = displayName(summary.from);
-  // A native button: Enter and Space click it, as a click does.
+  // A native button: Enter and Space click it, as a click does. Find in the
+  // message skips it: a collapsed row's preview is not part of what the
+  // reader shows of the message (docs/specs/ui.md, Find in the message).
   return (
     <button
       type="button"
+      data-find-skip
       aria-expanded={false}
       aria-label={`${name}, ${formatHeaderDate(date)}`}
       title={summary.from.address}

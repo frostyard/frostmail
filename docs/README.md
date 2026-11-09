@@ -67,6 +67,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0049 — Record problems in the local journal](adr/0049-record-problems-in-the-local-journal.md)
 - [0050 — Warn when the provider's sender checks fail](adr/0050-warn-when-the-providers-sender-checks-fail.md) (Accepted)
 - [0051 — maild erases old Trash and Junk mail when the user asks](adr/0051-erase-old-trash-and-junk-when-the-user-asks.md) (Accepted)
+- [0052 — Ctrl+F finds in the message shown](adr/0052-find-in-the-message-shown.md) (Accepted)
 
 ### Design
 

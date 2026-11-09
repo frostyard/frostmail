@@ -7,6 +7,9 @@
 // the command palette (docs/specs/ui.md, Command palette) opens from a text
 // field too. PALETTE names each command in the modules where it acts, with
 // what it needs, and shortcutText writes its keys for the palette's rows.
+//
+// Ctrl+F finds in the message shown while one shows, and focuses the search
+// field otherwise (ADR-0052); Ctrl+Alt+F always focuses the search field.
 
 import type { Module } from "./modules";
 
@@ -36,6 +39,7 @@ export type Command =
   | "toggleRead"
   | "toggleFlag"
   | "focusSearch"
+  | "find"
   | "escape"
   | "getMail"
   | "allInboxes"
@@ -102,7 +106,7 @@ const BINDINGS: Binding[] = [
   { key: "u", ctrl: true, alt: false, shift: true, command: "toggleRead" },
   { key: "l", ctrl: true, alt: false, shift: true, command: "toggleFlag" },
   { key: "f", ctrl: true, alt: true, shift: false, command: "focusSearch" },
-  { key: "f", ctrl: true, alt: false, shift: false, command: "focusSearch" },
+  { key: "f", ctrl: true, alt: false, shift: false, command: "find" },
   { key: "escape", ctrl: false, alt: false, shift: false, command: "escape" },
   { key: "n", ctrl: true, alt: false, shift: true, command: "getMail" },
   { key: "2", ctrl: true, alt: false, shift: false, command: "showCalendar" },
@@ -172,7 +176,7 @@ function keyText(key: string): string {
 
 /** shortcutText writes a command's keys as the palette's rows show them:
  *  Ctrl, Alt, Shift, then the key ("Ctrl+Alt+A"), and every key of the
- *  command joined by ", " ("Ctrl+Alt+F, Ctrl+F"); "" for a move with none. */
+ *  command joined by ", " ("Delete, Backspace"); "" for a move with none. */
 export function shortcutText(command: Command): string {
   return BINDINGS.filter((b) => b.command === command)
     .map(bindingText)
@@ -215,6 +219,7 @@ export const PALETTE: Readonly<Record<Command, PaletteEntry | null>> = {
   selectAll: { name: mail("Select All") },
   getMail: { name: mail("Get Mail") },
   focusSearch: { name: mailPeople("Search") },
+  find: { name: mail("Find in Message"), needs: "message" },
   print: { name: mail("Print…"), needs: "message" },
   rawSource: { name: mail("Raw Source…"), needs: "message" },
   allHeaders: { name: mail("Show/Hide All Headers"), needs: "message" },
@@ -269,11 +274,19 @@ export interface PaletteItem {
   reason?: string;
 }
 
+/** PaletteOptions says what the build lacks: the web build leaves Ctrl+F
+ *  to the browser, whose find reaches the reader's frame, so its palette
+ *  lists no Find in Message (ADR-0052). */
+export interface PaletteOptions {
+  web?: boolean;
+}
+
 /** paletteItems lists a module's commands in PALETTE's order, with the
  *  reason of each one that the selection (the count) cannot run. */
-export function paletteItems(module: Module, selected: number): PaletteItem[] {
+export function paletteItems(module: Module, selected: number, options: PaletteOptions = {}): PaletteItem[] {
   const items: PaletteItem[] = [];
   for (const [command, entry] of Object.entries(PALETTE) as [Command, PaletteEntry | null][]) {
+    if (options.web === true && command === "find") continue;
     const name = entry?.name[module];
     if (!entry || name === undefined) continue;
     const shortcut = shortcutText(command);

@@ -57,6 +57,18 @@
   }
 }
 
+/* Find in the message (ADR-0052): the CSS Custom Highlight API's 2 names,
+   the color of every match and a stronger one for the match shown now. The
+   frame's page style carries the same 2 rules as literals, as its other
+   colors are. */
+::highlight(frostmail-find) {
+  background-color: color-mix(in srgb, var(--flag-3) 40%, transparent);
+}
+
+::highlight(frostmail-find-current) {
+  background-color: color-mix(in srgb, var(--flag-2) 60%, transparent);
+}
+
 @layer base {
   html,
   body,

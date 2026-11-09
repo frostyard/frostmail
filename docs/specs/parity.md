@@ -22,7 +22,10 @@ tasks are not Mail's and are not listed; their parity is
 - Every row has a status, and Later and Out rows a reason.
 - A row becomes Have only in the change that adds or names its test.
 - Mail.app's ⌘ is Ctrl and ⌥ is Alt; a shortcut Frostmail already uses
-  for something else keeps Frostmail's meaning and is noted.
+  for something else keeps Frostmail's meaning and is noted. One exception:
+  Ctrl+F finds in the message shown, as ⌘F does, and focuses the search
+  field only with no message shown
+  ([ADR-0052](../adr/0052-find-in-the-message-shown.md)).
 - A Mail.app feature found missing from the list is added with a status,
   not dropped.
 
@@ -75,7 +78,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
 | P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
 | P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
-| P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
+| P-309 | Find in the message | Ctrl+F opens a find bar in the reader with a message shown; Ctrl+Alt+F focuses search; the web build leaves Ctrl+F to the browser ([ADR-0052](../adr/0052-find-in-the-message-shown.md)) | Have | `app/src/features/reader/findInMessage.test.ts`, `app/src/features/reader/FindBar.test.tsx`, `app/src/app/Find.test.tsx` |
 | P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
 | P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` |

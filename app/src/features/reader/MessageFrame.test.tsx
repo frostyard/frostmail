@@ -15,6 +15,12 @@ describe("frameDocument", () => {
     expect(frameDocument('<a href="https://example.test">x</a>', false)).toContain('<base target="_blank">');
   });
 
+  it("carries the find bar's 2 highlight rules, which this page's document needs", () => {
+    const doc = frameDocument("<p>x</p>", false);
+    expect(doc).toContain("::highlight(frostmail-find){background-color:rgba(255,204,0,.4)}");
+    expect(doc).toContain("::highlight(frostmail-find-current){background-color:rgba(255,149,0,.6)}");
+  });
+
   it("rewrites mailpart URLs to the dev server only in dev", () => {
     const html = '<img src="mailpart://localhost/m/1/2.png">';
     expect(frameDocument(html, true)).toContain('src="/mailpart/m/1/2.png"');

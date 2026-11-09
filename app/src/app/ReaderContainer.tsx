@@ -18,6 +18,7 @@ import { useMail, useUI } from "../data/stores";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { CollapsedMessage } from "../features/reader/CollapsedMessage";
 import { ContentFrame } from "../features/reader/ContentFrame";
+import { FindBar } from "../features/reader/FindBar";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
 import {
@@ -63,11 +64,16 @@ interface MoreRequest {
   count: number;
 }
 
-/** ReaderHandle lets the window page the reader and run More Actions. */
+/** ReaderHandle lets the window page the reader, run More Actions and find
+ *  in the message shown. */
 export interface ReaderHandle {
   page: (direction: 1 | -1) => void;
   focus: () => void;
   more: (action: "headers" | "source") => void;
+  /** find opens the find bar, or focuses its field and selects its text when
+   *  it is open; false when no message shows, or in lodge's web build, whose
+   *  browser finds in the reader's frame itself (ADR-0052). */
+  find: () => boolean;
 }
 
 /**
@@ -111,10 +117,16 @@ function useReaderHeight(el: RefObject<HTMLElement | null>): void {
 /** ReaderContainer shows the selection in the reader pane. */
 export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer(_props, ref) {
   const { selected, setFocus } = useUI();
+  const module = useUI((state) => state.module);
   const [contact, setContact] = useState<{ address: Address; at: { x: number; y: number } } | null>(null);
   const openContact = useCallback((address: Address, at: { x: number; y: number }) => setContact({ address, at }), []);
   const closeContact = useCallback(() => setContact(null), []);
   const scroller = useRef<HTMLElement>(null);
+  // The find bar lives outside the scroller, so it stays in view, and it
+  // closes when the reader shows another selection or another module
+  // (docs/specs/ui.md, Find in the message).
+  const [finding, setFinding] = useState(false);
+  const findInput = useRef<HTMLInputElement>(null);
   useReaderHeight(scroller);
   const [moreRequest, setMoreRequest] = useState<MoreRequest | null>(null);
   const id = selected.length === 1 ? selected[0] : undefined;
@@ -122,6 +134,19 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
     // lodge's companion learns what is on screen; Conversation names a message.
     if (id === undefined) lodge()?.context({ kind: null, ref: "", title: "" });
   }, [id]);
+  // The bar closes when the reader shows another selection, or another
+  // module.
+  useEffect(() => setFinding(false), [id, module]);
+  useEffect(() => {
+    if (!finding) return;
+    findInput.current?.focus();
+    findInput.current?.select();
+  }, [finding]);
+  const closeFind = useCallback(() => {
+    setFinding(false);
+    // The reader has the keys again once the bar goes.
+    scroller.current?.focus();
+  }, []);
   useImperativeHandle(ref, () => ({
     page: (direction) => {
       const el = scroller.current;
@@ -131,22 +156,37 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
     more: (action) => {
       if (id !== undefined) setMoreRequest((previous) => ({ id, action, count: (previous?.count ?? 0) + 1 }));
     },
+    find: () => {
+      if (IN_LODGE || id === undefined) return false;
+      if (finding) {
+        findInput.current?.focus();
+        findInput.current?.select();
+        return true;
+      }
+      setFinding(true);
+      return true;
+    },
   }));
   return (
-    <section
-      ref={scroller}
-      // biome-ignore lint/a11y/noNoninteractiveTabindex: the reader is a focusable, scrollable pane.
-      tabIndex={0}
-      aria-label="Message"
-      data-print-area
-      onFocus={() => setFocus("reader")}
-      className="h-full overflow-y-auto bg-window outline-none"
-    >
-      {selected.length === 0 && <Empty text="No Message Selected" />}
-      {selected.length > 1 && <Empty text={`${selected.length} Messages Selected`} />}
-      {id !== undefined && <Conversation key={id} id={id} onAddress={openContact} moreRequest={moreRequest} />}
-      {contact && <ContactCardContainer key={contact.address.address} {...contact} onClose={closeContact} />}
-    </section>
+    <div className="flex h-full flex-col">
+      {finding && id !== undefined && (
+        <FindBar scroller={scroller.current} onClose={closeFind} inputRef={findInput} />
+      )}
+      <section
+        ref={scroller}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: the reader is a focusable, scrollable pane.
+        tabIndex={0}
+        aria-label="Message"
+        data-print-area
+        onFocus={() => setFocus("reader")}
+        className="min-h-0 flex-1 overflow-y-auto bg-window outline-none"
+      >
+        {selected.length === 0 && <Empty text="No Message Selected" />}
+        {selected.length > 1 && <Empty text={`${selected.length} Messages Selected`} />}
+        {id !== undefined && <Conversation key={id} id={id} onAddress={openContact} moreRequest={moreRequest} />}
+        {contact && <ContactCardContainer key={contact.address.address} {...contact} onClose={closeContact} />}
+      </section>
+    </div>
   );
 });
 
