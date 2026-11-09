@@ -17,6 +17,7 @@ import {
 import { step, viewTitle } from "../lib/calendarDates";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
+import { IN_LODGE } from "../lodge/lodge";
 import {
   archiveMailbox,
   compose,
@@ -132,6 +133,10 @@ function windowCommand(command: ToolbarCommand): boolean {
   switch (command.kind) {
     case "toggleSidebar":
       ui.toggleSidebar();
+      break;
+    case "palette":
+      // A contact being edited keeps the window's keys: it has no palette.
+      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true);
       break;
     case "settings":
       void openSettings().catch((err: unknown) => console.warn("settings", err));
@@ -272,6 +277,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
     <Toolbar
       narrow={props.narrow}
       windowControls={isTauri()}
+      palette={IN_LODGE}
       mode={ui.module}
       people={{ canCreate: Boolean(props.people?.writableBooks.length) && ui.peopleEditing === null }}
       tasks={

@@ -834,6 +834,94 @@ input named "Time" (the local date and time in the zone of the starting
 time), then Cancel and OK. OK is disabled while the chosen time is not
 after now, and gives the chosen instant.
 
+### Command palette
+
+Ctrl+Shift+P opens the command palette: a field that finds a command of
+the [Keyboard map](#keyboard-map) by name, shows its shortcut, and runs
+it as its key does. Mail.app's nearest is the Help menu's search, which
+finds a menu command by name (parity P-958).
+
+- **Where:** the main window, anywhere, a text field included (it is a
+  Ctrl+Shift key). It does not open while a sheet or a window in lodge's
+  frame has the keys, or while a contact is being edited. The compose
+  window has none: Ctrl+K stays Link there ([compose-ui.md](compose-ui.md)).
+- **The commands** are `PALETTE` in `app/src/lib/keymap.ts`, beside the
+  `Command` union and typed `Record<Command, …>`, so a new command with no
+  entry fails `tsc`. An entry names the command in each module where it
+  acts, and says what it needs. The palette lists the current module's
+  commands in `PALETTE`'s order:
+
+  | Command | Name | Modules | Needs |
+  | --- | --- | --- | --- |
+  | compose | New Message, New Event, New Contact, New Task | each | |
+  | reply, replyAll, forward | Reply, Reply All, Forward | Mail | a selection |
+  | redirect | Redirect… | Mail | a selection |
+  | archive | Archive | Mail | a selection |
+  | delete | Delete | Mail, Calendar, Tasks | a selection |
+  | junk | Mark as Spam/Not Spam | Mail | a selection |
+  | toggleRead | Mark as Read/Unread | Mail | a selection |
+  | toggleFlag | Flag/Unflag | Mail | a selection |
+  | undo | Undo | Mail, Calendar, People | |
+  | selectAll | Select All | Mail | |
+  | getMail | Get Mail | Mail | |
+  | focusSearch | Search | Mail, People | |
+  | print | Print… | Mail | one message |
+  | rawSource | Raw Source… | Mail | one message |
+  | allHeaders | Show/Hide All Headers | Mail | one message |
+  | today | Go to Today | Calendar | |
+  | dayView, weekView, monthView | Day View, Week View, Month View | Calendar | |
+  | previousPeriod, nextPeriod | Previous Period, Next Period | Calendar | |
+  | allInboxes | All Inboxes | each | |
+  | showCalendar, showPeople, showTasks | Show Calendar, Show People, Show Tasks | each | |
+  | toggleSidebar | Show/Hide Sidebar | each | |
+  | settings | Settings… | each | |
+
+  The moves have no entry (`null`): previous and next, extend, first and
+  last, page, left and right, the panes, Enter's open, Escape, the context
+  menu, and the palette itself.
+- **The shortcut** of a row comes from the keymap's bindings, written as
+  this map writes keys: Ctrl, then Alt, then Shift, then the key, a letter
+  in capitals, the arrows as ← and →. A command with two keys shows both
+  ("Ctrl+Alt+F, Ctrl+F").
+- **The sheet:** lodge-ui's `Sheet` named "Commands" (480 wide, no heading
+  and no close button), with a field named "Command" (placeholder "Find a
+  Command"), which has focus, and under it a listbox named "Commands" of at
+  most 360 high, which scrolls. Each row is an option: the name on the
+  left and the shortcut on the right (12/16 `--text-secondary`). The
+  highlighted row is `--selection-inactive`, and the field names it
+  (`aria-activedescendant`). With no match, the list shows "No Commands".
+- **Finding:** case-insensitive; each word typed must start a word of the
+  name, where words are split at anything but a letter or a digit ("arch"
+  finds Archive, "new m" New Message, "unr" Mark as Read/Unread). An empty
+  field lists every command. A change of the text highlights the first
+  row.
+- **Keys:** ↑ and ↓ move the highlight and stop at the ends; Enter runs the
+  highlighted row and closes; Escape, or a click outside, closes. A click
+  on a row runs it. Focus returns where it was before the command runs, so
+  a command that moves focus (Search) keeps it there.
+- **Disabled rows:** a command that needs what is missing is shown
+  disabled (`aria-disabled`, at 40% opacity) with its reason under its
+  name (12/16 `--text-secondary`): "Select a message first" (Mail),
+  "Select an event first" (Calendar), "Select a task first" (Tasks); and
+  "Select one message first" for a command on one message. Enter or a
+  click on it does nothing, and the palette stays open.
+- **Running** calls the dispatch the key calls (`runCommand` in
+  `app/src/app/MainWindow.tsx`), so a command does what its key does in the
+  pane that had focus, and, as with its key, may do nothing there
+  (Redirect… on a read-only account, Select All outside the list).
+- **The web build:** Firefox keeps Ctrl+Shift+P (a private window), and a
+  page cannot take it. So the web build's toolbar has a Commands button
+  (`keyboard`, named "Commands", its tooltip Ctrl+Shift+P) just before
+  Settings, which opens the palette. The desktop app's toolbar has none,
+  and neither has a narrow window's.
+- **lodge's keys:** lodge's shell answers its switcher shortcut (Ctrl+\`)
+  and its companion chord (Ctrl+Shift+\`). lodge-client catches them in the
+  app's frame and stops them, so the app never sees them (lodge's
+  `docs/specs/shell.md`, The switcher and The companion). Neither is
+  Ctrl+Shift+P, and the frame passes Ctrl+Shift+P to the app. A user may
+  set either to Ctrl+Shift+P, as lodge does not rule it out: then lodge's
+  wins, and the Commands button still opens the palette.
+
 ### Keyboard map
 
 | Keys | Command | Where |
@@ -859,6 +947,7 @@ after now, and gives the chosen instant.
 | Ctrl+R / Ctrl+Shift+R | reply / reply all to the selection | Ctrl+R: not in a text field |
 | Ctrl+Shift+F | forward the selection | anywhere |
 | Ctrl+, | open the settings window ([settings-ui.md](settings-ui.md)) | anywhere |
+| Ctrl+Shift+P | the [command palette](#command-palette) | anywhere |
 | Ctrl+Z | undo the newest move, delete or flag change (M5) | anywhere but a text field |
 | Ctrl+Shift+E | Redirect… the selection's last message (M5) | anywhere with a selection, writable account |
 | Ctrl+P | print the message shown (M5) | anywhere with one message selected |

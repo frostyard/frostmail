@@ -30,6 +30,7 @@ import { calendarPane, narrowPane, peoplePane, tasksPane, useNarrow } from "./na
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
 import { watchOpenRequests } from "./openMessage";
+import { PaletteContainer } from "./PaletteContainer";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
 import { watchPermalinks } from "./permalink";
 import { undoPim, watchRestores } from "./pimUndo";
@@ -245,6 +246,58 @@ function calendarCommand(command: Command, client: Client, frame: CalendarData, 
   return true;
 }
 
+/**
+ * runCommand does what a command does in the module shown, as the keys and
+ * the command palette both ask (docs/specs/ui.md, Command palette). It
+ * returns whether the window acted: a command that acted stops the key's
+ * own effect (preventDefault).
+ */
+function runCommand(
+  command: Command,
+  client: Client,
+  handles: WindowHandles,
+  model: ViewModel | null,
+  people: PeopleData,
+  calendar: CalendarData,
+  tasks: TasksData,
+): boolean {
+  const ui = useUI.getState();
+  if (command === "palette") {
+    ui.openPalette(true);
+    return true;
+  }
+  if (command === "focusSearch") {
+    // Calendar and Tasks have no search field: the key does nothing there.
+    if (ui.module === "calendar" || ui.module === "tasks") return false;
+    handles.search.current?.focus();
+    handles.search.current?.select();
+    return true;
+  }
+  if (command === "toggleSidebar") {
+    ui.toggleSidebar();
+    return true;
+  }
+  if (command === "nextPane" || command === "previousPane") {
+    focusPane(handles, command === "nextPane" ? 1 : -1);
+    return true;
+  }
+  if (command === "settings") {
+    void openSettings().catch((err: unknown) => console.warn("settings", err));
+    return true;
+  }
+  if (
+    command === "showTasks" ||
+    command === "showCalendar" ||
+    command === "showPeople" ||
+    command === "allInboxes" ||
+    ui.module === "people"
+  )
+    return moduleCommand(command, client, people);
+  if (ui.module === "tasks") return tasksCommand(command, tasks, handles.tasks.current);
+  if (ui.module === "calendar") return calendarCommand(command, client, calendar, handles);
+  return mailCommand(command, client, model, handles);
+}
+
 function useWindowEvents(
   handles: WindowHandles,
   model: ViewModel | null,
@@ -264,7 +317,8 @@ function useWindowEvents(
   useLayoutEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const ui = useUI.getState();
-      if (ui.smartSheet) return;
+      // A sheet has the window's keys, and so does the palette it opened.
+      if (ui.palette || ui.smartSheet) return;
       const field = inTextField(event.target);
       const command = commandFor(
         event,
@@ -280,27 +334,7 @@ function useWindowEvents(
         if (command !== "undo" && (event.ctrlKey || event.metaKey || event.altKey)) event.preventDefault();
         return;
       }
-      let handled = true;
-      if (command === "focusSearch") {
-        if (ui.module === "calendar" || ui.module === "tasks") return;
-        handles.search.current?.focus();
-        handles.search.current?.select();
-      } else if (command === "toggleSidebar") ui.toggleSidebar();
-      else if (command === "nextPane" || command === "previousPane")
-        focusPane(handles, command === "nextPane" ? 1 : -1);
-      else if (command === "settings") void openSettings().catch((err: unknown) => console.warn("settings", err));
-      else if (
-        command === "showTasks" ||
-        command === "showCalendar" ||
-        command === "showPeople" ||
-        command === "allInboxes" ||
-        ui.module === "people"
-      ) {
-        handled = moduleCommand(command, client, people);
-      } else if (ui.module === "tasks") handled = tasksCommand(command, tasks, handles.tasks.current);
-      else if (ui.module === "calendar") handled = calendarCommand(command, client, calendar, handles);
-      else handled = mailCommand(command, client, model, handles);
-      if (handled) event.preventDefault();
+      if (runCommand(command, client, handles, model, people, calendar, tasks)) event.preventDefault();
     };
     // In lodge, a window shown in the frame covers this one and takes its keys.
     const guarded = (event: KeyboardEvent) => {
@@ -624,6 +658,11 @@ export function MainWindow() {
       <UndoToasts />
       <RefusedNotices />
       <SmartSheetContainer />
+      <PaletteContainer
+        run={(command: Command) => {
+          runCommand(command, client, handles, model, people, calendar, tasks);
+        }}
+      />
       {sheet}
     </div>
   );

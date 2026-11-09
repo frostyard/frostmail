@@ -85,6 +85,8 @@ export type Pane = "sidebar" | "list" | "reader";
 /** UIState is the window's own state. */
 export interface UIState {
   smartSheet: SmartSheetState | null;
+  /** The command palette is open (docs/specs/ui.md, Command palette). */
+  palette: boolean;
   module: Module;
   calendarView: CalendarView;
   calendarDate: string;
@@ -141,6 +143,7 @@ export interface UIState {
 /** UIActions change UIState. */
 export interface UIActions {
   openSmartSheet: (state: SmartSheetState) => void;
+  openPalette: (open: boolean) => void;
   closeSmartSheet: () => void;
   setCalendarView: (view: CalendarView) => void;
   setCalendarDate: (date: string) => void;
@@ -187,6 +190,7 @@ export interface UIActions {
 
 const initialUI: UIState = {
   smartSheet: null,
+  palette: false,
   module: "mail",
   calendarView: "week",
   calendarDate: "",
@@ -232,6 +236,7 @@ export const useUI = create<UIState & UIActions>()(
     (set) => ({
       ...initialUI,
       openSmartSheet: (smartSheet) => set({ smartSheet }),
+      openPalette: (palette) => set({ palette }),
       closeSmartSheet: () => set({ smartSheet: null }),
       setCalendarView: (calendarView) => set({ calendarView }),
       setCalendarDate: (calendarDate) => set({ calendarDate, calendarsOpen: false }),
@@ -285,6 +290,7 @@ export const useUI = create<UIState & UIActions>()(
           revealing: initialUI.revealing,
           mailboxesOpen: initialUI.mailboxesOpen,
           smartSheet: initialUI.smartSheet,
+          palette: initialUI.palette,
           calendarSelected: initialUI.calendarSelected,
           tasksSource: initialUI.tasksSource,
           tasksSelected: initialUI.tasksSelected,
