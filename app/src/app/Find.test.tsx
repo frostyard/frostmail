@@ -104,6 +104,15 @@ describe("Ctrl+F", () => {
     if (!other) throw new Error("no second row");
     fireEvent.click(other);
     await waitFor(() => expect(findField()).toBeNull());
+    // Back on the first message, the bar stays closed.
+    const first = within(list).getAllByRole("option")[0];
+    if (!first) throw new Error("no first row");
+    fireEvent.click(first);
+    const reader = screen.getByRole("region", { name: "Message" });
+    await waitFor(() =>
+      expect(within(reader).getAllByRole("button", { name: "More Actions" }).length).toBeGreaterThan(0),
+    );
+    expect(findField()).toBeNull();
   });
 });
 

@@ -93,7 +93,7 @@ describe("findRanges", () => {
     expect(texts(root("<style>.a{color:red}</style><p>red</p>"), "red")).toEqual(["red"]);
     expect(texts(root("<script>var red = 1</script><p>red</p>"), "red")).toEqual(["red"]);
     expect(texts(root("<template><p>red</p></template><p>red</p>"), "red")).toEqual(["red"]);
-    expect(texts(root('<div data-find-skip><p>red</p></div><p>red</p>'), "red")).toEqual(["red"]);
+    expect(texts(root("<div data-find-skip><p>red</p></div><p>red</p>"), "red")).toEqual(["red"]);
   });
 
   it("finds nothing for an empty or a blank query", () => {

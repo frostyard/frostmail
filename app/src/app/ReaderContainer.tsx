@@ -122,21 +122,25 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
   const openContact = useCallback((address: Address, at: { x: number; y: number }) => setContact({ address, at }), []);
   const closeContact = useCallback(() => setContact(null), []);
   const scroller = useRef<HTMLElement>(null);
-  // The find bar lives outside the scroller, so it stays in view, and it
-  // closes when the reader shows another selection or another module
-  // (docs/specs/ui.md, Find in the message).
+  // The find bar lives outside the scroller, so it stays in view. It belongs
+  // to the selection and the module it opened on, so it closes when the
+  // reader shows another selection or another module (docs/specs/ui.md, Find
+  // in the message).
   const [finding, setFinding] = useState(false);
   const findInput = useRef<HTMLInputElement>(null);
   useReaderHeight(scroller);
   const [moreRequest, setMoreRequest] = useState<MoreRequest | null>(null);
   const id = selected.length === 1 ? selected[0] : undefined;
+  const findKey = `${module}:${id ?? ""}`;
+  const [findShownFor, setFindShownFor] = useState(findKey);
+  if (findShownFor !== findKey) {
+    setFindShownFor(findKey);
+    setFinding(false);
+  }
   useEffect(() => {
     // lodge's companion learns what is on screen; Conversation names a message.
     if (id === undefined) lodge()?.context({ kind: null, ref: "", title: "" });
   }, [id]);
-  // The bar closes when the reader shows another selection, or another
-  // module.
-  useEffect(() => setFinding(false), [id, module]);
   useEffect(() => {
     if (!finding) return;
     findInput.current?.focus();
@@ -169,9 +173,7 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
   }));
   return (
     <div className="flex h-full flex-col">
-      {finding && id !== undefined && (
-        <FindBar scroller={scroller.current} onClose={closeFind} inputRef={findInput} />
-      )}
+      {finding && id !== undefined && <FindBar scroller={scroller.current} onClose={closeFind} inputRef={findInput} />}
       <section
         ref={scroller}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: the reader is a focusable, scrollable pane.
