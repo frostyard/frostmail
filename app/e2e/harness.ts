@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { createServer as createHTTPServer } from "node:http";
 import { connect as connectNet, createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 import { Session } from "./webdriver";
 
@@ -188,6 +188,35 @@ export interface App {
   session: Session;
   cache: string;
   stop: () => Promise<void>;
+  /** running reports whether this launch's app process still runs. */
+  running: () => boolean;
+}
+
+/**
+ * appRunning reports whether a frostmail-app process runs with socket as its
+ * FROSTMAIL_SOCKET. WebKitWebDriver starts the app, so the harness holds no
+ * handle on it and finds it in /proc by the launch's own socket. A machine
+ * without /proc (not Linux) assumes a running app, so no test passes by it.
+ */
+function appRunning(socket: string): boolean {
+  const wanted = `FROSTMAIL_SOCKET=${socket}`;
+  let entries: string[];
+  try {
+    entries = readdirSync("/proc");
+  } catch {
+    return true;
+  }
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry)) continue;
+    try {
+      if (!readFileSync(`/proc/${entry}/environ`, "utf8").split("\0").includes(wanted)) continue;
+      const cmdline = readFileSync(`/proc/${entry}/cmdline`, "utf8").split("\0");
+      if (basename(cmdline[0] ?? "") === "frostmail-app") return true;
+    } catch {
+      // The process ended during the scan, or it is another user's.
+    }
+  }
+  return false;
 }
 
 /** pipeUp reports whether a named pipe accepts a connection. */
@@ -271,7 +300,7 @@ async function startDriver(command: string, env: NodeJS.ProcessEnv, procs: Child
 async function startApp(
   env: NodeJS.ProcessEnv,
   procs: ChildProcess[],
-): Promise<{ url: string; capabilities: Record<string, unknown> }> {
+): Promise<{ url: string; capabilities: Record<string, unknown>; app?: ChildProcess }> {
   if (!WINDOWS) {
     const url = await startDriver("WebKitWebDriver", { ...env, TAURI_WEBVIEW_AUTOMATION: "true" }, procs);
     return {
@@ -302,6 +331,7 @@ async function startApp(
   return {
     url,
     capabilities: { browserName: "webview2", "ms:edgeOptions": { debuggerAddress: `127.0.0.1:${devtools}` } },
+    app,
   };
 }
 
@@ -341,8 +371,11 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
   try {
     procs.push(spawn(bin("maild"), [], { env, stdio: ["ignore", "inherit", "inherit"] }));
     await until("maild's socket", () => (WINDOWS ? pipeUp(socket) : existsSync(socket)));
-    session = await driveApp(env, procs);
-    return { session, cache, stop };
+    const started = await driveApp(env, procs);
+    session = started.session;
+    const child = started.app;
+    const running = () => (child ? child.exitCode === null && child.signalCode === null : appRunning(socket));
+    return { session, cache, stop, running };
   } catch (err) {
     // A single-instance app left running would take the next launch.
     await stop();
@@ -350,10 +383,17 @@ export async function launch(dir: string, data: string, extraEnv: Record<string,
   }
 }
 
-/** driveApp starts the app and a WebDriver session on it, adding their processes to procs. */
-async function driveApp(env: NodeJS.ProcessEnv, procs: ChildProcess[]): Promise<Session> {
-  const { url, capabilities } = await startApp(env, procs);
-  return Session.start(url, capabilities);
+/**
+ * driveApp starts the app and a WebDriver session on it, adding their
+ * processes to procs; app is the app's own process where the harness starts
+ * it (Windows), and undefined where the driver does.
+ */
+async function driveApp(
+  env: NodeJS.ProcessEnv,
+  procs: ChildProcess[],
+): Promise<{ session: Session; app?: ChildProcess }> {
+  const { url, capabilities, app } = await startApp(env, procs);
+  return { session: await Session.start(url, capabilities), app };
 }
 
 /**
@@ -368,8 +408,17 @@ export async function launchApp(dir: string, env: Record<string, string>, procs:
     rmSync(dir, { recursive: true, force: true, maxRetries: 10 });
   };
   try {
-    session = await driveApp({ ...process.env, ...env }, procs);
-    return { session, cache: join(dir, "cache"), stop };
+    const started = await driveApp({ ...process.env, ...env }, procs);
+    session = started.session;
+    // running: the app's own process where the harness starts one, else /proc
+    // by this launch's FROSTMAIL_SOCKET, and a running app when it names none.
+    const child = started.app;
+    const socket = env.FROSTMAIL_SOCKET;
+    const running = () => {
+      if (child) return child.exitCode === null && child.signalCode === null;
+      return socket === undefined ? true : appRunning(socket);
+    };
+    return { session, cache: join(dir, "cache"), stop, running };
   } catch (err) {
     await stop();
     throw err;

@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { type App, launch, tempDir } from "./harness";
+import { type App, launch, tempDir, until } from "./harness";
 import type { Element, Session } from "./webdriver";
 
 let app: App | undefined;
@@ -58,33 +58,28 @@ function mainWindow(s: Session): Promise<string> {
   );
 }
 
-/** windowsGone reports whether the app has no window left. An app that ended
- * takes its session with it, so a driver error counts as no window. */
-async function windowsGone(s: Session): Promise<boolean> {
-  try {
-    return (await s.windows()).length === 0;
-  } catch {
-    return true;
-  }
-}
-
 describe("the first run", () => {
   it("closes the settings window with the main window", async () => {
     if (!app) throw new Error("app did not start");
-    const s = app.session;
+    const launched = app;
+    const s = launched.session;
     const main = await mainWindow(s);
     await s.switchTo(main);
+    // The process check below must find this launch's app, or it would report
+    // an end that never happened.
+    expect(launched.running()).toBe(true);
+
     const close = await button(s, "Close");
     try {
       await s.click(close);
     } catch {
       // The window goes while the click is answered, which can lose the
-      // reply; the windows that remain say whether the close happened.
+      // reply; the app process, not the driver, says whether it ended.
     }
 
     // The settings window goes with it: with no window left, the app and its
     // maild end.
-    await s.waitFor("the app to end", () => windowsGone(s), 20_000);
-    expect(await windowsGone(s)).toBe(true);
+    await until("the app to end", () => !launched.running(), 20_000);
+    expect(launched.running()).toBe(false);
   });
 });
