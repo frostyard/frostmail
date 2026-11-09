@@ -41,7 +41,8 @@
 #     and no secrets.json are left (ADR-0046).
 #
 # The fake flatpak-spawn fails, and records the fault, when the launcher
-# calls it without --latest-version.
+# calls it without --latest-version. A first case checks the fake itself:
+# it records the PID of the command it starts before that command runs.
 #
 # FROSTMAIL_BIN_DIR is where frostmail (the launcher), maild and mailctl
 # are; the default is the Flatpak's /app/bin. The test cleans up after itself.
@@ -243,6 +244,26 @@ FAKE
 chmod +x "$work/held/maild"
 
 socket="$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock"
+
+# --- The fake portal records maild's PID before maild runs: the launcher
+# ends flatpak-spawn with SIGKILL as soon as maild answers, so a write after
+# that could be lost. The PID file is a FIFO here, which holds a write that
+# comes after the command starts, and the command ends the fake at once, as
+# the launcher does. The PID must then be in a regular file.
+mkdir -p "$work/early"
+cat >"$work/early/frostmail" <<'FAKE'
+#!/bin/sh
+echo "$$" >"$SMOKE_MARKS/early"
+kill -KILL "$PPID"
+FAKE
+chmod +x "$work/early/frostmail"
+mkfifo "$work/early.pid"
+SMOKE_CHILD_PID="$work/early.pid" PATH="$work/early:$PATH" timeout 10 flatpak-spawn --latest-version frostmail \
+    >/dev/null 2>&1 || true
+[ -f "$work/early.pid" ] || fail "the fake portal did not record the command's PID before the command ran"
+[ "$(cat "$work/early.pid")" = "$(cat "$SMOKE_MARKS/early")" ] ||
+    fail "the fake portal recorded PID $(cat "$work/early.pid"), not the command's $(cat "$SMOKE_MARKS/early")"
+rm -f "$SMOKE_SPAWN_PID" "$work/early.pid" "$SMOKE_MARKS/early"
 
 # --- 0. The launcher makes the state directory and its logs private, with the
 # umask a login session has, and runs the app although flatpak-spawn fails.
