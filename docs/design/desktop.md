@@ -173,7 +173,9 @@ click and the move from a host maild.
   window shows a welcome with "Add Account…" and, as a secondary action,
   "Connect to lodge…", and opens the settings window on Accounts itself,
   once a connection ([ui.md](../specs/ui.md#first-run-m6)). Nothing about lodge,
-  Tailscale or a host maild is asked.
+  Tailscale or a host maild is asked. The settings window closes with the main
+  window, so a close of the main window ends the app when no other window is
+  open.
 - **Changing the mode.** Only the Server pane writes `app.json`, and only
   when the user saves; before that, the pane says what the change does,
   from local facts only (whether `frostmail.db` exists), so it says the
