@@ -1,6 +1,6 @@
 // The command palette in the web build (docs/specs/ui.md, Command palette:
 // The web build): Firefox keeps Ctrl+Shift+P, so the toolbar has a button.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
@@ -50,9 +50,14 @@ describe("the web build's Commands button", () => {
 
   it("opens no palette while a contact is being edited", async () => {
     await setup();
-    useUI.setState({ module: "people", peopleEditing: "new" });
-    fireEvent.click(await screen.findByRole("button", { name: "Commands" }));
+    // The module's own toolbar replaces Mail's: click the button it draws.
+    act(() => useUI.setState({ module: "people", peopleEditing: "new" }));
+    fireEvent.click(screen.getByRole("button", { name: "Commands" }));
     expect(useUI.getState().palette).toBe(false);
+    // When the editing ends, no palette shows, and the keys still open it.
+    act(() => useUI.getState().editContact(null));
     expect(screen.queryByRole("dialog", { name: "Commands" })).toBeNull();
+    fireEvent.keyDown(window, { key: "P", ctrlKey: true, shiftKey: true });
+    await screen.findByRole("dialog", { name: "Commands" });
   });
 });
