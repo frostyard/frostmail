@@ -144,13 +144,42 @@ describe("findRanges", () => {
     expect(texts(root("<p>  red</p>"), "red")).toEqual(["red"]);
   });
 
-  it("keeps the whitespace of preformatted text", () => {
-    expect(texts(root("<p>red\nblue</p>"), "red blue")).toHaveLength(1);
-    // A pre line break is a break the page renders, not a space.
-    expect(texts(root("<pre>red\nblue</pre>"), "red blue")).toEqual([]);
-    const styled = inPage('<p>red<span style="white-space:pre">  blue</span></p>');
-    expect(texts(styled, "red blue")).toEqual([]);
+  it("reads every run of whitespace as 1 space, in the text and the query", () => {
+    // 2 spaces are 1 space to the search, and a query with 2 is too.
+    expect(texts(root("<pre>red  blue</pre>"), "red  blue")).toHaveLength(1);
+    expect(texts(root("<pre>red  blue</pre>"), "red blue")).toHaveLength(1);
+    expect(texts(root("<p>red  blue</p>"), "red  blue")).toHaveLength(1);
+    const styled = inPage('<div style="white-space:pre-line">red  blue</div>');
+    expect(texts(styled, "red blue")).toHaveLength(1);
     styled.remove();
+  });
+
+  it("ends a match at a line end the page keeps", () => {
+    // A newline in preformatted text, and in white-space: pre-line, is a line
+    // the page shows: 2 lines are no 1 word.
+    expect(texts(root("<pre>red\nblue</pre>"), "red blue")).toEqual([]);
+    const preLine = inPage('<div style="white-space:pre-line">red\nblue</div>');
+    expect(texts(preLine, "red blue")).toEqual([]);
+    preLine.remove();
+    // The CSS wins over the tag: this pre keeps no newline, so the 2 lines
+    // read as 1 word.
+    const normal = inPage('<pre style="white-space:normal">red\nblue</pre>');
+    expect(texts(normal, "red blue")).toHaveLength(1);
+    normal.remove();
+    // A tab is whitespace, not a line end, wherever it sits.
+    expect(texts(root("<pre>red\tblue</pre>"), "red blue")).toHaveLength(1);
+  });
+
+  it("makes a final sigma the same letter as a sigma", () => {
+    expect(texts(root("<p>\u039F\u03A3</p>"), "\u03BF\u03C2")).toEqual(["\u039F\u03A3"]);
+    expect(texts(root("<p>\u03BF\u03C2</p>"), "\u039F\u03A3")).toEqual(["\u03BF\u03C2"]);
+  });
+
+  it("sees the words a hidden br leaves on 1 line", () => {
+    // The page hides this br, so its 2 words are 1 line, and 1 word.
+    const hidden = inPage('<p>red<br style="display:none">blue</p>');
+    expect(texts(hidden, "redblue")).toEqual(["redblue"]);
+    hidden.remove();
   });
 
   it("finds 1 match in each of 5,000 paragraphs", () => {

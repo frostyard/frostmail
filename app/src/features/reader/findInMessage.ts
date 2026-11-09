@@ -5,9 +5,10 @@
 // The search reads the text the page renders, not the text its DOM holds: a
 // message's markup carries words no reader sees (a newsletter's preheader in
 // display:none, a hidden block, a template, an alternate part), and its
-// whitespace collapses where the CSS says so. So the joined text is built
-// from what shows, and each of its code units remembers the text node and
-// the source offsets it came from, which a Range needs.
+// whitespace reads the same way wherever it sits: every run is 1 space, and
+// a line end, which the page shows, ends a match. So the joined text is
+// built from what shows, and each of its code units remembers the text node
+// and the source offsets it came from, which a Range needs.
 //
 // Everything here is plain DOM, so a message's markup stays untouched: a
 // highlight changes no node, which the frame's height and the print would
@@ -66,12 +67,17 @@ const BLOCK_TAGS = new Set([
   "ul",
 ]);
 
-// These 2 carry the browser's own white-space: pre, whatever the stylesheets
-// of the document say.
-const PRE_TAGS = new Set(["pre", "textarea"]);
+// With no computed white-space, these 2 tags keep their newlines: that value
+// is the browser's own style for them.
+const NEWLINE_TAGS = new Set(["pre", "textarea"]);
+
+// A newline is a line end the page shows where its white-space keeps it, and
+// no match crosses a line end.
+const KEEPS_NEWLINES = new Set(["pre", "pre-wrap", "pre-line", "break-spaces"]);
 
 const BREAK = "\n";
-const NBSP = "\u00A0";
+const FINAL_SIGMA = "\u03C2";
+const SIGMA = "\u03C3";
 
 /** Unit is where 1 code unit of the joined text came from: its text node, and
  *  the code unit offsets of the source code point, as a Range takes them. A
@@ -90,11 +96,20 @@ interface Joined {
 
 /** TextItem is 1 text node's place in the rendered text; BreakItem is a place
  *  where the text breaks into another line. */
-type Item = { kind: "text"; node: Text; text: string; block: Node | null; pre: boolean } | { kind: "break" };
+type Item = { kind: "text"; node: Text; text: string; block: Node | null; newlines: boolean } | { kind: "break" };
 
-/** isSpace is the whitespace a page collapses into 1 space. */
+/** isSpace is every whitespace a match reads as 1 space, the nbsp included:
+ *  the search cares about the words, not about how the page spaced them. */
 function isSpace(cp: string): boolean {
-  return cp === " " || cp === "\t" || cp === "\n" || cp === "\r" || cp === "\f";
+  return cp === " " || cp === "\t" || cp === "\n" || cp === "\r" || cp === "\f" || cp === "\u00A0";
+}
+
+/** fold lowercases 1 code point for matching. A final sigma is the same
+ *  letter as a sigma to a reader, so a query in 1 case finds it in the
+ *  other. */
+function fold(cp: string): string {
+  const lower = cp.toLowerCase();
+  return lower === FINAL_SIGMA ? SIGMA : lower;
 }
 
 /** styleOf is an element's computed style in its own window: a frame's
@@ -118,11 +133,11 @@ function frameBody(frame: Element): Element | null {
  *  frame the app may read at the frame's place. Text that renders nothing is
  *  no part of it: a display:none or hidden subtree, a style, script,
  *  noscript or template, and text under a hidden or collapsed visibility. */
-function collect(node: Node, block: Node | null, pre: boolean, visibility: string, items: Item[]): void {
+function collect(node: Node, block: Node | null, newlines: boolean, visibility: string, items: Item[]): void {
   for (let child = node.firstChild; child !== null; child = child.nextSibling) {
     if (child.nodeType === 3) {
       if (visibility === "hidden" || visibility === "collapse") continue;
-      items.push({ kind: "text", node: child as Text, text: child.nodeValue ?? "", block, pre });
+      items.push({ kind: "text", node: child as Text, text: child.nodeValue ?? "", block, newlines });
       continue;
     }
     if (child.nodeType !== 1) continue;
@@ -130,6 +145,10 @@ function collect(node: Node, block: Node | null, pre: boolean, visibility: strin
     if (element.hasAttribute("data-find-skip") || element.hasAttribute("hidden")) continue;
     const tag = element.tagName.toLowerCase();
     if (SKIP_TAGS.has(tag)) continue;
+    // What the page hides is no part of its text, whatever the tag is: a
+    // hidden br makes no line, and a hidden frame shows nothing.
+    const style = styleOf(element);
+    if (style?.display === "none") continue;
     if (tag === "br") {
       items.push({ kind: "break" });
       continue;
@@ -141,19 +160,15 @@ function collect(node: Node, block: Node | null, pre: boolean, visibility: strin
       if (body !== null) collect(body, body, false, "visible", items);
       continue;
     }
-    const style = styleOf(element);
-    // display:none takes the element, and every word in it, out of the page.
-    if (style?.display === "none") continue;
     const whiteSpace = style?.whiteSpace ?? "";
     const visibilityOwn = style?.visibility ?? "";
-    // Whitespace is kept where the page keeps it: an element the page marks
-    // as preformatted, or 1 the document's styles say nothing about, under a
-    // preformatted ancestor.
-    const ownPre = PRE_TAGS.has(tag) || whiteSpace.startsWith("pre");
+    // The computed white-space wins over the tag; with none, these 2 tags keep
+    // newlines, and anything else inherits from its parent.
+    const keepsNewlines = whiteSpace === "" ? newlines || NEWLINE_TAGS.has(tag) : KEEPS_NEWLINES.has(whiteSpace);
     collect(
       element,
       BLOCK_TAGS.has(tag) ? element : block,
-      whiteSpace === "" ? pre || ownPre : ownPre,
+      keepsNewlines,
       visibilityOwn === "" ? visibility : visibilityOwn,
       items,
     );
@@ -163,17 +178,16 @@ function collect(node: Node, block: Node | null, pre: boolean, visibility: strin
 /**
  * joined joins the text the page renders, in the order it shows it, and keeps
  * where each of its code units came from: the source of a match, so a Range
- * can select it. Whitespace collapses to 1 space as the page shows it, 1
- * space stands where a block or a br ends, and preformatted text keeps its
- * own whitespace.
+ * can select it. Every run of whitespace is 1 space, and a line end the page
+ * shows (a block, a br, a kept newline) is no word: no match crosses it.
  */
 function joined(root: Element): Joined {
   const items: Item[] = [];
   collect(root, BLOCK_TAGS.has(root.tagName.toLowerCase()) ? root : null, false, "visible", items);
   const units: (Unit | null)[] = [];
   let text = "";
-  // 1 run of whitespace waiting for the 1 space it renders as, and whether
-  // the block has shown nothing yet: whitespace at its start renders nothing.
+  // 1 run of whitespace waiting for the 1 space it reads as, and whether the
+  // line has shown nothing yet: whitespace at its start shows nothing.
   let pending: Unit | null = null;
   let atStart = true;
   let block: Node | null = null;
@@ -208,49 +222,45 @@ function joined(root: Element): Joined {
       block = item.block;
     }
     if (item.text === "") continue;
-    // A space before preformatted text still shows.
-    if (item.pre) flush();
     for (let i = 0; i < item.text.length; ) {
       const cp = item.text.codePointAt(i) ?? 0;
       const chars = String.fromCodePoint(cp);
       const unit: Unit = { node: item.node, start: i, end: i + chars.length };
       i += chars.length;
-      if (item.pre) {
-        emit(unit, chars === NBSP ? " " : chars.toLowerCase());
+      // A newline is a line end where the page keeps it, and no match crosses
+      // a line end.
+      if (item.newlines && (chars === "\n" || (chars === "\r" && item.text.charAt(i) === "\n"))) {
+        // CR LF is 1 line end, as the page shows it.
+        if (chars === "\r") i += 1;
+        lineBreak();
         continue;
       }
       if (isSpace(chars)) {
         if (pending === null) pending = unit;
         continue;
       }
-      if (chars === NBSP) {
-        // A nbsp is the 1 space the page never collapses.
-        flush();
-        emit(unit, " ");
-        continue;
-      }
       flush();
       // A letter may fold to more than 1 code unit ("İ"); each of them is
       // this same code point of the source.
-      emit(unit, chars.toLowerCase());
+      emit(unit, fold(chars));
     }
   }
   return { text, units };
 }
 
-/** needleOf normalizes a query as the page normalizes text: trimmed,
- *  whitespace runs of 1 space, and folded to lower case. */
+/** needleOf normalizes a query as the text it looks for is read: trimmed,
+ *  every run of whitespace 1 space, and folded. */
 function needleOf(query: string): string {
   let text = "";
   let space = false;
   for (const cp of query) {
-    if (isSpace(cp) || cp === NBSP) {
+    if (isSpace(cp)) {
       space = true;
       continue;
     }
     if (space && text !== "") text += " ";
     space = false;
-    text += cp.toLowerCase();
+    text += fold(cp);
   }
   return text;
 }

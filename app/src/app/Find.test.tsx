@@ -95,6 +95,30 @@ describe("Ctrl+F", () => {
     expect(document.activeElement).toBe(screen.getByRole("region", { name: "Message" }));
   });
 
+  it("keeps Enter on Done away from the window's open command", async () => {
+    // A click on a row leaves the keys with the list, whose Enter opens the
+    // message: that key must not swallow the button's own activation.
+    await setup();
+    press("f", { ctrlKey: true });
+    await screen.findByRole("searchbox", { name: "Find in Message" });
+    const done = screen.getByRole("button", { name: "Done" });
+    done.focus();
+    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+    let reachedWindow = 0;
+    const spy = (event: KeyboardEvent) => {
+      if (event.key === "Enter") reachedWindow += 1;
+    };
+    window.addEventListener("keydown", spy);
+    done.dispatchEvent(enter);
+    window.removeEventListener("keydown", spy);
+    // The window never saw the key, so it ran no command and stopped nothing.
+    expect(reachedWindow).toBe(0);
+    expect(enter.defaultPrevented).toBe(false);
+    // The button keeps its own meaning: a click closes the bar.
+    fireEvent.click(done);
+    await waitFor(() => expect(findField()).toBeNull());
+  });
+
   it("closes the bar when the reader shows another selection", async () => {
     const { list } = await setup();
     press("f", { ctrlKey: true });

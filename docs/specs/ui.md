@@ -571,13 +571,18 @@ Ctrl+F finds in the message shown, as Mail.app's ⌘F does (P-309,
   buttons Previous Match (`chevron-up`) and Next Match (`chevron-down`),
   disabled with no match; and at the right a button Done. The bar is not
   part of the print.
-- **Finding:** in what the reader shows, in the order it shows it: the
-  headers, the banners and the bodies of the expanded messages, a
+- **Finding:** in the text the reader renders, in the order it shows it:
+  the headers, the banners and the bodies of the expanded messages, a
   plain-text body and an HTML frame's document alike; not a collapsed
-  message's row, not text in a `style`, `script`, `noscript` or
-  `template` element. Case-insensitive, and across inline elements ("New
-  <b>York</b>" matches "new york"). Matches do not overlap. The first
-  match after the text changes is the first one shown.
+  message's row, not text the page hides (`display: none`, the `hidden`
+  attribute, a `visibility` of `hidden` or `collapse`), not text in a
+  `style`, `script`, `noscript` or `template` element. Case-insensitive (a
+  final sigma matches a sigma), and across inline elements ("New
+  <b>York</b>" matches "new york"). Every run of whitespace matches 1
+  space, in the text and in the query, and a line break ends a match: a
+  `<br>`, a block's edge, and a newline in text whose white-space keeps
+  newlines. Matches do not overlap. The first match after the text changes
+  is the first one shown.
 - **Marks:** the CSS Custom Highlight API: every match as the highlight
   `frostmail-find`, the current one as `frostmail-find-current`, in the
   app's document and in each frame's (each document keeps its own

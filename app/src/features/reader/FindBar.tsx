@@ -87,11 +87,13 @@ export function FindBar({ scroller, onClose, inputRef }: FindBarProps) {
       onClose();
       return;
     }
-    // Enter moves only from the field. On a button it keeps the button's own
-    // meaning: Done closes the bar, and Previous Match goes back.
-    if (event.key === "Enter" && event.target === field.current) {
-      event.preventDefault();
+    // Enter never leaves the bar: from the list's keys the window would take
+    // it as open, and cancel the button's own activation (Done would not
+    // close). Only the field's Enter moves the match.
+    if (event.key === "Enter") {
       event.stopPropagation();
+      if (event.target !== field.current) return;
+      event.preventDefault();
       step(event.shiftKey ? -1 : 1);
     }
   };
