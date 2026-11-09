@@ -66,7 +66,8 @@ describe("PALETTE", () => {
 describe("shortcutText", () => {
   it("writes a command's keys as the palette shows them", () => {
     expect(shortcutText("archive")).toBe("Ctrl+Alt+A");
-    expect(shortcutText("focusSearch")).toBe("Ctrl+Alt+F, Ctrl+F");
+    expect(shortcutText("focusSearch")).toBe("Ctrl+Alt+F");
+    expect(shortcutText("find")).toBe("Ctrl+F");
     expect(shortcutText("delete")).toBe("Delete, Backspace");
     expect(shortcutText("previousPeriod")).toBe("Ctrl+←");
     expect(shortcutText("palette")).toBe("Ctrl+Shift+P");
@@ -82,8 +83,26 @@ describe("paletteItems", () => {
     const row = (name: string) => items.find((item) => item.name === name);
     expect(row("Reply")?.reason).toBe("Select a message first");
     expect(row("Print…")?.reason).toBe("Select one message first");
+    expect(row("Find in Message")?.reason).toBe("Select one message first");
     expect(row("New Message")?.reason).toBeUndefined();
     expect(row("New Message")?.shortcut).toBe("Ctrl+N");
+  });
+
+  it("gives Find in Message its keys, right after Search, while one message shows", () => {
+    const items = paletteItems("mail", 1);
+    const commands = items.map((item) => item.command);
+    const at = commands.indexOf("focusSearch");
+    expect(commands.slice(at, at + 2)).toEqual(["focusSearch", "find"]);
+    const find = items.find((item) => item.command === "find");
+    expect(find?.name).toBe("Find in Message");
+    expect(find?.shortcut).toBe("Ctrl+F");
+    expect(find?.reason).toBeUndefined();
+  });
+
+  it("leaves Find in Message out of the web build's palette, which has the browser's find", () => {
+    const names = paletteItems("mail", 1, { web: true }).map((item) => item.name);
+    expect(names).not.toContain("Find in Message");
+    expect(names).toContain("Search");
   });
 
   it("lists Calendar's own commands", () => {

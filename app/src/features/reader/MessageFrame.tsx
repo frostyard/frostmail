@@ -25,6 +25,10 @@ const PAGE_STYLE = [
   "html{color-scheme:light}",
   'body{margin:0;padding:20px;background:#fff;color:#000;font:14px/1.45 "Inter Variable",system-ui,sans-serif;overflow-wrap:anywhere}',
   "img{max-width:100%;height:auto}",
+  // The find bar's marks, in this page's own document (ADR-0052): the app's
+  // 2 colors, as literals, like the page's other colors.
+  "::highlight(frostmail-find){background-color:rgba(255,204,0,.4)}",
+  "::highlight(frostmail-find-current){background-color:rgba(255,149,0,.6)}",
 ].join("");
 
 /** frameDocument wraps sanitized HTML in the frame's page. */

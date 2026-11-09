@@ -34,7 +34,7 @@ describe("commandFor outside text fields", () => {
     ["Ctrl+Shift+u", "toggleRead"],
     ["Ctrl+Shift+L", "toggleFlag"],
     ["Ctrl+Alt+f", "focusSearch"],
-    ["Ctrl+f", "focusSearch"],
+    ["Ctrl+f", "find"],
     ["Escape", "escape"],
     ["Ctrl+Shift+N", "getMail"],
     ["Ctrl+1", "allInboxes"],

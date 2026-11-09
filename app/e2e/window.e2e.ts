@@ -127,7 +127,16 @@ describe("the window", () => {
     await s.keys(Key.Control, Key.Alt, "s");
     await s.waitFor("the sidebar to return", async () => (await s.findAll('[role="tree"]')).length > 0);
 
+    // With a message shown, Ctrl+F finds in it, and Escape closes the bar;
+    // Ctrl+Alt+F goes to the search field.
+    const findInput = 'input[aria-label="Find in Message"]';
     await s.keys(Key.Control, "f");
+    await s.waitFor("the find bar's field to take the focus", () =>
+      s.execute<boolean>('return document.activeElement?.getAttribute("aria-label") === "Find in Message"'),
+    );
+    await s.keys(Key.Escape);
+    await s.waitFor("the find bar to close", async () => (await s.findAll(findInput)).length === 0);
+    await s.keys(Key.Control, Key.Alt, "f");
     await s.waitFor("the search field to take the focus", () =>
       s.execute<boolean>('return document.activeElement === document.querySelector("input[aria-label=Search]")'),
     );

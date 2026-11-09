@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 import { useUI } from "../data/stores";
 import { CommandPalette } from "../features/palette/CommandPalette";
 import { type Command, paletteItems } from "../lib/keymap";
+import { IN_LODGE } from "../lodge/lodge";
 
 /** PaletteContainerProps takes the main window's dispatch, the palette's run. */
 export interface PaletteContainerProps {
@@ -45,7 +46,7 @@ export function PaletteContainer(props: PaletteContainerProps) {
           : Number(person);
   return (
     <CommandPalette
-      items={paletteItems(module, count)}
+      items={paletteItems(module, count, { web: IN_LODGE })}
       onRun={(command) => {
         pending.current = command;
         useUI.getState().openPalette(false);
