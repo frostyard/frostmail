@@ -234,11 +234,16 @@ The repository follows core's baseline (frostyard/core ADR-0071, its spec
   `date`, `scope`, `correction`, `evidence` and `promoted_to`. Append only:
   never edit or remove a line (no test checks this). A fix of a blocking
   review point adds its guard and 1 line.
-- `.github/risk-paths.json` (B6, core ADR-0068): a PR that touches a listed
-  path gets `risk:high` from `.github/workflows/risk-paths.yml`. Its PR body
-  names each matched path and why the change is safe. A new release
-  workflow, install script, privileged helper, secrets store or sign-in path
-  joins the list in the PR that adds it; a glob that matches no file fails.
+- `.github/risk-paths.json` (B6, core ADR-0068): schema version 2
+  (core ADR-0078): each glob has a level, `L1` to `L4`, and the default is
+  `L3`. The caller `.github/workflows/risk-paths.yml` runs core's
+  `pr-triage.yml` (ADR-0077, ADR-0078). It adds `level:L1` to `level:L4`, and
+  `risk:high` at L1 and L2. It removes `ready-for-human` when the head moves
+  after the label, or when CI is not green at the label. The PR body names
+  each matched path and why the change is safe. A new release workflow,
+  install script, privileged helper, secrets store or sign-in path joins the
+  list in the PR that adds it, at a level by the grading rule: `L1` for the
+  risk categories, `L2` for governance. A glob that matches no file fails.
 - `.github/dependabot.yml` (B13): 1 entry for each manifest (`go.mod`,
   `app/package.json`, each `Cargo.toml`). A new manifest gets an entry.
   Groups take only minor and patch updates; a major comes as its own PR.
