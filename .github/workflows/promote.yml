@@ -107,12 +107,17 @@ jobs:
       # The release tag is the candidate's very commit (make bump), never a
       # later commit of main: the .deb release.yml builds and the Flatpak this
       # workflow promotes must hold the same code. So only "identical" passes.
+      # A tag that does not exist fails the compare, and the step then still
+      # says how to make it.
       - name: Check the release tag is the candidate's commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          status=$(gh api "repos/$REPO/compare/$CANDIDATE...$VERSION" --jq .status)
+          if ! status=$(gh api "repos/$REPO/compare/$CANDIDATE...$VERSION" --jq .status); then
+            echo "the git tag $VERSION must exist (make it with make bump CANDIDATE=$CANDIDATE) and be the candidate's commit: GitHub could not compare $CANDIDATE...$VERSION (above)" >&2
+            exit 1
+          fi
           if [[ $status != identical ]]; then
             echo "the git tag $VERSION must exist (make it with make bump CANDIDATE=$CANDIDATE) and be the candidate's commit: $CANDIDATE...$VERSION is $status" >&2
             exit 1
