@@ -182,8 +182,16 @@ elif [ -n "${SMOKE_SPAWN_HANG_BUILD:-}" ] && [ "$*" = "maild -build" ]; then
 elif [ -n "${SMOKE_SPAWN_DETACH:-}" ] && [ "$*" = "maild -build" ]; then
     # A process in a session of its own that keeps this command's output open
     # and says nothing, as the portal's new sandbox does; the query itself
-    # ends. The launcher's timeout cannot reach it.
+    # ends. The launcher's timeout cannot reach it. The fake answers only
+    # after the detached process has written its PID, so that the test finds
+    # it as it finds the sandbox the portal names: nothing else orders that
+    # write before the test reads the file.
     setsid sh -c 'echo $$ >"$1"; exec sleep 60' sh "$SMOKE_DETACHED_PID" &
+    tries=0
+    while [ ! -s "$SMOKE_DETACHED_PID" ] && [ "$tries" -lt 50 ]; do
+        sleep 0.1
+        tries=$((tries + 1))
+    done
     exit 0
 else
     exec "$@"
