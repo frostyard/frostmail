@@ -4,6 +4,7 @@ import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodg
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
   forwardRef,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
   useCallback,
   useEffect,
@@ -15,6 +16,7 @@ import {
 import { useClient } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import { TimeSheet } from "../features/later/TimeSheet";
+import { CollapsedMessage } from "../features/reader/CollapsedMessage";
 import { ContentFrame } from "../features/reader/ContentFrame";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import { MessageFrame } from "../features/reader/MessageFrame";
@@ -179,6 +181,33 @@ function Conversation({
   const [items, setItems] = useState<MessageSummary[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { now } = useCalendarFrame();
+  // The selected message and what was unread when it opened show expanded;
+  // the rest collapse to a row each (docs/specs/ui.md, Reader, P-310).
+  const [expanded, setExpanded] = useState<ReadonlySet<number>>(() => new Set([id]));
+  const setOpen = useCallback((message: number, open: boolean) => {
+    setExpanded((previous) => {
+      if (previous.has(message) === open) return previous;
+      const next = new Set(previous);
+      if (open) next.add(message);
+      else next.delete(message);
+      return next;
+    });
+  }, []);
+  // A More Actions request for the collapsed selected message expands it,
+  // and the expanded message then replays that request (moreFrom).
+  const lastMoreRequest = useRef(moreRequest?.count ?? 0);
+  // A message's entry is used once: the message takes it when it runs the
+  // request (onMoreTaken), so a later mount does not replay it.
+  const moreFrom = useRef(new Map<number, number>());
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!moreRequest || moreRequest.count <= lastMoreRequest.current) return;
+    lastMoreRequest.current = moreRequest.count;
+    if (moreRequest.id !== id || expanded.has(id)) return;
+    moreFrom.current.set(id, moreRequest.count - 1);
+    setOpen(id, true);
+  }, [moreRequest, id, expanded, setOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,6 +222,13 @@ function Conversation({
       rows = rows.filter((r) => r.id === id || !inTrash(r) || inTrash(s)).reverse();
       if (cancelled) return;
       setItems(rows);
+      // Only the first load decides what opens expanded: a reload (Trash or
+      // a read-only account changed) keeps what the user expanded or collapsed.
+      if (!opened.current) {
+        opened.current = true;
+        const unread = rows.filter((r) => !r.flags.seen).map((r) => r.id);
+        if (unread.length > 0) setExpanded((previous) => new Set([...previous, ...unread]));
+      }
       // What the reader shows is read (docs/specs/ui.md, Behavior).
       const readOnly = new Set(readOnlyKey === "" ? [] : readOnlyKey.split(",").map(Number));
       const unseen = rows
@@ -211,11 +247,32 @@ function Conversation({
   if (error) return <Empty text={error} />;
   if (!items) return null;
   const shown = showAll ? items : items.slice(0, MAX_CONVERSATION);
+  // A conversation of 1 message shows it expanded, with no collapse.
+  const collapsible = items.length > 1;
   return (
     <div className="divide-y divide-separator">
-      {shown.map((s) => (
-        <ConversationMessage key={s.id} summary={s} onAddress={onAddress} moreRequest={moreRequest} />
-      ))}
+      {shown.map((s) =>
+        !collapsible || expanded.has(s.id) ? (
+          <ConversationMessage
+            key={s.id}
+            summary={s}
+            onAddress={onAddress}
+            moreRequest={moreRequest}
+            moreFrom={moreFrom.current.get(s.id)}
+            onMoreTaken={() => moreFrom.current.delete(s.id)}
+            onCollapse={
+              collapsible
+                ? () => {
+                    moreFrom.current.delete(s.id);
+                    setOpen(s.id, false);
+                  }
+                : undefined
+            }
+          />
+        ) : (
+          <CollapsedMessage key={s.id} summary={s} now={now} onExpand={() => setOpen(s.id, true)} />
+        ),
+      )}
       {shown.length < items.length && (
         <button
           type="button"
@@ -231,10 +288,19 @@ function ConversationMessage({
   summary,
   onAddress,
   moreRequest,
+  moreFrom,
+  onMoreTaken,
+  onCollapse,
 }: {
   summary: MessageSummary;
   onAddress: MessageHeaderProps["onAddress"];
   moreRequest: MoreRequest | null;
+  /** The More Actions count after which this message replays requests; the current count when absent. */
+  moreFrom?: number | undefined;
+  /** Says the message took the requests up to moreRequest's count. */
+  onMoreTaken?: (() => void) | undefined;
+  /** Collapses the message to its row, in a conversation of 2 or more. */
+  onCollapse?: (() => void) | undefined;
 }) {
   const client = useClient();
   const vips = useMail((s) => s.vips);
@@ -349,25 +415,29 @@ function ConversationMessage({
 
   // New articles start at the current count so retained requests cannot
   // replay after a selection change or revealing earlier messages.
-  const lastMoreRequest = useRef(moreRequest?.count ?? 0);
+  const lastMoreRequest = useRef(moreFrom ?? moreRequest?.count ?? 0);
   useEffect(() => {
     if (!moreRequest || moreRequest.count <= lastMoreRequest.current) return;
     lastMoreRequest.current = moreRequest.count;
+    onMoreTaken?.();
     if (moreRequest.id === id)
       void moreAction(moreRequest.action).catch((err: unknown) =>
         setError(err instanceof Error ? err.message : String(err)),
       );
-  }, [moreRequest, id, moreAction]);
+  }, [moreRequest, id, moreAction, onMoreTaken]);
 
   return (
     <article aria-label={summary.subject} className="pb-2">
       {message && (
-        <MessageHeader
-          message={message}
-          onAddress={onAddress}
-          onMore={setMore}
-          vip={isVip(message.summary.from.address, vipAddresses)}
-        />
+        // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: a click on the header collapses the message, as in Mail.app; the header's controls keep their keys, and Tab moves past the message (docs/specs/ui.md, Reader).
+        <div onClick={onCollapse ? (event) => collapseFrom(event, onCollapse) : undefined}>
+          <MessageHeader
+            message={message}
+            onAddress={onAddress}
+            onMore={setMore}
+            vip={isVip(message.summary.from.address, vipAddresses)}
+          />
+        </div>
       )}
       {message?.senderCheck === "fail" && (
         <SenderCheckBanner
@@ -517,6 +587,19 @@ function ConversationMessage({
       )}
     </article>
   );
+}
+
+/**
+ * collapseFrom collapses a message on a click in its header, except a click
+ * on a control in it (an address, More Actions) or one that ends a text
+ * selection (docs/specs/ui.md, Reader).
+ */
+function collapseFrom(event: ReactMouseEvent<HTMLElement>, collapse: () => void): void {
+  const target = event.target;
+  if (target instanceof Element && target.closest("button, a, input, select, textarea, [role='button']")) return;
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && event.currentTarget.contains(selection.anchorNode)) return;
+  collapse();
 }
 
 function useUnsubscribe(id: number, active: boolean, readOnly: boolean) {

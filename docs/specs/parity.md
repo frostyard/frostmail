@@ -76,7 +76,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
 | P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
 | P-309 | Find in the message | | Later | Ctrl+F focuses search today; needs a find bar in the frame |
-| P-310 | Collapse and expand messages in a conversation | | Later | Quotes already collapse (`PlainText.test.tsx`) |
+| P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
 | P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` |
 

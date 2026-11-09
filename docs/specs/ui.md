@@ -418,6 +418,30 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 - **Conversation:** the messages of the selected message's thread, newest at
   the top, as a stack separated by 1px `--separator` lines. Messages that are
   in Trash are omitted unless the selected one is.
+  - **Expanded and collapsed** (P-310, as Mail.app and Gmail show a
+    conversation): a conversation of 1 message shows it expanded. In a
+    conversation of 2 or more, the selected message and each message that
+    was unread when the conversation opened show expanded; every other
+    message shows collapsed. What is expanded stays expanded while the
+    conversation is open, also when opening marks it read (Behavior).
+  - **A collapsed message** is 1 row, a button (`aria-expanded="false"`)
+    named by the sender's name and the long date ("Ann Smith, October 7,
+    2026 at 9:41 AM"), 10 / 20 padding, at least 44 high: a 24px avatar
+    circle (the header's initials and tone, 10/600 white), 8px, the sender
+    name (list sender) truncated, the message's preview (list preview,
+    `--text-secondary`) on the rest of the line, truncated with an
+    ellipsis, and the date right-aligned in the list's short form (list
+    date, `--text-secondary`). A click, Enter or Space expands it. It
+    calls `message.get` and `message.render` only when it expands, so a
+    long conversation loads only what it shows in full.
+  - **Collapsing:** in a conversation of 2 or more, a click on an expanded
+    message's header collapses it again, except a click on a button in it
+    (an address, More Actions) or a click that ends a text selection. The
+    collapse is for the pointer; from the keyboard, Tab reaches the next
+    message's row. The narrow layout and lodge's web build show the same
+    rows.
+  - A More Actions request for the selected message by its keys
+    (Ctrl+Shift+H, Ctrl+Alt+U) expands it first when it is collapsed.
 - **Header (per message, 16 / 20 padding):** a 40px avatar circle with up to
   two initials (13/600 white) on one of eight tones chosen by a stable hash of
   the address; to its right, line 1 the sender name (14/600), followed by a
