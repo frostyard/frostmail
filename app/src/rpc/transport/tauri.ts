@@ -44,12 +44,19 @@ export async function connectTauri(): Promise<Transport> {
     clearInterval(timer);
     session.close(m.error);
   };
-  const connected = await invoke<{ remote: boolean } | null>("maild_connect", { onMessage: channel });
+  const connected = await invoke<{ remote: boolean; lodge: string | null } | null>("maild_connect", {
+    onMessage: channel,
+  });
   remote = connected?.remote === true;
   // The Flatpak's maild cannot read the paths the window sees outside its
   // sandbox, so it takes bytes and asks the portal (ADR-0046). A shell without
   // the command is no Flatpak.
   flatpak = (await invoke<boolean>("in_flatpak").catch(() => false)) === true;
   if (remote) timer = setInterval(() => void session.call("rpc.ping", {}).catch(() => {}), PING_MS);
-  return asTransport(session);
+  const transport = asTransport(session);
+  // Which maild this connection reached: a shell that knows no lodge answers
+  // null, which is the local socket.
+  const lodge = connected?.lodge ?? null;
+  transport.maild = lodge === null ? "local" : `lodge:${lodge}`;
+  return transport;
 }

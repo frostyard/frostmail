@@ -179,6 +179,10 @@ export interface UIActions {
   openTaskLists: (open: boolean) => void;
   setUnsavedDrafts: (n: number) => void;
   setWidths: (w: { sidebarWidth?: number; listWidth?: number }) => void;
+  /** forgetMaild forgets the ids of the maild the window showed, for a
+   *  window whose new connection reaches another maild: its message,
+   *  mailbox, contact, task and occurrence ids are not this one's. */
+  forgetMaild: () => void;
 }
 
 const initialUI: UIState = {
@@ -269,6 +273,25 @@ export const useUI = create<UIState & UIActions>()(
       openTaskLists: (taskListsOpen) => set({ taskListsOpen }),
       setUnsavedDrafts: (unsavedDrafts) => set({ unsavedDrafts }),
       setWidths: (w) => set(w),
+      // These fields hold ids and keys of one maild's data (source, message
+      // ids, a contact, a task, an occurrence); the rest are the window's own.
+      forgetMaild: () =>
+        set({
+          source: initialUI.source,
+          search: initialUI.search,
+          searchDraft: initialUI.searchDraft,
+          selected: initialUI.selected,
+          anchor: initialUI.anchor,
+          revealing: initialUI.revealing,
+          mailboxesOpen: initialUI.mailboxesOpen,
+          smartSheet: initialUI.smartSheet,
+          calendarSelected: initialUI.calendarSelected,
+          tasksSource: initialUI.tasksSource,
+          tasksSelected: initialUI.tasksSelected,
+          peopleBook: initialUI.peopleBook,
+          peopleSelected: initialUI.peopleSelected,
+          peopleEditing: initialUI.peopleEditing,
+        }),
     }),
     {
       // lodge's apps share one origin's storage (lodge/lodge.ts).

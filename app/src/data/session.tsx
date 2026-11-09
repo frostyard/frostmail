@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useContext, useEffect, useState } from "
 
 import { Client, type Event, PROTOCOL } from "../rpc/gen/api";
 import type { Transport } from "../rpc/transport";
-import { useMail } from "./stores";
+import { useMail, useUI } from "./stores";
 
 const ClientContext = createContext<Client | null>(null);
 
@@ -23,7 +23,9 @@ export const RETRY_MS = 1000;
 /**
  * Session connects with connect, completes rpc.hello, subscribes to events,
  * loads the mail store, and renders children with the client. When the
- * connection ends it reconnects every RETRY_MS, rendering fallback meanwhile.
+ * connection ends it reconnects every RETRY_MS, rendering fallback meanwhile;
+ * when the new connection reaches another maild, the window forgets the old
+ * maild's ids (useUI.forgetMaild) before the children mount again.
  */
 export function Session(props: { connect: Connect; children: ReactNode; fallback: ReactNode }) {
   const { connect } = props;
@@ -33,6 +35,10 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
     let stopped = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let cleanup: (() => void) | undefined;
+    // The maild the last connection reached, by its transport's key
+    // (rpc/transport.ts): a different one means the old ids are not this
+    // maild's, so the window forgets them before its children mount again.
+    let lastMaild: string | undefined;
 
     const attempt = async () => {
       useMail.setState({ connection: { state: "connecting" } });
@@ -45,6 +51,11 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
         await c.events.subscribe({});
         await reload(c);
         if (stopped) return;
+        const maild = transport.maild;
+        if (lastMaild !== undefined && maild !== undefined && maild !== lastMaild) {
+          useUI.getState().forgetMaild();
+        }
+        lastMaild = maild;
         useMail.setState({ connection: { state: "ready" } });
         setClient(c);
         transport.onClose((reason) => {

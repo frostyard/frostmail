@@ -124,6 +124,10 @@ pub struct Connected {
     /// maild is behind lodge, which closes a connection that sends nothing
     /// for 90 s, so the webview keeps it alive.
     pub remote: bool,
+    /// The lodge URL this connection reaches maild at, as app.json holds it;
+    /// null for maild's local socket. Two connections with different values
+    /// reach different mailds, whose ids are not each other's.
+    pub lodge: Option<String>,
 }
 
 /// Connect the calling window to maild, its local socket or lodge's
@@ -142,7 +146,7 @@ pub async fn maild_connect(
         let (write, read) = connect_lodge(&lodge).await?.split();
         let stop = bridge.keep(window.label(), Writer::Lodge(write), generation).await?;
         tauri::async_runtime::spawn(read_frames(read, stop, on_message));
-        return Ok(Connected { remote: true });
+        return Ok(Connected { remote: true, lodge: Some(url) });
     }
     let path = paths::socket()?;
     let (read, write) = connect(&path)
@@ -155,7 +159,7 @@ pub async fn maild_connect(
         record_end(&rec, &end);
         let _ = on_message.send(BridgeMessage::Closed { error: end.to_string() });
     });
-    Ok(Connected { remote: false })
+    Ok(Connected { remote: false, lodge: None })
 }
 
 /// Why the read loop of maild's local socket ended. Its text is what the
