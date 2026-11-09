@@ -793,6 +793,31 @@ interface ServerPaneProps {
     last line.
   - **A new lodge address, lodge to lodge:** it saves and ends every
     window's connection, as outside the Flatpak.
+- A window whose new connection reaches another maild forgets the old
+  maild's ids: `maild_connect` answers the lodge URL it reached (`lodge`,
+  null for the local socket), and a window whose answer differs from the
+  last one's clears its source, its search, its selection, its anchor and
+  reveal, the smart sheet, and the calendar, task and people selections
+  (`useUI.forgetMaild`). Message, mailbox, smart mailbox, contact, task and
+  event ids belong to one maild, so it opens nothing and marks nothing read
+  by an id the new maild does not share. A reconnect to the same maild, as
+  after a maild restart or a network drop, keeps them.
+- A compose window and an event window belong to the maild they opened on:
+  their draft or event is that maild's, and the id names other data on
+  another one. The opener passes that maild's key with the target (the
+  `maild` argument of `open_compose` and `open_event`, from the opener's
+  transport, which the window's initialization script sets as
+  `window.__frostmailMaild`), and the window compares every connection with
+  it, the first one too, so a window that could not reach its own maild does
+  not take the next one for it. A connection that reaches another maild
+  closes the window, and the window never loads its id there (a fresh draft
+  closed on the wrong maild would delete that maild's draft). `Session` asks
+  the window with `onOtherMaild`: App answers false and closes the window
+  (`getCurrentWindow().close()`, in Tauri), shows "This draft is on the
+  maild you left." or "This event is on the maild you left.", and never
+  mounts the draft or the event on the new maild. The main, reminders and
+  settings windows keep the behavior above, and a window with no key (a
+  browser tab, or an older opener) behaves as before.
 - After each save, failed or not, the mounted container (also one mounted
   during the save) reads `app_config_get` again and shows the stored
   choice afresh (the radios and the address), never the one it asked for:

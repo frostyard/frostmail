@@ -150,6 +150,8 @@ func (a *actor) phase(p api.SyncPhase, errText string) {
 // run connects and syncs until ctx ends, retrying failures with backoff.
 // A rejected login waits for a restart (a new password) or a sync request;
 // a mailbox the server cannot open now (imapx.ErrUnavailable) is retried.
+// An account that has never synced waits the same way for its first
+// password, which is no refusal: it logs no stop and carries no sign-in mark.
 //
 // A store write that fails to apply the server's state records
 // CodeApplyFailed once in each streak of failed sessions (recordApply).
@@ -165,9 +167,16 @@ func (a *actor) run(ctx context.Context) {
 			backoff = a.m.cfg.MinBackoff
 		}
 		applyReported = a.recordApply(err, healthy, applyReported)
-		a.m.log.Warn("sync stopped", "account", a.acct.ID, "err", err)
+		waiting := errors.Is(err, errNoPassword) && a.neverSynced(ctx)
+		if waiting {
+			a.m.log.Info("sync waits for a password", "account", a.acct.ID)
+		} else {
+			a.m.log.Warn("sync stopped", "account", a.acct.ID, "err", err)
+		}
 		var retry <-chan time.Time
 		switch {
+		case waiting:
+			a.phase(api.SyncPhaseUnauthorized, err.Error())
 		case errors.Is(err, imapx.ErrAuth), errors.Is(err, errNoPassword), errors.Is(err, errSignIn):
 			a.refused(ctx)
 			a.phase(api.SyncPhaseUnauthorized, err.Error())
@@ -183,6 +192,18 @@ func (a *actor) run(ctx context.Context) {
 		case <-a.wake:
 		}
 	}
+}
+
+// neverSynced reports whether no pass has ever stored this account's
+// mailboxes, so the account has not synced yet: an account just added, which
+// waits for its first password, is not one the server refused.
+func (a *actor) neverSynced(ctx context.Context) bool {
+	mbs, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
+	if err != nil {
+		a.m.log.Warn("list mailboxes to tell a new account", "account", a.acct.ID, "err", err)
+		return false
+	}
+	return len(mbs) == 0
 }
 
 func (a *actor) dialOptions(secret string, isOAuth bool) imapx.DialOptions {

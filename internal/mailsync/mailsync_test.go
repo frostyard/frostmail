@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/secrets"
 )
 
 // harness is maild with sync on, an IMAP server, and a subscribed client.
@@ -34,6 +36,78 @@ type harness struct {
 var testConfig = mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, MinBackoff: 50 * time.Millisecond, Chunk: 2,
 	NoPrefetch: true}
 
+// logRecord is one line a test log kept.
+type logRecord struct {
+	level slog.Level
+	msg   string
+	attrs map[string]any
+}
+
+// logSink is a slog.Handler that keeps what maild logs, so a test can say
+// what was and was not logged (a WARN "sync stopped", for one).
+type logSink struct {
+	mu      *sync.Mutex
+	records *[]logRecord
+	attrs   []slog.Attr
+	group   string
+}
+
+// newLogSink returns a handler and the accessor of what it kept.
+func newLogSink() (slog.Handler, func() []logRecord) {
+	mu := &sync.Mutex{}
+	records := &[]logRecord{}
+	h := &logSink{mu: mu, records: records}
+	return h, func() []logRecord {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clip(*records)
+	}
+}
+
+func (l *logSink) Enabled(context.Context, slog.Level) bool { return true }
+
+func (l *logSink) Handle(_ context.Context, r slog.Record) error {
+	attrs := map[string]any{}
+	for _, a := range l.attrs {
+		attrs[a.Key] = a.Value.Any()
+	}
+	r.Attrs(func(a slog.Attr) bool {
+		key := a.Key
+		if l.group != "" {
+			key = l.group + "." + key
+		}
+		attrs[key] = a.Value.Any()
+		return true
+	})
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	*l.records = append(*l.records, logRecord{level: r.Level, msg: r.Message, attrs: attrs})
+	return nil
+}
+
+func (l *logSink) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &logSink{mu: l.mu, records: l.records, group: l.group, attrs: append(slices.Clip(l.attrs), attrs...)}
+}
+
+func (l *logSink) WithGroup(name string) slog.Handler {
+	group := name
+	if l.group != "" {
+		group = l.group + "." + name
+	}
+	return &logSink{mu: l.mu, records: l.records, attrs: l.attrs, group: group}
+}
+
+// stoppedFor counts the "sync stopped" WARN records of one account.
+func stoppedFor(records []logRecord, account int64) int {
+	n := 0
+	for _, r := range records {
+		if r.msg == "sync stopped" && r.attrs["account"] == account {
+			n++
+		}
+	}
+	return n
+}
+
 // newHarness starts maild with sync, subscribes, and adds an account for
 // opts with password.
 func newHarness(t *testing.T, opts imapx.DialOptions, password string) *harness {
@@ -44,11 +118,19 @@ func newHarness(t *testing.T, opts imapx.DialOptions, password string) *harness 
 // newHarnessWith is newHarness with a sync configuration.
 func newHarnessWith(t *testing.T, opts imapx.DialOptions, password string, cfg mailsync.Config) *harness {
 	t.Helper()
-	cfg.InsecureSkipVerify = opts.InsecureSkipVerify
 	var log *slog.Logger
 	if os.Getenv("FROSTMAIL_TEST_LOG") != "" {
 		log = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
+	return newHarnessLogged(t, opts, password, cfg, log)
+}
+
+// newHarnessLogged is newHarnessWith with the log maild writes to, and it
+// sets the password only when it is not "": "" leaves the account to the
+// test, as an account added but not yet signed in.
+func newHarnessLogged(t *testing.T, opts imapx.DialOptions, password string, cfg mailsync.Config, log *slog.Logger) *harness {
+	t.Helper()
+	cfg.InsecureSkipVerify = opts.InsecureSkipVerify
 	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, Log: log})
 	c := srv.Dial(t)
 	ctx := t.Context()
@@ -62,8 +144,10 @@ func newHarnessWith(t *testing.T, opts imapx.DialOptions, password string, cfg m
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: a.ID, Password: password}); err != nil {
-		t.Fatal(err)
+	if password != "" {
+		if err := c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: a.ID, Password: password}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return &harness{t: t, srv: srv, c: c, acct: a.ID}
 }
@@ -297,6 +381,81 @@ func waitUntil(t *testing.T, timeout time.Duration, what string, ok func() bool)
 		case <-deadline:
 			t.Fatalf("timed out after %v waiting for %s", timeout, what)
 		}
+	}
+}
+
+// A new account waits for its first password without logging a stop or
+// carrying the sign-in mark: nothing was refused (frostmail#188).
+func TestNewAccountWaitsForItsPassword(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	handler, records := newLogSink()
+	h := newHarnessLogged(t, mem.DialOptions(), "", testConfig, slog.New(handler))
+	ctx := t.Context()
+	// The actor met the missing secret first, which is what makes this test
+	// deterministic: the status says so before the password is set.
+	h.waitFor(10*time.Second, "the missing password to be reported", func(_ api.EventEnvelope, ev api.Event) bool {
+		p, ok := ev.(api.SyncProgress)
+		return ok && p.Status.AccountID == h.acct && p.Status.Phase == api.SyncPhaseUnauthorized && p.Status.Error != nil &&
+			strings.Contains(*p.Status.Error, "no password is stored")
+	})
+	if acct, err := h.srv.DB.GetAccount(ctx, h.acct); err != nil || acct.NeedsReauth {
+		t.Errorf("account after the wait = %+v, %v; want no sign-in mark", acct, err)
+	}
+
+	// The password arrives: the actor restarts and syncs.
+	if err := h.c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: h.acct, Password: imapxtest.Password}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitPhase(api.SyncPhaseIdle)
+
+	if n := stoppedFor(records(), h.acct); n != 0 {
+		t.Errorf("%d \"sync stopped\" records for a new account, want none: %+v", n, records())
+	}
+	acct, err := h.srv.DB.GetAccount(ctx, h.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acct.NeedsReauth {
+		t.Error("the account carries the sign-in mark, want none: nothing was refused")
+	}
+	if got, err := h.c.Account().Get(ctx, &api.AccountGetParams{ID: h.acct}); err != nil || !got.SignedIn {
+		t.Errorf("account.get = %+v, %v; want signed in", got, err)
+	}
+}
+
+// A password that went missing on an account that has synced is a refusal:
+// sync stops, the account is marked for sign-in, and it leaves the phase
+// unauthorized until a new password.
+func TestMissingPasswordOfASyncedAccountStillStops(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	seed(t, mem)
+	handler, records := newLogSink()
+	h := newHarnessLogged(t, mem.DialOptions(), imapxtest.Password, testConfig, slog.New(handler))
+	ctx := t.Context()
+	h.waitPhase(api.SyncPhaseIdle)
+
+	if err := h.srv.Secrets.Delete(ctx, secrets.AccountPassword(h.acct)); err != nil {
+		t.Fatal(err)
+	}
+	// A new display name restarts the actor, which then finds no secret.
+	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct, DisplayName: ptr("Test One")}); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(10*time.Second, "the missing password to be reported as a stop", func(_ api.EventEnvelope, ev api.Event) bool {
+		p, ok := ev.(api.SyncProgress)
+		return ok && p.Status.AccountID == h.acct && p.Status.Phase == api.SyncPhaseUnauthorized && p.Status.Error != nil &&
+			strings.Contains(*p.Status.Error, "no password is stored")
+	})
+	if n := stoppedFor(records(), h.acct); n == 0 {
+		t.Errorf("no \"sync stopped\" record for a synced account that lost its password: %+v", records())
+	}
+	acct, err := h.srv.DB.GetAccount(ctx, h.acct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !acct.NeedsReauth {
+		t.Error("the account carries no sign-in mark, want one: the sync stopped")
 	}
 }
 

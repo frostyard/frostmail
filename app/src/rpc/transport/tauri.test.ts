@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // behind lodge, in_flatpak whether the app runs in its Flatpak, and maild_send
 // carries lines.
 const sent: string[] = [];
-let answer: { remote: boolean } | null = null;
+let answer: { remote: boolean; lodge: string | null } | null = null;
 let flatpakAnswer: boolean | null = false;
 vi.mock("@tauri-apps/api/core", () => ({
   Channel: class {
@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   }),
 }));
 
-const { connectTauri, filesAsBytes, inFlatpak, PING_MS, remoteMaild } = await import("./tauri");
+const { connectTauri, filesAsBytes, inFlatpak, maildKey, PING_MS, remoteMaild } = await import("./tauri");
 
 describe("connectTauri", () => {
   beforeEach(() => {
@@ -28,7 +28,7 @@ describe("connectTauri", () => {
   afterEach(() => vi.useRealTimers());
 
   it("pings a maild behind lodge, and only that one", async () => {
-    answer = { remote: true };
+    answer = { remote: true, lodge: "https://lodge.example.ts.net" };
     await connectTauri();
     expect(remoteMaild()).toBe(true);
     await vi.advanceTimersByTimeAsync(PING_MS);
@@ -57,9 +57,24 @@ describe("connectTauri", () => {
     expect(filesAsBytes()).toBe(false);
 
     // A maild behind lodge takes bytes outside a Flatpak too.
-    answer = { remote: true };
+    answer = { remote: true, lodge: "https://lodge.example.ts.net" };
     flatpakAnswer = null;
     await connectTauri();
     expect(filesAsBytes()).toBe(true);
+  });
+
+  it("names the maild it reaches: the local socket, or the one behind lodge", async () => {
+    answer = { remote: false, lodge: null };
+    const local = await connectTauri();
+    expect(local.maild).toBe("local");
+    expect(maildKey()).toBe("local");
+
+    // A shell that answers nothing is a shell on maild's own socket.
+    answer = null;
+    expect((await connectTauri()).maild).toBe("local");
+
+    answer = { remote: true, lodge: "https://x" };
+    expect((await connectTauri()).maild).toBe("lodge:https://x");
+    expect(maildKey()).toBe("lodge:https://x");
   });
 });

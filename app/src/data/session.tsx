@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useContext, useEffect, useState } from "
 
 import { Client, type Event, PROTOCOL } from "../rpc/gen/api";
 import type { Transport } from "../rpc/transport";
-import { useMail } from "./stores";
+import { useMail, useUI } from "./stores";
 
 const ClientContext = createContext<Client | null>(null);
 
@@ -24,21 +24,76 @@ export const RETRY_MS = 1000;
  * Session connects with connect, completes rpc.hello, subscribes to events,
  * loads the mail store, and renders children with the client. When the
  * connection ends it reconnects every RETRY_MS, rendering fallback meanwhile.
+ *
+ * When the new connection reaches another maild, the window forgets the old
+ * maild's ids (useUI.forgetMaild) before the children mount again. The
+ * transport's key answers that as soon as it connects, before rpc.hello, so a
+ * first connection that closes during the handshake still counts. A window
+ * whose contents belong to the old maild (a compose window's draft) says so
+ * with onOtherMaild: Session then renders `left` instead and never mounts its
+ * children on the new maild.
  */
-export function Session(props: { connect: Connect; children: ReactNode; fallback: ReactNode }) {
-  const { connect } = props;
+export interface SessionProps {
+  connect: Connect;
+  children: ReactNode;
+  fallback: ReactNode;
+  /**
+   * onOtherMaild runs when a new connection reaches another maild than the
+   * last one, after the window forgot that maild's ids. When it returns
+   * false, Session renders `left` in place of the children and never mounts
+   * them on the new maild. Keep the callback stable: a new one reconnects.
+   */
+  onOtherMaild?: () => boolean;
+  /** left renders in place of the children after onOtherMaild returned false. */
+  left?: ReactNode;
+  /**
+   * owner is the key of the maild that owns what this window shows, from the
+   * opener that made the window: compose and event windows get it with their
+   * draft or event. Session then compares every connection with it, the first
+   * one too, so a window that could not reach its own maild does not take the
+   * next one for it.
+   */
+  owner?: string;
+}
+
+export function Session(props: SessionProps) {
+  const { connect, onOtherMaild, owner } = props;
   const [client, setClient] = useState<Client | null>(null);
+  // leftMaild is set when this window must not take the new maild, so it
+  // shows `left` instead of its children, even for one render.
+  const [leftMaild, setLeftMaild] = useState(false);
 
   useEffect(() => {
     let stopped = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let cleanup: (() => void) | undefined;
+    // The maild the last connection reached, by its transport's key
+    // (rpc/transport.ts): a different one means the old ids are not this
+    // maild's, so the window forgets them before its children mount again.
+    // It starts at owner, so the first connection is compared too.
+    let lastMaild: string | undefined = owner;
+    // gone is set when onOtherMaild refused the new maild: the window keeps
+    // no connection of its own then, and never reconnects.
+    let gone = false;
 
     const attempt = async () => {
       useMail.setState({ connection: { state: "connecting" } });
       try {
         const transport = await connect();
-        if (stopped) return;
+        if (stopped || gone) return;
+        // The key comes from the bridge, not the handshake: a connect that
+        // closes during rpc.hello still says which maild it reached, so the
+        // retry on another one is not mistaken for the same maild.
+        const maild = transport.maild;
+        if (lastMaild !== undefined && maild !== undefined && maild !== lastMaild) {
+          useUI.getState().forgetMaild();
+          if (onOtherMaild?.() === false) {
+            gone = true;
+            setLeftMaild(true);
+            return;
+          }
+        }
+        lastMaild = maild;
         const c = new Client(transport);
         await c.rpc.hello({ protocol: PROTOCOL, client: "frostmail-app" });
         cleanup = wire(c);
@@ -55,7 +110,7 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
           retry = setTimeout(attempt, RETRY_MS);
         });
       } catch (err) {
-        if (stopped) return;
+        if (stopped || gone) return;
         useMail.setState({ connection: { state: "lost", reason: err instanceof Error ? err.message : String(err) } });
         retry = setTimeout(attempt, RETRY_MS);
       }
@@ -66,8 +121,9 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
       clearTimeout(retry);
       cleanup?.();
     };
-  }, [connect]);
+  }, [connect, onOtherMaild, owner]);
 
+  if (leftMaild) return <>{props.left ?? props.fallback}</>;
   if (!client) return <>{props.fallback}</>;
   return <ClientContext.Provider value={client}>{props.children}</ClientContext.Provider>;
 }
