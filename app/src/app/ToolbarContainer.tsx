@@ -135,7 +135,8 @@ function windowCommand(command: ToolbarCommand): boolean {
       ui.toggleSidebar();
       break;
     case "palette":
-      ui.openPalette(true);
+      // A contact being edited keeps the window's keys: it has no palette.
+      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true);
       break;
     case "settings":
       void openSettings().catch((err: unknown) => console.warn("settings", err));

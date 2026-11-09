@@ -47,4 +47,12 @@ describe("the web build's Commands button", () => {
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Command" }), { key: "Escape" });
     await waitFor(() => expect(useUI.getState().palette).toBe(false));
   });
+
+  it("opens no palette while a contact is being edited", async () => {
+    await setup();
+    useUI.setState({ module: "people", peopleEditing: "new" });
+    fireEvent.click(await screen.findByRole("button", { name: "Commands" }));
+    expect(useUI.getState().palette).toBe(false);
+    expect(screen.queryByRole("dialog", { name: "Commands" })).toBeNull();
+  });
 });
