@@ -69,6 +69,7 @@ export function ComposeHeader(props: ComposeHeaderProps) {
         <input
           type="text"
           aria-label="Subject"
+          spellCheck
           value={content.subject}
           className="min-w-0 flex-1 border-none bg-transparent text-[13px] leading-[18px] text-primary outline-none"
           onChange={(event) => onChange({ subject: event.target.value })}

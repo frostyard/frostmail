@@ -158,7 +158,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     content: toEditorHTML(initial.content.html),
     autofocus: initial.content.to.length > 0 ? "start" : false,
     editorProps: {
-      attributes: { "aria-label": "Message body", class: "compose-body" },
+      attributes: { "aria-label": "Message body", class: "compose-body", spellcheck: "true" },
     },
     onUpdate: ({ editor: e }) => change({ html: toMailHTML(e.getHTML()) }),
   });
@@ -529,6 +529,7 @@ function LinkBar(props: { initial: string; onDone: (url: string | null) => void 
         type="text"
         aria-label="Link URL"
         placeholder="https://"
+        spellCheck={false}
         // biome-ignore lint/a11y/noAutofocus: the bar opens to take a URL
         autoFocus
         value={url}
