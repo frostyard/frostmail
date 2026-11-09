@@ -82,7 +82,9 @@ next pass.
 
 **The sync window** ([ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md)):
 an account keeps the messages that arrived in its last `syncDays` days (0
-keeps everything). A pass that searches asks for
+keeps everything); the account's "Keep mail from" choice in Settings sets
+it (`docs/specs/settings-ui.md`), as `mailctl account set --sync-days`
+does. A pass that searches asks for
 `UID SEARCH SINCE <first day>` instead of every UID, so S is the window:
 older stored messages leave the store as deleted ones do, and a wider
 window fetches what it adds. Without a window a pass searches when UIDNEXT
@@ -92,7 +94,9 @@ the last pass (`internal/mailsync/window.go`). Changing `syncDays` clears
 the mailboxes' sync state, so the fast path does not skip the next pass; a
 pass of the old window still running stores no state over the cleared one.
 Mail outside the window is reached through the server (server search, with
-`X-GM-RAW` on Gmail, is later work).
+`X-GM-RAW` on Gmail, is later work); until then, a search's scope bar says
+how far back each searched account's stored mail goes
+(`docs/specs/ui.md`, Search coverage).
 
 ## The reconcile pass
 

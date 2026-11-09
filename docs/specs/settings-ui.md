@@ -268,6 +268,7 @@ interface AccountFormValue {
   smtp: ServerConfig;
   readOnly: boolean;
   notify: boolean;
+  syncDays?: number; // the sync window (ADR-0016); 0 or absent keeps every message
   eraseTrashDays: 0 | 1 | 7 | 30; // plan 0014 Phase 4; 0 is Never
   eraseJunkDays: 0 | 1 | 7 | 30;
   password: string; // a new password; "" keeps the stored one
@@ -368,6 +369,21 @@ interface AccountFormProps {
   items-center gap-2 text-[13px] leading-[18px]`) around an `input
   type="checkbox"` and its text: "Read only: never change anything on the
   server" (`readOnly`), "Notify me about new mail" (`notify`).
+- **Keep mail from (edit mode,
+  [ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md)):** after the
+  options and before Mailbox Behaviors, a `GRID` (`mt-5`) with a `label`
+  `Keep mail from:` and a
+  `select` (`account-sync-days`, the field style, disabled while `busy`)
+  for `syncDays`, with the options in order: "All mail" (0), "Last 30
+  days" (30), "Last 90 days" (90), "Last 6 months" (183), "Last year"
+  (365), "Last 2 years" (730). A stored value that is not in the list
+  (set with `mailctl account set --sync-days`) adds an option "Last N
+  days" at the end, which stays selected. Under it a `p` (`col-start-2
+  text-[12px] leading-4 text-secondary`): "A longer time downloads older
+  mail from the server. A shorter time removes older mail from this
+  computer only; it stays on the server." A read-only account can change
+  it too: the window is local. Not in add mode: a new account keeps every
+  message (0), as `account.create` does by default.
 - **Mailbox behaviors (edit mode, plan 0014 Phase 4,
   [ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)):**
   after the options, a `section` (`mt-5`) labeled by its `h3` "Mailbox
@@ -493,7 +509,8 @@ interface ServicesSectionProps {
 - **Edit:** the form's `eraseMailboxes` are the names of the selected
   account's mailboxes with the `trash` and `junk` roles (`mailbox.list`,
   again on `mailbox.changed`). Save sends `account.update` with every
-  editable field (`eraseTrashDays` and `eraseJunkDays` among them), then
+  editable field (`syncDays`, `eraseTrashDays` and `eraseJunkDays` among
+  them; maild changes nothing when `syncDays` equals the stored window), then
   `account.setPassword` when a new password was typed. Sign In… calls
   `account.authorize`, remembers the account whose sign-in it started and
   whether it was signed in then, and opens the URL; `account.changed`

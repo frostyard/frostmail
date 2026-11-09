@@ -346,6 +346,7 @@ function emptyAccount(): AccountFormValue {
     smtp: { ...SERVER.smtp },
     readOnly: false,
     notify: true,
+    syncDays: 0,
     password: "",
     services: [],
   };
@@ -361,6 +362,7 @@ function accountValue(a: Account): AccountFormValue {
     smtp: { ...a.smtp },
     readOnly: a.readOnly,
     notify: a.notify,
+    syncDays: a.syncDays,
     password: "",
   };
 }
@@ -585,6 +587,7 @@ function AccountsPane() {
           smtp: value.smtp,
           readOnly: value.readOnly,
           notify: value.notify,
+          ...(value.syncDays === undefined ? {} : { syncDays: value.syncDays }),
         });
         if (value.password !== "") await client.account.setPassword({ id: a.id, password: value.password });
         setValue(accountValue(a));

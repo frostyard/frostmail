@@ -738,6 +738,25 @@ lodge's frame are.
   the search (and its mailbox, when the scope is the current mailbox).
   Escape in the field clears the search and returns to the previous
   source.
+- **Search coverage**
+  ([ADR-0016](../adr/0016-sync-a-window-of-recent-mail.md), part of
+  [#163](https://github.com/frostyard/frostmail/issues/163)): the store
+  holds only each account's sync window, so under the scope bar's row a
+  `p` (`px-3 pb-1 text-[12px] leading-4 text-secondary`, plain text, no
+  `role`) says how far the search looked. The searched accounts are the
+  account of the current mailbox when the scope is the current mailbox and
+  the source is a mailbox, else every account. A window's first day is
+  maild's: the UTC date `syncDays` days before now
+  (`internal/mailsync/window.go`), in the long date form
+  (`dateStyle: "long"`, in UTC, the app's locale). When every searched
+  account with `syncDays > 0` shares one window and no searched account
+  keeps every message, the line reads "Searched mail since August 7, 2025
+  on this computer." Otherwise it names each windowed account (its display
+  name, or its email when the name is empty), in the accounts' order:
+  "Searched mail on this computer. Gmail: since August 7, 2025; Work:
+  since November 9, 2025." An account that keeps every message is not
+  named. No line when no searched account has a window, and none without
+  a search (the scope bar shows only during one).
 - **Context menu** on list rows (right click or the Menu key), in this
   order, with separators between the groups:
   - Reply, Reply All, Forward, Forward as Attachment and Redirect… (M5,

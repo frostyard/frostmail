@@ -122,7 +122,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-601 | Search all mailboxes or the current one | The search language and scope bar | Have | `TestViewSearchLanguage`, `TestParseTerms`, `SearchField.test.tsx` |
 | P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` |
 | P-603 | Search suggestions as tokens (People, Subjects) | | Later | The language covers the operators |
-| P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window; on demand, with a line that says how far the search looked ([#163](https://github.com/frostyard/frostmail/issues/163)) |
+| P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window, on demand ([#163](https://github.com/frostyard/frostmail/issues/163)). The line that says how far a search looked is built (`ui.md`, Search coverage); server search waits for its spec |
 
 ## Rules
 
