@@ -1,72 +1,90 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "default_level": "L3",
   "paths": [
     {
       "glob": ".github/risk-paths.json",
+      "level": "L2",
       "why": "governance: the high-risk path list"
     },
     {
       "glob": ".github/workflows/**",
+      "level": "L2",
       "why": "governance: CI, the risk-paths caller and token permissions"
     },
     {
       "glob": ".github/workflows/{release,flatpak,promote}.yml",
+      "level": "L1",
       "why": "publication: the .deb release, the Flatpak candidates and their attestations, and Promote"
     },
     {
       "glob": "Makefile",
+      "level": "L2",
       "why": "governance: the verify, check and ci gate, and make bump, which tags a release"
     },
     {
       "glob": "{mise.toml,mise.lock}",
+      "level": "L2",
       "why": "governance: the checksummed pins of golangci-lint, svu and nFPM"
     },
     {
       "glob": ".svu.yml",
+      "level": "L1",
       "why": "publication: the version rule of every tag"
     },
     {
       "glob": "internal/workflowcheck/**",
+      "level": "L2",
       "why": "governance: the tests that hold the workflows (ADR-0021) and the repository baseline files"
     },
     {
       "glob": "packaging/flatpak/{org.frostyard.Frostmail.json,frostmail,frostmail.sh,stamp-version.sh,request-background.py,install.sh,open.sh}",
+      "level": "L1",
       "why": "publication: the Flatpak manifest and its sandbox permissions, the launcher, the version stamp, the install wrapper and the wrapper it installs"
     },
     {
       "glob": "packaging/{nfpm.yaml,deb-check.py}",
+      "level": "L1",
       "why": "publication: the contents of the .deb and its check"
     },
     {
       "glob": "packaging/systemd/**",
+      "level": "L1",
       "why": "publication: the user unit that make install puts in place"
     },
     {
       "glob": "app/src-tauri/{tauri.windows.conf.json,windows/**}",
+      "level": "L1",
       "why": "destructive operations: the Windows installer and its NSIS hooks, which stop processes, register startup and URI handlers, and delete app data at uninstall"
     },
     {
       "glob": "packaging/lodge/**",
+      "level": "L1",
       "why": "secrets and credentials: lodge's units that load the sealed secrets key, the key helper and the system user"
     },
     {
       "glob": "scripts/{seal-mail-secrets,move-mail-to-lodge}.sh",
+      "level": "L1",
       "why": "secrets and credentials: root scripts that seal the secrets and move the mail and its secrets to lodge's host"
     },
     {
       "glob": "internal/secrets/**",
+      "level": "L1",
       "why": "secrets and credentials: the Secret Service, sealed, DPAPI and file stores of account secrets"
     },
     {
       "glob": "internal/oauth/**",
+      "level": "L1",
       "why": "auth: OAuth sign-in, token refresh and SASL"
     },
     {
       "glob": "{api/scope.go,internal/lodge/serve.go}",
+      "level": "L1",
       "why": "auth: an agent's MCP scope and its check on lodge's socket"
     },
     {
       "glob": "internal/store/migrations/**",
+      "level": "L1",
       "why": "destructive operations: schema migrations of the user's mail database"
     }
   ]
