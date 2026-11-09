@@ -3,9 +3,28 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { instantAt } from "../lib/calendarDates";
 import { editorTarget, newEventAt, openEvent, windowLabel } from "./openEvent";
 
+// The editor window learns which maild owns its event, so it never edits that
+// id on another one; a browser passes no key (docs/specs/settings-ui.md,
+// Server pane).
+const env = vi.hoisted(() => ({
+  invoke: vi.fn(async () => null),
+  maild: "local" as string | undefined,
+  tauri: false,
+}));
+
+vi.mock("@tauri-apps/api/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tauri-apps/api/core")>()),
+  invoke: env.invoke,
+  isTauri: () => env.tauri,
+}));
+vi.mock("../rpc/transport/tauri", () => ({ maildKey: () => env.maild }));
+
 afterEach(() => {
   window.location.hash = "";
   delete window.__frostmailEvent;
+  env.tauri = false;
+  env.maild = "local";
+  env.invoke.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -56,6 +75,19 @@ describe("openEvent", () => {
       "event-301-2026-10-08T09-00-00-000Z",
     );
     expect(windowLabel({ kind: "edit", id: 305, recurrenceId: "2026-10-12" })).toBe("event-305-2026-10-12");
+  });
+
+  it("passes the key of the maild that owns the event", async () => {
+    env.tauri = true;
+    env.maild = "lodge:https://x";
+    const target = { kind: "edit" as const, id: 302, recurrenceId: "" };
+    await openEvent(target, "Design review");
+    expect(env.invoke).toHaveBeenCalledWith("open_event", {
+      label: "event-302",
+      target,
+      title: "Design review",
+      maild: "lodge:https://x",
+    });
   });
 
   it("starts a new event at the next whole hour today, else at 9:00 AM", () => {

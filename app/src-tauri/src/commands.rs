@@ -225,26 +225,56 @@ pub fn host_mail_found() -> bool {
     paths::host_mail_found()
 }
 
+/// with_maild adds a window's owner to its initialization script: the key of
+/// the maild that holds the draft or event it shows (`maildKey` in the app),
+/// so the window compares every connection with it and closes when a later
+/// one reaches another maild (docs/specs/settings-ui.md, Server pane). The key
+/// is a JSON string literal, with `<` escaped too, so neither a quote nor a
+/// `</script>` in a lodge URL can end the literal or the script. No key leaves
+/// the script as it was: an older opener, or a window that is not a draft's or
+/// an event's, has none.
+fn with_maild(script: String, maild: Option<&str>) -> Result<String, String> {
+    let Some(key) = maild else { return Ok(script) };
+    let literal = serde_json::to_string(key).map_err(|e| e.to_string())?;
+    // JSON leaves `<` as it is; `\u003c` is the same character to a JSON
+    // reader and to JavaScript, and no `</script>` survives it.
+    let literal = literal.replace('<', "\\u003c");
+    Ok(format!("{script} window.__frostmailMaild = {literal};"))
+}
+
+/// compose_script is a compose window's initialization script: its draft,
+/// whether that draft was just created, and the key of the maild that owns it.
+fn compose_script(draft_id: i64, fresh: bool, maild: Option<&str>) -> Result<String, String> {
+    with_maild(
+        format!("window.__frostmailCompose = {draft_id}; window.__frostmailComposeFresh = {fresh};"),
+        maild,
+    )
+}
+
 /// Open a draft in its compose window, labeled compose-<id>, or focus the
-/// window that already shows it. The window learns its draft, and whether
-/// it was just created (fresh: discarded when closed untouched), from an
-/// initialization script, so the app's URL stays the same.
+/// window that already shows it. The window learns its draft, whether it was
+/// just created (fresh: discarded when closed untouched), and the maild that
+/// owns it, from an initialization script, so the app's URL stays the same.
 #[tauri::command]
-pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<(), String> {
+pub async fn open_compose(
+    app: AppHandle,
+    draft_id: i64,
+    fresh: bool,
+    maild: Option<String>,
+) -> Result<(), String> {
     let label = format!("compose-{draft_id}");
     if let Some(w) = app.get_webview_window(&label) {
         let _ = w.unminimize();
         return w.set_focus().map_err(|e| e.to_string());
     }
+    let script = compose_script(draft_id, fresh, maild.as_deref())?;
     let mut window = crate::window(&app, &label)
         .title("New Message")
         .inner_size(720.0, 560.0)
         .min_inner_size(480.0, 360.0)
         // The compose toolbar is the title bar (docs/specs/compose-ui.md).
         .decorations(false)
-        .initialization_script(format!(
-            "window.__frostmailCompose = {draft_id}; window.__frostmailComposeFresh = {fresh};"
-        ))
+        .initialization_script(script)
         .on_navigation(crate::allowed_navigation)
         .visible(false);
     // Files dropped on the window reach the webview as files, whose bytes it
@@ -260,9 +290,16 @@ pub async fn open_compose(app: AppHandle, draft_id: i64, fresh: bool) -> Result<
 /// Open an event in its editor window (docs/specs/pim-ui.md, Event editor
 /// window), labeled event-<id>, event-<id>-<occurrence> or event-new-<n>,
 /// or focus the window that already shows it. The window learns what it
-/// edits from an initialization script, so the app's URL stays the same.
+/// edits, and the key of the maild that owns it, from an initialization
+/// script, so the app's URL stays the same.
 #[tauri::command]
-pub async fn open_event(app: AppHandle, label: String, target: serde_json::Value, title: String) -> Result<(), String> {
+pub async fn open_event(
+    app: AppHandle,
+    label: String,
+    target: serde_json::Value,
+    title: String,
+    maild: Option<String>,
+) -> Result<(), String> {
     let valid = label
         .strip_prefix("event-")
         .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
@@ -275,13 +312,14 @@ pub async fn open_event(app: AppHandle, label: String, target: serde_json::Value
         return w.set_focus().map_err(|e| e.to_string());
     }
     let target = serde_json::to_string(&target).map_err(|e| e.to_string())?;
+    let script = with_maild(format!("window.__frostmailEvent = {target};"), maild.as_deref())?;
     crate::window(&app, &label)
         .title(title)
         .inner_size(480.0, 600.0)
         .min_inner_size(420.0, 480.0)
         // The editor draws its own title strip.
         .decorations(false)
-        .initialization_script(format!("window.__frostmailEvent = {target};"))
+        .initialization_script(script)
         .on_navigation(crate::allowed_navigation)
         .visible(false)
         .build()
@@ -401,10 +439,38 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::ffi::OsStringExt;
 
-    use super::{open_request, openable, settings_pane, utf8_path};
+    use super::{compose_script, open_request, openable, settings_pane, utf8_path, with_maild};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_compose_script_carries_its_draft_and_maild() {
+        assert_eq!(
+            compose_script(7, true, Some("local")).unwrap(),
+            "window.__frostmailCompose = 7; window.__frostmailComposeFresh = true; \
+             window.__frostmailMaild = \"local\";"
+        );
+        assert_eq!(
+            compose_script(7, false, None).unwrap(),
+            "window.__frostmailCompose = 7; window.__frostmailComposeFresh = false;"
+        );
+    }
+
+    /// A lodge URL can hold a quote or a script tag; the key stays a JSON
+    /// string literal, so neither ends the script's string.
+    #[test]
+    fn a_maild_key_stays_inside_its_literal() {
+        let key = r#"lodge:https://lodge.ts.net</script>\"onload=x"#;
+        let script = with_maild("window.__frostmailEvent = {};".to_string(), Some(key)).unwrap();
+        let literal = script
+            .split_once("window.__frostmailMaild = ")
+            .expect("no maild key in the script")
+            .1
+            .trim_end_matches(';');
+        assert_eq!(serde_json::from_str::<String>(literal).unwrap(), key);
+        assert!(!script.contains("</script>"));
     }
 
     #[test]

@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   }),
 }));
 
-const { connectTauri, filesAsBytes, inFlatpak, PING_MS, remoteMaild } = await import("./tauri");
+const { connectTauri, filesAsBytes, inFlatpak, maildKey, PING_MS, remoteMaild } = await import("./tauri");
 
 describe("connectTauri", () => {
   beforeEach(() => {
@@ -67,6 +67,7 @@ describe("connectTauri", () => {
     answer = { remote: false, lodge: null };
     const local = await connectTauri();
     expect(local.maild).toBe("local");
+    expect(maildKey()).toBe("local");
 
     // A shell that answers nothing is a shell on maild's own socket.
     answer = null;
@@ -74,5 +75,6 @@ describe("connectTauri", () => {
 
     answer = { remote: true, lodge: "https://x" };
     expect((await connectTauri()).maild).toBe("lodge:https://x");
+    expect(maildKey()).toBe("lodge:https://x");
   });
 });

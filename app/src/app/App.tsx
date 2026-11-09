@@ -120,6 +120,7 @@ export function App(props: { connect: Connect }) {
       connect={props.connect}
       fallback={settings && !IN_LODGE ? <SettingsWindow offline /> : <Connecting />}
       onOtherMaild={ownMaild ? leave : undefined}
+      owner={ownMaild ? window.__frostmailMaild : undefined}
       left={<LeftMaild text={target !== null ? LEFT_DRAFT : LEFT_EVENT} />}
     >
       {IN_LODGE ? (

@@ -8,6 +8,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { addDays, instantAt, zoned } from "../lib/calendarDates";
 import { openFrameWindow } from "../lodge/frameWindow";
+import { maildKey } from "../rpc/transport/tauri";
 
 /** EditorTarget is what an event editor window edits: a stored event (one
  *  occurrence of a series when recurrenceId is set), or a new event with
@@ -88,7 +89,14 @@ export async function openEvent(target: EditorTarget, title = ""): Promise<void>
   if (openFrameWindow({ kind: "event", target })) return;
   const label = windowLabel(target);
   if (isTauri()) {
-    await invoke("open_event", { label, target, title: title || (target.kind === "new" ? "New Event" : "Event") });
+    // The editor compares every connection with the maild that owns the
+    // event, so it closes rather than edit the id on another one.
+    await invoke("open_event", {
+      label,
+      target,
+      title: title || (target.kind === "new" ? "New Event" : "Event"),
+      maild: maildKey() ?? null,
+    });
     return;
   }
   window.open(`${window.location.pathname}${toHash(target)}`, label);

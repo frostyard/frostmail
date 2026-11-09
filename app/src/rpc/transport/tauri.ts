@@ -13,10 +13,20 @@ export const PING_MS = 30_000;
 
 let remote = false;
 let flatpak = false;
+let maild: string | undefined;
 
 /** remoteMaild reports whether the last connection reached maild through lodge. */
 export function remoteMaild(): boolean {
   return remote;
+}
+
+/** maildKey is the key of the maild this window's last connection reached
+ *  (rpc/transport.ts): "local", or "lodge:<url>". It is undefined before any
+ *  connection. An opener passes it with a draft or an event, so that window
+ *  compares every connection, the first one too, with the maild that owns
+ *  what it shows (docs/specs/settings-ui.md, Server pane). */
+export function maildKey(): string | undefined {
+  return maild;
 }
 
 /** inFlatpak reports whether the app runs in its Flatpak (ADR-0046, Files in
@@ -57,6 +67,7 @@ export async function connectTauri(): Promise<Transport> {
   // Which maild this connection reached: a shell that knows no lodge answers
   // null, which is the local socket.
   const lodge = connected?.lodge ?? null;
-  transport.maild = lodge === null ? "local" : `lodge:${lodge}`;
+  maild = lodge === null ? "local" : `lodge:${lodge}`;
+  transport.maild = maild;
   return transport;
 }

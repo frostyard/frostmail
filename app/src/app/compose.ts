@@ -6,6 +6,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openFrameWindow } from "../lodge/frameWindow";
 import type { Client, DraftKind } from "../rpc/gen/api";
+import { maildKey } from "../rpc/transport/tauri";
 
 declare global {
   interface Window {
@@ -13,6 +14,9 @@ declare global {
     __frostmailCompose?: number;
     /** True when the draft was created for this window. */
     __frostmailComposeFresh?: boolean;
+    /** The key of the maild that owns this window's draft, from the opener
+     *  (rpc/transport.ts): the window compares every connection with it. */
+    __frostmailMaild?: string;
   }
 }
 
@@ -36,7 +40,9 @@ export function composeTarget(): ComposeTarget | null {
 export async function openCompose(draftId: number, fresh = false): Promise<void> {
   if (openFrameWindow({ kind: "compose", draftId, fresh })) return;
   if (isTauri()) {
-    await invoke("open_compose", { draftId, fresh });
+    // The window compares every connection with the maild that owns the
+    // draft, so it closes rather than open the id on another one.
+    await invoke("open_compose", { draftId, fresh, maild: maildKey() ?? null });
     return;
   }
   window.open(`${window.location.pathname}#/compose/${draftId}${fresh ? "?fresh" : ""}`, `compose-${draftId}`);

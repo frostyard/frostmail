@@ -46,10 +46,18 @@ export interface SessionProps {
   onOtherMaild?: () => boolean;
   /** left renders in place of the children after onOtherMaild returned false. */
   left?: ReactNode;
+  /**
+   * owner is the key of the maild that owns what this window shows, from the
+   * opener that made the window: compose and event windows get it with their
+   * draft or event. Session then compares every connection with it, the first
+   * one too, so a window that could not reach its own maild does not take the
+   * next one for it.
+   */
+  owner?: string;
 }
 
 export function Session(props: SessionProps) {
-  const { connect, onOtherMaild } = props;
+  const { connect, onOtherMaild, owner } = props;
   const [client, setClient] = useState<Client | null>(null);
   // leftMaild is set when this window must not take the new maild, so it
   // shows `left` instead of its children, even for one render.
@@ -62,7 +70,8 @@ export function Session(props: SessionProps) {
     // The maild the last connection reached, by its transport's key
     // (rpc/transport.ts): a different one means the old ids are not this
     // maild's, so the window forgets them before its children mount again.
-    let lastMaild: string | undefined;
+    // It starts at owner, so the first connection is compared too.
+    let lastMaild: string | undefined = owner;
     // gone is set when onOtherMaild refused the new maild: the window keeps
     // no connection of its own then, and never reconnects.
     let gone = false;
@@ -112,7 +121,7 @@ export function Session(props: SessionProps) {
       clearTimeout(retry);
       cleanup?.();
     };
-  }, [connect, onOtherMaild]);
+  }, [connect, onOtherMaild, owner]);
 
   if (leftMaild) return <>{props.left ?? props.fallback}</>;
   if (!client) return <>{props.fallback}</>;

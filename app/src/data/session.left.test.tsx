@@ -48,6 +48,7 @@ afterEach(() => {
   window.__frostmailCompose = undefined;
   window.__frostmailComposeFresh = undefined;
   window.__frostmailEvent = undefined;
+  window.__frostmailMaild = undefined;
 });
 
 /** data is one maild's data; two calls make two mailds with the same ids. */
@@ -62,6 +63,16 @@ function connect(...transports: MockTransport[]): () => Promise<Transport> {
     const transport = transports[Math.min(next, transports.length - 1)];
     next += 1;
     if (!transport) throw new Error("connect with no transport");
+    return Promise.resolve(transport);
+  };
+}
+
+/** failing is connect that fails its first failures times, then answers transport. */
+function failing(failures: number, transport: MockTransport): () => Promise<Transport> {
+  let attempts = 0;
+  return () => {
+    attempts += 1;
+    if (attempts <= failures) return Promise.reject(new Error("the maild cannot be reached"));
     return Promise.resolve(transport);
   };
 }
@@ -147,6 +158,59 @@ describe("a compose window after a change of maild", () => {
     await waitFor(() => expect(callsOf(c, "draft.get")).toEqual([{ id: draft.id }]));
     expect(screen.getByRole("toolbar", { name: "Compose" })).toBeTruthy();
     expect(env.close).not.toHaveBeenCalled();
+  });
+});
+
+describe("a window that could not reach its own maild", () => {
+  it("closes a compose window before its first handshake with the other maild", async () => {
+    // A made the draft and opened this window, but the window cannot reach A;
+    // the first connection that answers is B, which has a draft of that id.
+    const b = new MockTransport(data());
+    b.maild = `lodge:${LODGE}`;
+    const draft = await b.call<Draft>("draft.create", { kind: "new" });
+    window.__frostmailCompose = draft.id;
+    window.__frostmailComposeFresh = true;
+    window.__frostmailMaild = "local";
+    render(<App connect={failing(2, b)} />);
+
+    await screen.findByText("This draft is on the maild you left.", undefined, { timeout: 15_000 });
+    await waitFor(() => expect(env.close).toHaveBeenCalled());
+    expect(callsOf(b, "draft.get")).toEqual([]);
+    expect(callsOf(b, "draft.update")).toEqual([]);
+    expect(callsOf(b, "draft.delete")).toEqual([]);
+    expect(screen.queryByRole("toolbar", { name: "Compose" })).toBeNull();
+  });
+
+  it("closes an event window before its first handshake with the other maild", async () => {
+    const b = new MockTransport(data());
+    b.maild = `lodge:${LODGE}`;
+    const probe = new MockTransport(data());
+    const event = await probe.call<CalendarEvent>("calendar.event", { id: 302 });
+    window.__frostmailEvent = { kind: "edit", id: event.id, recurrenceId: "" };
+    window.__frostmailMaild = "local";
+    render(<App connect={failing(1, b)} />);
+
+    await screen.findByText("This event is on the maild you left.", undefined, { timeout: 15_000 });
+    await waitFor(() => expect(env.close).toHaveBeenCalled());
+    expect(callsOf(b, "calendar.event")).toEqual([]);
+    expect(callsOf(b, "calendar.update")).toEqual([]);
+    expect(callsOf(b, "calendar.delete")).toEqual([]);
+    expect(screen.queryByLabelText("Title")).toBeNull();
+  });
+
+  it("opens a compose window whose owner is the maild it reaches", async () => {
+    const a = new MockTransport(data());
+    a.maild = "local";
+    const draft = await a.call<Draft>("draft.create", { kind: "new" });
+    window.__frostmailCompose = draft.id;
+    window.__frostmailComposeFresh = true;
+    window.__frostmailMaild = "local";
+    render(<App connect={connect(a)} />);
+
+    await screen.findByRole("toolbar", { name: "Compose" });
+    expect(callsOf(a, "draft.get")).toEqual([{ id: draft.id }]);
+    expect(env.close).not.toHaveBeenCalled();
+    expect(screen.queryByText("This draft is on the maild you left.")).toBeNull();
   });
 });
 
