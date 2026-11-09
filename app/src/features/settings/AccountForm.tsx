@@ -21,6 +21,9 @@ export interface AccountFormValue {
   smtp: ServerConfig;
   readOnly: boolean;
   notify: boolean;
+  /** The sync window in days (ADR-0016); 0 keeps every message, and an
+   * absent value means 0, as a new account starts. */
+  syncDays?: number;
   /** A new password; empty keeps the stored one. */
   password: string;
   /** Add mode: the services turned on with mail; absent means none. */
@@ -362,6 +365,54 @@ function OptionRow(props: {
   );
 }
 
+/** SYNC_WINDOWS are the "Keep mail from" choices, in the order offered (ADR-0016). */
+const SYNC_WINDOWS: readonly { days: number; label: string }[] = [
+  { days: 0, label: "All mail" },
+  { days: 30, label: "Last 30 days" },
+  { days: 90, label: "Last 90 days" },
+  { days: 183, label: "Last 6 months" },
+  { days: 365, label: "Last year" },
+  { days: 730, label: "Last 2 years" },
+];
+
+/**
+ * SyncWindowRows set the account's sync window (docs/specs/settings-ui.md,
+ * AccountForm; ADR-0016). A value set outside the list, with `mailctl
+ * account set --sync-days`, keeps an option of its own, so it stays shown.
+ */
+function SyncWindowRows(props: { value: AccountFormValue; busy: boolean; onChange: (v: AccountFormValue) => void }) {
+  const days = props.value.syncDays ?? 0;
+  const windows = SYNC_WINDOWS.some((window) => window.days === days)
+    ? SYNC_WINDOWS
+    : [...SYNC_WINDOWS, { days, label: `Last ${days} days` }];
+  return (
+    <div className={`mt-5 ${GRID}`}>
+      <label className={LABEL} htmlFor="account-sync-days">
+        Keep mail from:
+      </label>
+      <select
+        id="account-sync-days"
+        className={FIELD}
+        disabled={props.busy}
+        value={String(days)}
+        onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+          props.onChange({ ...props.value, syncDays: Number(event.target.value) })
+        }
+      >
+        {windows.map((window) => (
+          <option key={window.days} value={String(window.days)}>
+            {window.label}
+          </option>
+        ))}
+      </select>
+      <p className="col-start-2 text-[12px] leading-4 text-secondary">
+        A longer time downloads older mail from the server. A shorter time removes older mail from this computer only;
+        it stays on the server.
+      </p>
+    </div>
+  );
+}
+
 const SERVICE_NAMES: Record<ServiceKind, string> = { contacts: "Contacts", calendar: "Calendars", tasks: "Tasks" };
 
 function AddServices(props: { value: AccountFormValue; busy: boolean; onChange: (v: AccountFormValue) => void }) {
@@ -473,6 +524,7 @@ export function AccountForm(props: AccountFormProps) {
           onChange={(notify) => onChange({ ...value, notify })}
         />
       </div>
+      {mode === "edit" && <SyncWindowRows value={value} busy={busy} onChange={onChange} />}
       {mode === "add" ? <AddServices value={value} busy={busy} onChange={onChange} /> : props.services}
       {error && <FormAlert text={error} />}
       <ButtonRow mode={mode} busy={busy} onSubmit={props.onSubmit} onCancel={props.onCancel} />

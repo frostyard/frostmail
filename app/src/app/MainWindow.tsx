@@ -9,10 +9,11 @@ import type { ViewModel } from "../data/view";
 import { useNotify } from "../features/calendar/NotifySheet";
 import { FilterBar } from "../features/list/FilterBar";
 import { SortMenu } from "../features/list/SortMenu";
+import { searchCoverage, searchedAccounts } from "../features/search/coverage";
 import { ScopeBar } from "../features/search/SearchField";
 import { ModuleTabs } from "../features/sidebar/ModuleTabs";
 import type { ToolbarNarrow } from "../features/toolbar/Toolbar";
-import { addDays, step } from "../lib/calendarDates";
+import { addDays, appLocale, step } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
 import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
@@ -341,7 +342,7 @@ function usePaneWidths() {
 function MailScope() {
   const client = useClient();
   const ui = useUI();
-  const { mailboxes, vips, settings, smarts } = useMail();
+  const { accounts, mailboxes, vips, settings, smarts } = useMail();
   const source = ui.source;
   const label =
     source.kind === "smart"
@@ -358,6 +359,14 @@ function MailScope() {
                 ? flagLabel(source.color, settings?.flagNames)
                 : "Flagged";
   if (ui.search === "") return null;
+  // The search covers the current mailbox's account when it looks at the
+  // current mailbox, else every account (docs/specs/ui.md, Search coverage).
+  const searched = searchedAccounts(
+    accounts,
+    ui.searchScope === "source" && source.kind === "mailbox"
+      ? mailboxes.find((mailbox) => mailbox.id === source.mailboxId)?.accountId
+      : undefined,
+  );
   return (
     <ScopeBar
       scopes={[
@@ -365,6 +374,7 @@ function MailScope() {
         { key: "source", label },
       ]}
       selected={ui.searchScope}
+      coverage={searchCoverage(searched, new Date(), appLocale(navigator.language))}
       onSave={() => {
         const text = ui.search;
         const mailbox = ui.searchScope === "source" && source.kind === "mailbox" ? { mailboxId: source.mailboxId } : {};

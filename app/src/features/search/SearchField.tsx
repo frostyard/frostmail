@@ -93,38 +93,44 @@ export interface ScopeBarProps {
   selected: string;
   onSelect: (key: string) => void;
   onSave?: () => void;
+  /** How far back the search looked, on a line under the row
+   * (docs/specs/ui.md, Search coverage). */
+  coverage?: string | null;
 }
 
 /** ScopeBar picks where a search looks: all mailboxes or the current one. */
 export function ScopeBar(props: ScopeBarProps) {
   return (
-    <div className="flex h-[28px] items-center gap-2 border-b border-separator bg-toolbar pl-3">
-      <span className="text-[12px] text-secondary">Search:</span>
-      {props.scopes.map((scope) => {
-        const active = scope.key === props.selected;
-        const style = active ? "bg-selection-inactive text-primary" : "bg-transparent text-secondary";
-        return (
+    <div className="border-b border-separator bg-toolbar">
+      <div className="flex h-[28px] items-center gap-2 pl-3">
+        <span className="text-[12px] text-secondary">Search:</span>
+        {props.scopes.map((scope) => {
+          const active = scope.key === props.selected;
+          const style = active ? "bg-selection-inactive text-primary" : "bg-transparent text-secondary";
+          return (
+            <button
+              key={scope.key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => props.onSelect(scope.key)}
+              className={`flex h-[20px] items-center rounded border-0 px-2 text-[12px] ${style}`}
+            >
+              {scope.label}
+            </button>
+          );
+        })}
+        {props.onSave && (
           <button
-            key={scope.key}
             type="button"
-            aria-pressed={active}
-            onClick={() => props.onSelect(scope.key)}
-            className={`flex h-[20px] items-center rounded border-0 px-2 text-[12px] ${style}`}
+            aria-label="Save as Smart Mailbox"
+            onClick={props.onSave}
+            className="ml-auto mr-3 text-[12px] leading-4 text-accent"
           >
-            {scope.label}
+            Save
           </button>
-        );
-      })}
-      {props.onSave && (
-        <button
-          type="button"
-          aria-label="Save as Smart Mailbox"
-          onClick={props.onSave}
-          className="ml-auto mr-3 text-[12px] leading-4 text-accent"
-        >
-          Save
-        </button>
-      )}
+        )}
+      </div>
+      {props.coverage ? <p className="px-3 pb-1 text-[12px] leading-4 text-secondary">{props.coverage}</p> : null}
     </div>
   );
 }
