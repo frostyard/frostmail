@@ -23,13 +23,35 @@ export const RETRY_MS = 1000;
 /**
  * Session connects with connect, completes rpc.hello, subscribes to events,
  * loads the mail store, and renders children with the client. When the
- * connection ends it reconnects every RETRY_MS, rendering fallback meanwhile;
- * when the new connection reaches another maild, the window forgets the old
- * maild's ids (useUI.forgetMaild) before the children mount again.
+ * connection ends it reconnects every RETRY_MS, rendering fallback meanwhile.
+ *
+ * When the new connection reaches another maild, the window forgets the old
+ * maild's ids (useUI.forgetMaild) before the children mount again. A window
+ * whose contents belong to the old maild (a compose window's draft) says so
+ * with onOtherMaild: Session then renders `left` instead and never mounts its
+ * children on the new maild.
  */
-export function Session(props: { connect: Connect; children: ReactNode; fallback: ReactNode }) {
-  const { connect } = props;
+export interface SessionProps {
+  connect: Connect;
+  children: ReactNode;
+  fallback: ReactNode;
+  /**
+   * onOtherMaild runs when a new connection reaches another maild than the
+   * last one, after the window forgot that maild's ids. When it returns
+   * false, Session renders `left` in place of the children and never mounts
+   * them on the new maild. Keep the callback stable: a new one reconnects.
+   */
+  onOtherMaild?: () => boolean;
+  /** left renders in place of the children after onOtherMaild returned false. */
+  left?: ReactNode;
+}
+
+export function Session(props: SessionProps) {
+  const { connect, onOtherMaild } = props;
   const [client, setClient] = useState<Client | null>(null);
+  // leftMaild is set when this window must not take the new maild, so it
+  // shows `left` instead of its children, even for one render.
+  const [leftMaild, setLeftMaild] = useState(false);
 
   useEffect(() => {
     let stopped = false;
@@ -39,23 +61,31 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
     // (rpc/transport.ts): a different one means the old ids are not this
     // maild's, so the window forgets them before its children mount again.
     let lastMaild: string | undefined;
+    // gone is set when onOtherMaild refused the new maild: the window keeps
+    // no connection of its own then, and never reconnects.
+    let gone = false;
 
     const attempt = async () => {
       useMail.setState({ connection: { state: "connecting" } });
       try {
         const transport = await connect();
-        if (stopped) return;
+        if (stopped || gone) return;
         const c = new Client(transport);
         await c.rpc.hello({ protocol: PROTOCOL, client: "frostmail-app" });
+        const maild = transport.maild;
+        if (lastMaild !== undefined && maild !== undefined && maild !== lastMaild) {
+          useUI.getState().forgetMaild();
+          if (onOtherMaild?.() === false) {
+            gone = true;
+            setLeftMaild(true);
+            return;
+          }
+        }
+        lastMaild = maild;
         cleanup = wire(c);
         await c.events.subscribe({});
         await reload(c);
         if (stopped) return;
-        const maild = transport.maild;
-        if (lastMaild !== undefined && maild !== undefined && maild !== lastMaild) {
-          useUI.getState().forgetMaild();
-        }
-        lastMaild = maild;
         useMail.setState({ connection: { state: "ready" } });
         setClient(c);
         transport.onClose((reason) => {
@@ -66,7 +96,7 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
           retry = setTimeout(attempt, RETRY_MS);
         });
       } catch (err) {
-        if (stopped) return;
+        if (stopped || gone) return;
         useMail.setState({ connection: { state: "lost", reason: err instanceof Error ? err.message : String(err) } });
         retry = setTimeout(attempt, RETRY_MS);
       }
@@ -77,8 +107,9 @@ export function Session(props: { connect: Connect; children: ReactNode; fallback
       clearTimeout(retry);
       cleanup?.();
     };
-  }, [connect]);
+  }, [connect, onOtherMaild]);
 
+  if (leftMaild) return <>{props.left ?? props.fallback}</>;
   if (!client) return <>{props.fallback}</>;
   return <ClientContext.Provider value={client}>{props.children}</ClientContext.Provider>;
 }
