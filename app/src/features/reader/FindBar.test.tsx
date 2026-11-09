@@ -30,15 +30,19 @@ function Harness({ children, onClose }: { children: ReactNode; onClose: () => vo
   );
 }
 
-async function setup() {
+async function setup(content?: ReactNode) {
   const onClose = vi.fn();
   const view = render(
     <Harness onClose={onClose}>
-      <p>red and red</p>
-      <p>blue</p>
+      {content ?? (
+        <>
+          <p>red and red</p>
+          <p>blue</p>
+        </>
+      )}
     </Harness>,
   );
-  const field = await screen.findByRole("searchbox", { name: "Find in Message" });
+  const field = (await screen.findByRole("searchbox", { name: "Find in Message" })) as HTMLInputElement;
   const type = (text: string) => fireEvent.change(field, { target: { value: text } });
   return { onClose, field, type, unmount: view.unmount };
 }
@@ -86,6 +90,37 @@ describe("the find bar", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("takes Ctrl+F in its field back, and selects the text it holds", async () => {
+    const { field, type } = await setup();
+    type("red");
+    field.setSelectionRange(1, 2);
+    // The window's keys leave plain Ctrl+F to a text field, so the bar takes
+    // it: the field comes back with its text selected, ready for a new query.
+    expect(fireEvent.keyDown(field, { key: "f", ctrlKey: true })).toBe(false);
+    expect(field.selectionStart).toBe(0);
+    expect(field.selectionEnd).toBe(3);
+  });
+
+  it("keeps Enter's own meaning on its buttons", async () => {
+    const { onClose, type } = await setup(
+      <>
+        <p>red red</p>
+        <p>red</p>
+      </>,
+    );
+    type("red");
+    expect(screen.getByText("1 of 3")).toBeTruthy();
+    const previous = screen.getByRole("button", { name: "Previous Match" });
+    // Enter on a button is the button's own: it never moves the match on.
+    expect(fireEvent.keyDown(previous, { key: "Enter" })).toBe(true);
+    expect(screen.queryByText("2 of 3")).toBeNull();
+    const done = screen.getByRole("button", { name: "Done" });
+    expect(fireEvent.keyDown(done, { key: "Enter" })).toBe(true);
+    expect(screen.queryByText("2 of 3")).toBeNull();
+    fireEvent.click(done);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("takes its marks away when it goes", async () => {

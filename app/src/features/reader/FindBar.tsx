@@ -70,17 +70,29 @@ export function FindBar({ scroller, onClose, inputRef }: FindBarProps) {
   );
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Enter") {
-      // Enter belongs to the bar here, not to the row the reader's keys
-      // would open.
+    // The window's keys leave plain Ctrl+F to a text field, so the bar takes
+    // its own Ctrl+F back: the key focuses the field and selects its text
+    // (docs/specs/ui.md, Find in the message).
+    if (event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey && event.key.toLowerCase() === "f") {
       event.preventDefault();
       event.stopPropagation();
-      step(event.shiftKey ? -1 : 1);
-    } else if (event.key === "Escape") {
+      field.current?.focus();
+      field.current?.select();
+      return;
+    }
+    if (event.key === "Escape") {
       // A sheet or the search field would take Escape too; the bar goes first.
       event.preventDefault();
       event.stopPropagation();
       onClose();
+      return;
+    }
+    // Enter moves only from the field. On a button it keeps the button's own
+    // meaning: Done closes the bar, and Previous Match goes back.
+    if (event.key === "Enter" && event.target === field.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      step(event.shiftKey ? -1 : 1);
     }
   };
 

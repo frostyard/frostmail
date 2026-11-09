@@ -15,6 +15,13 @@ function root(html: string): HTMLElement {
   return el;
 }
 
+/** inPage puts a tree in the page, which the computed styles of a test need. */
+function inPage(html: string): HTMLElement {
+  const el = root(html);
+  document.body.append(el);
+  return el;
+}
+
 /** texts is what each match covers, so a test reads the matches in order. */
 function texts(el: Element, query: string): string[] {
   return findRanges(el, query).map((range) => range.toString());
@@ -99,6 +106,63 @@ describe("findRanges", () => {
   it("finds nothing for an empty or a blank query", () => {
     expect(findRanges(root("<p>red</p>"), "")).toEqual([]);
     expect(findRanges(root("<p>red</p>"), "   ")).toEqual([]);
+  });
+
+  it("keeps the source offsets when a letter folds to more than 1 code unit", () => {
+    // "\u0130" lowercases to 2 code units, so a lowered copy of the text would
+    // shift every offset after it. The match still selects the source's own
+    // word.
+    expect(texts(root("<p>\u0130red</p>"), "red")).toEqual(["red"]);
+    expect(texts(root("<p>\u0130red</p>"), "i")).toEqual(["\u0130"]);
+  });
+
+  it("skips text the page does not render", () => {
+    // A newsletter's preheader is the common case of words no reader sees.
+    const preheader = inPage('<div style="display:none">secret needle</div><p>needle</p>');
+    expect(texts(preheader, "secret")).toEqual([]);
+    expect(texts(preheader, "needle")).toEqual(["needle"]);
+    preheader.remove();
+
+    const hidden = inPage("<p hidden>needle</p><p>needle</p>");
+    expect(texts(hidden, "needle")).toEqual(["needle"]);
+    hidden.remove();
+
+    const invisible = inPage('<p style="visibility:hidden">needle</p><p>needle</p>');
+    expect(texts(invisible, "needle")).toEqual(["needle"]);
+    invisible.remove();
+  });
+
+  it("sees the line break a br makes, and the 1 space a newline renders as", () => {
+    // 2 lines are no 1 word.
+    expect(texts(root("<p>red<br>blue</p>"), "redblue")).toEqual([]);
+    expect(texts(root("<p>red<br>blue</p>"), "blue")).toEqual(["blue"]);
+    // A newline in the markup is whitespace, which the page shows as 1 space.
+    expect(texts(root("New\n<b>York</b>"), "new york")).toEqual(["New\nYork"]);
+    // Whitespace runs collapse across an inline element too, and whitespace
+    // at the start of a block shows nothing.
+    expect(texts(root("New  <b> York</b>"), "new york")).toHaveLength(1);
+    expect(texts(root("<p>  red</p>"), "red")).toEqual(["red"]);
+  });
+
+  it("keeps the whitespace of preformatted text", () => {
+    expect(texts(root("<p>red\nblue</p>"), "red blue")).toHaveLength(1);
+    // A pre line break is a break the page renders, not a space.
+    expect(texts(root("<pre>red\nblue</pre>"), "red blue")).toEqual([]);
+    const styled = inPage('<p>red<span style="white-space:pre">  blue</span></p>');
+    expect(texts(styled, "red blue")).toEqual([]);
+    styled.remove();
+  });
+
+  it("finds 1 match in each of 5,000 paragraphs", () => {
+    const el = document.createElement("div");
+    for (let i = 0; i < 5000; i += 1) {
+      const p = document.createElement("p");
+      p.textContent = `paragraph ${i} holds the word needle in it`;
+      el.append(p);
+    }
+    // Each match is 1 lookup in the joined text's map, so 1 long message is
+    // still 1 pass.
+    expect(findRanges(el, "needle")).toHaveLength(5000);
   });
 
   it.skipIf(!FRAMES)("searches a frame's body at the frame's place", () => {
