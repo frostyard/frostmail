@@ -170,8 +170,12 @@ if [ "${1:-}" = "frostmail" ]; then
     if [ -n "${SMOKE_SPAWN_FAIL:-}" ]; then
         exit 1
     fi
-    "$@" &
-    echo "$!" >"$SMOKE_CHILD_PID"
+    # The child records its own PID, and only then becomes the command: the
+    # launcher ends this fake with SIGKILL as soon as maild answers, so a
+    # write here after the fork could come too late, or never. The rename
+    # makes the file appear whole, for a test that waits only until it
+    # exists.
+    sh -c 'echo "$$" >"$1.tmp" && mv "$1.tmp" "$1" && shift && exec "$@"' sh "$SMOKE_CHILD_PID" "$@" &
     wait "$!"
 elif [ -n "${SMOKE_SPAWN_HANG_BUILD:-}" ] && [ "$*" = "maild -build" ]; then
     # A portal that never answers, and ignores SIGTERM (the ignore passes on
