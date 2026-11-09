@@ -162,6 +162,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |
 | P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts; the backlog's [#164](https://github.com/frostyard/frostmail/issues/164) |
 | P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` |
+| P-958 | The Help menu's search, which finds a menu command by name | The command palette, Ctrl+Shift+P, with each command's shortcut; a Commands button in the web build ([ui.md](ui.md#command-palette)) | Have | `keymap.palette.test.ts`, `CommandPalette.test.tsx`, `Palette.test.tsx`, `Palette.lodge.test.tsx` |
 | P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |
 
 ## References

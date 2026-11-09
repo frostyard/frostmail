@@ -26,6 +26,7 @@ import {
   Flag,
   FolderInput,
   Forward,
+  Keyboard,
   type LucideIcon,
   Mail,
   MailOpen,
@@ -72,6 +73,8 @@ export type ToolbarCommand =
   | { kind: "minimize" }
   | { kind: "toggleMaximize" }
   | { kind: "close" }
+  /** The command palette (docs/specs/ui.md, Command palette). */
+  | { kind: "palette" }
   | { kind: "settings" };
 
 /** MoveTarget is one entry of the Move menu. */
@@ -128,6 +131,8 @@ export interface ToolbarProps {
   narrow?: ToolbarNarrow;
   /** Minimize, Maximize and Close; only the desktop app's windows have them (default true). */
   windowControls?: boolean;
+  /** Draw the Commands button; the web build's (default false). */
+  palette?: boolean;
   /** Whose window buttons to draw (default WINDOW_PLATFORM, the navigator's); tests set it. */
   platform?: WindowPlatform;
   flagNames?: readonly string[];
@@ -674,11 +679,13 @@ function ReaderSegment({
   todoBar,
   windowControls,
   platform,
+  palette,
 }: {
   paneWidth?: number;
   todoBar?: boolean;
   windowControls: boolean;
   platform: WindowPlatform;
+  palette?: boolean;
   mode: "mail" | "people" | "calendar" | "tasks";
   selection: ToolbarSelection;
   canArchive: boolean;
@@ -774,6 +781,14 @@ function ReaderSegment({
         data-tauri-drag-region
         className={`flex shrink-0 items-center gap-1${windows ? " h-full" : ""}`}
       >
+        {palette && (
+          <IconButton
+            label="Commands"
+            icon={Keyboard}
+            keys="Ctrl+Shift+P"
+            onClick={() => onCommand({ kind: "palette" })}
+          />
+        )}
         <IconButton label="Settings" icon={Settings} keys="Ctrl+," onClick={() => onCommand({ kind: "settings" })} />
         {windowControls && <WindowControls maximized={maximized} onWindow={onCommand} platform={platform} />}
       </div>
@@ -918,6 +933,7 @@ function ToolbarSegments({
         onSelect={onSelect}
         windowControls={props.windowControls ?? true}
         platform={props.platform ?? WINDOW_PLATFORM}
+        palette={props.palette ?? false}
       />
     </>
   );
