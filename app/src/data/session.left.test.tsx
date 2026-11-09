@@ -71,6 +71,17 @@ function callsOf(mock: MockTransport, method: string): unknown[] {
   return mock.calls.filter((c) => c.method === method).map((c) => c.params);
 }
 
+/** LostHandshake is a maild whose first rpc.hello never answers: the window's
+ *  connection ends during the handshake, as a change of maild makes it. */
+class LostHandshake extends MockTransport {
+  override call<T>(method: string, params: unknown): Promise<T> {
+    if (method !== "rpc.hello") return super.call<T>(method, params);
+    this.calls.push({ method, params });
+    this.close("switch");
+    return Promise.reject(new Error("the connection ended during rpc.hello"));
+  }
+}
+
 describe("a compose window after a change of maild", () => {
   it("closes instead of opening its draft on the other maild", async () => {
     const a = new MockTransport(data());
@@ -92,6 +103,28 @@ describe("a compose window after a change of maild", () => {
     a.close("switch");
     await screen.findByText("This draft is on the maild you left.");
     await waitFor(() => expect(env.close).toHaveBeenCalled());
+    expect(callsOf(b, "draft.get")).toEqual([]);
+    expect(callsOf(b, "draft.delete")).toEqual([]);
+    expect(screen.queryByRole("toolbar", { name: "Compose" })).toBeNull();
+  });
+
+  it("closes when its first handshake ends on another maild", async () => {
+    // A closes during rpc.hello, so no handshake ever answered: the key of
+    // A must still count, or the retry on B looks like the same maild.
+    const a = new LostHandshake(data());
+    const b = new MockTransport(data());
+    a.maild = "local";
+    b.maild = `lodge:${LODGE}`;
+    const draft = await a.call<Draft>("draft.create", { kind: "new" });
+    expect((await b.call<Draft>("draft.create", { kind: "new" })).id).toBe(draft.id);
+    window.__frostmailCompose = draft.id;
+    window.__frostmailComposeFresh = true;
+    render(<App connect={connect(a, b)} />);
+
+    await screen.findByText("This draft is on the maild you left.");
+    await waitFor(() => expect(env.close).toHaveBeenCalled());
+    expect(callsOf(a, "rpc.hello")).toHaveLength(1);
+    expect(callsOf(a, "draft.get")).toEqual([]);
     expect(callsOf(b, "draft.get")).toEqual([]);
     expect(callsOf(b, "draft.delete")).toEqual([]);
     expect(screen.queryByRole("toolbar", { name: "Compose" })).toBeNull();

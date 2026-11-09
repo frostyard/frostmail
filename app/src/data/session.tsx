@@ -26,7 +26,9 @@ export const RETRY_MS = 1000;
  * connection ends it reconnects every RETRY_MS, rendering fallback meanwhile.
  *
  * When the new connection reaches another maild, the window forgets the old
- * maild's ids (useUI.forgetMaild) before the children mount again. A window
+ * maild's ids (useUI.forgetMaild) before the children mount again. The
+ * transport's key answers that as soon as it connects, before rpc.hello, so a
+ * first connection that closes during the handshake still counts. A window
  * whose contents belong to the old maild (a compose window's draft) says so
  * with onOtherMaild: Session then renders `left` instead and never mounts its
  * children on the new maild.
@@ -70,8 +72,9 @@ export function Session(props: SessionProps) {
       try {
         const transport = await connect();
         if (stopped || gone) return;
-        const c = new Client(transport);
-        await c.rpc.hello({ protocol: PROTOCOL, client: "frostmail-app" });
+        // The key comes from the bridge, not the handshake: a connect that
+        // closes during rpc.hello still says which maild it reached, so the
+        // retry on another one is not mistaken for the same maild.
         const maild = transport.maild;
         if (lastMaild !== undefined && maild !== undefined && maild !== lastMaild) {
           useUI.getState().forgetMaild();
@@ -82,6 +85,8 @@ export function Session(props: SessionProps) {
           }
         }
         lastMaild = maild;
+        const c = new Client(transport);
+        await c.rpc.hello({ protocol: PROTOCOL, client: "frostmail-app" });
         cleanup = wire(c);
         await c.events.subscribe({});
         await reload(c);
