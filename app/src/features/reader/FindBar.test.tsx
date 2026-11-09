@@ -141,7 +141,7 @@ describe("the find bar", () => {
     expect(onWindow).not.toHaveBeenCalled();
   });
 
-    it("takes its marks away when it goes", async () => {
+  it("takes its marks away when it goes", async () => {
     const { type, unmount } = await setup();
     type("red");
     expect(vi.mocked(markRanges)).toHaveBeenCalled();
