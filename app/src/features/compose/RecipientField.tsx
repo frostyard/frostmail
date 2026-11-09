@@ -230,6 +230,8 @@ export function RecipientField(props: RecipientFieldProps) {
         type="text"
         role="combobox"
         aria-label={label}
+        // Addresses are not words: no spelling marks (docs/specs/compose-ui.md, Spelling).
+        spellCheck={false}
         aria-expanded={listShown}
         aria-controls={listId}
         aria-autocomplete="list"

@@ -16,6 +16,7 @@ mod portal;
 mod problems;
 mod protocol;
 mod remote;
+mod spell;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -112,8 +113,11 @@ fn browser_args(port: Option<&str>) -> Option<String> {
 
 /// Windows start hidden and the page shows its own window once it has
 /// rendered, so the first frame is never WebKit's blank white page; if the
-/// page has not done so after 1.5 s, the window is shown anyway.
+/// page has not done so after 1.5 s, the window is shown anyway. Every
+/// window the app builds passes here, so spelling is also turned on here
+/// (spell.rs).
 pub(crate) fn show_soon(window: tauri::WebviewWindow) {
+    spell::enable(&window);
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
         if window.is_visible().is_ok_and(|v| !v) {

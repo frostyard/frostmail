@@ -114,6 +114,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-508 | Reply quoting the selected text | | Later | Needs the frame's selection |
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |
 | P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |
+| P-511 | Check Spelling While Typing | The subject and the body, never the address fields; WebKitGTK in the system's languages, the browser's and WebView2's own checker elsewhere ([compose-ui.md](compose-ui.md#spelling)) | Have | `ComposeWindow.spellcheck.test.tsx`, `spell::tests` |
 
 ## Search
 

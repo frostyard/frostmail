@@ -148,6 +148,28 @@ window.
 - Link asks for a URL; an empty answer removes the link. Only `http:`,
   `https:` and `mailto:` URLs are accepted.
 
+### Spelling
+
+- Spelling is checked while the user writes, in the subject and the body
+  (`spellcheck="true"`): a misspelled word gets the engine's mark, and its
+  context menu offers the engine's suggestions. The To, Cc and Bcc fields
+  (every recipient field, also in Redirect and the event editor's
+  invitees) and the link bar's URL are never checked
+  (`spellcheck="false"`): addresses and URLs are not words.
+- In the lodge web build and in WebView2 on Windows, the browser checks
+  the fields that the attributes allow, in the languages the browser or the
+  system names.
+- WebKitGTK on Linux checks nothing until the app turns it on: the shell
+  turns spell checking on in the web context of every window it builds
+  (`app/src-tauri/src/spell.rs`, from `show_soon`), and sets the languages
+  from the system's locale names (`g_get_language_names`), most preferred
+  first. Each name loses its encoding (`.UTF-8`) and modifier (`@euro`);
+  `C` and `POSIX` are dropped, and a name is kept once; with none left,
+  the language is `en_US`. WebKitGTK checks through enchant, so a language
+  with no installed dictionary is not checked.
+- The app's other text fields follow the engine's default, as they do in a
+  browser.
+
 ### Saving and sending
 
 - Each edit updates the draft (`draft.update`) at most every 500 ms and on

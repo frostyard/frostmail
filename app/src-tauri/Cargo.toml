@@ -38,6 +38,9 @@ ureq = { version = "3.4", default-features = false, features = ["rustls"] }
 # blocking API.
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5.13"
+# Spelling checked while the user writes (src/spell.rs): WebKitGTK's web
+# context, at the version wry already brings.
+webkit2gtk = "2.0.2"
 
 [target.'cfg(windows)'.dependencies]
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "native-tls"] }
