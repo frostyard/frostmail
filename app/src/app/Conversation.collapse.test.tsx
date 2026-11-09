@@ -2,15 +2,16 @@
 // (docs/specs/ui.md, Reader, Conversation; parity P-310).
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { Session } from "../data/session";
-import { useUI } from "../data/stores";
+import { useMail, useUI } from "../data/stores";
 import { formatHeaderDate } from "../lib/format";
 import type { MessageSummary } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
-import { MockTransport } from "../rpc/mock/mock";
-import { ReaderContainer } from "./ReaderContainer";
+import { type MockData, type MockMessage, MockTransport } from "../rpc/mock/mock";
+import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 
 beforeEach(() => {
   localStorage.clear();
@@ -24,21 +25,44 @@ beforeEach(() => {
  * "Offsite plan": Ann (read), my reply in Sent (read), and Ann's newest
  * reply (unread unless allRead).
  */
-async function setup(allRead: boolean) {
+async function setup(allRead: boolean, change?: (data: MockData) => void) {
   const data = mockData({ inbox: 5, now: new Date("2026-10-08T12:00:00Z") });
   const offsite = data.messages.map((m) => m.summary).filter((s) => s.threadId === data.messages[0]?.summary.threadId);
   expect(offsite).toHaveLength(3);
   if (allRead) for (const s of offsite) s.flags.seen = true;
+  change?.(data);
   const mock = new MockTransport(data);
+  const handle = createRef<ReaderHandle>();
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
-      <ReaderContainer />
+      <ReaderContainer ref={handle} />
     </Session>,
   );
   const reader = await screen.findByRole("region", { name: "Message" });
   const gets = () => mock.calls.filter((c) => c.method === "message.get").map((c) => (c.params as { id: number }).id);
   const [first, middle, newest] = offsite as [MessageSummary, MessageSummary, MessageSummary];
-  return { data, mock, reader, gets, first, middle, newest };
+  return { data, mock, reader, gets, first, middle, newest, handle };
+}
+
+/** reload makes the conversation load again, as a read-only account's change does. */
+async function reload(mock: MockTransport) {
+  const before = mock.calls.filter((c) => c.method === "thread.messages").length;
+  act(() =>
+    useMail.setState((s) => {
+      const [account] = s.accounts;
+      if (!account) throw new Error("no account");
+      return { accounts: [...s.accounts, { ...account, id: 999, readOnly: true }] };
+    }),
+  );
+  await waitFor(() => expect(mock.calls.filter((c) => c.method === "thread.messages").length).toBe(before + 1));
+}
+
+/** threadMessage copies base as a read message of its thread, with a new id and date. */
+function threadMessage(base: MockMessage, id: number, date: Date): MockMessage {
+  return {
+    ...base,
+    summary: { ...base.summary, id, date: date.toISOString(), flags: { ...base.summary.flags, seen: true } },
+  };
 }
 
 function open(id: number) {
@@ -146,5 +170,53 @@ describe("a conversation's collapsed messages", () => {
     // A click on the header of the only message does not collapse it.
     fireEvent.click(within(article).getByText("Signed contract and invoice"));
     await expandedArticles(reader, 1);
+  });
+
+  it("keeps a collapsed message collapsed when the conversation loads again", async () => {
+    // A read-only account is never marked read, so Ann's reply stays unread.
+    const { mock, reader, first, newest } = await setup(false, (data) => {
+      for (const a of data.accounts) a.readOnly = true;
+    });
+    open(first.id);
+    const articles = await expandedArticles(reader, 2);
+    const top = articles.find((a) => within(a).queryByText(formatHeaderDate(new Date(newest.date)))) as HTMLElement;
+    fireEvent.click(within(top).getByText(newest.subject, { selector: "header *" }));
+    await expandedArticles(reader, 1);
+    await reload(mock);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await expandedArticles(reader, 1);
+    expect(within(reader).getByRole("button", { name: rowName(newest) })).toBeTruthy();
+  });
+
+  it("runs a More Actions request for a collapsed message once, also when it mounts again", async () => {
+    // 20 messages, the selected (oldest) one last; 1 newer message then
+    // moves it under "Show 1 Earlier Messages".
+    let older: MockMessage[] = [];
+    const { mock, reader, first, handle } = await setup(true, (data) => {
+      const base = data.messages[0] as MockMessage;
+      const start = new Date(base.summary.date).getTime();
+      older = Array.from({ length: 17 }, (_, i) =>
+        threadMessage(base, 9000 + i, new Date(start - (i + 1) * 3_600_000)),
+      );
+      data.messages.push(...older);
+    });
+    const oldest = older.at(-1)?.summary as MessageSummary;
+    const sources = () => mock.calls.filter((c) => c.method === "message.source").length;
+    open(oldest.id);
+    const [article] = (await expandedArticles(reader, 1)) as [HTMLElement];
+    fireEvent.click(within(article).getByText(oldest.subject, { selector: "header *" }));
+    await waitFor(() => expect(within(reader).queryAllByRole("article")).toHaveLength(0));
+    act(() => handle.current?.more("source"));
+    const sheet = await screen.findByRole("dialog", { name: "Raw Source" });
+    expect(sources()).toBe(1);
+    fireEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    mock.add([threadMessage(mock.message(first.id) as MockMessage, 9100, new Date("2026-10-08T11:59:00Z"))]);
+    await reload(mock);
+    fireEvent.click(await within(reader).findByRole("button", { name: "Show 1 Earlier Messages" }));
+    await expandedArticles(reader, 1);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(sources()).toBe(1);
   });
 });
