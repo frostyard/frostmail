@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -265,6 +266,7 @@ func (a *actor) runRules(ctx context.Context) {
 	}
 	if len(plans) > 0 {
 		a.m.log.Info("rules applied", "account", a.acct.ID, "messages", len(plans))
+		a.record(activity.RulesApplied(a.acct.ID, len(plans)))
 	}
 }
 

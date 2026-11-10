@@ -831,6 +831,299 @@ func (AccountChanged) EventName() string { return "account.changed" }
 // Durable reports whether AccountChanged is kept in the changes log.
 func (AccountChanged) Durable() bool { return true }
 
+// ---- activity ----
+
+// ActivityLevel: How much an entry matters.
+type ActivityLevel string
+
+const (
+	// Routine detail: an IDLE wake, a fetch batch.
+	ActivityLevelDebug ActivityLevel = "debug"
+	// Work done: a mailbox pass, a send, a rule run.
+	ActivityLevelInfo ActivityLevel = "info"
+	// Work that did not happen and will be retried: offline, a refused change.
+	ActivityLevelWarn ActivityLevel = "warn"
+	// Work that failed and needs the user: a send refused, a sign-in needed.
+	ActivityLevelError ActivityLevel = "error"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ActivityLevel) Valid() bool {
+	switch v {
+	case ActivityLevelDebug, ActivityLevelInfo, ActivityLevelWarn, ActivityLevelError:
+		return true
+	}
+	return false
+}
+
+// ActivityKind: What happened. The client writes the line from the kind and
+// the fields.
+type ActivityKind string
+
+const (
+	// Connected and logged in to the account's server (ms).
+	ActivityKindConnect ActivityKind = "connect"
+	// Listed the account's mailboxes (n mailboxes, ms).
+	ActivityKindList ActivityKind = "list"
+	// Reconciled a mailbox (mailboxId; added, changed and removed messages; ms).
+	ActivityKindMailboxsynced ActivityKind = "mailboxsynced"
+	// IDLE woke for a mailbox with news (mailboxId).
+	ActivityKindIdle ActivityKind = "idle"
+	// Fetched message bodies (n messages, bytes, ms).
+	ActivityKindFetched ActivityKind = "fetched"
+	// Replayed offline changes to the server (n changes).
+	ActivityKindPushed ActivityKind = "pushed"
+	// Saved a draft's copy on the server.
+	ActivityKindDraftsaved ActivityKind = "draftsaved"
+	// Sent a message (ms).
+	ActivityKindSent ActivityKind = "sent"
+	// A send failed (errorClass, code); retried unless the server refused it.
+	ActivityKindSendfailed ActivityKind = "sendfailed"
+	// Queued a message to send later (n messages).
+	ActivityKindSendlater ActivityKind = "sendlater"
+	// Rules acted on new mail (n messages).
+	ActivityKindRulesapplied ActivityKind = "rulesapplied"
+	// Remind Me brought messages back (n messages).
+	ActivityKindRemindfired ActivityKind = "remindfired"
+	// Announced new mail (n messages).
+	ActivityKindAnnounced ActivityKind = "announced"
+	// Erased old mail from Trash or Junk (mailboxId, n messages).
+	ActivityKindErased ActivityKind = "erased"
+	// A contacts, calendar or tasks pass ran (service; changed, the collections
+	// it changed; ms).
+	ActivityKindPimsynced ActivityKind = "pimsynced"
+	// The server refused a contact, event or task change (service, errorClass,
+	// code).
+	ActivityKindPimrefused ActivityKind = "pimrefused"
+	// Refreshed an OAuth access token.
+	ActivityKindTokenrefreshed ActivityKind = "tokenrefreshed"
+	// The server refused the credentials; the account waits for a sign-in
+	// (service, errorClass, code).
+	ActivityKindSigninneeded ActivityKind = "signinneeded"
+	// The server could not be reached; retrying with backoff (service,
+	// errorClass).
+	ActivityKindOffline ActivityKind = "offline"
+	// Other work failed (service, errorClass, code); retried with backoff.
+	ActivityKindFailed ActivityKind = "failed"
+	// n entries were not recorded or not delivered, past a limit.
+	ActivityKindDropped ActivityKind = "dropped"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ActivityKind) Valid() bool {
+	switch v {
+	case ActivityKindConnect, ActivityKindList, ActivityKindMailboxsynced, ActivityKindIdle, ActivityKindFetched, ActivityKindPushed, ActivityKindDraftsaved, ActivityKindSent, ActivityKindSendfailed, ActivityKindSendlater, ActivityKindRulesapplied, ActivityKindRemindfired, ActivityKindAnnounced, ActivityKindErased, ActivityKindPimsynced, ActivityKindPimrefused, ActivityKindTokenrefreshed, ActivityKindSigninneeded, ActivityKindOffline, ActivityKindFailed, ActivityKindDropped:
+		return true
+	}
+	return false
+}
+
+// ActivityServer: The server or service an entry is about.
+type ActivityServer string
+
+const (
+	ActivityServerIMAP    ActivityServer = "imap"
+	ActivityServerSMTP    ActivityServer = "smtp"
+	ActivityServerCaldav  ActivityServer = "caldav"
+	ActivityServerCarddav ActivityServer = "carddav"
+	ActivityServerGraph   ActivityServer = "graph"
+	ActivityServerGtasks  ActivityServer = "gtasks"
+	ActivityServerOauth   ActivityServer = "oauth"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ActivityServer) Valid() bool {
+	switch v {
+	case ActivityServerIMAP, ActivityServerSMTP, ActivityServerCaldav, ActivityServerCarddav, ActivityServerGraph, ActivityServerGtasks, ActivityServerOauth:
+		return true
+	}
+	return false
+}
+
+// ErrorClass: What kind of failure, read from the error's type, never from
+// its text.
+type ErrorClass string
+
+const (
+	// The server could not be reached, or the connection broke.
+	ErrorClassNetwork ErrorClass = "network"
+	ErrorClassTimeout ErrorClass = "timeout"
+	// The TLS handshake or the certificate failed.
+	ErrorClassTLS ErrorClass = "tls"
+	// The server refused the credentials.
+	ErrorClassAuth ErrorClass = "auth"
+	// The server refused the request (an SMTP 5xx, an HTTP 4xx, an IMAP NO).
+	ErrorClassRefused ErrorClass = "refused"
+	// A quota or a limit was reached.
+	ErrorClassQuota ErrorClass = "quota"
+	// The server answered something maild could not use.
+	ErrorClassProtocol ErrorClass = "protocol"
+	// maild's own failure.
+	ErrorClassInternal ErrorClass = "internal"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ErrorClass) Valid() bool {
+	switch v {
+	case ErrorClassNetwork, ErrorClassTimeout, ErrorClassTLS, ErrorClassAuth, ErrorClassRefused, ErrorClassQuota, ErrorClassProtocol, ErrorClassInternal:
+		return true
+	}
+	return false
+}
+
+// ImapCode: The IMAP response codes maild tells apart (RFC 5530); other is
+// any other code.
+type ImapCode string
+
+const (
+	ImapCodeAuthenticationfailed ImapCode = "authenticationfailed"
+	ImapCodeAuthorizationfailed  ImapCode = "authorizationfailed"
+	ImapCodeUnavailable          ImapCode = "unavailable"
+	ImapCodeOverquota            ImapCode = "overquota"
+	ImapCodeLimit                ImapCode = "limit"
+	ImapCodeNonexistent          ImapCode = "nonexistent"
+	ImapCodeAlreadyexists        ImapCode = "alreadyexists"
+	ImapCodeCannot               ImapCode = "cannot"
+	ImapCodeServerbug            ImapCode = "serverbug"
+	ImapCodeOther                ImapCode = "other"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v ImapCode) Valid() bool {
+	switch v {
+	case ImapCodeAuthenticationfailed, ImapCodeAuthorizationfailed, ImapCodeUnavailable, ImapCodeOverquota, ImapCodeLimit, ImapCodeNonexistent, ImapCodeAlreadyexists, ImapCodeCannot, ImapCodeServerbug, ImapCodeOther:
+		return true
+	}
+	return false
+}
+
+// ActivityEntry: One thing maild did. It has no string field, by design
+// (ADR-0055).
+type ActivityEntry struct {
+	// Increases by 1 per entry within one run of maild.
+	Seq       int64           `json:"seq"`
+	At        time.Time       `json:"at"`
+	Level     ActivityLevel   `json:"level"`
+	Kind      ActivityKind    `json:"kind"`
+	AccountID *int64          `json:"accountId,omitzero"`
+	MailboxID *int64          `json:"mailboxId,omitzero"`
+	Service   *ActivityServer `json:"service,omitzero"`
+	// How many: messages, mailboxes, changes or entries, by kind.
+	N       *int64 `json:"n,omitzero"`
+	Added   *int64 `json:"added,omitzero"`
+	Changed *int64 `json:"changed,omitzero"`
+	Removed *int64 `json:"removed,omitzero"`
+	Bytes   *int64 `json:"bytes,omitzero"`
+	// How long it took, in milliseconds.
+	Ms         *int64      `json:"ms,omitzero"`
+	ErrorClass *ErrorClass `json:"errorClass,omitzero"`
+	// An SMTP reply code or an HTTP status.
+	Code     *int64    `json:"code,omitzero"`
+	IMAPCode *ImapCode `json:"imapCode,omitzero"`
+}
+
+// ActivitySubscription: The state of a new activity subscription.
+type ActivitySubscription struct {
+	// The newest entry's seq when the subscription started; 0 when there is none.
+	Seq int64 `json:"seq"`
+}
+
+// ActivityRecentParams holds the params of activity.recent.
+type ActivityRecentParams struct {
+	// 1 to 500; default 200.
+	Limit *int64 `json:"limit,omitzero"`
+}
+
+// ActivitySubscribeParams holds the params of activity.subscribe.
+type ActivitySubscribeParams struct{}
+
+// ActivityUnsubscribeParams holds the params of activity.unsubscribe.
+type ActivityUnsubscribeParams struct{}
+
+// ActivityService: What maild does in the background, for a client's console
+// (ADR-0055): typed entries that hold only numbers, times and enums, never
+// text, so no subject, body, address, credential or server message can travel
+// in one. maild keeps the newest 2,000 in memory; they are not stored or
+// replayed.
+type ActivityService interface {
+	// Recent implements activity.recent. The newest entries, oldest first.
+	Recent(ctx context.Context, p *ActivityRecentParams) ([]ActivityEntry, error)
+	// Subscribe implements activity.subscribe. Send activity.added events on this
+	// connection from now on, apart from events.subscribe. A connection that
+	// falls 256 entries behind loses entries and then gets one dropped entry that
+	// counts them; it is never closed for it.
+	Subscribe(ctx context.Context, p *ActivitySubscribeParams) (*ActivitySubscription, error)
+	// Unsubscribe implements activity.unsubscribe. Stop sending activity.added
+	// events on this connection; nothing when it was not subscribed.
+	Unsubscribe(ctx context.Context, p *ActivityUnsubscribeParams) error
+}
+
+func registerActivity(r *Router, s ActivityService) {
+	r.handle("activity.recent", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ActivityRecentParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Recent(ctx, &p)
+	})
+	r.handle("activity.subscribe", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ActivitySubscribeParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return s.Subscribe(ctx, &p)
+	})
+	r.handle("activity.unsubscribe", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p ActivityUnsubscribeParams
+		if err := decodeParams(raw, &p, nil); err != nil {
+			return nil, err
+		}
+		return nil, s.Unsubscribe(ctx, &p)
+	})
+}
+
+// ActivityClient calls the activity methods; it implements ActivityService.
+type ActivityClient struct{ c *Client }
+
+// Activity returns the activity methods.
+func (c *Client) Activity() ActivityClient { return ActivityClient{c} }
+
+var _ ActivityService = ActivityClient{}
+
+// Recent calls activity.recent.
+func (x ActivityClient) Recent(ctx context.Context, p *ActivityRecentParams) ([]ActivityEntry, error) {
+	var r []ActivityEntry
+	err := x.c.Call(ctx, "activity.recent", p, &r)
+	return r, err
+}
+
+// Subscribe calls activity.subscribe.
+func (x ActivityClient) Subscribe(ctx context.Context, p *ActivitySubscribeParams) (*ActivitySubscription, error) {
+	var r ActivitySubscription
+	err := x.c.Call(ctx, "activity.subscribe", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Unsubscribe calls activity.unsubscribe.
+func (x ActivityClient) Unsubscribe(ctx context.Context, p *ActivityUnsubscribeParams) error {
+	return x.c.Call(ctx, "activity.unsubscribe", p, nil)
+}
+
+// ActivityAdded: An entry, sent live to the connections that called
+// activity.subscribe. Never replayed.
+type ActivityAdded struct {
+	Entry ActivityEntry `json:"entry"`
+}
+
+// EventName is the wire name of ActivityAdded.
+func (ActivityAdded) EventName() string { return "activity.added" }
+
+// Durable reports whether ActivityAdded is kept in the changes log.
+func (ActivityAdded) Durable() bool { return false }
+
 // ---- address ----
 
 // AddressSuggestParams holds the params of address.suggest.
@@ -5649,6 +5942,7 @@ func (VipChanged) Durable() bool { return true }
 // Services is one implementation per domain, for NewRouter.
 type Services struct {
 	Account  AccountService
+	Activity ActivityService
 	Address  AddressService
 	Block    BlockService
 	Calendar CalendarService
@@ -5677,6 +5971,10 @@ func (s Services) register(r *Router) error {
 		return errors.New("api: Services.Account is nil")
 	}
 	registerAccount(r, s.Account)
+	if s.Activity == nil {
+		return errors.New("api: Services.Activity is nil")
+	}
+	registerActivity(r, s.Activity)
 	if s.Address == nil {
 		return errors.New("api: Services.Address is nil")
 	}
@@ -5780,6 +6078,9 @@ var methodCallers = map[string][]CallerKind{
 	"account.setService":      {CallerKindLocal, CallerKindSession},
 	"account.collections":     {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"account.setCollection":   {CallerKindLocal, CallerKindSession},
+	"activity.recent":         {CallerKindLocal, CallerKindSession},
+	"activity.subscribe":      {CallerKindLocal, CallerKindSession},
+	"activity.unsubscribe":    {CallerKindLocal, CallerKindSession},
 	"address.suggest":         {CallerKindLocal, CallerKindSession},
 	"block.list":              {CallerKindLocal, CallerKindSession},
 	"block.add":               {CallerKindLocal, CallerKindSession},
@@ -5924,6 +6225,9 @@ var Methods = []string{
 	"account.setService",
 	"account.collections",
 	"account.setCollection",
+	"activity.recent",
+	"activity.subscribe",
+	"activity.unsubscribe",
 	"address.suggest",
 	"block.list",
 	"block.add",
@@ -6042,6 +6346,12 @@ func DecodeEvent(name string, data jsontext.Value) (Event, error) {
 	switch name {
 	case "account.changed":
 		var e AccountChanged
+		if err := json.Unmarshal(data, &e); err != nil {
+			return nil, fmt.Errorf("decode event %s: %w", name, err)
+		}
+		return e, nil
+	case "activity.added":
+		var e ActivityAdded
 		if err := json.Unmarshal(data, &e); err != nil {
 			return nil, fmt.Errorf("decode event %s: %w", name, err)
 		}

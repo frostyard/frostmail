@@ -276,6 +276,7 @@ func (p *pass) syncGraphCalendar(ctx context.Context, c *graph.Client, col store
 			return err
 		}
 		if changed || n > 0 {
+			p.changed++
 			if err := tx.Emit(ctx, api.CalendarChanged{AccountID: p.acct.ID}); err != nil {
 				return err
 			}
@@ -491,6 +492,7 @@ func (p *pass) syncGraphFolder(ctx context.Context, c *graph.Client, col store.C
 			return err
 		}
 		if len(got) > 0 || n > 0 {
+			p.changed++
 			if err := tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID}); err != nil {
 				return err
 			}

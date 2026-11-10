@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -60,6 +61,7 @@ func (a *actor) announceNew(ctx context.Context) {
 		return
 	}
 	a.m.log.Info("announced new mail", "account", a.acct.ID, "messages", len(mail))
+	a.record(activity.Announced(a.acct.ID, len(mail)))
 }
 
 // inScope is the unread mail of ids that the notification scope takes: in

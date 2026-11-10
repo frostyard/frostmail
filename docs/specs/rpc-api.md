@@ -399,6 +399,164 @@ What a collection holds.
 | `calendar` | A CalDAV calendar, holding events, tasks or both. |
 | `tasklist` | A Google Tasks list. |
 
+## activity
+
+What maild does in the background, for a client's console (ADR-0055): typed entries that hold only numbers, times and enums, never text, so no subject, body, address, credential or server message can travel in one. maild keeps the newest 2,000 in memory; they are not stored or replayed.
+
+Callers: `local`, `session`.
+
+### `activity.recent`
+
+The newest entries, oldest first.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `limit` | `int` (optional) | 1 to 500; default 200. |
+
+Result: `[]ActivityEntry`.
+Errors: `invalidParams`.
+
+### `activity.subscribe`
+
+Send activity.added events on this connection from now on, apart from events.subscribe. A connection that falls 256 entries behind loses entries and then gets one dropped entry that counts them; it is never closed for it.
+
+No params.
+
+Result: `ActivitySubscription`.
+Errors: `conflict`, `unavailable`.
+
+### `activity.unsubscribe`
+
+Stop sending activity.added events on this connection; nothing when it was not subscribed.
+
+No params.
+
+Result: none (`null`).
+
+### Event `activity.added` (transient)
+
+An entry, sent live to the connections that called activity.subscribe. Never replayed.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `entry` | `ActivityEntry` |  |
+
+### Type `ActivityEntry`
+
+One thing maild did. It has no string field, by design (ADR-0055).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `seq` | `int` | Increases by 1 per entry within one run of maild. |
+| `at` | `time` |  |
+| `level` | `ActivityLevel` |  |
+| `kind` | `ActivityKind` |  |
+| `accountId` | `int` (optional) |  |
+| `mailboxId` | `int` (optional) |  |
+| `service` | `ActivityServer` (optional) |  |
+| `n` | `int` (optional) | How many: messages, mailboxes, changes or entries, by kind. |
+| `added` | `int` (optional) |  |
+| `changed` | `int` (optional) |  |
+| `removed` | `int` (optional) |  |
+| `bytes` | `int` (optional) |  |
+| `ms` | `int` (optional) | How long it took, in milliseconds. |
+| `errorClass` | `ErrorClass` (optional) |  |
+| `code` | `int` (optional) | An SMTP reply code or an HTTP status. |
+| `imapCode` | `ImapCode` (optional) |  |
+
+### Type `ActivitySubscription`
+
+The state of a new activity subscription.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `seq` | `int` | The newest entry's seq when the subscription started; 0 when there is none. |
+
+### Enum `ActivityLevel`
+
+How much an entry matters.
+
+| Value | Meaning |
+| --- | --- |
+| `debug` | Routine detail: an IDLE wake, a fetch batch. |
+| `info` | Work done: a mailbox pass, a send, a rule run. |
+| `warn` | Work that did not happen and will be retried: offline, a refused change. |
+| `error` | Work that failed and needs the user: a send refused, a sign-in needed. |
+
+### Enum `ActivityKind`
+
+What happened. The client writes the line from the kind and the fields.
+
+| Value | Meaning |
+| --- | --- |
+| `connect` | Connected and logged in to the account's server (ms). |
+| `list` | Listed the account's mailboxes (n mailboxes, ms). |
+| `mailboxsynced` | Reconciled a mailbox (mailboxId; added, changed and removed messages; ms). |
+| `idle` | IDLE woke for a mailbox with news (mailboxId). |
+| `fetched` | Fetched message bodies (n messages, bytes, ms). |
+| `pushed` | Replayed offline changes to the server (n changes). |
+| `draftsaved` | Saved a draft's copy on the server. |
+| `sent` | Sent a message (ms). |
+| `sendfailed` | A send failed (errorClass, code); retried unless the server refused it. |
+| `sendlater` | Queued a message to send later (n messages). |
+| `rulesapplied` | Rules acted on new mail (n messages). |
+| `remindfired` | Remind Me brought messages back (n messages). |
+| `announced` | Announced new mail (n messages). |
+| `erased` | Erased old mail from Trash or Junk (mailboxId, n messages). |
+| `pimsynced` | A contacts, calendar or tasks pass ran (service; changed, the collections it changed; ms). |
+| `pimrefused` | The server refused a contact, event or task change (service, errorClass, code). |
+| `tokenrefreshed` | Refreshed an OAuth access token. |
+| `signinneeded` | The server refused the credentials; the account waits for a sign-in (service, errorClass, code). |
+| `offline` | The server could not be reached; retrying with backoff (service, errorClass). |
+| `failed` | Other work failed (service, errorClass, code); retried with backoff. |
+| `dropped` | n entries were not recorded or not delivered, past a limit. |
+
+### Enum `ActivityServer`
+
+The server or service an entry is about.
+
+| Value | Meaning |
+| --- | --- |
+| `imap` |  |
+| `smtp` |  |
+| `caldav` |  |
+| `carddav` |  |
+| `graph` |  |
+| `gtasks` |  |
+| `oauth` |  |
+
+### Enum `ErrorClass`
+
+What kind of failure, read from the error's type, never from its text.
+
+| Value | Meaning |
+| --- | --- |
+| `network` | The server could not be reached, or the connection broke. |
+| `timeout` |  |
+| `tls` | The TLS handshake or the certificate failed. |
+| `auth` | The server refused the credentials. |
+| `refused` | The server refused the request (an SMTP 5xx, an HTTP 4xx, an IMAP NO). |
+| `quota` | A quota or a limit was reached. |
+| `protocol` | The server answered something maild could not use. |
+| `internal` | maild's own failure. |
+
+### Enum `ImapCode`
+
+The IMAP response codes maild tells apart (RFC 5530); other is any other code.
+
+| Value | Meaning |
+| --- | --- |
+| `authenticationfailed` |  |
+| `authorizationfailed` |  |
+| `unavailable` |  |
+| `overquota` |  |
+| `limit` |  |
+| `nonexistent` |  |
+| `alreadyexists` |  |
+| `cannot` |  |
+| `serverbug` |  |
+| `other` |  |
+
 ## address
 
 Addresses seen in stored and sent mail, for completing recipients.

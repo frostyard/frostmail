@@ -140,6 +140,17 @@ func Replied(err error) bool {
 	return errors.As(err, &se)
 }
 
+// ReplyCode returns the server's reply code in err, and whether err holds a
+// reply at all. It never returns the reply's text (internal/activity,
+// ADR-0055).
+func ReplyCode(err error) (int, bool) {
+	se, ok := errors.AsType[*smtp.SMTPError](err)
+	if !ok {
+		return 0, false
+	}
+	return se.Code, true
+}
+
 // errConfig marks a server that cannot do what the account says (no
 // STARTTLS, no AUTH).
 var errConfig = errors.New("smtpx: server does not support the account's settings")

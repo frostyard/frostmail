@@ -5,8 +5,10 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
@@ -17,6 +19,7 @@ import (
 // point and to run again: inserts are idempotent on (mailbox, uid), and the
 // sync state that arms the fast path is stored last.
 func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mailbox) error {
+	began := time.Now()
 	path := mb.Path
 	a.setStatus(func(s *api.SyncStatus) {
 		s.Phase, s.Mailbox, s.Done, s.Total, s.Error = api.SyncPhaseSyncing, &path, 0, 0, nil
@@ -84,6 +87,7 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 		a.setStatus(func(s *api.SyncStatus) { s.Done, s.Total = int64(done), int64(total) })
 	}
 
+	changed := 0
 	if len(kept) > 0 && (!ok || !cmd.Caps.CondStore || sel.HighestModSeq != st.HighestModSeq) {
 		var since uint64
 		if ok && cmd.Caps.CondStore {
@@ -95,16 +99,21 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 			if err != nil {
 				return err
 			}
+			changed += len(ups)
 			if err := a.applyFlags(ctx, mb, ups); err != nil {
 				return err
 			}
 		}
 	}
 
-	return a.storeSyncState(ctx, mb.ID, store.SyncState{
+	if err := a.storeSyncState(ctx, mb.ID, store.SyncState{
 		UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
 		ServerCount: sel.Messages, LastSyncAt: a.m.windowNow(),
-	})
+	}); err != nil {
+		return err
+	}
+	a.record(activity.MailboxSynced(a.acct.ID, mb.ID, len(added), changed, len(gone), time.Since(began)))
+	return nil
 }
 
 // notLeaving is uids without those that queued moves take out of the

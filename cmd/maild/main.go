@@ -26,6 +26,7 @@ import (
 	"github.com/frostyard/std/problems"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/config"
@@ -206,8 +207,11 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	blobs := blob.New(paths.Blobs)
 	parts := &render.PartsCache{Root: filepath.Join(paths.CacheDir, "parts")}
 	renderer := &render.Renderer{Parts: parts, Fetcher: render.NewFetcher(parts, nil), Problems: opts.problems}
-	tokens := &oauth.Manager{DB: db, Secrets: sec, Log: logger}
+	hub := activity.New(nil) // what maild does in the background (ADR-0055)
+	tokens := &oauth.Manager{DB: db, Secrets: sec, Log: logger,
+		Refreshed: func(id int64, err error) { hub.Record(activity.Refreshed(id, err)) }}
 	syncCfg := mailsync.Config{
+		Activity:           hub,
 		InsecureSkipVerify: os.Getenv("FROSTMAIL_INSECURE_TLS") == "1",
 		Parts:              parts,
 		Tokens:             tokens,
@@ -243,7 +247,9 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		syncCfg.Announce = desktop.Announce
 	}
 	syncer := mailsync.New(db, sec, blobs, logger, syncCfg, broker.Publish)
-	pim := pimsync.New(db, sec, logger, pimConfig(syncCfg.InsecureSkipVerify, tokens, davTrace, logger))
+	pimCfg := pimConfig(syncCfg.InsecureSkipVerify, tokens, davTrace, logger)
+	pimCfg.Activity = hub
+	pim := pimsync.New(db, sec, logger, pimCfg)
 	tokens.SignedIn = func(id int64) {
 		if err := syncer.Restart(ctx, id); err != nil {
 			logger.Warn("restart a signed-in account", "account", id, "err", err)
@@ -277,10 +283,10 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		}
 	}
 	var sched *reminders.Scheduler // the app coming or going checks reminders
-	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Logger: logger,
+	srv := rpcserver.New(rpcserver.Options{Name: "maild " + version, Broker: broker, Activity: hub, Logger: logger,
 		OnAttended: func(bool) { sched.Kick() }, Build: serverBuild(logger), Shutdown: shutdown})
 	eng := engine.New(withContent(engine.Deps{
-		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
+		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo, Activity: hub,
 		OAuth: tokens, PIM: pim, Unsubscriber: unsubscribe.New(),
 	}, content))
 	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, syncer.FireReminders, syncer.EraseOld, logger)
@@ -290,6 +296,7 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
 		Settings: eng.Settings(), Vip: eng.Vips(), Block: eng.Blocks(), Smart: eng.Smart(), Rule: eng.Rules(), Snippet: eng.Snippets(),
+		Activity: srv.Activity(),
 	})
 	if err != nil {
 		return err

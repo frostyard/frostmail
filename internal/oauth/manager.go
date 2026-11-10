@@ -73,6 +73,9 @@ type Manager struct {
 	SignedIn func(accountID int64)
 	// FlowTimeout bounds a sign-in [5m].
 	FlowTimeout time.Duration
+	// Refreshed, when set, learns the end of each refresh of an access
+	// token: nil, or the error (maild records it as activity, ADR-0055).
+	Refreshed func(accountID int64, err error)
 	// Now and Rand are the clock and randomness; nil means the real ones.
 	Now  func() time.Time
 	Rand io.Reader
@@ -585,6 +588,9 @@ func (m *Manager) AccessTokenFor(ctx context.Context, accountID int64, audience 
 	}
 	form.Set("refresh_token", refresh)
 	tok, err := m.exchange(ctx, c, form)
+	if m.Refreshed != nil && ctx.Err() == nil {
+		m.Refreshed(accountID, err)
+	}
 	var te *TokenError
 	if multi && errors.As(err, &te) && strings.Contains(te.Description, "AADSTS65001") {
 		// No consent for this audience's scopes: the service waits for a

@@ -76,6 +76,9 @@ func (e *StatusError) Error() string {
 	return s
 }
 
+// HTTPStatus is the response's status (internal/activity's classifier).
+func (e *StatusError) HTTPStatus() int { return e.Code }
+
 // Options configure a client.
 type Options struct {
 	// Authorization returns the Authorization header for a request, such

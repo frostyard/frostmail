@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -70,6 +71,7 @@ func (m *Manager) fireReminders(ctx context.Context, acct int64, ids []int64, no
 		m.kick(acct)
 	}
 	m.log.Info("reminders fired", "account", acct, "messages", len(ids))
+	m.cfg.Activity.Record(activity.RemindFired(acct, len(ids)))
 	return m.announceReminders(ctx, acct, ids)
 }
 

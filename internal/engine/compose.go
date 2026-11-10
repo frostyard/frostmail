@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/compose"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/mimex"
@@ -716,6 +717,9 @@ func (d drafts) Send(ctx context.Context, p *api.DraftSendParams) (*api.OutboxIt
 	}
 	if d.Sync != nil {
 		d.Sync.OutboxChanged(dr.AccountID)
+	}
+	if when.scheduled {
+		d.Activity.Record(activity.SendLater(dr.AccountID, 1))
 	}
 	r := toAPIOutbox(item)
 	return &r, nil

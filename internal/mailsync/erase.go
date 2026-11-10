@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -91,6 +92,7 @@ func (m *Manager) eraseAccount(ctx context.Context, acct store.Account, now time
 				continue
 			}
 			m.log.Info("erased old mail", "account", acct.ID, "mailbox", mb.Path, "role", mb.Role, "messages", n, "days", days)
+			m.cfg.Activity.Record(activity.Erased(acct.ID, mb.ID, int(n)))
 			m.kick(acct.ID)
 		}
 	}

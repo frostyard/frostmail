@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/smtpx"
 	"github.com/frostyard/frostmail/internal/store"
@@ -177,18 +178,21 @@ func (a *actor) sendOne(ctx context.Context, it store.OutboxItem) error {
 	if err != nil {
 		return err
 	}
+	began := time.Now()
 	sendErr := a.submit(ctx, it)
 	// From here on the outcome is recorded even if ctx ends: the server may
 	// have the message.
 	wctx := context.WithoutCancel(ctx)
 	switch {
 	case sendErr == nil:
+		a.record(activity.Sent(a.acct.ID, time.Since(began)))
 		return a.accepted(wctx, it, true)
 	case ctx.Err() != nil:
 		// Stopped mid-send: whether the server took it is unknown.
 		a.m.addInterrupted(a.acct.ID, it.ID)
 		return nil
 	case smtpx.Permanent(sendErr) || errors.Is(sendErr, errUnsendable):
+		a.record(activity.SendFailed(a.acct.ID, sendErr, false))
 		return a.m.db.Tx(wctx, func(tx *store.Tx) error {
 			if err := tx.FailOutbox(wctx, it.ID, sendErr.Error()); err != nil {
 				return err
@@ -196,6 +200,7 @@ func (a *actor) sendOne(ctx context.Context, it store.OutboxItem) error {
 			return emitOutbox(wctx, tx, it, api.OutboxStateFailed)
 		})
 	default:
+		a.record(activity.SendFailed(a.acct.ID, sendErr, true))
 		next := time.Now().Add(retryDelay(sendErr, it.Attempts+1, a.m.cfg.SendRetry))
 		return a.m.db.Tx(wctx, func(tx *store.Tx) error {
 			if err := tx.RetryOutboxLater(wctx, it.ID, next, sendErr.Error()); err != nil {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -113,6 +114,7 @@ func (a *actor) pruneGmail(ctx context.Context) error {
 
 // reconcileGmail is reconcile for a Gmail synced folder.
 func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox) error {
+	began := time.Now()
 	path := mb.Path
 	a.setStatus(func(s *api.SyncStatus) {
 		s.Phase, s.Mailbox, s.Done, s.Total, s.Error = api.SyncPhaseSyncing, &path, 0, 0, nil
@@ -176,6 +178,7 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 		done := start + len(chunk)
 		a.setStatus(func(s *api.SyncStatus) { s.Done, s.Total = int64(done), int64(total) })
 	}
+	changed := 0
 	if len(kept) > 0 && (!ok || !caps.CondStore || sel.HighestModSeq != st.HighestModSeq) {
 		var since uint64
 		if ok && caps.CondStore {
@@ -187,15 +190,20 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 			if err != nil {
 				return err
 			}
+			changed += len(ups)
 			if err := a.applyGmail(ctx, mb, allMail, ups); err != nil {
 				return err
 			}
 		}
 	}
-	return a.storeSyncState(ctx, mb.ID, store.SyncState{
+	if err := a.storeSyncState(ctx, mb.ID, store.SyncState{
 		UIDValidity: sel.UIDValidity, UIDNext: sel.UIDNext, HighestModSeq: sel.HighestModSeq,
 		ServerCount: sel.Messages, LastSyncAt: a.m.windowNow(),
-	})
+	}); err != nil {
+		return err
+	}
+	a.record(activity.MailboxSynced(a.acct.ID, mb.ID, len(added), changed, len(gone), time.Since(began)))
+	return nil
 }
 
 // insertGmail stores new headers of a synced folder, threads and indexes

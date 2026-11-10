@@ -96,6 +96,7 @@ func (p *pass) syncGoogleTaskList(ctx context.Context, c *gtasks.Client, col sto
 			}
 		}
 		if count > 0 {
+			p.changed++
 			if err := tx.Emit(ctx, api.TasksChanged{AccountID: p.acct.ID}); err != nil {
 				return err
 			}

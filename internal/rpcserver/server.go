@@ -17,6 +17,7 @@ import (
 	"github.com/frostyard/lodge/kit/jsonrpc"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/events"
 )
 
@@ -25,7 +26,10 @@ type Options struct {
 	// Name is reported by rpc.hello, e.g. "maild v0.1.0".
 	Name   string
 	Broker *events.Broker
-	Logger *slog.Logger
+	// Activity serves the activity domain (ADR-0055); nil answers
+	// activity.subscribe with unavailable and activity.recent with nothing.
+	Activity *activity.Hub
+	Logger   *slog.Logger
 	// OnAttended, when set, learns when Attended changes.
 	OnAttended func(attended bool)
 	// Build is reported by rpc.hello as build: the Flatpak build maild runs
@@ -86,7 +90,8 @@ func (s *Server) ServeConn(ctx context.Context, nc net.Conn, r *api.Router, call
 type state struct {
 	mu         sync.Mutex
 	subscribed bool
-	app        bool // said AppClient in rpc.hello
+	activity   *activity.Sub // activity.subscribe's, until unsubscribe
+	app        bool          // said AppClient in rpc.hello
 }
 
 type stateKey struct{}

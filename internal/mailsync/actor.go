@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/providers"
@@ -180,8 +181,14 @@ func (a *actor) run(ctx context.Context) {
 		case errors.Is(err, imapx.ErrAuth), errors.Is(err, errNoPassword), errors.Is(err, errSignIn):
 			a.refused(ctx)
 			a.phase(api.SyncPhaseUnauthorized, err.Error())
+			if ctx.Err() == nil { // not a run being stopped for a restart
+				a.record(activity.SignInNeeded(a.acct.ID, api.ActivityServerIMAP, err))
+			}
 		default:
 			a.phase(api.SyncPhaseOffline, err.Error())
+			if ctx.Err() == nil {
+				a.record(activity.Lost(a.acct.ID, api.ActivityServerIMAP, err))
+			}
 			retry = time.After(backoff)
 			backoff = min(backoff*2, a.m.cfg.MaxBackoff)
 		}
@@ -233,6 +240,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 	}
 	opts := a.dialOptions(secret, isOAuth)
 	a.phase(api.SyncPhaseConnecting, "")
+	began := time.Now()
 	cmd, err := imapx.Open(ctx, a.traced(opts))
 	if errors.Is(err, imapx.ErrAuth) && isOAuth {
 		// Usually an expired access token: refresh once and try again.
@@ -245,6 +253,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 		return false, err
 	}
 	defer func() { _ = cmd.Close() }()
+	a.record(activity.Connected(a.acct.ID, time.Since(began)))
 	a.signedIn(ctx)
 	a.gmail = providers.ForKind(a.acct.Kind).Quirks.Gmail && cmd.Caps.Gmail
 
@@ -292,6 +301,7 @@ func (a *actor) connected(ctx context.Context) (healthy bool, err error) {
 		case err := <-idleErr:
 			return true, fmt.Errorf("idle connection: %w", err)
 		case <-dirty:
+			a.record(activity.IdleWoke(a.acct.ID, watched.ID))
 			// Queued ops replay before every pass: a source mailbox
 			// reconciled before its move replays would take the moved
 			// message back as new mail.
@@ -404,10 +414,12 @@ func (a *actor) refresh(ctx context.Context, cmd *imapx.Session, mb store.Mailbo
 // selectable one, INBOX first.
 func (a *actor) fullPass(ctx context.Context, cmd *imapx.Session) ([]store.Mailbox, error) {
 	a.phase(api.SyncPhaseListing, "")
+	began := time.Now()
 	list, err := cmd.List(ctx)
 	if err != nil {
 		return nil, err
 	}
+	a.record(activity.Listed(a.acct.ID, len(list), time.Since(began)))
 	selectable := map[string]bool{}
 	for _, mb := range list {
 		selectable[mb.Path] = mb.Selectable

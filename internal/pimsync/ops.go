@@ -131,10 +131,12 @@ func (p *pass) put(ctx context.Context, c objectServer, kind davx.Kind, col stor
 	}
 	w, err := c.Put(ctx, op.Href, obj.Raw, kind, op.IfMatch)
 	if err != nil && col.Kind == api.CollectionKindCalendar && refusal(err) {
+		p.refusal(col.Kind, err)
 		return p.refusedPut(ctx, c, col, op, err)
 	}
 	if err != nil {
 		if payload, edit := ParseContactPayload(op.Payload); edit && kind == davx.AddressBooks && refusal(err) {
+			p.refusal(col.Kind, err)
 			if errors.Is(err, davx.ErrPrecondition) && !payload.Whole {
 				return p.reapply(ctx, c, col, op, payload)
 			}

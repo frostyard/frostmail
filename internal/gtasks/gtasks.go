@@ -33,6 +33,9 @@ type APIError struct {
 
 func (e *APIError) Error() string { return "gtasks: " + http.StatusText(e.Status) + ": " + e.Message }
 
+// HTTPStatus is the response's status (internal/activity's classifier).
+func (e *APIError) HTTPStatus() int { return e.Status }
+
 // Options configure a Client.
 type Options struct {
 	// HTTP sends requests; nil uses a client with a 30-second timeout.
