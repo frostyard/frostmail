@@ -309,6 +309,12 @@ type Account struct {
 	// maild keeps the messages that arrived in the last syncDays days; 0 keeps
 	// every message (ADR-0016).
 	SyncDays int64 `json:"syncDays"`
+	// maild erases what has been this many days in the account's trash mailbox: 0
+	// (Never, the default), 1, 7 or 30 (ADR-0051). Absent (an older maild) is
+	// Never.
+	EraseTrashDays *int64 `json:"eraseTrashDays,omitzero"`
+	// The same for the account's junk mailbox (ADR-0051).
+	EraseJunkDays *int64 `json:"eraseJunkDays,omitzero"`
 	// A password or OAuth token is stored and the server has not refused it.
 	SignedIn bool `json:"signedIn"`
 }
@@ -458,6 +464,10 @@ type AccountUpdateParams struct {
 	Notify      *bool         `json:"notify,omitzero"`
 	// A new window: the next pass fetches what it adds and drops what it leaves.
 	SyncDays *int64 `json:"syncDays,omitzero"`
+	// 0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051).
+	EraseTrashDays *int64 `json:"eraseTrashDays,omitzero"`
+	// 0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051).
+	EraseJunkDays *int64 `json:"eraseJunkDays,omitzero"`
 }
 
 // AccountDeleteParams holds the params of account.delete.

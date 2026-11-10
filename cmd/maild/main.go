@@ -283,7 +283,7 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		DB: db, Secrets: sec, Log: logger, Sync: syncer, Blobs: blobs, Views: views, Render: renderer, UndoDelay: undo,
 		OAuth: tokens, PIM: pim, Unsubscriber: unsubscribe.New(),
 	}, content))
-	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, syncer.FireReminders, logger)
+	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, syncer.FireReminders, syncer.EraseOld, logger)
 	router, err := api.NewRouter(api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
@@ -367,13 +367,16 @@ func withContent(d engine.Deps, c *lodge.Content) engine.Deps {
 // newReminders fires calendar reminders (docs/design/pim.md, Reminders):
 // to the app while it is connected, else as desktop notifications, whose
 // Snooze (10 minutes) and Dismiss act here and whose click opens the app.
-// Each check also fires the messages' Remind Me reminders.
+// Each check also fires the messages' Remind Me reminders, and once an hour
+// erases the Trash and Junk mail the accounts' settings let it erase
+// (ADR-0051).
 func newReminders(ctx context.Context, db *store.DB, cal api.CalendarService, srv *rpcserver.Server,
-	desktop *notify.Desktop, open func(int64), messages func(context.Context, time.Time) error, log *slog.Logger,
+	desktop *notify.Desktop, open func(int64), messages, erase func(context.Context, time.Time) error, log *slog.Logger,
 ) *reminders.Scheduler {
 	cfg := reminders.Config{
 		DB:       db,
 		Messages: messages,
+		Erase:    erase,
 		List: func(ctx context.Context) ([]api.Reminder, error) {
 			return cal.Reminders(ctx, &api.CalendarRemindersParams{})
 		},

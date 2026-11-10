@@ -20,6 +20,9 @@ lexically. Highlights:
 
 - `accounts`: server settings per account; `email` is unique without case.
   Credentials are not stored here (Secret Service, M4; a dev store in M1).
+  `erase_trash_days` and `erase_junk_days` say how long mail stays in the
+  account's trash or junk mailbox before maild erases it: 0 (Never), 1, 7
+  or 30 ([organize.md](organize.md#erase-old-mail); ADR-0051).
 - `mailboxes`: one per server folder or Gmail label, with sync state
   (`uidvalidity`, `uidnext`, `highestmodseq`, `synced_low_uid`).
 - `messages`: one per message per account (Gmail: per `gm_msgid`), with
@@ -30,7 +33,9 @@ lexically. Highlights:
   `(mailbox_id, uid)` is unique when `uid` is set.
   `added_at` is when maild first saw the message in that mailbox, the age that erasing old
   Trash and Junk uses ([organize.md](organize.md#erase-old-mail); plan
-  0014).
+  0014). Rows that exist when the column arrives get the migration's
+  time, and the erase pass never takes a row whose `added_at` is NULL: it
+  fails safe.
 - `threads`, `thread_refs`: thread rows and every Message-ID seen, mapped to a
   thread (JWZ containers, [sync.md](sync.md)).
 - `parts`: the MIME structure from BODYSTRUCTURE.

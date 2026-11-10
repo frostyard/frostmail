@@ -29,8 +29,10 @@ import { type SnippetChange, SnippetsPane } from "../features/settings/SnippetsP
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type {
   Account,
+  AccountUpdateParams,
   Client,
   Identity,
+  MailboxRole,
   OAuthClient,
   Rule,
   ServerConfig,
@@ -347,9 +349,16 @@ function emptyAccount(): AccountFormValue {
     readOnly: false,
     notify: true,
     syncDays: 0,
+    eraseTrashDays: 0,
+    eraseJunkDays: 0,
     password: "",
     services: [],
   };
+}
+
+/** eraseDays is a stored erase setting as the form offers it: anything but 1, 7 or 30 is Never (ADR-0051). */
+function eraseDays(days: number | undefined): 0 | 1 | 7 | 30 {
+  return days === 1 || days === 7 || days === 30 ? days : 0;
 }
 
 function accountValue(a: Account): AccountFormValue {
@@ -363,6 +372,8 @@ function accountValue(a: Account): AccountFormValue {
     readOnly: a.readOnly,
     notify: a.notify,
     syncDays: a.syncDays,
+    eraseTrashDays: eraseDays(a.eraseTrashDays),
+    eraseJunkDays: eraseDays(a.eraseJunkDays),
     password: "",
   };
 }
@@ -477,6 +488,42 @@ function AccountsPane() {
   const [waiting, setWaiting] = useState<{ id: number; wasSignedIn: boolean } | null>(null);
   const { busy, error, setError, run } = useRequest();
   const account = accounts.find((a) => a.id === selected);
+  // The mailboxes the mailbox behaviors erase: the selected account's trash
+  // and junk roles, read again when the account's mailboxes change (ADR-0051).
+  const [eraseMailboxes, setEraseMailboxes] = useState<{ trash?: string; junk?: string }>({});
+  const editing = typeof selected === "number" ? selected : null;
+  useEffect(() => {
+    if (editing === null) return;
+    setEraseMailboxes({});
+    let active = true;
+    // Each read is numbered: a reply to an older mailbox.list can arrive after
+    // a newer one, and must not overwrite the names it brings, nor clear them
+    // with its own failure.
+    let generation = 0;
+    const load = async () => {
+      const request = ++generation;
+      const latest = () => active && request === generation;
+      try {
+        const list = await client.mailbox.list({ accountId: editing });
+        if (!latest()) return;
+        const nameOf = (role: MailboxRole) => list.find((mb) => mb.role === role)?.name;
+        const trash = nameOf("trash");
+        const junk = nameOf("junk");
+        setEraseMailboxes({ ...(trash === undefined ? {} : { trash }), ...(junk === undefined ? {} : { junk }) });
+      } catch {
+        // Without the names the form offers no behavior, so nothing is erased.
+        if (latest()) setEraseMailboxes({});
+      }
+    };
+    void load();
+    const off = client.transport.onEvent((event) => {
+      if (event.event === "mailbox.changed") void load();
+    });
+    return () => {
+      active = false;
+      off();
+    };
+  }, [client, editing]);
 
   const select = useCallback(
     (next: number | "new") => {
@@ -580,7 +627,7 @@ function AccountsPane() {
       });
     } else if (account) {
       void run(async () => {
-        const a = await client.account.update({
+        const update: AccountUpdateParams = {
           id: account.id,
           displayName: value.displayName,
           imap: value.imap,
@@ -588,7 +635,16 @@ function AccountsPane() {
           readOnly: value.readOnly,
           notify: value.notify,
           ...(value.syncDays === undefined ? {} : { syncDays: value.syncDays }),
-        });
+        };
+        // A behavior whose mailbox the account has not got, or whose name has
+        // not loaded, shows Never in a select the user cannot use: leave its
+        // setting out, so this Save keeps the stored value instead of
+        // applying a choice the form only appeared to make.
+        if (eraseMailboxes.trash !== undefined && value.eraseTrashDays !== undefined)
+          update.eraseTrashDays = value.eraseTrashDays;
+        if (eraseMailboxes.junk !== undefined && value.eraseJunkDays !== undefined)
+          update.eraseJunkDays = value.eraseJunkDays;
+        const a = await client.account.update(update);
         if (value.password !== "") await client.account.setPassword({ id: a.id, password: value.password });
         setValue(accountValue(a));
       });
@@ -635,6 +691,7 @@ function AccountsPane() {
           onSignIn={authorize}
           signInWaiting={typeof selected === "number" && waiting?.id === selected}
           onFinishSignIn={finishSignIn}
+          eraseMailboxes={editing === null ? undefined : eraseMailboxes}
           services={
             typeof selected === "number" && (
               <AccountServices

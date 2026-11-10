@@ -222,6 +222,8 @@ export class MockTransport implements Transport {
       readOnly: p.readOnly ?? false,
       notify: p.notify ?? true,
       syncDays: p.syncDays ?? 0,
+      eraseTrashDays: 0,
+      eraseJunkDays: 0,
       signedIn: p.auth === "password",
     };
     this.accounts.push(a);
@@ -246,6 +248,8 @@ export class MockTransport implements Transport {
     if (p.readOnly !== undefined) a.readOnly = p.readOnly;
     if (p.notify !== undefined) a.notify = p.notify;
     if (p.syncDays !== undefined) a.syncDays = p.syncDays;
+    if (p.eraseTrashDays !== undefined) a.eraseTrashDays = p.eraseTrashDays;
+    if (p.eraseJunkDays !== undefined) a.eraseJunkDays = p.eraseJunkDays;
     this.accountChanged(a.id);
     return { ...a };
   }

@@ -1,7 +1,9 @@
 // Package reminders fires calendar reminders when their alarms come due
 // (docs/design/pim.md, Reminders): it records them as fired, tells the app,
 // and, while the app is away, shows desktop notifications. Each minute it
-// also has maild fire the messages' Remind Me reminders (ADR-0025).
+// also has maild fire the messages' Remind Me reminders (ADR-0025), and once
+// an hour erase the mail the user lets it erase from Trash and Junk
+// (ADR-0051).
 package reminders
 
 import (
@@ -19,6 +21,10 @@ import (
 // catchUp is how far back the first check after a start looks: alarms
 // that came due while maild was stopped, up to a day ago, still remind.
 const catchUp = 24 * time.Hour
+
+// eraseEvery is how often the checks erase old Trash and Junk mail: the
+// first check, then once the interval has passed (ADR-0051).
+const eraseEvery = time.Hour
 
 // Notifier shows reminders on the desktop (notify.Desktop).
 type Notifier interface {
@@ -40,16 +46,23 @@ type Config struct {
 	// Messages fires the Remind Me reminders of messages due by now
 	// (mailsync.Manager.FireReminders); nil fires none.
 	Messages func(ctx context.Context, now time.Time) error
-	Now      func() time.Time
-	Local    *time.Location
-	Log      *slog.Logger
+	// Erase erases the old mail of every account whose Trash and Junk
+	// settings let it (mailsync.Manager.EraseOld). It runs at the first
+	// check and then once an hour; nil erases none.
+	Erase func(ctx context.Context, now time.Time) error
+	Now   func() time.Time
+	Local *time.Location
+	Log   *slog.Logger
 }
 
 // Scheduler checks for due reminders once a minute.
 type Scheduler struct {
 	cfg  Config
 	last time.Time
-	kick chan struct{}
+	// erasedAt is when the old mail was last erased; the zero time erases
+	// at the next check.
+	erasedAt time.Time
+	kick     chan struct{}
 }
 
 // New returns a Scheduler.
@@ -96,7 +109,8 @@ func (s *Scheduler) Run(ctx context.Context) {
 
 // Check fires the alarms due since the last check, and the snoozes that
 // ended, and announces them: an event for the app, or notifications while
-// it is away. It also withdraws the notes of reminders no longer shown.
+// it is away. It also withdraws the notes of reminders no longer shown, and
+// erases the old Trash and Junk mail of the accounts that ask for it.
 // Run calls it; tests call it with their clock.
 func (s *Scheduler) Check(ctx context.Context) error {
 	now := s.cfg.Now()
@@ -104,6 +118,13 @@ func (s *Scheduler) Check(ctx context.Context) error {
 		// Apart from the calendar's, so neither holds the other up.
 		if err := s.cfg.Messages(ctx, now); err != nil && ctx.Err() == nil {
 			s.cfg.Log.Warn("message reminders not fired", "err", err)
+		}
+	}
+	if s.cfg.Erase != nil && (s.erasedAt.IsZero() || now.Sub(s.erasedAt) >= eraseEvery) {
+		// The time is kept even when the pass fails: an hour is the retry.
+		s.erasedAt = now
+		if err := s.cfg.Erase(ctx, now); err != nil && ctx.Err() == nil {
+			s.cfg.Log.Warn("old mail not erased", "err", err)
 		}
 	}
 	since := s.last

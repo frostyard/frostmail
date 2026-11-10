@@ -24,7 +24,12 @@ type Account struct {
 	ReadOnly    bool // maild makes no changes on the server
 	Notify      bool // new inbox mail shows a desktop notification
 	SyncDays    int  // keep the messages of the last SyncDays days; 0 keeps all (ADR-0016)
-	NeedsReauth bool // the server or OAuth provider refused the stored credential
+	// EraseTrashDays and EraseJunkDays are how long a message stays in the
+	// account's trash or junk mailbox before maild erases it: 0 (Never), 1,
+	// 7 or 30 (ADR-0051).
+	EraseTrashDays int
+	EraseJunkDays  int
+	NeedsReauth    bool // the server or OAuth provider refused the stored credential
 	// GrantedScopes are the OAuth scopes the account's grant covers,
 	// space-separated; "" for password accounts.
 	GrantedScopes string
@@ -46,12 +51,15 @@ type AccountUpdate struct {
 	ReadOnly    *bool
 	Notify      *bool
 	SyncDays    *int
+	// EraseTrashDays and EraseJunkDays: 0 (Never), 1, 7 or 30 (ADR-0051).
+	EraseTrashDays *int
+	EraseJunkDays  *int
 }
 
 const accountColumns = `SELECT id, kind, email, display_name, auth,
 	imap_host, imap_port, imap_tls, imap_username,
 	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days, needs_reauth,
-	granted_scopes
+	granted_scopes, erase_trash_days, erase_junk_days
 	FROM accounts`
 
 func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
@@ -60,7 +68,8 @@ func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
 	err := row.Scan(&a.ID, &a.Kind, &a.Email, &a.DisplayName, &a.Auth,
 		&a.IMAP.Host, &a.IMAP.Port, &a.IMAP.TLS, &a.IMAP.Username,
 		&a.SMTP.Host, &a.SMTP.Port, &a.SMTP.TLS, &a.SMTP.Username,
-		&createdAt, &a.ReadOnly, &a.Notify, &a.SyncDays, &a.NeedsReauth, &a.GrantedScopes)
+		&createdAt, &a.ReadOnly, &a.Notify, &a.SyncDays, &a.NeedsReauth, &a.GrantedScopes,
+		&a.EraseTrashDays, &a.EraseJunkDays)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
@@ -84,12 +93,13 @@ func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
 	res, err := t.ExecContext(ctx, `INSERT INTO accounts (
 		kind, email, display_name, auth,
 		imap_host, imap_port, imap_tls, imap_username,
-		smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days,
+		erase_trash_days, erase_junk_days)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Kind, a.Email, a.DisplayName, a.Auth,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
-		FormatTime(createdAt), a.ReadOnly, a.Notify, a.SyncDays)
+		FormatTime(createdAt), a.ReadOnly, a.Notify, a.SyncDays, a.EraseTrashDays, a.EraseJunkDays)
 	if err != nil {
 		if IsUniqueViolation(err) {
 			return Account{}, ErrConflict
@@ -146,6 +156,13 @@ func (d *DB) GetAccount(ctx context.Context, id int64) (Account, error) {
 	return scanAccount(d.db.QueryRowContext(ctx, accountColumns+` WHERE id = ?`, id))
 }
 
+// GetAccount is DB.GetAccount inside the transaction: a write that reads an
+// account's optional fields reads them here, in the transaction that acts on
+// them, so a concurrent update cannot slip in between.
+func (t *Tx) GetAccount(ctx context.Context, id int64) (Account, error) {
+	return scanAccount(t.QueryRowContext(ctx, accountColumns+` WHERE id = ?`, id))
+}
+
 // ListAccounts returns every account ordered by ID; none is an empty slice.
 func (d *DB) ListAccounts(ctx context.Context) ([]Account, error) {
 	rows, err := d.db.QueryContext(ctx, accountColumns+` ORDER BY id`)
@@ -190,16 +207,22 @@ func (t *Tx) UpdateAccount(ctx context.Context, id int64, u AccountUpdate) (Acco
 	if u.SyncDays != nil {
 		a.SyncDays = *u.SyncDays
 	}
+	if u.EraseTrashDays != nil {
+		a.EraseTrashDays = *u.EraseTrashDays
+	}
+	if u.EraseJunkDays != nil {
+		a.EraseJunkDays = *u.EraseJunkDays
+	}
 	_, err = t.ExecContext(ctx, `UPDATE accounts SET
 		display_name = ?,
 		imap_host = ?, imap_port = ?, imap_tls = ?, imap_username = ?,
 		smtp_host = ?, smtp_port = ?, smtp_tls = ?, smtp_username = ?,
-		read_only = ?, notify = ?, sync_days = ?
+		read_only = ?, notify = ?, sync_days = ?, erase_trash_days = ?, erase_junk_days = ?
 		WHERE id = ?`,
 		a.DisplayName,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
-		a.ReadOnly, a.Notify, a.SyncDays,
+		a.ReadOnly, a.Notify, a.SyncDays, a.EraseTrashDays, a.EraseJunkDays,
 		id)
 	if err != nil {
 		if IsUniqueViolation(err) {

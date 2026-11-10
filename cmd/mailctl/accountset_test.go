@@ -42,11 +42,31 @@ func TestAccountSet(t *testing.T) {
 		t.Errorf("set --sync-days 0 = %q, %v", out, err)
 	}
 
+	// The erase settings (ADR-0051) are sent only when given.
+	out, err = set("--erase-trash-days", "7")
+	if err != nil || !strings.Contains(out, "erases Trash after 7 days") || !strings.Contains(out, "never erases Junk") {
+		t.Errorf("set --erase-trash-days 7 = %q, %v", out, err)
+	}
+	if got, err := c.Account().Get(t.Context(), &api.AccountGetParams{ID: a.ID}); err != nil ||
+		got.EraseTrashDays == nil || *got.EraseTrashDays != 7 || *got.EraseJunkDays != 0 {
+		t.Errorf("account after the erase setting = %+v, %v", got, err)
+	}
+	out, err = set("--erase-junk-days", "30")
+	if err != nil || !strings.Contains(out, "erases Trash after 7 days, erases Junk after 30 days") {
+		t.Errorf("set --erase-junk-days 30 = %q, %v", out, err)
+	}
+	out, err = set("--erase-trash-days", "0", "--erase-junk-days", "0")
+	if err != nil || !strings.Contains(out, "never erases Trash, never erases Junk") {
+		t.Errorf("set --erase-trash-days 0 = %q, %v", out, err)
+	}
+
 	for _, bad := range [][]string{
 		{},
 		{"--read-only", "--read-write"},
 		{"--notify", "--no-notify"},
 		{"--sync-days", "-1"},
+		{"--erase-trash-days", "5"},
+		{"--erase-junk-days", "31"},
 	} {
 		if _, err := set(bad...); err == nil {
 			t.Errorf("set %q succeeded", bad)

@@ -24,6 +24,11 @@ export interface AccountFormValue {
   /** The sync window in days (ADR-0016); 0 keeps every message, and an
    * absent value means 0, as a new account starts. */
   syncDays?: number;
+  /** How long mail stays in the account's trash mailbox before maild erases
+   * it; 0 or absent is Never (ADR-0051, plan 0014 Phase 4). */
+  eraseTrashDays?: 0 | 1 | 7 | 30;
+  /** The same for the account's junk mailbox (ADR-0051). */
+  eraseJunkDays?: 0 | 1 | 7 | 30;
   /** A new password; empty keeps the stored one. */
   password: string;
   /** Add mode: the services turned on with mail; absent means none. */
@@ -71,6 +76,9 @@ export interface AccountFormProps {
   onSubmit: () => void;
   onCancel: () => void;
   services?: ReactNode;
+  /** Edit mode: the names of the account's trash and junk mailboxes, which
+   * its Mailbox Behaviors erase (ADR-0051). */
+  eraseMailboxes?: { trash?: string; junk?: string };
 }
 
 const KINDS: readonly AccountKind[] = ["imap", "gmail", "microsoft", "icloud"];
@@ -415,6 +423,96 @@ function SyncWindowRows(props: { value: AccountFormValue; busy: boolean; onChang
 
 const SERVICE_NAMES: Record<ServiceKind, string> = { contacts: "Contacts", calendar: "Calendars", tasks: "Tasks" };
 
+/** ERASE_DAYS are the choices of each mailbox behavior, in the order offered (ADR-0051). */
+const ERASE_DAYS: readonly { days: 0 | 1 | 7 | 30; label: string }[] = [
+  { days: 0, label: "Never" },
+  { days: 1, label: "After One Day" },
+  { days: 7, label: "After One Week" },
+  { days: 30, label: "After One Month" },
+];
+
+/** eraseNote says what the behaviors erase, naming the mailboxes the account has. */
+function eraseNote(names: string[]): string {
+  const quoted = names.map((name) => `“${name}”`).join(" or ");
+  return (
+    `Messages are erased from the server after they have been in ${quoted} that long, and cannot be recovered. ` +
+    "Mail older than this account's sync window is left on the server."
+  );
+}
+
+/**
+ * MailboxBehaviorRows set how long mail stays in the account's trash and junk
+ * mailboxes (docs/specs/settings-ui.md, AccountForm; ADR-0051). A behavior
+ * whose mailbox the account does not have is not offered, and a read-only
+ * account never erases, so both are disabled then.
+ */
+function MailboxBehaviorRows(props: {
+  value: AccountFormValue;
+  busy: boolean;
+  eraseMailboxes?: { trash?: string; junk?: string };
+  onChange: (v: AccountFormValue) => void;
+}) {
+  const heading = useId();
+  const names = [props.eraseMailboxes?.trash, props.eraseMailboxes?.junk].filter(
+    (name): name is string => name !== undefined && name !== "",
+  );
+  // A behavior the account has no mailbox for is not offered: it says
+  // Never, whatever the stored value is.
+  const row = (
+    id: string,
+    label: string,
+    mailbox: string | undefined,
+    stored: 0 | 1 | 7 | 30,
+    onChoose: (days: 0 | 1 | 7 | 30) => void,
+  ) => (
+    <>
+      <label className={LABEL} htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        className={FIELD}
+        disabled={props.busy || props.value.readOnly || mailbox === undefined}
+        value={String(mailbox === undefined ? 0 : stored)}
+        onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+          const chosen = ERASE_DAYS.find((option) => String(option.days) === event.target.value);
+          if (chosen) onChoose(chosen.days);
+        }}
+      >
+        {ERASE_DAYS.map((option) => (
+          <option key={option.days} value={String(option.days)}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+  return (
+    <section className="mt-5" aria-labelledby={heading}>
+      <h3 id={heading} className="mb-2 text-[13px] leading-[18px] font-semibold">
+        Mailbox Behaviors
+      </h3>
+      <div className={GRID}>
+        {row(
+          "account-erase-trash",
+          "Erase deleted messages:",
+          props.eraseMailboxes?.trash,
+          props.value.eraseTrashDays ?? 0,
+          (days) => props.onChange({ ...props.value, eraseTrashDays: days }),
+        )}
+        {row(
+          "account-erase-junk",
+          "Erase junk messages:",
+          props.eraseMailboxes?.junk,
+          props.value.eraseJunkDays ?? 0,
+          (days) => props.onChange({ ...props.value, eraseJunkDays: days }),
+        )}
+        {names.length > 0 && <p className="col-start-2 text-[12px] leading-4 text-secondary">{eraseNote(names)}</p>}
+      </div>
+    </section>
+  );
+}
+
 function AddServices(props: { value: AccountFormValue; busy: boolean; onChange: (v: AccountFormValue) => void }) {
   const heading = useId();
   const offered = offeredServices(props.value.kind);
@@ -525,6 +623,9 @@ export function AccountForm(props: AccountFormProps) {
         />
       </div>
       {mode === "edit" && <SyncWindowRows value={value} busy={busy} onChange={onChange} />}
+      {mode === "edit" && (
+        <MailboxBehaviorRows value={value} busy={busy} eraseMailboxes={props.eraseMailboxes} onChange={onChange} />
+      )}
       {mode === "add" ? <AddServices value={value} busy={busy} onChange={onChange} /> : props.services}
       {error && <FormAlert text={error} />}
       <ButtonRow mode={mode} busy={busy} onSubmit={props.onSubmit} onCancel={props.onCancel} />
