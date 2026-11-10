@@ -2,6 +2,8 @@ package mailsync_test
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -94,6 +96,68 @@ func members(t *testing.T, db *store.DB, mailboxID int64) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+// storedUIDValidity is the UIDVALIDITY maild stored for a mailbox, 0 for one
+// it never selected.
+func storedUIDValidity(t *testing.T, db *store.DB, mailboxID int64) uint32 {
+	t.Helper()
+	ctx := t.Context()
+	var v sql.NullInt64
+	err := db.Tx(ctx, func(tx *store.Tx) error {
+		return tx.QueryRowContext(ctx, `SELECT uidvalidity FROM mailboxes WHERE id = ?`, mailboxID).Scan(&v)
+	})
+	if err != nil {
+		t.Fatalf("stored uidvalidity of mailbox %d: %v", mailboxID, err)
+	}
+	if !v.Valid || v.Int64 < 0 {
+		return 0
+	}
+	return uint32(v.Int64)
+}
+
+// holds reports whether a mailbox holds the message with this Message-ID and
+// shows it (it is not hidden until an expunge).
+func holds(t *testing.T, db *store.DB, mailboxID int64, msgid string) bool {
+	t.Helper()
+	ctx := t.Context()
+	var n int
+	err := db.Tx(ctx, func(tx *store.Tx) error {
+		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM message_mailbox mm
+			JOIN messages m ON m.id = mm.message_id
+			WHERE mm.mailbox_id = ? AND m.msgid_hdr = ? AND m.deleted = 0`, mailboxID, msgid).Scan(&n)
+	})
+	if err != nil {
+		t.Fatalf("message %s in mailbox %d: %v", msgid, mailboxID, err)
+	}
+	return n > 0
+}
+
+// addedAtIn is the added_at of the message with this Message-ID in a mailbox.
+func addedAtIn(t *testing.T, db *store.DB, mailboxID int64, msgid string) string {
+	t.Helper()
+	ctx := t.Context()
+	var v sql.NullString
+	err := db.Tx(ctx, func(tx *store.Tx) error {
+		return tx.QueryRowContext(ctx, `SELECT mm.added_at FROM message_mailbox mm
+			JOIN messages m ON m.id = mm.message_id
+			WHERE mm.mailbox_id = ? AND m.msgid_hdr = ?`, mailboxID, msgid).Scan(&v)
+	})
+	if err != nil {
+		t.Fatalf("added_at of %s in mailbox %d: %v", msgid, mailboxID, err)
+	}
+	return v.String
+}
+
+// imapxSession opens a second IMAP session to the test server, for what the
+// server itself holds.
+func imapxSession(t *testing.T, mem *imapxtest.Mem) *imapx.Session {
+	t.Helper()
+	s, err := imapx.Open(t.Context(), mem.DialOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 
 // hasQueuedOps reports whether the account has an op waiting for the server.
@@ -301,8 +365,8 @@ func TestEraseOldBatch(t *testing.T) {
 // TestEraseOldStaleUIDValidity: an expunge op records its mailbox's
 // UIDVALIDITY when it is queued, and replays only while the server still has
 // it. Here the mailbox was renumbered: the stored UID names a message the
-// user never saw in Frostmail, so the op must erase nothing on the server
-// (ADR-0051).
+// user never saw in Frostmail, so the op erases nothing on the server, its
+// message shows again, and the next full pass resyncs the mailbox (ADR-0051).
 func TestEraseOldStaleUIDValidity(t *testing.T) {
 	mem := imapxtest.StartMemFull(t)
 	t0 := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
@@ -319,12 +383,22 @@ func TestEraseOldStaleUIDValidity(t *testing.T) {
 	}
 	storedID(t, h.srv.DB, "trashed@x.test") // synced, with an added_at of 8 days ago
 
-	// After One Week.
-	if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct,
-		EraseTrashDays: ptr(int64(7))}); err != nil {
+	// Wait until the account's running actor is idle, so that no pass is in
+	// flight: one that reconciles Trash after the forgery below would store
+	// the server's UIDVALIDITY again and the op would not be stale.
+	waitUntil(t, 10*time.Second, "the account's actor to be idle", func() bool {
+		st, err := h.c.Sync().Status(ctx, &api.SyncStatusParams{AccountID: &h.acct})
+		return err == nil && len(st) == 1 && st[0].Phase == api.SyncPhaseIdle
+	})
+	// After One Week, stored without account.update: that call would restart
+	// the account's actor and run a pass of its own over Trash.
+	days := 7
+	if err := h.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		_, err := tx.UpdateAccount(ctx, h.acct, store.AccountUpdate{EraseTrashDays: &days})
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
-	h.waitPhase(api.SyncPhaseIdle)
 
 	// The mailbox the server renumbered: the stored UIDVALIDITY is one the
 	// server does not have, so its stored UID would name another message.
@@ -343,14 +417,109 @@ func TestEraseOldStaleUIDValidity(t *testing.T) {
 	if err := h.srv.Sync.EraseOld(ctx, t0); err != nil {
 		t.Fatal(err)
 	}
-	// The op fails at replay, before any STORE or EXPUNGE.
+	// The op fails at replay, before any STORE or EXPUNGE, and the pass's
+	// hiding is undone in that same transaction: once no op is queued, the
+	// message is shown again. It is asserted by Message-ID, not by row ID, so
+	// that a resync that drops and fetches the row cannot matter here.
 	waitUntil(t, 5*time.Second, "the refused expunge op", func() bool {
 		return !h.hasQueuedOps()
 	})
-	// The guard held: the message the stale UID would have named is still
-	// on the server. (What is stored locally is left to the next pass, which
-	// resyncs the renumbered mailbox.)
+	if !holds(t, h.srv.DB, trash.ID, "trashed@x.test") {
+		t.Error("the message the refused op hid is not shown again")
+	}
+	// The guard held: the message the stale UID would have named is still on
+	// the server.
 	if got := serverCount(t, mem, "Trash"); got != 1 {
 		t.Fatalf("the server's Trash holds %d messages, want 1: the stale UID erased a message", got)
+	}
+
+	// Before the next pass the stored UIDVALIDITY is still the forged one and
+	// the message's added_at is still the one from 8 days ago.
+	if got := storedUIDValidity(t, h.srv.DB, trash.ID); got != 999 {
+		t.Fatalf("Trash's stored uidvalidity before the next pass = %d, want the forged 999", got)
+	}
+	if got := addedAtIn(t, h.srv.DB, trash.ID, "trashed@x.test"); got != store.FormatTime(t0.AddDate(0, 0, -8)) {
+		t.Fatalf("added_at before the next pass = %q, want the 8-day-old one", got)
+	}
+
+	// The next full pass resyncs the renumbered mailbox: the stored
+	// UIDVALIDITY is the server's again, the message is stored in Trash, and
+	// its added_at is the clock's time at the resync, not the 8-day-old one
+	// (ADR-0051: a renumbered mailbox makes new rows).
+	server := imapxSession(t, mem)
+	defer server.Close()
+	sel, err := server.Select(ctx, "Trash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, 10*time.Second, "the resynced Trash", func() bool {
+		return storedUIDValidity(t, h.srv.DB, trash.ID) == sel.UIDValidity &&
+			addedAtIn(t, h.srv.DB, trash.ID, "trashed@x.test") == store.FormatTime(t0)
+	})
+	if !holds(t, h.srv.DB, trash.ID, "trashed@x.test") {
+		t.Error("the server's message is not in the store's Trash after the resync")
+	}
+}
+
+// TestEraseOldReadsSettingsInTheTransaction: the pass takes each mailbox's
+// cutoff from the account's settings as they are in the transaction that
+// erases, so an account.update between the pass's list read and that
+// transaction wins. A message 8 days in Trash survives when the user turns
+// erasing off, or sets 30 days, in between (ADR-0051; AGENTS.md, the rule that
+// an update of optional fields reads the row in the transaction that acts on
+// it).
+func TestEraseOldReadsSettingsInTheTransaction(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		days int
+	}{{"Never", 0}, {"30 days", 30}} {
+		t.Run(c.name, func(t *testing.T) {
+			mem := imapxtest.StartMemFull(t)
+			t0 := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+			// A message that came to Trash 8 days before T0, and After One
+			// Week as the setting: the pass would erase it.
+			appendNew(t, mem, "Trash", "trashed")
+			clock := newTestClock(t0.AddDate(0, 0, -8))
+			h := newHarnessAt(t, mem.DialOptions(), imapxtest.Password, clock.Now)
+			h.waitPhase(api.SyncPhaseIdle)
+			ctx := t.Context()
+			if _, err := h.c.Account().Update(ctx, &api.AccountUpdateParams{ID: h.acct,
+				EraseTrashDays: ptr(int64(7))}); err != nil {
+				t.Fatal(err)
+			}
+			h.waitPhase(api.SyncPhaseIdle)
+			storedID(t, h.srv.DB, "trashed@x.test") // synced, 8 days in Trash
+
+			// The user changes the setting while the pass runs: the hook runs
+			// after the pass has listed the mailboxes and before the
+			// transaction that erases.
+			days := c.days
+			mailsync.SetEraseHook(h.srv.Sync, func(ctx context.Context, accountID int64) {
+				mailsync.SetEraseHook(h.srv.Sync, nil) // this pass only
+				err := h.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+					_, err := tx.UpdateAccount(ctx, accountID, store.AccountUpdate{EraseTrashDays: &days})
+					return err
+				})
+				if err != nil {
+					t.Errorf("change the erase setting in the pass: %v", err)
+				}
+			})
+			clock.Set(t0)
+			if err := h.srv.Sync.EraseOld(ctx, t0); err != nil {
+				t.Fatal(err)
+			}
+			if n := hidden(t, h.srv.DB); n != 0 {
+				t.Errorf("hidden messages = %d, want 0: the pass erased with the setting from before the update", n)
+			}
+			if h.hasQueuedOps() {
+				t.Error("an expunge op was queued")
+			}
+			if got := serverCount(t, mem, "Trash"); got != 1 {
+				t.Errorf("the server's Trash holds %d messages, want 1", got)
+			}
+		})
 	}
 }

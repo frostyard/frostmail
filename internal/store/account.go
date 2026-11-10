@@ -156,6 +156,13 @@ func (d *DB) GetAccount(ctx context.Context, id int64) (Account, error) {
 	return scanAccount(d.db.QueryRowContext(ctx, accountColumns+` WHERE id = ?`, id))
 }
 
+// GetAccount is DB.GetAccount inside the transaction: a write that reads an
+// account's optional fields reads them here, in the transaction that acts on
+// them, so a concurrent update cannot slip in between.
+func (t *Tx) GetAccount(ctx context.Context, id int64) (Account, error) {
+	return scanAccount(t.QueryRowContext(ctx, accountColumns+` WHERE id = ?`, id))
+}
+
 // ListAccounts returns every account ordered by ID; none is an empty slice.
 func (d *DB) ListAccounts(ctx context.Context) ([]Account, error) {
 	rows, err := d.db.QueryContext(ctx, accountColumns+` ORDER BY id`)

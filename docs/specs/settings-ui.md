@@ -510,9 +510,14 @@ interface ServicesSectionProps {
   cannot keep a secret, says maild's own message.
 - **Edit:** the form's `eraseMailboxes` are the names of the selected
   account's mailboxes with the `trash` and `junk` roles (`mailbox.list`,
-  again on `mailbox.changed`). Save sends `account.update` with every
-  editable field (`syncDays`, `eraseTrashDays` and `eraseJunkDays` among
-  them; maild changes nothing when `syncDays` equals the stored window), then
+  again on `mailbox.changed`; only the latest read counts, so a slow
+  reply cannot name a mailbox that is gone). Save sends `account.update`
+  with every editable field (`syncDays`, `eraseTrashDays` and
+  `eraseJunkDays` among them; maild changes nothing when `syncDays`
+  equals the stored window). It leaves out `eraseTrashDays` or
+  `eraseJunkDays` when `eraseMailboxes` names no mailbox for it, or the
+  names have not loaded: the control shows Never and cannot be used, so
+  maild keeps the stored value. Then
   `account.setPassword` when a new password was typed. Sign In… calls
   `account.authorize`, remembers the account whose sign-in it started and
   whether it was signed in then, and opens the URL; `account.changed`

@@ -14,8 +14,8 @@ import (
 // next pass takes the rest (ADR-0051).
 const eraseBatch = 1000
 
-// eraseDays is an account's erase setting for one role mailbox and the
-// role it looks at.
+// eraseDays is one of the two erase settings and the role mailbox it is
+// about.
 type eraseDays struct {
 	role api.MailboxRole
 	days func(store.Account) int
@@ -56,18 +56,12 @@ func (m *Manager) EraseOld(ctx context.Context, now time.Time) error {
 	return first
 }
 
-// eraseAccount erases the old mail of each of one account's role mailboxes
-// whose setting is above 0.
+// eraseAccount erases the old mail of each of one account's role mailboxes.
+// The account and its settings are read again in each mailbox's transaction,
+// so this list only says which accounts and mailboxes to look at.
 func (m *Manager) eraseAccount(ctx context.Context, acct store.Account, now time.Time) error {
 	if acct.ReadOnly {
 		return nil // a read-only account's mail is never erased
-	}
-	wanted := false
-	for _, s := range eraseSettings {
-		wanted = wanted || s.days(acct) > 0
-	}
-	if !wanted {
-		return nil
 	}
 	mbs, err := m.db.ListMailboxes(ctx, acct.ID)
 	if err != nil {
@@ -75,15 +69,11 @@ func (m *Manager) eraseAccount(ctx context.Context, acct store.Account, now time
 	}
 	var first error
 	for _, s := range eraseSettings {
-		days := s.days(acct)
-		if days <= 0 {
-			continue
-		}
 		for _, mb := range mbs {
 			if mb.Role != s.role {
 				continue
 			}
-			n, err := m.eraseOldMailbox(ctx, acct, mb, now.Add(-time.Duration(days)*24*time.Hour))
+			n, days, err := m.eraseOldMailbox(ctx, acct.ID, s, mb, now)
 			if errors.Is(err, ErrReadOnly) || errors.Is(err, store.ErrNotFound) {
 				continue // the account or the mailbox is gone or read-only now
 			}
@@ -108,22 +98,41 @@ func (m *Manager) eraseAccount(ctx context.Context, acct store.Account, now time
 }
 
 // eraseOldMailbox erases at most eraseBatch of the messages of one mailbox
-// that maild first saw there before the given time.
-func (m *Manager) eraseOldMailbox(ctx context.Context, acct store.Account, mb store.Mailbox, before time.Time) (int, error) {
-	n := 0
-	err := m.db.Tx(ctx, func(tx *store.Tx) error {
-		// The account may have become read-only since the list was read.
-		if err := refuseReadOnly(ctx, tx, acct.ID); err != nil {
+// that maild first saw there before the account's setting allows, and returns
+// how many it erased and the days it used.
+func (m *Manager) eraseOldMailbox(ctx context.Context, accountID int64, s eraseDays, mb store.Mailbox,
+	now time.Time,
+) (n, days int, err error) {
+	// A test changes the account's settings here, between the list read above
+	// and the transaction below (erase_test.go, TestEraseOldReadsSettingsInTheTransaction).
+	if m.eraseHook != nil {
+		m.eraseHook(ctx, accountID)
+	}
+	err = m.db.Tx(ctx, func(tx *store.Tx) error {
+		// The account's settings are read in this transaction, not before it:
+		// an account.update between the list read and here must win, so that
+		// the pass never erases with a setting the user has changed
+		// (AGENTS.md, optional fields).
+		acct, err := tx.GetAccount(ctx, accountID)
+		if err != nil {
 			return err
 		}
-		// The mailbox may have lost its role, or be gone, since then.
+		if acct.ReadOnly {
+			return fmt.Errorf("account %d: %w", accountID, ErrReadOnly)
+		}
+		days = s.days(acct)
+		if days <= 0 {
+			return nil // Never: nothing is erased
+		}
+		// The mailbox may have lost its role, or be gone, since the list read.
 		cur, err := tx.GetMailbox(ctx, mb.ID)
 		if err != nil {
 			return err
 		}
-		if cur.Role != mb.Role {
+		if cur.Role != s.role {
 			return nil
 		}
+		before := now.Add(-time.Duration(days) * 24 * time.Hour)
 		members, err := tx.OldMailboxMembers(ctx, mb.ID, before, eraseBatch)
 		if err != nil {
 			return err
@@ -132,7 +141,7 @@ func (m *Manager) eraseOldMailbox(ctx context.Context, acct store.Account, mb st
 		return err
 	})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return n, nil
+	return n, days, nil
 }

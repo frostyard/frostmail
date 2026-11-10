@@ -29,6 +29,7 @@ import { type SnippetChange, SnippetsPane } from "../features/settings/SnippetsP
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type {
   Account,
+  AccountUpdateParams,
   Client,
   Identity,
   MailboxRole,
@@ -495,17 +496,23 @@ function AccountsPane() {
     if (editing === null) return;
     setEraseMailboxes({});
     let active = true;
+    // Each read is numbered: a reply to an older mailbox.list can arrive after
+    // a newer one, and must not overwrite the names it brings, nor clear them
+    // with its own failure.
+    let generation = 0;
     const load = async () => {
+      const request = ++generation;
+      const latest = () => active && request === generation;
       try {
         const list = await client.mailbox.list({ accountId: editing });
-        if (!active) return;
+        if (!latest()) return;
         const nameOf = (role: MailboxRole) => list.find((mb) => mb.role === role)?.name;
         const trash = nameOf("trash");
         const junk = nameOf("junk");
         setEraseMailboxes({ ...(trash === undefined ? {} : { trash }), ...(junk === undefined ? {} : { junk }) });
       } catch {
         // Without the names the form offers no behavior, so nothing is erased.
-        if (active) setEraseMailboxes({});
+        if (latest()) setEraseMailboxes({});
       }
     };
     void load();
@@ -620,7 +627,7 @@ function AccountsPane() {
       });
     } else if (account) {
       void run(async () => {
-        const a = await client.account.update({
+        const update: AccountUpdateParams = {
           id: account.id,
           displayName: value.displayName,
           imap: value.imap,
@@ -628,9 +635,16 @@ function AccountsPane() {
           readOnly: value.readOnly,
           notify: value.notify,
           ...(value.syncDays === undefined ? {} : { syncDays: value.syncDays }),
-          ...(value.eraseTrashDays === undefined ? {} : { eraseTrashDays: value.eraseTrashDays }),
-          ...(value.eraseJunkDays === undefined ? {} : { eraseJunkDays: value.eraseJunkDays }),
-        });
+        };
+        // A behavior whose mailbox the account has not got, or whose name has
+        // not loaded, shows Never in a select the user cannot use: leave its
+        // setting out, so this Save keeps the stored value instead of
+        // applying a choice the form only appeared to make.
+        if (eraseMailboxes.trash !== undefined && value.eraseTrashDays !== undefined)
+          update.eraseTrashDays = value.eraseTrashDays;
+        if (eraseMailboxes.junk !== undefined && value.eraseJunkDays !== undefined)
+          update.eraseJunkDays = value.eraseJunkDays;
+        const a = await client.account.update(update);
         if (value.password !== "") await client.account.setPassword({ id: a.id, password: value.password });
         setValue(accountValue(a));
       });
