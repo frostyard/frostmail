@@ -34,7 +34,9 @@ no ChairLift pattern where it does not fit.
 
 Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
-Proposed). Phase 2's maild side is built; its console waits for frostui. The console of maild's activity (Phase 2) was
+Proposed). Phase 0's Linux and Flatpak spikes are run and recorded; its
+Windows spike waits for the test VM. Phase 2's maild side and Phase 1's
+pure packages are built; the windows are next, on frostui. The console of maild's activity (Phase 2) was
 added on 2026-11-10 at the owner's request, relayed by the orchestrating
 session ("it'd be fun to use that console view from chairlift to show
 background activity in frostmail").
@@ -298,12 +300,14 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
    CPU unless `SetDMABUFRenderer(Auto)`. Find and Print span several pages
    and native text. The tester cannot see inside a page, so the reader's
    checks run in the built app.
-2. **Compose.** `richtext` covers TipTap's schema, so a reply loses no
-   more of a quoted message than it does today (both drop tables, colors
-   and layout). The work is elsewhere: `mailpart:` images in a draft must
-   be loaded for display and written back as their URLs; pasted remote
-   images must be dropped, as `SafeImage` does; and MyGo has no spell
-   check.
+2. **Compose.** `richtext` holds what TipTap's schema holds, except a
+   quotation inside a quotation, which `ParseHTML` merges into 1 level
+   ([Phase 0's records](#phase-0s-records-2026-11-10)). A small converter
+   keeps the depth in the paragraph's `Indent` and writes nested
+   `<blockquote type="cite">` back. `mailpart:` images in a draft must be
+   loaded for display and written back as their URLs, at their real
+   size; pasted remote images must be dropped, as `SafeImage` does; and
+   MyGo has no spell check.
 3. **The calendar.** `ui.Calendar` is a month picker. The time grid
    (overlaps, the all-day strip, the now line), the month grid and their
    drags (move, resize, draw, in 15-minute steps) are the app's own
@@ -364,6 +368,74 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   stores and persisted state, and `open_part`'s refused extensions.
 - **Done when:** the spikes' records are in this plan with their observed
   counts (requests, scripts run, losses per draft, memory of 20 views).
+
+### Phase 0's records (2026-11-10)
+
+Throwaway programs, not committed. MyGo v0.8.3.
+
+**Reader, on Linux: run.** The 50 files of `internal/render/testdata/hostile`
+without maild's sanitizer, plus 1 script probe, each loaded with `LoadHTML`
+in an untrusted web view, against a canary server on loopback. Handlers
+cancelled every navigation and made no window. Run on the host (WebKitGTK
+2.54.0) and as a command inside the installed Frostmail Flatpak's sandbox
+(GNOME 51, `libwebkit2gtk-4.1.so.0.24.4`); the two runs' counts were the
+same:
+
+| Defenses | Canary requests | Probe script | Navigations cancelled |
+| --- | --- | --- | --- |
+| None | 33, from 27 files | ran | 3 |
+| CSP meta only | 0 | did not run | 1 |
+| Content rules only | 0 | ran | 3 |
+| CSP meta and content rules | 0 | did not run | 1 |
+
+No window was opened and no load timed out in any variant. Under the CSP,
+`Eval` read the height (1023) and a selection (`alpha needle beta`), and
+`FindInPage` found 2 of 2 matches.
+
+- Run in the bare `org.gnome.Platform//51`, with no app, the spike aborted:
+  GTK's load of an icon reported that glycin's loader, started through
+  `flatpak-spawn --sandbox`, exited early. It did not abort inside the
+  Frostmail Flatpak's sandbox.
+- MyGo's default session wrote `cookies.sqlite`, `hsts-storage.sqlite`,
+  storage and compiled content rules under directories named after the
+  program. Message pages use `mygo.NewEphemeralSession()`.
+- `CompileContentRules` panics before the app is ready and blocks on the
+  main thread: it runs from a goroutine, after `WhenReady`.
+
+**Twenty web views, on the host.** Each held a message of about 40 KB,
+5 s after loading; PSS of the process and its children:
+
+| Web views | Processes | PSS |
+| --- | --- | --- |
+| 1 | 3 | 243 MB |
+| 5 | 7 | 395 MB |
+| 20 | 22 | 905 MB |
+
+**Compose.** The 6 HTML mails in the repository's fixtures
+(`dev/incus/seed/04`, `dev/incus/demo/01` and `06`, the showcase's INBOX
+`03`, `04` and `06`), unsanitized, each as a reply's quote, through
+`richtext.ParseHTML` and `Text.HTML`. That is fewer than the 30 this
+phase asked for; the repository holds no more. Before and after:
+
+| Kept | Before | After |
+| --- | --- | --- |
+| Words | 297 | 297 |
+| Links | 6 | 6 |
+| Images | 6 | 6 |
+| Quotations | 6 | 6 |
+| Headings | 4 | 4 |
+| Tables | 6 | 0 |
+| Elements with a color | 18 | 0 |
+
+A hand-made draft showed 3 more things: `type="cite"` is dropped (the
+TipTap editor's blockquote has no such attribute either); a quotation
+inside a quotation merges into 1 level; and a `mailpart:` image with no
+loaded picture is written with `width="1" height="1"`. What Phase 5 does
+about each is in its work items.
+
+**Windows: not run.** `frostmail-win11` does not start: its `virtio` disk
+names `/home/bjk/Downloads/virtio-win-0.1.302.iso`, which no longer
+exists. The WebView2 reader run and the Windows spike wait for that.
 
 ## Phase 1 — The skeleton and the data layer (L)
 
@@ -477,6 +549,11 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 
 ## Phase 5 — Compose (L)
 
+- The draft's HTML through a converter around `richtext`: a quotation's
+  depth kept in `Indent` and written back as nested
+  `<blockquote type="cite">`, headings read as body paragraphs (TipTap's
+  schema has none), and `mailpart:` images loaded so that they keep their
+  real size.
 - The compose window per draft: identities, recipients with suggestions,
   Bcc, the subject, `richtext` with the format bar and link bar, images
   of `mailpart:` parts, attachments (pick, drop; bytes in lodge mode and
@@ -639,9 +716,11 @@ library, MyGo, purego and frostui, so they can move by changing a path:
 
 ## Open questions
 
-- **Conversation pages:** one web view per expanded message (proposed),
-  or one page for the whole conversation if Phase 0 finds 20 views too
-  heavy.
+- **Conversation pages:** each web view measured about 35 MB of PSS and
+  1 process ([Phase 0's records](#phase-0s-records-2026-11-10)). Proposed:
+  a web view only for an expanded HTML message, destroyed when it
+  collapses. Decided in Phase 4, against how many messages a real
+  conversation expands.
 
 ## References
 

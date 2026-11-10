@@ -92,8 +92,9 @@ the React app's structure. Since then:
   same template as today. Its first element is a CSP that allows no
   script and loads only `data:` images and inline styles; content rules
   block every load but `data:`; `OnWillNavigate` cancels every
-  navigation; and the window-open handler opens `http`, `https` and
-  `mailto` links in the system's handlers and makes no window. The app
+  navigation; the window-open handler opens `http`, `https` and
+  `mailto` links in the system's handlers and makes no window; and the
+  page has an ephemeral session, so it stores nothing. The app
   reads a page's height, its selection (ADR-0053) and its find matches
   (ADR-0052) from Go, with `Eval` and `FindInPage`; the page gets no
   bridge. A text-only body is native text. The hostile-mail suite proves
@@ -154,10 +155,11 @@ the React app's structure. Since then:
 - The reader still runs in the system's web view, so its safety still has
   to be proved on WebKitGTK and WebView2 and kept proved as they update.
   The CSP moves from the app's configuration into the page's template.
-- `richtext` keeps all of TipTap's schema, so a reply loses no more of a
-  quoted message than it does today: both flatten its tables, colors and
-  layout. Spell check, which WebKitGTK gave the TipTap editor, has to be
-  built or found; MyGo has none.
+- `richtext` flattens a quoted message's tables, colors and layout, as
+  TipTap's schema does. It merges a quotation inside a quotation into 1
+  level, so a converter keeps the depth (plan 0015, Phase 5). Spell
+  check, which WebKitGTK gave the TipTap editor, has to be built or
+  found; MyGo has none.
 - Find in a conversation and Print span several pages and native text,
   where the React app searched and printed one document.
 - The calendar's day, week and month views are drawn by the app; MyGo's
@@ -185,8 +187,7 @@ the React app's structure. Since then:
   look, and Node stays in the desktop build.
 - **Compose in a web view with the current TipTap editor:** keeps
   WebKit's spell check, but keeps a JavaScript bundle, its toolchain and
-  a trusted page with a bridge in the desktop app, for one window, and
-  keeps no more of a quoted message than `richtext` does.
+  a trusted page with a bridge in the desktop app, for one window.
 
 ## References
 
