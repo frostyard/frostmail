@@ -345,10 +345,10 @@ function EventBlock({
     >
       <div className={`truncate text-[12px] font-semibold leading-[15px] ${eventTitleClasses(occurrence)}`}>
         {occurrence.summary || "No Title"}
-      </div>
+      </div>{" "}
       {height >= 36 && (
         <div className={`text-[11px] leading-[14px] ${active ? "text-accent-contrast" : "text-secondary"}`}>
-          <div className="truncate">{range}</div>
+          <div className="truncate">{range}</div>{" "}
           {occurrence.location && <div className="truncate">{occurrence.location}</div>}
         </div>
       )}
@@ -381,19 +381,21 @@ export function TimeGrid(props: TimeGridProps) {
           <button
             key={date}
             type="button"
-            aria-label={viewTitle("day", date, 0, props.locale)}
             aria-current={date === props.today ? "date" : undefined}
             onClick={() => props.onShowDay(date)}
             className="flex min-w-0 flex-1 flex-col items-center justify-center"
           >
-            <span className="text-[11px] leading-[14px] text-secondary">
+            {/* The header shows the date abbreviated; its name is the full date, as visually hidden text. */}
+            <span aria-hidden="true" className="text-[11px] leading-[14px] text-secondary">
               {new Intl.DateTimeFormat(props.locale, { weekday: "short", timeZone: "UTC" }).format(new Date(date))}
             </span>
             <span
+              aria-hidden="true"
               className={`flex size-6 items-center justify-center rounded-full text-[15px] leading-5 ${date === props.today ? "bg-accent text-accent-contrast" : ""}`}
             >
               {new Intl.DateTimeFormat(props.locale, { day: "numeric", timeZone: "UTC" }).format(new Date(date))}
             </span>
+            <span className="sr-only">{viewTitle("day", date, 0, props.locale)}</span>
           </button>
         ))}
       </header>

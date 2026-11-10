@@ -144,7 +144,7 @@ describe("dragging events in Calendar", () => {
   it("moves by days in the month view, and leaves invitations alone", async () => {
     const { calls } = await setup();
     fireEvent.keyDown(window, { key: "3", ctrlKey: true, altKey: true });
-    const cell = (name: string) => screen.getByRole("gridcell", { name });
+    const cell = (name: string) => screen.getByRole("gridcell", { name: new RegExp(`^${name}`) });
     const review = await within(cell("Thursday, October 8, 2026")).findByRole("button", { name: /^Design review/ });
     expect(
       within(cell("Friday, October 9, 2026"))

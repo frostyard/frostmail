@@ -43,20 +43,30 @@ describe("MessageHeader names", () => {
   it("makes the sender and recipients buttons that open the contact card", () => {
     const onAddress = vi.fn();
     render(<MessageHeader message={message} onAddress={onAddress} />);
-    const sender = screen.getByRole("button", { name: "ann@northwind.test" });
+    const sender = screen.getByRole("button", { name: /^Ann Smith, ann@northwind\.test$/ });
     expect(sender.textContent).toBe("Ann Smith");
     expect(sender.className).toContain("text-reader-sender");
     fireEvent.click(sender);
     expect(onAddress).toHaveBeenLastCalledWith({ name: "Ann Smith", address: "ann@northwind.test" }, { x: 0, y: 0 });
     for (const a of ["bob@x.test", "carol@x.test", "dan@x.test", "gus@x.test"]) {
-      expect(screen.getByRole("button", { name: a })).toBeTruthy();
+      expect(screen.getByRole("button", { name: new RegExp(`${a}$`) })).toBeTruthy();
     }
-    expect(screen.queryByRole("button", { name: "eve@x.test" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /eve@x\.test$/ })).toBeNull();
     expect(screen.getByRole("button", { name: "carol@x.test" }).textContent).toBe("carol@x.test");
-    const to = screen.getByRole("button", { name: "bob@x.test" }).parentElement;
+    const to = screen.getByRole("button", { name: /bob@x\.test$/ }).parentElement;
     expect(to?.textContent).toBe("To: Bob, carol@x.test, Dan & 2 more");
-    fireEvent.click(screen.getByRole("button", { name: "gus@x.test" }));
+    fireEvent.click(screen.getByRole("button", { name: /gus@x\.test$/ }));
     expect(onAddress).toHaveBeenLastCalledWith({ name: "Gus", address: "gus@x.test" }, { x: 0, y: 0 });
+  });
+
+  it("starts each address button's name with its visible text", () => {
+    render(<MessageHeader message={message} onAddress={vi.fn()} />);
+    // The visible text must be part of the name (label-content-name-mismatch).
+    const sender = screen.getByRole("button", { name: /ann@northwind\.test/ });
+    expect(sender.getAttribute("aria-label")).toBe("Ann Smith, ann@northwind.test");
+    // With no display name, the address is the visible text and the name.
+    const carol = screen.getByRole("button", { name: "carol@x.test" });
+    expect(carol.getAttribute("aria-label")).toBe("carol@x.test");
   });
 
   it("keeps plain text without onAddress", () => {

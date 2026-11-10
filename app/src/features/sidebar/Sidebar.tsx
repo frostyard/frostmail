@@ -132,7 +132,7 @@ function Row({
       role="treeitem"
       tabIndex={-1}
       data-key={item.key}
-      aria-level={item.depth + 1}
+      aria-level={item.depth + 2}
       aria-selected={selected}
       aria-disabled={item.selectable ? undefined : true}
       className={classes}
@@ -247,45 +247,44 @@ export function Sidebar(props: SidebarProps) {
         const open = !collapsed.has(section.key);
         return (
           <div key={section.key}>
-            <div className="group flex items-center">
-              <button
-                type="button"
-                aria-expanded={open}
-                onClick={() => toggle(section.key)}
-                className="flex h-[26px] flex-1 min-w-0 items-center gap-1 border-0 bg-transparent pl-3 text-left text-sidebar-section text-secondary"
-              >
-                <span className="truncate">{section.title}</span>
-                {section.accountId !== undefined && <SyncDot indicator={props.sync[section.accountId]} />}
-                <ChevronDown
-                  size={12}
-                  className={`shrink-0 opacity-0 group-hover:opacity-100 ${open ? "" : "-rotate-90"}`}
-                />
-              </button>
-              {section.addLabel && props.onAdd && (
+            {/* biome-ignore lint/a11y/useFocusableInteractive: the section header is a level-1 tree item; its buttons, not the item, take focus. */}
+            <div role="treeitem" aria-level={1} aria-expanded={open} aria-label={section.title}>
+              <div className="group flex items-center">
                 <button
                   type="button"
-                  aria-label={section.addLabel}
-                  onClick={() => props.onAdd?.(section.key)}
-                  className="mr-3 text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+                  aria-expanded={open}
+                  onClick={() => toggle(section.key)}
+                  className="flex h-[26px] flex-1 min-w-0 items-center gap-1 border-0 bg-transparent pl-3 text-left text-sidebar-section text-secondary"
                 >
-                  <Plus size={14} />
-                </button>
-              )}
-            </div>
-            {open && (
-              // biome-ignore lint/a11y/useSemanticElements: a tree's rows are grouped by role="group"; a fieldset would not belong in a tree.
-              <div role="group">
-                {section.items.map((item) => (
-                  <Row
-                    key={item.key}
-                    item={item}
-                    selected={item.key === props.selectedKey}
-                    focused={props.focused}
-                    dropTarget={item.key === dropTarget}
+                  <span className="truncate">{section.title}</span>
+                  {section.accountId !== undefined && <SyncDot indicator={props.sync[section.accountId]} />}
+                  <ChevronDown
+                    size={12}
+                    className={`shrink-0 opacity-0 group-hover:opacity-100 ${open ? "" : "-rotate-90"}`}
                   />
-                ))}
+                </button>
+                {section.addLabel && props.onAdd && (
+                  <button
+                    type="button"
+                    aria-label={section.addLabel}
+                    onClick={() => props.onAdd?.(section.key)}
+                    className="mr-3 text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+                  >
+                    <Plus size={14} />
+                  </button>
+                )}
               </div>
-            )}
+            </div>
+            {open &&
+              section.items.map((item) => (
+                <Row
+                  key={item.key}
+                  item={item}
+                  selected={item.key === props.selectedKey}
+                  focused={props.focused}
+                  dropTarget={item.key === dropTarget}
+                />
+              ))}
           </div>
         );
       })}

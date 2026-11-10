@@ -39,25 +39,32 @@ function calls(mock: MockTransport, method: string) {
 }
 
 describe("row actions in the message list", () => {
+  // The actions are a mouse-only duplicate of the row's keyboard commands.
+  const action = (row: HTMLElement, name: string) => {
+    const found = row.querySelector<HTMLElement>(`[data-action="${name}"]`);
+    if (!found) throw new Error(`no ${name} action`);
+    return found;
+  };
+
   it("archive, flag and delete the row's message alone", async () => {
     const { mock } = setup();
     const row = await firstRow();
     const id = Number(row.getAttribute("data-message-id"));
     const flagged = mock.message(id)?.summary.flags.flagged ?? false;
 
-    fireEvent.click(within(row).getByRole("button", { name: flagged ? "Unflag" : "Flag" }));
+    fireEvent.click(action(row, "flag"));
     await waitFor(() =>
       expect(calls(mock, "message.setFlags")).toEqual([{ ids: [id], changes: { flagColor: flagged ? 0 : 1 } }]),
     );
 
-    fireEvent.click(within(row).getByRole("button", { name: "Archive" }));
+    fireEvent.click(action(row, "archive"));
     await waitFor(() => expect(calls(mock, "message.move")).toEqual([{ ids: [id], mailboxId: FIXTURE.archive }]));
     expect(useUI.getState().selected).toEqual([]);
 
     const next = await firstRow();
     const nextId = Number(next.getAttribute("data-message-id"));
     expect(nextId).not.toBe(id);
-    fireEvent.click(within(next).getByRole("button", { name: "Delete" }));
+    fireEvent.click(action(next, "delete"));
     await waitFor(() => expect(calls(mock, "message.delete")).toEqual([{ ids: [nextId] }]));
     expect(useUI.getState().selected).toEqual([]);
   });
@@ -65,6 +72,6 @@ describe("row actions in the message list", () => {
   it("are absent on a read-only account's rows", async () => {
     setup(true);
     const row = await firstRow();
-    expect(within(row).queryByRole("group", { name: "Message actions" })).toBeNull();
+    expect(row.querySelector("[data-action]")).toBeNull();
   });
 });

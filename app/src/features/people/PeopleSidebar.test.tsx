@@ -32,12 +32,35 @@ describe("PeopleSidebar", () => {
     expect(
       within(tree)
         .getAllByRole("treeitem")
-        .map((r) => r.getAttribute("data-key")),
+        .flatMap((r) => r.getAttribute("data-key") ?? []),
     ).toEqual(["all", "book:10", "book:20", "book:21"]);
     for (const title of ["People", "Gmail", "iCloud"]) {
       expect(screen.getByRole("button", { name: title }).getAttribute("aria-expanded")).toBe("true");
     }
     expect(row("All Contacts").textContent).toBe("All Contacts");
+  });
+
+  it("heads each section with a level-1 tree item that holds its button", () => {
+    sidebar();
+    // A tree may own only tree items: each section header is one, and the books
+    // below it are the next level.
+    const tree = screen.getByRole("tree", { name: "Address Books" });
+    const headers = within(tree)
+      .getAllByRole("treeitem")
+      .filter((r) => r.getAttribute("aria-level") === "1");
+    expect(headers.map((h) => h.getAttribute("aria-label"))).toEqual(["People", "Gmail", "iCloud"]);
+    for (const header of headers) {
+      expect(header.getAttribute("aria-expanded")).toBe("true");
+      expect(header.hasAttribute("tabindex")).toBe(false);
+      expect(header.parentElement?.parentElement).toBe(tree);
+      expect(header.parentElement?.hasAttribute("role")).toBe(false);
+      expect(within(header).getAllByRole("button")).toHaveLength(1);
+    }
+    expect(
+      within(tree)
+        .getByRole("treeitem", { name: /^All Contacts/ })
+        .getAttribute("aria-level"),
+    ).toBe("2");
   });
 
   it("marks read-only address books", () => {

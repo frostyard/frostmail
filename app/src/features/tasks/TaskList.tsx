@@ -76,6 +76,7 @@ function Row({
       tabIndex={-1}
       data-id={id}
       aria-selected={selected}
+      aria-checked={completed}
       style={{ paddingLeft: level === 1 ? "40px" : "12px" }}
       className={`relative flex min-h-9 items-start gap-[10px] py-2 pr-3 ${selected ? (contrast ? "bg-accent text-accent-contrast" : "bg-selection-inactive") : ""}`}
       onClick={() => props.onSelect(id)}
@@ -86,21 +87,20 @@ function Row({
         }
       }}
     >
-      {/* biome-ignore lint/a11y/useSemanticElements: the task contract requires a button with checkbox semantics, matching CalendarSidebar. */}
-      <button
-        type="button"
-        role="checkbox"
-        aria-label="Completed"
-        aria-checked={completed}
-        disabled={readOnly}
+      {/* The circle is the pointer's way to tick a task; Space on the selected
+          row does the same from the keyboard. So it is mouse-only and hidden
+          from assistive technology, and the option carries the state. */}
+      <span
+        aria-hidden="true"
+        data-complete=""
         className={`flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] ${completed ? "border-accent bg-accent text-accent-contrast" : contrast ? "border-accent-contrast" : "border-tertiary"}`}
         onClick={(event) => {
           event.stopPropagation();
-          props.onToggle(id, !completed);
+          if (!readOnly) props.onToggle(id, !completed);
         }}
       >
         {completed && <Check size={12} aria-hidden="true" />}
-      </button>
+      </span>
       <div className="min-w-0 flex-1">
         <div className={`truncate text-list-subject ${completed ? "text-tertiary" : ""}`}>{title}</div>
         {detail && (
@@ -120,13 +120,9 @@ export function TaskList(props: TaskListProps) {
   const { title, lines, messages, canCreate, newTaskRef, today, now, locale, onCreate } = props;
   const box = useRef<HTMLDivElement>(null);
   return (
-    <div
-      ref={box}
-      role="listbox"
-      aria-label={title}
-      tabIndex={0}
-      className="flex h-full flex-col overflow-y-auto bg-window outline-none"
-    >
+    // The scroll container; the listbox is inside it, because a listbox may own
+    // only options (and groups), not the New Task field.
+    <div className="flex h-full flex-col overflow-y-auto bg-window">
       {canCreate && (
         <div className="flex h-10 shrink-0 items-center gap-3 border-b border-separator px-3">
           <Plus size={16} aria-hidden="true" className="text-tertiary" />
@@ -152,81 +148,89 @@ export function TaskList(props: TaskListProps) {
           />
         </div>
       )}
-      {messages !== null
-        ? messages.map((message) => (
-            <Row
-              key={message.id}
-              id={message.id}
-              props={props}
-              title={message.subject || "No Subject"}
-              detail={
-                <>
-                  {displayName(message.from)} · {formatListDate(new Date(message.date), now, locale)}
-                </>
-              }
-              icon={
-                <Flag
-                  size={14}
-                  aria-label={`Flagged ${flagName(message.flags.flagColor)}`}
-                  className={`shrink-0 fill-current ${FLAG_CLASSES[message.flags.flagColor] ?? ""}`}
-                />
-              }
-            />
-          ))
-        : lines.map((line, index) => {
-            const next = lines[index + 1];
-            if (line.kind === "header")
-              return (
-                <div
-                  key={`header:${line.listId}:${next?.kind === "task" ? next.task.id : line.name}`}
-                  role="presentation"
-                  data-list={line.listId}
-                  className="flex h-7 shrink-0 items-center pl-3 text-sidebar-section text-secondary"
-                >
-                  {line.name}
-                </div>
-              );
-            const { task, level } = line;
-            const notes = task.notes.split(/\r?\n/)[0] ?? "";
-            return (
+      <div
+        ref={box}
+        role="listbox"
+        aria-label={title}
+        tabIndex={0}
+        className="flex min-h-0 flex-1 flex-col outline-none"
+      >
+        {messages !== null
+          ? messages.map((message) => (
               <Row
-                key={task.id}
-                id={task.id}
+                key={message.id}
+                id={message.id}
                 props={props}
-                level={level}
-                completed={task.completed}
-                readOnly={task.readOnly}
-                title={task.title}
+                title={message.subject || "No Subject"}
                 detail={
-                  task.due || notes ? (
-                    <>
-                      {task.due && (
-                        <span className={isOverdue(task, today) ? "text-flag-1" : ""}>
-                          {dueText(task.due, today, locale)}
-                        </span>
-                      )}
-                      {task.due && notes ? " · " : ""}
-                      {notes}
-                    </>
-                  ) : null
+                  <>
+                    {displayName(message.from)} · {formatListDate(new Date(message.date), now, locale)}
+                  </>
                 }
                 icon={
-                  task.messageId ? (
-                    <Mail
-                      size={14}
-                      aria-label="From mail"
-                      className={`shrink-0 ${task.id === props.selected && props.focused ? "text-accent-contrast" : "text-secondary"}`}
-                    />
-                  ) : null
+                  <Flag
+                    size={14}
+                    aria-label={`Flagged ${flagName(message.flags.flagColor)}`}
+                    className={`shrink-0 fill-current ${FLAG_CLASSES[message.flags.flagColor] ?? ""}`}
+                  />
                 }
               />
-            );
-          })}
-      {(messages !== null ? messages.length === 0 : lines.length === 0) && (
-        <div className="flex flex-1 items-center justify-center text-empty text-secondary">
-          {messages !== null ? "No Flagged Mail" : "No Tasks"}
-        </div>
-      )}
+            ))
+          : lines.map((line, index) => {
+              const next = lines[index + 1];
+              if (line.kind === "header")
+                return (
+                  <div
+                    key={`header:${line.listId}:${next?.kind === "task" ? next.task.id : line.name}`}
+                    role="presentation"
+                    data-list={line.listId}
+                    className="flex h-7 shrink-0 items-center pl-3 text-sidebar-section text-secondary"
+                  >
+                    {line.name}
+                  </div>
+                );
+              const { task, level } = line;
+              const notes = task.notes.split(/\r?\n/)[0] ?? "";
+              return (
+                <Row
+                  key={task.id}
+                  id={task.id}
+                  props={props}
+                  level={level}
+                  completed={task.completed}
+                  readOnly={task.readOnly}
+                  title={task.title}
+                  detail={
+                    task.due || notes ? (
+                      <>
+                        {task.due && (
+                          <span className={isOverdue(task, today) ? "text-flag-1" : ""}>
+                            {dueText(task.due, today, locale)}
+                          </span>
+                        )}
+                        {task.due && notes ? " · " : ""}
+                        {notes}
+                      </>
+                    ) : null
+                  }
+                  icon={
+                    task.messageId ? (
+                      <Mail
+                        size={14}
+                        aria-label="From mail"
+                        className={`shrink-0 ${task.id === props.selected && props.focused ? "text-accent-contrast" : "text-secondary"}`}
+                      />
+                    ) : null
+                  }
+                />
+              );
+            })}
+        {(messages !== null ? messages.length === 0 : lines.length === 0) && (
+          <div className="flex flex-1 items-center justify-center text-empty text-secondary">
+            {messages !== null ? "No Flagged Mail" : "No Tasks"}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

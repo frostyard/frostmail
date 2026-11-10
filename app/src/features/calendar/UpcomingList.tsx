@@ -38,7 +38,7 @@ export function UpcomingList({ occurrences, colors, timeZone, locale, now, onOpe
             onClick={() => onOpen(occurrence)}
           >
             <span aria-hidden="true" className="h-[6px] w-[6px] shrink-0 rounded-full bg-[var(--event-color)]" />
-            <span className="min-w-0 flex-1 truncate text-list-subject">{title}</span>
+            <span className="min-w-0 flex-1 truncate text-list-subject">{title}</span>{" "}
             <span className="shrink-0 text-list-date text-secondary tabular-nums">{when}</span>
           </button>
         );

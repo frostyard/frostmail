@@ -51,7 +51,7 @@ describe("the sidebar's VIPs and flag colors", () => {
     await waitFor(() => expect(row("vips")).not.toBeNull());
     const annRow = row(`vip:${ANN[0]}`);
     expect(annRow?.textContent).toContain("Ann Smith");
-    expect(annRow?.getAttribute("aria-level")).toBe("2");
+    expect(annRow?.getAttribute("aria-level")).toBe("3");
     expect(annRow?.querySelector('[data-icon="user"]')).not.toBeNull();
     const annUnread = fromAnn.filter((m) => !m.summary.flags.seen).length;
     if (annUnread > 0) await waitFor(() => expect(row(`vip:${ANN[0]}`)?.textContent).toContain(String(annUnread)));

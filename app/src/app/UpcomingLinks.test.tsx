@@ -8,6 +8,7 @@ import { Session } from "../data/session";
 import { useUI } from "../data/stores";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { senderName } from "../testing/names";
 import { MainWindow } from "./MainWindow";
 
 async function setup() {
@@ -38,7 +39,7 @@ describe("upcoming events", () => {
   it("opens one from the contact card in Calendar", async () => {
     const ann = await setup();
     act(() => useUI.getState().select([ann.id], ann.id));
-    const names = await screen.findAllByRole("button", { name: ann.from.address });
+    const names = await screen.findAllByRole("button", { name: senderName(ann.from.address) });
     fireEvent.click(names[0] as HTMLElement);
     const card = await screen.findByRole("dialog", { name: "Ann Smith" });
     const upcoming = await within(card).findByRole("region", { name: "Upcoming" });

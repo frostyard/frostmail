@@ -59,7 +59,7 @@ describe("Sidebar", () => {
     expect(tree.getAttribute("tabindex")).toBe("0");
     expect(screen.getByRole("button", { name: "Favorites" }).getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByRole("button", { name: /test1@mailtest.test/ }).getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getAllByRole("treeitem").map((r) => r.getAttribute("data-key"))).toEqual([
+    expect(screen.getAllByRole("treeitem").flatMap((r) => r.getAttribute("data-key") ?? [])).toEqual([
       "all-inboxes",
       "flagged",
       "mailbox:1",
@@ -69,13 +69,34 @@ describe("Sidebar", () => {
     ]);
   });
 
+  it("heads each section with a level-1 tree item that holds its buttons", () => {
+    sidebar();
+    // A tree may own only tree items: each section header is one, and the rows
+    // below it are the next level.
+    const tree = screen.getByRole("tree", { name: "Mailboxes" });
+    const headers = within(tree)
+      .getAllByRole("treeitem")
+      .filter((r) => r.getAttribute("aria-level") === "1");
+    expect(headers.map((h) => h.getAttribute("aria-label"))).toEqual(["Favorites", "test1@mailtest.test"]);
+    for (const header of headers) {
+      expect(header.getAttribute("aria-expanded")).toBe("true");
+      expect(header.hasAttribute("tabindex")).toBe(false);
+      // The wrapper between the tree and the header carries no role.
+      expect(header.parentElement?.parentElement).toBe(tree);
+      expect(header.parentElement?.hasAttribute("role")).toBe(false);
+      expect(within(header).getAllByRole("button")).toHaveLength(1);
+    }
+    fireEvent.click(within(headers[1] as HTMLElement).getByRole("button"));
+    expect(headers[1]?.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("shows icons, indentation and unread counts", () => {
     sidebar();
     expect(rowOf("Trash").querySelector("svg")?.getAttribute("data-icon")).toBe("trash-2");
     expect(rowOf("All Inboxes").querySelector("svg")?.getAttribute("data-icon")).toBe("inbox");
     expect(rowOf("Inbox").style.paddingLeft).toBe("4px");
     expect(rowOf("2026").style.paddingLeft).toBe("20px");
-    expect(rowOf("2026").getAttribute("aria-level")).toBe("2");
+    expect(rowOf("2026").getAttribute("aria-level")).toBe("3");
     expect(within(rowOf("Inbox")).getByText("5").className).toContain("tabular-nums");
     expect(within(rowOf("Trash")).queryByText("0")).toBeNull();
   });

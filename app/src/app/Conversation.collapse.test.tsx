@@ -107,7 +107,7 @@ describe("a conversation's collapsed messages", () => {
     const { reader, first, middle, newest } = await setup(false);
     open(first.id);
     const articles = await expandedArticles(reader, 2);
-    expect(articles.map((a) => within(a).getByRole("button", { name: "ann.smith@northwind.test" }))).toHaveLength(2);
+    expect(articles.map((a) => within(a).getByRole("button", { name: /ann\.smith@northwind\.test$/ }))).toHaveLength(2);
     expect(within(reader).getByRole("button", { name: rowName(middle) })).toBeTruthy();
     expect(within(reader).queryByRole("button", { name: rowName(newest) })).toBeNull();
     expect(within(reader).queryByRole("button", { name: rowName(first) })).toBeNull();
@@ -144,7 +144,7 @@ describe("a conversation's collapsed messages", () => {
     const { reader, gets, middle, newest } = await setup(true);
     open(newest.id);
     const [article] = (await expandedArticles(reader, 1)) as [HTMLElement];
-    fireEvent.click(within(article).getByRole("button", { name: "test1@mailtest.test" }));
+    fireEvent.click(within(article).getByRole("button", { name: /test1@mailtest\.test$/ }));
     await expandedArticles(reader, 1);
     expect(within(reader).queryByRole("button", { name: rowName(newest) })).toBeNull();
     fireEvent.click(within(article).getByText(newest.subject, { selector: "header *" }));
