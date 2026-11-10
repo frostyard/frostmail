@@ -103,11 +103,17 @@ func (f *readerFixture) live() []*fakeFrame {
 
 func newReaderFixture(t *testing.T, seed func(mem *imapxtest.Mem)) *readerFixture {
 	t.Helper()
+	return newReaderFixtureUndo(t, seed, 0)
+}
+
+// newReaderFixtureUndo is newReaderFixture with maild's undo delay.
+func newReaderFixtureUndo(t *testing.T, seed func(mem *imapxtest.Mem), undo time.Duration) *readerFixture {
+	t.Helper()
 	mem := imapxtest.StartMemFull(t)
 	seed(mem)
 	data := t.TempDir()
 	cfg := mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, MinBackoff: 50 * time.Millisecond, Chunk: 50, NoPrefetch: true}
-	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, DataDir: data})
+	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, DataDir: data, UndoDelay: undo})
 	ctx := t.Context()
 	c := srv.Dial(t)
 	o := mem.DialOptions()
@@ -552,4 +558,67 @@ func TestInvitationCard(t *testing.T) {
 	f.has(t, "the card", "Planning")
 	f.has(t, "the badge", "Invitation")
 	f.has(t, "the link to the calendar", "Show in Calendar")
+}
+
+// P-505: a sent message shows the undo toast, and Undo reopens its draft.
+func TestUndoSendReopensTheDraft(t *testing.T) {
+	f := newReaderFixtureUndo(t, func(mem *imapxtest.Mem) {
+		raw(mem, t, "From: Ann <ann@x.test>\nTo: me@x.test\nSubject: Alpha report\nMessage-ID: <a@x.test>\nDate: Mon, 09 Nov 2026 09:41:00 +0000\n\nBody\n", imap.FlagSeen)
+	}, time.Hour)
+	f.has(t, "the row", "Alpha report")
+	ctx := t.Context()
+	d, err := f.c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew, To: []api.Address{{Address: "bo@x.test"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := d.Content
+	content.Subject = "Going out"
+	if _, err := f.c.Draft().Update(ctx, &api.DraftUpdateParams{ID: d.ID, Content: content}); err != nil {
+		t.Fatal(err)
+	}
+	item, err := f.c.Draft().Send(ctx, &api.DraftSendParams{ID: d.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.loop.Post(func() { f.win.Sent(item) })
+	f.has(t, "the toast", "Sending “Going out”…")
+	if err := f.tt.Click("Undo"); err != nil {
+		t.Fatal(err)
+	}
+	f.until(t, "the draft reopened", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return slices.Contains(f.drafts, d.ID)
+	})
+}
+
+// A message sent later shows no toast: it waits in its own section.
+func TestSendLaterShowsNoToast(t *testing.T) {
+	f := oneMail(t, "", "Body")
+	at := time.Now().Add(48 * time.Hour)
+	f.loop.Post(func() { f.win.Sent(&api.OutboxItem{ID: 9, Subject: "Later", Scheduled: true, SendAt: &at}) })
+	f.tt.Frame()
+	f.tt.Frame()
+	if f.tt.HasText("Sending “Later”…") {
+		t.Errorf("a toast for a scheduled message: %q", f.tt.Texts())
+	}
+}
+
+// P-413: a Follow Up row opens the message.
+func TestFollowUpRowOpensTheMessage(t *testing.T) {
+	f := newReaderFixture(t, func(mem *imapxtest.Mem) {
+		if _, err := mem.User.Append("Sent", strings.NewReader("From: Me <me@x.test>\r\nTo: Bo <bo@x.test>\r\nSubject: Any news\r\nMessage-ID: <s@x.test>\r\nDate: Sun, 01 Nov 2026 09:41:00 +0000\r\n\r\nStill waiting\r\n"), &imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	f.until(t, "the Follow Up section", func() bool {
+		return slices.ContainsFunc(f.tt.Texts(), func(s string) bool { return strings.HasPrefix(s, "Follow Up (") })
+	})
+	if err := f.tt.Click("Any news"); err != nil {
+		t.Fatal(err)
+	}
+	f.until(t, "the message's page", func() bool {
+		_, ok := f.tt.Access("Message body")
+		return ok
+	})
 }

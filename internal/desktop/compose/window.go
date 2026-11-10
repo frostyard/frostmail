@@ -25,14 +25,15 @@ import (
 
 // saveDelay is how long edits wait before draft.update; attachmentLimit
 // the size the strip warns about, maild's own; uploadChunk one chunk's
-// bytes, whose base64 stays within maild's 4 MiB; suggestLimit how many
-// known addresses the recipient fields offer.
+// bytes, whose base64 stays within maild's 4 MiB; suggestPerLetter how
+// many known addresses the recipient fields offer for each first letter.
 const (
-	saveDelay       = 500 * time.Millisecond
-	attachmentLimit = 25_000_000
-	uploadChunk     = 3 << 20
-	suggestLimit    = 2000
-	callTimeout     = 60 * time.Second
+	saveDelay        = 500 * time.Millisecond
+	attachmentLimit  = 25_000_000
+	uploadChunk      = 3 << 20
+	suggestPerLetter = 60
+	callTimeout      = 60 * time.Second
+	suggestLetters   = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
 
 // Options configure a compose window.
@@ -131,11 +132,40 @@ func (w *Window) Start(ctx context.Context) {
 		if ierr != nil {
 			slog.Warn("listing identities", "err", ierr) // a reminder too many is safe; a missed one is not
 		}
-		limit := int64(suggestLimit)
-		known, _ := w.o.Client.Address().Suggest(ctx, &api.AddressSuggestParams{Prefix: "", Limit: &limit})
+		known := knownAddresses(ctx, w.o.Client)
 		snippets, _ := w.o.Client.Snippet().List(ctx, &api.SnippetListParams{})
 		w.o.Post(func() { w.loadedDraft(d, doc, ids, known, snippets) })
 	}()
+}
+
+// knownAddresses asks maild for what the recipient fields offer, by first
+// letter: MyGo's TokenField does not say what is being typed, and
+// address.suggest answers nothing for an empty prefix. Each letter's list
+// comes best first, and the lists are merged by rank, so contacts and the
+// most used come before the rest.
+func knownAddresses(ctx context.Context, c *api.Client) []api.Address {
+	limit := int64(suggestPerLetter)
+	var lists [][]api.Address
+	for _, letter := range suggestLetters {
+		list, err := c.Address().Suggest(ctx, &api.AddressSuggestParams{Prefix: string(letter), Limit: &limit})
+		if err != nil {
+			slog.Warn("listing known addresses", "err", err)
+			return nil
+		}
+		lists = append(lists, list)
+	}
+	var out []api.Address
+	seen := map[string]bool{}
+	for rank := range suggestPerLetter {
+		for _, list := range lists {
+			if rank >= len(list) || seen[strings.ToLower(list[rank].Address)] {
+				continue
+			}
+			seen[strings.ToLower(list[rank].Address)] = true
+			out = append(out, list[rank])
+		}
+	}
+	return out
 }
 
 func tokens(list []api.Address) []string {

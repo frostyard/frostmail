@@ -638,10 +638,12 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   - With the focus in a one-line field, Ctrl+Shift+A stays with the field
     (MyGo's select all ignores Shift) and Ctrl+Backspace deletes a word.
     The toolbar's buttons and the same keys from the body work.
-  - The recipient fields are MyGo's `TokenField`, offered the 2,000 most
-    used addresses at once rather than asking `address.suggest` as each
-    letter is typed. `;` commits through the parser on Enter or a comma,
-    not by itself.
+  - The recipient fields are MyGo's `TokenField`, which does not say what
+    is being typed. The window asks `address.suggest` once as it opens,
+    for each first letter (a to z, 0 to 9, at most 60 each), and offers
+    those, merged by rank: not a live query, and a name starting with
+    another letter is found only by its address. `;` commits through the
+    parser on Enter or a comma, not by itself.
 
 ## Phase 6 — Organize (M)
 

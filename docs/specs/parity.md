@@ -49,7 +49,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |  |
 | P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` | `TestSidebarUnifiesAndSums` |
 | P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry). In lodge, the rail and the home-screen icon show the inboxes' unread count (`/health`'s `badge`): `TestHealthBadge` |  |
-| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Have | `TestEraseOld`, `TestDovecotEraseOld`, `AccountForm.erase.test.tsx`, `SettingsWindow.erase.test.tsx` |  |
+| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Have | `TestEraseOld`, `TestDovecotEraseOld`, `AccountForm.erase.test.tsx`, `SettingsWindow.erase.test.tsx` | `TestMailboxBehaviorsNameTheMailboxesAndLeaveOutTheRest` |
 
 ## The message list
 
@@ -102,7 +102,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` | `TestMuteFromTheRow` |
 | P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` | `TestBlockFromThePopover` |
 | P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` | `TestRemindMeFromTheRow` |
-| P-413 | Follow Up: sent mail with no reply after three days returns | A sidebar section of sent mail with no reply after 3 days, VIPs first, at most 25 shown with the count | Have | `FollowUp.test.tsx`, `followup.test.ts`, `TestAwaitingOthers` |  |
+| P-413 | Follow Up: sent mail with no reply after three days returns | A sidebar section of sent mail with no reply after 3 days, VIPs first, at most 25 shown with the count | Have | `FollowUp.test.tsx`, `followup.test.ts`, `TestAwaitingOthers` | `TestFollowUpRowOpensTheMessage` |
 | P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` | `TestApplyRulesInTheRowMenu` |
 | P-415 | Move to the predicted mailbox | | Out | On-device learning |  |
 
@@ -112,10 +112,10 @@ tasks are not Mail's and are not listed; their parity is
 | --- | --- | --- | --- | --- | --- |
 | P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` | `TestNewMessageWithAttachment`, `TestAttachByBytes`, `TestBccToggleAndFormatBar` |
 | P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` | `TestSignatureEditsAsTextAndSavesAsHTML`, `TestAddAndRemoveAnAddress` |
-| P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` |  |
-| P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |  |
-| P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |  |
-| P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` |  |
+| P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` | `TestInsertSnippet` |
+| P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` | `TestRecipientsOfferKnownAddresses` |
+| P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` | `TestUndoSendReopensTheDraft` |
+| P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` | `TestSendLaterQueuesForItsTime`, `TestSendLaterShowsNoToast` |
 | P-507 | Message priority | | Later | Rarely used |  |
 | P-508 | Reply quoting the selected text | Same, in the desktop app; the web build quotes the whole message | Have | `TestQuoteHTMLSelectedText`, `TestReplyQuotesTheSelectedText`; `quoteSelection.test.ts`, `commands.quoteSelection.test.ts`, `Palette.test.tsx` (holds the reader selection before its field takes focus, and clears it on close) | `TestReplyQuotesTheSelection`, `TestReplyWithSelectionKeepsOnlyTheSelection` |
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |  |
@@ -147,10 +147,10 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` |  |
-| P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` |  |
+| P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` | `TestOpenMessageRevealsIt` (the click; maild notifies) |
+| P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` | `TestGeneralNotifyScope` |
 | P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` | `TestGeneralNotifiesForASmartMailbox` |
-| P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` |  |
+| P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` | maild only: no desktop code |
 | P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |  |
 
 ## Categories
@@ -164,9 +164,9 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
 | P-951 | Accounts, servers, sign-in | Same, with discovery and Google sign-in | Have | `SettingsWindow.add.test.tsx`, `AccountForm.test.tsx` | `TestAddAccountWithPassword`, `TestAddAccountLeavesOutEmptyServers`, `TestAddAccountKeepsTheFormOnAnError` |
-| P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` |  |
+| P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` | `TestNewAccountsAreWritableUnlessChecked` |
 | P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |  |
-| P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |  |
+| P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` | `TestConsoleShowsMailActivity` |
 | P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts; the backlog's [#164](https://github.com/frostyard/frostmail/issues/164) |  |
 | P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` | `TestForOutsideTextFields`, `TestForInATextField` |
 | P-958 | The Help menu's search, which finds a menu command by name | The command palette, Ctrl+Shift+P, with each command's shortcut; a Commands button in the web build ([ui.md](ui.md#command-palette)) | Have | `keymap.palette.test.ts`, `CommandPalette.test.tsx`, `Palette.test.tsx`, `Palette.lodge.test.tsx` | `TestPaletteOpensWithBothKeysAndListsBuiltCommands`, `TestItemsNameAndDisable` |

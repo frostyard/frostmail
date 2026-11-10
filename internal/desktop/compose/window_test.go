@@ -401,3 +401,62 @@ func TestActionsShowBesideTheWindowControls(t *testing.T) {
 		}
 	}
 }
+
+// P-506: a Send Later choice queues the message for its time and sends
+// nothing now.
+func TestSendLaterQueuesForItsTime(t *testing.T) {
+	f := start(t)
+	f.open(t, f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew}), true, false)
+	f.addRecipient(t, "bo@x.test")
+	later, ok := f.tt.Access("Send Later")
+	if !ok {
+		t.Fatalf("no Send Later in %q", f.tt.Texts())
+	}
+	f.tt.ClickAt(later.Bounds.X+later.Bounds.W/2, later.Bounds.Y+later.Bounds.H/2)
+	f.tt.Frame()
+	if err := f.tt.ChooseMenuItem("Send 8:00 AM Tomorrow"); err != nil {
+		t.Fatalf("%v; menu %q", err, f.tt.Menu())
+	}
+	f.until(t, "the window closing", f.closed.Load)
+	item := f.sent.Load()
+	if item == nil || !item.Scheduled {
+		t.Fatalf("outbox item %+v", item)
+	}
+	if got := f.sink.Messages(); len(got) != 0 {
+		t.Errorf("%d messages sent now", len(got))
+	}
+}
+
+// P-503: a snippet goes in at the cursor.
+func TestInsertSnippet(t *testing.T) {
+	f := start(t)
+	if _, err := f.c.Snippet().Create(t.Context(), &api.SnippetCreateParams{Name: "Thanks", HTML: "<p>Many thanks</p>"}); err != nil {
+		t.Fatal(err)
+	}
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	menu, ok := f.tt.Access("Insert Snippet")
+	if !ok {
+		t.Fatalf("no Insert Snippet in %q", f.tt.Texts())
+	}
+	f.tt.ClickAt(menu.Bounds.X+menu.Bounds.W/2, menu.Bounds.Y+menu.Bounds.H/2)
+	f.tt.Frame()
+	if err := f.tt.ChooseMenuItem("Thanks"); err != nil {
+		t.Fatalf("%v; menu %q", err, f.tt.Menu())
+	}
+	f.until(t, "the saved snippet", func() bool {
+		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
+		return err == nil && strings.Contains(got.Content.HTML, "Many thanks")
+	})
+}
+
+// P-504: an address seen in mail is offered as the user types.
+func TestRecipientsOfferKnownAddresses(t *testing.T) {
+	f := start(t)
+	f.open(t, f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew}), true, false)
+	f.focus(t, "To")
+	f.tt.Type("ann")
+	f.until(t, "the suggestion", func() bool {
+		return slices.ContainsFunc(f.tt.Texts(), func(s string) bool { return strings.Contains(s, "ann@x.test") })
+	})
+}
