@@ -35,8 +35,9 @@ no ChairLift pattern where it does not fit.
 Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
 Proposed). Phase 0's Linux and Flatpak spikes are run and recorded; its
-Windows spike waits for the test VM. Phase 2's maild side and Phase 1's
-pure packages are built; the windows are next, on frostui. The console of maild's activity (Phase 2) was
+Windows spike waits for the test VM. Phase 1's window runs on Linux
+against a real maild, over `internal/desktop/frame`, a stand-in for
+frostui's coming frame. Phase 2's maild side is built. The console of maild's activity (Phase 2) was
 added on 2026-11-10 at the owner's request, relayed by the orchestrating
 session ("it'd be fun to use that console view from chairlift to show
 background activity in frostmail").
@@ -470,6 +471,19 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   that scrolls with every visible row filled, and comes back by itself
   after maild restarts; the Windows build starts and connects on
   `frostmail-win11`.
+- **Status (2026-11-10): built, with its Linux check run; Windows waits.**
+  `conn`, `live`, `commands`, `mainwin`, `frame`, `uikit.SummaryRow` and
+  `cmd/frostmail`. The check, driven with `mygo-automation` on this
+  desktop against a maild with `FROSTMAIL_SYNC=off`: the window showed
+  `100000 messages`; after 8 wheel events of 50,000 DIPs, the 14 rows
+  built around row 4,762 all held their text; killing maild showed
+  `● Reconnecting to maild…`, and restarting it showed `● Local` and rows
+  again, within the 4 s the check waited. `cmd/frostmail` cross-builds for
+  Windows; running it there waits for `frostmail-win11`
+  ([Phase 0's records](#phase-0s-records-2026-11-10)).
+- **Not in this phase after all:** `--open-message` needs the reader, so
+  it moves to Phase 4; problem records and the production build flags
+  move to Phase 9, with the build they belong to.
 
 ## Phase 2 — maild's activity stream and the console (M)
 
@@ -666,6 +680,8 @@ Windows notifications keep `frostmail-notify.exe` (decided the same day).
 | `internal/desktop/settings` | the settings window, first run, modes | yes |
 | `internal/desktop/platform` | notifications, the portal, Windows' pieces | some |
 | `internal/desktop/uikit` | SafeHTMLView, SummaryRow, TokenSuggest | yes (only std, MyGo, purego, frostui) |
+| `internal/desktop/frame` | a stand-in for frostui's frame and waker, deleted when they land | yes |
+| `internal/desktop/mainwin` | the main window: frame, panes, commands | yes |
 
 Pure packages hold the decisions and are tested with `go test` alone; view
 packages are tested with `ui.NewTester` against `rpctest`, and write PNGs
