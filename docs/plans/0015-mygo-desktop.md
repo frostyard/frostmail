@@ -32,6 +32,12 @@ no ChairLift pattern where it does not fit.
   what it lacks today (a tray, an unread badge, a `mailto:` handler, `.eml`
   files, dragging attachments out, search tokens) stays out of this plan.
 
+Status (2026-11-10, later): Phases 3 to 8 are built on Linux over
+frostui v0.2.0, each with its own status below. Phase 9's parts that
+leave Tauri in place are built. Phase 10 waits on the Windows test
+machine, the manual passes and the owner's view of the differences
+listed under each phase; Tauri stays until then.
+
 Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
 Proposed). Phase 0's Linux and Flatpak spikes are run and recorded; its
@@ -673,6 +679,28 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   Go tests, and the week view of a 400-event fixture month draws a frame
   in under 16 ms on the CI runner.
 
+- **Status (2026-11-10): built on Linux.** `internal/desktop/pim`, with
+  the module bar, the To-Do Bar and the event and reminders windows
+  wired in `mainwin` and `cmd/frostmail`. Its behaviors have headless
+  tests.
+- **Measured:** `TestWeekViewOfA400EventMonthFrameTime`, 400 events in a
+  month and 101 in the week shown, at 1200 × 780, in `ui.Tester` on the
+  development machine: a median of 0.884 ms and a maximum of 3.37 ms over
+  200 frames. The test logs these and asserts no limit; it has not run on
+  CI or a real GPU, so this plan's 16 ms on CI is not yet shown.
+- **Check of 2026-11-10, built app in the Flatpak's sandbox, showcase
+  fixture:** Ctrl+2, 3 and 4 showed Calendar, People and Tasks; the week
+  showed its events; Ctrl+N in Calendar opened a window titled "New
+  Event". Dragging and the reminders window were not run in a real
+  window.
+- **Built but not tested:** choosing through the date, time, zone, repeat
+  and calendar controls; the Menu key; Home and End in Tasks.
+- **Differences to confirm at the gate:** a double click in Month creates
+  an all-day event (the spec says both that and that it shows the day);
+  the time zone list reads `/usr/share/zoneinfo`, so on Windows it offers
+  only the app's and the event's; dates are in English only; the To-Do
+  Bar is inside the reader's pane.
+
 ## Phase 8 — Settings, accounts and the desktop (M)
 
 - The settings window and its seven panes, adding an account and OAuth
@@ -837,10 +865,9 @@ library, MyGo, purego and frostui, so they can move by changing a path:
 ## Open questions
 
 - **Conversation pages:** each web view measured about 35 MB of PSS and
-  1 process ([Phase 0's records](#phase-0s-records-2026-11-10)). Proposed:
-  a web view only for an expanded HTML message, destroyed when it
-  collapses. Decided in Phase 4, against how many messages a real
-  conversation expands.
+  1 process ([Phase 0's records](#phase-0s-records-2026-11-10)). Built as
+  proposed, a page only for an expanded message, destroyed when it
+  collapses; how many a real conversation expands has not been measured.
 
 ## References
 

@@ -12,6 +12,7 @@ import (
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
@@ -394,12 +395,27 @@ func locate(counts []int, index int) (page, local int) {
 	return -1, 0
 }
 
-// showPerson and showOccurrence open other modules; they arrive with them.
-func (w *Window) showPerson(int64) {}
+// showPerson shows a person in People.
+func (w *Window) showPerson(id int64) {
+	w.setModule(commands.People)
+	w.pim.ShowPerson(id)
+}
 
-func (w *Window) showOccurrence(api.Occurrence) {}
+// showOccurrence shows an event in Calendar.
+func (w *Window) showOccurrence(o api.Occurrence) {
+	w.setModule(commands.Calendar)
+	w.pim.ShowOccurrence(o)
+}
 
-func (w *Window) showInvitation(*api.Invitation) {}
+// showInvitation shows an invitation's event in Calendar.
+func (w *Window) showInvitation(inv *api.Invitation) {
+	e := inv.Event
+	o := api.Occurrence{EventID: e.ID, Summary: e.Summary, AllDay: e.AllDay, Start: e.Start, End: e.End, StartDate: e.StartDate, EndDate: e.EndDate}
+	if inv.EventID != nil {
+		o.EventID = *inv.EventID
+	}
+	w.showOccurrence(o)
+}
 
 func (w *Window) askRemind(ids []int64, at time.Time) {
 	w.later.Show("Remind Me", at, func(chosen time.Time) { w.remind(ids, &chosen) })

@@ -75,8 +75,10 @@ Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
 and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Proposed) adds maild's activity stream for the app's console; its maild
-side is built (`mailctl activity`). `cmd/frostmail` draws the main window on
-Linux on frostui v0.2.0's `PaneShell`.
+side is built (`mailctl activity`). `cmd/frostmail` draws every window on
+Linux on frostui v0.2.0 (`internal/desktop/`: `mainwin`, `compose`, `organize`,
+`pim`, `settings`); plan 0015 has each phase's status, and Tauri stays until
+its parity gate.
 
 ## Two kinds of agent work
 

@@ -606,6 +606,10 @@ func (w *Window) readerButtons(c *ui.Context) {
 	ui.MenuButton(c, "", func(m *ui.Menu) { w.moveMenu(m, ids, rows) }).Disabled(!has).Label("Move").Tooltip("Move").Children(func() {
 		frostui.Icon(c, "folder")
 	})
+	ui.Spacer(c)
+	if frostui.IconButton(c, "sidebar-show-right", "To-Do Bar").Selected(w.todoOpen).Role(ui.RoleToggleButton).Checked(w.todoOpen).Clicked() {
+		w.todoOpen = !w.todoOpen
+	}
 }
 
 func (w *Window) flagMenu(m *ui.Menu, ids []int64, rows []api.MessageSummary) {

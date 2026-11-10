@@ -20,6 +20,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/organize"
+	"github.com/frostyard/frostmail/internal/desktop/pim"
 	"github.com/frostyard/frostmail/internal/desktop/settings"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
@@ -60,6 +61,15 @@ type Options struct {
 	// SaveDialog asks where to save; "" for cancelled. It runs on a
 	// worker. filter and extension may be empty.
 	SaveDialog func(title, name, filter, extension string) (string, error)
+	// OpenWindow shows or raises one of Calendar's windows by key;
+	// CloseWindow closes it, and SetWindowTitle retitles it. nil for none.
+	OpenWindow     func(pim.WindowSpec)
+	CloseWindow    func(key string)
+	SetWindowTitle func(key, title string)
+	// OpenImage asks for a contact's photo, on a worker; "" for cancelled.
+	OpenImage func() (string, error)
+	// StateFile keeps the window's layout between runs; "" keeps none.
+	StateFile string
 	// Settings is the settings model, which the connection feeds and whose
 	// welcome shows in place of the panes; nil for none.
 	Settings *settings.Window
@@ -122,6 +132,10 @@ type Window struct {
 	toasts        []ui.Toast
 	onFrame       []func(c *ui.Context) // what needs the window's context
 	later         uikit.TimeSheet
+	pim           *pim.Module
+	module        commands.Module
+	tableModule   commands.Module
+	todoOpen      bool
 	smartSheet    organize.SmartSheet
 	mailboxSheet  organize.MailboxSheet
 	redirect      *redirectSheet
@@ -155,6 +169,11 @@ func New(o Options) *Window {
 	deps := organize.Deps{Post: o.Post, Client: func() *api.Client { return w.client }, Context: w.organizeContext}
 	w.smartSheet.Deps, w.mailboxSheet.Deps = deps, deps
 	w.smartSheet.Created = func(id int64) { w.setSource(mail.Source{Kind: mail.Smart, ID: id}) }
+	w.module, w.tableModule = commands.Mail, commands.Mail
+	w.pim = pim.New(pim.Options{Post: o.Post, Wake: w.waker.Wake, Now: o.Now, Dialogs: w.shell.Dialogs, Toast: w.pimToast,
+		Compose: w.composeTo, OpenMessage: w.showMessage, OpenWindow: w.openWindow, CloseWindow: o.CloseWindow,
+		SetWindowTitle: o.SetWindowTitle, ShowModule: w.setModule, OpenImage: o.OpenImage})
+	w.loadState()
 	w.mail = live.NewMail(w.waker.Wake)
 	w.act = live.NewActivity(w.addActivity)
 	w.console.SetNotify(w.waker.Wake)
@@ -162,32 +181,38 @@ func New(o Options) *Window {
 		OnConnect: w.connected, OnChange: w.changed})
 	w.handlers = map[commands.Command]func(){
 		commands.ToggleSidebar: func() { w.shell.Panes.Toggle(paneSidebar) },
-		commands.AllInboxes:    func() { w.setSource(mail.Source{Kind: mail.AllInboxes}) },
-		commands.GetMail:       w.getMail,
-		commands.Shortcuts:     w.showShortcuts,
-		commands.About:         w.showAbout,
-		commands.Undo:          w.runUndo,
-		commands.Archive:       func() { w.archive(w.selectedIDs()) },
-		commands.Delete:        func() { w.delete(w.selectedIDs()) },
-		commands.Junk:          func() { w.toggleSpam(w.selectedIDs()) },
-		commands.ToggleRead:    func() { w.toggleRead(w.selectedIDs()) },
-		commands.ToggleFlag:    func() { w.toggleFlag(w.selectedIDs()) },
-		commands.FocusSearch:   func() { w.focusSearch = true },
-		commands.Escape:        w.escape,
-		commands.Find:          w.startFind,
-		commands.Print:         w.printMessage,
-		commands.RawSource:     w.rawSourceCommand,
-		commands.AllHeaders:    w.allHeadersCommand,
-		commands.Reply:         func() { w.reply(api.DraftKindReply) },
-		commands.ReplyAll:      func() { w.reply(api.DraftKindReplyall) },
-		commands.Forward:       func() { w.forward() },
-		commands.Compose:       w.compose,
-		commands.PageDown:      func() { w.pageReader(1) },
-		commands.PageUp:        func() { w.pageReader(-1) },
-		commands.Open:          w.openSelected,
-		commands.Redirect:      w.askRedirect,
-		commands.NextPane:      func() { w.cyclePane(1) },
-		commands.PreviousPane:  func() { w.cyclePane(-1) },
+		commands.AllInboxes: func() {
+			w.setModule(commands.Mail)
+			w.setSource(mail.Source{Kind: mail.AllInboxes})
+		},
+		commands.ShowCalendar: func() { w.setModule(commands.Calendar) },
+		commands.ShowPeople:   func() { w.setModule(commands.People) },
+		commands.ShowTasks:    func() { w.setModule(commands.Tasks) },
+		commands.GetMail:      w.getMail,
+		commands.Shortcuts:    w.showShortcuts,
+		commands.About:        w.showAbout,
+		commands.Undo:         w.runUndo,
+		commands.Archive:      func() { w.archive(w.selectedIDs()) },
+		commands.Delete:       func() { w.delete(w.selectedIDs()) },
+		commands.Junk:         func() { w.toggleSpam(w.selectedIDs()) },
+		commands.ToggleRead:   func() { w.toggleRead(w.selectedIDs()) },
+		commands.ToggleFlag:   func() { w.toggleFlag(w.selectedIDs()) },
+		commands.FocusSearch:  func() { w.focusSearch = true },
+		commands.Escape:       w.escape,
+		commands.Find:         w.startFind,
+		commands.Print:        w.printMessage,
+		commands.RawSource:    w.rawSourceCommand,
+		commands.AllHeaders:   w.allHeadersCommand,
+		commands.Reply:        func() { w.reply(api.DraftKindReply) },
+		commands.ReplyAll:     func() { w.reply(api.DraftKindReplyall) },
+		commands.Forward:      func() { w.forward() },
+		commands.Compose:      w.compose,
+		commands.PageDown:     func() { w.pageReader(1) },
+		commands.PageUp:       func() { w.pageReader(-1) },
+		commands.Open:         w.openSelected,
+		commands.Redirect:     w.askRedirect,
+		commands.NextPane:     func() { w.cyclePane(1) },
+		commands.PreviousPane: func() { w.cyclePane(-1) },
 	}
 	if o.OpenSettings != nil {
 		w.handlers[commands.Settings] = func() { o.OpenSettings("") }
@@ -231,6 +256,9 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 	if err := w.act.Connect(ctx, c, events); err != nil {
 		return err
 	}
+	if err := w.pim.Connect(ctx, c, events); err != nil {
+		return err
+	}
 	if w.o.Settings != nil {
 		if err := w.o.Settings.Connect(ctx, c, events); err != nil {
 			return err
@@ -250,6 +278,7 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 func (w *Window) changed(st conn.State) {
 	if !st.Connected {
 		w.mail.Disconnect()
+		w.pim.Disconnect()
 		if w.o.Settings != nil {
 			w.o.Settings.Disconnect()
 		}
@@ -369,11 +398,7 @@ func (w *Window) View(c *ui.Context) {
 	}
 	w.onFrame = nil
 	w.syncReveal()
-	w.table.Add(commands.Table(commands.Mail, func() int { return len(w.selectedIDs()) }, w.handlers)...)
-	if w.readerFocused {
-		// In the reader Tab walks its rows and buttons.
-		w.table.Remove(string(commands.NextPane), string(commands.PreviousPane))
-	}
+	w.syncTable()
 	conn := w.connection()
 	frame := frostui.PaneFrame{
 		Menu:        w.table.Menu(string(commands.Settings), "", string(commands.Shortcuts), string(commands.About)),
@@ -386,7 +411,7 @@ func (w *Window) View(c *ui.Context) {
 	if w.o.Settings != nil && w.o.Settings.NeedsFirstRun() {
 		frame.Content = func() { w.o.Settings.FirstRun(c) }
 	} else {
-		frame.SidebarPane, frame.Panes = paneSidebar, w.panes(c)
+		frame.SidebarPane, frame.Panes = paneSidebar, w.modulePanes(c)
 	}
 	w.shell.View(c, frame)
 	w.rawSourceView(c)
@@ -411,7 +436,7 @@ func (w *Window) panes(c *ui.Context) []frostui.Pane {
 			Bar: func() { w.sidebarBar(c) }, Content: func() { w.sidebar(c) }},
 		{ID: paneList, Label: "Messages", Width: listDefault, Min: 280, Max: 560,
 			Bar: func() { w.listBar(c) }, Content: func() { w.messages(c) }},
-		{ID: paneReader, Label: "Reader", Min: 360, Content: func() { w.reader(c) }},
+		{ID: paneReader, Label: "Reader", Min: 360, Content: func() { w.readerAndToDo(c) }},
 	}
 }
 
@@ -482,7 +507,7 @@ func (w *Window) status() []frostui.StatusItem {
 }
 
 func (w *Window) statusEnd() []frostui.StatusItem {
-	if w.view == nil {
+	if w.view == nil || w.module != commands.Mail {
 		return nil
 	}
 	return []frostui.StatusItem{{Text: plural(w.view.Count(), "message", "messages"), Progress: -1}}

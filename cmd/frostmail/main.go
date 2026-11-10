@@ -83,13 +83,27 @@ func run() error {
 		var frames *uikit.SafeHTMLView
 		var composer *composeWindows
 		windows := &windowSet{}
+		stateFile := ""
+		if file, err := config.AppConfigFile(os.Getenv); err == nil {
+			stateFile = filepath.Join(filepath.Dir(file), "window.json")
+		}
 		prefs, err := newSettings(post.post, target, func() *mainwin.Window { return main })
 		if err != nil {
 			slog.Error("the settings window", "err", err)
 			mygo.App.Quit()
 			return
 		}
-		main = mainwin.New(mainwin.Options{Target: target, Client: "frostmail " + version, Post: post.post,
+		calendarWindows := &pimWindows{windows: map[string]*mygo.Window{}, all: windows}
+		// Calendar's windows draw state the main window's posts change.
+		postAll := func(fn func()) {
+			post.post(func() {
+				fn()
+				calendarWindows.redraw()
+			})
+		}
+		main = mainwin.New(mainwin.Options{Target: target, Client: "frostmail " + version, Post: postAll,
+			OpenWindow: calendarWindows.open, CloseWindow: calendarWindows.close, SetWindowTitle: calendarWindows.setTitle,
+			OpenImage: openImage, StateFile: stateFile,
 			CacheDir:     paths.CacheDir,
 			DownloadDir:  filepath.Join(paths.CacheDir, "frostmail-app", "attachments"),
 			NewFrame:     func() (uikit.Frame, error) { return frames.New() },
@@ -111,6 +125,7 @@ func run() error {
 		post.attach(win)
 		windows.add(win)
 		win.OnClosed(prefs.close)
+		win.OnClosed(main.SaveState)
 		frames = uikit.NewSafeHTMLView(win, main.OpenLink, func() { post.post(func() {}) })
 		main.Start(ctx)
 		if id, ok := openMessageArg(os.Args[1:]); ok {

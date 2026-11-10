@@ -99,6 +99,7 @@ func (w *Window) sidebar(c *ui.Context) {
 		}
 		w.followUp(c, st)
 		w.outbox(c, st)
+		w.moduleBar(c)
 	})
 }
 
