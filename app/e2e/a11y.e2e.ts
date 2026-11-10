@@ -7,13 +7,13 @@
 // axe-core runs in the page: the harness reads its bundle from
 // node_modules and injects it through WebDriver, as the other app tests run
 // their scripts. Moderate and minor findings are printed, not failed.
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
 
-import { type App, fixture, launch, ROOT, tempDir, WINDOWS } from "./harness";
+import { type App, fixture, launch, ROOT, tempDir, until, WINDOWS } from "./harness";
 import type { Session } from "./webdriver";
 
 const SHOWCASE = join(ROOT, "app/e2e/showcase");
@@ -34,10 +34,60 @@ const REPORT_ONLY = new Set(["color-contrast"]);
 
 let app: App | undefined;
 
+let mainHandle: string | undefined;
+
 afterEach(async () => {
-  await app?.stop();
+  const launched = app;
   app = undefined;
+  if (!launched) return;
+  // A launch must end before the next one: the app is single-instance (over
+  // D-Bus, as in CI), and a lingering app would take the next launch. Close
+  // the windows a test opened (compose, settings, a reminder) first.
+  const s = launched.session;
+  for (const handle of await s.windows().catch(() => [])) {
+    if (handle === mainHandle) continue;
+    await s.switchTo(handle);
+    await s.closeWindow();
+  }
+  await launched.stop();
+  // These tests check the views, not how the app ends (firstrun.e2e.ts does):
+  // an app that outlives its session is ended, so it cannot take the next
+  // launch, and the test says so.
+  try {
+    await until("the app to end", () => !launched.running(), 10_000);
+  } catch {
+    const ended = endApp(launched.cache);
+    process.stderr.write(`a11y: the app outlived its session; ended ${ended.join(", ") || "nothing"}\n`);
+    await until("the ended app to go", () => !launched.running(), 10_000);
+  }
 });
+
+/**
+ * endApp sends SIGTERM to each frostmail-app process launched with cache as
+ * its FROSTMAIL_CACHE_DIR, and returns their pids. Linux only (/proc); on
+ * Windows the harness starts the app and ends it itself.
+ */
+function endApp(cache: string): string[] {
+  const ended: string[] = [];
+  let entries: string[] = [];
+  try {
+    entries = readdirSync("/proc");
+  } catch {
+    return ended;
+  }
+  for (const pid of entries.filter((e) => /^\d+$/.test(e))) {
+    try {
+      const cmd = readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0")[0] ?? "";
+      if (basename(cmd) !== "frostmail-app") continue;
+      if (!readFileSync(`/proc/${pid}/environ`, "utf8").split("\0").includes(`FROSTMAIL_CACHE_DIR=${cache}`)) continue;
+      process.kill(Number(pid), "SIGTERM");
+      ended.push(pid);
+    } catch {
+      // The process ended during the scan, or it is another user's.
+    }
+  }
+  return ended;
+}
 
 /** Finding is one axe violation with the elements it names. */
 interface Finding {
@@ -103,6 +153,7 @@ async function start(prefix: string, env: Record<string, string> = {}): Promise<
   const dir = tempDir(prefix);
   app = await launch(dir, fixture(dir, 0, { showcase: SHOWCASE }), { FROSTMAIL_SYNC: "off", ...env });
   const s = app.session;
+  mainHandle = await s.window();
   await s.waitFor("message rows", async () => (await s.findAll('[role="option"]')).length >= 10, 30_000);
   // WebKit keeps localStorage across launches: audit the default layout
   // (no To-Do bar), not the last run's.
