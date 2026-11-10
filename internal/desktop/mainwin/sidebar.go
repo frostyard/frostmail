@@ -14,6 +14,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/organize"
 )
 
 // roleChoices are the roles a mailbox can be used for.
@@ -183,6 +184,10 @@ func (w *Window) sourceMenu(m *ui.Menu, key string) {
 	if mb == nil {
 		if s, ok := mail.SourceFromKey(key, st.VIPs); ok && s.Kind == mail.Smart {
 			w.smartMenu(m, s.ID)
+			return
+		}
+		if m.Item("New Smart Mailbox…").Chosen() {
+			w.smartSheet.New()
 		}
 		return
 	}
@@ -195,7 +200,18 @@ func (w *Window) sourceMenu(m *ui.Menu, key string) {
 
 func (w *Window) mailboxMenu(m *ui.Menu, mb api.Mailbox, favorites []int64) {
 	readOnly := w.readOnly(mb.AccountID)
-	if m.Item("Delete Mailbox…").Disabled(readOnly || mb.Role != api.MailboxRoleNone).Chosen() {
+	fixed := readOnly || mb.Role != api.MailboxRoleNone
+	if m.Item("New Mailbox…").Disabled(readOnly).Chosen() {
+		parent := mb.ID
+		w.mailboxSheet.Show(organize.MailboxNew, mb.AccountID, nil, &parent, w.locations(mb.AccountID, 0))
+	}
+	if m.Item("Rename Mailbox…").Disabled(fixed).Chosen() {
+		w.mailboxSheet.Show(organize.MailboxRename, mb.AccountID, &mb, nil, nil)
+	}
+	if m.Item("Move Mailbox…").Disabled(fixed).Chosen() {
+		w.mailboxSheet.Show(organize.MailboxMove, mb.AccountID, &mb, nil, w.locations(mb.AccountID, mb.ID))
+	}
+	if m.Item("Delete Mailbox…").Disabled(fixed).Chosen() {
 		w.confirmMailbox(mb, false)
 	}
 	if !mb.Label {
@@ -261,7 +277,37 @@ func (w *Window) setFavorites(ids []int64) {
 	})
 }
 
+// locations are an account's mailboxes a mailbox can go under, without it.
+func (w *Window) locations(account, except int64) []api.Mailbox {
+	var out []api.Mailbox
+	for _, m := range w.mail.State().Mailboxes {
+		if m.AccountID == account && m.ID != except && !m.Label {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func (w *Window) organizeContext() organize.Context {
+	st := w.mail.State()
+	ctx := organize.Context{Today: w.o.Now().Format("2006-01-02"), Accounts: st.Accounts, Mailboxes: st.Mailboxes}
+	if st.Settings != nil {
+		ctx.FlagNames = st.Settings.FlagNames
+	}
+	return ctx
+}
+
 func (w *Window) smartMenu(m *ui.Menu, id int64) {
+	if m.Item("New Smart Mailbox…").Chosen() {
+		w.smartSheet.New()
+	}
+	if m.Item("Edit Smart Mailbox…").Chosen() {
+		for _, s := range w.mail.State().Smart {
+			if s.ID == id {
+				w.smartSheet.Edit(s)
+			}
+		}
+	}
 	if m.Item("Delete Smart Mailbox").Chosen() {
 		w.run("delete the smart mailbox", func(ctx context.Context, c *api.Client) error {
 			return c.Smart().Delete(ctx, &api.SmartDeleteParams{ID: id})

@@ -42,7 +42,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` | `TestSidebarExtras` |
 | P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` | `TestSmartMailboxShowsAndLists` |
 | P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |  |
-| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | Have | `TestMailboxOperations`, `TestDovecotMailboxes`, `TestMailboxChangesWaitForQueuedOps`, `Mailboxes.test.tsx` |  |
+| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | Have | `TestMailboxOperations`, `TestDovecotMailboxes`, `TestMailboxChangesWaitForQueuedOps`, `Mailboxes.test.tsx` | `TestNewAndRenameMailbox`, `TestRoleMailboxesStay` |
 | P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | Have | `DragDrop.test.tsx`, `Sidebar.drop.test.tsx` | `TestDragToAMailboxMoves` |
 | P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account; not on Gmail | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` | `TestUseThisMailboxFor` |
 | P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` | `TestEraseAsksFirst` |
@@ -90,20 +90,20 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` |  |
-| P-402 | Redirect | A resend with the original headers, as maild sends | Have | `TestRedirect`, `Redirect.test.tsx` |  |
-| P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` |  |
+| P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` | `TestRowMenuStartsAReply`, `TestReplyGoesToTheSenderWithItsQuote`, `TestForward` |
+| P-402 | Redirect | A resend with the original headers, as maild sends | Have | `TestRedirect`, `Redirect.test.tsx` | `TestRedirectSheet` |
+| P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` | `TestRowMenuStartsAReply` |
 | P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` | `TestDeleteAndUndo`, `TestDragToAMailboxMoves` |
 | P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` | `TestMarkAsSpam` |
 | P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | Have | `undo.test.ts`, `Undo.test.tsx` | `TestDeleteAndUndo`, `TestUndoCalls` |
 | P-407 | Flag with seven colors, Clear Flag | Same (`$MailFlagBit0–2`) | Have | `TestFlagsRoundTrip`, `TestFlagChangesReplayToServer` | `TestRowMenuFlagsAndMarks` |
 | P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` |  |
 | P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` | `TestRowMenuFlagsAndMarks` |
-| P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` |  |
-| P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` |  |
-| P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` |  |
+| P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` | `TestMuteFromTheRow` |
+| P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` | `TestBlockFromThePopover` |
+| P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` | `TestRemindMeFromTheRow` |
 | P-413 | Follow Up: sent mail with no reply after three days returns | A sidebar section of sent mail with no reply after 3 days, VIPs first, at most 25 shown with the count | Have | `FollowUp.test.tsx`, `followup.test.ts`, `TestAwaitingOthers` |  |
-| P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` |  |
+| P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` | `TestApplyRulesInTheRowMenu` |
 | P-415 | Move to the predicted mailbox | | Out | On-device learning |  |
 
 ## Writing and sending
@@ -127,7 +127,7 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
 | P-601 | Search all mailboxes or the current one | The search language and scope bar | Have | `TestViewSearchLanguage`, `TestParseTerms`, `SearchField.test.tsx` | `TestSearchNarrowsAndClears`, `TestListQuery` |
-| P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` |  |
+| P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` | `TestSaveSearchAsSmartMailbox` |
 | P-603 | Search suggestions as tokens (People, Subjects) | | Later | The language covers the operators |  |
 | P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window, on demand ([#163](https://github.com/frostyard/frostmail/issues/163)). The line that says how far a search looked is built (`ui.md`, Search coverage); server search waits for its spec |  |
 
@@ -136,8 +136,8 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
 | P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild once on new inbox mail before it notifies | Have | `TestRulesActOnNewInboxMail`, `TestRulesRunOnce`, `TestDovecotRules`, `TestGmailRulesMoveToALabel`, `RulesPane.test.tsx`, `SettingsWindow.rules.test.tsx` |  |
-| P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions; junk is Mailbox Type is Junk; no Previous Recipients list | Have | `TestCompileEveryCondition`, `RuleSheet.test.tsx` |  |
-| P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | Have | `TestRulesActOnNewInboxMail`, `TestDovecotRules`, `ActionEditor.test.tsx`, `TestRules` |  |
+| P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions; junk is Mailbox Type is Junk; no Previous Recipients list | Have | `TestCompileEveryCondition`, `RuleSheet.test.tsx` | `TestEveryFieldHasOperatorsWithLabels`, `TestChoosingAnOperatorKeepsAValueOfTheSameKind` |
+| P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | Have | `TestRulesActOnNewInboxMail`, `TestDovecotRules`, `ActionEditor.test.tsx`, `TestRules` | `TestWithKindKeepsWhatTheKindTakes`, `TestActionsComplete` |
 | P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking; the user's choice (plan 0008) |  |
 | P-705 | Set Color, Play Sound, Bounce Icon | | Later | Cosmetic |  |
 | P-706 | Run AppleScript | | Out | macOS only; a command action would be a new trust boundary |  |

@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/organize"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
@@ -112,6 +113,9 @@ type Window struct {
 	toasts        []ui.Toast
 	onFrame       []func(c *ui.Context) // what needs the window's context
 	later         uikit.TimeSheet
+	smartSheet    organize.SmartSheet
+	mailboxSheet  organize.MailboxSheet
+	redirect      *redirectSheet
 
 	mu     sync.Mutex
 	latest map[int64]string // each account's newest activity, for the status bar
@@ -139,6 +143,9 @@ func New(o Options) *Window {
 	w.table.Editing = func(*ui.Context) bool { return false }
 	w.setUpSources()
 	w.shell.Palette.Sources = w.paletteSources()
+	deps := organize.Deps{Post: o.Post, Client: func() *api.Client { return w.client }, Context: w.organizeContext}
+	w.smartSheet.Deps, w.mailboxSheet.Deps = deps, deps
+	w.smartSheet.Created = func(id int64) { w.setSource(mail.Source{Kind: mail.Smart, ID: id}) }
 	w.mail = live.NewMail(w.waker.Wake)
 	w.act = live.NewActivity(w.addActivity)
 	w.console.SetNotify(w.waker.Wake)
@@ -169,6 +176,7 @@ func New(o Options) *Window {
 		commands.PageDown:      func() { w.pageReader(1) },
 		commands.PageUp:        func() { w.pageReader(-1) },
 		commands.Open:          w.openSelected,
+		commands.Redirect:      w.askRedirect,
 		commands.NextPane:      func() { w.cyclePane(1) },
 		commands.PreviousPane:  func() { w.cyclePane(-1) },
 	}
@@ -333,6 +341,9 @@ func (w *Window) View(c *ui.Context) {
 	})
 	w.rawSourceView(c)
 	w.later.View(c, w.o.Now())
+	w.smartSheet.View(c)
+	w.mailboxSheet.View(c)
+	w.redirectView(c)
 }
 
 func (w *Window) mailNames() mail.Names {

@@ -643,6 +643,14 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   and flag names, mute and block, Remind Me, Send Later, Redirect, the
   mailbox sheet, erasing old Trash and Junk, the refused notices.
 - **Done when:** the organize parity rows have Go tests.
+- **Status (2026-11-10): built on Linux.** `internal/desktop/organize`
+  holds the condition and action logic, the two editors and the smart
+  mailbox, rule and mailbox sheets; the main window has New, Rename and
+  Move Mailbox, Save as Smart Mailbox, Redirect, Remind Me… and the reply
+  family in the row's menu. The rule sheet shows from Settings' Rules
+  pane (Phase 8).
+- **Differences to confirm at the gate:** `is any of` is a menu of checks
+  rather than a four-row list, as MyGo's `Select` chooses one.
 
 ## Phase 7 — Calendar, People and Tasks (L)
 

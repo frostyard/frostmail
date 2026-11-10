@@ -12,6 +12,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
+	"github.com/frostyard/frostmail/internal/desktop/compose"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
@@ -215,6 +216,10 @@ func (w *Window) scopeRow(c *ui.Context) {
 			}
 			if title != "" && ui.Button(c.Key("source"), title).Selected(!w.q.SearchAll).Clicked() {
 				w.setSearchAll(false)
+			}
+			ui.Spacer(c)
+			if ui.Button(c.Key("save"), "Save").Tooltip("Save as Smart Mailbox").Clicked() {
+				w.saveSearch()
 			}
 		})
 		if line := w.coverage(); line != "" {
@@ -434,6 +439,10 @@ func (w *Window) rowMenu(m *ui.Menu) {
 	st := w.mail.State()
 	first := rows[0]
 	readOnly := w.readOnly(first.AccountID)
+	if len(rows) == 1 {
+		w.replyItems(m, first)
+		m.Separator()
+	}
 	if mail.ArchiveOf(first.AccountID, st.Mailboxes) != nil && m.Item("Archive").Disabled(readOnly).Chosen() {
 		w.archive(ids)
 	}
@@ -519,8 +528,11 @@ func (w *Window) rowMenu(m *ui.Menu) {
 				w.remind(ids, &at)
 			}
 		}
+		m.Separator()
+		if m.Item("Remind Me…").Disabled(readOnly).Chosen() {
+			w.askRemind(ids, compose.TomorrowMorning(w.o.Now()))
+		}
 		if anyReminder {
-			m.Separator()
 			if m.Item("Clear Reminder").Disabled(readOnly).Chosen() {
 				w.remind(ids, nil)
 			}
