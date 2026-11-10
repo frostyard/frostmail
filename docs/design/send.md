@@ -70,6 +70,18 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   line breaks) inside `<blockquote type="cite">` after an attribution line
   "On <date>, <name> wrote:". The quoted HTML is the sanitized rendering, so
   remote images stay out.
+- **Quoting the selected text** (P-508): `draft.create` of a reply or a
+  reply-all takes an optional `quote`, the plain text the user selected in
+  the reader ([ui.md](../specs/ui.md#reply-with-the-selected-text)). maild
+  turns CR LF and CR into LF, trims the white space around it, and quotes
+  what is left as it quotes a text-only message (escaped, line breaks as
+  `<br>`, in 1 paragraph), under the same attribution line and in the same
+  cite blockquote. It is text, never HTML, so nothing in it is sanitized or
+  rendered, and a quoted message's inline images do not come with it. A
+  `quote` that is empty or only white space quotes the whole message. A
+  `quote` with any other kind (new, forward, attached) is `invalidParams`.
+  maild does not check that the text is in the source: the selection is
+  the user's own choice, and the draft is theirs to change.
 
 ## Building a message
 

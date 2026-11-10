@@ -1005,6 +1005,12 @@ export interface DraftCreateParams {
    * A new message's recipients, such as the person a contact card writes to.
    */
   to?: Address[];
+  /**
+   * Reply and replyall: the plain text the user selected in the source,
+   * quoted instead of the whole message. Empty or only white space quotes the
+   * whole message; with another kind, invalidParams.
+   */
+  quote?: string;
 }
 
 /** Params of draft.open. */

@@ -53,6 +53,13 @@ describe("linkTarget", () => {
 });
 
 describe("MessageFrame", () => {
+  it("marks only a reader frame's message for reply selections", () => {
+    const { container, rerender } = render(<MessageFrame html="<p>hello</p>" onOpenLink={() => {}} quoteSource={12} />);
+    expect(container.querySelector("iframe")?.getAttribute("data-quote-source")).toBe("12");
+    rerender(<MessageFrame html="<p>hello</p>" onOpenLink={() => {}} />);
+    expect(container.querySelector("iframe")?.hasAttribute("data-quote-source")).toBe(false);
+  });
+
   it("is a sandboxed srcdoc frame without scripts, whose links may ask for a window", () => {
     const { container } = render(<MessageFrame html="<p>hello</p>" onOpenLink={() => {}} />);
     const frame = container.querySelector("iframe");

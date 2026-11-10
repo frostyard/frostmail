@@ -27,6 +27,7 @@ type Source struct {
 	Date       time.Time
 	HTML       string // the sanitized rendering; "" for a text-only message
 	Text       string
+	Selected   string // plain text selected for a reply; blank quotes the whole message; forwards ignore it
 }
 
 // ReplyRecipients returns a reply's To and Cc. To is the source's Reply-To,
@@ -117,19 +118,25 @@ func Attribution(date time.Time, name string, loc *time.Location) string {
 
 // QuoteHTML is the body of a reply: the attribution line above the quoted
 // source inside a cite blockquote. The attribution name is the source's
-// From name, else its address.
+// From name, else its address. A non-blank Selected replaces the body with
+// escaped plain text, after normalizing line endings and trimming whitespace.
 func QuoteHTML(src Source, loc *time.Location) string {
 	name := src.From.Name
 	if name == "" {
 		name = src.From.Addr
 	}
 	attr := html.EscapeString(Attribution(src.Date, name, loc))
+	selected := strings.ReplaceAll(strings.ReplaceAll(src.Selected, "\r\n", "\n"), "\r", "\n")
+	if selected = strings.TrimSpace(selected); selected != "" {
+		src.HTML, src.Text = "", selected
+	}
 	return `<p><br></p><p>` + attr + `</p><blockquote type="cite">` + quotedBody(src) + `</blockquote>`
 }
 
 // ForwardHTML is the body of a forward: a "Begin forwarded message" line
 // above a cite blockquote holding the source's From, Subject, Date and To
 // headers, then the quoted body. Every inserted value is HTML-escaped.
+// Selected is ignored: forwards always quote the whole message.
 func ForwardHTML(src Source, loc *time.Location) string {
 	var b strings.Builder
 	b.WriteString(`<p><br></p><p>Begin forwarded message:</p><blockquote type="cite"><p>`)

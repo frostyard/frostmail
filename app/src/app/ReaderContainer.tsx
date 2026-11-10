@@ -615,10 +615,12 @@ function ConversationMessage({
               </p>
             )
           ) : (
-            <MessageFrame html={rendering.html} onOpenLink={openLink} />
+            <MessageFrame html={rendering.html} onOpenLink={openLink} quoteSource={summary.id} />
           )
         ) : (
-          <PlainText text={rendering.text} onOpenLink={openLink} />
+          <div data-quote-source={summary.id}>
+            <PlainText text={rendering.text} onOpenLink={openLink} />
+          </div>
         ))}
       {message && (
         <AttachmentStrip

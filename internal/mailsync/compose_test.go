@@ -139,6 +139,38 @@ func TestRepliesAndForwardsStartFromTheSource(t *testing.T) {
 	}
 }
 
+func TestReplyQuotesTheSelectedText(t *testing.T) {
+	h := newSendHarness(t, 0)
+	ctx := t.Context()
+	src := h.deliver("INBOX", plansMessage, "Plans")
+	for _, kind := range []api.DraftKind{api.DraftKindReply, api.DraftKindReplyall} {
+		dr, err := h.c.Draft().Create(ctx, &api.DraftCreateParams{Kind: kind, SourceID: &src, Quote: ptr("Friday < &\r\nselected")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := dr.Content.HTML; !strings.Contains(got, `<blockquote type="cite"><p>Friday &lt; &amp;<br>selected</p></blockquote>`) || strings.Contains(got, "meet") {
+			t.Errorf("%s selected quote = %s", kind, got)
+		}
+		for _, blank := range []string{"", " \t\r\n "} {
+			dr, err = h.c.Draft().Create(ctx, &api.DraftCreateParams{Kind: kind, SourceID: &src, Quote: &blank})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(dr.Content.HTML, "meet") || !strings.Contains(dr.Content.HTML, "Friday") {
+				t.Errorf("%s blank quote = %s", kind, dr.Content.HTML)
+			}
+		}
+	}
+	for _, kind := range []api.DraftKind{api.DraftKindNew, api.DraftKindForward, api.DraftKindAttached} {
+		for _, quote := range []string{"selection", "", " \t"} {
+			_, err := h.c.Draft().Create(ctx, &api.DraftCreateParams{Kind: kind, SourceID: &src, Quote: &quote})
+			if !isCode(err, api.CodeInvalidParams) {
+				t.Errorf("%s with quote %q = %v, want invalidParams", kind, quote, err)
+			}
+		}
+	}
+}
+
 func TestOpenADraftFromTheDraftsMailbox(t *testing.T) {
 	h := newSendHarness(t, 0)
 	ctx := t.Context()

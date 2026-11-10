@@ -68,6 +68,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0050 — Warn when the provider's sender checks fail](adr/0050-warn-when-the-providers-sender-checks-fail.md) (Accepted)
 - [0051 — maild erases old Trash and Junk mail when the user asks](adr/0051-erase-old-trash-and-junk-when-the-user-asks.md) (Accepted)
 - [0052 — Ctrl+F finds in the message shown](adr/0052-find-in-the-message-shown.md) (Accepted)
+- [0053 — Reply quotes the selected text, as plain text](adr/0053-reply-quotes-the-selected-text.md) (Accepted)
 
 ### Design
 

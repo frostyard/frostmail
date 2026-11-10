@@ -6,6 +6,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { OccurrenceKey } from "../features/calendar/TimeGrid";
 import type { ListFilter } from "../features/list/FilterBar";
 import type { SmartDraft } from "../features/organize/SmartSheet";
+import type { QuoteSelection } from "../features/reader/quoteSelection";
 import type { CalendarView } from "../lib/calendarDates";
 import { flagLabel } from "../lib/flags";
 import { buildSidebar, vipGroups } from "../lib/mailboxTree";
@@ -87,6 +88,8 @@ export interface UIState {
   smartSheet: SmartSheetState | null;
   /** The command palette is open (docs/specs/ui.md, Command palette). */
   palette: boolean;
+  /** Plain text held before the palette takes focus; never persisted. */
+  paletteQuote: QuoteSelection | null;
   module: Module;
   calendarView: CalendarView;
   calendarDate: string;
@@ -143,7 +146,7 @@ export interface UIState {
 /** UIActions change UIState. */
 export interface UIActions {
   openSmartSheet: (state: SmartSheetState) => void;
-  openPalette: (open: boolean) => void;
+  openPalette: (open: boolean, quote?: QuoteSelection | null) => void;
   closeSmartSheet: () => void;
   setCalendarView: (view: CalendarView) => void;
   setCalendarDate: (date: string) => void;
@@ -191,6 +194,7 @@ export interface UIActions {
 const initialUI: UIState = {
   smartSheet: null,
   palette: false,
+  paletteQuote: null,
   module: "mail",
   calendarView: "week",
   calendarDate: "",
@@ -236,7 +240,7 @@ export const useUI = create<UIState & UIActions>()(
     (set) => ({
       ...initialUI,
       openSmartSheet: (smartSheet) => set({ smartSheet }),
-      openPalette: (palette) => set({ palette }),
+      openPalette: (palette, quote) => set({ palette, paletteQuote: palette ? (quote ?? null) : null }),
       closeSmartSheet: () => set({ smartSheet: null }),
       setCalendarView: (calendarView) => set({ calendarView }),
       setCalendarDate: (calendarDate) => set({ calendarDate, calendarsOpen: false }),
@@ -291,6 +295,7 @@ export const useUI = create<UIState & UIActions>()(
           mailboxesOpen: initialUI.mailboxesOpen,
           smartSheet: initialUI.smartSheet,
           palette: initialUI.palette,
+          paletteQuote: initialUI.paletteQuote,
           calendarSelected: initialUI.calendarSelected,
           tasksSource: initialUI.tasksSource,
           tasksSelected: initialUI.tasksSelected,

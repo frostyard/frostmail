@@ -87,6 +87,7 @@ export class MockCompose {
           p.kind as DraftKind,
           typeof p.accountId === "number" ? p.accountId : undefined,
           p.sourceId,
+          p.quote,
         );
         if (Array.isArray(p.to) && p.kind === "new") {
           this.draft(d.id).content.to = p.to as Address[];
@@ -268,14 +269,27 @@ export class MockCompose {
     this.emit({ event: "draft.changed", data: { id: d.id, accountId: d.accountId, deleted: false } });
   }
 
-  private create(kind: DraftKind, accountId: number | undefined, sourceId: unknown): Draft {
+  private create(kind: DraftKind, accountId: number | undefined, sourceId: unknown, quote?: unknown): Draft {
+    if (quote !== undefined && (typeof quote !== "string" || (kind !== "reply" && kind !== "replyall")))
+      throw new RPCError(ErrorCode.invalidParams, "quote requires reply or replyall");
+    const selected = typeof quote === "string" ? quote.replaceAll("\r\n", "\n").replaceAll("\r", "\n").trim() : "";
     const src = typeof sourceId === "number" ? this.source(sourceId) : undefined;
     if (kind !== "new" && !src) throw notFound(`message ${String(sourceId)}`);
     const acct = accountId ?? src?.accountId ?? this.accounts[0]?.id;
     if (acct === undefined) throw new RPCError(ErrorCode.invalidParams, "there is no account to write from");
     const content: DraftContent = { identityId: acct, to: [], cc: [], bcc: [], subject: "", html: "<p><br></p>" };
     if (src) {
-      const quoted = src.html !== "" ? src.html : `<p>${src.text}</p>`;
+      const escaped = selected
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&#34;")
+        .replaceAll("'", "&#39;");
+      const quoted = selected
+        ? `<p>${escaped.replaceAll("\n", "<br>")}</p>`
+        : src.html !== ""
+          ? src.html
+          : `<p>${src.text}</p>`;
       const name = src.from.name || src.from.address;
       if (kind === "attached") {
         content.subject = /^fwd?:/i.test(src.subject) ? src.subject : `Fwd: ${src.subject}`;

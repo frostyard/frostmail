@@ -1710,6 +1710,10 @@ type DraftCreateParams struct {
 	SourceID *int64 `json:"sourceId,omitzero"`
 	// A new message's recipients, such as the person a contact card writes to.
 	To []Address `json:"to,omitzero"`
+	// Reply and replyall: the plain text the user selected in the source, quoted
+	// instead of the whole message. Empty or only white space quotes the whole
+	// message; with another kind, invalidParams.
+	Quote *string `json:"quote,omitzero"`
 }
 
 // DraftOpenParams holds the params of draft.open.

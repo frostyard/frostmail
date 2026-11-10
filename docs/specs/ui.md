@@ -603,6 +603,47 @@ Ctrl+F finds in the message shown, as Mail.app's ⌘F does (P-309,
   content-origin frame (specs/lodge-app.md); the palette lists no Find in
   Message.
 
+### Reply with the selected text
+
+Reply and Reply All quote only the text the user selected in the reader,
+as Mail.app does (P-508, [ADR-0053](../adr/0053-reply-quotes-the-selected-text.md);
+the quote itself:
+[send.md](../design/send.md#replies-and-forwards), Quoting).
+
+- **When:** Reply or Reply All runs from the toolbar (its buttons or its
+  menus), the keyboard (Ctrl+R, Ctrl+Shift+R) or the command palette. The
+  list's context menu acts on its row and quotes the whole message, as
+  Forward always does.
+- **The selection:** the app reads it as the command runs: in an HTML
+  frame's document (the same-origin `srcdoc` frame of
+  [ADR-0005](../adr/0005-html-mail-rendering.md); the app reads it, and the
+  frame still runs no script) or in a plain-text body in the app's
+  document. It takes the selection's plain text (`Selection.toString()`),
+  never its HTML, so there is nothing to sanitize. The palette takes the
+  selection as it opens, because its field takes the app document's
+  selection.
+- **Which selection:** first, the frame that had focus when the command
+  started (for a toolbar button, at the pointer press, before the button
+  takes focus), when that frame holds a selection. Else, when the app's
+  document holds a selection that is not white space only: that selection
+  when it is inside 1 message body, and otherwise none, so the whole
+  message is quoted. Else the first frame, in the reader's order, that
+  holds a selection: a frame keeps its selection when focus leaves it.
+- **Its message:** the expanded message whose body holds the whole
+  selection. Reply and Reply All then answer that message, an older
+  message of the conversation too, instead of the selected one, and send
+  its text as `draft.create`'s `quote`.
+- **The whole message:** with no selection, a selection of white space
+  only, or a selection that is not inside 1 message body (the headers, a
+  banner, a selection across 2 messages), Reply and Reply All answer the
+  selected message and quote it whole, as before.
+- **lodge's web build:** the reader's frame is on lodge's content origin
+  and the app cannot read into it (specs/lodge-app.md), so Reply and Reply
+  All always quote the whole message there, a plain-text body too.
+- **An older maild:** a maild without `quote` refuses the parameter
+  (`invalidParams`); the app then creates the reply again without it, so
+  the reply opens with the whole message quoted.
+
 ### First run (M6)
 
 A store with no account opens on account setup

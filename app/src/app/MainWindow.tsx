@@ -9,6 +9,7 @@ import type { ViewModel } from "../data/view";
 import { useNotify } from "../features/calendar/NotifySheet";
 import { FilterBar } from "../features/list/FilterBar";
 import { SortMenu } from "../features/list/SortMenu";
+import { type QuoteSelection, readQuoteSelection } from "../features/reader/quoteSelection";
 import { searchCoverage, searchedAccounts } from "../features/search/coverage";
 import { ScopeBar } from "../features/search/SearchField";
 import { ModuleTabs } from "../features/sidebar/ModuleTabs";
@@ -103,7 +104,13 @@ function focusPane(handles: WindowHandles, direction: 1 | -1) {
   }
 }
 
-function mailCommand(command: Command, client: Client, model: ViewModel | null, handles: WindowHandles) {
+function mailCommand(
+  command: Command,
+  client: Client,
+  model: ViewModel | null,
+  handles: WindowHandles,
+  quote?: QuoteSelection | null,
+) {
   const ui = useUI.getState();
   const { accounts, mailboxes } = useMail.getState();
   const ids = ui.selected;
@@ -153,7 +160,9 @@ function mailCommand(command: Command, client: Client, model: ViewModel | null, 
     case "reply":
     case "replyAll":
     case "forward":
-      void compose(client, command, ids).catch((err: unknown) => console.warn("compose", err));
+      void compose(client, command, ids, quote === undefined ? readQuoteSelection() : quote).catch((err: unknown) =>
+        console.warn("compose", err),
+      );
       break;
     default:
       return ui.focus === "list" && (handles.list.current?.command(command) ?? false);
@@ -261,10 +270,11 @@ function runCommand(
   people: PeopleData,
   calendar: CalendarData,
   tasks: TasksData,
+  quote?: QuoteSelection | null,
 ): boolean {
   const ui = useUI.getState();
   if (command === "palette") {
-    ui.openPalette(true);
+    ui.openPalette(true, readQuoteSelection());
     return true;
   }
   if (command === "find" && ui.module === "mail") {
@@ -305,7 +315,7 @@ function runCommand(
     return moduleCommand(command, client, people);
   if (ui.module === "tasks") return tasksCommand(command, tasks, handles.tasks.current);
   if (ui.module === "calendar") return calendarCommand(command, client, calendar, handles);
-  return mailCommand(command, client, model, handles);
+  return mailCommand(command, client, model, handles, quote);
 }
 
 function useWindowEvents(
@@ -678,8 +688,8 @@ export function MainWindow() {
       <RefusedNotices />
       <SmartSheetContainer />
       <PaletteContainer
-        run={(command: Command) => {
-          runCommand(command, client, handles, model, people, calendar, tasks);
+        run={(command, quote) => {
+          runCommand(command, client, handles, model, people, calendar, tasks, quote);
         }}
       />
       {sheet}
