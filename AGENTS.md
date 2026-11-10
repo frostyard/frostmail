@@ -69,6 +69,12 @@ attachment reminder (#160), Phase 3, snippets (#161), and Phase 4, erasing
 old Trash and Junk (#162), are built; #163 to #166 are its backlog. nexmail is AGPL-3.0:
 take its ideas only, never its code.
 
+Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
+[ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
+(Proposed, 2026-11-10) replace the Tauri shell with a native Go app on MyGo
+and frostui; the React app stays as lodge's web app. Phase 0, the spikes, is
+next; nothing is built.
+
 ## Two kinds of agent work
 
 - **Planning and core work** (architecture, contracts, the sync engine,

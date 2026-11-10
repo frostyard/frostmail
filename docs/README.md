@@ -69,6 +69,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0051 — maild erases old Trash and Junk mail when the user asks](adr/0051-erase-old-trash-and-junk-when-the-user-asks.md) (Accepted)
 - [0052 — Ctrl+F finds in the message shown](adr/0052-find-in-the-message-shown.md) (Accepted)
 - [0053 — Reply quotes the selected text, as plain text](adr/0053-reply-quotes-the-selected-text.md) (Accepted)
+- [0054 — Draw the desktop app natively with MyGo and frostui](adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md) (Proposed)
 
 ### Design
 
@@ -114,6 +115,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0012 — M8.5 Calendar, tasks and contacts for agents](plans/0012-calendar-tasks-and-contacts-for-agents.md)
 - [0013 — M6 The standalone desktop Flatpak](plans/0013-m6-the-standalone-desktop-flatpak.md)
 - [0014 — Small features from the nexmail review](plans/0014-small-features-from-the-nexmail-review.md): the sender check, the attachment reminder, snippets, erasing old Trash and Junk
+- [0015 — The desktop app in MyGo](plans/0015-mygo-desktop.md): the native desktop app, its window, the spikes and the parity gate
 
 ## Conventions
 
