@@ -53,6 +53,12 @@ jobs:
           install: true
           install_args: golangci-lint
           cache: true
+      # The desktop app's view tests render headless with MyGo, which lays
+      # text out with Pango and cairo (no GTK, no display).
+      - name: Install Pango and fonts
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends fonts-dejavu-core libpangocairo-1.0-0
       - name: Tidy, generated files, vet, format, lint, unit and fork tests
         run: make verify
 
@@ -71,6 +77,12 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      # The desktop app's view tests render headless with MyGo, which lays
+      # text out with Pango and cairo (no GTK, no display).
+      - name: Install Pango and fonts
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends fonts-dejavu-core libpangocairo-1.0-0
       - run: go test -race ./...
 
   windows:

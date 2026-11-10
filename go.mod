@@ -1,17 +1,17 @@
 module github.com/frostyard/frostmail
 
-go 1.27.0
-
-toolchain go1.27.3
+go 1.27.3
 
 require (
 	github.com/Microsoft/go-winio v0.6.4
 	github.com/coder/websocket v1.8.15
+	github.com/egoist/mygo v0.8.3
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/frostyard/clix v0.5.0
+	github.com/frostyard/frostui v0.0.0-20261110203158-4c97066c74b4
 	github.com/frostyard/lodge/kit v0.4.0
 	github.com/frostyard/std v0.4.0
 	github.com/godbus/dbus/v5 v5.2.4
@@ -39,7 +39,9 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
+	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -65,6 +67,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

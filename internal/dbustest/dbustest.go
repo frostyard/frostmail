@@ -26,7 +26,13 @@ func Bus(t testing.TB) string {
 		}
 		t.Skip("no dbus-daemon")
 	}
-	dir := t.TempDir()
+	// Not t.TempDir: its path holds the test's name, and under GOTMPDIR a
+	// long one passes the 108 bytes a Unix socket's path may have.
+	dir, err := os.MkdirTemp("", "dbus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	cfg := filepath.Join(dir, "bus.conf")
 	conf := `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">

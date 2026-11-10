@@ -63,6 +63,14 @@ func (m *Mail) State() MailState {
 // together and fail together; the preferences load on their own, so a
 // maild without one still shows mail.
 func (m *Mail) Connect(ctx context.Context, c *api.Client, events *Events) error {
+	// Listen first, so a change made during the load reloads after it.
+	m.mu.Lock()
+	m.stopLocked()
+	m.c = c
+	m.ctx, m.cancelCtx = context.WithCancel(context.Background())
+	m.off = events.On(m.event)
+	m.mu.Unlock()
+
 	accounts, err := c.Account().List(ctx, &api.AccountListParams{})
 	if err != nil {
 		return err
@@ -79,18 +87,13 @@ func (m *Mail) Connect(ctx context.Context, c *api.Client, events *Events) error
 	if err != nil {
 		return err
 	}
-	m.mu.Lock()
-	m.stopLocked()
-	m.c = c
-	m.ctx, m.cancelCtx = context.WithCancel(context.Background())
 	byAccount := make(map[int64]api.SyncStatus, len(syncs))
 	for _, s := range syncs {
 		byAccount[s.AccountID] = s
 	}
-	m.state = MailState{Accounts: accounts, Mailboxes: mailboxes, Sync: byAccount, Outbox: outbox, Loaded: true}
-	m.off = events.On(m.event)
-	m.mu.Unlock()
-	m.notify()
+	m.update(func(s *MailState) {
+		s.Accounts, s.Mailboxes, s.Sync, s.Outbox, s.Loaded = accounts, mailboxes, byAccount, outbox, true
+	})
 	for _, load := range []func(){m.loadVIPs, m.loadBlocked, m.loadSettings, m.loadSmart, m.loadRules} {
 		go load()
 	}
