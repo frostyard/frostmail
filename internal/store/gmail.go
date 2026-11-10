@@ -102,9 +102,10 @@ func (t *Tx) GmailLabelNames(ctx context.Context, accountID int64) (map[int64]st
 // returns the label mailboxes that changed.
 func (t *Tx) EditGmailLabels(ctx context.Context, msgID int64, add, remove []int64) ([]int64, error) {
 	var changed []int64
+	now := FormatTime(t.Now())
 	for _, mb := range add {
-		res, err := t.ExecContext(ctx, `INSERT OR IGNORE INTO message_mailbox (message_id, mailbox_id)
-			SELECT ?, id FROM mailboxes WHERE id = ? AND is_gmail_label = 1`, msgID, mb)
+		res, err := t.ExecContext(ctx, `INSERT OR IGNORE INTO message_mailbox (message_id, mailbox_id, added_at)
+			SELECT ?, id, ? FROM mailboxes WHERE id = ? AND is_gmail_label = 1`, msgID, now, mb)
 		if err != nil {
 			return nil, fmt.Errorf("add label %d to %d: %w", mb, msgID, err)
 		}
@@ -148,6 +149,7 @@ type GmailResult struct {
 func (t *Tx) InsertGmail(ctx context.Context, accountID, mailboxID int64, allMail bool, labels map[string]int64, hs []MessageHeader) (GmailResult, error) {
 	var r GmailResult
 	touched := map[int64]bool{}
+	now := FormatTime(t.Now())
 	for _, h := range hs {
 		var at int64
 		err := t.QueryRowContext(ctx, `SELECT message_id FROM message_mailbox WHERE mailbox_id = ? AND uid = ?`,
@@ -165,8 +167,8 @@ func (t *Tx) InsertGmail(ctx context.Context, accountID, mailboxID int64, allMai
 			if _, err := t.ExecContext(ctx, `DELETE FROM message_mailbox WHERE message_id = ? AND uid IS NOT NULL`, id); err != nil {
 				return r, fmt.Errorf("gmail move %d: %w", id, err)
 			}
-			if _, err := t.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq) VALUES (?, ?, ?, ?)`,
-				id, mailboxID, int64(h.UID), int64(h.ModSeq)); err != nil {
+			if _, err := t.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq, added_at) VALUES (?, ?, ?, ?, ?)`,
+				id, mailboxID, int64(h.UID), int64(h.ModSeq), now); err != nil {
 				return r, fmt.Errorf("gmail move %d: %w", id, err)
 			}
 			if _, err := t.UpdateFlags(ctx, mailboxID, []FlagUpdate{{UID: h.UID, ModSeq: h.ModSeq, Flags: h.Flags}}); err != nil {
@@ -184,8 +186,8 @@ func (t *Tx) InsertGmail(ctx context.Context, accountID, mailboxID int64, allMai
 			if err := t.recordSeen(ctx, h); err != nil {
 				return r, err
 			}
-			if _, err := t.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq) VALUES (?, ?, ?, ?)`,
-				id, mailboxID, int64(h.UID), int64(h.ModSeq)); err != nil {
+			if _, err := t.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq, added_at) VALUES (?, ?, ?, ?, ?)`,
+				id, mailboxID, int64(h.UID), int64(h.ModSeq), now); err != nil {
 				return r, fmt.Errorf("gmail membership uid %d: %w", h.UID, err)
 			}
 			r.Added = append(r.Added, id)
@@ -278,7 +280,7 @@ func (t *Tx) setGmailLabels(ctx context.Context, msgID int64, labels []string, l
 	}
 	for mb := range want {
 		if !have[mb] {
-			if _, err := t.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id) VALUES (?, ?)`, msgID, mb); err != nil {
+			if _, err := t.ExecContext(ctx, `INSERT INTO message_mailbox (message_id, mailbox_id, added_at) VALUES (?, ?, ?)`, msgID, mb, FormatTime(t.Now())); err != nil {
 				return nil, fmt.Errorf("add label %d to %d: %w", mb, msgID, err)
 			}
 			changed = append(changed, mb)

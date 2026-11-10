@@ -19,7 +19,7 @@ backlog"), after Odrade's review of nexmail, a self-hosted mail client.
   nsl machine for the app; `make engine-it` where a phase names an
   integration test.
 
-Status (2026-11-07):
+Status (2026-11-10):
 - **Phase 0 is done:** PR #167 merged on 2026-11-05; ADRs 0050 and 0051
   are Accepted.
 - **Phase 2 is built** in [PR #168](https://github.com/frostyard/frostmail/pull/168)
@@ -28,7 +28,8 @@ Status (2026-11-07):
   (issue [#159](https://github.com/frostyard/frostmail/issues/159)).
 - **Phase 3 is built** in the PR that closes
   [#161](https://github.com/frostyard/frostmail/issues/161).
-- **Phase 4 waits** for a day shift.
+- **Phase 4 is built** in the PR that closes
+  [#162](https://github.com/frostyard/frostmail/issues/162).
 
 ## Phase 0 — The specs and the decisions (planner, small)
 
@@ -90,6 +91,8 @@ Status (2026-11-07):
 
 ## Phase 4 — Erase old Trash and Junk (S; [#162](https://github.com/frostyard/frostmail/issues/162))
 
+- **Status:** built (#162's PR), 2026-11-10. The Done when check ran
+  as `TestDovecotEraseOld` against the test Dovecot (`make engine-it`).
 - [ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md);
   [design/organize.md](../design/organize.md#erase-old-mail);
   [specs/settings-ui.md](../specs/settings-ui.md#accountform).

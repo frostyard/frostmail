@@ -125,6 +125,10 @@ type Manager struct {
 	// interrupted holds outbox rows left in sending, by account, until the
 	// account's next full pass settles them.
 	interrupted map[int64][]int64
+	// eraseHook, when set, runs before each mailbox transaction of EraseOld:
+	// tests change the account's settings there, between the pass's list read
+	// and the transaction that acts on them (see erase_test.go).
+	eraseHook func(ctx context.Context, accountID int64)
 }
 
 // New returns a Manager. publish delivers transient events (sync.progress);

@@ -131,7 +131,9 @@ func newHarnessWith(t *testing.T, opts imapx.DialOptions, password string, cfg m
 func newHarnessLogged(t *testing.T, opts imapx.DialOptions, password string, cfg mailsync.Config, log *slog.Logger) *harness {
 	t.Helper()
 	cfg.InsecureSkipVerify = opts.InsecureSkipVerify
-	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, Log: log})
+	// The stored timestamps (message_mailbox.added_at, ADR-0051) follow the
+	// sync window's clock when a test stops it.
+	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, Log: log, Now: cfg.Now})
 	c := srv.Dial(t)
 	ctx := t.Context()
 	if _, err := c.Events().Subscribe(ctx, nil); err != nil {

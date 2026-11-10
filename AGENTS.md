@@ -64,9 +64,9 @@ installed it with the README's commands (plan 0013, Phase 10 check
 
 Plan 0014 ([small features from the nexmail review](docs/plans/0014-small-features-from-the-nexmail-review.md),
 Brian's T929a, 2026-11-05) is specified, with ADRs 0050 and 0051
-(accepted). Phase 1, the sender check banner (#159), and Phase 2, the
-attachment reminder (#160), and Phase 3, snippets (#161), are built.
-Erasing old Trash and Junk (#162) waits for a day shift; #163 to #166 are its backlog. nexmail is AGPL-3.0:
+(accepted). Phase 1, the sender check banner (#159), Phase 2, the
+attachment reminder (#160), Phase 3, snippets (#161), and Phase 4, erasing
+old Trash and Junk (#162), are built; #163 to #166 are its backlog. nexmail is AGPL-3.0:
 take its ideas only, never its code.
 
 ## Two kinds of agent work

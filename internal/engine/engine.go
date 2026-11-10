@@ -252,7 +252,16 @@ func (a accounts) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.
 	if err != nil {
 		return nil, err
 	}
-	u := store.AccountUpdate{DisplayName: p.DisplayName, ReadOnly: p.ReadOnly, Notify: p.Notify, SyncDays: days}
+	trash, err := eraseDays("eraseTrashDays", p.EraseTrashDays)
+	if err != nil {
+		return nil, err
+	}
+	junk, err := eraseDays("eraseJunkDays", p.EraseJunkDays)
+	if err != nil {
+		return nil, err
+	}
+	u := store.AccountUpdate{DisplayName: p.DisplayName, ReadOnly: p.ReadOnly, Notify: p.Notify, SyncDays: days,
+		EraseTrashDays: trash, EraseJunkDays: junk}
 	for _, s := range []struct {
 		in  *api.ServerConfig
 		out **store.ServerConfig
@@ -373,6 +382,7 @@ func (a accounts) toAPI(ctx context.Context, acct store.Account) api.Account {
 		ID: acct.ID, Kind: acct.Kind, Email: acct.Email, DisplayName: acct.DisplayName, Auth: acct.Auth,
 		IMAP: toAPIServer(acct.IMAP), SMTP: toAPIServer(acct.SMTP), CreatedAt: acct.CreatedAt,
 		ReadOnly: acct.ReadOnly, Notify: acct.Notify, SyncDays: int64(acct.SyncDays),
+		EraseTrashDays: toInt64(acct.EraseTrashDays), EraseJunkDays: toInt64(acct.EraseJunkDays),
 	}
 	if !acct.NeedsReauth && a.Secrets != nil {
 		_, err := a.Secrets.Get(ctx, secrets.Credential(acct.ID, acct.Auth == api.AuthKindOAuth2))
@@ -394,6 +404,28 @@ func syncDays(p *int64) (*int, error) {
 	}
 	d := int(*p)
 	return &d, nil
+}
+
+// eraseDays checks a requested erase setting, which is 0 (Never), 1, 7 or 30
+// days (ADR-0051); nil leaves it as is, and key names it in the error.
+func eraseDays(key string, p *int64) (*int, error) {
+	if p == nil {
+		return nil, nil
+	}
+	switch *p {
+	case 0, 1, 7, 30:
+	default:
+		return nil, api.InvalidParams("%s must be 0 (never), 1, 7 or 30", key)
+	}
+	d := int(*p)
+	return &d, nil
+}
+
+// toInt64 is the pointer an api.Account carries an erase setting in, also
+// for 0.
+func toInt64(v int) *int64 {
+	n := int64(v)
+	return &n
 }
 
 func toAPIServer(s store.ServerConfig) api.ServerConfig {
