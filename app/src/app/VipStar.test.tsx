@@ -7,6 +7,7 @@ import { useMail, useUI } from "../data/stores";
 import type { PersonSummary } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { senderName } from "../testing/names";
 import { MainWindow } from "./MainWindow";
 
 beforeEach(() => {
@@ -66,7 +67,7 @@ describe("VIP stars and Add to VIPs", () => {
     if (!first) throw new Error("no row");
     fireEvent.click(first);
 
-    const sender = (await screen.findAllByRole("button", { name: ANN }))[0];
+    const sender = (await screen.findAllByRole("button", { name: senderName(ANN) }))[0];
     if (!sender) throw new Error("no sender button");
     const header = sender.closest("header");
     expect(header && within(header).queryByRole("img", { name: "VIP" })).toBeNull();
@@ -80,7 +81,7 @@ describe("VIP stars and Add to VIPs", () => {
     await screen.findByRole("button", { name: "Remove from VIPs" });
     await waitFor(() => expect(star(rows()[0])).not.toBeNull());
     await waitFor(() => {
-      const h = screen.getAllByRole("button", { name: ANN })[0]?.closest("header");
+      const h = screen.getAllByRole("button", { name: senderName(ANN) })[0]?.closest("header");
       expect(h && within(h).queryByRole("img", { name: "VIP" })).not.toBeNull();
     });
   });

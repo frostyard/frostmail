@@ -34,6 +34,12 @@ describe("UpcomingList", () => {
     expect(rows[1]?.style.getPropertyValue("--event-color")).toBe("var(--accent)");
   });
 
+  it("spaces the title and the when, so the text is part of the name", () => {
+    list();
+    const [row] = within(screen.getByRole("region", { name: "Upcoming" })).getAllByRole("button");
+    expect(row?.textContent).toBe("Lunch with Ann Fri");
+  });
+
   it("opens an occurrence", () => {
     const { props } = list();
     fireEvent.click(screen.getByRole("button", { name: "Holiday, Mon" }));

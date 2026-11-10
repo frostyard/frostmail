@@ -41,7 +41,7 @@ describe("TasksSidebar", () => {
     expect(
       within(tree)
         .getAllByRole("treeitem")
-        .map((r) => r.getAttribute("data-key")),
+        .flatMap((r) => r.getAttribute("data-key") ?? []),
     ).toEqual(["today", "all", "flagged", "list:10", "list:20", "list:21"]);
     for (const title of ["Tasks", "user@gmail.test", "user@dav.test"]) {
       expect(screen.getByRole("button", { name: title }).getAttribute("aria-expanded")).toBe("true");
@@ -59,6 +59,29 @@ describe("TasksSidebar", () => {
     expect(count("Work")).toBe("3");
     expect(count("Home")).toBeNull();
     expect(count("Shared")).toBe("1");
+  });
+
+  it("heads each section with a level-1 tree item that holds its button", () => {
+    sidebar();
+    // A tree may own only tree items: each section header is one, and the lists
+    // below it are the next level.
+    const tree = screen.getByRole("tree", { name: "Task Lists" });
+    const headers = within(tree)
+      .getAllByRole("treeitem")
+      .filter((r) => r.getAttribute("aria-level") === "1");
+    expect(headers.map((h) => h.getAttribute("aria-label"))).toEqual(["Tasks", "user@gmail.test", "user@dav.test"]);
+    for (const header of headers) {
+      expect(header.getAttribute("aria-expanded")).toBe("true");
+      expect(header.hasAttribute("tabindex")).toBe(false);
+      expect(header.parentElement?.parentElement).toBe(tree);
+      expect(header.parentElement?.hasAttribute("role")).toBe(false);
+      expect(within(header).getAllByRole("button")).toHaveLength(1);
+    }
+    expect(
+      within(tree)
+        .getByRole("treeitem", { name: /^Today/ })
+        .getAttribute("aria-level"),
+    ).toBe("2");
   });
 
   it("marks read-only lists", () => {

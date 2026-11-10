@@ -47,7 +47,8 @@ function month(over: Partial<MonthGridProps> = {}) {
   return props;
 }
 
-const cell = (name: string) => screen.getByRole("gridcell", { name });
+// A cell's name starts with the full date; its occurrences' names follow it.
+const cell = (name: string) => screen.getByRole("gridcell", { name: new RegExp(`^${name}`) });
 const chip = (day: string, name: RegExp) => within(cell(day)).getByRole("button", { name });
 
 afterEach(() => {

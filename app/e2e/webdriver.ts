@@ -154,6 +154,11 @@ export class Session {
     return this.do("POST", "/window/rect", { width, height });
   }
 
+  /** closeWindow closes the current window and returns the handles left. */
+  closeWindow(): Promise<string[]> {
+    return this.do<string[]>("DELETE", "/window");
+  }
+
   /** switchTo makes a window current. */
   async switchTo(handle: string): Promise<void> {
     await this.do("POST", "/window", { handle });

@@ -99,7 +99,6 @@ function MonthCell({ date, props, drag }: MonthCellProps) {
     <td
       // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: selectable table cells use the ARIA gridcell role.
       role="gridcell"
-      aria-label={label}
       aria-selected={date === props.selectedDate}
       aria-current={current ? "date" : undefined}
       tabIndex={0}
@@ -117,8 +116,10 @@ function MonthCell({ date, props, drag }: MonthCellProps) {
       }}
       className={`@container min-w-0 border-b border-r border-separator p-1 ${date === props.selectedDate ? "bg-selection-inactive" : ""} ${drag.target === date ? "ring-2 ring-inset ring-accent" : ""}`}
     >
+      <span className="sr-only">{label}</span>
       <div className="mb-1 flex justify-end">
         <span
+          aria-hidden="true"
           className={`flex h-5 min-w-5 items-center justify-center rounded-full text-[12px] leading-4 ${current ? "bg-accent text-accent-contrast" : date.slice(0, 7) !== props.selectedDate.slice(0, 7) ? "text-tertiary" : ""}`}
         >
           {day}

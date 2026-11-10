@@ -36,7 +36,11 @@ const option = (id: number) => {
   if (!found) throw new Error(`no row ${id}`);
   return found;
 };
-const circle = (id: number) => within(option(id)).getByRole("checkbox", { name: "Completed" });
+const circle = (id: number) => {
+  const found = option(id).querySelector<HTMLElement>("[data-complete]");
+  if (!found) throw new Error(`no circle in ${id}`);
+  return found;
+};
 
 describe("TaskList", () => {
   it("shows the tasks in order, a subtask indented under its parent", () => {
@@ -66,8 +70,11 @@ describe("TaskList", () => {
 
   it("ticks with the circle and never selects for it", () => {
     const { props } = list();
-    expect(circle(1).getAttribute("aria-checked")).toBe("false");
-    expect(circle(4).getAttribute("aria-checked")).toBe("true");
+    expect(option(1).getAttribute("aria-checked")).toBe("false");
+    expect(option(4).getAttribute("aria-checked")).toBe("true");
+    // The circle is the pointer's way in; the option carries the state.
+    expect(circle(1).getAttribute("aria-hidden")).toBe("true");
+    expect(circle(1).hasAttribute("role")).toBe(false);
     expect(within(option(4)).getByText("Done").className).toContain("text-tertiary");
     fireEvent.click(circle(1));
     expect(props.onToggle).toHaveBeenLastCalledWith(1, true);
@@ -76,9 +83,16 @@ describe("TaskList", () => {
     expect(props.onSelect).not.toHaveBeenCalled();
   });
 
-  it("disables the circle in a read-only list", () => {
-    list({ title: "Shared", lines: taskLines(TASKS.filter((t) => t.listId === 21)), canCreate: false });
-    expect((circle(6) as HTMLButtonElement).disabled).toBe(true);
+  it("does nothing for the circle in a read-only list", () => {
+    const { props } = list({
+      title: "Shared",
+      lines: taskLines(TASKS.filter((t) => t.listId === 21)),
+      canCreate: false,
+    });
+    expect(option(6).getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(circle(6));
+    expect(props.onToggle).not.toHaveBeenCalled();
+    expect(props.onSelect).not.toHaveBeenCalled();
     expect(screen.queryByRole("textbox", { name: "New Task" })).toBeNull();
   });
 
@@ -133,6 +147,17 @@ describe("TaskList", () => {
     expect(document.activeElement).toBe(screen.getByRole("listbox", { name: "Work" }));
   });
 
+  it("keeps the New Task field outside the listbox", () => {
+    list();
+    const box = screen.getByRole("listbox", { name: "Work" });
+    const field = screen.getByRole("textbox", { name: "New Task" });
+    // A listbox may own only options, so the field sits in the scroll container.
+    expect(box.contains(field)).toBe(false);
+    expect(box.parentElement?.contains(field)).toBe(true);
+    expect(within(box).queryAllByRole("textbox")).toHaveLength(0);
+    expect(within(box).getAllByRole("option")).toHaveLength(4);
+  });
+
   it("says when there are no tasks", () => {
     list({ lines: [] });
     expect(screen.getByText("No Tasks")).toBeTruthy();
@@ -161,7 +186,8 @@ describe("TaskList", () => {
     expect(option(42).textContent).toContain("No Subject");
     expect(option(42).textContent).toContain("bob@example.com");
     expect(within(option(42)).getByLabelText("Flagged Orange").getAttribute("class")).toContain("text-flag-2");
-    expect(circle(41).getAttribute("aria-checked")).toBe("false");
+    expect(circle(41).getAttribute("aria-hidden")).toBe("true");
+    expect(option(41).getAttribute("aria-checked")).toBe("false");
     fireEvent.click(circle(41));
     expect(props.onToggle).toHaveBeenCalledWith(41, true);
     expect(props.onSelect).not.toHaveBeenCalled();

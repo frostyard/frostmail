@@ -68,7 +68,7 @@ describe("a narrow window's modules", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to Lists" }));
     expect(pane()).toBe("taskLists");
     expect(screen.queryByRole("button", { name: /^Back to/ })).toBeNull();
-    fireEvent.click(screen.getAllByRole("treeitem")[0] as HTMLElement);
+    fireEvent.click(screen.getAllByRole("treeitem").find((item) => item.hasAttribute("data-key")) as HTMLElement);
     expect(pane()).toBe("tasks");
   });
 
@@ -84,7 +84,7 @@ describe("a narrow window's modules", () => {
     fireEvent.click(within(list).getAllByRole("option")[0] as HTMLElement);
     useUI.getState().openBooks(true);
     await waitFor(() => expect(pane()).toBe("books"));
-    fireEvent.click(screen.getAllByRole("treeitem")[0] as HTMLElement);
+    fireEvent.click(screen.getAllByRole("treeitem").find((item) => item.hasAttribute("data-key")) as HTMLElement);
     // A book picked shows its list, not the person picked before.
     expect(pane()).toBe("people");
     expect(useUI.getState().peopleSelected).toBeNull();

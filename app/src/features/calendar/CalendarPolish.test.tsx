@@ -27,7 +27,7 @@ describe("calendar polish", () => {
         onShowDay={vi.fn()}
       />,
     );
-    const cell = screen.getByRole("gridcell", { name: "Thursday, October 8, 2026" });
+    const cell = screen.getByRole("gridcell", { name: /^Thursday, October 8, 2026/ });
     expect(cell.className).toContain("@container");
     const line = within(cell).getByRole("button", { name: named("Standup, 9:00 AM") });
     expect(norm(line.textContent ?? "")).toBe("Standup9:00 AM");

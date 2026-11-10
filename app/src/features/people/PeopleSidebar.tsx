@@ -85,19 +85,22 @@ export function PeopleSidebar({ sections, selected, focused, onSelect }: PeopleS
         const open = !collapsed.has(group.key);
         return (
           <div key={group.key}>
-            <button
-              type="button"
-              aria-expanded={open}
-              onClick={() => toggle(group.key)}
-              className="group flex h-[26px] w-full items-center gap-1 border-0 bg-transparent pl-3 text-left text-sidebar-section text-secondary"
-            >
-              <span className="truncate">{group.title}</span>
-              <ChevronDown
-                size={12}
-                aria-hidden="true"
-                className={`shrink-0 opacity-0 group-hover:opacity-100 ${open ? "" : "-rotate-90"}`}
-              />
-            </button>
+            {/* biome-ignore lint/a11y/useFocusableInteractive: the section header is a level-1 tree item; its buttons, not the item, take focus. */}
+            <div role="treeitem" aria-level={1} aria-expanded={open} aria-label={group.title}>
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => toggle(group.key)}
+                className="group flex h-[26px] w-full items-center gap-1 border-0 bg-transparent pl-3 text-left text-sidebar-section text-secondary"
+              >
+                <span className="truncate">{group.title}</span>
+                <ChevronDown
+                  size={12}
+                  aria-hidden="true"
+                  className={`shrink-0 opacity-0 group-hover:opacity-100 ${open ? "" : "-rotate-90"}`}
+                />
+              </button>
+            </div>
             {open &&
               group.books.map((book) => {
                 const Icon = book.id === "all" ? Users : BookUser;
@@ -108,7 +111,7 @@ export function PeopleSidebar({ sections, selected, focused, onSelect }: PeopleS
                     key={book.id}
                     role="treeitem"
                     tabIndex={-1}
-                    aria-level={1}
+                    aria-level={2}
                     aria-selected={active}
                     data-key={book.id === "all" ? "all" : `book:${book.id}`}
                     className={`mx-2 flex h-7 items-center gap-2 rounded-md pl-1 pr-1 narrow:h-11 ${active ? (focused ? "bg-accent text-accent-contrast" : "bg-selection-sidebar") : ""}`}

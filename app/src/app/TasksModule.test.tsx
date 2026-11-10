@@ -37,8 +37,19 @@ const option = (name: string, id: number | string) => {
   if (!found) throw new Error(`no row ${id} in ${name}`);
   return found;
 };
-const circle = (name: string, id: number) => within(option(name, id)).getByRole("checkbox", { name: "Completed" });
-const sidebarRow = (name: string) => screen.getByRole("treeitem", { name: new RegExp(`^${name}`) });
+const circle = (name: string, id: number) => {
+  const found = option(name, id).querySelector<HTMLElement>("[data-complete]");
+  if (!found) throw new Error(`no circle in ${id} of ${name}`);
+  return found;
+};
+const sidebarRow = (name: string) => {
+  // A section header is a tree item too, but only a row carries data-key.
+  const found = screen
+    .getAllByRole("treeitem", { name: new RegExp(`^${name}`) })
+    .find((item) => item.hasAttribute("data-key"));
+  if (!found) throw new Error(`no sidebar row ${name}`);
+  return found;
+};
 const count = (name: string) => sidebarRow(name).querySelector("[data-count]")?.textContent ?? null;
 const heading = () => document.querySelector("[data-segment='tasks']")?.textContent ?? "";
 
@@ -88,7 +99,7 @@ describe("Tasks module", () => {
     expect(
       within(tree)
         .getAllByRole("treeitem")
-        .map((r) => r.getAttribute("data-key")),
+        .flatMap((r) => r.getAttribute("data-key") ?? []),
     ).toEqual([
       "today",
       "all",
@@ -118,7 +129,7 @@ describe("Tasks module", () => {
     expect(completed.getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(completed);
     await waitFor(() => expect(ids("Tasks")).toEqual(["401", "402", "403", "404", "405"]));
-    expect(circle("Tasks", 405).getAttribute("aria-checked")).toBe("true");
+    expect(option("Tasks", 405).getAttribute("aria-checked")).toBe("true");
     fireEvent.click(sidebarRow("All Tasks"));
     await waitFor(() => expect(ids("All Tasks")).toContain("405"));
   });
@@ -130,7 +141,7 @@ describe("Tasks module", () => {
     await waitFor(() => expect(calls("tasks.update")).toContainEqual({ id: 406, completed: true }));
     await waitFor(() => expect(count("Today")).toBe("2"));
     expect(ids("Today")).toEqual(["403", "404", "406"]);
-    expect(circle("Today", 406).getAttribute("aria-checked")).toBe("true");
+    expect(option("Today", 406).getAttribute("aria-checked")).toBe("true");
     expect(useUI.getState().tasksSelected).toBeNull();
     fireEvent.click(sidebarRow("Errands"));
     await waitFor(() => expect(ids("Errands")).toEqual(["407"]));
@@ -210,7 +221,10 @@ describe("Tasks module", () => {
     fireEvent.click(sidebarRow("Team"));
     await waitFor(() => expect(ids("Team")).toEqual(["408"]));
     expect(screen.queryByRole("textbox", { name: "New Task" })).toBeNull();
-    expect((circle("Team", 408) as HTMLButtonElement).disabled).toBe(true);
+    expect(option("Team", 408).getAttribute("aria-checked")).toBe("false");
+    // The circle is mouse-only; in a read-only list it changes nothing.
+    fireEvent.click(circle("Team", 408));
+    expect(useUI.getState().tasksSelected).toBeNull();
     fireEvent.click(option("Team", 408));
     expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).readOnly).toBe(true);
   });
@@ -227,7 +241,8 @@ describe("Tasks module", () => {
     await waitFor(() => expect(row("Re: Offsite plan")).toBeTruthy());
     expect(screen.queryByRole("textbox", { name: "New Task" })).toBeNull();
     const offsite = Number(row("Re: Offsite plan")?.getAttribute("data-id"));
-    fireEvent.click(within(row("Re: Offsite plan") as HTMLElement).getByRole("checkbox", { name: "Completed" }));
+    const offsiteRow = row("Re: Offsite plan") as HTMLElement;
+    fireEvent.click(offsiteRow.querySelector<HTMLElement>("[data-complete]") as HTMLElement);
     await waitFor(() =>
       expect(calls("message.setFlags")).toContainEqual({ ids: [offsite], changes: { flagColor: 0 } }),
     );

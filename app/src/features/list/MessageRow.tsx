@@ -147,16 +147,18 @@ export function MessageRow(props: MessageRowProps) {
           </span>
         </span>
         {onAction && (
-          // biome-ignore lint/a11y/useSemanticElements: a fieldset's border and legend do not belong in a list row.
-          <span role="group" aria-label="Message actions" className="hidden shrink-0 items-center group-hover:flex">
+          // The row's actions under the pointer duplicate its keyboard commands
+          // (each title names its own shortcut): they are mouse-only, so they
+          // stay out of the accessibility tree and out of the tab order.
+          <span aria-hidden="true" data-actions="" className="hidden shrink-0 items-center group-hover:flex">
             {actions
               .filter(({ action }) => action !== "archive" || canArchive)
               .map(({ action, label, shortcut, Icon }) => (
-                <button
+                // biome-ignore lint/a11y/useKeyWithClickEvents: a mouse-only duplicate of the row's keyboard command, hidden from assistive technology.
+                // biome-ignore lint/a11y/noStaticElementInteractions: a mouse-only duplicate of the row's keyboard command, hidden from assistive technology.
+                <span
                   key={action}
-                  type="button"
-                  tabIndex={-1}
-                  aria-label={label}
+                  data-action={action}
                   title={`${label} (${shortcut})`}
                   className={joinClasses(
                     "flex h-[18px] w-[22px] items-center justify-center rounded border-0 bg-transparent p-0",
@@ -172,7 +174,7 @@ export function MessageRow(props: MessageRowProps) {
                   }}
                 >
                   <Icon size={14} className={action === "flag" && message.flags.flagged ? "fill-current" : undefined} />
-                </button>
+                </span>
               ))}
           </span>
         )}

@@ -1,5 +1,5 @@
 // CONTRACT TEST for task card T-0102 (docs/tasks). Do not edit.
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { formatListDate } from "../../lib/format";
@@ -43,8 +43,23 @@ function row(over: Partial<MessageRowProps> = {}, msg: Partial<MessageSummary> =
   return { props, el: screen.getByRole("option") };
 }
 
+// The actions are mouse-only duplicates of the row's keyboard commands, so
+// they are hidden from assistive technology: the tests find them by their
+// data attributes, as a pointer does.
 function actions(): HTMLElement {
-  return screen.getByRole("group", { name: "Message actions" });
+  const found = document.querySelector<HTMLElement>("[data-actions]");
+  if (!found) throw new Error("no row actions");
+  return found;
+}
+
+function items(): HTMLElement[] {
+  return [...actions().querySelectorAll<HTMLElement>("[data-action]")];
+}
+
+function item(action: string): HTMLElement {
+  const found = actions().querySelector<HTMLElement>(`[data-action="${action}"]`);
+  if (!found) throw new Error(`no ${action} action`);
+  return found;
 }
 
 describe("MessageRow actions", () => {
@@ -54,12 +69,9 @@ describe("MessageRow actions", () => {
     const group = actions();
     expect(group.className).toContain("hidden");
     expect(group.className).toContain("group-hover:flex");
-    expect(
-      within(group)
-        .getAllByRole("button")
-        .map((b) => b.getAttribute("aria-label")),
-    ).toEqual(["Flag", "Archive", "Delete"]);
-    // The date and the paperclip give way to the buttons.
+    expect(group.getAttribute("aria-hidden")).toBe("true");
+    expect(items().map((b) => b.getAttribute("data-action"))).toEqual(["flag", "archive", "delete"]);
+    // The date and the paperclip give way to the actions.
     const date = screen.getByText(formatListDate(new Date(2026, 9, 7, 9, 41), now));
     const meta = date.closest(".group-hover\\:hidden");
     expect(meta).not.toBeNull();
@@ -67,15 +79,17 @@ describe("MessageRow actions", () => {
     expect(meta?.contains(group)).toBe(false);
   });
 
-  it("sizes, names and tips each button and keeps it out of the tab order", () => {
+  it("sizes, tips and hides each action, and keeps it out of the tab order", () => {
     row();
-    const titles = within(actions())
-      .getAllByRole("button")
-      .map((b) => b.getAttribute("title"));
-    expect(titles).toEqual(["Flag (Ctrl+Shift+L)", "Archive (Ctrl+Alt+A)", "Delete (Delete)"]);
-    for (const b of within(actions()).getAllByRole("button")) {
-      expect(b.getAttribute("type")).toBe("button");
-      expect(b.getAttribute("tabindex")).toBe("-1");
+    expect(items().map((b) => b.getAttribute("title"))).toEqual([
+      "Flag (Ctrl+Shift+L)",
+      "Archive (Ctrl+Alt+A)",
+      "Delete (Delete)",
+    ]);
+    for (const b of items()) {
+      expect(b.tagName).toBe("SPAN");
+      expect(b.hasAttribute("tabindex")).toBe(false);
+      expect(b.hasAttribute("role")).toBe(false);
       expect(b.className).toContain("h-[18px]");
       expect(b.className).toContain("w-[22px]");
       expect(b.className).toContain("text-secondary");
@@ -86,12 +100,8 @@ describe("MessageRow actions", () => {
 
   it("acts on its message without selecting it", () => {
     const { props } = row();
-    for (const [name, action] of [
-      ["Flag", "flag"],
-      ["Archive", "archive"],
-      ["Delete", "delete"],
-    ] as const) {
-      fireEvent.click(within(actions()).getByRole("button", { name }));
+    for (const action of ["flag", "archive", "delete"] as const) {
+      fireEvent.click(item(action));
       expect(props.onAction).toHaveBeenLastCalledWith(42, action);
     }
     expect(props.onAction).toHaveBeenCalledTimes(3);
@@ -117,31 +127,27 @@ describe("MessageRow actions", () => {
         <MessageRow {...props} />
       </div>,
     );
-    const del = within(actions()).getByRole("button", { name: "Delete" });
+    const del = item("delete");
     expect(fireEvent.mouseDown(del)).toBe(false);
     fireEvent.doubleClick(del);
     expect(onDoubleClick).not.toHaveBeenCalled();
   });
 
-  it("names the flag button Unflag, filled, for a flagged message", () => {
+  it("tips the flag action Unflag, filled, for a flagged message", () => {
     row({}, { flags: { ...summary().flags, flagged: true, flagColor: 2 } });
-    const unflag = within(actions()).getByRole("button", { name: "Unflag" });
+    const unflag = item("flag");
     expect(unflag.getAttribute("title")).toBe("Unflag (Ctrl+Shift+L)");
     expect(unflag.querySelector("svg")?.getAttribute("class")).toContain("fill-current");
   });
 
   it("leaves out Archive without an archive destination", () => {
     row({ canArchive: false });
-    expect(
-      within(actions())
-        .getAllByRole("button")
-        .map((b) => b.getAttribute("aria-label")),
-    ).toEqual(["Flag", "Delete"]);
+    expect(items().map((b) => b.getAttribute("data-action"))).toEqual(["flag", "delete"]);
   });
 
-  it("has no buttons without onAction, and keeps the date visible", () => {
+  it("has no actions without onAction, and keeps the date visible", () => {
     row({ onAction: undefined });
-    expect(screen.queryByRole("group", { name: "Message actions" })).toBeNull();
+    expect(document.querySelector("[data-actions]")).toBeNull();
     expect(
       screen.getByText(formatListDate(new Date(2026, 9, 7, 9, 41), now)).closest(".group-hover\\:hidden"),
     ).toBeNull();
@@ -149,7 +155,7 @@ describe("MessageRow actions", () => {
 
   it("uses the contrast color on a selected row in a focused list", () => {
     row({ selected: true, focused: true });
-    for (const b of within(actions()).getAllByRole("button")) {
+    for (const b of items()) {
       expect(b.className).toContain("text-accent-contrast");
       expect(b.className).toContain("hover:bg-accent-contrast/20");
       expect(b.className).not.toContain("text-secondary");
