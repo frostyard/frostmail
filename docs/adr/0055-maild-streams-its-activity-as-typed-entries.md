@@ -44,19 +44,21 @@ may drop lines. Callers are `local` (the desktop and mailctl), `session`
   times and enums:
   - `seq` (per maild run), `at`, `level` (`debug`, `info`, `warn`,
     `error`);
-  - `kind`, a closed enum: `connect`, `list`, `mailboxSynced`, `idle`,
-    `fetched`, `pushed`, `draftSaved`, `sent`, `sendFailed`, `sendLater`,
-    `rulesApplied`, `remindFired`, `announced`, `erased`, `pimSynced`,
-    `pimRefused`, `tokenRefreshed`, `signInNeeded`, `offline`, `dropped`;
-  - `accountId`, `mailboxId` and `service` (`imap`, `smtp`, `caldav`,
-    `carddav`, `graph`, `gtasks`, `oauth`), each when it applies;
+  - `kind`, a closed enum: `connect`, `list`, `mailboxsynced`, `idle`,
+    `fetched`, `pushed`, `draftsaved`, `sent`, `sendfailed`, `sendlater`,
+    `rulesapplied`, `remindfired`, `announced`, `erased`, `pimsynced`,
+    `pimrefused`, `tokenrefreshed`, `signinneeded`, `offline`, `failed`,
+    `dropped` (the IDL's enum values are lowercase words);
+  - `accountId`, `mailboxId` and `service` (the enum `ActivityServer`:
+    `imap`, `smtp`, `caldav`, `carddav`, `graph`, `gtasks`, `oauth`), each
+    when it applies;
   - counts (`n`, `added`, `changed`, `removed`, `bytes`) and `ms`, the
     duration;
   - for a failure, `errorClass` (`network`, `timeout`, `tls`, `auth`,
     `refused`, `quota`, `protocol`, `internal`), with `code`, a number (an
-    SMTP reply code, an HTTP status), or `imapCode`, an enum of the IMAP
-    response codes maild acts on (`authenticationFailed`, `unavailable`,
-    `overQuota`, `limit`, `nonExistent`, …) with `other` for the rest.
+    SMTP reply code, an HTTP status), or `imapCode`, an enum of the RFC 5530
+    response codes (`authenticationfailed`, `unavailable`, `overquota`,
+    `limit`, `nonexistent`, …) with `other` for the rest.
 
   The client writes the line from the kind and the fields, and names the
   account and the mailbox from what it already shows. A message's
@@ -65,26 +67,33 @@ may drop lines. Callers are `local` (the desktop and mailctl), `session`
 - **One way in.** `internal/activity` is the only package that makes an
   `api.ActivityEntry`, through typed constructors
   (`MailboxSynced(acct, mbox, added, changed, removed, d)`,
-  `SendFailed(acct, outboxID, err)` and the like) that the sync, send,
+  `SendFailed(acct, err, retried)` and the like) that the sync, send,
   rule, reminder, erase, PIM and OAuth code calls. `activity.Classify(err)`
   maps an error to its class and code from its type (`net.Error`, TLS
-  errors, `*imap.Error`'s code, the SMTP reply's code, the HTTP status)
-  and never reads its text. The journal keeps the free text, as today.
+  errors, the IMAP response code through `imapx.ResponseCode`, the SMTP
+  reply code through `smtpx.ReplyCode`, the HTTP status of davx's,
+  graph's and gtasks' errors, oauth's refused grants) and never reads its
+  text. oauth, which imapx and smtpx import, reports refreshes through a
+  callback that maild turns into entries. The journal keeps the free
+  text, as today.
 - **Bounded at every step.**
   - maild keeps the newest 2,000 entries in memory: not in SQLite, not
     replayed, gone at a restart.
-  - It records one entry per mailbox pass, fetch batch, push batch, send,
-    rule run, PIM collection pass and token refresh, never one per
-    message, and at most 20 entries a second per account; past that it
-    counts and records one `dropped` entry with the count.
+  - It records one entry per mailbox pass, prefetch run, push batch,
+    send, rule run, PIM service pass and token refresh, never one per
+    message, and at most 20 debug or info entries of one kind a second per
+    account; past that it counts them in one `dropped` entry. Warnings and
+    errors are always kept, so a burst of mailbox passes cannot hide a
+    failed send.
   - Each subscribed connection has a buffer of 256 entries. A connection
     that falls behind loses entries and then gets one `dropped` entry with
     their number; it is never closed for it.
 - **Methods and event:** `activity.recent {limit}` returns the newest
   entries (at most 500), so a console opened late shows what came before;
   `activity.subscribe` and `activity.unsubscribe` start and stop the
-  transient event `activity.entry` on this connection, apart from
-  `events.subscribe`.
+  transient event `activity.added` on this connection, apart from
+  `events.subscribe`. `mailctl activity [-f]` prints them with
+  `activity.Line`, which the desktop's console uses too.
 - **The desktop shows it in frostui's console**, closed by default, opened
   with Ctrl J, a top-bar button or the palette's Show Activity; the status
   bar shows the newest entry. The app adds lines of its own about its
@@ -105,10 +114,13 @@ may drop lines. Callers are `local` (the desktop and mailctl), `session`
     field of kind string;
   - a test of the module's source fails when a package other than
     `internal/activity` builds an `api.ActivityEntry` literal;
-  - a canary test runs the sync, send, rule, PIM and OAuth paths against
-    the test servers with canary strings in passwords, tokens, subjects,
-    bodies, addresses and the servers' error texts, and fails when any
-    recorded entry's JSON holds one.
+  - a canary test, end to end, syncs, flags, sends and signs in against
+    the in-memory IMAP and SMTP servers with canaries in the subject, the
+    body, the addresses, the SMTP server's refusal and the password, and
+    fails when any recorded entry's JSON holds one; and at the
+    constructors, every error type a server's words reach (davx's,
+    graph's, gtasks', oauth's, network errors, plain text) carries a
+    canary through every constructor that takes an error.
 - maild holds about 2,000 small entries in memory, and does a little work
   per pass even with no client listening.
 - A client learns nothing through activity that it could not already ask

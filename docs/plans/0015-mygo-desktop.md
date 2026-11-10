@@ -34,7 +34,7 @@ no ChairLift pattern where it does not fit.
 
 Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
-Proposed). Nothing is built. The console of maild's activity (Phase 2) was
+Proposed). Phase 2's maild side is built; its console waits for frostui. The console of maild's activity (Phase 2) was
 added on 2026-11-10 at the owner's request, relayed by the orchestrating
 session ("it'd be fun to use that console view from chairlift to show
 background activity in frostmail").
@@ -404,7 +404,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 - [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md):
   `schema/rpc/activity.yaml` (`ActivityEntry` with no string field, its
   enums, `activity.recent`, `activity.subscribe`, `activity.unsubscribe`,
-  the transient `activity.entry`), `make gen`.
+  the transient `activity.added`), `make gen`.
 - `internal/activity`: the ring of 2,000 entries, the per-account limit
   and its `dropped` entry, the subscribers' buffers of 256, the typed
   constructors and `Classify`. The rpcserver serves the methods to
@@ -426,8 +426,29 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   flag push, a send, a refused send and a rule run, each naming its
   account, and `mailctl activity` prints them; an `agent` caller's
   `activity.recent` is refused; and the canary test passes.
+- **Status of the maild side: built (2026-11-10).** `internal/activity`
+  (the hub, the constructors, `Classify`, `Line`), the server's methods,
+  the emit points, `mailctl activity`, and the tests:
+  `TestAnEntryHasNoStringField`, `TestOnlyThisPackageMakesEntries` (which
+  failed on a planted `api.ActivityEntry{}` literal in `internal/engine`,
+  then passed with it removed), `TestErrorTextNeverReachesAnEntry`,
+  `TestActivityHoldsNoCanary` (26 entries of 9 kinds, none holding a
+  canary or a secret), `TestAgentsGetNoActivity`, and the Dovecot checks
+  `TestActivityAgainstDovecot` and `TestActivityOfARefusedSendAgainstDovecot`.
+  Their run of 2026-11-10 against `frostmail-mailtest` recorded, for
+  test5: `mailbox 6 synced: 5 new`, `mailbox 6: the server reported
+  changes (IDLE)`, `sent a message (0.1 s)`, `sent 2 offline changes to
+  the server`, `rules acted on 1 message`, and with an unknown login
+  `send failed: auth (535)`. A first run also showed a sign-in error
+  recorded by a sync loop that a password change was stopping; the loop
+  now records only while its context is live, and 3 runs after the
+  change showed none.
+- Two choices made while building: the limit is per account and kind,
+  and warnings and errors are never limited (a burst of mailbox passes
+  had hidden a failed send in the first canary run); a PIM pass counts
+  the collections it changed, not the items.
 - The desktop, once frostui's frame lands: frostui's `Console` fed from
-  `activity.recent` at connect and `activity.entry` after, Ctrl J, the
+  `activity.recent` at connect and `activity.added` after, Ctrl J, the
   button, the palette command, the status bar's newest entry.
 - **Done when (console):** the native app's console shows the same lines
   as `mailctl activity`, filtered by level and by account.

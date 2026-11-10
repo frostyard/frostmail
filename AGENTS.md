@@ -74,8 +74,9 @@ Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
 (Proposed, 2026-11-10) replace the Tauri shell with a native Go app on MyGo
 and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
-(Proposed) adds maild's activity stream for the app's console. Phase 0, the
-spikes, is next; nothing is built.
+(Proposed) adds maild's activity stream for the app's console; its maild
+side is built (`mailctl activity`). The windows wait for frostui's shared
+pieces.
 
 ## Two kinds of agent work
 
@@ -98,7 +99,10 @@ spikes, is next; nothing is built.
 - `internal/store`: SQLite (modernc, pure Go): migrations, the single-writer
   `Tx`, the durable `changes` log, queries.
 - `internal/events`: fans committed events out to subscribers and replays
-  the log. `internal/rpcserver`: the socket server, on the kit's
+  the log. `internal/activity`: what maild does in the background, as
+  typed entries with no text ([ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)):
+  the only package that makes an `api.ActivityEntry`; `Classify` reads an
+  error's type, never its text; clients write lines with `Line`. `internal/rpcserver`: the socket server, on the kit's
   JSON-RPC server, with its private socket (the kit's on Linux, a named pipe
   on Windows). `internal/engine`: the API
   domains over the store. `internal/rpctest`: a real server for tests.

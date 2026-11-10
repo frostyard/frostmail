@@ -89,6 +89,16 @@ and unknown events.
 - A connection may subscribe once (`conflict` (1002) after that).
 - A subscriber more than 1024 events behind is disconnected; it reconnects
   and resumes with its last `seq`.
+- **Activity** ([ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md))
+  is a stream of its own: `activity.subscribe` starts the transient event
+  `activity.added` on the connection, whether or not it called
+  `events.subscribe`, and `activity.unsubscribe` stops it. It comes in the
+  same envelope, without `seq`; the entry's own `seq` orders entries
+  within one run of maild. A subscriber more than 256 entries behind loses
+  entries and then gets one entry of kind `dropped` (entry `seq` 0) that
+  counts them; it is never disconnected for it. `activity.recent` returns
+  the newest entries, so a client subscribes first, then reads the recent
+  ones, and drops a live entry whose `seq` it has already shown.
 
 ## Message parts (`mailpart://`)
 
