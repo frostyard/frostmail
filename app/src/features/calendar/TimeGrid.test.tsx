@@ -56,6 +56,24 @@ describe("TimeGrid", () => {
     expect(props.onShowDay).toHaveBeenCalledWith("2026-10-06");
   });
 
+  it("names each day header with the full date, as visually hidden text", () => {
+    grid();
+    const header = screen.getByRole("button", { name: "Thursday, October 8, 2026" });
+    expect(header.hasAttribute("aria-label")).toBe(false);
+    expect(header.querySelector(".sr-only")?.textContent).toBe("Thursday, October 8, 2026");
+  });
+
+  it("spaces the block's title, time and location", () => {
+    grid({
+      occurrences: [
+        timed("Standup", "2026-10-08T09:00:00Z", "2026-10-08T10:15:00Z", { eventId: 1, location: "Room 4" }),
+      ],
+    });
+    const block = screen.getByRole("button", { name: /^Standup/ });
+    // The visible text must be part of the block's name (label-content-name-mismatch).
+    expect(norm(block.textContent ?? "")).toBe("Standup 9:00 – 10:15 AM Room 4");
+  });
+
   it("places timed occurrences in their day's column by time", () => {
     grid();
     const thursday = column("Thursday, October 8, 2026");

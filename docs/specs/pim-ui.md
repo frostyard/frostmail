@@ -725,14 +725,16 @@ in Mail.app's panes, with Outlook's keys.
 - **List headers** in Today and All Tasks: before each list's first
   task, 28 high, 12px left padding, the list's name 11/14 600
   `--text-secondary` (`role="presentation"`).
-- **Task rows** (`role="option"`, `aria-selected`), at least 36 high,
+- **Task rows** (`role="option"`, `aria-selected`, `aria-checked` for
+  completion), at least 36 high,
   8px vertical padding, 12px left padding plus 28px for a subtask whose
   parent is shown above it, and a 1px `--separator` bottom inset 40:
-  - the **check circle**, 18px: a `checkbox` named "Completed"
-    (`aria-checked`), a 1.5px `--text-tertiary` ring; checked, an
-    `--accent` disc with a 12px `Check` in `--accent-contrast`. Clicking
-    it toggles completion without selecting the row. Disabled in a
-    read-only list.
+  - the **check circle**, 18px, a 1.5px `--text-tertiary` ring;
+    checked, an `--accent` disc with a 12px `Check` in
+    `--accent-contrast`. Clicking it toggles completion without selecting
+    the row; it does nothing in a read-only list. It is pointer-only
+    (`aria-hidden`): an option may not hold a control, so the row carries
+    the state, and Space toggles it from the keyboard.
   - 10px gap, the title 13/18 (`--text-tertiary` when completed), and
     under it, when there is either, a line 12/16 `--text-secondary`
     truncated: the due text (`dueText`; in `--flag-1` when overdue) and

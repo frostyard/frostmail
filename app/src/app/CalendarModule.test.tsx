@@ -87,7 +87,7 @@ describe("Calendar module", () => {
     await showCalendar();
     fireEvent.click(screen.getByRole("radio", { name: "Month" }));
     await waitFor(() => expect(screen.getAllByRole("gridcell")).toHaveLength(42));
-    const cell = screen.getByRole("gridcell", { name: "Thursday, October 8, 2026" });
+    const cell = screen.getByRole("gridcell", { name: /^Thursday, October 8, 2026/ });
     expect(within(cell).getByRole("button", { name: named("Standup, 9:00 AM") })).toBeTruthy();
     expect(useUI.getState().calendarView).toBe("month");
     key("1", { ctrlKey: true, altKey: true });
@@ -123,7 +123,7 @@ describe("Calendar module", () => {
     fireEvent.click(screen.getByRole("button", { name: "Thursday, October 15, 2026" }));
     await screen.findByRole("group", { name: "Saturday, October 17, 2026" });
     fireEvent.click(screen.getByRole("radio", { name: "Month" }));
-    fireEvent.doubleClick(await screen.findByRole("gridcell", { name: "Tuesday, October 13, 2026" }));
+    fireEvent.doubleClick(await screen.findByRole("gridcell", { name: /^Tuesday, October 13, 2026/ }));
     await screen.findByRole("group", { name: "Tuesday, October 13, 2026" });
     expect(useUI.getState().calendarView).toBe("day");
     expect(screen.getByRole("radio", { name: "Day" }).getAttribute("aria-checked")).toBe("true");

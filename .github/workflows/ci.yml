@@ -209,8 +209,9 @@ jobs:
       # through the app's own shell, and the first run's settings window
       # closes with the main window through it too, so both run on the built
       # app: WebKitGTK, WebKitWebDriver and xvfb, as make ui-e2e runs the
-      # other app tests.
-      - name: The shell's end-to-end tests on WebKitGTK (mode, first run)
+      # other app tests. The accessibility audit (axe-core) runs there too,
+      # on the showcase's views (docs/specs/ui.md, Rules).
+      - name: The shell's end-to-end tests on WebKitGTK (mode, first run, accessibility)
         run: |
           set -euo pipefail
           sudo apt-get install -y -q --no-install-recommends webkit2gtk-driver xvfb dbus
@@ -219,7 +220,7 @@ jobs:
           # A session bus for the app's single-instance plugin, and WebKit's
           # CPU paths, since the runner has no GPU.
           env -u WAYLAND_DISPLAY GDK_BACKEND=x11 FROSTMAIL_WEBKIT_SAFE=1 dbus-run-session -- \
-            xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts mode firstrun
+            xvfb-run -a -s "-screen 0 1280x800x24" pnpm exec vitest run -c vitest.e2e.config.ts mode firstrun a11y
 
   windows-app:
     name: Windows app (installer, WebView2 e2e)

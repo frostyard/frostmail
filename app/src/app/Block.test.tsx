@@ -6,6 +6,7 @@ import { Session } from "../data/session";
 import { useMail, useUI } from "../data/stores";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { senderName } from "../testing/names";
 import { MainWindow } from "./MainWindow";
 
 beforeEach(() => {
@@ -31,7 +32,7 @@ async function setup() {
 }
 
 async function openCard(address: string): Promise<HTMLElement> {
-  const buttons = await screen.findAllByRole("button", { name: address });
+  const buttons = await screen.findAllByRole("button", { name: senderName(address) });
   fireEvent.click(buttons[0] as HTMLElement);
   return screen.findByRole("dialog");
 }
@@ -53,7 +54,7 @@ describe("blocking a sender", () => {
 
   it("marks mail from an address blocked elsewhere, whatever its case", async () => {
     const { mock, ann } = await setup();
-    await screen.findAllByRole("button", { name: ann.from.address });
+    await screen.findAllByRole("button", { name: senderName(ann.from.address) });
     expect(screen.queryByText(banner)).toBeNull();
     await act(() => mock.call("block.add", { addresses: [ann.from.address.toUpperCase()] }));
     await screen.findAllByText(banner);

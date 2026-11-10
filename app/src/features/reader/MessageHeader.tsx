@@ -39,10 +39,11 @@ function AddressButton({
   onAddress: NonNullable<MessageHeaderProps["onAddress"]>;
   className?: string;
 }) {
+  const name = displayName(address);
   return (
     <button
       type="button"
-      aria-label={address.address}
+      aria-label={name === address.address ? address.address : `${name}, ${address.address}`}
       title={address.address}
       className={className}
       onClick={(event) => {
@@ -50,7 +51,7 @@ function AddressButton({
         onAddress(address, { x: rect.left, y: rect.bottom });
       }}
     >
-      {displayName(address)}
+      {name}
     </button>
   );
 }

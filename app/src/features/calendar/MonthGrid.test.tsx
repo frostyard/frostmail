@@ -36,7 +36,8 @@ function month(over: Partial<MonthGridProps> = {}) {
   return { props, view };
 }
 
-const cell = (name: string) => screen.getByRole("gridcell", { name });
+// A cell's name starts with the full date; its occurrences' names follow it.
+const cell = (name: string) => screen.getByRole("gridcell", { name: new RegExp(`^${name}`) });
 
 describe("MonthGrid", () => {
   it("shows six weeks under the weekday names", () => {
@@ -50,7 +51,18 @@ describe("MonthGrid", () => {
     expect(within(grid).getAllByRole("row").length).toBeGreaterThanOrEqual(6);
     const cells = within(grid).getAllByRole("gridcell");
     expect(cells).toHaveLength(42);
-    expect(cells[0]?.getAttribute("aria-label")).toBe("Sunday, September 27, 2026");
+    expect(cells[0]).toBe(cell("Sunday, September 27, 2026"));
+  });
+
+  it("names each cell with the full date, and hides the day number from it", () => {
+    month();
+    const thursday = screen.getByRole("gridcell", { name: /^Thursday, October 8, 2026/ });
+    // The cell's name starts with the date as visually hidden text, so the
+    // visible day number and occurrences do not contradict it.
+    expect(thursday.hasAttribute("aria-label")).toBe(false);
+    expect(thursday.firstElementChild?.className).toContain("sr-only");
+    expect(thursday.firstElementChild?.textContent).toBe("Thursday, October 8, 2026");
+    expect(thursday.querySelector("[aria-hidden='true']")?.textContent).toBe("8");
   });
 
   it("numbers days, naming the month on each 1st", () => {

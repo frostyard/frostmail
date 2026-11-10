@@ -409,6 +409,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   selecting it or changing the selection, and the pointer press does not
   move focus. They are not in the tab order (the keys do the same); each
   has its name as tooltip with the shortcut ("Archive (Ctrl+Alt+A)").
+  They are pointer-only (`aria-hidden`, no button role): an option may not
+  hold a control, and the keys reach the same actions.
 
 ### Reader
 
@@ -1078,7 +1080,11 @@ The compose window's own keys are in [compose-ui.md](compose-ui.md).
 - The reader frame never has `allow-scripts`; the app never fetches remote
   content (ADR-0005).
 - Every interactive element is reachable by keyboard and has an accessible
-  name.
+  name. `app/e2e/a11y.e2e.ts` runs axe-core on the main views and fails on
+  serious and critical violations. It prints color contrast findings and
+  does not fail on them: the colors are the Tokens above.
+- When the system asks for reduced motion (`prefers-reduced-motion:
+  reduce`), no animation or transition runs (`app/src/styles/app.css`).
 
 ## References
 

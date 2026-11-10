@@ -69,6 +69,23 @@
   background-color: color-mix(in srgb, var(--flag-2) 60%, transparent);
 }
 
+/* Reduced motion (docs/specs/ui.md, Rules): when the system asks for less
+   motion, no animation or transition runs, and no scroll is smooth. Spinners
+   (animate-spin) stop in place; their labels still say what runs. The rule
+   is global, so a transition added later follows it too. It is outside any
+   layer, so it wins over Tailwind's utilities, which are in a layer, with no
+   !important. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+}
+
 @layer base {
   html,
   body,

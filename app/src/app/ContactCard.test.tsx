@@ -6,6 +6,7 @@ import { Session } from "../data/session";
 import { useUI } from "../data/stores";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { senderName } from "../testing/names";
 import { MainWindow } from "./MainWindow";
 
 const now = new Date("2026-10-08T12:00:00Z");
@@ -30,7 +31,7 @@ async function setup() {
   const calls = (method: string) => mock.calls.filter((c) => c.method === method);
   const open = async (id: number, address: string) => {
     act(() => useUI.getState().select([id], id));
-    const buttons = await screen.findAllByRole("button", { name: address });
+    const buttons = await screen.findAllByRole("button", { name: senderName(address) });
     fireEvent.click(buttons[0] as HTMLElement);
     return screen.findByRole("dialog");
   };
