@@ -188,22 +188,27 @@ func (t *Tx) Memberships(ctx context.Context, ids []int64) ([]Membership, error)
 }
 
 // MoveMembership moves a message from one mailbox to another locally,
-// leaving its UID unknown until the server reports it.
+// leaving its UID unknown until the server reports it. The row's added_at
+// restarts: the message is new in the mailbox it comes to (ADR-0051).
 func (t *Tx) MoveMembership(ctx context.Context, messageID, from, to int64) error {
-	_, err := t.ExecContext(ctx, `UPDATE message_mailbox SET mailbox_id = ?, uid = NULL, modseq = NULL, pending = 1
-		WHERE message_id = ? AND mailbox_id = ?`, to, messageID, from)
+	_, err := t.ExecContext(ctx, `UPDATE message_mailbox SET mailbox_id = ?, uid = NULL, modseq = NULL, pending = 1, added_at = ?
+		WHERE message_id = ? AND mailbox_id = ?`, to, FormatTime(t.Now()), messageID, from)
 	return err
 }
 
 // SetMembership records a message's mailbox and UID once the server
-// confirmed a move (uid 0 leaves it unknown), clearing pending.
+// confirmed a move (uid 0 leaves it unknown), clearing pending. A row that
+// comes to another mailbox restarts its added_at, as MoveMembership's does;
+// one that stays keeps the time it had (ADR-0051).
 func (t *Tx) SetMembership(ctx context.Context, messageID, mailboxID int64, uid uint32) error {
 	var u any
 	if uid != 0 {
 		u = int64(uid)
 	}
-	_, err := t.ExecContext(ctx, `UPDATE message_mailbox SET mailbox_id = ?, uid = ?, pending = 0 WHERE message_id = ? AND pending = 1`,
-		mailboxID, u, messageID)
+	_, err := t.ExecContext(ctx, `UPDATE message_mailbox SET
+		added_at = CASE WHEN mailbox_id = ? THEN added_at ELSE ? END,
+		mailbox_id = ?, uid = ?, pending = 0 WHERE message_id = ? AND pending = 1`,
+		mailboxID, FormatTime(t.Now()), mailboxID, u, messageID)
 	return err
 }
 

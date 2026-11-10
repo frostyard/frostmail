@@ -46,7 +46,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
 | P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
 | P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry). In lodge, the rail and the home-screen icon show the inboxes' unread count (`/health`'s `badge`): `TestHealthBadge` |
-| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Later | Plan 0014 Phase 4 ([#162](https://github.com/frostyard/frostmail/issues/162)) |
+| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Have | `TestEraseOld`, `TestDovecotEraseOld`, `AccountForm.erase.test.tsx`, `SettingsWindow.erase.test.tsx` |
 
 ## The message list
 

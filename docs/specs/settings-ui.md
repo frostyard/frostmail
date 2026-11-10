@@ -271,8 +271,8 @@ interface AccountFormValue {
   readOnly: boolean;
   notify: boolean;
   syncDays?: number; // the sync window (ADR-0016); 0 or absent keeps every message
-  eraseTrashDays: 0 | 1 | 7 | 30; // plan 0014 Phase 4; 0 is Never
-  eraseJunkDays: 0 | 1 | 7 | 30;
+  eraseTrashDays?: 0 | 1 | 7 | 30; // plan 0014 Phase 4; 0 or absent is Never
+  eraseJunkDays?: 0 | 1 | 7 | 30;
   password: string; // a new password; "" keeps the stored one
   services?: ServiceKind[]; // add mode: turned on with mail; absent means none
 }

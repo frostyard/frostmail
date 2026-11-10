@@ -61,6 +61,8 @@ types:
       - {name: readOnly, type: bool, doc: "maild makes no changes on the server: no flags, moves, deletes, sends or draft copies."}
       - {name: notify, type: bool, doc: "New mail in the inbox shows a desktop notification."}
       - {name: syncDays, type: int, doc: "maild keeps the messages that arrived in the last syncDays days; 0 keeps every message (ADR-0016)."}
+      - {name: eraseTrashDays, type: int, optional: true, doc: "maild erases what has been this many days in the account's trash mailbox: 0 (Never, the default), 1, 7 or 30 (ADR-0051). Absent (an older maild) is Never."}
+      - {name: eraseJunkDays, type: int, optional: true, doc: "The same for the account's junk mailbox (ADR-0051)."}
       - {name: signedIn, type: bool, doc: "A password or OAuth token is stored and the server has not refused it."}
   - name: Discovery
     doc: Server settings found for an address.
@@ -167,6 +169,8 @@ methods:
       - {name: readOnly, type: bool, optional: true}
       - {name: notify, type: bool, optional: true}
       - {name: syncDays, type: int, optional: true, doc: "A new window: the next pass fetches what it adds and drops what it leaves."}
+      - {name: eraseTrashDays, type: int, optional: true, doc: "0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051)."}
+      - {name: eraseJunkDays, type: int, optional: true, doc: "0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051)."}
     result: Account
     errors: [invalidParams, notFound]
   - name: delete

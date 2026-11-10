@@ -105,6 +105,14 @@ export interface Account {
    * every message (ADR-0016).
    */
   syncDays: number;
+  /**
+   * maild erases what has been this many days in the account's trash mailbox:
+   * 0 (Never, the default), 1, 7 or 30 (ADR-0051). Absent (an older maild) is
+   * Never.
+   */
+  eraseTrashDays?: number;
+  /** The same for the account's junk mailbox (ADR-0051). */
+  eraseJunkDays?: number;
   /** A password or OAuth token is stored and the server has not refused it. */
   signedIn: boolean;
 }
@@ -278,6 +286,10 @@ export interface AccountUpdateParams {
    * leaves.
    */
   syncDays?: number;
+  /** 0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051). */
+  eraseTrashDays?: number;
+  /** 0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051). */
+  eraseJunkDays?: number;
 }
 
 /** Params of account.delete. */

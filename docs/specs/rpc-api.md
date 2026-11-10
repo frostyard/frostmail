@@ -79,6 +79,8 @@ Change an account's settings. Omitted fields keep their values.
 | `readOnly` | `bool` (optional) |  |
 | `notify` | `bool` (optional) |  |
 | `syncDays` | `int` (optional) | A new window: the next pass fetches what it adds and drops what it leaves. |
+| `eraseTrashDays` | `int` (optional) | 0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051). |
+| `eraseJunkDays` | `int` (optional) | 0 (Never), 1, 7 or 30; another value is invalidParams (ADR-0051). |
 
 Result: `Account`.
 Errors: `invalidParams`, `notFound`.
@@ -237,6 +239,8 @@ A configured mail account.
 | `readOnly` | `bool` | maild makes no changes on the server: no flags, moves, deletes, sends or draft copies. |
 | `notify` | `bool` | New mail in the inbox shows a desktop notification. |
 | `syncDays` | `int` | maild keeps the messages that arrived in the last syncDays days; 0 keeps every message (ADR-0016). |
+| `eraseTrashDays` | `int` (optional) | maild erases what has been this many days in the account's trash mailbox: 0 (Never, the default), 1, 7 or 30 (ADR-0051). Absent (an older maild) is Never. |
+| `eraseJunkDays` | `int` (optional) | The same for the account's junk mailbox (ADR-0051). |
 | `signedIn` | `bool` | A password or OAuth token is stored and the server has not refused it. |
 
 ### Type `Discovery`

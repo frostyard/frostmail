@@ -359,33 +359,12 @@ func (m *Manager) EraseMailbox(ctx context.Context, id int64) (int, error) {
 	}
 	n := 0
 	err = m.db.Tx(ctx, func(tx *store.Tx) error {
-		uids, err := tx.MailboxMembers(ctx, mb.ID)
+		members, err := tx.MailboxMembers(ctx, mb.ID)
 		if err != nil {
 			return err
 		}
-		op := &expungeOp{Mailbox: mb.ID}
-		var ids []int64
-		for _, it := range uids {
-			if it.UID == 0 {
-				continue // a move is still pending; it lands and stays
-			}
-			op.Items = append(op.Items, moveItem{Message: it.Message, UID: it.UID})
-			ids = append(ids, it.Message)
-		}
-		n = len(ids)
-		if n == 0 {
-			return nil
-		}
-		if err := tx.MarkDeleted(ctx, ids); err != nil {
-			return err
-		}
-		if _, err := tx.QueueOp(ctx, mb.AccountID, opExpunge, op, ids); err != nil {
-			return err
-		}
-		if err := tx.Emit(ctx, api.MessageChanged{AccountID: mb.AccountID, IDs: ids}); err != nil {
-			return err
-		}
-		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: mb.AccountID})
+		n, err = eraseMembers(ctx, tx, mb, members)
+		return err
 	})
 	if err != nil {
 		return 0, err
@@ -394,6 +373,45 @@ func (m *Manager) EraseMailbox(ctx context.Context, id int64) (int, error) {
 		m.kick(mb.AccountID)
 	}
 	return n, nil
+}
+
+// eraseMembers hides the given members of a trash or junk mailbox at once
+// and queues one expunge op for them, with the mailbox's UIDVALIDITY
+// (ADR-0051), emitting message.changed and mailbox.changed in the same
+// transaction. It returns how many it erased; a member without a UID (a move
+// still pending, which lands and stays) is left out.
+func eraseMembers(ctx context.Context, tx *store.Tx, mb store.Mailbox, members []store.MailboxMember) (int, error) {
+	var op expungeOp
+	op.Mailbox = mb.ID
+	var ids []int64
+	for _, it := range members {
+		if it.UID == 0 {
+			continue // a move is still pending; it lands and stays
+		}
+		op.Items = append(op.Items, moveItem{Message: it.Message, UID: it.UID})
+		ids = append(ids, it.Message)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	validity, err := tx.MailboxUIDValidity(ctx, mb.ID)
+	if err != nil {
+		return 0, err
+	}
+	op.UIDValidity = validity
+	if err := tx.MarkDeleted(ctx, ids); err != nil {
+		return 0, err
+	}
+	if _, err := tx.QueueOp(ctx, mb.AccountID, opExpunge, &op, ids); err != nil {
+		return 0, err
+	}
+	if err := tx.Emit(ctx, api.MessageChanged{AccountID: mb.AccountID, IDs: ids}); err != nil {
+		return 0, err
+	}
+	if err := tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: mb.AccountID}); err != nil {
+		return 0, err
+	}
+	return len(ids), nil
 }
 
 // replayMailbox sends a mailbox op to the server.

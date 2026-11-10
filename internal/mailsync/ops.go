@@ -73,10 +73,15 @@ func itemMessages(items []moveItem) []int64 {
 	return ids
 }
 
-// expungeOp permanently deletes messages from a mailbox (Trash).
+// expungeOp permanently deletes messages from a mailbox (Trash). UIDValidity
+// is the mailbox's stored UIDVALIDITY when the op was queued: a UID means
+// nothing in a mailbox whose UIDVALIDITY changed, so replay refuses the op
+// then (ADR-0051). Ops queued before the field existed have none and replay
+// as before.
 type expungeOp struct {
-	Mailbox int64      `json:"mailbox"`
-	Items   []moveItem `json:"items"`
+	Mailbox     int64      `json:"mailbox"`
+	Items       []moveItem `json:"items"`
+	UIDValidity uint32     `json:"uidValidity,omitzero"`
 }
 
 // SetFlags changes flags locally and queues the change for each account the
@@ -435,7 +440,11 @@ func (m *Manager) deleteTx(ctx context.Context, tx *store.Tx, ids []int64) ([]in
 			item := moveItem{Message: mem.MessageID, UID: mem.UID}
 			if trash == 0 || mem.MailboxID == trash {
 				if expunges[mem.MailboxID] == nil {
-					expunges[mem.MailboxID] = &expungeOp{Mailbox: mem.MailboxID}
+					validity, err := tx.MailboxUIDValidity(ctx, mem.MailboxID)
+					if err != nil {
+						return err
+					}
+					expunges[mem.MailboxID] = &expungeOp{Mailbox: mem.MailboxID, UIDValidity: validity}
 				}
 				expunges[mem.MailboxID].Items = append(expunges[mem.MailboxID].Items, item)
 				hidden = append(hidden, mem.MessageID)
@@ -499,6 +508,10 @@ var ErrInvalid = errors.New("mailsync: invalid request")
 
 // ErrReadOnly refuses a change to a read-only account's mail.
 var ErrReadOnly = errors.New("account is read-only")
+
+// errUIDValidityChanged refuses an expunge op whose mailbox the server has
+// renumbered: its UIDs are other messages now (ADR-0051).
+var errUIDValidityChanged = errors.New("mailbox uidvalidity changed")
 
 // refuseReadOnly fails with ErrReadOnly when an account is read-only.
 func refuseReadOnly(ctx context.Context, tx *store.Tx, accountID int64) error {
@@ -588,7 +601,7 @@ func (a *actor) replay(ctx context.Context, cmd conn) error {
 			if err := a.m.db.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteOp(ctx, op.ID) }); err != nil {
 				return err
 			}
-		case errors.As(err, &imapErr) || errors.Is(err, store.ErrNotFound):
+		case errors.As(err, &imapErr) || errors.Is(err, store.ErrNotFound) || errors.Is(err, errUIDValidityChanged):
 			a.m.log.Warn("server refused an offline action", "account", a.acct.ID, "op", op.Kind, "err", err)
 			if err := a.undo(ctx, op, err.Error()); err != nil {
 				return err
@@ -751,8 +764,15 @@ func (a *actor) replayOne(ctx context.Context, cmd conn, op store.Op) error {
 		if err != nil {
 			return err
 		}
-		if _, err := cmd.Select(ctx, path); err != nil {
+		sel, err := cmd.Select(ctx, path)
+		if err != nil {
 			return err
+		}
+		// A UID names a message only within one UIDVALIDITY (ADR-0051):
+		// after a change the server's UIDs are new messages, so this op
+		// erases nothing and the mailbox syncs again.
+		if p.UIDValidity != 0 && sel.UIDValidity != p.UIDValidity {
+			return fmt.Errorf("mailbox %d: uidvalidity %d, op %d: %w", p.Mailbox, sel.UIDValidity, p.UIDValidity, errUIDValidityChanged)
 		}
 		uids := make([]uint32, len(p.Items))
 		for i, it := range p.Items {

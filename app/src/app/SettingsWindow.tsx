@@ -31,6 +31,7 @@ import type {
   Account,
   Client,
   Identity,
+  MailboxRole,
   OAuthClient,
   Rule,
   ServerConfig,
@@ -347,9 +348,16 @@ function emptyAccount(): AccountFormValue {
     readOnly: false,
     notify: true,
     syncDays: 0,
+    eraseTrashDays: 0,
+    eraseJunkDays: 0,
     password: "",
     services: [],
   };
+}
+
+/** eraseDays is a stored erase setting as the form offers it: anything but 1, 7 or 30 is Never (ADR-0051). */
+function eraseDays(days: number | undefined): 0 | 1 | 7 | 30 {
+  return days === 1 || days === 7 || days === 30 ? days : 0;
 }
 
 function accountValue(a: Account): AccountFormValue {
@@ -363,6 +371,8 @@ function accountValue(a: Account): AccountFormValue {
     readOnly: a.readOnly,
     notify: a.notify,
     syncDays: a.syncDays,
+    eraseTrashDays: eraseDays(a.eraseTrashDays),
+    eraseJunkDays: eraseDays(a.eraseJunkDays),
     password: "",
   };
 }
@@ -477,6 +487,36 @@ function AccountsPane() {
   const [waiting, setWaiting] = useState<{ id: number; wasSignedIn: boolean } | null>(null);
   const { busy, error, setError, run } = useRequest();
   const account = accounts.find((a) => a.id === selected);
+  // The mailboxes the mailbox behaviors erase: the selected account's trash
+  // and junk roles, read again when the account's mailboxes change (ADR-0051).
+  const [eraseMailboxes, setEraseMailboxes] = useState<{ trash?: string; junk?: string }>({});
+  const editing = typeof selected === "number" ? selected : null;
+  useEffect(() => {
+    if (editing === null) return;
+    setEraseMailboxes({});
+    let active = true;
+    const load = async () => {
+      try {
+        const list = await client.mailbox.list({ accountId: editing });
+        if (!active) return;
+        const nameOf = (role: MailboxRole) => list.find((mb) => mb.role === role)?.name;
+        const trash = nameOf("trash");
+        const junk = nameOf("junk");
+        setEraseMailboxes({ ...(trash === undefined ? {} : { trash }), ...(junk === undefined ? {} : { junk }) });
+      } catch {
+        // Without the names the form offers no behavior, so nothing is erased.
+        if (active) setEraseMailboxes({});
+      }
+    };
+    void load();
+    const off = client.transport.onEvent((event) => {
+      if (event.event === "mailbox.changed") void load();
+    });
+    return () => {
+      active = false;
+      off();
+    };
+  }, [client, editing]);
 
   const select = useCallback(
     (next: number | "new") => {
@@ -588,6 +628,8 @@ function AccountsPane() {
           readOnly: value.readOnly,
           notify: value.notify,
           ...(value.syncDays === undefined ? {} : { syncDays: value.syncDays }),
+          ...(value.eraseTrashDays === undefined ? {} : { eraseTrashDays: value.eraseTrashDays }),
+          ...(value.eraseJunkDays === undefined ? {} : { eraseJunkDays: value.eraseJunkDays }),
         });
         if (value.password !== "") await client.account.setPassword({ id: a.id, password: value.password });
         setValue(accountValue(a));
@@ -635,6 +677,7 @@ function AccountsPane() {
           onSignIn={authorize}
           signInWaiting={typeof selected === "number" && waiting?.id === selected}
           onFinishSignIn={finishSignIn}
+          eraseMailboxes={editing === null ? undefined : eraseMailboxes}
           services={
             typeof selected === "number" && (
               <AccountServices

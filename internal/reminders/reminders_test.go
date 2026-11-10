@@ -2,6 +2,7 @@ package reminders_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -247,5 +248,64 @@ func TestSchedulerResume(t *testing.T) {
 	// (11:45) is more than a day old.
 	if got := check(start(), "2026-10-09T11:50:00Z"); len(got) != 0 {
 		t.Errorf("a day later: shown %q", got)
+	}
+}
+
+// TestSchedulerErases: the erase pass of the old Trash and Junk mail (ADR-0051)
+// runs at the first check and then once an hour, not at every check, and a
+// pass that failed is retried an hour later rather than every minute.
+func TestSchedulerErases(t *testing.T) {
+	ctx := t.Context()
+	var events []string
+	db := reminderDB(t, &events)
+	now := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+	db.Now = func() time.Time { return now }
+	cal := engine.New(engine.Deps{DB: db}).Calendar()
+	var ran int
+	fail := true
+	s := reminders.New(reminders.Config{DB: db,
+		List: func(ctx context.Context) ([]api.Reminder, error) {
+			return cal.Reminders(ctx, &api.CalendarRemindersParams{})
+		},
+		Now:   func() time.Time { return now },
+		Local: time.UTC,
+		Erase: func(context.Context, time.Time) error {
+			ran++
+			if fail {
+				return errors.New("the server is away")
+			}
+			return nil
+		}})
+	check := func(at string) {
+		t.Helper()
+		at2, err := time.Parse(time.RFC3339, at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now = at2
+		if err := s.Check(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	check("2026-10-08T09:00:00Z") // the first check after a start
+	check("2026-10-08T09:30:00Z")
+	if ran != 1 {
+		t.Fatalf("erase passes after 30 minutes = %d, want 1", ran)
+	}
+	// An hour after the first pass, not an hour after the last check: it
+	// failed, so the next one tries again.
+	fail = false
+	check("2026-10-08T09:59:00Z")
+	if ran != 1 {
+		t.Fatalf("erase passes before the hour = %d, want 1", ran)
+	}
+	check("2026-10-08T10:00:00Z")
+	if ran != 2 {
+		t.Fatalf("erase passes after the hour = %d, want 2", ran)
+	}
+	check("2026-10-08T10:30:00Z")
+	if ran != 2 {
+		t.Fatalf("erase passes after 90 minutes = %d, want 2", ran)
 	}
 }

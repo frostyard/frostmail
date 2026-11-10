@@ -76,9 +76,9 @@ type FlagUpdate struct {
 // after a crash. Each insert writes a messages row (body_state 'headers',
 // thread_id NULL, subject_norm from mimex.NormalizeSubject, addresses and
 // references as JSON arrays, date_hdr NULL for a zero Date), its
-// message_mailbox row (uid, modseq) and its parts rows. It emits nothing:
-// the sync engine threads, indexes and emits message.changed for the batch
-// in the same transaction. Task T-0013 implements it.
+// message_mailbox row (uid, modseq, added_at) and its parts rows. It emits
+// nothing: the sync engine threads, indexes and emits message.changed for the
+// batch in the same transaction. Task T-0013 implements it.
 func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs []MessageHeader) ([]int64, error) {
 	var ids []int64
 	for _, h := range hs {
@@ -99,8 +99,8 @@ func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs [
 			return nil, err
 		}
 		if _, err := t.ExecContext(ctx,
-			`INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq) VALUES (?, ?, ?, ?)`,
-			id, mailboxID, int64(h.UID), int64(h.ModSeq)); err != nil {
+			`INSERT INTO message_mailbox (message_id, mailbox_id, uid, modseq, added_at) VALUES (?, ?, ?, ?, ?)`,
+			id, mailboxID, int64(h.UID), int64(h.ModSeq), FormatTime(t.Now())); err != nil {
 			return nil, fmt.Errorf("insert membership uid %d: %w", h.UID, err)
 		}
 		ids = append(ids, id)

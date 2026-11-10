@@ -2,9 +2,12 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 )
@@ -255,4 +258,49 @@ func (t *Tx) MailboxMembers(ctx context.Context, mailboxID int64) ([]MailboxMemb
 		out = append(out, mm)
 	}
 	return out, rows.Err()
+}
+
+// OldMailboxMembers returns at most limit of the messages in a mailbox that
+// maild first saw there before the given time, oldest first: the erase pass
+// takes these (ADR-0051). A message without a UID (a pending move) and one
+// with no added_at are left out: neither can be erased by UID.
+func (t *Tx) OldMailboxMembers(ctx context.Context, mailboxID int64, before time.Time, limit int) ([]MailboxMember, error) {
+	rows, err := t.QueryContext(ctx, `SELECT mm.message_id, mm.uid FROM message_mailbox mm
+		JOIN messages m ON m.id = mm.message_id
+		WHERE mm.mailbox_id = ? AND mm.uid IS NOT NULL AND m.deleted = 0
+			AND mm.added_at IS NOT NULL AND mm.added_at <= ?
+		ORDER BY mm.added_at, mm.message_id LIMIT ?`, mailboxID, FormatTime(before), limit)
+	if err != nil {
+		return nil, fmt.Errorf("old mailbox members: %w", err)
+	}
+	defer rows.Close()
+	var out []MailboxMember
+	for rows.Next() {
+		var mm MailboxMember
+		var uid int64
+		if err := rows.Scan(&mm.Message, &uid); err != nil {
+			return nil, fmt.Errorf("old mailbox members: %w", err)
+		}
+		mm.UID = uint32(uid)
+		out = append(out, mm)
+	}
+	return out, rows.Err()
+}
+
+// MailboxUIDValidity returns the UIDVALIDITY maild stored for a mailbox, 0
+// while it has none (the mailbox was never selected); a missing mailbox is
+// ErrNotFound.
+func (t *Tx) MailboxUIDValidity(ctx context.Context, mailboxID int64) (uint32, error) {
+	var v sql.NullInt64
+	err := t.QueryRowContext(ctx, `SELECT uidvalidity FROM mailboxes WHERE id = ?`, mailboxID).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("mailbox %d: %w", mailboxID, ErrNotFound)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("mailbox uidvalidity: %w", err)
+	}
+	if !v.Valid || v.Int64 < 0 {
+		return 0, nil
+	}
+	return uint32(v.Int64), nil
 }
