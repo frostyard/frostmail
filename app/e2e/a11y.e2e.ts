@@ -12,8 +12,8 @@ import { createRequire } from "node:module";
 import { basename, join } from "node:path";
 
 import { afterEach, describe, expect, it, onTestFinished } from "vitest";
-
-import { type App, fixture, launch, ROOT, tempDir, until, WINDOWS } from "./harness";
+import { endLaunch } from "./endLaunch";
+import { type App, fixture, launch, ROOT, tempDir, WINDOWS } from "./harness";
 import type { Session } from "./webdriver";
 
 const SHOWCASE = join(ROOT, "app/e2e/showcase");
@@ -40,26 +40,29 @@ afterEach(async () => {
   const launched = app;
   app = undefined;
   if (!launched) return;
+  const s = launched.session;
   // A launch must end before the next one: the app is single-instance (over
   // D-Bus, as in CI), and a lingering app would take the next launch. Close
-  // the windows a test opened (compose, settings, a reminder) first.
-  const s = launched.session;
-  for (const handle of await s.windows().catch(() => [])) {
-    if (handle === mainHandle) continue;
-    await s.switchTo(handle);
-    await s.closeWindow();
-  }
-  await launched.stop();
-  // These tests check the views, not how the app ends (firstrun.e2e.ts does):
-  // an app that outlives its session is ended, so it cannot take the next
-  // launch, and the test says so.
-  try {
-    await until("the app to end", () => !launched.running(), 10_000);
-  } catch {
-    const ended = endApp(launched.cache);
-    process.stderr.write(`a11y: the app outlived its session; ended ${ended.join(", ") || "nothing"}\n`);
-    await until("the ended app to go", () => !launched.running(), 10_000);
-  }
+  // the windows a test opened (compose, settings, a reminder) first. A window
+  // that goes after it was listed, or a WebDriver call that hangs, must not
+  // skip the steps after it, so endLaunch bounds each step and still ends the
+  // app. These tests check the views, not how the app ends (firstrun.e2e.ts
+  // does); an app that outlives its session is ended, and the log says so.
+  await endLaunch(
+    {
+      closeOthers: async () => {
+        for (const handle of await s.windows()) {
+          if (handle === mainHandle) continue;
+          await s.switchTo(handle);
+          await s.closeWindow();
+        }
+      },
+      stop: () => launched.stop(),
+      running: () => launched.running(),
+      end: () => endApp(launched.cache),
+    },
+    (line) => process.stderr.write(`${line}\n`),
+  );
 });
 
 /**
