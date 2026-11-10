@@ -9,7 +9,7 @@ no ChairLift pattern where it does not fit.
 
 - **One PR, a draft until parity.** The native app is built beside the
   Tauri shell on one branch, phase by phase. The PR stays a draft, with
-  its gap list in its body, until the parity gate (Phase 9) passes; only
+  its gap list in its body, until the parity gate (Phase 10) passes; only
   then does it delete `app/src-tauri`. A human merges it.
 - **frostui is a dependency, not a workspace.** Until a version of
   `github.com/frostyard/frostui` is tagged, the branch uses an uncommitted
@@ -25,14 +25,18 @@ no ChairLift pattern where it does not fit.
   what it lacks today (a tray, an unread badge, a `mailto:` handler, `.eml`
   files, dragging attachments out, search tokens) stays out of this plan.
 
-Status (2026-11-10): Phase 0 is in review (this plan and ADR-0054,
-Proposed). Nothing is built.
+Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
+[ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
+Proposed). Nothing is built. The console of maild's activity (Phase 2) was
+added on 2026-11-10 at the owner's request, relayed by the orchestrating
+session ("it'd be fun to use that console view from chairlift to show
+background activity in frostmail").
 
 ## The window
 
 ```
 ┌──────────────┬────────────────────┬────────────────────────────────────────────────────┐
-│ ◧ ↻          │ Inbox  12 unread ✎ │ ⌫ ▣ ↩ ↩↩ ↪ ⚑▾ ✉ ⇥▾ »  ☰  ⌕ Search or run a command ⌃K ⋮ – □ ✕ │ top bar 52
+│ ◧ ↻          │ Inbox  12 unread ✎ │ ⌫ ▣ ↩ ↩↩ ↪ ⚑▾ ✉ ⇥▾ » ☰ ⌕ Search or run a command ⌃K ▤ ⋮ – □ ✕ │ top bar 52
 ├──────────────┼────────────────────┼────────────────────────────────────────────────────┤
 │ Favorites    │ ⌕ Search Inbox     │ (A) Sender                                   date  │
 │  All Inboxes │ All Unread Flagged…│     Subject                                        │
@@ -41,7 +45,12 @@ Proposed). Nothing is built.
 │  Inbox    12 │   preview…         │                                                    │
 │ ✉  ▦  👥  ☑  │ …                  │                                                    │
 ├──────────────┴────────────────────┴────────────────────────────────────────────────────┤
-│ ● Local · Work synced 9:41 · Home: offline · Outbox 1           2 selected · 1,204 messages │ status bar 24
+│ Activity  Info ✓ Warn ✓ Error ✓ Debug   ⌕ filter            (Ctrl J; closed by default) │ console
+│ 9:41:02  Work   Inbox synced: 3 new, 12 changed (0.4 s)                                  │
+│ 9:41:05  Work   sent 1 message (smtp, 1.2 s)                                             │
+│ 9:41:30  Home   CardDAV pass: 2 changed                                                  │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ ● Local · Work: Inbox synced 9:41 · Home: offline · Outbox 1    2 selected · 1,204 messages │ status bar 24
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,8 +64,8 @@ Proposed). Nothing is built.
   the panes' widths: the sidebar's (Show Sidebar, Get Mail), the list's
   (the source's title and subtitle, New Message) and the reader's (Delete,
   Archive, Reply, Reply All, Forward, Flag ▾, Mark, Move ▾ and », in the
-  code's order; then the To-Do Bar toggle, the palette field, the main
-  menu and the window controls). Calendar, People and Tasks put their own
+  code's order; then the To-Do Bar toggle, the palette field, the
+  console's button, the main menu and the window controls). Calendar, People and Tasks put their own
   actions in the same segments (New Event, Today, ‹ ›, the title, Day /
   Week / Month; New Contact; New Task, Show Completed).
 - **The palette field** ("Search or run a command") is frostui's. Ctrl K
@@ -76,10 +85,21 @@ Proposed). Nothing is built.
   start the connection (Local, or lodge's host; "Reconnecting to maild…"
   in the warning tone, with the reason in its tooltip), each account's
   sync (a spinner and its progress, Offline, Read-only, or an error that
-  opens Settings › Accounts), and the Outbox when it holds mail (it
+  opens Settings › Accounts), with the account's newest activity as its
+  text (a click opens the console), and the Outbox when it holds mail (it
   selects the Outbox). At its end the list's counts (selected, messages,
   unread), or the visible range in Calendar. The sidebar keeps its
   per-account spinner and alert icon.
+- **The console** is frostui's `Console` and `ConsoleView`, as in
+  ChairLift, under the panes in a vertical split: maild's background
+  activity ([ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md)),
+  one line per mailbox pass, IDLE wake, fetch, push of flag changes, send,
+  Send Later, Remind Me, rule run, CalDAV, CardDAV, Graph or Google Tasks
+  pass, token refresh and failure, each with its time, level and source
+  (the account's name, or the service). frostui's level toggles and text
+  filter apply. It is closed by default and opens with Ctrl J (free
+  today; Ctrl+Shift+J is Junk), the top bar's button and the palette's Show Activity. The app
+  adds lines of its own about its connection to maild.
 - **The module bar** stays at the foot of each sidebar
   ([specs/pim-ui.md](../specs/pim-ui.md#module-bar)); it is Frostmail's
   rail, and frostui's page rail is not used.
@@ -108,8 +128,8 @@ keys and enabled rule, and the palette lists the current module's:
   Today, Day / Week / Month, Previous / Next Period, Show Completed.
 - **Organize:** New Smart Mailbox…, New Mailbox…, New Rule…, New Event,
   New Contact, New Task.
-- **App:** Get Mail, Search, Settings (each pane), Server…, Keyboard
-  Shortcuts, About Frostmail.
+- **App:** Get Mail, Search, Show Activity, Settings (each pane),
+  Server…, Keyboard Shortcuts, About Frostmail.
 
 ## Inventory and mapping
 
@@ -285,7 +305,8 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 
 ## Phase 0 — Decisions and spikes (planner, M)
 
-- ADR-0054 accepted; the old ADRs' statuses updated in the same change.
+- ADR-0054 and ADR-0055 accepted; the old ADRs' statuses updated in the
+  same change.
 - **Reader spike:** an untrusted `WebView` showing the hostile corpus
   (`app/e2e` and `internal/render`'s fixtures) through the reader's
   template: a CSP meta first (`default-src 'none'; img-src data:;
@@ -352,7 +373,35 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   after maild restarts; the Windows build starts and connects on
   `frostmail-win11`.
 
-## Phase 2 — Mail: sidebar, list and search (L)
+## Phase 2 — maild's activity stream and the console (M)
+
+- [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md):
+  `schema/rpc/activity.yaml` (`ActivityEntry` with no string field, its
+  enums, `activity.recent`, `activity.subscribe`, `activity.unsubscribe`,
+  the transient `activity.entry`), `make gen`.
+- `internal/activity`: the ring of 2,000 entries, the per-account limit
+  and its `dropped` entry, the subscribers' buffers of 256, the typed
+  constructors and `Classify`. The rpcserver serves the methods to
+  `local` and `session` callers.
+- Emit points: mailsync (connect, list, each mailbox pass, IDLE, fetch
+  batches, pushes of offline ops, draft copies, sends and their failures,
+  Send Later, rules, Remind Me, announcements, erasing), pimsync (each
+  CalDAV, CardDAV, Graph and Google Tasks pass, refused changes) and
+  oauth (refreshes, sign-in needed).
+- The three tests of ADR-0055: no string field, one package builds
+  entries, and the canary run (with `imapxtest`, `smtpsink`, `davtest` and
+  the recorded Graph and Google sessions) whose entries hold no canary.
+- The desktop: frostui's `Console` fed from `activity.recent` at connect
+  and `activity.entry` after, lines written from each kind, the account
+  and mailbox names from the stores, Ctrl J, the button, the palette
+  command, the status bar's newest entry.
+- **Done when:** against the Dovecot container (`make engine-it`'s), the
+  console shows lines for a mailbox pass, an IDLE wake, a flag push, a
+  send, a refused send, a rule run and a CardDAV pass, each naming its
+  account; an `agent` caller's `activity.recent` is refused; and the
+  canary test passes.
+
+## Phase 3 — Mail: sidebar, list and search (L)
 
 - The sidebar and its menus; the list, its rows, menus, drags and empty
   states; the filter row, sort, search with its scope bar, Save as Smart
@@ -363,7 +412,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   the sidebar, of the message list and of search has a Go test that fails
   when it breaks, beside its React test.
 
-## Phase 3 — The reader (L)
+## Phase 4 — The reader (L)
 
 - The header, the six banners, the conversation (collapsed rows, Show N
   Earlier), the page and its handlers from Phase 0, text bodies, All
@@ -374,7 +423,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   system's handler and never makes a window, and the reader's parity rows
   have tests (Go, or the built app's for the page).
 
-## Phase 4 — Compose (L)
+## Phase 5 — Compose (L)
 
 - The compose window per draft: identities, recipients with suggestions,
   Bcc, the subject, `richtext` with the format bar and link bar, images
@@ -387,7 +436,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   from the native app and match the React app's MIME structure; the
   compose parity rows have Go tests.
 
-## Phase 5 — Organize (M)
+## Phase 6 — Organize (M)
 
 - The smart mailbox and rule sheets over the condition and action
   editors ([specs/organize-ui.md](../specs/organize-ui.md)), VIPs, flags
@@ -395,7 +444,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   mailbox sheet, erasing old Trash and Junk, the refused notices.
 - **Done when:** the organize parity rows have Go tests.
 
-## Phase 6 — Calendar, People and Tasks (L)
+## Phase 7 — Calendar, People and Tasks (L)
 
 - Calendar: Day, Week and Month, the mini month and calendars, the event
   pane, the drags, the keys, the event window with its repeat, scope and
@@ -407,7 +456,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   Go tests, and the week view of a 400-event fixture month draws a frame
   in under 16 ms on the CI runner.
 
-## Phase 7 — Settings, accounts and the desktop (M)
+## Phase 8 — Settings, accounts and the desktop (M)
 
 - The settings window and its seven panes, adding an account and OAuth
   sign-in through the system browser
@@ -418,7 +467,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   account in the native app, a change of mode from local to lodge and
   back keeps one maild, and a notification click opens its message.
 
-## Phase 8 — Packaging and CI (M)
+## Phase 9 — Packaging and CI (M)
 
 - **Flatpak:** the `frostmail` module builds `cmd/frostmail` from
   `go-sources.json`; `cargo-sources.json`, `node-sources.json` and the
@@ -443,7 +492,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 - **Done when:** CI builds the Flatpak and the Windows installer from the
   Go app, and both install and run on the test machines.
 
-## Phase 9 — The parity gate and removing Tauri (M)
+## Phase 10 — The parity gate and removing Tauri (M)
 
 - Every parity row and every [specs/pim-ui.md](../specs/pim-ui.md) and
   [specs/settings-ui.md](../specs/settings-ui.md) behavior has a desktop
@@ -462,6 +511,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 
 | Path | What | Imports MyGo |
 | --- | --- | --- |
+| `internal/activity` (maild) | the activity ring, limits, constructors and `Classify` (ADR-0055) | no |
 | `cmd/frostmail` | main: flags, the single instance, the windows | yes |
 | `internal/desktop/conn` | the maild connection: local, lodge, reconnect, ping, downloads | no |
 | `internal/desktop/live` | view models, stores, events, the waker's input | no |
@@ -482,8 +532,9 @@ when `FROSTMAIL_SNAPSHOT_DIR` is set, as ChairLift's do.
 | Kept | Dropped |
 | --- | --- |
 | Hidden title bar, top bar as drag region, `SetAppID`, single instance | The page rail (the sidebar and module bar are Frostmail's) |
-| Palette field and Ctrl K, `Command` and `Filter` | The console (maild runs the work; nothing to stream) |
-| Status bar and `StatusItem` | The job queue (maild owns sync, the outbox and rules) |
+| Palette field and Ctrl K, `Command` and `Filter` | The job queue (maild owns sync, the outbox and rules) |
+| Status bar and `StatusItem` | The console's command and dry-run levels (no commands run here) |
+| The console (`Console`, `ConsoleView`, Ctrl J), for maild's activity | |
 | `Dialogs`, `Info`, `ShortcutsBody`, `AboutBody`, `CodeDialog`'s look | Pipeline, gauges, charts, figures, tiles (dashboard parts) |
 | Toasts, `Banner`, `Empty`, `Loading`, `Problem` | `PageHeader` and the padded, width-capped page scroll |
 | Theme (`Adapt`, tones, spacing, `Chrome`, `Panel`), text styles, icons | `LaunchDesktopApp`, the wizard's hero |
@@ -496,8 +547,8 @@ These go in `internal/desktop/uikit` first; each is generic enough for
 Frostnotes, frostread or ChairLift:
 
 1. **PaneShell:** frostui's shell without the rail and with full-height,
-   unscrolled content, top-bar segments aligned to the panes, and the
-   status bar.
+   unscrolled content, top-bar segments aligned to the panes, the status
+   bar, and frostui's console in a split under the panes.
 2. **Panes:** a three-pane split with minimum and maximum widths,
    keyboard-movable separators and widths kept per window.
 3. **SafeHTMLView:** an untrusted web view for HTML the app did not write:
@@ -533,7 +584,8 @@ Frostnotes, frostread or ChairLift:
 
 ## References
 
-- Implements: [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
+- Implements: [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md),
+  [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md)
 - Specs it keeps: [specs/ui.md](../specs/ui.md),
   [specs/compose-ui.md](../specs/compose-ui.md),
   [specs/pim-ui.md](../specs/pim-ui.md),

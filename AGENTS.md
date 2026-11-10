@@ -72,8 +72,10 @@ take its ideas only, never its code.
 Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
 [ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
 (Proposed, 2026-11-10) replace the Tauri shell with a native Go app on MyGo
-and frostui; the React app stays as lodge's web app. Phase 0, the spikes, is
-next; nothing is built.
+and frostui; the React app stays as lodge's web app.
+[ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
+(Proposed) adds maild's activity stream for the app's console. Phase 0, the
+spikes, is next; nothing is built.
 
 ## Two kinds of agent work
 

@@ -111,8 +111,9 @@ the React app's structure. Since then:
   dialogs, and frostui's theme in light and dark. Mail.app's three panes
   (mailboxes, list, reader) and the module bar (Mail, Calendar, People,
   Tasks; [ADR-0020](0020-one-window-for-mail-calendar-people-and-tasks.md))
-  replace ChairLift's page rail. ChairLift's console and job queue are not
-  used: maild owns the work and reports it with events.
+  replace ChairLift's page rail. ChairLift's console shows maild's
+  background activity ([ADR-0055](0055-maild-streams-its-activity-as-typed-entries.md));
+  its job queue is not used, since maild owns the work.
 - **Generic patterns wait in one package.** UI patterns that other
   frostyard apps could use go in `internal/desktop/uikit`, which imports
   only the standard library, MyGo, purego and frostui (a test enforces
