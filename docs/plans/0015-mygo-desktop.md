@@ -8,14 +8,21 @@ of 2026-11-10 sets the rules: two UIs, thin clients, the suite's look, and
 no ChairLift pattern where it does not fit.
 
 - **One PR, a draft until parity.** The native app is built beside the
-  Tauri shell on one branch, phase by phase. The PR stays a draft, with
-  its gap list in its body, until the parity gate (Phase 10) passes; only
-  then does it delete `app/src-tauri`. A human merges it.
-- **frostui is a dependency, not a workspace.** Until a version of
-  `github.com/frostyard/frostui` is tagged, the branch uses an uncommitted
-  `go.work` (or a `replace` removed before review). This repository never
-  edits frostui; patterns meant for it wait in `internal/desktop/uikit`
-  ([below](#patterns-for-frostui)).
+  Tauri shell on one branch, phase by phase. The branch is pushed and the
+  PR opened as a draft once Phase 2 passes the gates; it stays a draft,
+  with its gap list in its body, until the parity gate (Phase 10) passes,
+  and only then deletes `app/src-tauri`. A human merges it.
+- **frostui is a dependency, built elsewhere.** The orchestrating session
+  builds the pieces Frostmail and Frostnotes share in
+  `github.com/frostyard/frostui` ([below](#patterns-for-frostui)) and
+  names a pseudo-version (a pushed commit) when they land; `go.mod` pins
+  it. Commits carry no `go.work` and no `replace`; a local `go.work` on
+  the frostui checkout is for experiments only. This repository never
+  edits frostui.
+- **Order** (the orchestrator's notes of 2026-11-10): first what needs no
+  shared piece: Phase 2's maild side, the pure packages `conn`, `live`
+  and `commands` of Phase 1, and Phase 0's spikes; the windows follow
+  frostui's pseudo-versions.
 - **Gates for every phase:** `make check` (with the view tests, which need
   Pango and cairo), a Windows cross-build of `cmd/frostmail`, and
   `make ui-test` for the web build while the React app changes. A phase
@@ -72,7 +79,8 @@ background activity in frostmail").
   opens the palette, as in ChairLift; Ctrl+Shift+P, today's key
   ([specs/ui.md](../specs/ui.md#command-palette)), stays as a second key.
   Ctrl+K is free in the main window today; the compose window keeps it
-  for Link and has no palette, as now.
+  for Link and opens the palette with Ctrl+Shift+P
+  ([rule 1](#rules-shared-with-frostnotes)).
 - **The mail search field** moves from the toolbar to the top of the list
   pane, over what it filters (as the narrow layout already places it), and
   the filter row, the sort menu, the scope bar and the coverage line stay
@@ -109,6 +117,26 @@ background activity in frostmail").
 - **Other windows** (compose, event, settings, reminders) have the same
   hidden title bar and a top bar with their own actions, and no status
   bar.
+
+### Rules shared with Frostnotes
+
+The orchestrating session's consistency notes of 2026-11-10; both apps
+follow them:
+
+1. **Palette keys.** Ctrl K opens the palette in every main window, except
+   inside a text editor (compose here, Frostnotes' editor), where Ctrl K
+   is Insert Link. Ctrl+Shift+P opens the palette everywhere, editors
+   included, so the compose window gains it.
+2. **Status bar order.** The connection item first and always shown (a
+   dot with "Local" or lodge's host; the warning tone, with the reason in
+   its tooltip, while reconnecting); then sync and background state; then
+   the app's items; the current view's counts at the end.
+3. **Top bar.** The palette field is the same widget everywhere ("Search
+   or run a command" with ⌃K); the main menu (⋮) is the last item before
+   the window controls; the sidebar toggle is at the far left. Frostmail
+   keeps its segmented, Mail.app-style toolbar between them.
+4. **Console.** Frostmail's is the reference; a console in another app
+   reuses ADR-0055's typed entries.
 
 ### Palette commands
 
@@ -153,9 +181,9 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 
 | Today | Native | Notes |
 | --- | --- | --- |
-| Three panes with lodge-ui `Splitter` (220 [160–320], 360 [280–560], reader min 360; arrows move 16) | uikit `Panes` over `ui.Split` | widths kept with MyGo's window state, not local storage |
+| Three panes with lodge-ui `Splitter` (220 [160–320], 360 [280–560], reader min 360; arrows move 16) | frostui's `Panes` over `ui.Split` | widths kept with MyGo's window state, not local storage |
 | Persisted UI (`frostmail.ui`): sidebar, widths, conversations, sort, ascending, contact photos, To-Do Bar | a small JSON file in the app's config | |
-| Sidebar `role=tree`: Favorites (All Inboxes, unified roles, VIPs, Flagged per color, favorites), Smart Mailboxes, accounts' trees with counts and sync state, Follow Up, Outbox, Send Later, the module bar | uikit `SourceList` over `ui.Outline` | drop targets (move; Alt or Ctrl copies); PR #222's tree roles |
+| Sidebar `role=tree`: Favorites (All Inboxes, unified roles, VIPs, Flagged per color, favorites), Smart Mailboxes, accounts' trees with counts and sync state, Follow Up, Outbox, Send Later, the module bar | frostui's `SourceList` over `ui.Outline` | drop targets (move; Alt or Ctrl copies); PR #222's tree roles |
 | Filter row (All, Unread, Flagged, Attachments, More ▾), sort menu, scope bar, coverage line | `Segmented`, `MenuButton`, `Banner`-like rows | overflow into More as today |
 | Message list: virtual, 84 px rows, multi-select, unread dot, flag, VIP star, muted, paperclip, reminder, thread count, two preview lines, contact photo, hover actions, drag, Not Yet Saved drafts, empty states | `ui.List` with `ListState.Selection`, uikit `SummaryRow`, `Drag` | hover actions hidden from assistive technology (PR #222) |
 | Reader: conversation, newest first, 20 then "Show N Earlier", collapsed rows, header, six banners, body, All Headers, attachment chips | native header and banners, a web view per expanded HTML body, native text for text bodies | [hard part 1](#hard-parts) |
@@ -174,7 +202,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 | Native open and save dialogs; the Flatpak's save portal (`portal.rs`) | `mygo.Dialog.Open`, `Save` (off the UI thread); the portal in the Flatpak, [Phase 0](#phase-0--decisions-and-spikes-planner-m) checks which GTK's chooser uses |
 | Contact popover (Message, Add to Contacts, VIPs, Block, Recent Mail, Upcoming); recipient suggestions | `ui.Popover`; uikit `TokenSuggest` |
 | Find bar, compose link bar, compose error banner, scope bar | `ui.FindBar`, a `Popover` with `SetLink`, frostui `Banner` |
-| Undo toasts (Sending "…", Undo, seconds left), refused-change notices (8 s) | uikit `ActionToast`, frostui toasts |
+| Undo toasts (Sending "…", Undo, seconds left), refused-change notices (8 s) | frostui's `ActionToast` and toasts |
 
 ### Menus and keys
 
@@ -196,7 +224,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 | Recipients: tokens, `address.suggest` (8), Bcc toggle, From with several identities | `TokenField`, uikit `TokenSuggest`, `Select` | |
 | Attachments: picker (paths, or bytes over `draft.attachData` in lodge mode and the Flatpak), drop anywhere, Remove, 25 MB warning | `Dialog.Open`, `OnFileDrop` | |
 | Snippets ▾, Send Later ▾, attachment reminder, Delete Draft, Send then Undo in the main window | the same | |
-| Spell check (subject and body; WebKitGTK's, set by `spell.rs`) | none in MyGo | [open question](#open-questions) |
+| Spell check (subject and body; WebKitGTK's, set by `spell.rs`) | none in MyGo | [Phase 11](#phase-11--spell-check-m-after-parity), after parity |
 
 ### The reader
 
@@ -321,9 +349,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   `FindInPage` finds, under that CSP, on both engines.
 - **Compose spike:** 30 reply and forward drafts (the showcase's and
   `internal/render`'s fixtures) through `richtext.ParseHTML` and `HTML`,
-  compared with what TipTap keeps of the same drafts; and a spell-check
-  probe (a checker over the system's Hunspell dictionaries, its marks
-  drawn with `WavyUnderline`, suggestions in the context menu).
+  compared with what TipTap keeps of the same drafts.
 - **Flatpak spike:** a MyGo window with a web view in the GNOME 51
   runtime: GTK 3, libepoxy and WebKitGTK 4.1 present, the Wayland app ID,
   the hidden title bar on GNOME and KDE, the file chooser through the
@@ -337,8 +363,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   "anywhere" for Ctrl+F and Ctrl+P, Tab on a collapsed message, design/app.md's
   stores and persisted state, and `open_part`'s refused extensions.
 - **Done when:** the spikes' records are in this plan with their observed
-  counts (requests, scripts run, losses per draft, memory of 20 views),
-  and Brian has chosen the spell-check approach.
+  counts (requests, scripts run, losses per draft, memory of 20 views).
 
 ## Phase 1 — The skeleton and the data layer (L)
 
@@ -359,11 +384,12 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   100, deltas, generations, `message.changed` refreshes), the mail store
   (accounts, mailboxes, sync, outbox, VIPs, blocked, settings, smart
   mailboxes, rules), the UI state, and the event fan-out; updates reach
-  the windows through one coalescing waker (at most every 16 ms).
-- **The shell:** uikit `PaneShell` (top bar segments, palette, status bar,
-  full-height content, dialogs, toasts) over frostui's palette, dialogs,
-  theme and icons, with embedded icons where the desktop has no
-  freedesktop theme (Windows).
+  the windows through frostui's coalescing waker.
+- **The shell:** frostui's frame without the rail (top bar segments,
+  palette, status bar, console split, full-height content, dialogs,
+  toasts), its `ConnectionStatus` and "connecting" screen, its
+  `CommandTable`, its coalescing waker, and its embedded icons on
+  Windows, from the pseudo-version the orchestrating session names.
 - Tests: the view model against `rpctest` (a real maild), view tests with
   `ui.NewTester`, and a test that `uikit` imports only the standard
   library, MyGo, purego and frostui.
@@ -391,15 +417,20 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 - The three tests of ADR-0055: no string field, one package builds
   entries, and the canary run (with `imapxtest`, `smtpsink`, `davtest` and
   the recorded Graph and Google sessions) whose entries hold no canary.
-- The desktop: frostui's `Console` fed from `activity.recent` at connect
-  and `activity.entry` after, lines written from each kind, the account
-  and mailbox names from the stores, Ctrl J, the button, the palette
-  command, the status bar's newest entry.
-- **Done when:** against the Dovecot container (`make engine-it`'s), the
-  console shows lines for a mailbox pass, an IDLE wake, a flag push, a
-  send, a refused send, a rule run and a CardDAV pass, each naming its
-  account; an `agent` caller's `activity.recent` is refused; and the
-  canary test passes.
+- `mailctl activity [-f]`: the newest entries, then (with `-f`) the live
+  ones, as lines written by `activity.Line` from each kind, with the
+  account's and the mailbox's names from `account.list` and
+  `mailbox.list`. The desktop writes its lines with the same function.
+- **Done when (maild):** against the Dovecot container (`make
+  engine-it`'s), entries are recorded for a mailbox pass, an IDLE wake, a
+  flag push, a send, a refused send and a rule run, each naming its
+  account, and `mailctl activity` prints them; an `agent` caller's
+  `activity.recent` is refused; and the canary test passes.
+- The desktop, once frostui's frame lands: frostui's `Console` fed from
+  `activity.recent` at connect and `activity.entry` after, Ctrl J, the
+  button, the palette command, the status bar's newest entry.
+- **Done when (console):** the native app's console shows the same lines
+  as `mailctl activity`, filtered by level and by account.
 
 ## Phase 3 — Mail: sidebar, list and search (L)
 
@@ -429,8 +460,8 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   Bcc, the subject, `richtext` with the format bar and link bar, images
   of `mailpart:` parts, attachments (pick, drop; bytes in lodge mode and
   the Flatpak), snippets, the attachment reminder, Send, Send Later, Undo
-  Send's toast in the main window, Delete Draft, saving, spell check as
-  Phase 0 chose.
+  Send's toast in the main window, Delete Draft, saving (spell check is
+  Phase 11).
 - **Done when:** a reply, a reply with a selection, a forward and a new
   message with an attachment and an inline image are sent to `smtpsink`
   from the native app and match the React app's MIME structure; the
@@ -507,6 +538,21 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
   release candidate's Flatpak and Windows installer pass plan 0013's
   clean-install gate.
 
+## Phase 11 — Spell check (M, after parity)
+
+Decided 2026-11-10 (the orchestrator's notes): spell check comes after
+the parity gate and does not block it. MyGo has none.
+
+- A checker over the system's Hunspell dictionaries (the Flatpak
+  runtime's, and a bundled English one on Windows), its marks drawn with
+  `richtext`'s `WavyUnderline`, suggestions in the editor's context menu,
+  in compose's subject and body.
+- **Done when:** a misspelled word in compose's body and subject is
+  marked in the native app on Linux and Windows, and a suggestion from
+  the context menu replaces it.
+
+Windows notifications keep `frostmail-notify.exe` (decided the same day).
+
 ## Code layout
 
 | Path | What | Imports MyGo |
@@ -521,7 +567,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 | `internal/desktop/calendar`, `people`, `tasks` | the modules and their windows | yes |
 | `internal/desktop/settings` | the settings window, first run, modes | yes |
 | `internal/desktop/platform` | notifications, the portal, Windows' pieces | some |
-| `internal/desktop/uikit` | patterns for frostui | yes (only std, MyGo, purego, frostui) |
+| `internal/desktop/uikit` | SafeHTMLView, SummaryRow, TokenSuggest | yes (only std, MyGo, purego, frostui) |
 
 Pure packages hold the decisions and are tested with `go test` alone; view
 packages are tested with `ui.NewTester` against `rpctest`, and write PNGs
@@ -543,41 +589,35 @@ when `FROSTMAIL_SNAPSHOT_DIR` is set, as ChairLift's do.
 
 ## Patterns for frostui
 
-These go in `internal/desktop/uikit` first; each is generic enough for
-Frostnotes, frostread or ChairLift:
+**Built in frostui** by the orchestrating session, for Frostmail and
+Frostnotes alike; Frostmail does not build them:
 
-1. **PaneShell:** frostui's shell without the rail and with full-height,
-   unscrolled content, top-bar segments aligned to the panes, the status
-   bar, and frostui's console in a split under the panes.
-2. **Panes:** a three-pane split with minimum and maximum widths,
-   keyboard-movable separators and widths kept per window.
-3. **SafeHTMLView:** an untrusted web view for HTML the app did not write:
+- the frame without the rail (full-height content, top-bar segments, the
+  status bar, the console split), first sketched here as PaneShell;
+- `Panes` (minimum and maximum widths, keyboard separators, kept widths,
+  collapsible sides);
+- `CommandTable` (the keymap, and palette sources asked per query);
+- `ActionToast` (an action and a countdown: Undo, Undo Send);
+- `ConnectionStatus`, with the "connecting to the daemon" screen;
+- `SourceList` and its tree, on MyGo's outline;
+- a settings window's layout;
+- embedded icons for Windows;
+- ChairLift's coalescing waker.
+
+**In `internal/desktop/uikit` for now,** importing only the standard
+library, MyGo, purego and frostui, so they can move by changing a path:
+
+1. **SafeHTMLView:** an untrusted web view for HTML the app did not write:
    the CSP template, content rules that allow only `data:`, links to the
    system's handlers, no windows, its height, selection and find through
    `Eval` and `FindInPage`. frostread needs it as much as mail does.
-4. **SourceList:** a sidebar of sections and rows with icons, counts,
-   collapse, drop targets and context menus (mailboxes, notebooks, feeds).
-5. **SummaryRow:** a list row of title, date, subtitle, two lines of
+2. **SummaryRow:** a list row of title, date, subtitle, two lines of
    preview and badges, at a fixed height.
-6. **CommandTable:** commands with keys, groups and enabled rules that
-   bind the shortcuts, fill the palette and build the menus from one
-   table (frostui's `Command` lists keys but binds none).
-7. **ActionToast:** a toast with an action and a countdown (Undo, Undo
-   Send).
-8. **ConnectionStatus:** the status bar's item and the reconnecting state
-   for a client of a local or remote daemon.
-9. **TokenSuggest:** `TokenField` with an autocomplete popover (recipients,
+3. **TokenSuggest:** `TokenField` with an autocomplete popover (recipients,
    attendees, tags).
-10. **EmbeddedIcons:** an icon set in the binary for systems without a
-    freedesktop theme (Windows), behind frostui's `Icons`.
 
 ## Open questions
 
-- **Spell check:** none in MyGo. A checker over the system's Hunspell
-  dictionaries with wavy underlines (proposed), or no spell check until
-  MyGo has one. Decided at the end of Phase 0.
-- **Windows notifications:** keep `frostmail-notify.exe` (Rust, WinRT)
-  for toasts with Snooze and Dismiss (proposed), or port it to Go later.
 - **Conversation pages:** one web view per expanded message (proposed),
   or one page for the whole conversation if Phase 0 finds 20 views too
   heavy.
