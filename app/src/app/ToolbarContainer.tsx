@@ -6,6 +6,7 @@ import { type Ref, useCallback, useEffect, useMemo, useState } from "react";
 import { useClient } from "../data/session";
 import { listQuery, sourceTitle, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
+import { readQuoteSelection } from "../features/reader/quoteSelection";
 import { SearchField } from "../features/search/SearchField";
 import {
   MessageBar,
@@ -136,7 +137,7 @@ function windowCommand(command: ToolbarCommand): boolean {
       break;
     case "palette":
       // A contact being edited keeps the window's keys: it has no palette.
-      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true);
+      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true, readQuoteSelection());
       break;
     case "settings":
       void openSettings().catch((err: unknown) => console.warn("settings", err));
@@ -222,7 +223,9 @@ function useToolbarCommand(props: ToolbarContainerProps) {
         case "reply":
         case "replyAll":
         case "forward":
-          void compose(client, command.kind, ids).catch((err: unknown) => console.warn("compose", err));
+          void compose(client, command.kind, ids, readQuoteSelection()).catch((err: unknown) =>
+            console.warn("compose", err),
+          );
           break;
       }
     },

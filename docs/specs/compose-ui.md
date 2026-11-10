@@ -303,7 +303,9 @@ Named pieces of text kept by maild
   (Ctrl+Shift+F) in the main window create a draft and open its window,
   from the toolbar, the message context menu or the keyboard; Reply, Reply
   All and Forward act on the selected message (the last one of a selected
-  conversation).
+  conversation). With text selected in a message body of the reader,
+  Reply and Reply All answer that message and quote only that text, in
+  the desktop app (ui.md, Reply with the selected text).
 - Opening a message in a Drafts mailbox opens it in a compose window.
 
 ### Keyboard (compose window)

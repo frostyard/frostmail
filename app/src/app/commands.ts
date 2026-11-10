@@ -2,6 +2,7 @@
 // toolbar and context menus (docs/specs/ui.md, Behavior).
 import { type Source, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
+import type { QuoteSelection } from "../features/reader/quoteSelection";
 import type { Client, Mailbox, MessageSummary } from "../rpc/gen/api";
 import { startDraft } from "./compose";
 import { undoableFlags, undoableMove } from "./undo";
@@ -198,14 +199,20 @@ export type ComposeAction = "compose" | "reply" | "replyAll" | "forward" | "forw
 /**
  * compose opens a new message, or a reply, reply all or forward of the last
  * selected message, in a compose window. Without a selection only compose
- * does anything.
+ * does anything. A reply with reader text answers the message that holds it.
  */
-export async function compose(client: Client, action: ComposeAction, ids: number[]): Promise<void> {
+export async function compose(
+  client: Client,
+  action: ComposeAction,
+  ids: number[],
+  quote?: QuoteSelection | null,
+): Promise<void> {
   if (action === "compose") {
     await startDraft(client, "new");
     return;
   }
-  const source = ids[ids.length - 1];
+  const selected = action === "reply" || action === "replyAll" ? quote : null;
+  const source = selected?.messageId ?? ids[ids.length - 1];
   if (source === undefined) return;
   const kind =
     action === "reply"
@@ -215,5 +222,5 @@ export async function compose(client: Client, action: ComposeAction, ids: number
         : action === "forwardAttachment"
           ? "attached"
           : "forward";
-  await startDraft(client, kind, source);
+  await startDraft(client, kind, source, selected?.text);
 }

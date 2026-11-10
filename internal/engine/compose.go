@@ -48,6 +48,9 @@ func (d Deps) undoDelay(ctx context.Context) (time.Duration, error) {
 type drafts struct{ Deps }
 
 func (d drafts) Create(ctx context.Context, p *api.DraftCreateParams) (*api.Draft, error) {
+	if p.Quote != nil && p.Kind != api.DraftKindReply && p.Kind != api.DraftKindReplyall {
+		return nil, api.InvalidParams("quote requires reply or replyall")
+	}
 	var src *store.MessageDetail
 	if p.Kind != api.DraftKindNew {
 		if p.SourceID == nil {
@@ -88,7 +91,7 @@ func (d drafts) Create(ctx context.Context, p *api.DraftCreateParams) (*api.Draf
 		}
 	} else {
 		dr.SourceID = src.ID
-		if attach, err = d.startFrom(ctx, &dr, *src, ident, p.Kind); err != nil {
+		if attach, err = d.startFrom(ctx, &dr, *src, ident, p.Kind, p.Quote); err != nil {
 			return nil, err
 		}
 	}
@@ -140,7 +143,7 @@ func storedKind(k api.DraftKind) string {
 
 // startFrom fills a reply or forward from its source message and returns
 // the source's attachments to carry over (forwards only).
-func (d drafts) startFrom(ctx context.Context, dr *store.Draft, src store.MessageDetail, ident store.Identity, kind api.DraftKind) ([]mimePart, error) {
+func (d drafts) startFrom(ctx context.Context, dr *store.Draft, src store.MessageDetail, ident store.Identity, kind api.DraftKind, quote *string) ([]mimePart, error) {
 	// A reply quotes what a reader shows; a forward carries attachments.
 	read := messages(d).display
 	if kind == api.DraftKindForward || kind == api.DraftKindAttached {
@@ -168,6 +171,9 @@ func (d drafts) startFrom(ctx context.Context, dr *store.Draft, src store.Messag
 		source.HTML, source.Text = r.HTML, r.Text
 	} else if source.Text, _, err = mimex.BodyText(raw); err != nil {
 		return nil, err
+	}
+	if quote != nil && (kind == api.DraftKindReply || kind == api.DraftKindReplyall) {
+		source.Selected = *quote
 	}
 	sig := signatureBlock(ident)
 	switch kind {

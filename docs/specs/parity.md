@@ -114,7 +114,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |
 | P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` |
 | P-507 | Message priority | | Later | Rarely used |
-| P-508 | Reply quoting the selected text | | Later | Needs the frame's selection |
+| P-508 | Reply quoting the selected text | Same, in the desktop app; the web build quotes the whole message | Have | `TestQuoteHTMLSelectedText`, `TestReplyQuotesTheSelectedText`; `quoteSelection.test.ts`, `commands.quoteSelection.test.ts`, `Palette.test.tsx` (holds the reader selection before its field takes focus, and clears it on close) |
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |
 | P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |
 | P-511 | Check Spelling While Typing | The subject and the body, never the address fields; WebKitGTK in the system's languages, the browser's and WebView2's own checker elsewhere ([compose-ui.md](compose-ui.md#spelling)) | Have | `ComposeWindow.spellcheck.test.tsx`, `spell::tests` |

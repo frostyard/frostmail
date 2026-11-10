@@ -136,6 +136,33 @@ func TestQuoteHTML(t *testing.T) {
 	}
 }
 
+func TestQuoteHTMLSelectedText(t *testing.T) {
+	src := Source{
+		From: Address{Name: "Ann <A&B>"}, Date: time.Date(2026, 10, 5, 13, 41, 0, 0, time.UTC),
+		HTML: "<p>whole <b>message</b></p>", Text: "whole message",
+		Selected: " \r\na < b & c\r\nsecond\rthird\nfourth\t ",
+	}
+	want := `<p><br></p><p>On Mon, Oct 5, 2026 at 1:41 PM, Ann &lt;A&amp;B&gt; wrote:</p><blockquote type="cite"><p>a &lt; b &amp; c<br>second<br>third<br>fourth</p></blockquote>`
+	if got := QuoteHTML(src, time.UTC); got != want {
+		t.Fatalf("selected quote =\n%s\nwant\n%s", got, want)
+	}
+	for _, body := range []string{src.HTML, ""} {
+		src.HTML, src.Selected = body, ""
+		whole := QuoteHTML(src, time.UTC)
+		forward := ForwardHTML(src, time.UTC)
+		for _, selected := range []string{"", " \t\r\n\u2003 "} {
+			src.Selected = selected
+			if got := QuoteHTML(src, time.UTC); got != whole {
+				t.Errorf("blank selection %q: got %s, want %s", selected, got, whole)
+			}
+		}
+		src.Selected = "only this"
+		if got := ForwardHTML(src, time.UTC); got != forward {
+			t.Errorf("forward used selection: %s", got)
+		}
+	}
+}
+
 func TestForwardHTML(t *testing.T) {
 	date := time.Date(2026, 10, 5, 13, 41, 0, 0, time.UTC)
 	src := Source{

@@ -7,12 +7,13 @@ import { useEffect, useRef } from "react";
 
 import { useUI } from "../data/stores";
 import { CommandPalette } from "../features/palette/CommandPalette";
+import type { QuoteSelection } from "../features/reader/quoteSelection";
 import { type Command, paletteItems } from "../lib/keymap";
 import { IN_LODGE } from "../lodge/lodge";
 
 /** PaletteContainerProps takes the main window's dispatch, the palette's run. */
 export interface PaletteContainerProps {
-  run: (command: Command) => void;
+  run: (command: Command, quote: QuoteSelection | null) => void;
 }
 
 /** PaletteContainer draws the palette while it is open. */
@@ -26,14 +27,14 @@ export function PaletteContainer(props: PaletteContainerProps) {
   // A contact being edited has the window's keys, so it has no palette.
   const editing = useUI((state) => state.peopleEditing !== null);
   // The chosen command waits for the sheet to go, which restores focus first.
-  const pending = useRef<Command | null>(null);
+  const pending = useRef<{ command: Command; quote: QuoteSelection | null } | null>(null);
   const { run } = props;
   useEffect(() => {
     if (open) return;
     const command = pending.current;
     if (command === null) return;
     pending.current = null;
-    run(command);
+    run(command.command, command.quote);
   }, [open, run]);
   if (!open || (module === "people" && editing)) return null;
   const count =
@@ -48,7 +49,7 @@ export function PaletteContainer(props: PaletteContainerProps) {
     <CommandPalette
       items={paletteItems(module, count, { web: IN_LODGE })}
       onRun={(command) => {
-        pending.current = command;
+        pending.current = { command, quote: useUI.getState().paletteQuote };
         useUI.getState().openPalette(false);
       }}
       onClose={() => useUI.getState().openPalette(false)}

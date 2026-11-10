@@ -12,6 +12,8 @@ import { toPageParts } from "../../lib/partURL";
 export interface MessageFrameProps {
   /** Sanitized HTML from message.render. */
   html: string;
+  /** The reader message whose selection can start a reply. */
+  quoteSource?: number;
   /** A link was clicked: an http, https or mailto URL. */
   onOpenLink: (url: string) => void;
 }
@@ -55,7 +57,7 @@ export function linkTarget(target: EventTarget | null): string | null {
 }
 
 /** MessageFrame shows sanitized HTML in a sandboxed, content-sized frame. */
-export function MessageFrame({ html, onOpenLink }: MessageFrameProps) {
+export function MessageFrame({ html, onOpenLink, quoteSource }: MessageFrameProps) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(0);
   const doc = useMemo(() => frameDocument(html), [html]);
@@ -109,6 +111,7 @@ export function MessageFrame({ html, onOpenLink }: MessageFrameProps) {
     <iframe
       ref={frame}
       title="Message"
+      data-quote-source={quoteSource}
       sandbox="allow-same-origin allow-popups"
       referrerPolicy="no-referrer"
       srcDoc={doc}

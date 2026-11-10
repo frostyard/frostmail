@@ -55,6 +55,7 @@ methods:
       - {name: accountId, type: int, optional: true}
       - {name: sourceId, type: int, optional: true, doc: "Required for reply, replyall and forward."}
       - {name: to, type: "[]Address", optional: true, doc: "A new message's recipients, such as the person a contact card writes to."}
+      - {name: quote, type: string, optional: true, doc: "Reply and replyall: the plain text the user selected in the source, quoted instead of the whole message. Empty or only white space quotes the whole message; with another kind, invalidParams."}
     result: Draft
     errors: [notFound, invalidParams]
     callers: [local, session, agent]

@@ -49,8 +49,10 @@ export async function openCompose(draftId: number, fresh = false): Promise<void>
 }
 
 /** startDraft creates a draft (a new message, or a reply or forward of sourceId) and opens it. */
-export async function startDraft(client: Client, kind: DraftKind, sourceId?: number): Promise<void> {
-  const d = await client.draft.create(sourceId === undefined ? { kind } : { kind, sourceId });
+export async function startDraft(client: Client, kind: DraftKind, sourceId?: number, quote?: string): Promise<void> {
+  const d = await client.draft.create(
+    sourceId === undefined ? { kind } : { kind, sourceId, ...(quote === undefined ? {} : { quote }) },
+  );
   await openCompose(d.id, true);
 }
 

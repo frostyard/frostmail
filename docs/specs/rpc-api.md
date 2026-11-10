@@ -864,6 +864,7 @@ Start a draft: a new message in the account (or the first account), or a reply, 
 | `accountId` | `int` (optional) |  |
 | `sourceId` | `int` (optional) | Required for reply, replyall and forward. |
 | `to` | `[]Address` (optional) | A new message's recipients, such as the person a contact card writes to. |
+| `quote` | `string` (optional) | Reply and replyall: the plain text the user selected in the source, quoted instead of the whole message. Empty or only white space quotes the whole message; with another kind, invalidParams. |
 
 Result: `Draft`.
 Errors: `notFound`, `invalidParams`.
