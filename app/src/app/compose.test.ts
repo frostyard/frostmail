@@ -2,6 +2,9 @@
 // id on another one (docs/specs/settings-ui.md, Server pane).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { type Client, type Draft, type DraftCreateParams, ErrorCode } from "../rpc/gen/api";
+import { RPCError } from "../rpc/transport";
+
 const env = vi.hoisted(() => ({
   invoke: vi.fn(async () => null),
   maild: "local" as string | undefined,
@@ -15,12 +18,55 @@ vi.mock("@tauri-apps/api/core", async (importOriginal) => ({
 }));
 vi.mock("../rpc/transport/tauri", () => ({ maildKey: () => env.maild }));
 
-const { openCompose } = await import("./compose");
+const { openCompose, startDraft } = await import("./compose");
 
 beforeEach(() => {
   env.tauri = true;
   env.maild = "local";
   env.invoke.mockClear();
+});
+
+describe("startDraft", () => {
+  it("retries once without quote when an older maild rejects it", async () => {
+    const create = vi
+      .fn<(params: DraftCreateParams) => Promise<Draft>>()
+      .mockRejectedValueOnce(new RPCError(ErrorCode.invalidParams, "unknown member quote"))
+      .mockResolvedValueOnce({ id: 7 } as Draft);
+    const client = { draft: { create } } as unknown as Client;
+    await startDraft(client, "reply", 12, "selected text");
+    expect(create.mock.calls).toEqual([
+      [{ kind: "reply", sourceId: 12, quote: "selected text" }],
+      [{ kind: "reply", sourceId: 12 }],
+    ]);
+    expect(env.invoke).toHaveBeenCalledWith("open_compose", { draftId: 7, fresh: true, maild: "local" });
+  });
+
+  it("does not retry other errors", async () => {
+    const error = new RPCError(ErrorCode.unavailable, "offline");
+    const create = vi.fn().mockRejectedValue(error);
+    const client = { draft: { create } } as unknown as Client;
+    await expect(startDraft(client, "reply", 12, "selected text")).rejects.toBe(error);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(env.invoke).not.toHaveBeenCalled();
+  });
+
+  it("does not retry invalidParams when no quote was sent", async () => {
+    const error = new RPCError(ErrorCode.invalidParams, "bad source");
+    const create = vi.fn().mockRejectedValue(error);
+    const client = { draft: { create } } as unknown as Client;
+    await expect(startDraft(client, "reply", 12)).rejects.toBe(error);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(env.invoke).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a failed fallback", async () => {
+    const error = new RPCError(ErrorCode.invalidParams, "bad source");
+    const create = vi.fn().mockRejectedValue(error);
+    const client = { draft: { create } } as unknown as Client;
+    await expect(startDraft(client, "reply", 12, "selected text")).rejects.toBe(error);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(env.invoke).not.toHaveBeenCalled();
+  });
 });
 
 describe("openCompose", () => {

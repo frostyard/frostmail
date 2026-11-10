@@ -20,11 +20,14 @@ function select(start: Node, end = start): void {
 
 function frame(id: number, text: string, marked = true): HTMLIFrameElement {
   const el = document.createElement("iframe");
+  el.srcdoc = "<p></p>";
   if (marked) el.dataset.quoteSource = String(id);
   document.body.append(el);
-  // jsdom does not load srcdoc; only the selection API matters here.
-  if (!el.contentWindow) throw new Error("frame has no window");
-  vi.spyOn(el.contentWindow, "getSelection").mockReturnValue({ toString: () => text } as Selection);
+  // Control the selection independently of happy-dom's frame document.
+  Object.defineProperty(el, "contentWindow", {
+    value: { getSelection: vi.fn(() => ({ toString: () => text })) },
+    configurable: true,
+  });
   return el;
 }
 
@@ -40,7 +43,7 @@ describe("readQuoteSelection", () => {
     frame(1, " \n\t ");
     frame(2, "selected < & text");
     frame(3, "later");
-    expect(readQuoteSelection(document, false)).toEqual({ messageId: 2, text: "selected < & text" });
+    expect(readQuoteSelection({ web: false })).toEqual({ messageId: 2, text: "selected < & text" });
   });
 
   it("reads text only when both ends are in the same plain-text body", () => {
@@ -48,14 +51,22 @@ describe("readQuoteSelection", () => {
     const text = el.firstChild;
     if (!text) throw new Error("missing text");
     select(text);
-    expect(readQuoteSelection(document, false)).toEqual({ messageId: 4, text: "selected text" });
+    expect(readQuoteSelection({ web: false })).toEqual({ messageId: 4, text: "selected text" });
   });
 
   it("rejects a selection in the headers", () => {
     const el = body(1, "header", false).firstChild;
     if (!el) throw new Error("missing text");
     select(el);
-    expect(readQuoteSelection(document, false)).toBeNull();
+    expect(readQuoteSelection({ web: false })).toBeNull();
+  });
+
+  it("a selection outside the bodies quotes the whole message, even with a frame selection", () => {
+    const header = body(1, "header", false).firstChild;
+    if (!header) throw new Error("missing text");
+    select(header);
+    frame(2, "stale frame selection");
+    expect(readQuoteSelection({ web: false })).toBeNull();
   });
 
   it("rejects whitespace-only selections", () => {
@@ -63,15 +74,16 @@ describe("readQuoteSelection", () => {
     if (!el) throw new Error("missing text");
     select(el);
     frame(2, " \t ");
-    expect(readQuoteSelection(document, false)).toBeNull();
+    expect(readQuoteSelection({ web: false })).toBeNull();
   });
 
-  it("rejects a selection across 2 bodies", () => {
+  it("rejects a selection across 2 bodies even with a stale frame selection", () => {
     const a = body(1, "first").firstChild;
     const b = body(2, "second").firstChild;
     if (!a || !b) throw new Error("missing text");
     select(a, b);
-    expect(readQuoteSelection(document, false)).toBeNull();
+    frame(3, "stale frame selection");
+    expect(readQuoteSelection({ web: false })).toBeNull();
   });
 
   it("prefers the focused frame, then the app document, then frame order", () => {
@@ -81,12 +93,24 @@ describe("readQuoteSelection", () => {
     if (!el) throw new Error("missing text");
     select(el);
     focused.focus();
-    expect(readQuoteSelection(document, false)).toEqual({ messageId: 2, text: "focused" });
+    expect(readQuoteSelection({ web: false })).toEqual({ messageId: 2, text: "focused" });
     if (!focused.contentWindow) throw new Error("frame has no window");
     vi.mocked(focused.contentWindow.getSelection).mockReturnValue({ toString: () => " " } as Selection);
-    expect(readQuoteSelection(document, false)).toEqual({ messageId: 3, text: "plain" });
+    expect(readQuoteSelection({ web: false })).toEqual({ messageId: 3, text: "plain" });
     document.getSelection()?.removeAllRanges();
-    expect(readQuoteSelection(document, false)).toEqual({ messageId: 1, text: "first" });
+    expect(readQuoteSelection({ web: false })).toEqual({ messageId: 1, text: "first" });
+  });
+
+  it("uses the focus from before a toolbar press instead of the current button", () => {
+    frame(1, "older frame");
+    const focused = frame(2, "focused frame");
+    const button = document.createElement("button");
+    document.body.append(button);
+    button.focus();
+    expect(readQuoteSelection({ doc: document, web: false, active: focused })).toEqual({
+      messageId: 2,
+      text: "focused frame",
+    });
   });
 
   it("never reads either kind of selection in the web build", () => {
@@ -95,7 +119,7 @@ describe("readQuoteSelection", () => {
     select(el);
     frame(2, "frame");
     const get = vi.spyOn(document, "getSelection");
-    expect(readQuoteSelection(document, true)).toBeNull();
+    expect(readQuoteSelection({ web: true })).toBeNull();
     expect(get).not.toHaveBeenCalled();
   });
 
@@ -105,6 +129,6 @@ describe("readQuoteSelection", () => {
     vi.mocked(el.contentWindow.getSelection).mockImplementation(() => {
       throw new Error("denied");
     });
-    expect(readQuoteSelection(document, false)).toBeNull();
+    expect(readQuoteSelection({ web: false })).toBeNull();
   });
 });

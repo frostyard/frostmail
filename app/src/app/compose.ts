@@ -5,7 +5,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 
 import { openFrameWindow } from "../lodge/frameWindow";
-import type { Client, DraftKind } from "../rpc/gen/api";
+import { type Client, type DraftCreateParams, type DraftKind, ErrorCode } from "../rpc/gen/api";
+import { RPCError } from "../rpc/transport";
 import { maildKey } from "../rpc/transport/tauri";
 
 declare global {
@@ -50,9 +51,13 @@ export async function openCompose(draftId: number, fresh = false): Promise<void>
 
 /** startDraft creates a draft (a new message, or a reply or forward of sourceId) and opens it. */
 export async function startDraft(client: Client, kind: DraftKind, sourceId?: number, quote?: string): Promise<void> {
-  const d = await client.draft.create(
-    sourceId === undefined ? { kind } : { kind, sourceId, ...(quote === undefined ? {} : { quote }) },
-  );
+  const params: DraftCreateParams =
+    sourceId === undefined ? { kind } : { kind, sourceId, ...(quote === undefined ? {} : { quote }) };
+  const d = await client.draft.create(params).catch((err: unknown) => {
+    if (params.quote === undefined || !(err instanceof RPCError) || err.code !== ErrorCode.invalidParams) throw err;
+    // Older maild versions reject the unknown member. Keep Reply usable with the whole quote.
+    return client.draft.create({ kind, sourceId });
+  });
   await openCompose(d.id, true);
 }
 

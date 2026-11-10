@@ -622,9 +622,13 @@ the quote itself:
   never its HTML, so there is nothing to sanitize. The palette takes the
   selection as it opens, because its field takes the app document's
   selection.
-- **Which selection:** the one in the focused frame, when that frame holds
-  one; else the one in the app's document; else the first frame, in the
-  reader's order, that holds one.
+- **Which selection:** first, the frame that had focus when the command
+  started (for a toolbar button, at the pointer press, before the button
+  takes focus), when that frame holds a selection. Else, when the app's
+  document holds a selection that is not white space only: that selection
+  when it is inside 1 message body, and otherwise none, so the whole
+  message is quoted. Else the first frame, in the reader's order, that
+  holds a selection: a frame keeps its selection when focus leaves it.
 - **Its message:** the expanded message whose body holds the whole
   selection. Reply and Reply All then answer that message, an older
   message of the conversation too, instead of the selected one, and send
@@ -636,6 +640,9 @@ the quote itself:
 - **lodge's web build:** the reader's frame is on lodge's content origin
   and the app cannot read into it (specs/lodge-app.md), so Reply and Reply
   All always quote the whole message there, a plain-text body too.
+- **An older maild:** a maild without `quote` refuses the parameter
+  (`invalidParams`); the app then creates the reply again without it, so
+  the reply opens with the whole message quoted.
 
 ### First run (M6)
 

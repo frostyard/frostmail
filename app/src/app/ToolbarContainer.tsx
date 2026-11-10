@@ -1,7 +1,7 @@
 // The toolbar, fed by the stores and the list (docs/specs/ui.md, Toolbar).
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { type Ref, useCallback, useEffect, useMemo, useState } from "react";
+import { type Ref, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
 import { listQuery, sourceTitle, useMail, useUI } from "../data/stores";
@@ -129,7 +129,7 @@ function useToolbarData(model: ViewModel | null, people?: PeopleData) {
   return { title, subtitle, selection, archive, moveTargets, syncing };
 }
 
-function windowCommand(command: ToolbarCommand): boolean {
+function windowCommand(command: ToolbarCommand, active: Element | null | undefined): boolean {
   const ui = useUI.getState();
   switch (command.kind) {
     case "toggleSidebar":
@@ -137,7 +137,7 @@ function windowCommand(command: ToolbarCommand): boolean {
       break;
     case "palette":
       // A contact being edited keeps the window's keys: it has no palette.
-      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true, readQuoteSelection());
+      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true, readQuoteSelection({ active }));
       break;
     case "settings":
       void openSettings().catch((err: unknown) => console.warn("settings", err));
@@ -157,12 +157,14 @@ function windowCommand(command: ToolbarCommand): boolean {
   return true;
 }
 
-function useToolbarCommand(props: ToolbarContainerProps) {
+function useToolbarCommand(props: ToolbarContainerProps, pressedActive: RefObject<Element | null | undefined>) {
   const client = useClient();
   const frame = useCalendarFrame();
   return useCallback(
     (command: ToolbarCommand) => {
-      if (windowCommand(command)) return;
+      const active = pressedActive.current;
+      pressedActive.current = undefined;
+      if (windowCommand(command, active)) return;
       const ui = useUI.getState();
       if (command.kind === "toggleTodoBar") {
         ui.toggleTodoBar();
@@ -223,13 +225,13 @@ function useToolbarCommand(props: ToolbarContainerProps) {
         case "reply":
         case "replyAll":
         case "forward":
-          void compose(client, command.kind, ids, readQuoteSelection()).catch((err: unknown) =>
+          void compose(client, command.kind, ids, readQuoteSelection({ active })).catch((err: unknown) =>
             console.warn("compose", err),
           );
           break;
       }
     },
-    [client, props, frame.today],
+    [client, props, frame.today, pressedActive],
   );
 }
 
@@ -265,10 +267,21 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
   const data = useToolbarData(props.model, props.people);
   const frame = useCalendarFrame();
   const maximized = useMaximized();
-  const onCommand = useToolbarCommand(props);
+  const pressedActive = useRef<Element | null | undefined>(undefined);
+  const onCommand = useToolbarCommand(props, pressedActive);
+  const capture: Pick<Parameters<typeof Toolbar>[0], "onPointerDownCapture" | "onKeyDownCapture"> = {
+    onPointerDownCapture: (event) => {
+      // A portalled menu must keep the focus captured when its opener was pressed.
+      if (event.currentTarget.contains(event.target as Node)) pressedActive.current = document.activeElement;
+    },
+    onKeyDownCapture: () => {
+      pressedActive.current = undefined;
+    },
+  };
   if (props.part === "bar")
     return (
       <MessageBar
+        {...capture}
         selection={data.selection}
         flagNames={flagNames}
         canArchive={data.archive !== undefined}
@@ -278,6 +291,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
     );
   return (
     <Toolbar
+      {...capture}
       narrow={props.narrow}
       windowControls={isTauri()}
       palette={IN_LODGE}
