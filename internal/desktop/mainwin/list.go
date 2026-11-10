@@ -294,8 +294,18 @@ func (w *Window) listBody(c *ui.Context) {
 		high = max(high, n)
 		w.row(c, n)
 	}).Grow(1).Label("Messages")
-	if list.Changed() && w.selected >= 0 {
-		w.lastIndex = int64(w.selected)
+	if w.focusPane == paneList {
+		w.focusPane = ""
+		list.Focus()
+	}
+	if list.FocusWithin() {
+		w.pane = paneList
+	}
+	if list.Changed() {
+		w.revealing = nil
+		if w.selected >= 0 {
+			w.lastIndex = int64(w.selected)
+		}
 	}
 	if low >= 0 {
 		v.Ensure(max(0, low-50), high+50)
@@ -306,7 +316,7 @@ func (w *Window) listBody(c *ui.Context) {
 // selects the row that took their place.
 func (w *Window) repairSelection() {
 	ids := w.selectedIDs()
-	if len(ids) == 0 || w.view == nil {
+	if len(ids) == 0 || w.view == nil || w.revealing != nil {
 		return
 	}
 	if len(w.view.Rows(ids)) > 0 {
@@ -534,6 +544,9 @@ func (w *Window) listBar(c *ui.Context) {
 		frostui.Strong(c, w.title()).SingleLine()
 		frostui.Caption(c, w.subtitle()).SingleLine()
 	})
+	if frostui.IconButton(c, "mail-message-new", w.table.Tooltip(string(commands.Compose))).Clicked() {
+		w.compose()
+	}
 }
 
 // readerBar is the segment over the reader.
@@ -547,6 +560,16 @@ func (w *Window) readerBar(c *ui.Context) {
 	canArchive := has && mail.ArchiveOf(rows[0].AccountID, w.mail.State().Mailboxes) != nil
 	if frostui.IconButton(c, "mail-archive", "Archive").Disabled(!canArchive).Clicked() {
 		w.archive(ids)
+	}
+	one := len(rows) == 1
+	if frostui.IconButton(c, "mail-reply-sender", w.table.Tooltip(string(commands.Reply))).Disabled(!one).Clicked() {
+		w.reply(api.DraftKindReply)
+	}
+	if frostui.IconButton(c, "mail-reply-all", w.table.Tooltip(string(commands.ReplyAll))).Disabled(!one).Clicked() {
+		w.reply(api.DraftKindReplyall)
+	}
+	if frostui.IconButton(c, "mail-forward", w.table.Tooltip(string(commands.Forward))).Disabled(!one).Clicked() {
+		w.forward()
 	}
 	ui.MenuButton(c, "", func(m *ui.Menu) { w.flagMenu(m, ids, rows) }).Disabled(!has).Label("Flag").Tooltip("Flag").Children(func() {
 		frostui.Icon(c, "mail-mark-important")

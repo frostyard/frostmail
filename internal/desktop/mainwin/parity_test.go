@@ -154,6 +154,7 @@ func TestDeleteAndUndo(t *testing.T) {
 // P-407, P-409 and the row's menu.
 func TestRowMenuFlagsAndMarks(t *testing.T) {
 	f := newSyncFixture(t)
+	f.has(t, "the Junk mailbox", "Junk")
 	if err := f.tt.RightClick("Beta plan"); err != nil {
 		t.Fatal(err)
 	}
@@ -318,6 +319,7 @@ func TestMoreFilterNarrows(t *testing.T) {
 // P-405: Mark as Spam moves to Junk.
 func TestMarkAsSpam(t *testing.T) {
 	f := newSyncFixture(t)
+	f.has(t, "the Junk mailbox", "Junk")
 	if err := f.tt.RightClick("Beta plan"); err != nil {
 		t.Fatal(err)
 	}

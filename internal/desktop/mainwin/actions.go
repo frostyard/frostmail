@@ -28,6 +28,9 @@ func (w *Window) selectedIDs() []int64 {
 }
 
 func (w *Window) rows(ids []int64) []api.MessageSummary {
+	if r := w.revealing; r != nil && len(ids) == 1 && ids[0] == r.ID {
+		return []api.MessageSummary{*r}
+	}
 	if w.view == nil {
 		return nil
 	}

@@ -571,6 +571,35 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   in the built app on WebKitGTK and WebView2, a link opens only in the
   system's handler and never makes a window, and the reader's parity rows
   have tests (Go, or the built app's for the page).
+- **Status (2026-11-10): built on Linux; the gate is not met.** The reader
+  is `internal/desktop/mainwin/reader*.go` over `uikit.SafeHTMLView`, and
+  its behaviors have headless tests over a stand-in page
+  (`reader_test.go`).
+- **Check of 2026-11-10, built app, WebKitGTK in the Frostmail Flatpak's
+  sandbox, fixture maild:** the 50 files of the hostile corpus, their
+  canary rewritten to a local server, were selected in turn, 0.7 s each;
+  the server logged 0 requests. maild's sanitizer ran first, so this run
+  does not separate it from the page's defenses; Phase 0's spike did, on
+  the same CSP and rules. On the last message the find bar reported "1 of
+  1" for text in its body, so that page had loaded.
+- **Not run:** WebView2 (the Windows VM is down); clicking a link in the
+  built app, which would open the desktop's browser (Phase 0's spike ran
+  the handlers); a direct probe for script in the built app.
+- **Differences from the React reader, to confirm at the gate:**
+  - Find covers the message bodies only, not the native header and
+    banners. Text bodies are drawn in a page too, so find, print and
+    selection work the same for both kinds of body.
+  - Print prints the selected message, with its header on paper, rather
+    than every expanded message.
+  - Attachments open by an allow-list (`mail.AttachmentOpener`), which is
+    narrower than the old deny list: HTML and SVG, for example, no longer
+    open. A chip's menu adds Save As… to keep such a file.
+- **Conversation pages** (the open question below): decided as proposed,
+  one page per expanded message, destroyed when it collapses.
+- **A trap for checks in the sandbox:** `flatpak run` resets
+  `XDG_CONFIG_HOME` whatever `--env` says, so a test build reads the
+  user's own `app.json`. Set it inside the sandbox, and stop the check
+  unless the window reports `Connection: Local`.
 
 ## Phase 5 — Compose (L)
 

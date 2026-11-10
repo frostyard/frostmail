@@ -1,0 +1,352 @@
+package mainwin
+
+import (
+	"context"
+	"encoding/base64"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+
+	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/live"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
+)
+
+// downloadTimeout bounds fetching an attachment.
+const downloadTimeout = 120 * time.Second
+
+type liveState = live.MailState
+
+func base64Decode(s string) []byte {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func decodePhoto(data []byte) *ui.Bitmap {
+	b, err := ui.DecodeBitmap(data)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func copyFile(from, to string) error {
+	in, err := os.Open(from) //nolint:gosec // a part of the cache
+	if err != nil {
+		return err
+	}
+	defer func() { _ = in.Close() }()
+	out, err := os.Create(to) //nolint:gosec // the file the user chose
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func (w *Window) rawSourceCommand() {
+	if m, ok := w.expandSelected(); ok {
+		w.showRawSource(w.conv, m)
+	}
+}
+
+func (w *Window) allHeadersCommand() {
+	if m, ok := w.expandSelected(); ok {
+		w.toggleHeaders(w.conv, m)
+	}
+}
+
+// OpenMessage shows a message, from a notification, a link or the
+// palette, once a connection can look it up.
+func (w *Window) OpenMessage(id int64) {
+	w.pendingOpen = id
+	w.deliverOpen()
+}
+
+func (w *Window) deliverOpen() {
+	id, c := w.pendingOpen, w.client
+	if id == 0 || c == nil {
+		return
+	}
+	st := w.mail.State()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
+		defer cancel()
+		got, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: []int64{id}})
+		if err != nil {
+			return // the next connection delivers it
+		}
+		w.o.Post(func() {
+			if w.pendingOpen != id {
+				return
+			}
+			w.pendingOpen = 0
+			if len(got) > 0 {
+				w.reveal(got[0], st)
+			}
+		})
+	}()
+}
+
+// reveal shows a message in its account's inbox, or its first mailbox, and
+// selects it; a list filter that would hide it goes.
+func (w *Window) reveal(s api.MessageSummary, st liveState) {
+	source := mail.Source{Kind: mail.AllInboxes}
+	for _, m := range st.Mailboxes {
+		if m.AccountID == s.AccountID && m.Role == api.MailboxRoleInbox {
+			for _, id := range s.MailboxIDs {
+				if id == m.ID {
+					source = mail.Source{Kind: mail.Mailbox, ID: m.ID}
+				}
+			}
+		}
+	}
+	if source.Kind == mail.AllInboxes && len(s.MailboxIDs) > 0 {
+		source = mail.Source{Kind: mail.Mailbox, ID: s.MailboxIDs[0]}
+	}
+	w.q.Filter = mail.FilterAll
+	w.setSource(source)
+	w.chosen.Clear()
+	w.chosen.Add(s.ID)
+	w.selected = -1
+	w.revealing = &s
+}
+
+// syncReveal moves the list's selection onto a revealed row once it loads.
+func (w *Window) syncReveal() {
+	if w.revealing == nil || w.view == nil {
+		return
+	}
+	if i := w.view.IndexOf(w.revealing.ID); i >= 0 && w.selected != int(i) {
+		w.selected = int(i)
+		w.lastIndex = i
+		w.list.ScrollIntoView(int(i))
+	}
+}
+
+// selectionForReply reads the first page holding a selection, in the
+// reader's order: the message it belongs to and the text (ADR-0053). It
+// waits for the pages: call it from a worker.
+func selectionForReply(pages []pageOf) (int64, string) {
+	for _, p := range pages {
+		if s := p.frame.Selection(); strings.TrimSpace(s) != "" {
+			return p.id, s
+		}
+	}
+	return 0, ""
+}
+
+// reply starts a reply to the selected message, quoting the text selected
+// in its conversation if any.
+func (w *Window) reply(kind api.DraftKind) {
+	ids := w.selectedIDs()
+	if len(ids) != 1 {
+		return
+	}
+	pages := w.frames()
+	id := ids[0]
+	w.run("start the reply", func(ctx context.Context, c *api.Client) error {
+		source := id
+		params := &api.DraftCreateParams{Kind: kind}
+		if from, quote := selectionForReply(pages); from != 0 {
+			source, params.Quote = from, &quote
+		}
+		params.SourceID = &source
+		d, err := c.Draft().Create(ctx, params)
+		if err != nil {
+			return err
+		}
+		w.showDraft(c, d.ID)
+		return nil
+	})
+}
+
+func (w *Window) forward() {
+	ids := w.selectedIDs()
+	if len(ids) != 1 {
+		return
+	}
+	id := ids[0]
+	w.run("start the forward", func(ctx context.Context, c *api.Client) error {
+		d, err := c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindForward, SourceID: &id})
+		if err != nil {
+			return err
+		}
+		w.showDraft(c, d.ID)
+		return nil
+	})
+}
+
+func (w *Window) compose() {
+	w.run("start a message", func(ctx context.Context, c *api.Client) error {
+		d, err := c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew})
+		if err != nil {
+			return err
+		}
+		w.showDraft(c, d.ID)
+		return nil
+	})
+}
+
+func (w *Window) composeTo(address, name string) {
+	w.run("start a message", func(ctx context.Context, c *api.Client) error {
+		d, err := c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew, To: []api.Address{{Name: name, Address: address}}})
+		if err != nil {
+			return err
+		}
+		w.showDraft(c, d.ID)
+		return nil
+	})
+}
+
+// showDraft opens a draft's window, on the UI thread.
+func (w *Window) showDraft(c *api.Client, draft int64) {
+	if w.o.OpenCompose == nil {
+		return
+	}
+	w.o.Post(func() { w.o.OpenCompose(c, draft) })
+}
+
+// findState is the find bar's: the matches of each page shown.
+type findState struct {
+	open    bool
+	query   string
+	asked   string
+	current int
+	moved   int
+	counts  []int
+	pages   []pageOf
+	token   int
+}
+
+func (w *Window) startFind() {
+	if w.selectedMessage() == nil {
+		w.focusSearch = true
+		return
+	}
+	w.find.open = true
+}
+
+func (w *Window) closeFind() {
+	if !w.find.open {
+		return
+	}
+	for _, p := range w.find.pages {
+		p.frame.StopFind()
+	}
+	w.find = findState{}
+}
+
+func (w *Window) totalMatches() int {
+	total := 0
+	for _, n := range w.find.counts {
+		total += n
+	}
+	return total
+}
+
+// findBar draws the bar and carries out its moves.
+func (w *Window) findBar(c *ui.Context) {
+	f := &w.find
+	if !f.open {
+		return
+	}
+	bar := ui.FindBar(c, &f.open, &f.query, w.totalMatches(), &f.current)
+	if !f.open {
+		query := f.query
+		w.find.open = true
+		w.closeFind()
+		w.find.query = query
+		return
+	}
+	if f.query != f.asked {
+		w.runFind(f.query)
+		return
+	}
+	if bar.Changed() {
+		w.stepFind(f.current)
+	}
+}
+
+// runFind asks every page for its matches of text, and shows the first.
+func (w *Window) runFind(text string) {
+	f := &w.find
+	f.asked, f.current, f.moved = text, 0, 0
+	f.token++
+	token := f.token
+	pages := w.frames()
+	f.pages = pages
+	go func() {
+		counts := make([]int, len(pages))
+		for i, p := range pages {
+			if text == "" {
+				p.frame.StopFind()
+				continue
+			}
+			_, counts[i] = p.frame.Find(text, false, false)
+		}
+		w.o.Post(func() {
+			if w.find.token == token {
+				w.find.counts = counts
+			}
+		})
+	}()
+}
+
+// stepFind moves to match target, across the pages: within a page by
+// next or previous, and to a new page by finding from its start.
+func (w *Window) stepFind(target int) {
+	f := &w.find
+	from := f.moved
+	f.moved = target
+	pages, counts, text := f.pages, f.counts, f.query
+	go func() {
+		page, local := locate(counts, target)
+		fromPage, fromLocal := locate(counts, from)
+		if page < 0 {
+			return
+		}
+		if page != fromPage {
+			_, _ = pages[page].frame.Find(text, false, false)
+			fromLocal = 0
+		}
+		for fromLocal < local {
+			_, _ = pages[page].frame.Find(text, true, false)
+			fromLocal++
+		}
+		for fromLocal > local {
+			_, _ = pages[page].frame.Find(text, true, true)
+			fromLocal--
+		}
+	}()
+}
+
+// locate turns a match's index across the pages into its page and its
+// index there; -1 for none.
+func locate(counts []int, index int) (page, local int) {
+	for i, n := range counts {
+		if index < n {
+			return i, index
+		}
+		index -= n
+	}
+	return -1, 0
+}
+
+// showPerson and showOccurrence open other modules; they arrive with them.
+func (w *Window) showPerson(int64) {}
+
+func (w *Window) showOccurrence(api.Occurrence) {}
+
+func (w *Window) showInvitation(*api.Invitation) {}
+
+func (w *Window) askRemind(ids []int64, at time.Time) { w.remind(ids, &at) }

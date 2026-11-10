@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // The panes' IDs and widths (docs/specs/ui.md, Layout).
@@ -44,6 +45,21 @@ type Options struct {
 	Retry time.Duration
 	// Now is the clock for the list's dates [time.Now].
 	Now func() time.Time
+	// NewFrame makes a page for a message's body; nil shows none, as in
+	// the tests that do not need one.
+	NewFrame func() (uikit.Frame, error)
+	// CacheDir is maild's cache, whose parts folder holds attachments.
+	CacheDir string
+	// DownloadDir is where attachments from lodge are downloaded.
+	DownloadDir string
+	// Launch and LaunchFile open links and files; nil is the system's.
+	Launch     func(url string) error
+	LaunchFile func(path string) error
+	// SaveDialog asks where to save; "" for cancelled. It runs on a
+	// worker. filter and extension may be empty.
+	SaveDialog func(title, name, filter, extension string) (string, error)
+	// OpenCompose shows a draft's window; nil for none.
+	OpenCompose func(c *api.Client, draft int64)
 }
 
 // Window is the main window's state.
@@ -81,6 +97,16 @@ type Window struct {
 	bitmaps       map[string]*ui.Bitmap
 	state         conn.State
 	connected1    bool // connected at least once
+	conv          *conv
+	rawSource     *rawSourceSheet
+	find          findState
+	readerScroll  ui.ScrollState
+	readerHeight  float32
+	readerFocused bool
+	focusPane     string              // the pane Tab asked to focus
+	pane          string              // the pane holding the focus
+	revealing     *api.MessageSummary // shown and selected whether the list has it or not
+	pendingOpen   int64               // a message to show once connected
 	handlers      map[commands.Command]func()
 	toasts        []ui.Toast
 
@@ -109,6 +135,7 @@ func New(o Options) *Window {
 	// to the palette.
 	w.table.Editing = func(*ui.Context) bool { return false }
 	w.setUpSources()
+	w.shell.Palette.Sources = w.paletteSources()
 	w.mail = live.NewMail(w.waker.Wake)
 	w.act = live.NewActivity(w.addActivity)
 	w.console.SetNotify(w.waker.Wake)
@@ -128,6 +155,18 @@ func New(o Options) *Window {
 		commands.ToggleFlag:    func() { w.toggleFlag(w.selectedIDs()) },
 		commands.FocusSearch:   func() { w.focusSearch = true },
 		commands.Escape:        w.escape,
+		commands.Find:          w.startFind,
+		commands.Print:         w.printMessage,
+		commands.RawSource:     w.rawSourceCommand,
+		commands.AllHeaders:    w.allHeadersCommand,
+		commands.Reply:         func() { w.reply(api.DraftKindReply) },
+		commands.ReplyAll:      func() { w.reply(api.DraftKindReplyall) },
+		commands.Forward:       func() { w.forward() },
+		commands.Compose:       w.compose,
+		commands.PageDown:      func() { w.pageReader(1) },
+		commands.PageUp:        func() { w.pageReader(-1) },
+		commands.NextPane:      func() { w.cyclePane(1) },
+		commands.PreviousPane:  func() { w.cyclePane(-1) },
 	}
 	return w
 }
@@ -139,6 +178,7 @@ func (w *Window) Start(ctx context.Context) { go w.session.Run(ctx) }
 func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) error {
 	events := live.NewEvents()
 	go events.Run(c)
+	events.On(w.readerEvent)
 	if _, err := c.Events().Subscribe(ctx, &api.EventsSubscribeParams{}); err != nil {
 		return err
 	}
@@ -153,6 +193,7 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 		w.client, w.events = c, events
 		w.photos, w.bitmaps = live.NewPhotos(c, w.waker.Wake), map[string]*ui.Bitmap{}
 		w.openView()
+		w.deliverOpen()
 	})
 	return nil
 }
@@ -265,7 +306,12 @@ func (w *Window) View(c *ui.Context) {
 		c.AddToast(t)
 	}
 	w.toasts = nil
+	w.syncReveal()
 	w.table.Add(commands.Table(commands.Mail, func() int { return len(w.selectedIDs()) }, w.handlers)...)
+	if w.readerFocused {
+		// In the reader Tab walks its rows and buttons.
+		w.table.Remove(string(commands.NextPane), string(commands.PreviousPane))
+	}
 	conn := w.connection()
 	w.shell.View(c, frostui.PaneFrame{
 		SidebarPane: paneSidebar,
@@ -277,6 +323,7 @@ func (w *Window) View(c *ui.Context) {
 		StatusEnd:   w.statusEnd(),
 		ConsoleData: w.console,
 	})
+	w.rawSourceView(c)
 }
 
 func (w *Window) mailNames() mail.Names {
@@ -294,13 +341,9 @@ func (w *Window) panes(c *ui.Context) []frostui.Pane {
 			Bar: func() { w.sidebarBar(c) }, Content: func() { w.sidebar(c) }},
 		{ID: paneList, Label: "Messages", Width: listDefault, Min: 280, Max: 560,
 			Bar: func() { w.listBar(c) }, Content: func() { w.messages(c) }},
-		{ID: paneReader, Label: "Message", Min: 360,
+		{ID: paneReader, Label: "Reader", Min: 360,
 			Bar: func() { w.readerBar(c) }, Content: func() { w.reader(c) }},
 	}
-}
-
-func (w *Window) reader(c *ui.Context) {
-	frostui.Empty(c, "mail-read", "No Message Selected", "")
 }
 
 // connection says how the window stands with maild, for the status bar

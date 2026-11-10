@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -312,6 +313,33 @@ func TestSessionCountsFailedAttempts(t *testing.T) {
 			}
 		case <-time.After(5 * time.Second):
 			t.Fatal("no failed attempt")
+		}
+	}
+}
+
+func TestSafeNameStaysInItsDirectory(t *testing.T) {
+	for name, want := range map[string]string{
+		"a.pdf":        "a.pdf",
+		"../../etc/pw": "_.._etc_pw",
+		".hidden":      "hidden",
+		"a\x00b:c\\d":  "a_b_c_d",
+		"  ":           "attachment",
+		"...":          "attachment",
+	} {
+		if got := conn.SafeName(name); got != want {
+			t.Errorf("SafeName(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestDownloadRefusesPathsOutOfTheContentRoute(t *testing.T) {
+	l, err := conn.ParseLodge("http://127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"/etc/passwd", "p/../../x", "p/a?x=1", "p/a#b"} {
+		if _, err := l.Download(t.Context(), t.TempDir(), p, "x"); err == nil || !strings.Contains(err.Error(), "not a content path") {
+			t.Errorf("Download(%q) = %v", p, err)
 		}
 	}
 }

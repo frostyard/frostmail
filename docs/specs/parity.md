@@ -73,18 +73,18 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` |  |
-| P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |  |
+| P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` | `TestConversationCollapsesReadMessages`, `TestConversationShowsEarlierOnAsking` |
+| P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` | `TestRemoteContentBanner` |
 | P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |  |
-| P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` |  |
-| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestGuardRefusesInsideAddresses`, `Unsubscribe.test.tsx` |  |
-| P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |  |
-| P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |  |
-| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |  |
-| P-309 | Find in the message | Ctrl+F opens a find bar in the reader with a message shown; Ctrl+Alt+F focuses search; the web build leaves Ctrl+F to the browser ([ADR-0052](../adr/0052-find-in-the-message-shown.md)) | Have | `app/src/features/reader/findInMessage.test.ts`, `app/src/features/reader/FindBar.test.tsx`, `app/src/app/Find.test.tsx` |  |
-| P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` |  |
-| P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |  |
-| P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` |  |
+| P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` | `TestMoreActionsShowsHeadersAndSource` |
+| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestGuardRefusesInsideAddresses`, `Unsubscribe.test.tsx` | `TestUnsubscribeBanner` |
+| P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` | `TestReminderBanner` |
+| P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` | `TestPrintGoesToThePage` |
+| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` | `TestSaveAsWritesTheMessage` |
+| P-309 | Find in the message | Ctrl+F opens a find bar in the reader with a message shown; Ctrl+Alt+F focuses search; the web build leaves Ctrl+F to the browser ([ADR-0052](../adr/0052-find-in-the-message-shown.md)) | Have | `app/src/features/reader/findInMessage.test.ts`, `app/src/features/reader/FindBar.test.tsx`, `app/src/app/Find.test.tsx` | `TestFindCountsAcrossThePages` |
+| P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` | `TestConversationCollapsesReadMessages` |
+| P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` | `TestInvitationCard` |
+| P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` | `TestContactPopover` |
 
 ## Acting on messages
 

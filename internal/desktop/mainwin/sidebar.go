@@ -88,7 +88,14 @@ func (w *Window) sidebar(c *ui.Context) {
 	sections := w.indexSidebar(built, st)
 	w.syncSource(st)
 	ui.Column(c).Grow(1).AlignItems(ui.Stretch).Background(frostui.Chrome(c.Theme())).Children(func() {
-		w.sources.View(c, sections).Grow(1)
+		tree := w.sources.View(c, sections).Grow(1)
+		if w.focusPane == paneSidebar {
+			w.focusPane = ""
+			tree.Focus()
+		}
+		if tree.FocusWithin() {
+			w.pane = paneSidebar
+		}
 		w.followUp(c, st)
 		w.outbox(c, st)
 	})
@@ -299,7 +306,11 @@ func (w *Window) followUp(c *ui.Context, st live.MailState) {
 	ui.Column(c).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label("Follow Up").Children(func() {
 		frostui.Caption(c, fmt.Sprintf("Follow Up (%d)", st.FollowUp.Total)).Tooltip(fmt.Sprintf("Sent mail with no reply for %d days or more", live.FollowUpDays))
 		for _, t := range st.FollowUp.Threads {
-			frostui.Body(c.Key(t.ThreadID), t.Message.Subject).SingleLine()
+			if ui.ButtonBase(c.Key(t.ThreadID)).Row().Label(t.Message.Subject).Cursor(ui.CursorPointer).Children(func() {
+				frostui.Body(c, t.Message.Subject).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			}).Clicked() {
+				w.OpenMessage(t.Message.ID)
+			}
 		}
 	})
 }
