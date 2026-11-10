@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/live"
@@ -165,7 +166,7 @@ func (w *Window) reply(kind api.DraftKind) {
 		if err != nil {
 			return err
 		}
-		w.showDraft(c, d.ID)
+		w.showDraft(c, d.ID, true)
 		return nil
 	})
 }
@@ -181,7 +182,7 @@ func (w *Window) forward() {
 		if err != nil {
 			return err
 		}
-		w.showDraft(c, d.ID)
+		w.showDraft(c, d.ID, true)
 		return nil
 	})
 }
@@ -192,7 +193,7 @@ func (w *Window) compose() {
 		if err != nil {
 			return err
 		}
-		w.showDraft(c, d.ID)
+		w.showDraft(c, d.ID, true)
 		return nil
 	})
 }
@@ -203,17 +204,68 @@ func (w *Window) composeTo(address, name string) {
 		if err != nil {
 			return err
 		}
-		w.showDraft(c, d.ID)
+		w.showDraft(c, d.ID, true)
 		return nil
 	})
 }
 
 // showDraft opens a draft's window, on the UI thread.
-func (w *Window) showDraft(c *api.Client, draft int64) {
+func (w *Window) showDraft(c *api.Client, draft int64, fresh bool) {
 	if w.o.OpenCompose == nil {
 		return
 	}
-	w.o.Post(func() { w.o.OpenCompose(c, draft) })
+	w.o.Post(func() { w.o.OpenCompose(c, draft, fresh) })
+}
+
+// openSelected opens a message in a Drafts mailbox in a compose window.
+func (w *Window) openSelected() {
+	ids := w.selectedIDs()
+	rows := w.rows(ids)
+	if len(rows) != 1 || !mail.InRole(rows[0], api.MailboxRoleDrafts, w.mail.State().Mailboxes) {
+		return
+	}
+	id := rows[0].ID
+	w.run("open the draft", func(ctx context.Context, c *api.Client) error {
+		d, err := c.Draft().Open(ctx, &api.DraftOpenParams{MessageID: id})
+		if err != nil {
+			return err
+		}
+		w.showDraft(c, d.ID, false)
+		return nil
+	})
+}
+
+// Sent shows the undo toast of a message that went into the Outbox. A
+// message sent later has none: it waits in its own section.
+func (w *Window) Sent(item *api.OutboxItem) {
+	if item.Scheduled || item.SendAt == nil {
+		return
+	}
+	left := item.SendAt.Sub(w.o.Now())
+	if left <= 0 {
+		return
+	}
+	subject := strings.TrimSpace(item.Subject)
+	if subject == "" {
+		subject = "(no subject)"
+	}
+	id := item.ID
+	w.onFrame = append(w.onFrame, func(c *ui.Context) {
+		frostui.ShowActionToast(c, frostui.ActionToast{Title: "Sending “" + subject + "”…", Action: "Undo", Timeout: left, Countdown: true,
+			OnAction: func() { w.undoSend(id) }})
+	})
+}
+
+// undoSend cancels a send and reopens its draft.
+func (w *Window) undoSend(id int64) {
+	w.run("undo the send", func(ctx context.Context, c *api.Client) error {
+		d, err := c.Outbox().Cancel(ctx, &api.OutboxCancelParams{ID: id})
+		if err != nil {
+			return err
+		}
+		w.showDraft(c, d.ID, false)
+		return nil
+	})
 }
 
 // findState is the find bar's: the matches of each page shown.
@@ -349,4 +401,6 @@ func (w *Window) showOccurrence(api.Occurrence) {}
 
 func (w *Window) showInvitation(*api.Invitation) {}
 
-func (w *Window) askRemind(ids []int64, at time.Time) { w.remind(ids, &at) }
+func (w *Window) askRemind(ids []int64, at time.Time) {
+	w.later.Show("Remind Me", at, func(chosen time.Time) { w.remind(ids, &chosen) })
+}

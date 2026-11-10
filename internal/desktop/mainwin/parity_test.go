@@ -67,7 +67,9 @@ func newSyncFixture(t *testing.T) *syncFixture {
 		f.win.View(c)
 	}, 1200, 780)
 	f.win.Start(t.Context())
-	f.until(t, "the synced mail", func() bool { return f.tt.HasText("Alpha report") })
+	f.until(t, "the synced mail", func() bool {
+		return f.tt.HasText("Alpha report") && f.tt.HasText("Beta plan") && f.tt.HasText("Gamma notes")
+	})
 	return &syncFixture{fixture: f, c: c, mem: mem}
 }
 
@@ -187,13 +189,9 @@ func TestAddToFavorites(t *testing.T) {
 		t.Fatalf("%v; menu %q", err, f.tt.Menu())
 	}
 	f.until(t, "the favorite", func() bool {
-		n := 0
-		for _, s := range f.tt.Texts() {
-			if s == "Junk" {
-				n++
-			}
-		}
-		return n == 2
+		texts := f.tt.Texts()
+		favorites, junk, smart := slices.Index(texts, "Favorites"), slices.Index(texts, "Junk"), slices.Index(texts, "Smart Mailboxes")
+		return favorites >= 0 && favorites < junk && junk < smart
 	})
 }
 

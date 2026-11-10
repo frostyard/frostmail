@@ -58,8 +58,9 @@ type Options struct {
 	// SaveDialog asks where to save; "" for cancelled. It runs on a
 	// worker. filter and extension may be empty.
 	SaveDialog func(title, name, filter, extension string) (string, error)
-	// OpenCompose shows a draft's window; nil for none.
-	OpenCompose func(c *api.Client, draft int64)
+	// OpenCompose shows a draft's window; fresh says it was just made for
+	// that window. nil for none.
+	OpenCompose func(c *api.Client, draft int64, fresh bool)
 }
 
 // Window is the main window's state.
@@ -109,6 +110,8 @@ type Window struct {
 	pendingOpen   int64               // a message to show once connected
 	handlers      map[commands.Command]func()
 	toasts        []ui.Toast
+	onFrame       []func(c *ui.Context) // what needs the window's context
+	later         uikit.TimeSheet
 
 	mu     sync.Mutex
 	latest map[int64]string // each account's newest activity, for the status bar
@@ -165,6 +168,7 @@ func New(o Options) *Window {
 		commands.Compose:       w.compose,
 		commands.PageDown:      func() { w.pageReader(1) },
 		commands.PageUp:        func() { w.pageReader(-1) },
+		commands.Open:          w.openSelected,
 		commands.NextPane:      func() { w.cyclePane(1) },
 		commands.PreviousPane:  func() { w.cyclePane(-1) },
 	}
@@ -306,6 +310,10 @@ func (w *Window) View(c *ui.Context) {
 		c.AddToast(t)
 	}
 	w.toasts = nil
+	for _, fn := range w.onFrame {
+		fn(c)
+	}
+	w.onFrame = nil
 	w.syncReveal()
 	w.table.Add(commands.Table(commands.Mail, func() int { return len(w.selectedIDs()) }, w.handlers)...)
 	if w.readerFocused {
@@ -324,6 +332,7 @@ func (w *Window) View(c *ui.Context) {
 		ConsoleData: w.console,
 	})
 	w.rawSourceView(c)
+	w.later.View(c, w.o.Now())
 }
 
 func (w *Window) mailNames() mail.Names {

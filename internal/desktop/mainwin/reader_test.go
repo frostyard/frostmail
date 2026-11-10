@@ -148,7 +148,7 @@ func newReaderFixture(t *testing.T, seed func(mem *imapxtest.Mem)) *readerFixtur
 			defer r.mu.Unlock()
 			return r.saved, nil
 		},
-		OpenCompose: func(_ *api.Client, d int64) {
+		OpenCompose: func(_ *api.Client, d int64, _ bool) {
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			r.drafts = append(r.drafts, d)
@@ -180,14 +180,25 @@ func oneMail(t *testing.T, headers, body string) *readerFixture {
 }
 
 // open selects a row and waits for its message to draw.
+//
+// A sync delta landing between the press and the release changes the row's
+// key, and the click is lost, so it clicks again until the message shows.
 func (f *readerFixture) open(t *testing.T, subject string) {
 	t.Helper()
 	if err := f.tt.Click(subject); err != nil {
 		t.Fatal(err)
 	}
+	frames := 0
 	f.until(t, "the message's page", func() bool {
-		_, ok := f.tt.Access("Message body")
-		return ok
+		if _, ok := f.tt.Access("Message body"); ok {
+			return true
+		}
+		if frames++; frames%40 == 0 {
+			if err := f.tt.Click(subject); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return false
 	})
 }
 

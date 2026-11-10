@@ -110,14 +110,14 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` |  |
+| P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` | `TestNewMessageWithAttachment`, `TestAttachByBytes`, `TestBccToggleAndFormatBar` |
 | P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` |  |
 | P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` |  |
 | P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |  |
 | P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |  |
 | P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` |  |
 | P-507 | Message priority | | Later | Rarely used |  |
-| P-508 | Reply quoting the selected text | Same, in the desktop app; the web build quotes the whole message | Have | `TestQuoteHTMLSelectedText`, `TestReplyQuotesTheSelectedText`; `quoteSelection.test.ts`, `commands.quoteSelection.test.ts`, `Palette.test.tsx` (holds the reader selection before its field takes focus, and clears it on close) |  |
+| P-508 | Reply quoting the selected text | Same, in the desktop app; the web build quotes the whole message | Have | `TestQuoteHTMLSelectedText`, `TestReplyQuotesTheSelectedText`; `quoteSelection.test.ts`, `commands.quoteSelection.test.ts`, `Palette.test.tsx` (holds the reader selection before its field takes focus, and clears it on close) | `TestReplyQuotesTheSelection`, `TestReplyWithSelectionKeepsOnlyTheSelection` |
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |  |
 | P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |  |
 | P-511 | Check Spelling While Typing | The subject and the body, never the address fields; WebKitGTK in the system's languages, the browser's and WebView2's own checker elsewhere ([compose-ui.md](compose-ui.md#spelling)) | Have | `ComposeWindow.spellcheck.test.tsx`, `spell::tests` |  |

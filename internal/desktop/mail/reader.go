@@ -3,6 +3,7 @@ package mail
 import (
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -45,6 +46,16 @@ func Attachments(parts []api.Part, invitation bool) []api.Part {
 		}
 	}
 	return out
+}
+
+// InRole reports whether a message is in a mailbox of the role.
+func InRole(s api.MessageSummary, role api.MailboxRole, mailboxes []api.Mailbox) bool {
+	for _, m := range mailboxes {
+		if m.Role == role && slices.Contains(s.MailboxIDs, m.ID) {
+			return true
+		}
+	}
+	return false
 }
 
 // FormatSize writes a size as "12 KB" or "1.4 MB".

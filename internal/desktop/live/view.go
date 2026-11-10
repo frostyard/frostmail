@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -129,6 +130,31 @@ func (v *View) Rows(ids []int64) []api.MessageSummary {
 		}
 	}
 	return out
+}
+
+// Snapshot is a view's rows at one moment. Its rows never change, so one
+// frame reads one state: a view changes on other goroutines, and two reads
+// across a change could show one message at two indices.
+type Snapshot struct {
+	rows  map[int64]api.MessageSummary
+	total int64
+}
+
+// Count is the number of rows.
+func (s Snapshot) Count() int64 { return s.total }
+
+// Row returns the row at index i when it is loaded.
+func (s Snapshot) Row(i int64) (api.MessageSummary, bool) {
+	r, ok := s.rows[i]
+	return r, ok
+}
+
+// Snapshot returns the view as it stands. The map is shared, not copied:
+// every change to the rows makes a new one.
+func (v *View) Snapshot() Snapshot {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return Snapshot{rows: v.rows, total: v.total}
 }
 
 // Ensure asks for rows [start, end) and keeps them as the window in view.
@@ -267,13 +293,33 @@ func (v *View) fetch(p, id int64, gen uint64) {
 		v.mu.Unlock()
 		return
 	}
-	for i, r := range rows {
-		v.rows[p*Page+int64(i)] = r
-	}
+	v.storeLocked(p*Page, rows)
 	v.evictLocked()
 	v.changedLocked()
 	v.mu.Unlock()
 	v.notify()
+}
+
+// storeLocked puts rows at start. A reply to view.range can be newer than
+// the deltas applied so far, so a message it holds may still sit at
+// another index here: that older copy goes, and is fetched again if its
+// index stays in view. A message is at one index only, as a list's keys
+// must be unique.
+func (v *View) storeLocked(start int64, rows []api.MessageSummary) {
+	incoming := make(map[int64]bool, len(rows))
+	for _, r := range rows {
+		incoming[r.ID] = true
+	}
+	next := make(map[int64]api.MessageSummary, len(v.rows)+len(rows))
+	for i, r := range v.rows {
+		if !incoming[r.ID] {
+			next[i] = r
+		}
+	}
+	for i, r := range rows {
+		next[start+int64(i)] = r
+	}
+	v.rows = next
 }
 
 func (v *View) refresh(ids []int64) {
@@ -300,13 +346,15 @@ func (v *View) refresh(ids []int64) {
 	}
 	v.mu.Lock()
 	changed := false
+	next := maps.Clone(v.rows)
 	for i, r := range v.rows {
 		if s, ok := byID[r.ID]; ok && !v.closed {
-			v.rows[i] = s
+			next[i] = s
 			changed = true
 		}
 	}
 	if changed {
+		v.rows = next
 		v.changedLocked()
 	}
 	v.mu.Unlock()
@@ -328,11 +376,13 @@ func (v *View) pageLoaded(p int64) bool {
 func (v *View) evictLocked() {
 	lo := (v.window[0]/Page - KeepPages) * Page
 	hi := ((v.window[1]+Page-1)/Page + KeepPages) * Page
-	for i := range v.rows {
-		if i < lo || i >= hi {
-			delete(v.rows, i)
+	v.rows = maps.Collect(func(yield func(int64, api.MessageSummary) bool) {
+		for i, r := range v.rows {
+			if i >= lo && i < hi && !yield(i, r) {
+				return
+			}
 		}
-	}
+	})
 }
 
 func (v *View) changedLocked() { v.version++ }

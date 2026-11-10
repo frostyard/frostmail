@@ -618,6 +618,23 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   message with an attachment and an inline image are sent to `smtpsink`
   from the native app and match the React app's MIME structure; the
   compose parity rows have Go tests.
+- **Status (2026-11-10): built on Linux; the gate is partly met.**
+  `internal/desktop/compose` drives real drafts through a real maild to
+  `smtpxtest`: a new message with a file (multipart/mixed, with its file
+  name), a reply (To, In-Reply-To, multipart/alternative) and a forward
+  (its Fwd: subject) are sent; a reply with a selection is checked in the
+  saved draft, not sent.
+- **Not done:** a message with an inline image sent from the native
+  window, and a part-by-part comparison with the React app's MIME output.
+  The compose window has not been opened in a real window.
+- **Differences from the React window, to confirm at the gate:**
+  - With the focus in a one-line field, Ctrl+Shift+A stays with the field
+    (MyGo's select all ignores Shift) and Ctrl+Backspace deletes a word.
+    The toolbar's buttons and the same keys from the body work.
+  - The recipient fields are MyGo's `TokenField`, offered the 2,000 most
+    used addresses at once rather than asking `address.suggest` as each
+    letter is typed. `;` commits through the parser on Enter or a comma,
+    not by itself.
 
 ## Phase 6 — Organize (M)
 

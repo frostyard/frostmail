@@ -12,6 +12,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
+	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
@@ -256,7 +257,9 @@ func (w *Window) listBody(c *ui.Context) {
 		frostui.Empty(c, "dialog-warning", "Messages could not be loaded", err.Error())
 		return
 	}
-	if v.Ready() && v.Count() == 0 {
+	// One state for the whole frame: the view changes on other goroutines.
+	snap := v.Snapshot()
+	if v.Ready() && snap.Count() == 0 {
 		w.emptyList(c)
 		return
 	}
@@ -264,13 +267,13 @@ func (w *Window) listBody(c *ui.Context) {
 	w.list.Selected = &w.selected
 	w.list.Selection = &w.chosen
 	w.list.Key = func(i int) any {
-		if r, ok := v.Row(int64(i)); ok {
+		if r, ok := snap.Row(int64(i)); ok {
 			return r.ID
 		}
 		return -int64(i) - 1
 	}
 	w.list.Label = func(i int) string {
-		if r, ok := v.Row(int64(i)); ok {
+		if r, ok := snap.Row(int64(i)); ok {
 			return mail.DisplayName(r.From)
 		}
 		return ""
@@ -278,7 +281,7 @@ func (w *Window) listBody(c *ui.Context) {
 	w.list.DragRows = func(rows []int) any {
 		d := DragMessages{}
 		for _, i := range rows {
-			if r, ok := v.Row(int64(i)); ok {
+			if r, ok := snap.Row(int64(i)); ok {
 				d.Account = r.AccountID
 				d.IDs = append(d.IDs, r.ID)
 			}
@@ -286,13 +289,13 @@ func (w *Window) listBody(c *ui.Context) {
 		return d
 	}
 	low, high := int64(-1), int64(-1)
-	list := ui.List(c, &w.list, int(v.Count()), func(i int) {
+	list := ui.List(c, &w.list, int(snap.Count()), func(i int) {
 		n := int64(i)
 		if low < 0 || n < low {
 			low = n
 		}
 		high = max(high, n)
-		w.row(c, n)
+		w.row(c, snap, n)
 	}).Grow(1).Label("Messages")
 	if w.focusPane == paneList {
 		w.focusPane = ""
@@ -300,6 +303,9 @@ func (w *Window) listBody(c *ui.Context) {
 	}
 	if list.FocusWithin() {
 		w.pane = paneList
+	}
+	if list.Submitted() {
+		w.openSelected()
 	}
 	if list.Changed() {
 		w.revealing = nil
@@ -357,8 +363,8 @@ func (w *Window) emptyList(c *ui.Context) {
 	})
 }
 
-func (w *Window) row(c *ui.Context, n int64) {
-	r, ok := w.view.Row(n)
+func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
+	r, ok := snap.Row(n)
 	if !ok {
 		uikit.SummaryRow(c, uikit.Summary{})
 		return

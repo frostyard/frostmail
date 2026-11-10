@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
 
+	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/icons"
@@ -66,12 +67,17 @@ func run() error {
 	})
 	mygo.App.WhenReady(func() {
 		var frames *uikit.SafeHTMLView
+		var composer *composeWindows
 		main = mainwin.New(mainwin.Options{Target: target, Client: "frostmail " + version, Post: post.post,
 			CacheDir:    paths.CacheDir,
 			DownloadDir: filepath.Join(paths.CacheDir, "frostmail-app", "attachments"),
 			NewFrame:    func() (uikit.Frame, error) { return frames.New() },
 			SaveDialog:  saveDialog,
+			OpenCompose: func(c *api.Client, draft int64, fresh bool) {
+				composer.open(ctx, c, draft, fresh)
+			},
 		})
+		composer = &composeWindows{windows: map[int64]*mygo.Window{}, main: main, target: target, paths: paths}
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Frostmail", Width: 1200, Height: 780, MinWidth: 800, MinHeight: 500,
 			TitleBarStyle: mygo.TitleBarHidden,
