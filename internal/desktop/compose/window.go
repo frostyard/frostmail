@@ -485,12 +485,12 @@ func (w *Window) commands() []frostui.Command {
 func (w *Window) View(c *ui.Context) {
 	frostui.Adapt(c)
 	w.table.Add(w.commands()...)
-	frame := frostui.PaneFrame{Table: w.table, Content: func() { w.content1(c) }}
-	if w.loaded {
-		frame.Start = func() { w.barStart(c) }
-		frame.End = func() { w.barEnd(c) }
-	}
-	w.shell.View(c, frame)
+	// The top bar holds the title and the palette field. The actions have
+	// a row of their own under it: beside the field and the window
+	// controls, a 720-wide window has no room for them.
+	pane := frostui.Pane{ID: "message", Label: "Message", Content: func() { w.content1(c) },
+		Bar: func() { frostui.Strong(c, w.title()).Shrink(1).MinWidth(0).SingleLine() }}
+	w.shell.View(c, frostui.PaneFrame{Table: w.table, Panes: []frostui.Pane{pane}})
 	w.later.View(c, w.o.Now())
 	w.reminderSheet(c)
 }
@@ -537,6 +537,7 @@ func (w *Window) content1(c *ui.Context) {
 		w.attachPaths(dropped)
 	}
 	root.Children(func() {
+		w.toolbar(c)
 		w.header(c)
 		if w.formatBar {
 			w.formatRow(c)
@@ -558,27 +559,29 @@ func (w *Window) content1(c *ui.Context) {
 	})
 }
 
-func (w *Window) barStart(c *ui.Context) {
-	if frostui.IconButton(c, "mail-send", w.table.Tooltip("send")).Disabled(!w.canSend()).Clicked() {
-		w.send(nil)
-	}
-	ui.MenuButton(c, "", w.laterMenu).Disabled(!w.canSend()).Label("Send Later").Tooltip("Send Later")
-	frostui.Strong(c, w.title()).Shrink(1).MinWidth(0).SingleLine()
-}
-
-func (w *Window) barEnd(c *ui.Context) {
-	ui.MenuButton(c, "", w.snippetMenu).Label("Insert Snippet").Tooltip("Insert Snippet").Children(func() {
-		frostui.Icon(c, "text-x-generic")
+// toolbar is the row of the window's actions.
+func (w *Window) toolbar(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Height(40).Shrink(0).Padding(0, frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Center).Background(frostui.Chrome(t)).
+		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Role(ui.RoleToolbar).Label("Message actions").Children(func() {
+		if frostui.IconButton(c, "mail-send", w.table.Tooltip("send")).Disabled(!w.canSend()).Clicked() {
+			w.send(nil)
+		}
+		ui.MenuButton(c, "", w.laterMenu).Disabled(!w.canSend()).Label("Send Later").Tooltip("Send Later")
+		ui.Spacer(c)
+		ui.MenuButton(c, "", w.snippetMenu).Label("Insert Snippet").Tooltip("Insert Snippet").Children(func() {
+			frostui.Icon(c, "text-x-generic")
+		})
+		if frostui.IconButton(c, "mail-attachment", w.table.Tooltip("attach")).Clicked() {
+			w.attachFiles()
+		}
+		if frostui.IconButton(c, "format-text-bold", "Show Format Bar").Selected(w.formatBar).Role(ui.RoleToggleButton).Checked(w.formatBar).Clicked() {
+			w.formatBar = !w.formatBar
+		}
+		if frostui.IconButton(c, "user-trash", w.table.Tooltip("delete")).Clicked() {
+			w.deleteDraft()
+		}
 	})
-	if frostui.IconButton(c, "mail-attachment", w.table.Tooltip("attach")).Clicked() {
-		w.attachFiles()
-	}
-	if frostui.IconButton(c, "format-text-bold", "Show Format Bar").Selected(w.formatBar).Role(ui.RoleToggleButton).Checked(w.formatBar).Clicked() {
-		w.formatBar = !w.formatBar
-	}
-	if frostui.IconButton(c, "user-trash", w.table.Tooltip("delete")).Clicked() {
-		w.deleteDraft()
-	}
 }
 
 func (w *Window) laterMenu(m *ui.Menu) {

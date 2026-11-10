@@ -365,6 +365,7 @@ func (w *Window) reader(c *ui.Context) {
 	w.syncReader()
 	ids := w.selectedIDs()
 	ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Background(c.Theme().Background).Children(func() {
+		w.readerActions(c)
 		w.findBar(c)
 		switch {
 		case len(ids) == 0:

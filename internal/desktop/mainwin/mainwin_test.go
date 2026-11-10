@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -197,4 +198,59 @@ func TestConsoleShowsMailActivity(t *testing.T) {
 		return n >= 2 && f.tt.HasText("me@a.test")
 	})
 	snapshot(t, f.tt, "console")
+}
+
+// ADR-0049: losing maild's socket is a problem record, once.
+func TestLosingTheSocketIsRecorded(t *testing.T) {
+	srv := rpctest.Start(t)
+	loop := frostuitest.NewLoop()
+	var lost atomic.Int32
+	win := mainwin.New(mainwin.Options{Target: conn.Target{Socket: srv.Socket}, Client: "frostmail test",
+		Post: loop.Post, Wake: time.Millisecond, Retry: 10 * time.Millisecond, SocketLost: func(error) { lost.Add(1) }})
+	tt := ui.NewTester(func(c *ui.Context) {
+		loop.Flush()
+		win.View(c)
+	}, 1200, 780)
+	win.Start(t.Context())
+	wait := func(what string, ok func() bool) {
+		t.Helper()
+		deadline := time.Now().Add(15 * time.Second)
+		for !ok() {
+			tt.Frame()
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out waiting for %s: %q", what, tt.Texts())
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	wait("the panes", func() bool { return tt.HasText("Mailboxes") })
+	srv.Stop()
+	wait("the record", func() bool { return lost.Load() == 1 })
+	for range 50 { // the retries that follow are not new losses
+		tt.Frame()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := lost.Load(); n != 1 {
+		t.Errorf("recorded %d times", n)
+	}
+}
+
+// The window controls take room from the top bar, which a Tester has none
+// of unless told: the reader's actions must still show at the smallest
+// window, with the room GTK reserves.
+func TestReaderActionsShowBesideTheWindowControls(t *testing.T) {
+	f := newFixture(t, 1)
+	f.until(t, "the row", func() bool { return f.tt.HasText("Message 1") })
+	for _, width := range []int{1200, 800} {
+		f.tt.SetSize(width, 600)
+		f.tt.SetTitleBar(ui.TitleBar{Height: 52, Right: 224})
+		f.tt.Frame()
+		f.tt.Frame()
+		for _, name := range []string{"Reply (Ctrl+R)", "Reply All (Ctrl+Shift+R)", "Forward (Ctrl+Shift+F)", "Mark as Read or Unread", "Move"} {
+			info, ok := f.tt.Access(name)
+			if !ok || info.Bounds.W < 20 || info.Bounds.X+info.Bounds.W > float32(width) {
+				t.Errorf("at %d wide, %q is at %+v, %v", width, name, info.Bounds, ok)
+			}
+		}
+	}
 }

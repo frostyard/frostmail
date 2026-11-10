@@ -567,8 +567,16 @@ func (w *Window) listBar(c *ui.Context) {
 	}
 }
 
-// readerBar is the segment over the reader.
-func (w *Window) readerBar(c *ui.Context) {
+// readerActions is the row of the message's actions, at the top of the
+// reader: beside the palette field and the window controls the top bar
+// has no room for them.
+func (w *Window) readerActions(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).Height(40).Shrink(0).Padding(0, frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Center).Background(frostui.Chrome(t)).
+		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Role(ui.RoleToolbar).Label("Message actions").Children(func() { w.readerButtons(c) })
+}
+
+func (w *Window) readerButtons(c *ui.Context) {
 	ids := w.selectedIDs()
 	rows := w.rows(ids)
 	has := len(rows) > 0 && !w.readOnly(rows[0].AccountID)

@@ -381,3 +381,23 @@ func TestSendChoices(t *testing.T) {
 		t.Errorf("late: %+v", got)
 	}
 }
+
+// The window controls take room from the top bar, which a Tester has none
+// of unless told: the actions must still show in a window of the smallest
+// size, 480 wide, with the room GTK reserves.
+func TestActionsShowBesideTheWindowControls(t *testing.T) {
+	f := start(t)
+	f.open(t, f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew}), true, false)
+	for _, width := range []int{720, 480} {
+		f.tt.SetSize(width, 560)
+		f.tt.SetTitleBar(ui.TitleBar{Height: 52, Right: 224})
+		f.tt.Frame()
+		f.tt.Frame()
+		for _, name := range []string{"Send (Ctrl+Enter)", "Send Later", "Insert Snippet", "Attach Files… (Ctrl+Shift+A)", "Show Format Bar", "Delete Draft (Ctrl+Backspace)"} {
+			info, ok := f.tt.Access(name)
+			if !ok || info.Bounds.W < 20 || info.Bounds.X+info.Bounds.W > float32(width) {
+				t.Errorf("at %d wide, %q is at %+v, %v", width, name, info.Bounds, ok)
+			}
+		}
+	}
+}

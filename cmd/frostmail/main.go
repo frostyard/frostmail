@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
+	"github.com/frostyard/std/problems"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
@@ -20,6 +22,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
+	"github.com/frostyard/frostmail/internal/problemrec"
 )
 
 // version is stamped at build time.
@@ -32,7 +35,18 @@ func main() {
 	}
 }
 
+// codeSocketLost is the problem record of maild's local socket ending
+// under the app (ADR-0049).
+const codeSocketLost = "bridge.socket_lost"
+
 func run() error {
+	rec := problemrec.New(version, problems.ComponentShell)
+	defer rec.RecoverPanic()
+	if rec.Err() == nil { // an unreleased build records nothing
+		if err := rec.CrashOutput(); err != nil {
+			slog.Warn("recording crashes", "err", err)
+		}
+	}
 	target, err := conn.TargetFrom(os.Getenv)
 	if err != nil {
 		return err
@@ -73,6 +87,7 @@ func run() error {
 			DownloadDir: filepath.Join(paths.CacheDir, "frostmail-app", "attachments"),
 			NewFrame:    func() (uikit.Frame, error) { return frames.New() },
 			SaveDialog:  saveDialog,
+			SocketLost:  func(err error) { rec.Error(codeSocketLost, err) },
 			OpenCompose: func(c *api.Client, draft int64, fresh bool) {
 				composer.open(ctx, c, draft, fresh)
 			},

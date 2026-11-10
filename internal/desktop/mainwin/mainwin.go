@@ -59,6 +59,9 @@ type Options struct {
 	// SaveDialog asks where to save; "" for cancelled. It runs on a
 	// worker. filter and extension may be empty.
 	SaveDialog func(title, name, filter, extension string) (string, error)
+	// SocketLost records that maild's local socket ended under the app
+	// (problem records, ADR-0049); nil records nothing.
+	SocketLost func(err error)
 	// OpenCompose shows a draft's window; fresh says it was just made for
 	// that window. nil for none.
 	OpenCompose func(c *api.Client, draft int64, fresh bool)
@@ -219,6 +222,10 @@ func (w *Window) changed(st conn.State) {
 		if !st.Connected {
 			w.closeView()
 			w.client, w.events = nil, nil
+			// Lodge's WebSocket never counts: its losses are the network's.
+			if w.state.Connected && !st.Target.Remote() && st.Err != nil && w.o.SocketLost != nil {
+				w.o.SocketLost(st.Err)
+			}
 		}
 		w.state = st
 		w.connected1 = w.connected1 || st.Connected
@@ -361,8 +368,7 @@ func (w *Window) panes(c *ui.Context) []frostui.Pane {
 			Bar: func() { w.sidebarBar(c) }, Content: func() { w.sidebar(c) }},
 		{ID: paneList, Label: "Messages", Width: listDefault, Min: 280, Max: 560,
 			Bar: func() { w.listBar(c) }, Content: func() { w.messages(c) }},
-		{ID: paneReader, Label: "Reader", Min: 360,
-			Bar: func() { w.readerBar(c) }, Content: func() { w.reader(c) }},
+		{ID: paneReader, Label: "Reader", Min: 360, Content: func() { w.reader(c) }},
 	}
 }
 

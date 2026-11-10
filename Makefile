@@ -43,6 +43,16 @@ build-windows: ## Cross-compile maild.exe (a GUI program: no console at sign-in)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS) -H=windowsgui' -o build/windows/maild.exe ./cmd/maild
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o build/windows/mailctl.exe ./cmd/mailctl
 
+# A release of the native app: no inspector, and MyGo's production mode
+# (plan 0015, Phase 9).
+DESKTOP_FLAGS = -trimpath -tags mygo_noinspector -ldflags '$(LDFLAGS) -X github.com/egoist/mygo.production=1'
+
+desktop-build: ## Build the native desktop app into build/frostmail
+	CGO_ENABLED=0 go build $(DESKTOP_FLAGS) -o build/frostmail ./cmd/frostmail
+
+desktop-build-windows: ## Cross-compile the native desktop app into build/windows/frostmail.exe
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags mygo_noinspector -ldflags '$(LDFLAGS) -X github.com/egoist/mygo.production=1 -H=windowsgui' -o build/windows/frostmail.exe ./cmd/frostmail
+
 PREFIX ?= $(HOME)/.local
 UNIT_DIR ?= $(HOME)/.config/systemd/user
 

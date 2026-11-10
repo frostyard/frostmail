@@ -624,10 +624,17 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   name), a reply (To, In-Reply-To, multipart/alternative) and a forward
   (its Fwd: subject) are sent; a reply with a selection is checked in the
   saved draft, not sent.
+- **Check of 2026-11-10, built app, GTK in the Frostmail Flatpak's
+  sandbox, fixture maild:** Ctrl+N opened a second window titled "New
+  Message" at 720 × 560 with its To, Cc, Subject and body fields, and
+  Ctrl+W closed it.
 - **Not done:** a message with an inline image sent from the native
   window, and a part-by-part comparison with the React app's MIME output.
-  The compose window has not been opened in a real window.
 - **Differences from the React window, to confirm at the gate:**
+  - The actions are a row under the top bar, in compose and over the
+    reader, rather than in the top bar. GTK's window controls took about
+    224 of a window's width in the 2 real windows checked, and beside
+    them and the palette field the bar has no room left.
   - With the focus in a one-line field, Ctrl+Shift+A stays with the field
     (MyGo's select all ignores Shift) and Ctrl+Backspace deletes a word.
     The toolbar's buttons and the same keys from the body work.
@@ -699,6 +706,14 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   internal-crate line change with the files they name.
 - **Done when:** CI builds the Flatpak and the Windows installer from the
   Go app, and both install and run on the test machines.
+- **Status (2026-11-10): the parts that leave Tauri in place are built.**
+  `make desktop-build` and `make desktop-build-windows` build the app
+  with the production flags, and `cmd/frostmail` records crashes and
+  `bridge.socket_lost` (`TestLosingTheSocketIsRecorded`).
+- **Not done, on purpose:** the Flatpak manifest, the Windows installer
+  and the `app` and `windows-app` CI jobs still build Tauri. Moving them
+  removes the shipping app, and the brief keeps Tauri until the parity
+  gate; the installer also needs the Windows test machine.
 
 ## Phase 10 — The parity gate and removing Tauri (M)
 
