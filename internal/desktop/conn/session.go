@@ -42,6 +42,7 @@ type Options struct {
 type Session struct {
 	opts     Options
 	retarget chan Target
+	again    chan struct{}
 
 	mu     sync.Mutex
 	target Target
@@ -60,7 +61,7 @@ func NewSession(t Target, o Options) *Session {
 	if o.DialTimeout == 0 {
 		o.DialTimeout = 15 * time.Second
 	}
-	return &Session{opts: o, target: t, state: State{Target: t}, retarget: make(chan Target, 1)}
+	return &Session{opts: o, target: t, state: State{Target: t}, retarget: make(chan Target, 1), again: make(chan struct{}, 1)}
 }
 
 // Client is the connected client, nil while there is none. A call on a
@@ -87,6 +88,14 @@ func (s *Session) SetTarget(t Target) {
 	default:
 	}
 	s.retarget <- t
+}
+
+// Retry ends the wait before the next attempt, for a Retry button.
+func (s *Session) Retry() {
+	select {
+	case s.again <- struct{}{}:
+	default:
+	}
 }
 
 // Run connects and keeps the connection until ctx ends.
@@ -159,6 +168,7 @@ func (s *Session) wait(ctx context.Context) {
 	select {
 	case <-ctx.Done():
 	case <-time.After(s.opts.Retry):
+	case <-s.again:
 	case next := <-s.retarget:
 		s.mu.Lock()
 		s.target = next

@@ -165,6 +165,16 @@ type Target struct {
 // Remote reports whether the target is lodge's maild.
 func (t Target) Remote() bool { return t.Lodge != nil }
 
+// Host is where the daemon runs, for the status bar: lodge's host, "" for
+// this computer.
+func (t Target) Host() string {
+	if t.Lodge == nil {
+		return ""
+	}
+	_, host, _ := strings.Cut(t.Lodge.origin, "://")
+	return host
+}
+
 // String names the target as the status bar shows it.
 func (t Target) String() string {
 	if t.Lodge != nil {

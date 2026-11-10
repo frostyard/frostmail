@@ -1,5 +1,7 @@
 package commands
 
+import "github.com/frostyard/frostui"
+
 // Module is one of the main window's four modules (docs/specs/pim-ui.md,
 // Modules; ADR-0020).
 type Module string
@@ -95,7 +97,6 @@ var Entries = []Entry{
 	{ShowPeople, each("Show People"), GroupGoTo, NeedNothing},
 	{ShowTasks, each("Show Tasks"), GroupGoTo, NeedNothing},
 	{ToggleSidebar, each("Show/Hide Sidebar"), GroupView, NeedNothing},
-	{Activity, each("Show/Hide Activity"), GroupView, NeedNothing},
 	{Settings, each("Settings…"), GroupApp, NeedNothing},
 	{Shortcuts, each("Keyboard Shortcuts"), GroupApp, NeedNothing},
 	{About, each("About Frostmail"), GroupApp, NeedNothing},
@@ -112,33 +113,42 @@ var selectionReason = map[Module]string{
 
 const messageReason = "Select one message first"
 
-// Item is one row of the palette: a command, its name in the module, its
-// group and keys, and why it cannot run now, if it cannot.
-type Item struct {
-	Command Command
-	Name    string
-	Group   string
-	Keys    []Key
-	Reason  string
-}
+// moves are the commands without a name to find: they have keys, and the
+// palette does not list them.
+var moves = []Command{Left, Right, Previous, Next, ExtendPrevious, ExtendNext, First, Last, PageDown, PageUp,
+	Escape, NextPane, PreviousPane, ContextMenu, Open}
 
-// Items lists a module's commands in Entries' order, with the reason of
-// each one that the selection (the number of rows selected) cannot run.
-func Items(m Module, selected int) []Item {
-	var out []Item
+// Table lists a module's commands that the window can run: those of
+// Entries with a name in the module and a function in run, in Entries'
+// order, then the moves, unlisted. selected reads the number of rows
+// selected, for the commands that need some.
+func Table(m Module, selected func() int, run map[Command]func()) []frostui.Command {
+	var cmds []frostui.Command
 	for _, e := range Entries {
 		name, ok := e.Names[m]
-		if !ok {
+		fn := run[e.Command]
+		if !ok || fn == nil {
 			continue
 		}
-		it := Item{Command: e.Command, Name: name, Group: e.Group, Keys: Keys(e.Command)}
-		switch {
-		case e.Needs == NeedSelection && selected == 0:
-			it.Reason = selectionReason[m]
-		case e.Needs == NeedMessage && selected != 1:
-			it.Reason = messageReason
-		}
-		out = append(out, it)
+		cmds = append(cmds, frostui.Command{ID: string(e.Command), Title: name, Group: e.Group, Run: fn,
+			Bindings: Keys(e.Command), Enabled: enabled(m, e.Needs, selected)})
 	}
-	return out
+	for _, c := range moves {
+		if fn := run[c]; fn != nil {
+			cmds = append(cmds, frostui.Command{ID: string(c), Title: string(c), Group: GroupApp, Run: fn, Bindings: Keys(c), Unlisted: true})
+		}
+	}
+	return cmds
+}
+
+// enabled is the rule of a command that needs a selection, nil for one
+// that needs none.
+func enabled(m Module, need Need, selected func() int) func() (bool, string) {
+	switch need {
+	case NeedSelection:
+		return func() (bool, string) { return selected() > 0, selectionReason[m] }
+	case NeedMessage:
+		return func() (bool, string) { return selected() == 1, messageReason }
+	}
+	return nil
 }

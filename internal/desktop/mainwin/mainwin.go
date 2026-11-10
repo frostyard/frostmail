@@ -17,13 +17,16 @@ import (
 	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
-	"github.com/frostyard/frostmail/internal/desktop/frame"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
 
-// The panes' widths (docs/specs/ui.md, Layout).
+// The panes' IDs and widths (docs/specs/ui.md, Layout).
 const (
+	paneSidebar = "sidebar"
+	paneList    = "list"
+	paneReader  = "reader"
+
 	sidebarDefault = 220
 	listDefault    = 360
 )
@@ -47,10 +50,12 @@ type Options struct {
 type Window struct {
 	o       Options
 	session *conn.Session
-	waker   *frame.Waker
+	waker   *frostui.Waker
 	mail    *live.Mail
 	act     *live.Activity
-	shell   frame.Shell
+	shell   frostui.PaneShell
+	table   *frostui.CommandTable
+	sources frostui.SourceList[string]
 	console *frostui.Console
 
 	// The UI thread's.
@@ -61,11 +66,11 @@ type Window struct {
 	q             mail.ListState
 	searchDraft   string
 	searchToken   int
-	searchFocused bool
 	focusSearch   bool
-	sidebarWidth  float32
 	listWidth     float32
-	sidebarHidden bool
+	tree          map[string]mail.Item // the sidebar's rows, by key
+	kids          map[string][]string  // a row's children, for those with any
+	branches      map[string]bool      // the branches opened once
 	list          ui.ListState
 	chosen        ui.Selection[int64]
 	selected      int
@@ -75,6 +80,7 @@ type Window struct {
 	photos        *live.Photos
 	bitmaps       map[string]*ui.Bitmap
 	state         conn.State
+	connected1    bool // connected at least once
 	handlers      map[commands.Command]func()
 	toasts        []ui.Toast
 
@@ -90,20 +96,26 @@ func New(o Options) *Window {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	w := &Window{o: o, sidebarWidth: sidebarDefault, listWidth: listDefault, selected: -1,
+	w := &Window{o: o, listWidth: listDefault, selected: -1, table: frostui.NewCommandTable(), branches: map[string]bool{},
 		q:       mail.ListState{Source: mail.Source{Kind: mail.AllInboxes}, Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate, SearchAll: true},
 		console: frostui.NewConsole(5000), latest: map[int64]string{}, state: conn.State{Target: o.Target}}
-	w.waker = frame.NewWaker(o.Post, o.Wake)
+	w.waker = frostui.NewWaker(o.Post, o.Wake)
 	w.shell.Dialogs = &frostui.Dialogs{}
+	w.shell.Console.Title = "Activity"
+	w.shell.Console.Subtitle = "what maild does in the background"
+	w.shell.Console.EmptyNote = "What maild does shows here as it happens."
+	w.shell.Console.Offered = 1<<frostui.LevelDebug | 1<<frostui.LevelInfo | 1<<frostui.LevelWarn | 1<<frostui.LevelError
+	// The main window has no text editor: its one-line fields leave Ctrl K
+	// to the palette.
+	w.table.Editing = func(*ui.Context) bool { return false }
+	w.setUpSources()
 	w.mail = live.NewMail(w.waker.Wake)
 	w.act = live.NewActivity(w.addActivity)
 	w.console.SetNotify(w.waker.Wake)
 	w.session = conn.NewSession(o.Target, conn.Options{Client: o.Client, Retry: o.Retry,
 		OnConnect: w.connected, OnChange: w.changed})
 	w.handlers = map[commands.Command]func(){
-		commands.Palette:       w.shell.Palette.Show,
-		commands.Activity:      func() { w.shell.Console.Open = !w.shell.Console.Open },
-		commands.ToggleSidebar: func() { w.sidebarHidden = !w.sidebarHidden },
+		commands.ToggleSidebar: func() { w.shell.Panes.Toggle(paneSidebar) },
 		commands.AllInboxes:    func() { w.setSource(mail.Source{Kind: mail.AllInboxes}) },
 		commands.GetMail:       w.getMail,
 		commands.Shortcuts:     w.showShortcuts,
@@ -156,6 +168,7 @@ func (w *Window) changed(st conn.State) {
 			w.client, w.events = nil, nil
 		}
 		w.state = st
+		w.connected1 = w.connected1 || st.Connected
 	})
 }
 
@@ -248,75 +261,22 @@ func (w *Window) addActivity(e api.ActivityEntry) {
 // View draws the window.
 func (w *Window) View(c *ui.Context) {
 	frostui.Adapt(c)
-	w.bindKeys(c)
 	for _, t := range w.toasts {
 		c.AddToast(t)
 	}
 	w.toasts = nil
-	w.shell.View(c, frame.Spec{
-		Bar:       func() { w.bar(c) },
-		Actions:   func() { w.actions(c) },
-		Menu:      w.menu,
-		Content:   func() { w.panes(c) },
-		Commands:  w.palette(),
-		Status:    w.status(),
-		StatusEnd: w.statusEnd(),
-		Console:   w.console,
+	w.table.Add(commands.Table(commands.Mail, func() int { return len(w.selectedIDs()) }, w.handlers)...)
+	conn := w.connection()
+	w.shell.View(c, frostui.PaneFrame{
+		SidebarPane: paneSidebar,
+		Panes:       w.panes(c),
+		Menu:        w.table.Menu(string(commands.Settings), "", string(commands.Shortcuts), string(commands.About)),
+		Table:       w.table,
+		Connection:  &conn,
+		Status:      w.status(),
+		StatusEnd:   w.statusEnd(),
+		ConsoleData: w.console,
 	})
-}
-
-func (w *Window) bindKeys(c *ui.Context) {
-	for _, b := range commands.Bindings {
-		run, ok := w.handlers[b.Command]
-		if !ok {
-			continue
-		}
-		mods, key, ok := keyOf(b.Key)
-		if !ok {
-			continue
-		}
-		k := b.Key
-		c.OnWindowShortcut(mods, key, func() {
-			if _, ok := commands.For(k, w.searchFocused); ok {
-				run()
-			}
-		})
-	}
-}
-
-// palette lists the current module's built commands.
-func (w *Window) palette() []frostui.Command {
-	selected := len(w.selectedIDs())
-	var out []frostui.Command
-	for _, it := range commands.Items(commands.Mail, selected) {
-		run, ok := w.handlers[it.Command]
-		if !ok {
-			continue
-		}
-		cmd := frostui.Command{ID: string(it.Command), Title: it.Name, Group: it.Group, Run: run,
-			Disabled: it.Reason != "", Reason: it.Reason}
-		if len(it.Keys) > 0 {
-			cmd.Keys = it.Keys[0].Parts()
-		}
-		out = append(out, cmd)
-	}
-	return out
-}
-
-func (w *Window) actions(c *ui.Context) {
-	b := frostui.IconButton(c, "utilities-terminal", "Activity (Ctrl J)").Selected(w.shell.Console.Open)
-	if b.Clicked() {
-		w.handlers[commands.Activity]()
-	}
-}
-
-func (w *Window) menu(m *ui.Menu) {
-	if m.Item("Keyboard Shortcuts").Chosen() {
-		w.showShortcuts()
-	}
-	if m.Item("About Frostmail").Chosen() {
-		w.showAbout()
-	}
 }
 
 func (w *Window) mailNames() mail.Names {
@@ -328,32 +288,59 @@ func (w *Window) mailNames() mail.Names {
 	return n
 }
 
-func (w *Window) panes(c *ui.Context) {
-	list := func() {
-		ui.Split(c, &w.listWidth, func() { w.messages(c) }, func() { w.reader(c) }).Grow(1)
+func (w *Window) panes(c *ui.Context) []frostui.Pane {
+	return []frostui.Pane{
+		{ID: paneSidebar, Label: "Mailboxes", Width: sidebarDefault, Min: 160, Max: 320, Collapsible: true,
+			Bar: func() { w.sidebarBar(c) }, Content: func() { w.sidebar(c) }},
+		{ID: paneList, Label: "Messages", Width: listDefault, Min: 280, Max: 560,
+			Bar: func() { w.listBar(c) }, Content: func() { w.messages(c) }},
+		{ID: paneReader, Label: "Message", Min: 360,
+			Bar: func() { w.readerBar(c) }, Content: func() { w.reader(c) }},
 	}
-	if w.sidebarHidden {
-		list()
-		return
-	}
-	ui.Split(c, &w.sidebarWidth, func() { w.sidebar(c) }, list).Grow(1)
 }
 
 func (w *Window) reader(c *ui.Context) {
 	frostui.Empty(c, "mail-read", "No Message Selected", "")
 }
 
-func (w *Window) connectingText() string {
-	if w.state.Err != nil {
-		return "Reconnecting to maild…"
+// connection says how the window stands with maild, for the status bar
+// and the connecting screen.
+func (w *Window) connection() frostui.Connection {
+	st := w.state
+	out := frostui.Connection{Daemon: "maild", Host: st.Target.Host(),
+		OnClick: w.showConnection, OnRetry: w.session.Retry, OnDetails: w.showConnection}
+	switch {
+	case st.Connected:
+		out.State = frostui.Connected
+	case w.connected1:
+		out.State = frostui.Reconnecting
+	default:
+		out.State = frostui.Connecting
 	}
-	return "Connecting to maild…"
+	if st.Err != nil {
+		out.Reason = st.Err.Error()
+	}
+	return out
 }
 
-// status lists the connection first, then each account's sync, then the
-// Outbox (plan 0015, shared rule 2).
+func (w *Window) showConnection() {
+	st := w.state
+	w.shell.Info.Show("Connection", func(c *ui.Context) {
+		rows := []frostui.KeyValue{{Key: "Connects to", Value: st.Target.String()}}
+		if st.Hello != nil {
+			rows = append(rows, frostui.KeyValue{Key: "Server", Value: st.Hello.Server})
+		}
+		if st.Err != nil {
+			rows = append(rows, frostui.KeyValue{Key: "Last error", Value: st.Err.Error()})
+		}
+		frostui.KeyValues(c, rows)
+	})
+}
+
+// status lists each account's sync, then the Outbox, after the connection
+// (plan 0015, shared rule 2).
 func (w *Window) status() []frostui.StatusItem {
-	out := []frostui.StatusItem{w.connectionItem()}
+	var out []frostui.StatusItem
 	st := w.mail.State()
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -378,19 +365,6 @@ func (w *Window) status() []frostui.StatusItem {
 	return out
 }
 
-func (w *Window) connectionItem() frostui.StatusItem {
-	it := frostui.StatusItem{Text: "● " + w.state.Target.String(), Progress: -1}
-	if !w.state.Connected {
-		it.Tone = frostui.Warning
-		it.Text = "● Reconnecting to maild…"
-		it.Tooltip = w.state.Target.String()
-		if w.state.Err != nil {
-			it.Tooltip += ": " + w.state.Err.Error()
-		}
-	}
-	return it
-}
-
 func (w *Window) statusEnd() []frostui.StatusItem {
 	if w.view == nil {
 		return nil
@@ -399,13 +373,7 @@ func (w *Window) statusEnd() []frostui.StatusItem {
 }
 
 func (w *Window) showShortcuts() {
-	var entries []frostui.ShortcutEntry
-	for _, it := range commands.Items(commands.Mail, 1) {
-		if len(it.Keys) > 0 {
-			entries = append(entries, frostui.ShortcutEntry{Group: it.Group, Keys: it.Keys[0].Parts(), Title: it.Name})
-		}
-	}
-	w.shell.Info.Show("Keyboard Shortcuts", frostui.ShortcutsBody(entries))
+	w.shell.Info.Show("Keyboard Shortcuts", frostui.ShortcutsBody(w.table.Shortcuts()))
 }
 
 func (w *Window) showAbout() {

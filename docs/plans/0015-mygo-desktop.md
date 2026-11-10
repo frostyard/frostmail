@@ -36,8 +36,7 @@ Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
 Proposed). Phase 0's Linux and Flatpak spikes are run and recorded; its
 Windows spike waits for the test VM. Phase 1's window runs on Linux
-against a real maild, over `internal/desktop/frame`, a stand-in for
-frostui's coming frame. Phase 2's maild side and Phase 3 (sidebar, list, search) are built. The console of maild's activity (Phase 2) was
+against a real maild, on frostui v0.2.0's `PaneShell`. Phase 2's maild side and Phase 3 (sidebar, list, search) are built. The console of maild's activity (Phase 2) was
 added on 2026-11-10 at the owner's request, relayed by the orchestrating
 session ("it'd be fun to use that console view from chairlift to show
 background activity in frostmail").

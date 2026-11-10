@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
@@ -23,14 +25,57 @@ var roleChoices = []struct {
 	{api.MailboxRoleTrash, "Trash"}, {api.MailboxRoleArchive, "Archive"},
 }
 
+// setUpSources says how the sidebar's tree shows and what it does.
+func (w *Window) setUpSources() {
+	l := &w.sources
+	l.Label = "Mailboxes"
+	l.Children = func(key string) []string { return w.kids[key] }
+	l.Row = func(key string) frostui.SourceRow { return w.sourceRow(w.tree[key]) }
+	l.Menu = func(m *ui.Menu, key, _ string) { w.sourceMenu(m, key) }
+	l.OnSelect = func(key string) {
+		st := w.mail.State()
+		if s, ok := mail.SourceFromKey(key, st.VIPs); ok && w.tree[key].Selectable {
+			w.setSource(s)
+		}
+	}
+	frostui.DropOn(l, func(key string, d DragMessages) bool {
+		mb := w.mailboxOf(key)
+		return mb != nil && mb.AccountID == d.Account && !w.readOnly(d.Account)
+	}, func(key string, d DragMessages, mods ui.Modifiers) {
+		mb := w.mailboxOf(key)
+		if mb == nil {
+			return
+		}
+		if mods&(ui.Alt|ui.Ctrl) != 0 {
+			w.copy(d.IDs, mb)
+			return
+		}
+		w.move(d.IDs, mb)
+	})
+}
+
+// mailboxOf is the mailbox a sidebar row shows, nil for other rows.
+func (w *Window) mailboxOf(key string) *api.Mailbox {
+	id := w.tree[key].MailboxID
+	if id == 0 {
+		return nil
+	}
+	st := w.mail.State()
+	for i := range st.Mailboxes {
+		if st.Mailboxes[i].ID == id {
+			return &st.Mailboxes[i]
+		}
+	}
+	return nil
+}
+
 func (w *Window) sidebar(c *ui.Context) {
 	st := w.mail.State()
 	var favorites []api.Mailbox
-	var favoriteIDs []int64
 	var flagNames []string
 	if st.Settings != nil {
-		favoriteIDs, flagNames = st.Settings.Favorites, st.Settings.FlagNames
-		for _, id := range favoriteIDs {
+		flagNames = st.Settings.FlagNames
+		for _, id := range st.Settings.Favorites {
 			for _, m := range st.Mailboxes {
 				if m.ID == id {
 					favorites = append(favorites, m)
@@ -38,30 +83,59 @@ func (w *Window) sidebar(c *ui.Context) {
 			}
 		}
 	}
-	sections := mail.BuildSidebar(st.Accounts, st.Mailboxes, mail.Extras{Favorites: favorites, VIPs: st.VIPs, FlagNames: flagNames,
+	built := mail.BuildSidebar(st.Accounts, st.Mailboxes, mail.Extras{Favorites: favorites, VIPs: st.VIPs, FlagNames: flagNames,
 		Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts})
-	key := w.q.Source.Key()
-	if w.q.Search != "" && w.q.SearchAll {
-		key = ""
-	}
-	before := key
-	ui.Column(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-		ui.Sidebar(c, &key, func() {
-			for _, sec := range sections {
-				ui.SidebarSection(c.Key(sec.Key), w.sectionTitle(sec, st), nil, func() {
-					for _, it := range sec.Items {
-						w.sidebarItem(c.Key(it.Key), it, st, favoriteIDs)
-					}
-				})
-			}
-		}).Grow(1)
+	sections := w.indexSidebar(built, st)
+	w.syncSource(st)
+	ui.Column(c).Grow(1).AlignItems(ui.Stretch).Background(frostui.Chrome(c.Theme())).Children(func() {
+		w.sources.View(c, sections).Grow(1)
 		w.followUp(c, st)
 		w.outbox(c, st)
 	})
-	if key != before {
-		if s, ok := mail.SourceFromKey(key, st.VIPs); ok {
-			w.setSource(s)
+}
+
+// indexSidebar turns the sections' rows, flat with depths, into the tree
+// the list asks for, and opens each branch the first time it shows.
+func (w *Window) indexSidebar(built []mail.Section, st live.MailState) []frostui.SourceSection[string] {
+	w.tree, w.kids = map[string]mail.Item{}, map[string][]string{}
+	sections := make([]frostui.SourceSection[string], 0, len(built))
+	for _, sec := range built {
+		top := []string{}
+		var path []string // the keys above the current row, by depth
+		for _, it := range sec.Items {
+			w.tree[it.Key] = it
+			path = append(path[:min(it.Depth, len(path))], it.Key)
+			if len(path) == 1 {
+				top = append(top, it.Key)
+				continue
+			}
+			parent := path[len(path)-2]
+			w.kids[parent] = append(w.kids[parent], it.Key)
+			if !w.branches[parent] {
+				w.branches[parent] = true
+				w.sources.SetOpen(sec.Key, parent, true)
+			}
 		}
+		sections = append(sections, frostui.SourceSection[string]{ID: sec.Key, Title: w.sectionTitle(sec, st), Items: top})
+	}
+	return sections
+}
+
+// syncSource keeps the list's choice on the source shown, as a search of
+// every mailbox shows none.
+func (w *Window) syncSource(st live.MailState) {
+	if w.q.Search != "" && w.q.SearchAll {
+		w.sources.ClearSelection()
+		return
+	}
+	want := w.q.Source.Key()
+	if key, _, ok := w.sources.Selected(); ok {
+		if s, known := mail.SourceFromKey(key, st.VIPs); known && s.Key() == want {
+			return
+		}
+	}
+	if _, ok := w.tree[want]; ok {
+		w.sources.Select("", want)
 	}
 }
 
@@ -79,54 +153,37 @@ func (w *Window) sectionTitle(sec mail.Section, st live.MailState) string {
 	return sec.Title
 }
 
-func (w *Window) sidebarItem(c *ui.Context, it mail.Item, st live.MailState, favorites []int64) {
-	icon := frostui.IconSVG(it.Icon)
-	item := ui.SidebarItem(c, it.Key, icon, it.Label).Margin(0, 0, 0, float32(it.Depth)*14)
+func (w *Window) sourceRow(it mail.Item) frostui.SourceRow {
+	row := frostui.SourceRow{Title: it.Label, Icon: it.Icon, Dim: !it.Selectable && it.MailboxID == 0 && it.Key != ""}
 	if it.FlagColor > 0 {
-		item.TextColor(flagColor(c.Theme(), int64(it.FlagColor)))
+		row.Icon = fmt.Sprintf("%s%d", icons.FlagPrefix, it.FlagColor)
 	}
 	if it.Unread > 0 {
-		item.Children(func() { ui.Badge(c, strconv.FormatInt(it.Unread, 10)) })
+		row.Count = strconv.FormatInt(it.Unread, 10)
+		row.Spoken = row.Count + " unread"
 	}
-	if it.MailboxID == 0 {
-		if s, ok := mail.SourceFromKey(it.Key, st.VIPs); ok && s.Kind == mail.Smart {
-			item.ContextMenu(func(m *ui.Menu) { w.smartMenu(m, s.ID) })
-		}
-		return
-	}
-	var mb *api.Mailbox
-	for i := range st.Mailboxes {
-		if st.Mailboxes[i].ID == it.MailboxID {
-			mb = &st.Mailboxes[i]
-		}
-	}
-	if mb == nil {
-		return
-	}
-	if len(it.Key) > 9 && it.Key[:9] == "favorite:" {
-		item.ContextMenu(func(m *ui.Menu) { w.favoriteMenu(m, mb.ID, favorites) })
-	} else {
-		item.ContextMenu(func(m *ui.Menu) { w.mailboxMenu(m, *mb, favorites) })
-	}
-	if _, over := ui.DragOver[DragMessages](item); over {
-		item.Border(1, c.Theme().Accent)
-	}
-	if d, ok := ui.Drop[DragMessages](item); ok {
-		w.dropped(c, d, *mb)
-	}
+	return row
 }
 
-// dropped moves messages dropped on a mailbox of their account; Alt or
-// Ctrl copies.
-func (w *Window) dropped(c *ui.Context, d DragMessages, to api.Mailbox) {
-	if to.AccountID != d.Account || w.readOnly(d.Account) {
+// sourceMenu is a sidebar row's menu.
+func (w *Window) sourceMenu(m *ui.Menu, key string) {
+	st := w.mail.State()
+	var favorites []int64
+	if st.Settings != nil {
+		favorites = st.Settings.Favorites
+	}
+	mb := w.mailboxOf(key)
+	if mb == nil {
+		if s, ok := mail.SourceFromKey(key, st.VIPs); ok && s.Kind == mail.Smart {
+			w.smartMenu(m, s.ID)
+		}
 		return
 	}
-	if mods := c.Modifiers(); mods&(ui.Alt|ui.Ctrl) != 0 {
-		w.copy(d.IDs, &to)
+	if strings.HasPrefix(key, "favorite:") {
+		w.favoriteMenu(m, mb.ID, favorites)
 		return
 	}
-	w.move(d.IDs, &to)
+	w.mailboxMenu(m, *mb, favorites)
 }
 
 func (w *Window) mailboxMenu(m *ui.Menu, mb api.Mailbox, favorites []int64) {

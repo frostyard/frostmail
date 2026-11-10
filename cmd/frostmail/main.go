@@ -13,6 +13,7 @@ import (
 
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
+	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 )
 
@@ -38,7 +39,7 @@ func run() error {
 	if !mygo.App.RequestSingleInstanceLock() {
 		return nil // the running app takes over
 	}
-	frostui.SetIcons(frostui.NewIcons(nil))
+	frostui.SetIcons(frostui.NewIcons(icons.Embedded()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

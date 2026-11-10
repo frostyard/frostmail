@@ -90,8 +90,8 @@ var roleLabel = map[api.MailboxRole]string{
 
 var roleIcon = map[api.MailboxRole]string{
 	api.MailboxRoleNone: "folder", api.MailboxRoleInbox: "mail-read", api.MailboxRoleDrafts: "document-edit", api.MailboxRoleSent: "mail-send",
-	api.MailboxRoleJunk: "dialog-warning", api.MailboxRoleTrash: "user-trash", api.MailboxRoleArchive: "folder-documents",
-	api.MailboxRoleAll: "folder-documents", api.MailboxRoleFlagged: "mail-mark-important",
+	api.MailboxRoleJunk: "dialog-warning", api.MailboxRoleTrash: "user-trash", api.MailboxRoleArchive: "mail-archive",
+	api.MailboxRoleAll: "mail-archive", api.MailboxRoleFlagged: "mail-mark-important",
 }
 
 type node struct {

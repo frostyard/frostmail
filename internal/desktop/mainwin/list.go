@@ -11,6 +11,7 @@ import (
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
@@ -65,7 +66,6 @@ func (w *Window) searchRow(c *ui.Context) {
 			f.Focus()
 			w.focusSearch = false
 		}
-		w.searchFocused = f.Focused()
 		if f.Changed() {
 			w.searchToken++
 			token := w.searchToken
@@ -97,8 +97,12 @@ func (w *Window) commitSearch() {
 // filterRow draws the filter tabs that fit, the rest in More, and the sort
 // menu.
 func (w *Window) filterRow(c *ui.Context) {
+	row := ui.Row(c).Height(28).Padding(0, frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Center)
+	if width := row.LayoutBounds().W; width > 0 {
+		w.listWidth = width
+	}
 	count := mail.FitFilters(w.listWidth-2*frostui.SpaceS-sortWidth, w.q.Filter)
-	ui.Row(c).Height(28).Padding(0, frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
+	row.Children(func() {
 		for _, f := range mail.Filters[:count] {
 			if w.tab(c.Key(f.Filter), f.Label, w.q.Filter == f.Filter).Clicked() {
 				w.setFilter(f.Filter)
@@ -244,7 +248,7 @@ func (w *Window) coverage() string {
 
 func (w *Window) listBody(c *ui.Context) {
 	if w.view == nil {
-		frostui.Loading(c, w.connectingText())
+		frostui.Loading(c, "Reconnecting to maild…")
 		return
 	}
 	v := w.view
@@ -395,7 +399,7 @@ func (w *Window) rowActions(c *ui.Context, r api.MessageSummary) {
 	if frostui.IconButton(c.Key("flag"), "mail-mark-important", "Flag").Clicked() {
 		w.toggleFlag(ids)
 	}
-	if mail.ArchiveOf(r.AccountID, w.mail.State().Mailboxes) != nil && frostui.IconButton(c.Key("archive"), "folder-documents", "Archive").Clicked() {
+	if mail.ArchiveOf(r.AccountID, w.mail.State().Mailboxes) != nil && frostui.IconButton(c.Key("archive"), "mail-archive", "Archive").Clicked() {
 		w.archive(ids)
 	}
 	if frostui.IconButton(c.Key("delete"), "user-trash", "Delete").Clicked() {
@@ -517,44 +521,41 @@ func (w *Window) rowMenu(m *ui.Menu) {
 	}
 }
 
-// bar draws the top bar's segments, aligned with the panes.
-func (w *Window) bar(c *ui.Context) {
-	sidebar := float32(0)
-	if !w.sidebarHidden {
-		sidebar = w.sidebarWidth - frostui.SpaceM
+// sidebarBar is the top bar's segment over the sidebar.
+func (w *Window) sidebarBar(c *ui.Context) {
+	if frostui.IconButton(c, "mail-send-receive", w.table.Tooltip(string(commands.GetMail))).Clicked() {
+		w.table.Run(string(commands.GetMail))
 	}
-	ui.Row(c).Width(sidebar).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
-		if frostui.IconButton(c, "sidebar-show", "Show or hide the sidebar").Clicked() {
-			w.handlers["toggleSidebar"]()
-		}
-		if frostui.IconButton(c, "mail-send-receive", "Get Mail").Clicked() {
-			w.getMail()
-		}
-	})
-	ui.Column(c).Width(w.listWidth - frostui.SpaceM).Children(func() {
+}
+
+// listBar is the segment over the list.
+func (w *Window) listBar(c *ui.Context) {
+	ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 		frostui.Strong(c, w.title()).SingleLine()
 		frostui.Caption(c, w.subtitle()).SingleLine()
 	})
+}
+
+// readerBar is the segment over the reader.
+func (w *Window) readerBar(c *ui.Context) {
 	ids := w.selectedIDs()
 	rows := w.rows(ids)
 	has := len(rows) > 0 && !w.readOnly(rows[0].AccountID)
-	ui.Row(c).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
-		if frostui.IconButton(c, "user-trash", "Delete").Disabled(!has).Clicked() {
-			w.delete(ids)
-		}
-		canArchive := has && mail.ArchiveOf(rows[0].AccountID, w.mail.State().Mailboxes) != nil
-		if frostui.IconButton(c, "folder-documents", "Archive").Disabled(!canArchive).Clicked() {
-			w.archive(ids)
-		}
-		ui.MenuButton(c, "", func(m *ui.Menu) { w.flagMenu(m, ids, rows) }).Disabled(!has).Label("Flag").Tooltip("Flag").Children(func() {
-			frostui.Icon(c, "mail-mark-important")
-		})
-		if frostui.IconButton(c, "mail-unread", "Mark as Read or Unread").Disabled(!has).Clicked() {
-			w.toggleRead(ids)
-		}
-		ui.MenuButton(c, "", func(m *ui.Menu) { w.moveMenu(m, ids, rows) }).Disabled(!has).Label("Move").Tooltip("Move").Children(func() {
-			frostui.Icon(c, "folder")
-		})
+	if frostui.IconButton(c, "user-trash", "Delete").Disabled(!has).Clicked() {
+		w.delete(ids)
+	}
+	canArchive := has && mail.ArchiveOf(rows[0].AccountID, w.mail.State().Mailboxes) != nil
+	if frostui.IconButton(c, "mail-archive", "Archive").Disabled(!canArchive).Clicked() {
+		w.archive(ids)
+	}
+	ui.MenuButton(c, "", func(m *ui.Menu) { w.flagMenu(m, ids, rows) }).Disabled(!has).Label("Flag").Tooltip("Flag").Children(func() {
+		frostui.Icon(c, "mail-mark-important")
+	})
+	if frostui.IconButton(c, "mail-unread", "Mark as Read or Unread").Disabled(!has).Clicked() {
+		w.toggleRead(ids)
+	}
+	ui.MenuButton(c, "", func(m *ui.Menu) { w.moveMenu(m, ids, rows) }).Disabled(!has).Label("Move").Tooltip("Move").Children(func() {
+		frostui.Icon(c, "folder")
 	})
 }
 

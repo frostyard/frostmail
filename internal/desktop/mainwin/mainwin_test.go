@@ -16,6 +16,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
+	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/frostyard/frostmail/internal/store"
@@ -23,7 +24,7 @@ import (
 
 func TestMain(m *testing.M) {
 	_ = os.Setenv("FROSTUI_ICON_THEME", "Adwaita")
-	frostui.SetIcons(frostui.NewIcons(nil))
+	frostui.SetIcons(frostui.NewIcons(icons.Embedded()))
 	os.Exit(m.Run())
 }
 
@@ -122,9 +123,40 @@ func TestWindowShowsTheMailboxesAndAVirtualList(t *testing.T) {
 
 func TestStatusBarLeadsWithTheConnectionAndFollowsIt(t *testing.T) {
 	f := newFixture(t, 1)
-	f.until(t, "the connection", func() bool { return f.tt.HasText("● Local") })
+	f.until(t, "the connection", func() bool { return f.tt.HasText("Local") && f.tt.HasText("Message 1") })
 	f.srv.Stop()
-	f.until(t, "the lost connection", func() bool { return f.tt.HasText("● Reconnecting to maild…") })
+	f.until(t, "the lost connection", func() bool {
+		_, ok := f.tt.Access("Connection: Local")
+		return ok && f.tt.HasText("Reconnecting to maild…")
+	})
+}
+
+// No maild yet: the connecting screen, with what the app tried.
+func TestConnectingScreenBeforeTheFirstConnection(t *testing.T) {
+	loop := frostuitest.NewLoop()
+	win := mainwin.New(mainwin.Options{Target: conn.Target{Socket: filepath.Join(t.TempDir(), "none.sock")}, Client: "frostmail test",
+		Post: loop.Post, Wake: time.Millisecond, Retry: 10 * time.Millisecond})
+	tt := ui.NewTester(func(c *ui.Context) {
+		loop.Flush()
+		win.View(c)
+	}, 1200, 780)
+	win.Start(t.Context())
+	deadline := time.Now().Add(15 * time.Second)
+	for !tt.HasText("Retry") {
+		tt.Frame()
+		if time.Now().After(deadline) {
+			t.Fatalf("no connecting screen in %q", tt.Texts())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	for _, want := range []string{"Connecting to maild…", "Details"} {
+		if !tt.HasText(want) {
+			t.Errorf("no %q in %q", want, tt.Texts())
+		}
+	}
+	if tt.HasText("Mailboxes") {
+		t.Errorf("the panes show behind the connecting screen: %q", tt.Texts())
+	}
 }
 
 func TestPaletteOpensWithBothKeysAndListsBuiltCommands(t *testing.T) {

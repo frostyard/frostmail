@@ -76,7 +76,7 @@ and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Proposed) adds maild's activity stream for the app's console; its maild
 side is built (`mailctl activity`). `cmd/frostmail` draws the main window on
-Linux over `internal/desktop/frame`, a stand-in until frostui's frame lands.
+Linux on frostui v0.2.0's `PaneShell`.
 
 ## Two kinds of agent work
 

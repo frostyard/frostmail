@@ -2,140 +2,143 @@ package commands_test
 
 import (
 	"slices"
-	"strings"
 	"testing"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/internal/desktop/commands"
 )
 
-// key parses "Ctrl+Shift+U" the way app/src/lib/keymap.test.ts does.
-func key(spec string) commands.Key {
-	parts := strings.Split(spec, "+")
-	name := parts[len(parts)-1]
-	mods := parts[:len(parts)-1]
-	if name == "Space" {
-		name = " "
-	}
-	return commands.Key{Name: name, Ctrl: slices.Contains(mods, "Ctrl"), Alt: slices.Contains(mods, "Alt"),
-		Shift: slices.Contains(mods, "Shift"), Meta: slices.Contains(mods, "Meta")}
+type chord struct {
+	mods ui.Modifiers
+	key  ui.Key
 }
 
 // The cases of keymap.test.ts (T-0034's contract), and the desktop's keys.
 func TestForOutsideTextFields(t *testing.T) {
-	for spec, want := range map[string]commands.Command{
-		"ArrowUp": commands.Previous, "ArrowDown": commands.Next, "Shift+ArrowUp": commands.ExtendPrevious,
-		"Shift+ArrowDown": commands.ExtendNext, "Home": commands.First, "End": commands.Last,
-		"Ctrl+a": commands.SelectAll, "Ctrl+A": commands.SelectAll, "Space": commands.PageDown,
-		"Shift+Space": commands.PageUp, "Delete": commands.Delete, "Backspace": commands.Delete,
-		"Ctrl+Alt+a": commands.Archive, "Ctrl+Shift+U": commands.ToggleRead, "Ctrl+Shift+u": commands.ToggleRead,
-		"Ctrl+Shift+L": commands.ToggleFlag, "Ctrl+Alt+f": commands.FocusSearch, "Ctrl+f": commands.Find,
-		"Escape": commands.Escape, "Ctrl+Shift+N": commands.GetMail, "Ctrl+1": commands.AllInboxes,
-		"Ctrl+,": commands.Settings, "Ctrl+Alt+s": commands.ToggleSidebar, "Tab": commands.NextPane,
-		"Shift+Tab": commands.PreviousPane, "ContextMenu": commands.ContextMenu, "Shift+F10": commands.ContextMenu,
-		"Ctrl+n": commands.Compose, "Ctrl+r": commands.Reply, "Ctrl+Shift+R": commands.ReplyAll,
-		"Ctrl+Shift+F": commands.Forward, "Enter": commands.Open,
-		"Ctrl+k": commands.Palette, "Ctrl+Shift+P": commands.Palette, "Ctrl+j": commands.Activity,
-		"Ctrl+Shift+J": commands.Junk,
+	for k, want := range map[chord]commands.Command{
+		{0, ui.KeyUp}: commands.Previous, {0, ui.KeyDown}: commands.Next, {ui.Shift, ui.KeyUp}: commands.ExtendPrevious,
+		{ui.Shift, ui.KeyDown}: commands.ExtendNext, {0, ui.KeyHome}: commands.First, {0, ui.KeyEnd}: commands.Last,
+		{ui.Cmd, ui.KeyA}: commands.SelectAll, {0, ui.KeySpace}: commands.PageDown,
+		{ui.Shift, ui.KeySpace}: commands.PageUp, {0, ui.KeyDelete}: commands.Delete, {0, ui.KeyBackspace}: commands.Delete,
+		{ui.Cmd | ui.Alt, ui.KeyA}: commands.Archive, {ui.Cmd | ui.Shift, ui.KeyU}: commands.ToggleRead,
+		{ui.Cmd | ui.Shift, ui.KeyL}: commands.ToggleFlag, {ui.Cmd | ui.Alt, ui.KeyF}: commands.FocusSearch, {ui.Cmd, ui.KeyF}: commands.Find,
+		{0, ui.KeyEscape}: commands.Escape, {ui.Cmd | ui.Shift, ui.KeyN}: commands.GetMail, {ui.Cmd, ui.Key1}: commands.AllInboxes,
+		{ui.Cmd, ui.KeyComma}: commands.Settings, {ui.Cmd | ui.Alt, ui.KeyS}: commands.ToggleSidebar, {0, ui.KeyTab}: commands.NextPane,
+		{ui.Shift, ui.KeyTab}: commands.PreviousPane, {0, ui.KeyContextMenu}: commands.ContextMenu, {ui.Shift, ui.KeyF10}: commands.ContextMenu,
+		{ui.Cmd, ui.KeyN}: commands.Compose, {ui.Cmd, ui.KeyR}: commands.Reply, {ui.Cmd | ui.Shift, ui.KeyR}: commands.ReplyAll,
+		{ui.Cmd | ui.Shift, ui.KeyF}: commands.Forward, {0, ui.KeyEnter}: commands.Open,
+		{ui.Cmd | ui.Shift, ui.KeyJ}: commands.Junk,
 	} {
-		if got, ok := commands.For(key(spec), false); !ok || got != want {
-			t.Errorf("%s = %q, %v; want %s", spec, got, ok, want)
+		if got, ok := commands.For(k.mods, k.key, false); !ok || got != want {
+			t.Errorf("%v = %q, %v; want %s", k, got, ok, want)
 		}
 	}
-	for _, spec := range []string{"a", "Ctrl+Shift+a", "Alt+ArrowUp", "Ctrl+ArrowDown", "Ctrl+Delete", "Shift+Delete",
-		"Ctrl+Alt+Shift+a", "Meta+a", "Meta+ArrowDown", "Ctrl+Meta+1", "Ctrl+5", "Ctrl+Alt+n", "Ctrl+Alt+r", "F10", "Alt+Tab"} {
-		if got, ok := commands.For(key(spec), false); ok {
-			t.Errorf("%s = %s, want nothing", spec, got)
+	for _, k := range []chord{{0, ui.KeyA}, {ui.Cmd | ui.Shift, ui.KeyA}, {ui.Alt, ui.KeyUp}, {ui.Cmd, ui.KeyDown}, {ui.Cmd, ui.KeyDelete},
+		{ui.Shift, ui.KeyDelete}, {ui.Cmd | ui.Alt | ui.Shift, ui.KeyA}, {ui.Cmd, ui.Key5}, {ui.Cmd | ui.Alt, ui.KeyN},
+		{ui.Cmd | ui.Alt, ui.KeyR}, {0, ui.KeyF10}, {ui.Alt, ui.KeyTab}} {
+		if got, ok := commands.For(k.mods, k.key, false); ok {
+			t.Errorf("%v = %s, want nothing", k, got)
 		}
 	}
 }
 
 func TestForInATextField(t *testing.T) {
-	for spec, want := range map[string]commands.Command{
-		"Escape": commands.Escape, "Tab": commands.NextPane, "Shift+Tab": commands.PreviousPane,
-		"Ctrl+Shift+N": commands.GetMail, "Ctrl+1": commands.AllInboxes, "Ctrl+,": commands.Settings,
-		"Ctrl+Alt+f": commands.FocusSearch, "Ctrl+Alt+s": commands.ToggleSidebar, "Ctrl+Shift+U": commands.ToggleRead,
-		"Ctrl+Shift+F": commands.Forward, "Ctrl+k": commands.Palette, "Ctrl+Shift+P": commands.Palette,
-		"Ctrl+j": commands.Activity,
+	for k, want := range map[chord]commands.Command{
+		{0, ui.KeyEscape}: commands.Escape, {0, ui.KeyTab}: commands.NextPane, {ui.Shift, ui.KeyTab}: commands.PreviousPane,
+		{ui.Cmd | ui.Shift, ui.KeyN}: commands.GetMail, {ui.Cmd, ui.Key1}: commands.AllInboxes, {ui.Cmd, ui.KeyComma}: commands.Settings,
+		{ui.Cmd | ui.Alt, ui.KeyF}: commands.FocusSearch, {ui.Cmd | ui.Alt, ui.KeyS}: commands.ToggleSidebar, {ui.Cmd | ui.Shift, ui.KeyU}: commands.ToggleRead,
+		{ui.Cmd | ui.Shift, ui.KeyF}: commands.Forward,
 	} {
-		if got, ok := commands.For(key(spec), true); !ok || got != want {
-			t.Errorf("%s in a field = %q, %v; want %s", spec, got, ok, want)
+		if got, ok := commands.For(k.mods, k.key, true); !ok || got != want {
+			t.Errorf("%v = %q, %v; want %s", k, got, ok, want)
 		}
 	}
-	for _, spec := range []string{"ArrowUp", "ArrowDown", "Home", "End", "Space", "Delete", "Backspace",
-		"Ctrl+a", "Ctrl+f", "ContextMenu", "Shift+ArrowDown", "Enter", "Ctrl+n", "Ctrl+r"} {
-		if got, ok := commands.For(key(spec), true); ok {
-			t.Errorf("%s in a field = %s; it belongs to the field", spec, got)
-		}
-	}
-}
-
-func TestShortcutText(t *testing.T) {
-	for c, want := range map[commands.Command]string{
-		commands.Delete: "Delete, Backspace", commands.Archive: "Ctrl+Alt+A", commands.PageDown: "Space",
-		commands.Palette: "Ctrl+K, Ctrl+Shift+P", commands.PreviousPeriod: "Ctrl+←", commands.ContextMenu: "Menu, Shift+F10",
-		commands.Shortcuts: "",
-	} {
-		if got := commands.ShortcutText(c); got != want {
-			t.Errorf("ShortcutText(%s) = %q, want %q", c, got, want)
+	for _, k := range []chord{{0, ui.KeyUp}, {0, ui.KeyDown}, {0, ui.KeySpace}, {0, ui.KeyDelete}, {0, ui.KeyBackspace},
+		{ui.Cmd, ui.KeyA}, {ui.Cmd, ui.KeyF}, {0, ui.KeyEnter}} {
+		if got, ok := commands.For(k.mods, k.key, true); ok {
+			t.Errorf("%v in a field = %s, want nothing", k, got)
 		}
 	}
 }
 
-func TestItemsNameAndDisable(t *testing.T) {
-	items := commands.Items(commands.Mail, 0)
-	byCommand := map[commands.Command]commands.Item{}
-	for _, it := range items {
-		byCommand[it.Command] = it
-	}
-	if it := byCommand[commands.Compose]; it.Name != "New Message" || it.Reason != "" {
-		t.Errorf("compose in Mail = %+v", it)
-	}
-	if it := byCommand[commands.Reply]; it.Reason != "Select a message first" {
-		t.Errorf("reply with nothing selected = %+v", it)
-	}
-	if _, ok := byCommand[commands.DayView]; ok {
-		t.Error("Mail lists Day View")
-	}
-	if items[0].Command != commands.Compose {
-		t.Errorf("first item = %s, want the entries' order", items[0].Command)
-	}
-	two := map[commands.Command]commands.Item{}
-	for _, it := range commands.Items(commands.Mail, 2) {
-		two[it.Command] = it
-	}
-	if two[commands.Reply].Reason != "" || two[commands.Print].Reason != "Select one message first" {
-		t.Errorf("with 2 selected: reply %+v, print %+v", two[commands.Reply], two[commands.Print])
-	}
-	cal := commands.Items(commands.Calendar, 0)
-	if !slices.ContainsFunc(cal, func(it commands.Item) bool { return it.Command == commands.Compose && it.Name == "New Event" }) {
-		t.Error("Calendar has no New Event")
-	}
-	if !slices.ContainsFunc(cal, func(it commands.Item) bool {
-		return it.Command == commands.Delete && it.Reason == "Select an event first"
-	}) {
-		t.Error("Calendar's Delete does not ask for an event")
-	}
-}
-
-// Every bound command but the moves has a palette entry, and every entry
-// names at least one module and a group.
-func TestEveryCommandHasItsPlace(t *testing.T) {
-	moves := []commands.Command{commands.Previous, commands.Next, commands.ExtendPrevious, commands.ExtendNext,
-		commands.First, commands.Last, commands.PageDown, commands.PageUp, commands.Left, commands.Right,
-		commands.NextPane, commands.PreviousPane, commands.Open, commands.Escape, commands.ContextMenu, commands.Palette}
-	listed := map[commands.Command]bool{}
-	for _, e := range commands.Entries {
-		if listed[e.Command] {
-			t.Errorf("%s is listed twice", e.Command)
-		}
-		listed[e.Command] = true
-		if len(e.Names) == 0 || e.Group == "" {
-			t.Errorf("%s has no name or no group", e.Command)
-		}
-	}
+func TestEveryKeyIsBoundOnce(t *testing.T) {
+	seen := map[chord]commands.Command{}
 	for _, b := range commands.Bindings {
-		if !listed[b.Command] && !slices.Contains(moves, b.Command) {
-			t.Errorf("%s (%s) has a key but no palette entry", b.Command, b.Key)
+		k := chord{b.Mods, b.Key}
+		if prev, ok := seen[k]; ok {
+			t.Errorf("%v binds both %s and %s", k, prev, b.Command)
+		}
+		seen[k] = b.Command
+	}
+}
+
+func all() map[commands.Command]func() {
+	run := map[commands.Command]func(){}
+	for _, e := range commands.Entries {
+		run[e.Command] = func() {}
+	}
+	return run
+}
+
+func ids(cmds []frostui.Command) []string {
+	var out []string
+	for _, c := range cmds {
+		out = append(out, c.ID)
+	}
+	return out
+}
+
+func TestTableListsOnlyTheModulesCommands(t *testing.T) {
+	cal := ids(commands.Table(commands.Calendar, func() int { return 0 }, all()))
+	if slices.Contains(cal, string(commands.Archive)) {
+		t.Errorf("Calendar lists Archive: %q", cal)
+	}
+	if !slices.Contains(cal, string(commands.DayView)) {
+		t.Errorf("Calendar lacks Day View: %q", cal)
+	}
+	mail := commands.Table(commands.Mail, func() int { return 0 }, all())
+	if slices.Contains(ids(mail), string(commands.DayView)) {
+		t.Errorf("Mail lists Day View: %q", ids(mail))
+	}
+	if i := slices.IndexFunc(mail, func(c frostui.Command) bool { return c.ID == string(commands.Compose) }); i < 0 || mail[i].Title != "New Message" {
+		t.Errorf("Mail's Compose is %+v", mail[i])
+	}
+}
+
+func TestTableOmitsWhatTheWindowCannotRun(t *testing.T) {
+	cmds := commands.Table(commands.Mail, func() int { return 0 }, map[commands.Command]func(){commands.Archive: func() {}})
+	if got := ids(cmds); !slices.Equal(got, []string{string(commands.Archive)}) {
+		t.Errorf("table = %q", got)
+	}
+}
+
+func TestReasons(t *testing.T) {
+	n := 0
+	table := frostui.NewCommandTable(commands.Table(commands.Mail, func() int { return n }, all())...)
+	if ok, why := table.Enabled(string(commands.Archive)); ok || why != "Select a message first" {
+		t.Errorf("Archive with none selected: %v, %q", ok, why)
+	}
+	n = 2
+	if ok, why := table.Enabled(string(commands.Print)); ok || why != "Select one message first" {
+		t.Errorf("Print with two selected: %v, %q", ok, why)
+	}
+	if ok, _ := table.Enabled(string(commands.Archive)); !ok {
+		t.Error("Archive with a selection is off")
+	}
+	n = 1
+	if ok, _ := table.Enabled(string(commands.Print)); !ok {
+		t.Error("Print with one selected is off")
+	}
+}
+
+func TestMovesAreUnlisted(t *testing.T) {
+	run := all()
+	run[commands.Next] = func() {}
+	for _, c := range commands.Table(commands.Mail, func() int { return 0 }, run) {
+		if c.ID == string(commands.Next) && !c.Unlisted {
+			t.Error("Next is listed")
 		}
 	}
 }
