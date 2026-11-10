@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
 
 // MailState is what the mail store holds: everything the sidebar, the
@@ -23,14 +24,31 @@ type MailState struct {
 	Settings  *api.Settings
 	Smart     []api.SmartMailbox
 	Rules     []api.Rule
+	// Counts and SmartCounts are the sidebar's counts of its built-in
+	// sources and its smart mailboxes.
+	Counts      *mail.Counts
+	SmartCounts map[int64]api.ViewCount
+	// FollowUp is the conversations waiting on other people; nil until
+	// loaded. A failed refresh keeps the last answer.
+	FollowUp *api.Awaiting
 	// Loaded is true once the first load answered.
 	Loaded bool
 }
 
 // The debounces of the reloads that bursts of events cause.
 const (
-	mailboxDebounce = 100 * time.Millisecond
-	outboxDebounce  = 50 * time.Millisecond
+	mailboxDebounce  = 100 * time.Millisecond
+	outboxDebounce   = 50 * time.Millisecond
+	countsDebounce   = 300 * time.Millisecond
+	followUpDebounce = time.Second
+	followUpEvery    = 15 * time.Minute
+)
+
+// FollowUpLimit and FollowUpDays are the Follow Up section's: at most 25
+// shown, of mail with no reply for 3 days or more.
+const (
+	FollowUpLimit = 25
+	FollowUpDays  = 3
 )
 
 // Mail is the mail store: loaded when a connection opens, and kept current
@@ -43,6 +61,9 @@ type Mail struct {
 	state     MailState
 	mbTimer   *time.Timer
 	outTimer  *time.Timer
+	cntTimer  *time.Timer
+	fuTimer   *time.Timer
+	fuTick    *time.Ticker
 	off       func()
 	ctx       context.Context
 	cancelCtx context.CancelFunc
@@ -94,10 +115,32 @@ func (m *Mail) Connect(ctx context.Context, c *api.Client, events *Events) error
 	m.update(func(s *MailState) {
 		s.Accounts, s.Mailboxes, s.Sync, s.Outbox, s.Loaded = accounts, mailboxes, byAccount, outbox, true
 	})
-	for _, load := range []func(){m.loadVIPs, m.loadBlocked, m.loadSettings, m.loadSmart, m.loadRules} {
+	for _, load := range []func(){m.loadVIPs, m.loadBlocked, m.loadSettings, m.loadSmart, m.loadRules, m.loadFollowUp} {
 		go load()
 	}
+	m.startFollowUpTick()
 	return nil
+}
+
+func (m *Mail) startFollowUpTick() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.c == nil {
+		return
+	}
+	tick := time.NewTicker(followUpEvery)
+	m.fuTick = tick
+	ctx := m.ctx
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+				m.loadFollowUp()
+			}
+		}
+	}()
 }
 
 // Disconnect stops listening to the connection that ended; the state stays
@@ -116,15 +159,26 @@ func (m *Mail) stopLocked() {
 	if m.cancelCtx != nil {
 		m.cancelCtx()
 	}
-	for _, t := range []*time.Timer{m.mbTimer, m.outTimer} {
+	for _, t := range []*time.Timer{m.mbTimer, m.outTimer, m.cntTimer, m.fuTimer} {
 		if t != nil {
 			t.Stop()
 		}
 	}
-	m.mbTimer, m.outTimer, m.c = nil, nil, nil
+	if m.fuTick != nil {
+		m.fuTick.Stop()
+	}
+	m.mbTimer, m.outTimer, m.cntTimer, m.fuTimer, m.fuTick, m.c = nil, nil, nil, nil, nil, nil
 }
 
 func (m *Mail) event(ev api.Event) {
+	switch ev.(type) {
+	case api.MailboxChanged, api.VipChanged, api.SettingsChanged, api.SmartChanged:
+		m.debounce(&m.cntTimer, countsDebounce, m.loadCounts)
+	}
+	switch ev.(type) {
+	case api.MailboxChanged, api.MessageChanged, api.MessageRemoved, api.VipChanged, api.AccountChanged, api.SettingsChanged:
+		m.debounce(&m.fuTimer, followUpDebounce, m.loadFollowUp)
+	}
 	switch e := ev.(type) {
 	case api.MailboxChanged, api.AccountChanged:
 		m.debounce(&m.mbTimer, mailboxDebounce, m.loadAccountsAndMailboxes)
@@ -218,6 +272,65 @@ func (m *Mail) loadVIPs() {
 	loadInto(m, func(ctx context.Context, c *api.Client) ([]api.Vip, error) {
 		return c.Vip().List(ctx, &api.VipListParams{})
 	}, func(s *MailState, v []api.Vip) { s.VIPs = v })
+	m.loadCounts()
+}
+
+func (m *Mail) loadFollowUp() {
+	limit, days := int64(FollowUpLimit), int64(FollowUpDays)
+	loadInto(m, func(ctx context.Context, c *api.Client) (*api.Awaiting, error) {
+		return c.Thread().AwaitingOthers(ctx, &api.ThreadAwaitingOthersParams{Limit: &limit, WaitingDays: &days})
+	}, func(s *MailState, v *api.Awaiting) { s.FollowUp = v })
+}
+
+// loadCounts asks for the counts of VIPs, each VIP group, Flagged, the
+// seven flag colors and the smart mailboxes, in one call each.
+func (m *Mail) loadCounts() {
+	st := m.State()
+	groups := mail.VIPGroups(st.VIPs)
+	queries := []api.ViewQuery{mail.SourceQuery(mail.Source{Kind: mail.VIPs}, false)}
+	for _, g := range groups {
+		queries = append(queries, mail.SourceQuery(mail.Source{Kind: mail.VIP, VIPKey: g.Key, Addresses: g.Addresses}, false))
+	}
+	queries = append(queries, mail.SourceQuery(mail.Source{Kind: mail.Flagged}, false))
+	for color := 1; color <= 7; color++ {
+		queries = append(queries, mail.SourceQuery(mail.Source{Kind: mail.FlagColor, Color: color}, false))
+	}
+	loadInto(m, func(ctx context.Context, c *api.Client) ([]api.ViewCount, error) {
+		return c.View().Count(ctx, &api.ViewCountParams{Queries: queries})
+	}, func(s *MailState, r []api.ViewCount) {
+		at := func(i int) api.ViewCount {
+			if i < len(r) {
+				return r[i]
+			}
+			return api.ViewCount{}
+		}
+		counts := &mail.Counts{VIPs: at(0), VIP: map[string]api.ViewCount{}, Flagged: at(len(groups) + 1)}
+		for i, g := range groups {
+			counts.VIP[g.Key] = at(i + 1)
+		}
+		for i := range counts.Colors {
+			counts.Colors[i] = at(len(groups) + 2 + i)
+		}
+		s.Counts = counts
+	})
+	if len(st.Smart) == 0 {
+		return
+	}
+	smart := make([]api.ViewQuery, 0, len(st.Smart))
+	for _, sm := range st.Smart {
+		smart = append(smart, mail.SourceQuery(mail.Source{Kind: mail.Smart, ID: sm.ID}, false))
+	}
+	loadInto(m, func(ctx context.Context, c *api.Client) ([]api.ViewCount, error) {
+		return c.View().Count(ctx, &api.ViewCountParams{Queries: smart})
+	}, func(s *MailState, r []api.ViewCount) {
+		out := make(map[int64]api.ViewCount, len(r))
+		for i, sm := range st.Smart {
+			if i < len(r) {
+				out[sm.ID] = r[i]
+			}
+		}
+		s.SmartCounts = out
+	})
 }
 
 func (m *Mail) loadBlocked() {
@@ -236,6 +349,7 @@ func (m *Mail) loadSmart() {
 	loadInto(m, func(ctx context.Context, c *api.Client) ([]api.SmartMailbox, error) {
 		return c.Smart().List(ctx, &api.SmartListParams{})
 	}, func(s *MailState, v []api.SmartMailbox) { s.Smart = v })
+	m.loadCounts()
 }
 
 func (m *Mail) loadRules() {

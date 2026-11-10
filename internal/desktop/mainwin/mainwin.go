@@ -5,9 +5,8 @@ package mainwin
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -20,14 +19,13 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/frame"
 	"github.com/frostyard/frostmail/internal/desktop/live"
-	"github.com/frostyard/frostmail/internal/desktop/uikit"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
 
 // The panes' widths (docs/specs/ui.md, Layout).
 const (
 	sidebarDefault = 220
 	listDefault    = 360
-	allInboxes     = "role:inbox"
 )
 
 // Options configure a Window.
@@ -59,14 +57,26 @@ type Window struct {
 	client        *api.Client
 	events        *live.Events
 	view          *live.View
-	source        string
+	opened        string // the open view's query
+	q             mail.ListState
+	searchDraft   string
+	searchToken   int
+	searchFocused bool
+	focusSearch   bool
 	sidebarWidth  float32
 	listWidth     float32
 	sidebarHidden bool
 	list          ui.ListState
+	chosen        ui.Selection[int64]
 	selected      int
+	lastIndex     int64
+	undo          mail.Undo
+	contactPhotos bool
+	photos        *live.Photos
+	bitmaps       map[string]*ui.Bitmap
 	state         conn.State
 	handlers      map[commands.Command]func()
+	toasts        []ui.Toast
 
 	mu     sync.Mutex
 	latest map[int64]string // each account's newest activity, for the status bar
@@ -80,7 +90,8 @@ func New(o Options) *Window {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	w := &Window{o: o, source: allInboxes, sidebarWidth: sidebarDefault, listWidth: listDefault, selected: -1,
+	w := &Window{o: o, sidebarWidth: sidebarDefault, listWidth: listDefault, selected: -1,
+		q:       mail.ListState{Source: mail.Source{Kind: mail.AllInboxes}, Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate, SearchAll: true},
 		console: frostui.NewConsole(5000), latest: map[int64]string{}, state: conn.State{Target: o.Target}}
 	w.waker = frame.NewWaker(o.Post, o.Wake)
 	w.shell.Dialogs = &frostui.Dialogs{}
@@ -93,10 +104,18 @@ func New(o Options) *Window {
 		commands.Palette:       w.shell.Palette.Show,
 		commands.Activity:      func() { w.shell.Console.Open = !w.shell.Console.Open },
 		commands.ToggleSidebar: func() { w.sidebarHidden = !w.sidebarHidden },
-		commands.AllInboxes:    func() { w.choose(allInboxes) },
+		commands.AllInboxes:    func() { w.setSource(mail.Source{Kind: mail.AllInboxes}) },
 		commands.GetMail:       w.getMail,
 		commands.Shortcuts:     w.showShortcuts,
 		commands.About:         w.showAbout,
+		commands.Undo:          w.runUndo,
+		commands.Archive:       func() { w.archive(w.selectedIDs()) },
+		commands.Delete:        func() { w.delete(w.selectedIDs()) },
+		commands.Junk:          func() { w.toggleSpam(w.selectedIDs()) },
+		commands.ToggleRead:    func() { w.toggleRead(w.selectedIDs()) },
+		commands.ToggleFlag:    func() { w.toggleFlag(w.selectedIDs()) },
+		commands.FocusSearch:   func() { w.focusSearch = true },
+		commands.Escape:        w.escape,
 	}
 	return w
 }
@@ -120,6 +139,7 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 	w.o.Post(func() {
 		w.closeView()
 		w.client, w.events = c, events
+		w.photos, w.bitmaps = live.NewPhotos(c, w.waker.Wake), map[string]*ui.Bitmap{}
 		w.openView()
 	})
 	return nil
@@ -139,34 +159,41 @@ func (w *Window) changed(st conn.State) {
 	})
 }
 
-// query is the view of the source chosen in the sidebar.
-func (w *Window) query() api.ViewQuery {
-	if id, ok := strings.CutPrefix(w.source, "mailbox:"); ok {
-		if n, err := strconv.ParseInt(id, 10, 64); err == nil {
-			return api.ViewQuery{MailboxID: &n}
-		}
+// syncView opens the view of the list's current query, when it changed.
+func (w *Window) syncView() {
+	if w.client == nil {
+		return
 	}
-	role := api.MailboxRoleInbox
-	return api.ViewQuery{Role: &role}
+	q := mail.ListQuery(w.q)
+	key, _ := json.Marshal(q)
+	if w.view != nil && string(key) == w.opened {
+		return
+	}
+	w.closeView()
+	w.opened = string(key)
+	w.view = live.OpenView(w.client, w.events, q, w.waker.Wake)
 }
 
-func (w *Window) openView() {
-	if w.client != nil {
-		w.view = live.OpenView(w.client, w.events, w.query(), w.waker.Wake)
-	}
-}
+func (w *Window) openView() { w.syncView() }
 
 func (w *Window) closeView() {
 	if w.view != nil {
 		w.view.Close()
-		w.view = nil
+		w.view, w.opened = nil, ""
 	}
 }
 
-func (w *Window) choose(source string) {
-	w.source, w.selected = source, -1
-	w.closeView()
-	w.openView()
+// clearSelection forgets what the list had chosen, as a new list does.
+func (w *Window) clearSelection() {
+	w.chosen.Clear()
+	w.selected, w.lastIndex = -1, 0
+}
+
+// setSource shows a source, leaving any search.
+func (w *Window) setSource(s mail.Source) {
+	w.q.Source, w.q.Search, w.searchDraft = s, "", ""
+	w.clearSelection()
+	w.syncView()
 }
 
 func (w *Window) getMail() {
@@ -196,12 +223,7 @@ func (n names) Account(id int64) string {
 }
 
 func (n names) Mailbox(id int64) string {
-	for _, m := range n.s.Mailboxes {
-		if m.ID == id {
-			return m.Name
-		}
-	}
-	return ""
+	return mail.SourceTitle(mail.Source{Kind: mail.Mailbox, ID: id}, mail.Names{Accounts: n.s.Accounts, Mailboxes: n.s.Mailboxes})
 }
 
 func (w *Window) addActivity(e api.ActivityEntry) {
@@ -227,6 +249,10 @@ func (w *Window) addActivity(e api.ActivityEntry) {
 func (w *Window) View(c *ui.Context) {
 	frostui.Adapt(c)
 	w.bindKeys(c)
+	for _, t := range w.toasts {
+		c.AddToast(t)
+	}
+	w.toasts = nil
 	w.shell.View(c, frame.Spec{
 		Bar:       func() { w.bar(c) },
 		Actions:   func() { w.actions(c) },
@@ -249,16 +275,18 @@ func (w *Window) bindKeys(c *ui.Context) {
 		if !ok {
 			continue
 		}
-		c.OnWindowShortcut(mods, key, run)
+		k := b.Key
+		c.OnWindowShortcut(mods, key, func() {
+			if _, ok := commands.For(k, w.searchFocused); ok {
+				run()
+			}
+		})
 	}
 }
 
 // palette lists the current module's built commands.
 func (w *Window) palette() []frostui.Command {
-	selected := 0
-	if w.selected >= 0 {
-		selected = 1
-	}
+	selected := len(w.selectedIDs())
 	var out []frostui.Command
 	for _, it := range commands.Items(commands.Mail, selected) {
 		run, ok := w.handlers[it.Command]
@@ -273,25 +301,6 @@ func (w *Window) palette() []frostui.Command {
 		out = append(out, cmd)
 	}
 	return out
-}
-
-func (w *Window) bar(c *ui.Context) {
-	sidebar := float32(0)
-	if !w.sidebarHidden {
-		sidebar = w.sidebarWidth - frostui.SpaceM
-	}
-	ui.Row(c).Width(sidebar).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
-		if frostui.IconButton(c, "sidebar-show", "Show or hide the sidebar").Clicked() {
-			w.handlers[commands.ToggleSidebar]()
-		}
-		if frostui.IconButton(c, "mail-send-receive", "Get Mail").Clicked() {
-			w.getMail()
-		}
-	})
-	ui.Column(c).Children(func() {
-		frostui.Strong(c, w.title()).SingleLine()
-		frostui.Caption(c, w.subtitle()).SingleLine()
-	})
 }
 
 func (w *Window) actions(c *ui.Context) {
@@ -310,24 +319,13 @@ func (w *Window) menu(m *ui.Menu) {
 	}
 }
 
-func (w *Window) title() string {
-	if w.source == allInboxes {
-		return "All Inboxes"
+func (w *Window) mailNames() mail.Names {
+	st := w.mail.State()
+	n := mail.Names{Accounts: st.Accounts, Mailboxes: st.Mailboxes, VIPs: st.VIPs, Smart: st.Smart}
+	if st.Settings != nil {
+		n.FlagNames = st.Settings.FlagNames
 	}
-	if id, ok := strings.CutPrefix(w.source, "mailbox:"); ok {
-		n, _ := strconv.ParseInt(id, 10, 64)
-		if name := (names{w.mail.State()}).Mailbox(n); name != "" {
-			return name
-		}
-	}
-	return "Mail"
-}
-
-func (w *Window) subtitle() string {
-	if w.view == nil {
-		return ""
-	}
-	return plural(w.view.Count(), "message", "messages")
+	return n
 }
 
 func (w *Window) panes(c *ui.Context) {
@@ -339,64 +337,6 @@ func (w *Window) panes(c *ui.Context) {
 		return
 	}
 	ui.Split(c, &w.sidebarWidth, func() { w.sidebar(c) }, list).Grow(1)
-}
-
-func (w *Window) sidebar(c *ui.Context) {
-	st := w.mail.State()
-	before := w.source
-	ui.Sidebar(c, &w.source, func() {
-		ui.SidebarSection(c, "Favorites", nil, func() {
-			ui.SidebarItem(c, allInboxes, frostui.IconSVG("mail-inbox"), "All Inboxes")
-		})
-		for _, a := range st.Accounts {
-			ui.SidebarSection(c.Key(a.ID), a.Email, nil, func() {
-				for _, mb := range st.Mailboxes {
-					if mb.AccountID != a.ID {
-						continue
-					}
-					item := ui.SidebarItem(c.Key(mb.ID), "mailbox:"+strconv.FormatInt(mb.ID, 10), nil, mb.Name)
-					if mb.Unread > 0 {
-						item.Children(func() { ui.Badge(c, strconv.FormatInt(mb.Unread, 10)) })
-					}
-				}
-			})
-		}
-	}).Grow(1)
-	if w.source != before {
-		w.choose(w.source)
-	}
-}
-
-// messages draws the list; its rows ask the view for what shows.
-func (w *Window) messages(c *ui.Context) {
-	if w.view == nil {
-		frostui.Loading(c, w.connectingText())
-		return
-	}
-	v := w.view
-	if v.Ready() && v.Count() == 0 {
-		frostui.Empty(c, "mail-inbox", "No Messages", "")
-		return
-	}
-	w.list.Selected = &w.selected
-	low, high := int64(-1), int64(-1)
-	ui.List(c, &w.list, int(v.Count()), func(i int) {
-		n := int64(i)
-		if low < 0 || n < low {
-			low = n
-		}
-		high = max(high, n)
-		r, ok := v.Row(n)
-		if !ok {
-			uikit.SummaryRow(c, uikit.Summary{})
-			return
-		}
-		uikit.SummaryRow(c, uikit.Summary{Title: sender(r.From), Date: formatDate(r.Date, w.o.Now()),
-			Subtitle: r.Subject, Preview: r.Preview, Unread: !r.Flags.Seen})
-	}).Grow(1)
-	if low >= 0 {
-		v.Ensure(low, high+1)
-	}
 }
 
 func (w *Window) reader(c *ui.Context) {
@@ -494,22 +434,6 @@ func syncText(s api.SyncStatus, latest string) string {
 		return latest
 	}
 	return "up to date"
-}
-
-func sender(a api.Address) string {
-	if a.Name != "" {
-		return a.Name
-	}
-	return a.Address
-}
-
-// formatDate writes a row's date: the time today, else the date.
-func formatDate(d, now time.Time) string {
-	d = d.In(now.Location())
-	if y, m, day := d.Date(); y == now.Year() && m == now.Month() && day == now.Day() {
-		return d.Format("15:04")
-	}
-	return d.Format("2006-01-02")
 }
 
 func plural(n int64, one, many string) string {

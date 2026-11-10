@@ -106,7 +106,7 @@ func snapshot(t *testing.T, tt *ui.Tester, name string) {
 func TestWindowShowsTheMailboxesAndAVirtualList(t *testing.T) {
 	f := newFixture(t, 5000)
 	f.until(t, "the newest row", func() bool { return f.tt.HasText("Message 5000") })
-	for _, want := range []string{"All Inboxes", "me@a.test", "INBOX", "5000 messages"} {
+	for _, want := range []string{"All Inboxes", "me@a.test", "Inbox", "5000 messages"} {
 		if !f.tt.HasText(want) {
 			t.Errorf("no %q in %q", want, f.tt.Texts())
 		}
@@ -132,17 +132,17 @@ func TestPaletteOpensWithBothKeysAndListsBuiltCommands(t *testing.T) {
 	f.until(t, "the row", func() bool { return f.tt.HasText("Message 1") })
 	f.tt.Key(ui.Cmd, ui.KeyK)
 	f.tt.Frame()
-	if !f.tt.HasText("Get Mail") || !f.tt.HasText("Show/Hide Activity") {
+	if !f.tt.HasText("Mark as Spam/Not Spam") {
 		t.Errorf("Ctrl K's palette shows %q", f.tt.Texts())
 	}
 	f.tt.Key(0, ui.KeyEscape)
 	f.tt.Frame()
-	if f.tt.HasText("Show/Hide Activity") {
+	if f.tt.HasText("Mark as Spam/Not Spam") {
 		t.Error("Escape left the palette open")
 	}
 	f.tt.Key(ui.Cmd|ui.Shift, ui.KeyP)
 	f.tt.Frame()
-	if !f.tt.HasText("Show/Hide Activity") {
+	if !f.tt.HasText("Mark as Spam/Not Spam") {
 		t.Errorf("Ctrl+Shift+P's palette shows %q", f.tt.Texts())
 	}
 }

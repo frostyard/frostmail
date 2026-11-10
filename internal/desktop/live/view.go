@@ -107,6 +107,30 @@ func (v *View) IndexOf(id int64) int64 {
 	return -1
 }
 
+// Rows returns the loaded rows of the given message IDs, in the order of
+// ids.
+func (v *View) Rows(ids []int64) []api.MessageSummary {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	byID := make(map[int64]api.MessageSummary, len(ids))
+	want := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	for _, r := range v.rows {
+		if want[r.ID] {
+			byID[r.ID] = r
+		}
+	}
+	out := make([]api.MessageSummary, 0, len(byID))
+	for _, id := range ids {
+		if r, ok := byID[id]; ok {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // Ensure asks for rows [start, end) and keeps them as the window in view.
 func (v *View) Ensure(start, end int64) {
 	v.mu.Lock()

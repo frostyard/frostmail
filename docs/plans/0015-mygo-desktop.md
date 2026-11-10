@@ -37,7 +37,7 @@ Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 Proposed). Phase 0's Linux and Flatpak spikes are run and recorded; its
 Windows spike waits for the test VM. Phase 1's window runs on Linux
 against a real maild, over `internal/desktop/frame`, a stand-in for
-frostui's coming frame. Phase 2's maild side is built. The console of maild's activity (Phase 2) was
+frostui's coming frame. Phase 2's maild side and Phase 3 (sidebar, list, search) are built. The console of maild's activity (Phase 2) was
 added on 2026-11-10 at the owner's request, relayed by the orchestrating
 session ("it'd be fun to use that console view from chairlift to show
 background activity in frostmail").
@@ -542,13 +542,25 @@ exists. The WebView2 reader run and the Windows spike wait for that.
 ## Phase 3 — Mail: sidebar, list and search (L)
 
 - The sidebar and its menus; the list, its rows, menus, drags and empty
-  states; the filter row, sort, search with its scope bar, Save as Smart
-  Mailbox and coverage line; Follow Up, the Outbox and Send Later; the
-  To-Do Bar; Undo of moves (ADR-0028, ADR-0032).
+  states; the filter row, sort, search with its scope bar and coverage
+  line; Follow Up, the Outbox and Send Later; Undo of moves (ADR-0028,
+  ADR-0032).
 - The command table, the keys, the menus and the palette.
 - **Done when:** every [parity](../specs/parity.md) row of Mailboxes and
   the sidebar, of the message list and of search has a Go test that fails
   when it breaks, beside its React test.
+- **Status (2026-11-10): built, except as below.** `internal/desktop/mail`
+  holds the rules; `mainwin` the views. Parity's new Desktop test column
+  names each row's test, run against a maild syncing the in-memory IMAP
+  server.
+- **Not in this phase after all:** New, Rename and Move Mailbox and Save
+  as Smart Mailbox are sheets, so they go to Phase 6 with the others
+  (P-107, P-602); the To-Do Bar needs Calendar and Tasks, so it goes to
+  Phase 7; the reply family in the menus goes to Phase 5; opening a
+  Follow Up row and moving between panes with Tab go to Phase 4, with
+  the reader.
+- **Gap:** contact photos (P-209) are built, in the Sort menu's Contact
+  Photos, and have no Go test yet.
 
 ## Phase 4 — The reader (L)
 
@@ -674,14 +686,14 @@ Windows notifications keep `frostmail-notify.exe` (decided the same day).
 | `internal/desktop/conn` | the maild connection: local, lodge, reconnect, ping, downloads | no |
 | `internal/desktop/live` | view models, stores, events, the waker's input | no |
 | `internal/desktop/commands` | the command table and keymap | no |
-| `internal/desktop/mail` | sidebar, list, search, reader, the reader's page | yes |
+| `internal/desktop/mail` | sources and queries, the mailbox tree, the actions' rules, undo, date formats | no |
 | `internal/desktop/compose` | the compose window | yes |
 | `internal/desktop/calendar`, `people`, `tasks` | the modules and their windows | yes |
 | `internal/desktop/settings` | the settings window, first run, modes | yes |
 | `internal/desktop/platform` | notifications, the portal, Windows' pieces | some |
 | `internal/desktop/uikit` | SafeHTMLView, SummaryRow, TokenSuggest | yes (only std, MyGo, purego, frostui) |
 | `internal/desktop/frame` | a stand-in for frostui's frame and waker, deleted when they land | yes |
-| `internal/desktop/mainwin` | the main window: frame, panes, commands | yes |
+| `internal/desktop/mainwin` | the main window: frame, panes, sidebar, list, search, commands | yes |
 
 Pure packages hold the decisions and are tested with `go test` alone; view
 packages are tested with `ui.NewTester` against `rpctest`, and write PNGs
