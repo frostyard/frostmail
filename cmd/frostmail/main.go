@@ -82,23 +82,35 @@ func run() error {
 	mygo.App.WhenReady(func() {
 		var frames *uikit.SafeHTMLView
 		var composer *composeWindows
+		windows := &windowSet{}
+		prefs, err := newSettings(post.post, target, func() *mainwin.Window { return main })
+		if err != nil {
+			slog.Error("the settings window", "err", err)
+			mygo.App.Quit()
+			return
+		}
 		main = mainwin.New(mainwin.Options{Target: target, Client: "frostmail " + version, Post: post.post,
-			CacheDir:    paths.CacheDir,
-			DownloadDir: filepath.Join(paths.CacheDir, "frostmail-app", "attachments"),
-			NewFrame:    func() (uikit.Frame, error) { return frames.New() },
-			SaveDialog:  saveDialog,
-			SocketLost:  func(err error) { rec.Error(codeSocketLost, err) },
+			CacheDir:     paths.CacheDir,
+			DownloadDir:  filepath.Join(paths.CacheDir, "frostmail-app", "attachments"),
+			NewFrame:     func() (uikit.Frame, error) { return frames.New() },
+			SaveDialog:   saveDialog,
+			SocketLost:   func(err error) { rec.Error(codeSocketLost, err) },
+			Settings:     prefs.w,
+			OpenSettings: prefs.open,
 			OpenCompose: func(c *api.Client, draft int64, fresh bool) {
 				composer.open(ctx, c, draft, fresh)
 			},
 		})
-		composer = &composeWindows{windows: map[int64]*mygo.Window{}, main: main, target: target, paths: paths}
+		composer = &composeWindows{windows: map[int64]*mygo.Window{}, main: main, target: target, paths: paths, settings: prefs.open, all: windows}
+		prefs.main, prefs.all = main, windows
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Frostmail", Width: 1200, Height: 780, MinWidth: 800, MinHeight: 500,
 			TitleBarStyle: mygo.TitleBarHidden,
 			Content:       ui.View(main.View),
 		})
 		post.attach(win)
+		windows.add(win)
+		win.OnClosed(prefs.close)
 		frames = uikit.NewSafeHTMLView(win, main.OpenLink, func() { post.post(func() {}) })
 		main.Start(ctx)
 		if id, ok := openMessageArg(os.Args[1:]); ok {

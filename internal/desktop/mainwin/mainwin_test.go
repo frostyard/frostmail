@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
+	"github.com/frostyard/frostmail/internal/desktop/settings"
 	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -253,4 +254,54 @@ func TestReaderActionsShowBesideTheWindowControls(t *testing.T) {
 			}
 		}
 	}
+}
+
+func newSettingsFixture(t *testing.T, srv *rpctest.Server) (*ui.Tester, *atomic.Value) {
+	t.Helper()
+	loop := frostuitest.NewLoop()
+	opened := &atomic.Value{}
+	target := conn.Target{Socket: srv.Socket}
+	model := settings.New(settings.Options{Post: loop.Post, ConfigFile: filepath.Join(t.TempDir(), "app.json"), Socket: srv.Socket})
+	win := mainwin.New(mainwin.Options{Target: target, Client: "frostmail test", Post: loop.Post, Wake: time.Millisecond, Retry: 10 * time.Millisecond,
+		Settings: model, OpenSettings: func(pane string) { opened.Store(pane) }})
+	tt := ui.NewTester(func(c *ui.Context) {
+		loop.Flush()
+		win.View(c)
+	}, 1200, 780)
+	win.Start(t.Context())
+	return tt, opened
+}
+
+func waitFor(t *testing.T, tt *ui.Tester, what string, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for !ok() {
+		tt.Frame()
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s: %q", what, tt.Texts())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// With no account the welcome shows in place of the panes.
+func TestFirstRunShowsInPlaceOfThePanes(t *testing.T) {
+	tt, _ := newSettingsFixture(t, rpctest.Start(t))
+	waitFor(t, tt, "the welcome", func() bool { return tt.HasText("Welcome to Frostmail") })
+	if tt.HasText("Sort by Date") {
+		t.Errorf("the panes show behind the welcome: %q", tt.Texts())
+	}
+	if !tt.HasText("Add Account…") {
+		t.Errorf("no Add Account in %q", tt.Texts())
+	}
+}
+
+// Ctrl+, opens the settings window.
+func TestSettingsCommandOpensTheWindow(t *testing.T) {
+	srv := rpctest.Start(t)
+	tt, opened := newSettingsFixture(t, srv)
+	waitFor(t, tt, "the welcome", func() bool { return tt.HasText("Welcome to Frostmail") })
+	opened.Store("none")
+	tt.Key(ui.Cmd, ui.KeyComma)
+	waitFor(t, tt, "the window asked for", func() bool { return opened.Load() == "" })
 }

@@ -682,6 +682,28 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   account in the native app, a change of mode from local to lodge and
   back keeps one maild, and a notification click opens its message.
 
+- **Status (2026-11-10): built on Linux.** `internal/desktop/settings`
+  (the 7 panes, first run, the ordered change of mode behind injected
+  steps) and its window in `cmd/frostmail`; the rule sheet is
+  `organize.RuleSheet` over it. In lodge mode `message.announced` shows
+  through MyGo's notifications, and a click shows the message.
+- **Check of 2026-11-10, built app in the Flatpak's sandbox, fixture
+  maild:** Ctrl+, opened a window titled "Settings" with its 7 panes; the
+  General and Accounts panes were read in a screenshot. The Server pane's
+  change of mode was not run in a real window, and `mailctl shutdown` and
+  `frostmail --start-maild` were not run behind it.
+- **Differences to confirm at the gate:** a sidebar of panes instead of
+  the toolbar's tabs; lists capped at 196 high above their forms; smart
+  mailboxes in the notify scope as "Smart Mailbox: name", as `Select` has
+  no groups; a second save is disabled, not queued. Windows' toast
+  notifier (`frostmail-notify.exe`) is not wired to the native app.
+- **Windows and a shared atlas:** MyGo v0.8.3's windows share one glyph
+  atlas. A repack leaves a scene already built with old positions until
+  its next frame: in the checks a new window's first frame, and an idle
+  window captured after another drew, showed scrambled text, and one
+  redraw cleared it. `cmd/frostmail/windows.go` repaints every window
+  shortly after one opens, and a window as it takes the focus.
+
 ## Phase 9 — Packaging and CI (M)
 
 - **Flatpak:** the `frostmail` module builds `cmd/frostmail` from

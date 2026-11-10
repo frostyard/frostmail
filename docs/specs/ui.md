@@ -2,7 +2,7 @@
 
 The look and behavior of Frostmail's main window: a Mail.app-style three-pane
 reader (sidebar, message list, reader) with its toolbar. It binds the app's
-CSS tokens (`app/src/styles/tokens.css`), the presentational components built
+CSS tokens (lodge-ui's `tokens.css`), the presentational components built
 from task cards, and the app tests. Measurements are CSS pixels at 100% zoom.
 Shortcuts use Ctrl where Mail.app uses ⌘ and Alt where it uses ⌥ or ⌃⌘.
 
@@ -1065,6 +1065,8 @@ finds a menu command by name (parity P-958).
 | Ctrl+Shift+F | forward the selection | anywhere |
 | Ctrl+, | open the settings window ([settings-ui.md](settings-ui.md)) | anywhere |
 | Ctrl+Shift+P | the [command palette](#command-palette) | anywhere |
+| Ctrl+K | the command palette (native app; plan 0015, shared rule 1) | anywhere but a text editor |
+| Ctrl+J | show or hide Activity (native app) | anywhere |
 | Ctrl+Z | undo the newest move, delete or flag change (M5) | anywhere but a text field |
 | Ctrl+Shift+E | Redirect… the selection's last message (M5) | anywhere with a selection, writable account |
 | Ctrl+P | print the message shown (M5) | anywhere with one message selected |

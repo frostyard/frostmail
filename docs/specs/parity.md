@@ -97,7 +97,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` | `TestMarkAsSpam` |
 | P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | Have | `undo.test.ts`, `Undo.test.tsx` | `TestDeleteAndUndo`, `TestUndoCalls` |
 | P-407 | Flag with seven colors, Clear Flag | Same (`$MailFlagBit0–2`) | Have | `TestFlagsRoundTrip`, `TestFlagChangesReplayToServer` | `TestRowMenuFlagsAndMarks` |
-| P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` |  |
+| P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` | `TestFlagNamesSaveOnEnterAndWhenLeft` |
 | P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` | `TestRowMenuFlagsAndMarks` |
 | P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` | `TestMuteFromTheRow` |
 | P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` | `TestBlockFromThePopover` |
@@ -111,7 +111,7 @@ tasks are not Mail's and are not listed; their parity is
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
 | P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` | `TestNewMessageWithAttachment`, `TestAttachByBytes`, `TestBccToggleAndFormatBar` |
-| P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` |  |
+| P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` | `TestSignatureEditsAsTextAndSavesAsHTML`, `TestAddAndRemoveAnAddress` |
 | P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` |  |
 | P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |  |
 | P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |  |
@@ -135,7 +135,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild once on new inbox mail before it notifies | Have | `TestRulesActOnNewInboxMail`, `TestRulesRunOnce`, `TestDovecotRules`, `TestGmailRulesMoveToALabel`, `RulesPane.test.tsx`, `SettingsWindow.rules.test.tsx` |  |
+| P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild once on new inbox mail before it notifies | Have | `TestRulesActOnNewInboxMail`, `TestRulesRunOnce`, `TestDovecotRules`, `TestGmailRulesMoveToALabel`, `RulesPane.test.tsx`, `SettingsWindow.rules.test.tsx` | `TestRuleSelectEditEnableMove`, `TestRuleDuplicateGoesAfterTheOriginal` |
 | P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions; junk is Mailbox Type is Junk; no Previous Recipients list | Have | `TestCompileEveryCondition`, `RuleSheet.test.tsx` | `TestEveryFieldHasOperatorsWithLabels`, `TestChoosingAnOperatorKeepsAValueOfTheSameKind` |
 | P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | Have | `TestRulesActOnNewInboxMail`, `TestDovecotRules`, `ActionEditor.test.tsx`, `TestRules` | `TestWithKindKeepsWhatTheKindTakes`, `TestActionsComplete` |
 | P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking; the user's choice (plan 0008) |  |
@@ -149,7 +149,7 @@ tasks are not Mail's and are not listed; their parity is
 | --- | --- | --- | --- | --- | --- |
 | P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` |  |
 | P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` |  |
-| P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` |  |
+| P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` | `TestGeneralNotifiesForASmartMailbox` |
 | P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` |  |
 | P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |  |
 
@@ -163,7 +163,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-951 | Accounts, servers, sign-in | Same, with discovery and Google sign-in | Have | `SettingsWindow.add.test.tsx`, `AccountForm.test.tsx` |  |
+| P-951 | Accounts, servers, sign-in | Same, with discovery and Google sign-in | Have | `SettingsWindow.add.test.tsx`, `AccountForm.test.tsx` | `TestAddAccountWithPassword`, `TestAddAccountLeavesOutEmptyServers`, `TestAddAccountKeepsTheFormOnAnError` |
 | P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` |  |
 | P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |  |
 | P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |  |

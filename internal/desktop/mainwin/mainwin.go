@@ -20,6 +20,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/organize"
+	"github.com/frostyard/frostmail/internal/desktop/settings"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
@@ -59,6 +60,11 @@ type Options struct {
 	// SaveDialog asks where to save; "" for cancelled. It runs on a
 	// worker. filter and extension may be empty.
 	SaveDialog func(title, name, filter, extension string) (string, error)
+	// Settings is the settings model, which the connection feeds and whose
+	// welcome shows in place of the panes; nil for none.
+	Settings *settings.Window
+	// OpenSettings shows the settings window on a pane; "" keeps its pane.
+	OpenSettings func(pane string)
 	// SocketLost records that maild's local socket ended under the app
 	// (problem records, ADR-0049); nil records nothing.
 	SocketLost func(err error)
@@ -183,8 +189,30 @@ func New(o Options) *Window {
 		commands.NextPane:      func() { w.cyclePane(1) },
 		commands.PreviousPane:  func() { w.cyclePane(-1) },
 	}
+	if o.OpenSettings != nil {
+		w.handlers[commands.Settings] = func() { o.OpenSettings("") }
+	}
 	return w
 }
+
+// Client is the connected client, nil while there is none. It belongs to
+// the UI thread.
+func (w *Window) Client() *api.Client { return w.client }
+
+// ConnectionState is the session's state now.
+func (w *Window) ConnectionState() conn.State { return w.session.State() }
+
+// SetTarget moves the session to another maild.
+func (w *Window) SetTarget(t conn.Target) { w.session.SetTarget(t) }
+
+// MailState is the mail the window holds.
+func (w *Window) MailState() live.MailState { return w.mail.State() }
+
+// OrganizeContext is what the condition and action editors need.
+func (w *Window) OrganizeContext() organize.Context { return w.organizeContext() }
+
+// ShowProblem shows a toast saying what went wrong.
+func (w *Window) ShowProblem(title string, err error) { w.toast(title, err) }
 
 // Start connects and keeps the connection until ctx ends.
 func (w *Window) Start(ctx context.Context) { go w.session.Run(ctx) }
@@ -203,6 +231,11 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 	if err := w.act.Connect(ctx, c, events); err != nil {
 		return err
 	}
+	if w.o.Settings != nil {
+		if err := w.o.Settings.Connect(ctx, c, events); err != nil {
+			return err
+		}
+	}
 	w.o.Post(func() {
 		w.closeView()
 		w.client, w.events = c, events
@@ -217,6 +250,9 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 func (w *Window) changed(st conn.State) {
 	if !st.Connected {
 		w.mail.Disconnect()
+		if w.o.Settings != nil {
+			w.o.Settings.Disconnect()
+		}
 	}
 	w.o.Post(func() {
 		if !st.Connected {
@@ -336,16 +372,20 @@ func (w *Window) View(c *ui.Context) {
 		w.table.Remove(string(commands.NextPane), string(commands.PreviousPane))
 	}
 	conn := w.connection()
-	w.shell.View(c, frostui.PaneFrame{
-		SidebarPane: paneSidebar,
-		Panes:       w.panes(c),
+	frame := frostui.PaneFrame{
 		Menu:        w.table.Menu(string(commands.Settings), "", string(commands.Shortcuts), string(commands.About)),
 		Table:       w.table,
 		Connection:  &conn,
 		Status:      w.status(),
 		StatusEnd:   w.statusEnd(),
 		ConsoleData: w.console,
-	})
+	}
+	if w.o.Settings != nil && w.o.Settings.NeedsFirstRun() {
+		frame.Content = func() { w.o.Settings.FirstRun(c) }
+	} else {
+		frame.SidebarPane, frame.Panes = paneSidebar, w.panes(c)
+	}
+	w.shell.View(c, frame)
 	w.rawSourceView(c)
 	w.later.View(c, w.o.Now())
 	w.smartSheet.View(c)
@@ -403,6 +443,10 @@ func (w *Window) showConnection() {
 			rows = append(rows, frostui.KeyValue{Key: "Last error", Value: st.Err.Error()})
 		}
 		frostui.KeyValues(c, rows)
+		if w.o.OpenSettings != nil && ui.Button(c, "Server Settings…").Clicked() {
+			w.shell.Info.Open = false
+			w.o.OpenSettings(settings.PaneServer)
+		}
 	})
 }
 
