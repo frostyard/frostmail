@@ -356,6 +356,9 @@ func (w *Window) addActivity(e api.ActivityEntry) {
 
 // View draws the window.
 func (w *Window) View(c *ui.Context) {
+	// First, so that what a palette command changes shows in this frame:
+	// the rest of View reads that state before the shell would run it.
+	w.shell.Palette.RunPending()
 	frostui.Adapt(c)
 	for _, t := range w.toasts {
 		c.AddToast(t)

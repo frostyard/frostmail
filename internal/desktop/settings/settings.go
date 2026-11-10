@@ -481,6 +481,9 @@ func (w *Window) syncPane() {
 
 // View draws the settings window's content.
 func (w *Window) View(c *ui.Context) {
+	// First, so that what a palette command changes shows in this frame:
+	// the rest of View reads that state before the shell would run it.
+	w.shell.Palette.RunPending()
 	frostui.Adapt(c)
 	if w.layout.Selected != w.open {
 		w.mount(w.layout.Selected)

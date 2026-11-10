@@ -513,6 +513,9 @@ func (w *Window) commands() []frostui.Command {
 
 // View draws the window.
 func (w *Window) View(c *ui.Context) {
+	// First, so that what a palette command changes shows in this frame:
+	// the rest of View reads that state before the shell would run it.
+	w.shell.Palette.RunPending()
 	frostui.Adapt(c)
 	w.table.Add(w.commands()...)
 	// The top bar holds the title and the palette field. The actions have
