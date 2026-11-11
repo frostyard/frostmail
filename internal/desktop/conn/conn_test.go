@@ -420,7 +420,8 @@ func TestSaveToUsesATemporaryFileOfItsOwn(t *testing.T) {
 
 func TestDownloadsToOnePathDoNotCollide(t *testing.T) {
 	l := contentServer(t, strings.Repeat("x", 1<<20))
-	path := filepath.Join(t.TempDir(), "message.eml")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "message.eml")
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() {
@@ -432,5 +433,8 @@ func TestDownloadsToOnePathDoNotCollide(t *testing.T) {
 	wg.Wait()
 	if fi, err := os.Stat(path); err != nil || fi.Size() != 1<<20 {
 		t.Errorf("the file = %v, %v", fi, err)
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
+		t.Errorf("the directory holds %v, %v: a temporary file was left", entries, err)
 	}
 }
