@@ -31,6 +31,7 @@ type conv struct {
 	expanded map[int64]bool
 	showAll  bool
 	msgs     map[int64]*openMsg
+	focused  int64 // the message whose page last had the focus
 }
 
 // openMsg is one expanded message: what the reader draws for it.
@@ -243,7 +244,7 @@ func (w *Window) showRendering(m *openMsg, r *api.Rendering) {
 	if body == "" {
 		body, style = mail.TextHTML(r.Text), mail.TextStyle
 	}
-	m.frame.Load(uikit.Document(body, w.printHeader(m), style))
+	m.frame.Load(uikit.Document(body, w.printHeader(m), mail.PrintGuard+style))
 }
 
 func (w *Window) printHeader(m *openMsg) string {
@@ -258,7 +259,11 @@ func (w *Window) printHeader(m *openMsg) string {
 		return strings.Join(parts, ", ")
 	}
 	s := m.message.Summary
-	return mail.PrintHeader(mail.DisplayName(s.From), addresses(m.message.To), addresses(m.message.Cc), s.Date.In(w.o.Now().Location()).Format("January 2, 2006 at 3:04 PM"), s.Subject)
+	warning := ""
+	if m.message.SenderCheck != nil && *m.message.SenderCheck == api.SenderCheckFail {
+		warning = mail.SenderCheckText(s.From.Address)
+	}
+	return mail.PrintHeader(mail.DisplayName(s.From), addresses(m.message.To), addresses(m.message.Cc), s.Date.In(w.o.Now().Location()).Format("January 2, 2006 at 3:04 PM"), s.Subject, warning)
 }
 
 // loadExtras asks for what only some messages have: an invitation, and how
@@ -299,13 +304,17 @@ func (w *Window) loadRemote(cv *conv, m *openMsg) {
 	id := m.summary.ID
 	go func() {
 		r, err := cv.client.Message().Render(cv.ctx, &api.MessageRenderParams{ID: id, Remote: &remote})
-		w.o.Post(func() {
-			m.loadingRemote = false
-			if err == nil && w.conv == cv {
-				w.showRendering(m, r)
-			}
-		})
+		w.o.Post(func() { w.remoteRendered(cv, m, r, err) })
 	}()
+}
+
+// remoteRendered shows a rendering with its remote content, if the message
+// still shows: one collapsed meanwhile has no page, and gets none.
+func (w *Window) remoteRendered(cv *conv, m *openMsg, r *api.Rendering, err error) {
+	m.loadingRemote = false
+	if err == nil && w.conv == cv && cv.msgs[m.summary.ID] == m {
+		w.showRendering(m, r)
+	}
 }
 
 // readerEvent keeps the reader current; it runs on the events' goroutine.
@@ -455,7 +464,9 @@ func (w *Window) message(c *ui.Context, cv *conv, m *openMsg) {
 		}
 		if m.frame != nil {
 			h := max(m.frame.Height(), 40)
-			m.frame.View(c).Height(h).AlignSelf(ui.Stretch).Label("Message body")
+			if m.frame.View(c).Height(h).AlignSelf(ui.Stretch).Label("Message body").FocusWithin() {
+				cv.focused = m.summary.ID
+			}
 		}
 		if m.message != nil {
 			w.attachments(c, cv, m)

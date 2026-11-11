@@ -21,6 +21,10 @@ const (
 	quoteLimit = 4
 )
 
+// maxQuoteDepth is the most levels a quote draws: the count of ">" comes
+// from the message, and each level is a nested element of the page.
+const maxQuoteDepth = 8
+
 func splitQuote(line string) (level int, content string) {
 	i := 0
 	for i < len(line) {
@@ -64,6 +68,7 @@ func parseText(text string) []textBlock {
 	var blocks []textBlock
 	for _, line := range body {
 		level, content := splitQuote(line)
+		level = min(level, maxQuoteDepth)
 		if n := len(blocks); n > 0 && blocks[n-1].quote == level {
 			blocks[n-1].lines = append(blocks[n-1].lines, content)
 			continue
@@ -175,8 +180,35 @@ func writeQuote(b *strings.Builder, blk textBlock) {
 	b.WriteString(strings.Repeat(`</div>`, blk.quote))
 }
 
-// PrintHeader writes the lines that head a message on paper, escaped.
-func PrintHeader(from, to, cc, date, subject string) string {
+// printedHeader selects the header the app writes: the first child of the
+// page's body, a place no element of the message can take.
+const printedHeader = `body>.print-only:first-child`
+
+// PrintGuard keeps a message's own CSS from hiding or forging the header on
+// paper. The message's <style> shares the page and can name anything, with
+// !important and any specificity. These rules come first in the page, in
+// the first cascade layer, and the first layer's !important beats every
+// later layer's and every unlayered one's. So the header takes only these
+// values, the page's frame cannot move it, no generated text goes with it,
+// and each top-level element of the message paints below it.
+const PrintGuard = `@layer print-guard{@media print{` +
+	`html,body{display:block!important;position:static!important;float:none!important;transform:none!important;translate:none!important;rotate:none!important;scale:none!important;zoom:1!important;clip-path:none!important;mask:none!important;-webkit-mask:none!important;margin:0!important;border:0!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;columns:auto!important;writing-mode:horizontal-tb!important}` +
+	`html{padding:0!important}` +
+	`body{padding:0 20px 20px!important}` +
+	`html::before,html::after,body::before,body::after{content:none!important}` +
+	printedHeader + `,` + printedHeader + ` *{all:initial!important;font:12px/1.45 system-ui,sans-serif!important;color:#000!important;overflow-wrap:anywhere!important;direction:ltr!important;unicode-bidi:normal!important}` +
+	printedHeader + `{display:block!important;position:relative!important;z-index:2147483647!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;margin:0 0 16px!important;padding:0 0 8px!important;border-bottom:1px solid #ccc!important}` +
+	printedHeader + ` div{display:block!important;margin:2px 0!important}` +
+	printedHeader + ` b{font-weight:700!important}` +
+	printedHeader + `::before,` + printedHeader + `::after,` + printedHeader + ` *::before,` + printedHeader + ` *::after{content:none!important}` +
+	printedHeader + `::first-line,` + printedHeader + `::first-letter,` + printedHeader + ` *::first-line,` + printedHeader + ` *::first-letter{all:inherit!important}` +
+	printedHeader + `~*{position:relative!important;z-index:0!important}` +
+	`}}`
+
+// PrintHeader writes the lines that head a message on paper, escaped; a
+// warning, when there is one, follows them as the banner follows the header
+// on screen.
+func PrintHeader(from, to, cc, date, subject, warning string) string {
 	var b strings.Builder
 	line := func(label, value string) {
 		if value == "" {
@@ -193,5 +225,10 @@ func PrintHeader(from, to, cc, date, subject string) string {
 	line("Cc", cc)
 	line("Date", date)
 	line("Subject", subject)
+	if warning != "" {
+		b.WriteString(`<div>`)
+		b.WriteString(html.EscapeString(warning))
+		b.WriteString(`</div>`)
+	}
 	return b.String()
 }

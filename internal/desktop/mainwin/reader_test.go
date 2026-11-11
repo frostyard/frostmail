@@ -51,7 +51,7 @@ func (f *fakeFrame) text() string {
 }
 
 func (f *fakeFrame) View(c *ui.Context) ui.Element {
-	return ui.Column(c).Children(func() { ui.Text(c, f.text()) })
+	return ui.Column(c).Focusable().Children(func() { ui.Text(c, f.text()) })
 }
 func (f *fakeFrame) Height() float32 { return 60 }
 func (f *fakeFrame) Selection() string {
@@ -426,6 +426,50 @@ func TestReplyQuotesTheSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(d.Content.HTML, "second line") || strings.Contains(d.Content.HTML, "Whole body") {
+		t.Errorf("draft quotes %q", d.Content.HTML)
+	}
+}
+
+// M52: with selections in 2 pages, Reply quotes the one in the page focused
+// last, not the first in the reader's order.
+func TestReplyQuotesThePageFocusedLast(t *testing.T) {
+	f := newReaderFixture(t, func(mem *imapxtest.Mem) {
+		raw(mem, t, "From: Ann <ann@x.test>\nTo: me@x.test\nSubject: Long talk\nMessage-ID: <m1@x.test>\nDate: Mon, 09 Nov 2026 09:01:00 +0000\n\nOlder body\n")
+		raw(mem, t, "From: Ann <ann@x.test>\nTo: me@x.test\nSubject: Long talk\nMessage-ID: <m2@x.test>\nIn-Reply-To: <m1@x.test>\nReferences: <m1@x.test>\nDate: Mon, 09 Nov 2026 09:02:00 +0000\n\nNewer body\n")
+	})
+	f.has(t, "the row", "Long talk")
+	f.open(t, "Long talk")
+	page := func(text string) *fakeFrame {
+		for _, fr := range f.live() {
+			if strings.Contains(fr.text(), text) {
+				return fr
+			}
+		}
+		return nil
+	}
+	f.until(t, "both pages", func() bool { return page("Older body") != nil && page("Newer body") != nil })
+	for text, selection := range map[string]string{"Older body": "picked last", "Newer body": "picked first"} {
+		fr := page(text)
+		fr.mu.Lock()
+		fr.selection = selection
+		fr.mu.Unlock()
+	}
+	f.has(t, "the older page drawn", "Older body")
+	if err := f.tt.Click("Older body"); err != nil {
+		t.Fatal(err)
+	}
+	f.tt.Frame()
+	f.tt.Key(ui.Cmd, ui.KeyR)
+	f.until(t, "the draft", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return len(f.drafts) == 1
+	})
+	d, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: f.drafts[0]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(d.Content.HTML, "picked last") || strings.Contains(d.Content.HTML, "picked first") {
 		t.Errorf("draft quotes %q", d.Content.HTML)
 	}
 }

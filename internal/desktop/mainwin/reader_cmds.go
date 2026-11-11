@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -136,10 +137,15 @@ func (w *Window) syncReveal() {
 	}
 }
 
-// selectionForReply reads the first page holding a selection, in the
-// reader's order: the message it belongs to and the text (ADR-0053). It
+// selectionForReply reads the selection a reply quotes: the message it
+// belongs to and the text (ADR-0053). The page of the message focused comes
+// first, then the others in the reader's order: a page keeps its selection
+// when the focus leaves it, so the first in order can be an older one. It
 // waits for the pages: call it from a worker.
-func selectionForReply(pages []pageOf) (int64, string) {
+func selectionForReply(pages []pageOf, focused int64) (int64, string) {
+	if i := slices.IndexFunc(pages, func(p pageOf) bool { return p.id == focused }); i > 0 {
+		pages = slices.Concat(pages[i:i+1], pages[:i], pages[i+1:])
+	}
 	for _, p := range pages {
 		if s := p.frame.Selection(); strings.TrimSpace(s) != "" {
 			return p.id, s
@@ -156,11 +162,15 @@ func (w *Window) reply(kind api.DraftKind) {
 		return
 	}
 	pages := w.frames()
+	var focused int64
+	if w.conv != nil {
+		focused = w.conv.focused
+	}
 	id := ids[0]
 	w.run("start the reply", func(ctx context.Context, c *api.Client) error {
 		source := id
 		params := &api.DraftCreateParams{Kind: kind}
-		if from, quote := selectionForReply(pages); from != 0 {
+		if from, quote := selectionForReply(pages, focused); from != 0 {
 			source, params.Quote = from, &quote
 		}
 		params.SourceID = &source
@@ -297,7 +307,9 @@ func (w *Window) closeFind() {
 	for _, p := range w.find.pages {
 		p.frame.StopFind()
 	}
-	w.find = findState{}
+	// The token goes on from here: a Find still running must not match
+	// the next one's.
+	w.find = findState{token: w.find.token + 1}
 }
 
 func (w *Window) totalMatches() int {
@@ -363,6 +375,9 @@ func (w *Window) stepFind(target int) {
 	from := f.moved
 	f.moved = target
 	pages, counts, text := f.pages, f.counts, f.query
+	if len(counts) != len(pages) {
+		return // the counts are of other pages, until this find's arrive
+	}
 	go func() {
 		page, local := locate(counts, target)
 		fromPage, fromLocal := locate(counts, from)

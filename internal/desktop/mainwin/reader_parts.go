@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
@@ -519,17 +521,12 @@ func (w *Window) unsubscribe(cv *conv, m *openMsg, methods []api.UnsubscribeMeth
 	m.unsubBusy, m.unsubFailed = true, false
 	id := m.summary.ID
 	go func() {
-		failed := true
-		for _, method := range methods {
-			res, err := cv.client.Message().Unsubscribe(cv.ctx, &api.MessageUnsubscribeParams{ID: id, Method: method})
-			if err != nil {
-				continue
-			}
-			if res.URL != nil {
-				w.OpenLink(*res.URL)
-			}
-			failed = false
-			break
+		res, err := tryUnsubscribe(cv.ctx, methods, func(ctx context.Context, method api.UnsubscribeMethod) (*api.UnsubscribeResult, error) {
+			return cv.client.Message().Unsubscribe(ctx, &api.MessageUnsubscribeParams{ID: id, Method: method})
+		})
+		failed := err != nil
+		if !failed && res.URL != nil {
+			w.OpenLink(*res.URL)
 		}
 		var info *api.Unsubscribe
 		if !failed {
@@ -542,6 +539,24 @@ func (w *Window) unsubscribe(cv *conv, m *openMsg, methods []api.UnsubscribeMeth
 			}
 		})
 	}()
+}
+
+// tryUnsubscribe tries the methods in turn until one works. A cancel ends
+// it: the client sends a call even on a cancelled context, and maild would
+// carry out a method the user was not asked about, for a message no longer
+// shown.
+func tryUnsubscribe(ctx context.Context, methods []api.UnsubscribeMethod, call func(context.Context, api.UnsubscribeMethod) (*api.UnsubscribeResult, error)) (*api.UnsubscribeResult, error) {
+	err := errors.New("no method to unsubscribe with")
+	for _, method := range methods {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		var res *api.UnsubscribeResult
+		if res, err = call(ctx, method); err == nil {
+			return res, nil
+		}
+	}
+	return nil, err
 }
 
 func (w *Window) invitationCard(c *ui.Context, cv *conv, m *openMsg) {
@@ -659,11 +674,63 @@ func (w *Window) partFile(ctx context.Context, cv *conv, id int64, p api.Part) (
 		if f.ContentPath == nil {
 			return "", "", errors.New("lodge gave no content path")
 		}
-		path, err := lodge.Download(ctx, w.o.DownloadDir, *f.ContentPath, f.Filename)
+		dir, err := operationDir(w.o.DownloadDir, w.o.Now())
+		if err != nil {
+			return "", "", err
+		}
+		path, err := lodge.Download(ctx, dir, *f.ContentPath, f.Filename)
 		return path, w.o.DownloadDir, err
 	}
 	root := filepath.Join(w.o.CacheDir, "parts")
 	return filepath.Join(root, filepath.FromSlash(f.Path)), root, nil
+}
+
+// Each attachment opened from lodge gets a directory of its own, named with
+// operationPrefix, so that 2 of one name never share a path; one older than
+// operationKeep goes when the next is made: the viewer has had its file.
+const (
+	operationPrefix = "open-"
+	operationKeep   = 24 * time.Hour
+)
+
+func operationDir(root string, now time.Time) (string, error) {
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return "", err
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), operationPrefix) {
+			continue
+		}
+		if info, err := e.Info(); err == nil && now.Sub(info.ModTime()) > operationKeep {
+			_ = os.RemoveAll(filepath.Join(root, e.Name()))
+		}
+	}
+	return os.MkdirTemp(root, operationPrefix+"*")
+}
+
+// savePartTo writes a part to the file the user chose: straight from lodge,
+// or from maild's parts cache.
+func (w *Window) savePartTo(ctx context.Context, cv *conv, id int64, p api.Part, dest string) error {
+	lodge := w.state.Target.Lodge
+	if lodge == nil {
+		path, _, err := w.partFile(ctx, cv, id, p)
+		if err != nil {
+			return err
+		}
+		return copyFile(path, dest)
+	}
+	f, err := cv.client.Message().Part(ctx, &api.MessagePartParams{ID: id, Path: p.Path})
+	if err != nil {
+		return err
+	}
+	if f.ContentPath == nil {
+		return errors.New("lodge gave no content path")
+	}
+	return lodge.SaveTo(ctx, *f.ContentPath, dest)
 }
 
 func (w *Window) openPart(cv *conv, id int64, p api.Part) {
@@ -699,11 +766,7 @@ func (w *Window) savePart(cv *conv, id int64, p api.Part) {
 		}
 		ctx, cancel := context.WithTimeout(cv.ctx, downloadTimeout)
 		defer cancel()
-		path, _, err := w.partFile(ctx, cv, id, p)
-		if err == nil {
-			err = copyFile(path, dest)
-		}
-		if err != nil {
+		if err := w.savePartTo(ctx, cv, id, p, dest); err != nil {
 			w.toast("Could not save the attachment", err)
 		}
 	}()
