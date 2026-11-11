@@ -3,9 +3,11 @@ package mail
 import (
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 )
@@ -71,6 +73,69 @@ func SpamTarget(rows []api.MessageSummary, mailboxes []api.Mailbox) (notSpam boo
 		return true, withRole(rows[0].AccountID, api.MailboxRoleInbox, mailboxes)
 	}
 	return false, junk
+}
+
+// MoveGroup is one account's share of a selection, and where it goes: a
+// message moves only within its own account.
+type MoveGroup struct {
+	IDs []int64
+	To  api.Mailbox
+}
+
+// byAccount splits rows by account, in the order the accounts first come.
+func byAccount(rows []api.MessageSummary) [][]api.MessageSummary {
+	var out [][]api.MessageSummary
+	at := map[int64]int{}
+	for _, r := range rows {
+		i, ok := at[r.AccountID]
+		if !ok {
+			i = len(out)
+			at[r.AccountID] = i
+			out = append(out, nil)
+		}
+		out[i] = append(out[i], r)
+	}
+	return out
+}
+
+func idsOf(rows []api.MessageSummary) []int64 {
+	out := make([]int64, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.ID)
+	}
+	return out
+}
+
+// ArchiveGroups sends each account's messages to its own archive, and
+// leaves out an account that has none.
+func ArchiveGroups(rows []api.MessageSummary, mailboxes []api.Mailbox) []MoveGroup {
+	var out []MoveGroup
+	for _, group := range byAccount(rows) {
+		if to := ArchiveOf(group[0].AccountID, mailboxes); to != nil {
+			out = append(out, MoveGroup{IDs: idsOf(group), To: *to})
+		}
+	}
+	return out
+}
+
+// SpamGroups sends each account's messages to its own inbox when every row
+// is in its account's Junk, else to its own Junk, and leaves out an account
+// without that mailbox.
+func SpamGroups(rows []api.MessageSummary, mailboxes []api.Mailbox) (notSpam bool, groups []MoveGroup) {
+	notSpam = len(rows) > 0 && !slices.ContainsFunc(rows, func(r api.MessageSummary) bool {
+		junk := withRole(r.AccountID, api.MailboxRoleJunk, mailboxes)
+		return junk == nil || !slices.Contains(r.MailboxIDs, junk.ID)
+	})
+	role := api.MailboxRoleJunk
+	if notSpam {
+		role = api.MailboxRoleInbox
+	}
+	for _, group := range byAccount(rows) {
+		if to := withRole(group[0].AccountID, role, mailboxes); to != nil {
+			groups = append(groups, MoveGroup{IDs: idsOf(group), To: *to})
+		}
+	}
+	return notSpam, groups
 }
 
 // MoveTargets lists the message's account's mailboxes that do not hold it.
@@ -227,8 +292,23 @@ func FlagsBack(before []api.MessageSummary, c api.FlagChanges) []UndoCall {
 	return mergeCalls(calls)
 }
 
-// Undo keeps inverse actions in memory, oldest first.
+// How an undo waits for a move maild has not replayed yet.
+const (
+	undoRetry    = 200 * time.Millisecond
+	undoPatience = 10 * time.Second
+)
+
+// ErrUndoWaiting says an undo found its messages still moving on the
+// server; its entry stays, for another try.
+var ErrUndoWaiting = errors.New("the messages are still moving on the server; try Undo again in a moment")
+
+// Undo keeps inverse actions in memory, oldest first. One Undo belongs to
+// one maild: its calls name that maild's messages and mailboxes.
 type Undo struct {
+	// Retry and Patience are how often and how long an undo tries again
+	// while its messages are still moving [200ms, 10s].
+	Retry, Patience time.Duration
+
 	mu      sync.Mutex
 	entries [][]UndoCall
 	// acting is held for reading while an action runs, and for writing
@@ -297,9 +377,11 @@ func (u *Undo) Flags(ctx context.Context, c *api.Client, ids []int64, ch api.Fla
 	return nil
 }
 
-// Do removes and performs the newest inverse action; false when none. It
-// waits for an action still running, which is the newest once it ends, and
-// for an undo still running.
+// Do performs the newest inverse action and removes it; false when none.
+// It waits for an action still running, which is the newest once it ends,
+// and for an undo still running. An entry whose messages are still moving
+// stays (ErrUndoWaiting); no action can add one above it meanwhile, as
+// actions wait for an undo.
 func (u *Undo) Do(ctx context.Context, c *api.Client) (bool, error) {
 	u.acting.Lock()
 	defer u.acting.Unlock()
@@ -309,21 +391,83 @@ func (u *Undo) Do(ctx context.Context, c *api.Client) (bool, error) {
 		return false, nil
 	}
 	entry := u.entries[len(u.entries)-1]
+	u.mu.Unlock()
+	err := u.perform(ctx, c, entry)
+	if errors.Is(err, ErrUndoWaiting) {
+		return true, err
+	}
+	u.mu.Lock()
 	u.entries = u.entries[:len(u.entries)-1]
 	u.mu.Unlock()
+	return true, err
+}
+
+func (u *Undo) perform(ctx context.Context, c *api.Client, entry []UndoCall) error {
 	for _, call := range entry {
 		var err error
 		switch {
 		case call.Move != nil:
-			err = c.Message().Move(ctx, call.Move)
+			err = u.untilLanded(ctx, c, call.Move.IDs, call.Move.MailboxID, func() error { return c.Message().Move(ctx, call.Move) })
 		case call.Copy != nil:
-			err = c.Message().Copy(ctx, call.Copy)
+			err = u.untilLanded(ctx, c, call.Copy.IDs, call.Copy.MailboxID, func() error { return c.Message().Copy(ctx, call.Copy) })
 		default:
 			err = c.Message().SetFlags(ctx, call.Flags)
 		}
 		if err != nil {
-			return true, err
+			return err
 		}
 	}
-	return true, nil
+	return nil
+}
+
+// untilLanded runs call, a move or copy of ids into mailbox, until it takes
+// effect. maild skips, and reports as done, a message whose earlier move it
+// has not replayed on the server yet: that call changes nothing, and an
+// undo soon after its action would be lost.
+func (u *Undo) untilLanded(ctx context.Context, c *api.Client, ids []int64, mailbox int64, call func() error) error {
+	retry, patience := u.Retry, u.Patience
+	if retry == 0 {
+		retry = undoRetry
+	}
+	if patience == 0 {
+		patience = undoPatience
+	}
+	deadline := time.Now().Add(patience)
+	params := &api.MessageSummariesParams{IDs: ids}
+	for {
+		before, err := c.Message().Summaries(ctx, params)
+		if err != nil {
+			return err
+		}
+		if err := call(); err != nil {
+			return err
+		}
+		after, err := c.Message().Summaries(ctx, params)
+		if err != nil {
+			return err
+		}
+		if !skipped(before, after, mailbox) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return ErrUndoWaiting
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(retry):
+		}
+	}
+}
+
+// skipped reports whether a message that still exists is outside mailbox
+// with the memberships it had before the call.
+func skipped(before, after []api.MessageSummary, mailbox int64) bool {
+	was := make(map[int64][]int64, len(before))
+	for _, r := range before {
+		was[r.ID] = r.MailboxIDs
+	}
+	return slices.ContainsFunc(after, func(r api.MessageSummary) bool {
+		return !slices.Contains(r.MailboxIDs, mailbox) && slices.Equal(r.MailboxIDs, was[r.ID])
+	})
 }

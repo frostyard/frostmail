@@ -112,7 +112,7 @@ func (m *Mail) Connect(ctx context.Context, c *api.Client, events *Events) error
 	for _, s := range syncs {
 		byAccount[s.AccountID] = s
 	}
-	m.update(func(s *MailState) {
+	m.update(c, func(s *MailState) {
 		s.Accounts, s.Mailboxes, s.Sync, s.Outbox, s.Loaded = accounts, mailboxes, byAccount, outbox, true
 	})
 	for _, load := range []func(){m.loadVIPs, m.loadBlocked, m.loadSettings, m.loadSmart, m.loadRules, m.loadFollowUp} {
@@ -149,6 +149,16 @@ func (m *Mail) Disconnect() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.stopLocked()
+}
+
+// Forget empties the store, when the app moves to another maild: nothing
+// one maild said holds on another, and a load that fails there must not
+// leave it standing. A reconnect to the same maild keeps what it has.
+func (m *Mail) Forget() {
+	m.mu.Lock()
+	m.state = MailState{}
+	m.mu.Unlock()
+	m.notify()
 }
 
 func (m *Mail) stopLocked() {
@@ -195,7 +205,8 @@ func (m *Mail) event(ev api.Event) {
 	case api.RuleChanged:
 		go m.loadRules()
 	case api.SyncProgress:
-		m.update(func(s *MailState) {
+		c, _ := m.client()
+		m.update(c, func(s *MailState) {
 			next := make(map[int64]api.SyncStatus, len(s.Sync)+1)
 			maps.Copy(next, s.Sync)
 			next[e.Status.AccountID] = e.Status
@@ -220,10 +231,11 @@ func (m *Mail) client() (*api.Client, context.Context) {
 	return m.c, m.ctx
 }
 
-// update changes the state unless the store disconnected, and notifies.
-func (m *Mail) update(fn func(*MailState)) {
+// update changes the state unless the store has left c, and notifies: an
+// answer that comes after the next Connect is another connection's.
+func (m *Mail) update(c *api.Client, fn func(*MailState)) {
 	m.mu.Lock()
-	if m.c == nil {
+	if m.c == nil || m.c != c {
 		m.mu.Unlock()
 		return
 	}
@@ -235,6 +247,11 @@ func (m *Mail) update(fn func(*MailState)) {
 // loadInto runs one load on the store's client and stores its result.
 func loadInto[T any](m *Mail, call func(context.Context, *api.Client) (T, error), store func(*MailState, T)) {
 	c, ctx := m.client()
+	loadOn(ctx, m, c, call, store)
+}
+
+// loadOn is loadInto on a client the caller read with what it asks for.
+func loadOn[T any](ctx context.Context, m *Mail, c *api.Client, call func(context.Context, *api.Client) (T, error), store func(*MailState, T)) {
 	if c == nil {
 		return
 	}
@@ -244,7 +261,7 @@ func loadInto[T any](m *Mail, call func(context.Context, *api.Client) (T, error)
 	if err != nil {
 		return
 	}
-	m.update(func(s *MailState) { store(s, v) })
+	m.update(c, func(s *MailState) { store(s, v) })
 }
 
 func (m *Mail) loadAccountsAndMailboxes() {
@@ -285,7 +302,10 @@ func (m *Mail) loadFollowUp() {
 // loadCounts asks for the counts of VIPs, each VIP group, Flagged, the
 // seven flag colors and the smart mailboxes, in one call each.
 func (m *Mail) loadCounts() {
-	st := m.State()
+	// One read: the queries and their answers belong to one maild.
+	m.mu.Lock()
+	st, c, conn := m.state, m.c, m.ctx
+	m.mu.Unlock()
 	groups := mail.VIPGroups(st.VIPs)
 	queries := []api.ViewQuery{mail.SourceQuery(mail.Source{Kind: mail.VIPs}, false)}
 	for _, g := range groups {
@@ -295,7 +315,7 @@ func (m *Mail) loadCounts() {
 	for color := 1; color <= 7; color++ {
 		queries = append(queries, mail.SourceQuery(mail.Source{Kind: mail.FlagColor, Color: color}, false))
 	}
-	loadInto(m, func(ctx context.Context, c *api.Client) ([]api.ViewCount, error) {
+	loadOn(conn, m, c, func(ctx context.Context, c *api.Client) ([]api.ViewCount, error) {
 		return c.View().Count(ctx, &api.ViewCountParams{Queries: queries})
 	}, func(s *MailState, r []api.ViewCount) {
 		at := func(i int) api.ViewCount {
@@ -320,7 +340,7 @@ func (m *Mail) loadCounts() {
 	for _, sm := range st.Smart {
 		smart = append(smart, mail.SourceQuery(mail.Source{Kind: mail.Smart, ID: sm.ID}, false))
 	}
-	loadInto(m, func(ctx context.Context, c *api.Client) ([]api.ViewCount, error) {
+	loadOn(conn, m, c, func(ctx context.Context, c *api.Client) ([]api.ViewCount, error) {
 		return c.View().Count(ctx, &api.ViewCountParams{Queries: smart})
 	}, func(s *MailState, r []api.ViewCount) {
 		out := make(map[int64]api.ViewCount, len(r))

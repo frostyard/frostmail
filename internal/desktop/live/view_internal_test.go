@@ -41,7 +41,7 @@ func TestAMessageIsHeldAtOneIndexOnly(t *testing.T) {
 
 // A frame reads one state, whatever changes while it builds.
 func TestASnapshotDoesNotChange(t *testing.T) {
-	v := &View{rows: map[int64]api.MessageSummary{0: {ID: 1}, 1: {ID: 2}}, total: 2}
+	v := &View{rows: map[int64]api.MessageSummary{0: {ID: 1}, 1: {ID: 2}}, total: 2, departed: map[int64]bool{}}
 	snap := v.Snapshot()
 	v.applyLocked(api.ViewDelta{Count: 3, Ops: []api.ViewOp{{Op: api.ViewOpKindInsert, At: 0, Count: 1}}})
 	v.storeLocked(0, summaries(9))

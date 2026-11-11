@@ -45,13 +45,16 @@ type View struct {
 	closed  bool
 	early   []api.ViewDelta // deltas that came before view.open's reply
 	version uint64
+	// departed are the messages deltas removed from loaded rows, until a
+	// reply shows one back or TakeDeparted hands them on.
+	departed map[int64]bool
 }
 
 // OpenView opens a view of q on c and keeps it current from events.
 func OpenView(c *api.Client, events *Events, q api.ViewQuery, notify func()) *View {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &View{c: c, query: q, notify: notify, ctx: ctx, cancel: cancel,
-		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}}
+		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{}}
 	v.off = events.On(v.event)
 	go v.open()
 	return v
@@ -132,6 +135,43 @@ func (v *View) Rows(ids []int64) []api.MessageSummary {
 	return out
 }
 
+// TakeDeparted returns the messages that have left the view since the last
+// call. A row a delta removes may only have moved, so it says nothing while
+// the rows in view are still loading: a row that came back is not listed.
+// A row dropped to save memory has not left, and stays selectable.
+func (v *View) TakeDeparted() []int64 {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if len(v.departed) == 0 || !v.settledLocked() {
+		return nil
+	}
+	out := slices.Collect(maps.Keys(v.departed))
+	clear(v.departed)
+	return out
+}
+
+// Settled reports whether the view has opened and every row in view is
+// loaded: a message it does not list by then is not in view.
+func (v *View) Settled() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.opened && v.settledLocked()
+}
+
+// settledLocked reports whether every row in view is loaded.
+func (v *View) settledLocked() bool {
+	if len(v.loading) > 0 {
+		return false
+	}
+	last := min(v.window[1], v.total)
+	for p := v.window[0] / Page; p*Page < last; p++ {
+		if !v.pageLoaded(p) {
+			return false
+		}
+	}
+	return true
+}
+
 // Snapshot is a view's rows at one moment. Its rows never change, so one
 // frame reads one state: a view changes on other goroutines, and two reads
 // across a change could show one message at two indices.
@@ -199,8 +239,10 @@ func (v *View) Close() {
 	}
 }
 
+// open does not end with Close: maild may have opened the view already,
+// and only its answer says which one to close.
 func (v *View) open() {
-	ctx, cancel := context.WithTimeout(v.ctx, callTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 	defer cancel()
 	info, err := v.c.View().Open(ctx, &api.ViewOpenParams{Query: v.query})
 	v.mu.Lock()
@@ -271,6 +313,8 @@ func (v *View) applyLocked(d api.ViewDelta) {
 				next[i] = r
 			case i >= op.At+op.Count:
 				next[i-op.Count] = r
+			default:
+				v.departed[r.ID] = true
 			}
 		}
 		v.rows = next
@@ -309,6 +353,7 @@ func (v *View) storeLocked(start int64, rows []api.MessageSummary) {
 	incoming := make(map[int64]bool, len(rows))
 	for _, r := range rows {
 		incoming[r.ID] = true
+		delete(v.departed, r.ID)
 	}
 	next := make(map[int64]api.MessageSummary, len(v.rows)+len(rows))
 	for i, r := range v.rows {

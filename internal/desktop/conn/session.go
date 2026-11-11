@@ -26,11 +26,13 @@ type Options struct {
 	Client string
 	// Retry is the wait between attempts [1s]; Ping the interval of
 	// rpc.ping on a lodge connection [30s]; DialTimeout bounds one dial
-	// [15s].
-	Retry, Ping, DialTimeout time.Duration
+	// [15s]; ConnectTimeout bounds OnConnect [60s].
+	Retry, Ping, DialTimeout, ConnectTimeout time.Duration
 	// OnConnect runs with each new client before the session reports it
-	// connected: the app subscribes and loads its stores there. An error
-	// closes the client and counts as a failed attempt.
+	// connected: the app subscribes and loads its stores there. Its ctx
+	// ends with ConnectTimeout, or when it returns: what lives as long as
+	// the connection needs a context of its own. An error closes the
+	// client and counts as a failed attempt.
 	OnConnect func(ctx context.Context, c *api.Client, h *api.Hello) error
 	// OnChange learns every change of State, on the session's goroutine.
 	OnChange func(State)
@@ -61,6 +63,9 @@ func NewSession(t Target, o Options) *Session {
 	if o.DialTimeout == 0 {
 		o.DialTimeout = 15 * time.Second
 	}
+	if o.ConnectTimeout == 0 {
+		o.ConnectTimeout = 60 * time.Second
+	}
 	return &Session{opts: o, target: t, state: State{Target: t}, retarget: make(chan Target, 1), again: make(chan struct{}, 1)}
 }
 
@@ -78,6 +83,19 @@ func (s *Session) State() State {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.state
+}
+
+// Target is the maild the session connects to. During OnConnect it is the
+// one that client reached: only the session's goroutine changes it.
+func (s *Session) Target() Target { return s.currentTarget() }
+
+// Same reports whether t and u name one maild: IDs from one mean the same
+// on the other.
+func (t Target) Same(u Target) bool {
+	if t.Remote() || u.Remote() {
+		return t.Remote() && u.Remote() && t.Lodge.Origin() == u.Lodge.Origin()
+	}
+	return t.Socket == u.Socket
 }
 
 // SetTarget ends the current connection and connects to t instead (the
@@ -105,12 +123,14 @@ func (s *Session) Run(ctx context.Context) {
 		t := s.currentTarget()
 		dctx, cancel := context.WithTimeout(ctx, s.opts.DialTimeout)
 		c, h, err := Dial(dctx, t, s.opts.Client)
+		cancel()
 		if err == nil && s.opts.OnConnect != nil {
-			if err = s.opts.OnConnect(ctx, c, h); err != nil {
+			cctx, done := context.WithTimeout(ctx, s.opts.ConnectTimeout)
+			if err = s.opts.OnConnect(cctx, c, h); err != nil {
 				_ = c.Close()
 			}
+			done()
 		}
-		cancel()
 		if err != nil {
 			if ctx.Err() != nil {
 				return

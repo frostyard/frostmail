@@ -3,12 +3,18 @@ package live
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 )
+
+// maxPending is how many entries wait for activity.recent's answer, as
+// many as maild's buffer for one connection: the newest stay, and the rest
+// are counted in one dropped entry (ADR-0055, Bounded at every step).
+const maxPending = 256
 
 // Activity follows maild's background activity for the console
 // (ADR-0055): on each connection it subscribes, reads the recent entries,
@@ -21,6 +27,7 @@ type Activity struct {
 	off     func()
 	ready   bool
 	pending []api.ActivityEntry
+	lost    int64 // the entries pending had no room for
 	cut     int64 // this connection's subscription seq
 	seen    int64 // the highest seq handed on, on this connection
 	lastAt  time.Time
@@ -41,7 +48,7 @@ func (a *Activity) Connect(ctx context.Context, c *api.Client, events *Events) e
 	if a.off != nil {
 		a.off()
 	}
-	a.ready, a.pending, a.seen = false, nil, 0
+	a.ready, a.pending, a.lost, a.seen = false, nil, 0, 0
 	a.off = events.On(a.event) // before subscribing, so no entry is missed
 	a.mu.Unlock()
 
@@ -65,12 +72,15 @@ func (a *Activity) Connect(ctx context.Context, c *api.Client, events *Events) e
 			out = append(out, a.take(e))
 		}
 	}
+	if a.lost > 0 {
+		out = append(out, activity.Dropped(a.lost, time.Now()))
+	}
 	for _, e := range a.pending {
 		if e.Seq == 0 || e.Seq > a.seen {
 			out = append(out, a.take(e))
 		}
 	}
-	a.ready, a.pending = true, nil
+	a.ready, a.pending, a.lost = true, nil, 0
 	a.mu.Unlock()
 	for _, e := range out {
 		a.onEntry(e)
@@ -85,6 +95,10 @@ func (a *Activity) event(ev api.Event) {
 	}
 	a.mu.Lock()
 	if !a.ready {
+		if len(a.pending) >= maxPending {
+			a.pending = slices.Delete(a.pending, 0, 1)
+			a.lost++
+		}
 		a.pending = append(a.pending, e.Entry)
 		a.mu.Unlock()
 		return

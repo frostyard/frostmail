@@ -3,6 +3,7 @@ package mail_test
 import (
 	"bufio"
 	"encoding/json/v2"
+	"errors"
 	"net"
 	"slices"
 	"sync"
@@ -20,6 +21,7 @@ type moveServer struct {
 	box   int64
 	moves []int64
 	slow  int64
+	skips int // moves still to report done without doing, as maild does for a move not yet replayed
 }
 
 func (s *moveServer) client(t *testing.T) *api.Client {
@@ -63,8 +65,12 @@ func (s *moveServer) answer(conn net.Conn, write *sync.Mutex, req api.Frame) {
 			time.Sleep(50 * time.Millisecond) // lets a second undo overtake, if it can
 		}
 		s.mu.Lock()
-		s.box = p.MailboxID
-		s.moves = append(s.moves, p.MailboxID)
+		if s.skips > 0 {
+			s.skips--
+		} else {
+			s.box = p.MailboxID
+			s.moves = append(s.moves, p.MailboxID)
+		}
 		s.mu.Unlock()
 		result = struct{}{}
 	default:
@@ -112,4 +118,96 @@ func TestUndosRunOneAtATime(t *testing.T) {
 	if want := []int64{20, 30, 20, 10}; !slices.Equal(s.moves, want) {
 		t.Errorf("moves = %v, want %v", s.moves, want)
 	}
+}
+
+func movedOnce(t *testing.T, u *mail.Undo, c *api.Client) {
+	t.Helper()
+	ctx := t.Context()
+	if err := u.Move(ctx, c, []int64{1}, func() error {
+		return c.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{1}, MailboxID: 20})
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// maild skips a move whose message has an earlier move not yet replayed,
+// and reports it done: the undo goes on until it takes effect.
+func TestUndoWaitsForAMoveStillQueued(t *testing.T) {
+	s := &moveServer{box: 10}
+	c := s.client(t)
+	u := mail.Undo{Retry: time.Millisecond, Patience: 10 * time.Second}
+	movedOnce(t, &u, c)
+	s.mu.Lock()
+	s.skips = 3
+	s.mu.Unlock()
+	if ok, err := u.Do(t.Context(), c); !ok || err != nil {
+		t.Fatalf("undo = %v, %v", ok, err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.box != 10 {
+		t.Errorf("the message is in %d, want 10", s.box)
+	}
+	if u.Len() != 0 {
+		t.Errorf("%d entries left", u.Len())
+	}
+}
+
+// A move that never lands says so, and can be undone later.
+func TestUndoKeepsAnEntryStillMoving(t *testing.T) {
+	s := &moveServer{box: 10}
+	c := s.client(t)
+	u := mail.Undo{Retry: time.Millisecond, Patience: 5 * time.Millisecond}
+	movedOnce(t, &u, c)
+	s.mu.Lock()
+	s.skips = 1 << 30
+	s.mu.Unlock()
+	if _, err := u.Do(t.Context(), c); !errors.Is(err, mail.ErrUndoWaiting) {
+		t.Fatalf("undo = %v, want ErrUndoWaiting", err)
+	}
+	if u.Len() != 1 {
+		t.Fatalf("%d entries left, want the one that did not land", u.Len())
+	}
+	s.mu.Lock()
+	s.skips = 0
+	s.mu.Unlock()
+	if ok, err := u.Do(t.Context(), c); !ok || err != nil {
+		t.Fatalf("second undo = %v, %v", ok, err)
+	}
+	if u.Len() != 0 {
+		t.Errorf("%d entries left", u.Len())
+	}
+}
+
+func TestSelectionsMoveWithinTheirAccounts(t *testing.T) {
+	mbs := []api.Mailbox{
+		{ID: 1, AccountID: 1, Role: api.MailboxRoleInbox}, {ID: 2, AccountID: 1, Role: api.MailboxRoleJunk}, {ID: 3, AccountID: 1, Role: api.MailboxRoleArchive},
+		{ID: 4, AccountID: 2, Role: api.MailboxRoleInbox}, {ID: 5, AccountID: 2, Role: api.MailboxRoleJunk}, {ID: 6, AccountID: 2, Role: api.MailboxRoleArchive},
+		{ID: 7, AccountID: 3, Role: api.MailboxRoleInbox},
+	}
+	rows := []api.MessageSummary{{ID: 11, AccountID: 1, MailboxIDs: []int64{1}}, {ID: 21, AccountID: 2, MailboxIDs: []int64{4}},
+		{ID: 12, AccountID: 1, MailboxIDs: []int64{1}}, {ID: 31, AccountID: 3, MailboxIDs: []int64{7}}}
+	want := func(what string, got []mail.MoveGroup, ids [][]int64, to []int64) {
+		t.Helper()
+		if len(got) != len(ids) {
+			t.Fatalf("%s: %+v", what, got)
+		}
+		for i, g := range got {
+			if !slices.Equal(g.IDs, ids[i]) || g.To.ID != to[i] {
+				t.Errorf("%s group %d = %v to %d, want %v to %d", what, i, g.IDs, g.To.ID, ids[i], to[i])
+			}
+		}
+	}
+	want("archive", mail.ArchiveGroups(rows, mbs), [][]int64{{11, 12}, {21}}, []int64{3, 6})
+	notSpam, groups := mail.SpamGroups(rows, mbs)
+	if notSpam {
+		t.Error("rows in inboxes are Not Spam")
+	}
+	want("spam", groups, [][]int64{{11, 12}, {21}}, []int64{2, 5})
+	junked := []api.MessageSummary{{ID: 11, AccountID: 1, MailboxIDs: []int64{2}}, {ID: 21, AccountID: 2, MailboxIDs: []int64{5}}}
+	notSpam, groups = mail.SpamGroups(junked, mbs)
+	if !notSpam {
+		t.Error("rows each in their Junk are spam")
+	}
+	want("not spam", groups, [][]int64{{11}, {21}}, []int64{1, 4})
 }
