@@ -147,7 +147,7 @@ func (v *SafeHTMLView) New() (Frame, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	f := &safeFrame{owner: v, web: web, ctx: ctx, cancel: cancel}
+	f := &safeFrame{owner: v, web: web, ctx: ctx, cancel: cancel, loading: make(chan struct{}, 1)}
 	p := web.page
 	p.OnWillNavigate(func(e *mygo.NavigateEvent) { e.PreventDefault() })
 	p.SetWindowOpenHandler(func(req mygo.WindowOpenRequest) *mygo.WindowOptions {
@@ -165,19 +165,29 @@ type safeFrame struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	width [2]float32 // the window's and the element's; the UI thread's
+	width   [2]float32 // the window's and the element's; the UI thread's
+	focused bool       // the page had the keyboard at the last frame; the UI thread's
+
+	loading chan struct{} // holds a token while a document goes to the page
 
 	mu       sync.Mutex
+	newest   int // the number of the last Load
 	height   float32
 	shown    bool // a document has finished loading
 	polling  bool
 	agreed   int // measures in a row, this poll, that gave height
 	measures int // measures since the last event
+	watch    int // measures left while the page has the keyboard
 }
 
 // Load waits for the rules, so that no page shows without them: a page
-// whose rules failed to compile stays blank.
+// whose rules failed to compile stays blank. Only the newest document goes
+// to the page, and one at a time, so an older one never replaces it.
 func (f *safeFrame) Load(document string) {
+	f.mu.Lock()
+	f.newest++
+	number := f.newest
+	f.mu.Unlock()
 	go func() {
 		select {
 		case <-f.ctx.Done():
@@ -187,13 +197,31 @@ func (f *safeFrame) Load(document string) {
 		if f.owner.err != nil {
 			return
 		}
+		select {
+		case <-f.ctx.Done():
+			return
+		case f.loading <- struct{}{}:
+		}
+		defer func() { <-f.loading }()
+		if !f.isNewest(number) {
+			return
+		}
 		f.web.page.SetContentRules(f.owner.rules)
 		f.web.page.LoadHTML(document, "")
 	}()
 }
 
+// isNewest reports whether Load number is the last, on a page still open.
+func (f *safeFrame) isNewest(number int) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.newest == number && f.ctx.Err() == nil
+}
+
 // View draws the page. A new width or a click (on See More, say) can change
 // the page's height, and no script in it can say so: each measures it again.
+// So can a key the page takes for itself, which nothing here hears of: while
+// the page has the keyboard, a watch measures it for a while.
 func (f *safeFrame) View(c *ui.Context) ui.Element {
 	e := ui.WebView(c, f.web.view)
 	// The window's width is this frame's, the element's the last frame's.
@@ -203,7 +231,12 @@ func (f *safeFrame) View(c *ui.Context) ui.Element {
 	if resized {
 		f.width = width
 	}
-	if resized || e.PressedInside() {
+	pressed, focused := e.PressedInside(), e.Focused()
+	if focused != f.focused || focused && pressed {
+		f.focused = focused
+		f.watchKeyboard(focused)
+	}
+	if resized || pressed {
 		f.remeasure()
 	}
 	return e
@@ -217,11 +250,16 @@ func (f *safeFrame) Height() float32 {
 
 // A poll measures the page every measureInterval until measureAgree
 // measures in a row agree, or measureLimit measures since the last event
-// have not: then nothing measures the page until the next event.
+// have not: then nothing measures the page until the next event. While the
+// page has the keyboard the poll goes on, every watchInterval for watchLimit
+// measures from the focus or the last press: a page left focused stops being
+// measured all the same.
 const (
 	measureInterval = 400 * time.Millisecond
 	measureAgree    = 3
 	measureLimit    = 25
+	watchInterval   = time.Second
+	watchLimit      = 120
 )
 
 const measureScript = `Math.ceil(Math.max(document.body.scrollHeight,document.body.getBoundingClientRect().height))`
@@ -249,19 +287,33 @@ func (f *safeFrame) remeasure() {
 	}
 }
 
+// watchKeyboard starts the watch of a page that took the keyboard, or ends
+// it when the page lost it.
+func (f *safeFrame) watchKeyboard(focused bool) {
+	f.mu.Lock()
+	f.watch = 0
+	if focused {
+		f.watch = watchLimit
+	}
+	f.mu.Unlock()
+	if focused {
+		f.remeasure()
+	}
+}
+
 func (f *safeFrame) poll() {
 	for {
-		changed, done := f.record(f.measure())
+		changed, wait := f.record(f.measure())
 		if changed {
 			f.owner.notify()
 		}
-		if done {
+		if wait == 0 {
 			return
 		}
 		select {
 		case <-f.ctx.Done():
 			return
-		case <-time.After(measureInterval):
+		case <-time.After(wait):
 		}
 	}
 }
@@ -276,9 +328,9 @@ func (f *safeFrame) measure() (float32, bool) {
 	return float32(h), ok
 }
 
-// record takes a measure, and reports whether the height changed and
-// whether the poll is over.
-func (f *safeFrame) record(height float32, ok bool) (changed, done bool) {
+// record takes a measure, and reports whether the height changed and how
+// long until the next measure: 0 when the poll is over.
+func (f *safeFrame) record(height float32, ok bool) (changed bool, wait time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.measures++
@@ -294,11 +346,16 @@ func (f *safeFrame) record(height float32, ok bool) (changed, done bool) {
 		changed = height != f.height
 		f.height = height
 	}
-	done = f.agreed >= measureAgree || f.measures >= measureLimit
-	if done {
+	switch {
+	case f.agreed < measureAgree && f.measures < measureLimit:
+		wait = measureInterval
+	case f.watch > 0:
+		f.watch--
+		wait = watchInterval
+	default:
 		f.polling = false
 	}
-	return changed, done
+	return changed, wait
 }
 
 func (f *safeFrame) Selection() string {

@@ -23,6 +23,8 @@ type fakePage struct {
 	evals     int
 	heights   []float64 // the measures to give, the last one repeating
 	evalErr   error
+	held      string        // a document whose load waits for release
+	release   chan struct{} // closed to let it go on
 
 	willNavigate func(*mygo.NavigateEvent)
 	windowOpen   func(mygo.WindowOpenRequest) *mygo.WindowOptions
@@ -51,6 +53,9 @@ func (p *fakePage) SetContentRules(rules ...*mygo.ContentRules) {
 }
 
 func (p *fakePage) LoadHTML(html, _ string) {
+	if p.release != nil && html == p.held {
+		<-p.release
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.calls = append(p.calls, "load")
@@ -410,11 +415,143 @@ func TestSafeFrameMeasuresAfterAClick(t *testing.T) {
 		}
 		tt.ClickAt(page.Bounds.X+page.Bounds.W/2, page.Bounds.Y+page.Bounds.H/2)
 		idle()
-		if got := f.page.evaluated(); got != settled+measureAgree {
-			t.Errorf("%d measures, want %d", got, settled+measureAgree)
+		// The click also gave the page the keyboard, which it keeps.
+		if got := f.page.evaluated(); got != settled+measureAgree+watchLimit {
+			t.Errorf("%d measures, want %d", got, settled+measureAgree+watchLimit)
 		}
 		if h := frame.Height(); h != 320 {
 			t.Errorf("height after the click = %v", h)
+		}
+	})
+}
+
+// Of two loads waiting for the rules, only the newer shows.
+func TestSafeFrameDropsASupersededLoad(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		f := newPageFixture(func(string, string) (*mygo.ContentRules, error) {
+			<-release
+			return &mygo.ContentRules{}, nil
+		}, 100)
+		frame := f.frame(t)
+		frame.Load("<p>older</p>")
+		frame.Load("<p>newer</p>")
+		synctest.Wait()
+		close(release)
+		synctest.Wait()
+		if !slices.Equal(f.page.documents, []string{"<p>newer</p>"}) {
+			t.Errorf("documents = %q", f.page.documents)
+		}
+	})
+}
+
+// A load that comes while an older one is going to the page lands after it.
+func TestSafeFrameLoadsOneAtATime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newPageFixture(compiled, 100)
+		f.page.held, f.page.release = "<p>older</p>", make(chan struct{})
+		frame := f.frame(t)
+		frame.Load("<p>older</p>")
+		synctest.Wait()
+		frame.Load("<p>newer</p>")
+		synctest.Wait()
+		close(f.page.release)
+		synctest.Wait()
+		if !slices.Equal(f.page.documents, []string{"<p>older</p>", "<p>newer</p>"}) {
+			t.Errorf("documents = %q, want the newer last", f.page.documents)
+		}
+	})
+}
+
+// setHeight is the height the page measures from now on, as a key the page
+// took for itself would change it: nothing tells the frame.
+func (p *fakePage) setHeight(h float64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.heights = []float64{h}
+}
+
+// See More toggled from the keyboard says nothing to the app: the page is
+// measured while it has the keyboard, with no frame or event to ask for it.
+func TestSafeFrameMeasuresAKeyboardChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newPageFixture(compiled, 100)
+		margin := float32(0)
+		frame, tt := drawn(t, f, &margin)
+		tt.Frame()
+		f.page.didFinish()
+		idle()
+		tt.Key(0, ui.KeyTab) // into the page
+		synctest.Wait()
+		time.Sleep(30 * time.Second) // reading, with the keyboard in the page
+		synctest.Wait()
+		f.page.setHeight(640)
+		time.Sleep(2 * watchInterval)
+		synctest.Wait()
+		if h := frame.Height(); h != 640 {
+			t.Errorf("height after the toggle = %v", h)
+		}
+		if f.notified != 2 {
+			t.Errorf("notified %d times for 2 heights", f.notified)
+		}
+	})
+}
+
+// A page left with the keyboard is measured for a while, and then no more.
+func TestSafeFrameWatchEnds(t *testing.T) {
+	endless := make([]float64, 2*(measureLimit+watchLimit))
+	for i := range endless {
+		endless[i] = float64(i + 1)
+	}
+	for name, heights := range map[string][]float64{"settled": {100}, "growing": endless} {
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newPageFixture(compiled, heights...)
+				margin := float32(0)
+				_, tt := drawn(t, f, &margin)
+				tt.Frame()
+				tt.Key(0, ui.KeyTab)
+				f.page.didFinish()
+				idle()
+				measured := f.page.evaluated()
+				if measured > measureLimit+watchLimit {
+					t.Errorf("%d measures, over the bound of %d", measured, measureLimit+watchLimit)
+				}
+				for range 3 {
+					tt.Frame()
+					idle()
+				}
+				if got := f.page.evaluated(); got != measured {
+					t.Errorf("%d measures after the watch ended at %d", got, measured)
+				}
+			})
+		})
+	}
+}
+
+// The watch ends with the page's keyboard: the window losing it stops it.
+func TestSafeFrameWatchEndsWithTheFocus(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newPageFixture(compiled, 100)
+		margin := float32(0)
+		_, tt := drawn(t, f, &margin)
+		tt.Frame()
+		tt.Key(0, ui.KeyTab)
+		f.page.didFinish()
+		synctest.Wait()
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		tt.SetFocused(false)
+		synctest.Wait()
+		time.Sleep(watchInterval) // the measure already waiting
+		synctest.Wait()
+		stopped := f.page.evaluated()
+		idle()
+		if got := f.page.evaluated(); got != stopped {
+			t.Errorf("%d measures after the focus left, at %d when it did", got, stopped)
+		}
+		if stopped >= watchLimit {
+			t.Errorf("%d measures: the watch ran on", stopped)
 		}
 	})
 }
