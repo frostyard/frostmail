@@ -26,6 +26,14 @@ func keyOf(o *api.Occurrence) occKey { return occKey{o.EventID, o.RecurrenceID} 
 // miniMonthState is what a small month remembers.
 type miniMonthState struct{ shown, selection string }
 
+// syncSelection follows a newly selected day without resetting a month
+// the user browsed with the small calendar's arrows.
+func (st *miniMonthState) syncSelection(selected string) {
+	if st.selection != selected {
+		st.selection, st.shown = selected, selected
+	}
+}
+
 // calendarState is the Calendar module's state.
 type calendarState struct {
 	view        viewKind
@@ -125,7 +133,8 @@ func (m *Module) syncCalendar() {
 	cal.writable = m.writableCalendars()
 	from, to := viewRange(cal.view, cal.date, m.clock.weekStart)
 	m.loadRange(&cal.occ, from, to, "")
-	days := monthGrid(cal.date, m.clock.weekStart)
+	cal.month.syncSelection(cal.date)
+	days := monthGrid(cal.month.shown, m.clock.weekStart)
 	m.loadRange(&cal.mini, days[0], addDays(days[41], 1), "")
 	m.syncEvent()
 	m.endRemovedOccurrence(from, to)
@@ -409,9 +418,7 @@ func (m *Module) calendarBar(c *ui.Context) {
 // miniMonth draws the small month.
 func (m *Module) miniMonth(c *ui.Context, st *miniMonthState, selected string, busy map[string]bool, onSelect func(string)) {
 	t := c.Theme()
-	if st.selection != selected {
-		st.selection, st.shown = selected, selected
-	}
+	st.syncSelection(selected)
 	days := monthGrid(st.shown, m.clock.weekStart)
 	title := viewTitle(viewMonth, st.shown, m.clock.weekStart)
 	today := m.today()
@@ -772,7 +779,7 @@ func (m *Module) dropOccurrence(o api.Occurrence, fields func(zone string) api.E
 	if !canMove(&o, m.writableCalendars()) || m.client == nil {
 		return
 	}
-	c := m.client
+	c, daemon := m.client, m.daemon
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
@@ -782,6 +789,9 @@ func (m *Module) dropOccurrence(o api.Occurrence, fields func(zone string) api.E
 		}
 		e, err := c.Calendar().Event(ctx, p)
 		m.o.Post(func() {
+			if m.daemon != daemon {
+				return
+			}
 			if err != nil {
 				m.o.Toast("Could not move the event", err)
 				return

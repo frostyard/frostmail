@@ -52,19 +52,27 @@ type writeOutcome struct {
 }
 
 // withNotify runs a write, asking on d first if it would tell invitees;
-// done runs on the UI thread. send gets notify nil, then true.
+// done runs on the UI thread. send gets notify nil, then true. A change
+// of maild drops the answer and prevents a pending confirmation from sending.
 func (m *Module) withNotify(d *frostui.Dialogs, send func(ctx context.Context, c *api.Client, notify *bool) (string, error), done func(writeOutcome)) {
-	c := m.client
+	c, daemon := m.client, m.daemon
 	if c == nil {
 		done(writeOutcome{err: errors.New("not connected")})
 		return
 	}
 	call := func(notify *bool, then func(string, error)) {
+		if m.daemon != daemon {
+			return
+		}
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 			defer cancel()
 			restore, err := send(ctx, c, notify)
-			m.o.Post(func() { then(restore, err) })
+			m.o.Post(func() {
+				if m.daemon == daemon {
+					then(restore, err)
+				}
+			})
 		}()
 	}
 	call(nil, func(restore string, err error) {
@@ -77,7 +85,11 @@ func (m *Module) withNotify(d *frostui.Dialogs, send func(ctx context.Context, c
 			OnConfirm: func() {
 				call(ptr(true), func(restore string, err error) { done(writeOutcome{restore: restore, err: err}) })
 			},
-			OnCancel: func() { done(writeOutcome{cancelled: true}) },
+			OnCancel: func() {
+				if m.daemon == daemon {
+					done(writeOutcome{cancelled: true})
+				}
+			},
 		})
 	})
 }

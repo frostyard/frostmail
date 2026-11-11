@@ -140,6 +140,7 @@ type Window struct {
 	later         compose.TimeSheet
 	pim           *pim.Module
 	module        commands.Module
+	nextModule    commands.Module // a switch after task fields take their last input
 	tableModule   commands.Module
 	todoOpen      bool
 	smartSheet    *organize.SmartSheet
@@ -507,6 +508,11 @@ func (w *Window) View(c *ui.Context) {
 	w.smartSheet.View(c)
 	w.mailboxSheet.View(c)
 	w.redirectView(c)
+	if w.nextModule != "" {
+		w.pim.CommitTaskPane()
+		w.module, w.nextModule = w.nextModule, ""
+		c.AnimationFrame()
+	}
 }
 
 func (w *Window) mailNames() mail.Names {

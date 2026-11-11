@@ -31,7 +31,8 @@ func (m *Module) ToDoBar(c *ui.Context) {
 	m.loadCalendars()
 	st := &m.todo
 	today := m.today()
-	days := monthGrid(m.cal.date, m.clock.weekStart)
+	st.month.syncSelection(m.cal.date)
+	days := monthGrid(st.month.shown, m.clock.weekStart)
 	minute := m.now().Truncate(time.Minute).String()
 	m.loadRange(&st.mini, days[0], addDays(days[41], 1), minute)
 	m.loadRange(&st.upcoming, today, addDays(today, 8), minute)

@@ -26,7 +26,13 @@ func (w *Window) setModule(m commands.Module) {
 	if w.pim.Inert() {
 		return
 	}
-	w.module = m
+	// Keep the task fields for this draw so they consume the input that
+	// arrived with the switch, including an input method's final commit.
+	if w.module == commands.Tasks && m != commands.Tasks && w.pim.TaskPaneActive() {
+		w.nextModule = m
+		return
+	}
+	w.module, w.nextModule = m, ""
 }
 
 // showMessage shows a message in Mail.
