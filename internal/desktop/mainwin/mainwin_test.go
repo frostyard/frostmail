@@ -247,7 +247,7 @@ func TestReaderActionsShowBesideTheWindowControls(t *testing.T) {
 		f.tt.SetTitleBar(ui.TitleBar{Height: 52, Right: 224})
 		f.tt.Frame()
 		f.tt.Frame()
-		for _, name := range []string{"Reply (Ctrl+R)", "Reply All (Ctrl+Shift+R)", "Forward (Ctrl+Shift+F)", "Mark as Read or Unread", "Move"} {
+		for _, name := range []string{"Delete", "Archive", "Reply (Ctrl+R)", "Reply All (Ctrl+Shift+R)", "Forward (Ctrl+Shift+F)", "Flag", "Mark as Read or Unread", "Move", "To-Do Bar"} {
 			info, ok := f.tt.Access(name)
 			if !ok || info.Bounds.W < 20 || info.Bounds.X+info.Bounds.W > float32(width) {
 				t.Errorf("at %d wide, %q is at %+v, %v", width, name, info.Bounds, ok)
@@ -312,4 +312,15 @@ func TestSettingsCommandOpensTheWindow(t *testing.T) {
 	opened.Store("none")
 	tt.Key(ui.Cmd, ui.KeyComma)
 	waitFor(t, tt, "the window asked for", func() bool { return opened.Load() == "" })
+}
+
+func TestFindWithoutAMessageFocusesSearch(t *testing.T) {
+	f := newFixture(t, 1)
+	f.until(t, "the list", func() bool { return f.tt.HasText("Message 1") })
+	f.tt.Key(ui.Cmd, ui.KeyF)
+	f.tt.Frame()
+	f.tt.Frame()
+	if search, ok := f.tt.Access("Search"); !ok || !search.Focused {
+		t.Fatalf("Ctrl+F without a message: search = %+v, %v", search, ok)
+	}
 }

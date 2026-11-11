@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
+	"github.com/frostyard/frostui/frostuitest"
 )
 
 // heldFrame is a page whose Find waits on the channel of its text.
@@ -294,5 +296,64 @@ func TestOperationDirIsPerOperation(t *testing.T) {
 		if _, err := os.Stat(dir); err != nil {
 			t.Errorf("%s went: %v", dir, err)
 		}
+	}
+}
+
+type commandFrame struct {
+	heldFrame
+	prints int
+}
+
+func (f *commandFrame) Print() { f.prints++ }
+func (f *commandFrame) Close() {}
+
+func TestCollapsedReaderCommandsRunOnce(t *testing.T) {
+	for _, command := range []string{"headers", "source", "print"} {
+		t.Run(command, func(t *testing.T) {
+			release := make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			defer unblock()
+			row := api.MessageSummary{ID: 1, Subject: "Collapsed"}
+			s := &fakeMaild{result: map[string]any{
+				"message.get": api.Message{Summary: row}, "message.render": api.Rendering{Text: "Body"},
+				"message.source": api.MessageSource{Text: "Raw body", Headers: "X-Test: header"},
+			}, hold: map[string]chan struct{}{"message.get": release}}
+			loop := frostuitest.NewLoop()
+			frame := &commandFrame{}
+			w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, NewFrame: func() (uikit.Frame, error) { return frame, nil }})
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			cv := &conv{id: 1, client: s.client(t), ctx: ctx, cancel: cancel, rows: []api.MessageSummary{row, {ID: 2}}, expanded: map[int64]bool{}, msgs: map[int64]*openMsg{}}
+			w.conv = cv
+			switch command {
+			case "headers":
+				w.allHeadersCommand()
+			case "source":
+				w.rawSourceCommand()
+			case "print":
+				w.printMessage()
+				if frame.prints != 0 || !cv.msgs[1].printOnLoad {
+					t.Fatal("print was not queued for the collapsed message")
+				}
+			}
+			unblock()
+			poll(t, "the command's result", func() bool {
+				loop.Flush()
+				switch command {
+				case "headers":
+					return cv.msgs[1].headers != nil && *cv.msgs[1].headers == "X-Test: header"
+				case "source":
+					return w.rawSource != nil && w.rawSource.source.Text == "Raw body"
+				default:
+					return frame.prints == 1
+				}
+			})
+			if !cv.isOpen(1) {
+				t.Error("the command did not expand the message")
+			}
+			if command != "print" && s.count("message.source") != 1 {
+				t.Error("the command read the source more than once")
+			}
+		})
 	}
 }

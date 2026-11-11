@@ -79,7 +79,7 @@ type Frame interface {
 	Find(text string, next, back bool) (active, matches int)
 	// StopFind removes the highlights.
 	StopFind()
-	// Print opens the print dialog on the page.
+	// Print opens the print dialog once the page has finished its first load.
 	Print()
 	// Close destroys the page.
 	Close()
@@ -177,16 +177,17 @@ type safeFrame struct {
 
 	loading chan struct{} // holds a token while a document goes to the page
 
-	mu       sync.Mutex
-	newest   int // the number of the last Load
-	height   float32
-	shown    bool // a document has finished loading
-	polling  bool
-	agreed   int  // measures in a row, this poll, that gave height
-	measures int  // measures since the last event
-	watching bool // the page had the keyboard at the last frame that drew it
-	drawn    bool // a frame drew the page since the watch last looked
-	quiet    int  // watch measures since the watch last looked
+	mu          sync.Mutex
+	newest      int // the number of the last Load
+	height      float32
+	printOnLoad bool // a print requested before the first document finished
+	shown       bool // a document has finished loading
+	polling     bool
+	agreed      int  // measures in a row, this poll, that gave height
+	measures    int  // measures since the last event
+	watching    bool // the page had the keyboard at the last frame that drew it
+	drawn       bool // a frame drew the page since the watch last looked
+	quiet       int  // watch measures since the watch last looked
 }
 
 // Load waits for the rules, so that no page shows without them: a page
@@ -277,7 +278,12 @@ const measureScript = `Math.ceil(Math.max(document.body.scrollHeight,document.bo
 func (f *safeFrame) loaded() {
 	f.mu.Lock()
 	f.shown = true
+	print := f.printOnLoad && f.ctx.Err() == nil
+	f.printOnLoad = false
 	f.mu.Unlock()
+	if print {
+		f.web.page.Print()
+	}
 	f.remeasure()
 }
 
@@ -393,7 +399,20 @@ func (f *safeFrame) Find(text string, next, back bool) (active, matches int) {
 
 func (f *safeFrame) StopFind() { f.web.page.StopFindInPage() }
 
-func (f *safeFrame) Print() { f.web.page.Print() }
+func (f *safeFrame) Print() {
+	f.mu.Lock()
+	if f.ctx.Err() != nil {
+		f.mu.Unlock()
+		return
+	}
+	if !f.shown {
+		f.printOnLoad = true
+		f.mu.Unlock()
+		return
+	}
+	f.mu.Unlock()
+	f.web.page.Print()
+}
 
 func (f *safeFrame) Close() {
 	f.cancel()

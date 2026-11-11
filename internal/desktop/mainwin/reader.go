@@ -43,6 +43,7 @@ type openMsg struct {
 	loadingRemote bool
 	headers       *string
 	frame         uikit.Frame
+	printOnLoad   bool
 	invitation    *api.Invitation
 	inviteBusy    bool
 	unsub         *api.Unsubscribe
@@ -245,6 +246,10 @@ func (w *Window) showRendering(m *openMsg, r *api.Rendering) {
 		body, style = mail.TextHTML(r.Text), mail.TextStyle
 	}
 	m.frame.Load(uikit.Document(body, w.printHeader(m), mail.PrintGuard+style))
+	if m.printOnLoad {
+		m.printOnLoad = false
+		m.frame.Print()
+	}
 }
 
 func (w *Window) printHeader(m *openMsg) string {
@@ -483,7 +488,7 @@ func (w *Window) selectedMessage() *openMsg {
 }
 
 // expandSelected opens the selected message if it is collapsed; ok once
-// its message has loaded.
+// its state exists. Source and headers can load alongside its body.
 func (w *Window) expandSelected() (*openMsg, bool) {
 	if w.conv == nil {
 		return nil, false
@@ -492,7 +497,7 @@ func (w *Window) expandSelected() (*openMsg, bool) {
 		w.setExpanded(w.conv, w.conv.id, true)
 	}
 	m := w.selectedMessage()
-	return m, m != nil && m.message != nil
+	return m, m != nil
 }
 
 // frames are the pages shown, in the reader's order.
@@ -515,8 +520,12 @@ type pageOf struct {
 }
 
 func (w *Window) printMessage() {
-	if m, ok := w.expandSelected(); ok && m.frame != nil {
-		m.frame.Print()
+	if m, ok := w.expandSelected(); ok {
+		if m.frame != nil {
+			m.frame.Print()
+		} else {
+			m.printOnLoad = true
+		}
 	}
 }
 

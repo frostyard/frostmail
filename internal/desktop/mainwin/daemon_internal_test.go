@@ -17,6 +17,7 @@ import (
 	"github.com/frostyard/frostui/frostuitest"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
@@ -981,5 +982,37 @@ func TestSidebarFooterScrolls(t *testing.T) {
 	}
 	if top := float32(height)*(1-footerShare) - after.H; after.Y < top-1 || after.Y+after.H > height+1 {
 		t.Errorf("the line after the footer is at %v, want the footer within %v of %d", after, footerShare, height)
+	}
+}
+
+func TestPaletteMailResultsSwitchToMail(t *testing.T) {
+	for _, module := range []commands.Module{commands.Calendar, commands.People, commands.Tasks} {
+		for _, mailbox := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/mailbox=%v", module, mailbox), func(t *testing.T) {
+				row := api.MessageSummary{ID: 42, Subject: "Plans", From: api.Address{Address: "ann@x.test"}}
+				s := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1}, "view.range": []api.MessageSummary{row}, "message.summaries": []api.MessageSummary{row}}}
+				loop := frostuitest.NewLoop()
+				w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond})
+				w.client, w.events, w.module = s.client(t), live.NewEvents(), module
+				t.Cleanup(func() {
+					if w.view != nil {
+						w.view.Close()
+					}
+				})
+				if mailbox {
+					w.tree = map[string]mail.Item{"mailbox:5": {Key: "mailbox:5", Label: "Plans folder", Selectable: true, MailboxID: 5}}
+				}
+				var after func()
+				tt := paletteOn(w, loop, &after)
+				w.shell.Palette.Show()
+				w.shell.Palette.Query = "plans"
+				draw(t, tt, "the result", func() bool { return tt.HasText("Plans") && (!mailbox || tt.HasText("Plans folder")) })
+				tt.Key(0, ui.KeyEnter)
+				tt.Frame()
+				if w.module != commands.Mail {
+					t.Fatalf("mail result left module %s showing", w.module)
+				}
+			})
+		}
 	}
 }
