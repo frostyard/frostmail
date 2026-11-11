@@ -343,3 +343,94 @@ func TestDownloadRefusesPathsOutOfTheContentRoute(t *testing.T) {
 		}
 	}
 }
+
+// A redirect could take the upgrade to plain http or to another origin, past
+// ParseLodge's rule, so the dial never follows one.
+func TestDialLodgeRefusesARedirect(t *testing.T) {
+	var followed atomic.Int32
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		followed.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(other.Close)
+	from := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/app/mail/api", http.StatusFound)
+	}))
+	t.Cleanup(from.Close)
+	l, err := conn.ParseLodge(from.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := conn.Dial(t.Context(), conn.Target{Lodge: &l}, "frostmail test")
+	if err == nil {
+		_ = c.Close()
+		t.Fatal("a redirect connected")
+	}
+	if n := followed.Load(); n != 0 {
+		t.Errorf("the dial followed the redirect %d times", n)
+	}
+}
+
+// contentServer is a lodge whose content node serves body for every path.
+func contentServer(t *testing.T, body string) conn.Lodge {
+	t.Helper()
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/lodge/apps" {
+			_, _ = w.Write([]byte(`{"contentOrigin":"` + srv.URL + `"}`))
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	l, err := conn.ParseLodge(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return l
+}
+
+// A download's temporary file is its own: a file with the name a fixed one
+// would take stays, and nothing is left behind.
+func TestSaveToUsesATemporaryFileOfItsOwn(t *testing.T) {
+	l := contentServer(t, "the message")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "message.eml")
+	beside := path + ".download"
+	if err := os.WriteFile(beside, []byte("the user's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SaveTo(t.Context(), "m/1", path); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "the message" {
+		t.Errorf("saved %q, %v", got, err)
+	}
+	if got, err := os.ReadFile(beside); err != nil || string(got) != "the user's" {
+		t.Errorf("the file beside it holds %q, %v", got, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 2 {
+		t.Errorf("the directory holds %v, %v", entries, err)
+	}
+	if fi, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600) {
+		t.Errorf("the file's mode = %v, %v", fi.Mode(), err)
+	}
+}
+
+func TestDownloadsToOnePathDoNotCollide(t *testing.T) {
+	l := contentServer(t, strings.Repeat("x", 1<<20))
+	path := filepath.Join(t.TempDir(), "message.eml")
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			if err := l.SaveTo(t.Context(), "m/1", path); err != nil {
+				t.Errorf("save: %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	if fi, err := os.Stat(path); err != nil || fi.Size() != 1<<20 {
+		t.Errorf("the file = %v, %v", fi, err)
+	}
+}

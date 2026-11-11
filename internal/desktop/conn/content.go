@@ -144,10 +144,21 @@ func SafeName(name string) string {
 	return trimmed
 }
 
+// writeNew puts data at path through a temporary file of its own, readable
+// by the user only: two downloads to one path cannot share it, and it
+// replaces no file beside path.
 func writeNew(path string, data []byte) error {
-	tmp := path + ".download"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".download-*")
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

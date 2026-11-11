@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -16,6 +17,12 @@ import (
 // maxFrame is the largest WebSocket frame lodge sends: 16 MiB, its
 // app contract's limit.
 const maxFrame = 16 << 20
+
+var errRedirected = errors.New("lodge answered with a redirect, which the app does not follow")
+
+// dialClient follows no redirect: one could take the upgrade to plain http
+// or to another origin, past ParseLodge's rule.
+var dialClient = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return errRedirected }}
 
 // Dial connects to the target's maild and completes rpc.hello as client.
 func Dial(ctx context.Context, t Target, client string) (*api.Client, *api.Hello, error) {
@@ -40,6 +47,7 @@ func Dial(ctx context.Context, t Target, client string) (*api.Client, *api.Hello
 // text frame as one per line.
 func dialLodge(ctx context.Context, l Lodge) (net.Conn, error) {
 	ws, _, err := websocket.Dial(ctx, l.APIURL(), &websocket.DialOptions{
+		HTTPClient: dialClient,
 		HTTPHeader: http.Header{"Origin": {l.Origin()}},
 	})
 	if err != nil {
