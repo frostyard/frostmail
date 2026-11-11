@@ -1,4 +1,4 @@
-// Command flatpakgo prints the Go modules maild and mailctl need as
+// Command flatpakgo prints the Go modules the app, maild and mailctl need as
 // flatpak-builder `file` sources, so a Flatpak builds offline
 // (docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
 //

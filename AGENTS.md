@@ -137,16 +137,17 @@ its parity gate.
   lodge's frame (routes, windows as routes), over
   `app/src/rpc/transport/lodge.ts`.
 - `packaging/flatpak`: the app's Flatpak manifest, its metainfo and desktop
-  entry, and the offline `cargo-sources.json`, `node-sources.json` and
-  `go-sources.json` (`make flatpak-sources`; [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
+  entry, and the offline `go-sources.json` (`make flatpak-sources`;
+  [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
   The Flatpak holds the app, maild and mailctl (`/app/bin`, built from
   `go-sources.json`), the launcher `frostmail.sh`, the Background helper and
   a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
   CI builds it in `.github/workflows/flatpak.yml`; on a `v*` tag,
   `stamp-version.sh` first stamps the version (without `-rc.N`) into the
-  manifest, the metainfo and `app/src-tauri/tauri.conf.json` (the shell's
-  version, ADR-0049), which keep `flatpak` and 0.0.0 in git. `install.sh` is the
-  wrapper for the development bundle, with a host maild.
+  manifest and the metainfo, which keep `flatpak` and 0.0.0 in git. `install.sh`
+  is the wrapper for the development bundle, with a host maild.
+- `packaging/windows/installer.nsh` and `mygo.json`: MyGo's Windows installer
+  (`make desktop-installer`). `packaging/icons`: the app's icons.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
@@ -163,11 +164,12 @@ its parity gate.
 - `make engine-it` runs integration tests against the Dovecot container
   (resetting it first). `make ui-test` and `make app-build` run in the nsl
   machine. `make ci` is verify plus race tests and the app checks.
-- `make flatpak-sources` regenerates the 3 sources files of the Flatpak. Run
-  it after any change to `app/src-tauri/Cargo.lock`, `app/pnpm-lock.yaml`,
-  `go.mod` or `go.sum`, in the nsl machine (it needs Python 3 with venv and
-  Go, not Node or Rust); CI's job
+- `make flatpak-sources` regenerates the Flatpak's `go-sources.json`. Run it
+  after any change to `go.mod` or `go.sum`; CI's job
   "Flatpak sources (make flatpak-sources)" fails on a stale file.
+- `make desktop-e2e` drives the built app in real windows on fixture mail
+  (`internal/desktop/e2e`, `-tags e2e`; it needs a display: Xvfb with xdotool,
+  or Windows' desktop).
 - `make vulncheck` runs govulncheck (pinned in the Makefile; needs the
   network). It is not part of `check`, `verify` or `ci`; the CI job
   "Vulnerabilities (make vulncheck)" runs it. Keep it at 0 reachable findings.
@@ -200,10 +202,9 @@ its parity gate.
   `Cargo.lock` and `packaging/flatpak/cargo-sources.json` pin its commit.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
-- The generated Flatpak sources (`packaging/flatpak/go-sources.json` and
-  `node-sources.json`, from `make flatpak-sources`) mirror the Go and UI versions above,
-  and `cargo-sources.json` the Rust crate's tag; they change with every bump. Run
-  `make flatpak-sources` after a change to `go.mod`, `go.sum` or `Cargo.lock`.
+- The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
+  the Go versions above; it changes with every bump. Run `make flatpak-sources`
+  after a change to `go.mod` or `go.sum`.
   `mise.toml`, the other `packaging/` files, the workflows and `scripts/` pin no
   frostyard or bketelsen module.
 - Users: lodge hosts maild as its `mail` app, and Porter calls `/mcp/mail`. Other users:
@@ -262,10 +263,9 @@ The repository follows core's baseline (frostyard/core ADR-0071, its spec
   `app/package.json`, each `Cargo.toml`). A new manifest gets an entry.
   Groups take only minor and patch updates; a major comes as its own PR.
   Each cargo git crate of frostyard or bketelsen has an `ignore` entry
-  (Dependabot cannot resolve it; internal bumps go by hand). A gomod, npm
-  or `app/src-tauri` cargo PR fails the Flatpak sources check until the
-  owner runs `make flatpak-sources` (nsl) on its branch and pushes the
-  result during triage.
+  (Dependabot cannot resolve it; internal bumps go by hand). A gomod PR
+  fails the Flatpak sources check until the owner runs
+  `make flatpak-sources` on its branch and pushes the result during triage.
 
 `.github/pull_request_template.md` (B7) holds the risk tier. Vulnerabilities
 are reported privately ([SECURITY.md](SECURITY.md), B14). No `CODEOWNERS`

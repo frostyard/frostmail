@@ -582,8 +582,8 @@ unless that pipe listed only fixture accounts.
   Phase 7; the reply family in the menus goes to Phase 5; opening a
   Follow Up row and moving between panes with Tab go to Phase 4, with
   the reader.
-- **Gap:** contact photos (P-209) are built, in the Sort menu's Contact
-  Photos, and have no Go test yet.
+- Contact photos (P-209) are in the Sort menu's Contact Photos, with
+  `TestContactPhotosInTheList`.
 
 ## Phase 4 — The reader (L)
 
@@ -615,9 +615,9 @@ unless that pipe listed only fixture accounts.
   browser), and the window count stayed at 1. A `file:` link in the same
   message reached the page as plain text, since maild's sanitizer had
   removed the link.
-- **Not run:** clicking a link in the built app on WebKitGTK, and a
-  direct probe for script in the built app on either engine (the spikes
-  ran those on the page).
+- **Not run:** a direct probe for script in the built app on either
+  engine (the spikes ran that on the page). A link click on WebKitGTK is
+  in Phase 9's check.
 - **Differences from the React reader, to confirm at the gate:**
   - Find covers the message bodies only, not the native header and
     banners. Text bodies are drawn in a page too, so find, print and
@@ -661,8 +661,10 @@ unless that pipe listed only fixture accounts.
   sandbox, fixture maild:** Ctrl+N opened a second window titled "New
   Message" at 720 × 560 with its To, Cc, Subject and body fields, and
   Ctrl+W closed it.
-- **Not done:** a message with an inline image sent from the native
-  window, and a part-by-part comparison with the React app's MIME output.
+- **Not done:** a part-by-part comparison with the React app's MIME
+  output. A forward with an inline image is in Phase 9's check; maild's
+  quoted rendering gave its small picture as a `data:` URL, so it went out
+  that way, not as a `cid:` part (`design/send.md` describes `mailpart:`).
 - **Differences from the React window, to confirm at the gate:**
   - The actions are a row under the top bar, in compose and over the
     reader, rather than in the top bar. GTK's window controls took about
@@ -718,8 +720,7 @@ unless that pipe listed only fixture accounts.
 - **Check of 2026-11-10, built app in the Flatpak's sandbox, showcase
   fixture:** Ctrl+2, 3 and 4 showed Calendar, People and Tasks; the week
   showed its events; Ctrl+N in Calendar opened a window titled "New
-  Event". Dragging and the reminders window were not run in a real
-  window.
+  Event". Dragging and the reminders window are in Phase 9's check.
 - **Built but not tested:** choosing through the date, time, zone, repeat
   and calendar controls; the Menu key; Home and End in Tasks.
 - **Differences to confirm at the gate:** a double click in Month creates
@@ -747,8 +748,7 @@ unless that pipe listed only fixture accounts.
 - **Check of 2026-11-10, built app in the Flatpak's sandbox, fixture
   maild:** Ctrl+, opened a window titled "Settings" with its 7 panes; the
   General and Accounts panes were read in a screenshot. The Server pane's
-  change of mode was not run in a real window, and `mailctl shutdown` and
-  `frostmail --start-maild` were not run behind it.
+  change of mode is in Phase 9's check.
 - **Differences to confirm at the gate:** a sidebar of panes instead of
   the toolbar's tabs; lists capped at 196 high above their forms; smart
   mailboxes in the notify scope as "Smart Mailbox: name", as `Select` has
@@ -788,10 +788,17 @@ unless that pipe listed only fixture accounts.
   internal-crate line change with the files they name.
 - **Done when:** CI builds the Flatpak and the Windows installer from the
   Go app, and both install and run on the test machines.
-- **Status (2026-11-10): the parts that leave Tauri in place are built.**
-  `make desktop-build` and `make desktop-build-windows` build the app
-  with the production flags, and `cmd/frostmail` records crashes and
-  `bridge.socket_lost` (`TestLosingTheSocketIsRecorded`).
+- **Status (2026-11-10): built.** The Flatpak builds `cmd/frostmail`,
+  maild and mailctl in one Go module; `make desktop-installer` builds
+  MyGo's installer with `packaging/windows/installer.nsh`, and the `app`
+  and `windows-app` jobs build and test the Go app. Those jobs keep their
+  names, which the branch's required checks match on. `cmd/frostmail`
+  records crashes and `bridge.socket_lost`
+  (`TestLosingTheSocketIsRecorded`). In the Flatpak the single-instance
+  socket goes in the app's shared runtime directory, since a
+  notification's click starts the app in a new sandbox.
+- **Not done:** `make screenshots` and the axe audit have no Go or web
+  form yet; the README's and metainfo's images are still of the Tauri app.
 - **Check of 2026-11-10 on Windows 11, fixture maild:** the build from
   `GOOS=windows` ran: the main window with Windows' caption buttons and
   frostui's embedded icons, the reader, compose, Settings, and Calendar
@@ -803,10 +810,45 @@ unless that pipe listed only fixture accounts.
   reminder id`. The notifier was the installed copy, built 2026-10-16; its
   one later change is a dependency bump. A toast was not clicked: its
   handler is the real install's.
-- **Not done, on purpose:** the Flatpak manifest, the Windows installer
-  and the `app` and `windows-app` CI jobs still build Tauri. Moving them
-  removes the shipping app, and the brief keeps Tauri until the parity
-  gate; the installer also needs the Windows test machine.
+- **Check of 2026-11-10, the installer on Windows 11:** a build of the
+  installer under another name and identifier (`Frostmail Check`, its own
+  AppUserModelID, toast scheme, Tauri key and data folder), run silently
+  into `C:\fm\test`, over a stand-in Tauri install with a fixture
+  account. The stand-in's maild stopped; its `frostmail.exe`, `maild.exe`,
+  `mailctl.exe`, `frostmail-notify.exe`, `frostmail.png` and
+  `uninstall.exe` were gone; `Data` and `Cache` stayed; its uninstall and
+  vendor keys were gone. The new install's maild ran, and its `mailctl`
+  listed the fixture account. The installed app showed the fixture's mail
+  with `Local` in its status bar, and `frostmail-notify.exe --activate`
+  with a message reached the running app as a second instance, which
+  opened that message; 1 app process remained. A silent uninstall (run
+  with `_?=`, so the folder was removed by the check) left no process,
+  uninstall key, AppUserModelID, toast scheme or shortcut, and kept
+  `Data` and `Cache`; a variant answering yes removed them. Registry
+  values, maild's process and the file times of the real install were the
+  same before and after. **Not exercised:** the `maild -autostart on`
+  step and the Run key's removal, which that build leaves out because
+  they would change the real install's entry; taking over the real
+  install; the uninstall's question in its dialog.
+- **Check of 2026-11-10, lodge mode on Windows 11:** the same installed
+  app with `app.json` naming a stand-in for lodge on loopback, which
+  relayed `/app/mail/api` to the fixture's maild and added 2
+  `message.announced` frames. The status bar showed `127.0.0.1:18480`, a
+  toast appeared on screen, and the toast history held tags `m990001` and
+  `a9901` with the frames' texts. After the notifier's `remove`, it held
+  neither.
+- **Check of 2026-11-10, `make desktop-e2e` under Xvfb on GTK and
+  WebKitGTK, fixture maild:** 6 tests passed: every message of the hostile
+  corpus shown with 0 requests to its canary; a real pointer click on a
+  link reached the link handler with 1 window open; a forward with an
+  inline image sent to `smtpsink` kept its picture; dragging an event
+  down an hour moved it by an hour in maild; a due alert opened the
+  reminders window, Dismiss answered 2 reminders and the window closed;
+  the Server pane, with `FLATPAK_ID` set, a real `mailctl shutdown` and a
+  stand-in for the launcher's `--start-maild`, stopped maild on the way
+  to lodge and brought it back. Snooze's menu is a native popup that
+  automation cannot reach; `TestRemindersRaiseListSnoozeDismissAndClose`
+  covers it headless.
 
 ## Phase 10 — The parity gate and removing Tauri (M)
 

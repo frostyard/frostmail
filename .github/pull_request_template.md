@@ -31,7 +31,7 @@ Risk tier: 1 — <!-- justification -->
 - [ ] `make check` green (host)
 - [ ] `make ui-check`, `make app-test` or `make app-build` green (nsl), for a change under `app/`
 - [ ] `make engine-it` green, for a change to sync, send or the IMAP fork
-- [ ] `make flatpak-sources` run (nsl), for a change to `go.mod`, `go.sum`, `app/pnpm-lock.yaml` or `app/src-tauri/Cargo.lock`
+- [ ] `make flatpak-sources` run, for a change to `go.mod` or `go.sum`
 - [ ] Revert test for a fix: the new test fails with the fix reverted; command: <!-- name it -->
 - [ ] Workflows changed: every action is SHA-pinned with `# vX.Y.Z`, `permissions: {}`, and `persist-credentials: false`
 - [ ] Blocking review point fixed: guard added and 1 `.memory/corrections.jsonl` line added

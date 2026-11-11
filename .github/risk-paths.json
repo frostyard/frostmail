@@ -53,6 +53,11 @@
       "why": "publication: the user unit that make install puts in place"
     },
     {
+      "glob": "{mygo.json,packaging/windows/**,scripts/windows-installer.sh}",
+      "level": "L1",
+      "why": "destructive operations: the Windows installer and its NSIS macros, which stop processes, remove a previous install, register protocol handlers and can delete the user's mail"
+    },
+    {
       "glob": "app/src-tauri/{tauri.windows.conf.json,windows/**}",
       "level": "L1",
       "why": "destructive operations: the Windows installer and its NSIS hooks, which stop processes, register startup and URI handlers, and delete app data at uninstall"

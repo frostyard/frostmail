@@ -1,4 +1,4 @@
-.PHONY: help build build-windows install install-app flatpak-sources uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
+.PHONY: help build build-windows install install-app flatpak-sources desktop-installer desktop-e2e uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check ci vulncheck web-build lodge-package deb deb-check bump svu-version-check ui-check ui-test ui-vitest ui-e2e ui-fmt screenshots app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -53,6 +53,16 @@ desktop-build: ## Build the native desktop app into build/frostmail
 desktop-build-windows: ## Cross-compile the native desktop app into build/windows/frostmail.exe
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags mygo_noinspector -ldflags '$(LDFLAGS) -X github.com/egoist/mygo.production=1 -H=windowsgui' -o build/windows/frostmail.exe ./cmd/frostmail
 
+# The Windows installer holds maild, mailctl and the notifier beside the app.
+# NOTIFIER is frostmail-notify.exe, which cargo builds in app/notify.
+NOTIFIER ?= build/frostmail-notify.exe
+desktop-installer: ## Build the Windows installer into build/mygo/windows-amd64 (NOTIFIER=path to frostmail-notify.exe)
+	scripts/windows-installer.sh $(NOTIFIER)
+
+# The real-window checks need a display: Xvfb with xdotool, or Windows' desktop.
+desktop-e2e: ## Drive the built app in real windows on fixture mail (needs a display)
+	go test -tags e2e -timeout 15m -count=1 ./internal/desktop/e2e/
+
 PREFIX ?= $(HOME)/.local
 UNIT_DIR ?= $(HOME)/.config/systemd/user
 
@@ -64,15 +74,14 @@ install: build ## Install maild and mailctl for this user and (re)start maild as
 	systemctl --user enable maild.service
 	systemctl --user restart maild.service
 
-install-app: app-build ## Package the app as a local Flatpak and install it for this user (ADR-0013)
+install-app: desktop-build ## Package the app as a local Flatpak and install it for this user (ADR-0013)
 	packaging/flatpak/install.sh
 
 # The Flatpak's offline sources (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md):
-# the crates, the pnpm store and the Go modules as flatpak-builder sources. Run
-# it after any change to Cargo.lock, pnpm-lock.yaml, go.mod or go.sum; CI's
-# Flatpak sources job fails on a stale file. Needs the network, git, Go and
-# Python 3 with venv (nsl: python3-venv).
-flatpak-sources: ## Regenerate packaging/flatpak/{cargo,node,go}-sources.json (network, Go, Python 3)
+# the Go modules as flatpak-builder sources. Run it after any change to go.mod
+# or go.sum; CI's Flatpak sources job fails on a stale file. Needs the network
+# and Go.
+flatpak-sources: ## Regenerate packaging/flatpak/go-sources.json (network, Go)
 	scripts/flatpak-sources.sh
 
 uninstall: ## Stop maild and remove it, mailctl and the user service; mail data stays
@@ -118,7 +127,9 @@ verify: ## Tidy, generated files, vet (Linux and Windows), format, lint and unit
 	go mod tidy -diff
 	$(MAKE) --no-print-directory gen-check
 	go vet ./...
+	go vet -tags e2e ./internal/desktop/e2e/
 	GOOS=windows go vet ./...
+	GOOS=windows go vet -tags e2e ./internal/desktop/e2e/
 	test -z "$$(gofmt -l $(GO_FILES))"
 	$(MAKE) --no-print-directory lint
 	go test ./...
@@ -126,7 +137,7 @@ verify: ## Tidy, generated files, vet (Linux and Windows), format, lint and unit
 
 check: fmt verify ## Format, then verify (the developer gate)
 
-ci: verify ui-check app-test app-build ## verify plus race tests and the app checks
+ci: verify ui-check desktop-build desktop-build-windows ## verify plus race tests and the app checks
 	go test -race ./...
 
 vulncheck: ## Report reachable vulnerabilities (govulncheck; needs the network)
@@ -154,11 +165,10 @@ zones: ## Regenerate internal/calendar/zones_gen.go from CLDR's pinned windowsZo
 ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
 
-app-build: ## Build the release app binary into build/frostmail-app (nsl)
-	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm tauri build && mkdir -p ../build && cp "$$CARGO_TARGET_DIR/release/frostmail" ../build/frostmail-app'
+app-build: desktop-build ## Build the release app binary into build/frostmail
 
 web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs/specs/lodge-app.md)
-	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --mode lodge --base /app/mail/ --outDir ../build/web --emptyOutDir && cp src-tauri/icons/icon.svg ../build/web/icon.svg'
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --mode lodge --base /app/mail/ --outDir ../build/web --emptyOutDir && cp ../packaging/icons/icon.svg ../build/web/icon.svg'
 
 # lodge-package stages maild as lodge's mail app under LODGE_DESTDIR, in
 # lodge's install layout (docs/specs/lodge-app.md), with
@@ -257,19 +267,18 @@ bump: ## Tag the candidate's commit as the release and push the tag (CANDIDATE=v
 
 # The shell's notifications test needs a session bus: dbus-run-session gives
 # it one where the machine has it, and it skips elsewhere.
-app-test: ## Run the app shell's and the Windows notifier's Rust tests (nsl)
-	$(IN_NSL) 'cd app/src-tauri && $$(command -v dbus-run-session >/dev/null && echo dbus-run-session --) cargo test --release && cd ../notify && cargo test --release'
+app-test: ## Run the desktop app's Go tests and the Windows notifier's Rust tests
+	go test ./cmd/frostmail/ ./internal/desktop/...
+	cd app/notify && cargo test --release
 
-# Windows CI builds the Windows app (ADR-0038); here it is only type-checked,
-# without the sidecars its bundle takes.
-app-check-windows: ## Type-check the app shell and the notifier for Windows (nsl)
-	$(IN_NSL) 'export CARGO_TARGET_DIR="$$CARGO_TARGET_DIR-windows" && cd app/src-tauri && TAURI_CONFIG="{\"bundle\":{\"externalBin\":null}}" cargo check --release --target x86_64-pc-windows-msvc --all-targets && cd ../notify && cargo check --release --target x86_64-pc-windows-msvc --all-targets'
+# Windows CI builds the notifier (ADR-0038); here it is only type-checked.
+app-check-windows: ## Type-check the notifier for Windows (nsl)
+	$(IN_NSL) 'export CARGO_TARGET_DIR="$$CARGO_TARGET_DIR-windows" && cd app/notify && cargo check --release --target x86_64-pc-windows-msvc'
 
-app-dev: build ## Run maild and tauri dev in the nsl machine
-	$(IN_NSL) 'scripts/dev-app.sh'
+app-dev: build desktop-build ## Run maild and the built app on fixture-free local state
+	scripts/dev-app.sh
 
-app-run: build app-build ## Run maild and the built app in the nsl machine
-	$(IN_NSL) 'APP_BINARY=build/frostmail-app scripts/dev-app.sh'
+app-run: app-dev ## Alias for app-dev
 
 mailtest-up: ## Create the incus test mail server
 	dev/incus/mailtest.sh up

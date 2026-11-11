@@ -1,0 +1,13 @@
+{
+  "name": "Frostmail",
+  "slug": "frostmail",
+  "identifier": "org.frostyard.Frostmail",
+  "version": "0.0.0",
+  "publisher": "frostyard",
+  "icon": "packaging/icons/icon.png",
+  "main": "./cmd/frostmail",
+  "out": "build/mygo",
+  "windows": {
+    "installerInclude": "packaging/windows/installer.nsh"
+  }
+}

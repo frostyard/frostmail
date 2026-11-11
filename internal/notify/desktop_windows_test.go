@@ -98,3 +98,19 @@ func TestNoNotifierNoNotifications(t *testing.T) {
 		t.Fatalf("OpenDesktop without a notifier = %+v", d)
 	}
 }
+
+// A maild behind lodge writes the notes itself; the app hands them on.
+func TestNotifierShowsNotesAlreadyWritten(t *testing.T) {
+	d, ops := fakeNotifier(t)
+	notes := []Note{{Summary: "Ada", Body: "Hello", MessageID: 9}, {Summary: "4 new messages", Body: "From Ada"}}
+	if err := d.Show(t.Context(), 3, notes); err != nil {
+		t.Fatal(err)
+	}
+	want := []toastOp{
+		{Op: "show", Tag: "m9", Group: "mail", Title: "Ada", Body: "Hello", Open: 9},
+		{Op: "show", Tag: "a3", Group: "mail", Title: "4 new messages", Body: "From Ada"},
+	}
+	if got := ops(); !slices.Equal(got, want) {
+		t.Errorf("ops = %+v, want %+v", got, want)
+	}
+}

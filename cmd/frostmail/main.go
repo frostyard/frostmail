@@ -59,7 +59,7 @@ func run() error {
 		return err
 	}
 	mygo.App.SetName(config.AppID)
-	if !mygo.App.RequestSingleInstanceLock() {
+	if !lockSingleInstance() {
 		return nil // the running app takes over
 	}
 	frostui.SetIcons(frostui.NewIcons(icons.Embedded()))

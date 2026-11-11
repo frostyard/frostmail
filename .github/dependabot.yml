@@ -1,11 +1,10 @@
 # Dependabot (frostyard/core ADR-0071, baseline row B13): 1 entry for each
 # ecosystem with a manifest here. internal/workflowcheck checks the list.
 #
-# A gomod, npm or app/src-tauri cargo update also changes the Flatpak's
-# offline sources: its PR fails the Flatpak workflow's sources check until
-# `make flatpak-sources` (nsl) is run on its branch: the owner runs it in
-# the nsl machine during triage and pushes the result to the Dependabot
-# branch. third_party/go-imap is a patched fork (ADR-0004): it is updated by
+# A gomod update also changes the Flatpak's offline sources: its PR fails
+# the Flatpak workflow's sources check until `make flatpak-sources` is run on
+# its branch: the owner runs it during triage and pushes the result to the
+# Dependabot branch. third_party/go-imap is a patched fork (ADR-0004): it is updated by
 # hand, never by Dependabot.
 #
 # Each group takes only minor and patch updates. A major update comes as a

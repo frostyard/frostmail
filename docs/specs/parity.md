@@ -63,7 +63,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` | `TestRowMenuFlagsAndMarks` |
 | P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` | `TestRowHoverActions` |
 | P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` | `TestRowShowsCountAndVIPStar` |
-| P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` |  |
+| P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` | `TestContactPhotosInTheList` |
 | P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |  |
 | P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |  |
 | P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |  |
@@ -110,7 +110,7 @@ tasks are not Mail's and are not listed; their parity is
 
 | ID | Mail.app | Frostmail | Status | Test | Desktop test |
 | --- | --- | --- | --- | --- | --- |
-| P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` | `TestNewMessageWithAttachment`, `TestAttachByBytes`, `TestBccToggleAndFormatBar` |
+| P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` | `TestNewMessageWithAttachment`, `TestAttachByBytes`, `TestBccToggleAndFormatBar`, `TestForwardKeepsAnInlineImage` (e2e) |
 | P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` | `TestSignatureEditsAsTextAndSavesAsHTML`, `TestAddAndRemoveAnAddress` |
 | P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` | `TestInsertSnippet` |
 | P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` | `TestRecipientsOfferKnownAddresses` |

@@ -71,7 +71,30 @@ func Build(ctx context.Context, o Options) error {
 	defer func() { _ = db.Close() }()
 
 	if o.Showcase != "" {
-		return buildShowcase(ctx, db, blob.New(filepath.Join(o.Out, "blobs")), o.Out, o.Showcase, time.Now())
+		if err := buildShowcase(ctx, db, blob.New(filepath.Join(o.Out, "blobs")), o.Out, o.Showcase, time.Now()); err != nil {
+			return err
+		}
+		if o.SMTP == "" {
+			return nil
+		}
+		accounts, err := db.ListAccounts(ctx)
+		if err != nil {
+			return err
+		}
+		// The account gets a password, so its sync would connect: to nothing.
+		nowhere := store.ServerConfig{Host: "127.0.0.1", Port: 1, TLS: api.TLSModeTLS, Username: fixtureEmail}
+		for _, a := range accounts {
+			if err := db.Tx(ctx, func(tx *store.Tx) error {
+				_, err := tx.UpdateAccount(ctx, a.ID, store.AccountUpdate{IMAP: &nowhere})
+				return err
+			}); err != nil {
+				return err
+			}
+			if err := useSMTP(ctx, db, a.ID, o.Out, o.SMTP); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	accountID, mbIDs, err := setupAccount(ctx, db)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -66,7 +65,7 @@ func newSettings(post func(func()), target conn.Target, main func() *mainwin.Win
 		Connection:   func() conn.State { return main().ConnectionState() },
 		Toast:        func(title string, err error) { main().ShowProblem(title, err) },
 		EditRule:     s.editRule,
-		Announce:     func(_ int64, notes []api.Announcement) { announce(notes, post, main) },
+		Announce:     newAnnouncer(post, main),
 	})
 	return s, nil
 }
@@ -123,21 +122,4 @@ func bounded(ctx context.Context, limit time.Duration, program string, args ...s
 		return errors.New(last)
 	}
 	return fmt.Errorf("running %s: %w", program, err)
-}
-
-// announce shows maild's notes as notifications, for a maild behind lodge,
-// which has no desktop to notify on; a click shows the message.
-func announce(notes []api.Announcement, post func(func()), main func() *mainwin.Window) {
-	for _, note := range notes {
-		id := ""
-		if note.MessageID != nil {
-			id = "message-" + strconv.FormatInt(*note.MessageID, 10)
-		}
-		n := mygo.NewNotification(mygo.NotificationOptions{ID: id, Title: note.Title, Body: note.Body})
-		if note.MessageID != nil {
-			message := *note.MessageID
-			n.OnClick(func() { post(func() { main().OpenMessage(message) }) })
-		}
-		_ = n.Show()
-	}
 }

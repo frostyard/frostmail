@@ -1,6 +1,7 @@
 package mainwin_test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"slices"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
 // listRight is the list pane's right edge at the default widths.
@@ -339,4 +341,48 @@ func TestSmartMailboxShowsAndLists(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.until(t, "its messages", func() bool { return f.tt.HasText("Gamma notes") && !f.tt.HasText("Beta plan") })
+}
+
+// P-209: with Contact Photos on, a sender who is a contact with a photo has
+// it in the list, from maild; off, the row has none.
+func TestContactPhotosInTheList(t *testing.T) {
+	f := newFixture(t, 2)
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	err = f.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		if err := tx.SetService(ctx, f.acct, api.ServiceKindContacts, true, "https://dav.test/"); err != nil {
+			return err
+		}
+		cols, err := tx.ReplaceCollections(ctx, f.acct, api.CollectionKindAddressbook, []store.RemoteCollection{{Href: "/ab/", Name: "Contacts"}})
+		if err != nil {
+			return err
+		}
+		id, err := tx.PutObject(ctx, store.Object{CollectionID: cols[0].ID, Href: "/ab/ann.vcf", ETag: `"1"`, Kind: store.ObjectVCard,
+			Raw: []byte("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ann\r\nFN:Ann\r\nEMAIL:ann@x.test\r\nEND:VCARD\r\n")})
+		if err != nil {
+			return err
+		}
+		if err := tx.IndexContact(ctx, id, store.ContactIndex{DisplayName: "Ann", SortKey: "ann",
+			Emails: []store.ContactEmail{{Email: "ann@x.test"}}, Photo: png, PhotoType: "image/png"}); err != nil {
+			return err
+		}
+		return tx.RelinkPeople(ctx)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.until(t, "the list", func() bool { return slices.Contains(f.tt.Texts(), "Message 2") })
+	if _, ok := f.tt.AccessByRole(ui.RoleImage, "Ann"); ok {
+		t.Fatal("a photo with Contact Photos off")
+	}
+	if err := f.tt.Click("Sort by Date"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.tt.ChooseMenuItem("Contact Photos"); err != nil {
+		t.Fatalf("%v; menu %q", err, f.tt.Menu())
+	}
+	f.until(t, "the sender's photo", func() bool { _, ok := f.tt.AccessByRole(ui.RoleImage, "Ann"); return ok })
 }
