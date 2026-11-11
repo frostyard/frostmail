@@ -76,7 +76,7 @@ and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Proposed) adds maild's activity stream for the app's console; its maild
 side is built (`mailctl activity`). `cmd/frostmail` draws every window on
-Linux on frostui v0.3.0 (`internal/desktop/`: `mainwin`, `compose`, `organize`,
+Linux on frostui v0.3.1 (`internal/desktop/`: `mainwin`, `compose`, `organize`,
 `pim`, `settings`), and the Flatpak, the Windows installer and CI build it.
 Tauri's shell is gone; plan 0015 has each phase's status, and the parity gate
 waits on the owner's checks on real desktops.
