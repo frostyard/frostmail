@@ -16,6 +16,9 @@ export XDG_CONFIG_HOME=/var/tmp/frostmail/config
 # Its own secrets file: the host keyring would share account/1/password with a
 # real maild on this machine.
 export FROSTMAIL_SECRETS=file
+# Its own single instance: the app's would hand this run's arguments to the
+# user's app, or the user's to this one.
+export FROSTMAIL_INSTANCE=dev
 
 "$MAILD" &
 maild_pid=$!

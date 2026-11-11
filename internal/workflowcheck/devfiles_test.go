@@ -58,7 +58,8 @@ func TestDevAppFakeMaild(t *testing.T) {
 
 // TestDevAppKeepsAwayFromTheUsersMaild runs scripts/dev-app.sh with stand-ins
 // for maild and the app: what the app is given must name neither the user's
-// socket nor the user's app.json.
+// socket nor the user's app.json, nor share the user's app's single
+// instance.
 func TestDevAppKeepsAwayFromTheUsersMaild(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a shell script")
@@ -112,6 +113,11 @@ func TestDevAppKeepsAwayFromTheUsersMaild(t *testing.T) {
 	}
 	if s := seen["FROSTMAIL_SECRETS"]; s != "file" {
 		t.Errorf("the dev run's secrets = %q, want its own file, not the user's keyring", s)
+	}
+	// M10: an instance of its own, or the dev run hands its arguments to
+	// the user's app (cmd/frostmail, appName).
+	if s := seen["FROSTMAIL_INSTANCE"]; s == "" {
+		t.Error("the dev run shares the user's app's single instance: no FROSTMAIL_INSTANCE")
 	}
 	if s := seen["FROSTMAIL_SOCKET"]; s == "" || s == socket {
 		t.Errorf("the app's socket = %q, the user's is %q", s, socket)

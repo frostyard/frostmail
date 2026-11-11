@@ -39,6 +39,18 @@ func main() {
 	}
 }
 
+// appName is the name MyGo knows the app by, which names its single
+// instance. FROSTMAIL_INSTANCE, which the development run sets
+// (scripts/dev-app.sh), gives a run an instance of its own: without it, the
+// development run would hand its arguments to the user's app, or take the
+// user's, as the one instance of the app.
+func appName(getenv func(string) string) string {
+	if instance := getenv("FROSTMAIL_INSTANCE"); instance != "" {
+		return config.AppID + "." + instance
+	}
+	return config.AppID
+}
+
 // codeSocketLost is the problem record of maild's local socket ending
 // under the app (ADR-0049).
 const codeSocketLost = "bridge.socket_lost"
@@ -58,7 +70,7 @@ func run() error {
 	if err := frostui.SetAppID(config.AppID, "Frostmail"); err != nil {
 		return err
 	}
-	mygo.App.SetName(config.AppID)
+	mygo.App.SetName(appName(os.Getenv))
 	if !lockSingleInstance() {
 		return nil // the running app takes over
 	}
