@@ -11,11 +11,13 @@ import (
 var repaintDelays = []time.Duration{60 * time.Millisecond, 300 * time.Millisecond}
 
 // windowSet repaints the app's windows when another changes what they
-// share. MyGo v0.8.3's windows share one glyph atlas: a window that does
-// not rebuild after another has added glyphs draws stale positions, with
-// text and icons scrambled until its next rebuild (seen in real windows,
-// 2026-11-10; plan 0015). So every window repaints shortly after one
-// opens, and a window repaints as it takes the focus.
+// share. MyGo's windows share one glyph atlas. With v0.8.3 a window that
+// did not rebuild after another had added glyphs drew stale positions,
+// with text and icons scrambled until its next rebuild (seen in real
+// windows, 2026-11-10; plan 0015). v0.9.0 records which atlas a scene was
+// painted with, which may make this unneeded; until a real window shows
+// that, every window repaints shortly after one opens, and a window
+// repaints as it takes the focus.
 type windowSet struct {
 	mu  sync.Mutex
 	all map[*mygo.Window]bool

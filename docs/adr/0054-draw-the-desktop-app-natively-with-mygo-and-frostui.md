@@ -33,7 +33,8 @@ the React app's structure. Since then:
     dialogs and the frostui theme. Frostmail's own needs come first
     (Mail.app's three panes, compose windows, calendar, people and tasks),
     and no ChairLift pattern is forced where it does not fit.
-- **What MyGo offers a mail client** (v0.8.3, checked in its docs):
+- **What MyGo offers a mail client** (v0.8.3, checked in its docs; the
+  app pins v0.9.0 since 2026-11-11):
   - It is plain Go with no CGO; it draws its widgets on GTK 3 and OpenGL
     (Linux) loaded with purego, and builds for Linux and Windows from one
     machine.

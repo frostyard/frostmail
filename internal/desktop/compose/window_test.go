@@ -1073,3 +1073,32 @@ func TestClosingWaitsForASnippet(t *testing.T) {
 		t.Errorf("the draft has %q", got.Content.HTML)
 	}
 }
+
+// When the OS ends the session the process can end as soon as the quit's
+// listeners return: SaveNow writes the last edits before it returns, without
+// waiting for the autosave's delay, and gives up after its limit.
+func TestSaveNowWritesTheLastEdits(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	f.focus(t, "Subject")
+	f.tt.Type("Before logout")
+	f.tt.Frame()
+	if err := f.win.SaveNow(10 * time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.subject(t, d); got != "Before logout" {
+		t.Errorf("the draft's subject is %q", got)
+	}
+	h := f.holdCalls(t, "draft.update")
+	f.tt.Type("!")
+	f.tt.Frame()
+	start := time.Now()
+	if err := f.win.SaveNow(200 * time.Millisecond); err == nil {
+		t.Error("a held save counted as done")
+	}
+	if waited := time.Since(start); waited > 5*time.Second {
+		t.Errorf("SaveNow waited %v past its limit", waited)
+	}
+	h.free()
+}
