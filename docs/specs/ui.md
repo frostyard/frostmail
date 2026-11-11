@@ -550,7 +550,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   200px) and the size ("12 KB", "1.4 MB"). Clicking opens the file with the
   system's default application.
 - **Links** open in the system browser; only `http`, `https` and `mailto`
-  open. Others do nothing.
+  open. Others do nothing. `mailto` links keep only the address and the
+  `to`, `cc`, `bcc`, `subject` and `body` fields, in any ASCII case, without
+  decoding them; other fields and the fragment go
+  ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
 
 ### Find in the message
 

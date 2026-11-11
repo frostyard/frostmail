@@ -51,7 +51,10 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
     attribute is dropped.
   - URLs: `href` keeps `http`, `https` and `mailto` (anything else removes
     the attribute); image URLs (`src`, `background`, CSS `url()`) follow the
-    URL rules below.
+    URL rules below. Mailto links keep only their address and the `to`,
+    `cc`, `bcc`, `subject` and `body` fields in ASCII case and as written.
+    Other fields, fields without `=`, and fragments are removed without
+    decoding ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
   - CSS (`style` attributes and `<style>` text) goes through a tokenizer:
     `@import`, `@font-face`, `@namespace`, `@page`, `expression(`,
     `behavior`, `-moz-binding` and `javascript:` are removed; every `@layer`

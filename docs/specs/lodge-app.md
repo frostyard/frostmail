@@ -655,6 +655,12 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   another app's or mail's own, opens in the shell in place, and anything
   else in a new tab. A link inside an HTML message, in the reader's
   sandboxed frame on `lodge-content`, opens a new tab itself (D6).
+  Frostmail filters `mailto` links in `openLink` before either shell or
+  browser opening, and in maild's HTML sanitizer for the content frame.
+  Only the address and `to`, `cc`, `bcc`, `subject` and `body` fields
+  remain, in ASCII case and as written; other fields, fields without `=`,
+  and fragments are dropped, without decoding
+  ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
 - **Notifications.** maild behind lodge has no session bus, so it sends
   each connected client the transient `message.announced {accountId,
   notes}` in place of desktop notifications, with the notes the desktop's

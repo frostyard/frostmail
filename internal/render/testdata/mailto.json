@@ -1,0 +1,137 @@
+[
+  {
+    "name": "attach between kept fields",
+    "input": "mailto:a@example.com?subject=hi&attach=/etc/passwd&body=x",
+    "want": "mailto:a@example.com?subject=hi&body=x"
+  },
+  {
+    "name": "attach, attachment and case",
+    "input": "mailto:a@e.test?attach=/etc/passwd&subject=Hi%20there&Attachment=x&cc=b@e.test&ATTACH=y&body=a+b",
+    "want": "mailto:a@e.test?subject=Hi%20there&cc=b@e.test&body=a+b"
+  },
+  {
+    "name": "attach alone",
+    "input": "mailto:a@e.test?attach=/home/u/.ssh/id_ed25519",
+    "want": "mailto:a@e.test"
+  },
+  {
+    "name": "encoded attach, kept To",
+    "input": "mailto:a@e.test?%61ttach=x&To=c@e.test",
+    "want": "mailto:a@e.test?To=c@e.test"
+  },
+  {
+    "name": "no fields",
+    "input": "mailto:a@e.test",
+    "want": "mailto:a@e.test"
+  },
+  {
+    "name": "each kept field",
+    "input": "mailto:a@e.test?to=b@e.test&cc=c@e.test&bcc=d@e.test&subject=s&body=b",
+    "want": "mailto:a@e.test?to=b@e.test&cc=c@e.test&bcc=d@e.test&subject=s&body=b"
+  },
+  {
+    "name": "kept fields in any case",
+    "input": "mailto:a@e.test?TO=b@e.test&Cc=c@e.test&bCC=d@e.test&SuBjEcT=s&BODY=b",
+    "want": "mailto:a@e.test?TO=b@e.test&Cc=c@e.test&bCC=d@e.test&SuBjEcT=s&BODY=b"
+  },
+  {
+    "name": "file and other headers",
+    "input": "mailto:a@e.test?file=/etc/passwd&in-reply-to=%3Cx@e.test%3E&references=r&from=f@e.test&reply-to=r@e.test&X-Mailer=m&sender=s@e.test",
+    "want": "mailto:a@e.test"
+  },
+  {
+    "name": "the scheme in capitals",
+    "input": "MAILTO:a@e.test?Subject=x&FILE=y",
+    "want": "mailto:a@e.test?Subject=x"
+  },
+  {
+    "name": "repeated fields, in order",
+    "input": "mailto:a@e.test?to=b@e.test&attach=x&to=c@e.test&subject=1&subject=2&body=1&body=2",
+    "want": "mailto:a@e.test?to=b@e.test&to=c@e.test&subject=1&subject=2&body=1&body=2"
+  },
+  {
+    "name": "repeated attach",
+    "input": "mailto:a@e.test?attach=x&attach=y&ATTACH=z",
+    "want": "mailto:a@e.test"
+  },
+  {
+    "name": "plus and %20 as written",
+    "input": "mailto:a@e.test?subject=a+b&body=c%20d+e",
+    "want": "mailto:a@e.test?subject=a+b&body=c%20d+e"
+  },
+  {
+    "name": "encoded kept names",
+    "input": "mailto:a@e.test?%74o=b@e.test&%53ubject=x&body=y",
+    "want": "mailto:a@e.test?body=y"
+  },
+  {
+    "name": "double encoded attach",
+    "input": "mailto:a@e.test?%2561ttach=x&subject=y",
+    "want": "mailto:a@e.test?subject=y"
+  },
+  {
+    "name": "Unicode folding",
+    "input": "mailto:a@e.test?ſubject=x&body=y",
+    "want": "mailto:a@e.test?body=y"
+  },
+  {
+    "name": "fields without =",
+    "input": "mailto:a@e.test?subject&body=x&attach&to",
+    "want": "mailto:a@e.test?body=x"
+  },
+  {
+    "name": "empty fields and values",
+    "input": "mailto:a@e.test?&&subject=&&body=x&",
+    "want": "mailto:a@e.test?subject=&body=x"
+  },
+  {
+    "name": "an address and to=",
+    "input": "mailto:a@e.test?to=b@e.test&attach=x",
+    "want": "mailto:a@e.test?to=b@e.test"
+  },
+  {
+    "name": "to= without an address",
+    "input": "mailto:?to=b@e.test&attach=x",
+    "want": "mailto:?to=b@e.test"
+  },
+  {
+    "name": "a fragment carrying a field",
+    "input": "mailto:a@e.test?subject=x#&attach=/etc/passwd",
+    "want": "mailto:a@e.test?subject=x"
+  },
+  {
+    "name": "a fragment without fields",
+    "input": "mailto:a@e.test#attach=x",
+    "want": "mailto:a@e.test"
+  },
+  {
+    "name": "malformed escapes",
+    "input": "mailto:a@e.test?subject=100%&body=%zz&%zzattach=x&%=y",
+    "want": "mailto:a@e.test?subject=100%&body=%zz"
+  },
+  {
+    "name": "encoded separators in a value",
+    "input": "mailto:a@e.test?body=x%26attach%3D/etc/passwd",
+    "want": "mailto:a@e.test?body=x%26attach%3D/etc/passwd"
+  },
+  {
+    "name": "a ? and nothing after it",
+    "input": "mailto:a@e.test?",
+    "want": "mailto:a@e.test"
+  },
+  {
+    "name": "no address, no field",
+    "input": "mailto:",
+    "want": ""
+  },
+  {
+    "name": "no address, only attach",
+    "input": "mailto:?attach=/etc/passwd",
+    "want": ""
+  },
+  {
+    "name": "no address, only a fragment",
+    "input": "mailto:?#&attach=x",
+    "want": ""
+  }
+]

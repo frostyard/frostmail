@@ -44,6 +44,7 @@ Content-Type: multipart/related; boundary="rel"
 Content-Type: text/html; charset=utf-8
 
 <p>Look <img src="cid:dot@x"> and <a href="https://example.com/">read</a></p><script>alert(1)</script>
+<a href="mailto:a@b.test?subject=Hi&amp;attach=/etc/passwd&amp;body=x#fragment">mail</a>
 --rel
 Content-Type: image/png
 Content-ID: <dot@x>
@@ -155,12 +156,12 @@ func TestRenderKeepsTheReaderPage(t *testing.T) {
 		t.Errorf("the page as a session = %d, want 403", code)
 	}
 	page := string(body)
-	for _, want := range []string{`<base target="_blank">`, `src="data:image/png;base64,`, `href="https://example.com/"`} {
+	for _, want := range []string{`<base target="_blank">`, `src="data:image/png;base64,`, `href="https://example.com/"`, `href="mailto:a@b.test?subject=Hi&amp;body=x"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %s:\n%s", want, page)
 		}
 	}
-	for _, never := range []string{"<script", "alert(1)", "cid:", "mailpart:"} {
+	for _, never := range []string{"<script", "alert(1)", "cid:", "mailpart:", "attach=", "/etc/passwd", "#fragment"} {
 		if strings.Contains(page, never) {
 			t.Errorf("the page holds %s:\n%s", never, page)
 		}

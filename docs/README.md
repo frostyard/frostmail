@@ -71,6 +71,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0053 — Reply quotes the selected text, as plain text](adr/0053-reply-quotes-the-selected-text.md) (Accepted)
 - [0054 — Draw the desktop app natively with MyGo and frostui](adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md) (Proposed)
 - [0055 — maild streams its background activity as typed entries with no free text](adr/0055-maild-streams-its-activity-as-typed-entries.md) (Proposed)
+- [0056 — Filter mailto links before opening them](adr/0056-filter-mailto-links-before-opening-them.md)
 
 ### Design
 

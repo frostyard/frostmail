@@ -183,11 +183,31 @@ func cleanAttributes(name string, n *html.Node, resolve imageResolver) []html.At
 	return out
 }
 
-// linkURL returns href if it is an absolute http, https or mailto URL.
+// linkURL keeps absolute http, https and mailto URLs. Mailto fields follow
+// ADR-0056, including links opened directly by lodge's content-origin frame.
 func linkURL(href string) string {
 	u, err := url.Parse(strings.TrimSpace(href))
 	if err != nil || !linkSchemes[strings.ToLower(u.Scheme)] {
 		return ""
+	}
+	if strings.EqualFold(u.Scheme, "mailto") {
+		var fields []string
+		for field := range strings.SplitSeq(u.RawQuery, "&") {
+			name, _, hasValue := strings.Cut(field, "=")
+			if !hasValue || strings.ContainsFunc(name, func(r rune) bool { return r > 127 }) {
+				continue
+			}
+			switch strings.ToLower(name) {
+			case "to", "cc", "bcc", "subject", "body":
+				fields = append(fields, field)
+			}
+		}
+		u.Scheme = "mailto"
+		u.RawQuery, u.ForceQuery = strings.Join(fields, "&"), false
+		u.Fragment, u.RawFragment = "", ""
+		if u.Opaque == "" && u.Host == "" && u.Path == "" && u.RawQuery == "" {
+			return ""
+		}
 	}
 	return u.String()
 }
