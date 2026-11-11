@@ -164,3 +164,18 @@ describe("EventWindow", () => {
     expect(close).not.toHaveBeenCalled();
   });
 });
+
+it("asks before closing an edited untitled new event", async () => {
+  const { close } = await setup({
+    kind: "new",
+    allDay: false,
+    start: "2026-10-09T14:00:00.000Z",
+    end: "2026-10-09T15:00:00.000Z",
+    startDate: "",
+    endDate: "",
+  });
+  fireEvent.change(field("Location"), { target: { value: "Room 2" } });
+  click("Cancel");
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByRole("dialog", { name: 'Save changes to "New Event"?' })).toBeTruthy();
+});

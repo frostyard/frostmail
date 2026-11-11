@@ -544,7 +544,11 @@ and draws its own 32-high title strip with a Close button.
       sheet. A rule the presets do not cover shows as its description
       (`describeRecurrence`) and keeps its `RRULE` until changed;
     - **end repeat** (when it repeats): Never, On Date (with a date
-      input), or After (with a count field and "times");
+      input), or After (with a count field and "times"). Editing the
+      repeat frequency or interval preserves an existing UNTIL timestamp;
+      choosing a new end date deliberately replaces it. Custom repeat
+      keeps an explicit WKST and a last-weekday rule in a month with only
+      four occurrences of that weekday;
     - **calendar**: a select of the writable calendars, grouped by
       account, each with its color's 8px dot, starting on the event's own.
       An event saved with invitees, in a calendar that invites, offers
@@ -552,7 +556,11 @@ and draws its own 32-high title strip with a Close button.
     - **invitees** (M5.5, Phase 5): the invitees, one 28-high row each:
       the name, else the address, 13/18 (tooltip "Name <address>"); the
       answer icon as the event pane draws it (nothing for no answer); an
-      "Optional" text toggle 12/16 (`aria-pressed`, `--accent` when on);
+      "Optional" text toggle 12/16 (`aria-pressed`, `--accent` when on).
+      Existing `chair` and `none` roles show "Chair" and "For information"
+      in secondary text and survive edits to other invitees; choosing
+      Optional changes that invitee's role to optional, and clearing it
+      changes it to required. Such roles do not freeze the invitee list;
       and a 20 × 20 Remove button (`X` 14px, named "Remove <name or
       address>"). An address that does not parse is drawn in `--flag-1`
       with the tooltip "<address> is not a valid address", and keeps Save

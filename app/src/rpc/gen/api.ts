@@ -786,7 +786,9 @@ export interface Invitation {
 export interface Invitee {
   email: string;
   name?: string;
-  /** required (the default) or optional. */
+  /**
+   * required (the default), optional, chair or none (copied for information).
+   */
   role?: AttendeeRole;
 }
 

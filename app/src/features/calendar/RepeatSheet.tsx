@@ -1,5 +1,5 @@
 import { Sheet } from "@frostyard/lodge-ui/react";
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { type KeyboardEvent, useId, useState } from "react";
 import { localeWeekStart } from "../../lib/calendarDates";
 import { defaultRepeat, type Frequency, nthWeekday, type Repeat, WEEKDAYS, type Weekday } from "../../lib/repeat";
 import { BUTTON, FIELD, PRIMARY_BUTTON } from "../settings/labels";
@@ -85,7 +85,7 @@ function WeeklyDays({ repeat, locale, onChange }: { repeat: Repeat; locale: stri
 function MonthlyDays({ repeat, start, onChange }: { repeat: Repeat; start: string; onChange: (r: Repeat) => void }) {
   const name = useId();
   const nth = nthWeekday(start);
-  const ordinal = ORDINALS[nth.slice(0, -2)];
+  const ordinal = repeat.last ? "last" : ORDINALS[nth.slice(0, -2)];
   const day = DAYS[nth.slice(-2) as Weekday];
   return (
     <div className="space-y-2">
