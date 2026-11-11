@@ -268,7 +268,6 @@ func (w *Window) listBody(c *ui.Context) {
 		w.emptyList(c)
 		return
 	}
-	w.repairSelection()
 	w.list.Selected = &w.selected
 	w.list.Selection = &w.chosen
 	w.list.Key = func(i int) any {
@@ -323,14 +322,37 @@ func (w *Window) listBody(c *ui.Context) {
 	}
 }
 
-// repairSelection keeps the selection on its rows: if they all went, it
-// selects the row that took their place.
+// repairSelection keeps the selection on messages the list holds. A row
+// not loaded has only a stand-in for a key, which no action can use, so
+// Select All chooses the rows loaded, as the web app's does. Each message
+// that left goes from the selection: Delete would erase one now in Trash.
+// If they all went, it selects the row that took their place.
 func (w *Window) repairSelection() {
-	ids := w.selectedIDs()
-	if len(ids) == 0 || w.view == nil || w.revealing != nil {
+	var standIns []int64
+	for id := range w.chosen.All() {
+		if id <= 0 {
+			standIns = append(standIns, id)
+		}
+	}
+	for _, id := range standIns {
+		w.chosen.Remove(id)
+	}
+	w.releaseDeletes()
+	if w.view == nil || !w.view.Settled() {
 		return
 	}
-	if len(w.view.Rows(ids)) > 0 {
+	lost := false
+	for _, id := range w.view.TakeDeparted() {
+		if w.chosen.Has(id) {
+			w.chosen.Remove(id)
+			lost = true
+		}
+		if w.revealing != nil && w.revealing.ID == id {
+			w.revealing = nil
+		}
+	}
+	ids := w.selectedIDs()
+	if len(ids) == 0 && !lost || w.revealing != nil || len(w.view.Rows(ids)) > 0 {
 		return
 	}
 	if w.view.Count() == 0 {
@@ -449,12 +471,12 @@ func (w *Window) rowMenu(m *ui.Menu) {
 	if m.Item("Delete").Disabled(readOnly).Chosen() {
 		w.delete(ids)
 	}
-	notSpam, to := mail.SpamTarget(rows, st.Mailboxes)
+	notSpam, groups := mail.SpamGroups(rows, st.Mailboxes)
 	label := "Mark as Spam"
 	if notSpam {
 		label = "Not Spam"
 	}
-	if m.Item(label).Disabled(readOnly || to == nil).Chosen() {
+	if m.Item(label).Disabled(readOnly || len(groups) == 0).Chosen() {
 		w.toggleSpam(ids)
 	}
 	m.Separator()

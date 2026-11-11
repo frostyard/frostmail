@@ -54,22 +54,25 @@ func (w *Window) saveSearch() {
 		id := w.q.Source.ID
 		params.MailboxID = &id
 	}
+	var conds *api.Conditions
+	show := w.bound(func() { w.smartSheet.FromSearch(text, *conds) })
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
-		conds, err := c.Smart().FromSearch(ctx, params)
+		var err error
+		conds, err = c.Smart().FromSearch(ctx, params)
 		if err != nil {
 			w.toast("Could not save the search", err)
 			return
 		}
-		w.o.Post(func() { w.smartSheet.FromSearch(text, *conds) })
+		w.o.Post(show)
 	}()
 }
 
 // redirectSheet asks whom to redirect a message to.
 type redirectSheet struct {
 	summary api.MessageSummary
-	to      []string
+	to      string // addresses as typed: what is typed counts, comma or no comma
 	busy    bool
 	failure string
 }
@@ -87,7 +90,7 @@ func (w *Window) redirectView(c *ui.Context) {
 		return
 	}
 	open := true
-	good, bad := compose.ParseAddresses(strings.Join(s.to, ","))
+	good, bad := compose.ParseAddresses(s.to)
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(420).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label("Redirect").Children(func() {
 			frostui.Heading(c, "Redirect")
@@ -98,7 +101,7 @@ func (w *Window) redirectView(c *ui.Context) {
 			frostui.Muted(c, subject).Wrap()
 			ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				frostui.Body(c, "To")
-				ui.TokenField(c, &s.to, nil).Label("To").Grow(1)
+				ui.TextInput(c, &s.to).Label("To").AutoFocus().Grow(1)
 			})
 			if s.failure != "" {
 				frostui.Toned(c, s.failure, frostui.Danger).Wrap().Role(ui.RoleAlert)
@@ -126,18 +129,21 @@ func (w *Window) sendRedirect(s *redirectSheet, to []api.Address) {
 	}
 	s.busy, s.failure = true, ""
 	id := s.summary.ID
+	var item *api.OutboxItem
+	var err error
+	ended := w.bound(func() {
+		s.busy = false
+		if err != nil {
+			s.failure = err.Error()
+			return
+		}
+		w.redirect = nil
+		w.Sent(item)
+	})
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
-		item, err := c.Message().Redirect(ctx, &api.MessageRedirectParams{ID: id, To: to})
-		w.o.Post(func() {
-			s.busy = false
-			if err != nil {
-				s.failure = err.Error()
-				return
-			}
-			w.redirect = nil
-			w.Sent(item)
-		})
+		item, err = c.Message().Redirect(ctx, &api.MessageRedirectParams{ID: id, To: to})
+		w.o.Post(ended)
 	}()
 }

@@ -1,11 +1,13 @@
 package mainwin
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
@@ -25,6 +27,14 @@ var roleChoices = []struct {
 	{api.MailboxRoleDrafts, "Drafts"}, {api.MailboxRoleSent, "Sent"}, {api.MailboxRoleJunk, "Junk"},
 	{api.MailboxRoleTrash, "Trash"}, {api.MailboxRoleArchive, "Archive"},
 }
+
+// footerShare is how much of the sidebar's height the sections under the
+// tree may take before they scroll; footerStart is their limit in the
+// first frame, before the sidebar has a height.
+const (
+	footerShare = 0.4
+	footerStart = 200
+)
 
 // setUpSources says how the sidebar's tree shows and what it does.
 func (w *Window) setUpSources() {
@@ -88,7 +98,9 @@ func (w *Window) sidebar(c *ui.Context) {
 		Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts})
 	sections := w.indexSidebar(built, st)
 	w.syncSource(st)
-	ui.Column(c).Grow(1).AlignItems(ui.Stretch).Background(frostui.Chrome(c.Theme())).Children(func() {
+	column := ui.Column(c).Grow(1).AlignItems(ui.Stretch).Background(frostui.Chrome(c.Theme()))
+	height := column.LayoutBounds().H
+	column.Children(func() {
 		tree := w.sources.View(c, sections).Grow(1)
 		if w.focusPane == paneSidebar {
 			w.focusPane = ""
@@ -97,9 +109,23 @@ func (w *Window) sidebar(c *ui.Context) {
 		if tree.FocusWithin() {
 			w.pane = paneSidebar
 		}
-		w.followUp(c, st)
-		w.outbox(c, st)
+		w.footer(c, st, height)
 		w.moduleBar(c)
+	})
+}
+
+// footer holds the sections under the tree, which scroll when they would
+// take the tree's room.
+func (w *Window) footer(c *ui.Context, st live.MailState, height float32) {
+	limit := height * footerShare
+	if limit <= 0 {
+		limit = footerStart
+	}
+	ui.Scroll(c).MaxHeight(limit).Shrink(0).Children(func() {
+		ui.Column(c).AlignItems(ui.Stretch).Children(func() {
+			w.followUp(c, st)
+			w.outbox(c, st)
+		})
 	})
 }
 
@@ -367,33 +393,113 @@ func (w *Window) outbox(c *ui.Context, st live.MailState) {
 	var pending, later []api.OutboxItem
 	for _, it := range st.Outbox {
 		switch {
-		case it.Scheduled:
+		case it.Scheduled && it.State == api.OutboxStateQueued:
 			later = append(later, it)
 		case it.State != api.OutboxStateQueued || it.Attempts > 0:
 			pending = append(pending, it)
 		}
 	}
-	section := func(title string, items []api.OutboxItem, status func(api.OutboxItem) string) {
-		if len(items) == 0 {
-			return
-		}
-		ui.Column(c.Key(title)).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label(title).Children(func() {
-			frostui.Caption(c, title)
-			for _, it := range items {
+	now := w.o.Now()
+	if len(pending) > 0 {
+		ui.Column(c.Key("Outbox")).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label("Outbox").Children(func() {
+			frostui.Caption(c, "Outbox")
+			for _, it := range pending {
 				ui.Column(c.Key(it.ID)).AlignItems(ui.Stretch).Children(func() {
 					frostui.Body(c, it.Subject).SingleLine()
-					frostui.Muted(c, status(it)).SingleLine()
+					frostui.Muted(c, mail.OutboxStatus(it, now)).SingleLine()
 				}).ContextMenu(func(m *ui.Menu) { w.outboxMenu(m, it) })
 			}
 		})
 	}
-	now := w.o.Now()
-	section("Outbox", pending, func(it api.OutboxItem) string { return mail.OutboxStatus(it, now) })
-	section("Send Later", later, func(it api.OutboxItem) string {
-		if it.SendAt == nil {
-			return ""
+	w.sendLater(c, later, now)
+}
+
+// sendLater draws the messages waiting for their chosen time, soonest
+// first (docs/specs/ui.md, Send Later).
+func (w *Window) sendLater(c *ui.Context, items []api.OutboxItem, now time.Time) {
+	if len(items) == 0 {
+		return
+	}
+	slices.SortStableFunc(items, func(a, b api.OutboxItem) int {
+		return cmp.Compare(sendTime(a, now).UnixNano(), sendTime(b, now).UnixNano())
+	})
+	ui.Column(c.Key("Send Later")).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label("Send Later").Children(func() {
+		frostui.Caption(c, "Send Later")
+		for _, it := range items {
+			ui.Column(c.Key(it.ID)).AlignItems(ui.Stretch).Children(func() {
+				frostui.Body(c, subjectShown(it.Subject)).SingleLine()
+				frostui.Muted(c, "To: "+recipients(it.To)).SingleLine()
+				frostui.Muted(c, "Sends "+mail.WhenText(sendTime(it, now), now)).SingleLine()
+				ui.Row(c).Gap(frostui.SpaceS).Wrap().Children(func() {
+					if textButton(c.Key("edit"), "Edit") {
+						w.editScheduled(it.ID)
+					}
+					if textButton(c.Key("now"), "Send Now") {
+						w.reschedule(it.ID, w.o.Now())
+					}
+					if textButton(c.Key("time"), "Change Time…") {
+						w.later.Show("Send Later", sendTime(it, now), func(at time.Time) { w.reschedule(it.ID, at) })
+					}
+				})
+			}).ContextMenu(func(m *ui.Menu) { w.outboxMenu(m, it) })
 		}
-		return mail.ListDate(*it.SendAt, now)
+	})
+}
+
+func sendTime(it api.OutboxItem, now time.Time) time.Time {
+	if it.SendAt != nil {
+		return *it.SendAt
+	}
+	return now
+}
+
+func subjectShown(subject string) string {
+	if strings.TrimSpace(subject) == "" {
+		return "(no subject)"
+	}
+	return subject
+}
+
+// recipients names at most two recipients and counts the rest.
+func recipients(to []api.Address) string {
+	const shown = 2
+	names := make([]string, 0, len(to))
+	for _, a := range to {
+		names = append(names, mail.DisplayName(a))
+	}
+	if len(names) > shown {
+		return fmt.Sprintf("%s & %d more", strings.Join(names[:shown], ", "), len(names)-shown)
+	}
+	return strings.Join(names, ", ")
+}
+
+// textButton draws a small action in the accent color; it reports a click.
+func textButton(c *ui.Context, label string) bool {
+	accent := c.Theme().Accent
+	return ui.ButtonBase(c).Row().Label(label).Cursor(ui.CursorPointer).Children(func() {
+		ui.Text(c, label).FontSize(12).TextColor(accent).SingleLine()
+	}).Clicked()
+}
+
+// editScheduled stops a scheduled message and opens its draft.
+func (w *Window) editScheduled(id int64) {
+	w.run("edit the message", func(ctx context.Context, c *api.Client) error {
+		d, err := c.Outbox().Cancel(ctx, &api.OutboxCancelParams{ID: id})
+		if err != nil {
+			return err
+		}
+		if d.ID != 0 {
+			w.showDraft(c, d.ID, false)
+		}
+		return nil
+	})
+}
+
+// reschedule gives a scheduled message a new time.
+func (w *Window) reschedule(id int64, at time.Time) {
+	w.run("change the send time", func(ctx context.Context, c *api.Client) error {
+		_, err := c.Outbox().Reschedule(ctx, &api.OutboxRescheduleParams{ID: id, SendAt: at})
+		return err
 	})
 }
 

@@ -116,6 +116,10 @@ func run() error {
 			SocketLost:   func(err error) { rec.Error(codeSocketLost, err) },
 			Settings:     prefs.w,
 			OpenSettings: prefs.open,
+			Raise: func() {
+				win.Restore()
+				win.Focus()
+			},
 			OpenCompose: func(c *api.Client, draft int64, fresh bool) {
 				composer.open(ctx, c, draft, fresh)
 			},

@@ -9,7 +9,7 @@ import (
 // A redirect on its way goes on: while it is, nothing offers to cancel it.
 func TestRedirectSheetWaitsForTheSend(t *testing.T) {
 	w := &Window{}
-	s := &redirectSheet{to: []string{"bo@x.test"}, busy: true}
+	s := &redirectSheet{to: "bo@x.test", busy: true}
 	w.redirect = s
 	tt := ui.NewTester(w.redirectView, 800, 600)
 	button := func(name string) ui.AccessInfo {

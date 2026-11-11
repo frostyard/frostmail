@@ -11,6 +11,18 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 )
 
+// noteClicked brings the window forward and shows the message, as a click
+// on a notification on Windows does through a second instance.
+func noteClicked(post func(func()), main func() *mainwin.Window, message int64) func() {
+	return func() {
+		post(func() {
+			w := main()
+			w.Raise()
+			w.OpenMessage(message)
+		})
+	}
+}
+
 // newAnnouncer shows maild's notes as notifications, for a maild behind
 // lodge, which has no desktop to notify on; a click shows the message.
 func newAnnouncer(post func(func()), main func() *mainwin.Window) func(int64, []api.Announcement) {
@@ -22,8 +34,7 @@ func newAnnouncer(post func(func()), main func() *mainwin.Window) func(int64, []
 			}
 			n := mygo.NewNotification(mygo.NotificationOptions{ID: id, Title: note.Title, Body: note.Body})
 			if note.MessageID != nil {
-				message := *note.MessageID
-				n.OnClick(func() { post(func() { main().OpenMessage(message) }) })
+				n.OnClick(noteClicked(post, main, *note.MessageID))
 			}
 			_ = n.Show()
 		}

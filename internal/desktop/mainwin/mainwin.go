@@ -82,6 +82,8 @@ type Options struct {
 	// OpenCompose shows a draft's window; fresh says it was just made for
 	// that window. nil for none.
 	OpenCompose func(c *api.Client, draft int64, fresh bool)
+	// Raise brings the window to the front, on the UI thread; nil for none.
+	Raise func()
 }
 
 // Window is the main window's state.
@@ -95,8 +97,10 @@ type Window struct {
 	table   *frostui.CommandTable
 	sources frostui.SourceList[string]
 	console *frostui.Console
+	daemon  conn.Target // the session goroutine's: the maild the state below is of
 
 	// The UI thread's.
+	gen           uint64 // counts the changes of maild
 	client        *api.Client
 	events        *live.Events
 	view          *live.View
@@ -113,7 +117,8 @@ type Window struct {
 	chosen        ui.Selection[int64]
 	selected      int
 	lastIndex     int64
-	undo          mail.Undo
+	undo          *mail.Undo            // one maild's: replaced with the rest on a change
+	deleting      map[int64]*heldDelete // deletes the list has not shown yet
 	contactPhotos bool
 	photos        *live.Photos
 	bitmaps       map[string]*ui.Bitmap
@@ -137,8 +142,8 @@ type Window struct {
 	module        commands.Module
 	tableModule   commands.Module
 	todoOpen      bool
-	smartSheet    organize.SmartSheet
-	mailboxSheet  organize.MailboxSheet
+	smartSheet    *organize.SmartSheet
+	mailboxSheet  *organize.MailboxSheet
 	redirect      *redirectSheet
 
 	mu     sync.Mutex
@@ -155,7 +160,8 @@ func New(o Options) *Window {
 	}
 	w := &Window{o: o, listWidth: listDefault, selected: -1, table: frostui.NewCommandTable(), branches: map[string]bool{},
 		q:       mail.ListState{Source: mail.Source{Kind: mail.AllInboxes}, Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate, SearchAll: true},
-		console: frostui.NewConsole(5000), latest: map[int64]string{}, state: conn.State{Target: o.Target}}
+		console: frostui.NewConsole(5000), latest: map[int64]string{}, state: conn.State{Target: o.Target},
+		daemon: o.Target, undo: &mail.Undo{}, deleting: map[int64]*heldDelete{}}
 	w.waker = frostui.NewWaker(o.Post, o.Wake)
 	w.shell.Dialogs = &frostui.Dialogs{}
 	w.shell.Console.Title = "Activity"
@@ -167,9 +173,7 @@ func New(o Options) *Window {
 	w.table.Editing = func(*ui.Context) bool { return false }
 	w.setUpSources()
 	w.shell.Palette.Sources = w.paletteSources()
-	deps := organize.Deps{Post: o.Post, Client: func() *api.Client { return w.client }, Context: w.organizeContext}
-	w.smartSheet.Deps, w.mailboxSheet.Deps = deps, deps
-	w.smartSheet.Created = func(id int64) { w.setSource(mail.Source{Kind: mail.Smart, ID: id}) }
+	w.newSheets()
 	w.module, w.tableModule = commands.Mail, commands.Mail
 	w.pim = pim.New(pim.Options{Post: o.Post, Wake: w.waker.Wake, Now: o.Now, Dialogs: w.shell.Dialogs, Toast: w.pimToast,
 		Compose: w.composeTo, OpenMessage: w.showMessage, OpenWindow: w.openWindow, CloseWindow: o.CloseWindow,
@@ -194,7 +198,7 @@ func New(o Options) *Window {
 		commands.About:        w.showAbout,
 		commands.Undo:         w.runUndo,
 		commands.Archive:      func() { w.archive(w.selectedIDs()) },
-		commands.Delete:       func() { w.delete(w.selectedIDs()) },
+		commands.Delete:       w.deleteKey,
 		commands.Junk:         func() { w.toggleSpam(w.selectedIDs()) },
 		commands.ToggleRead:   func() { w.toggleRead(w.selectedIDs()) },
 		commands.ToggleFlag:   func() { w.toggleFlag(w.selectedIDs()) },
@@ -237,6 +241,13 @@ func (w *Window) MailState() live.MailState { return w.mail.State() }
 // OrganizeContext is what the condition and action editors need.
 func (w *Window) OrganizeContext() organize.Context { return w.organizeContext() }
 
+// Raise brings the window to the front, on the UI thread.
+func (w *Window) Raise() {
+	if w.o.Raise != nil {
+		w.o.Raise()
+	}
+}
+
 // ShowProblem shows a toast saying what went wrong.
 func (w *Window) ShowProblem(title string, err error) { w.toast(title, err) }
 
@@ -245,6 +256,7 @@ func (w *Window) Start(ctx context.Context) { go w.session.Run(ctx) }
 
 // connected runs on the session's goroutine for each new connection.
 func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) error {
+	w.follow(w.session.Target())
 	events := live.NewEvents()
 	go events.Run(c)
 	events.On(w.readerEvent)
@@ -268,25 +280,70 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 	w.o.Post(func() {
 		w.closeView()
 		w.client, w.events = c, events
-		w.photos, w.bitmaps = live.NewPhotos(connContext(ctx, c), c, w.waker.Wake), map[string]*ui.Bitmap{}
+		w.photos, w.bitmaps = live.NewPhotos(connContext(c), c, w.waker.Wake), map[string]*ui.Bitmap{}
 		w.openView()
 		w.deliverOpen()
 	})
 	return nil
 }
 
-// connContext returns a context that ends with the connection c; ctx is
-// the session's, which outlives it.
-func connContext(ctx context.Context, c *api.Client) context.Context {
-	out, cancel := context.WithCancel(ctx)
+// connContext returns a context that ends with the connection c.
+func connContext(c *api.Client) context.Context {
+	out, cancel := context.WithCancel(context.Background())
 	go func() {
 		defer cancel()
-		select {
-		case <-c.Done():
-		case <-out.Done():
-		}
+		<-c.Done()
 	}()
 	return out
+}
+
+// follow notes the maild the session is on, on the session's goroutine.
+// When it is another one, what the window holds of the last goes, before
+// any of the new one's answers: the same ID means other mail there.
+func (w *Window) follow(t conn.Target) {
+	if t.Same(w.daemon) {
+		return
+	}
+	w.daemon = t
+	w.mail.Forget()
+	w.mu.Lock()
+	w.latest = map[int64]string{}
+	w.mu.Unlock()
+	w.o.Post(w.leaveDaemon)
+}
+
+// leaveDaemon resets what names the last maild's messages and mailboxes.
+// The view choices stay, as they name none. A worker still running keeps
+// the undo stack and the sheet it began with, and reaches neither of these.
+func (w *Window) leaveDaemon() {
+	w.gen++
+	w.closeView()
+	w.closeConv()
+	w.closeFind()
+	w.undo = &mail.Undo{}
+	w.deleting = map[int64]*heldDelete{}
+	w.q.Source, w.q.Search, w.searchDraft = mail.Source{Kind: mail.AllInboxes}, "", ""
+	w.searchToken++
+	w.clearSelection()
+	w.revealing, w.pendingOpen = nil, 0
+	w.branches = map[string]bool{}
+	w.onFrame = nil
+	w.rawSource, w.redirect = nil, nil
+	w.later = compose.TimeSheet{}
+	w.newSheets()
+	*w.shell.Dialogs = frostui.Dialogs{} // the same one Calendar's module holds
+}
+
+// newSheets makes the organize sheets, closed.
+func (w *Window) newSheets() {
+	deps := organize.Deps{Post: w.o.Post, Client: func() *api.Client { return w.client }, Context: w.organizeContext}
+	gen := w.gen
+	w.smartSheet = &organize.SmartSheet{Deps: deps, Created: func(id int64) {
+		if gen == w.gen {
+			w.setSource(mail.Source{Kind: mail.Smart, ID: id})
+		}
+	}}
+	w.mailboxSheet = &organize.MailboxSheet{Deps: deps}
 }
 
 // changed runs on the session's goroutine for each change of state.
@@ -298,6 +355,7 @@ func (w *Window) changed(st conn.State) {
 			w.o.Settings.Disconnect()
 		}
 	}
+	w.follow(st.Target)
 	w.o.Post(func() {
 		if !st.Connected {
 			w.closeView()
@@ -400,6 +458,8 @@ func (w *Window) addActivity(e api.ActivityEntry) {
 
 // View draws the window.
 func (w *Window) View(c *ui.Context) {
+	// Before anything can act on the selection, in whichever module.
+	w.repairSelection()
 	// First, so that what a palette command changes shows in this frame:
 	// the rest of View reads that state before the shell would run it.
 	w.shell.Palette.RunPending()
