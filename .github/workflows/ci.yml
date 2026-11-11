@@ -243,14 +243,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $setup = (Get-Item build/mygo/windows-amd64/*-setup-*.exe).FullName
           $dir = Join-Path $env:RUNNER_TEMP 'frostmail-install'
-          Start-Process -Wait -FilePath $setup -ArgumentList '/S', "/D=$dir"
+          # Not Start-Process -Wait, which also waits for the maild it leaves running.
+          (Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$dir").WaitForExit()
           foreach ($f in 'Frostmail.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "the install has no $f" }
           }
           foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
             if (-not (Test-Path $k)) { throw "the install has no $k" }
           }
-          Start-Process -Wait -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S', "_?=$dir"
+          (Start-Process -PassThru -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S', "_?=$dir").WaitForExit()
           foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
             if (Test-Path $k) { throw "the uninstall left $k" }
           }
