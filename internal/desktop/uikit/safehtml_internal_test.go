@@ -80,7 +80,11 @@ func (p *fakePage) FindInPage(string, mygo.FindOptions) (mygo.FindResult, error)
 	return mygo.FindResult{}, nil
 }
 func (p *fakePage) StopFindInPage() {}
-func (p *fakePage) Print()          {}
+func (p *fakePage) Print() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.calls = append(p.calls, "print")
+}
 
 func (p *fakePage) evaluated() int {
 	p.mu.Lock()
@@ -610,6 +614,44 @@ func TestSafeFrameWatchEndsWithTheFocus(t *testing.T) {
 		}
 		if stopped >= watchCheck {
 			t.Errorf("%d measures: the watch ran on", stopped)
+		}
+	})
+}
+
+func TestSafeFramePrintWaitsForTheFirstLoad(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newPageFixture(compiled, 100)
+		frame := f.frame(t)
+		frame.Load(Document("Body", "", ""))
+		frame.Print()
+		synctest.Wait()
+		if slices.Contains(f.page.called(), "print") {
+			t.Fatal("printed before the page finished loading")
+		}
+		f.page.didFinish()
+		idle()
+		if got := f.page.called(); !slices.Equal(got, []string{"rules", "load", "print"}) {
+			t.Fatalf("page calls = %v", got)
+		}
+		frame.Print()
+		if len(f.page.called()) != 4 {
+			t.Error("an already loaded page did not print immediately")
+		}
+	})
+}
+
+func TestSafeFrameCloseCancelsAPendingPrint(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newPageFixture(compiled, 100)
+		frame := f.frame(t)
+		frame.Load(Document("Body", "", ""))
+		frame.Print()
+		frame.Close()
+		f.page.didFinish()
+		frame.Print()
+		idle()
+		if slices.Contains(f.page.called(), "print") {
+			t.Fatal("printed a closed page")
 		}
 	})
 }

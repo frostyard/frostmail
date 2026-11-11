@@ -561,7 +561,7 @@ Ctrl+F finds in the message shown, as Mail.app's ⌘F does (P-309,
   selected). Ctrl+F then opens the find bar, or focuses its field and
   selects its text when it is open. With no message shown, Ctrl+F focuses
   the search field, as Ctrl+Alt+F always does (Keyboard map). The palette's
-  Find in Message does what Ctrl+F does with a message shown.
+  Find in Message does the same, including focusing search with no message shown.
 - **The bar** (desktop app only): a row at the top of the reader, above
   the part that scrolls, so it stays in view; 8 / 12 padding,
   `--bg-window`, a 1px `--separator` line under it. From the left: a field
@@ -978,7 +978,7 @@ finds a menu command by name (parity P-958).
   | selectAll | Select All | Mail | |
   | getMail | Get Mail | Mail | |
   | focusSearch | Search | Mail, People | |
-  | find | Find in Message | Mail (not the web build) | one message |
+  | find | Find in Message | Mail (not the web build) | — (focuses search without a message) |
   | print | Print… | Mail | one message |
   | rawSource | Raw Source… | Mail | one message |
   | allHeaders | Show/Hide All Headers | Mail | one message |

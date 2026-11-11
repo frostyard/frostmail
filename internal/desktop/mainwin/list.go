@@ -594,7 +594,7 @@ func (w *Window) listBar(c *ui.Context) {
 // has no room for them.
 func (w *Window) readerActions(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).Height(40).Shrink(0).Padding(0, frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Center).Background(frostui.Chrome(t)).
+	ui.Row(c).Height(40).Shrink(0).Padding(0, frostui.SpaceXS).Gap(0).AlignItems(ui.Center).Background(frostui.Chrome(t)).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Role(ui.RoleToolbar).Label("Message actions").Children(func() { w.readerButtons(c) })
 }
 

@@ -82,7 +82,7 @@ var Entries = []Entry{
 	{SelectAll, mail("Select All"), GroupEdit, NeedNothing},
 	{GetMail, mail("Get Mail"), GroupApp, NeedNothing},
 	{FocusSearch, map[Module]string{Mail: "Search", People: "Search"}, GroupApp, NeedNothing},
-	{Find, mail("Find in Message"), GroupMessage, NeedMessage},
+	{Find, mail("Find in Message"), GroupMessage, NeedNothing},
 	{Print, mail("Print…"), GroupMessage, NeedMessage},
 	{RawSource, mail("Raw Source…"), GroupMessage, NeedMessage},
 	{AllHeaders, mail("Show/Hide All Headers"), GroupMessage, NeedMessage},

@@ -8,6 +8,7 @@ import (
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
 
@@ -48,7 +49,7 @@ func (w *Window) queryMailboxes(q *frostui.PaletteQuery) {
 		if !ok {
 			continue
 		}
-		items = append(items, frostui.PaletteItem{ID: it.Key, Title: it.Label, Icon: it.Icon, Run: w.bound(func() { w.setSource(source) })})
+		items = append(items, frostui.PaletteItem{ID: it.Key, Title: it.Label, Icon: it.Icon, Run: w.bound(func() { w.setModule(commands.Mail); w.setSource(source) })})
 	}
 	q.Reply(items)
 }
@@ -71,7 +72,7 @@ func (w *Window) queryMessages(q *frostui.PaletteQuery) {
 		for _, r := range rows {
 			id := r.ID
 			items = append(items, frostui.PaletteItem{ID: strconv.FormatInt(id, 10), Title: r.Subject, Detail: mail.DisplayName(r.From),
-				Icon: "mail-read", Run: w.bound(func() { w.OpenMessage(id) })})
+				Icon: "mail-read", Run: w.bound(func() { w.showMessage(id) })})
 		}
 		q.Reply(items)
 	})
