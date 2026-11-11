@@ -32,13 +32,17 @@ type repeat struct {
 	interval  int
 	weekdays  []string
 	byWeekday bool
+	last      bool   // byWeekday counts from the month's end
+	wkst      string // the rule's first day of the week, kept as it was
 }
 
-// repeatEnd is when a rule stops: "never", "date" or "count".
+// repeatEnd is when a rule stops: "never", "date" or "count". until is
+// the rule's own UNTIL, when read from one: date alone drops its time.
 type repeatEnd struct {
 	kind  string
 	date  string
 	count int
+	until string
 }
 
 // ruleMap is an RRULE's parts, in their order.
@@ -130,7 +134,8 @@ func repeatOf(rule, start string) *repeat {
 	if !ok {
 		interval = "1"
 	}
-	if wk, has := parts.get("WKST"); !positive(interval) || (has && !isWeekday(wk)) {
+	wkst, hasWkst := parts.get("WKST")
+	if !positive(interval) || (hasWkst && !isWeekday(wkst)) {
 		return nil
 	}
 	allowed := []string{"FREQ", "INTERVAL", "WKST", "COUNT", "UNTIL"}
@@ -149,7 +154,7 @@ func repeatOf(rule, start string) *repeat {
 		}
 	}
 	n, _ := strconv.Atoi(interval)
-	r := &repeat{frequency: freq, interval: n}
+	r := &repeat{frequency: freq, interval: n, wkst: wkst}
 	byDay, hasDay := parts.get("BYDAY")
 	monthDay, hasMonthDay := parts.get("BYMONTHDAY")
 	month, hasMonth := parts.get("BYMONTH")
@@ -172,7 +177,7 @@ func repeatOf(rule, start string) *repeat {
 		if hasMonthDay || !matchesWeekday(byDay, start) {
 			return nil
 		}
-		r.byWeekday = true
+		r.byWeekday, r.last = true, strings.HasPrefix(byDay, "-1")
 	}
 	day, _ := strconv.Atoi(start[8:10])
 	if hasMonthDay && !matchesNumber(monthDay, true, day) {
@@ -208,9 +213,22 @@ func ruleOfRepeat(r repeat, start string) string {
 			rule += ";BYDAY=" + strings.Join(days, ",")
 		}
 	} else if r.frequency == "MONTHLY" && r.byWeekday {
-		rule += ";BYDAY=" + nthWeekday(start)
+		rule += ";BYDAY=" + r.monthlyByDay(start)
+	}
+	if r.wkst != "" {
+		rule += ";WKST=" + r.wkst
 	}
 	return rule
+}
+
+// monthlyByDay is a monthly rule's BYDAY: the start's place in its month,
+// from the end when the rule counted so and the start is still in the
+// last week. A fourth Friday can also be the last, but not every month's.
+func (r repeat) monthlyByDay(start string) string {
+	if r.last && isLastWeek(start) {
+		return "-1" + startDay(start)
+	}
+	return nthWeekday(start)
 }
 
 // presetOf is the choice a rule shows as; its end does not count.
@@ -298,7 +316,7 @@ func endOf(rule string, loc *time.Location) repeatEnd {
 	}
 	if until, ok := parts.get("UNTIL"); ok {
 		if date, ok := untilDate(until, loc); ok {
-			return repeatEnd{kind: "date", date: date}
+			return repeatEnd{kind: "date", date: date, until: until}
 		}
 	}
 	return repeatEnd{kind: "never"}
@@ -316,14 +334,28 @@ func withEnd(rule string, end repeatEnd, allDay bool, loc *time.Location) string
 	case "count":
 		parts.set("COUNT", strconv.Itoa(max(1, end.count)))
 	case "date":
-		if allDay {
+		switch {
+		case end.until != "" && (len(end.until) == len("20060102")) == allDay:
+			parts.set("UNTIL", end.until)
+		case allDay:
 			parts.set("UNTIL", strings.ReplaceAll(end.date, "-", ""))
-		} else {
-			until := dayStart(addDays(end.date, 1), loc).Add(-time.Second).UTC()
-			parts.set("UNTIL", until.Format("20060102T150405Z"))
+		default:
+			parts.set("UNTIL", lastSecond(end.date, loc).UTC().Format("20060102T150405Z"))
 		}
 	}
 	return parts.String()
+}
+
+// lastSecond is a date's last second in a zone. Where the clocks jump at
+// midnight the next day has no 00:00, and time.Date can read it as the
+// hour before the jump: the next day begins at the jump itself.
+func lastSecond(date string, loc *time.Location) time.Time {
+	next := addDays(date, 1)
+	t := dayStart(next, loc)
+	if day, _ := zoned(t, loc); day != next {
+		_, t = t.ZoneBounds()
+	}
+	return t.Add(-time.Second)
 }
 
 // followStart moves the parts of a rule naming the start's day when the
@@ -363,8 +395,8 @@ func followStart(rule, from, to string) string {
 // ordinalWord says a BYDAY's ordinal for the sheet.
 func ordinalWord(n string) string { return ordinals[strings.TrimRight(n, "MOTUWEHFRSA")] }
 
-// monthlyByDayLabel is the sheet's "on the first Thursday".
-func monthlyByDayLabel(start string) string {
-	nth := nthWeekday(start)
-	return fmt.Sprintf("on the %s %s", ordinalWord(nth), dayNames[startDay(start)])
+// monthlyByDayLabel is the sheet's "on the first Thursday", for a BYDAY
+// on the start's weekday.
+func monthlyByDayLabel(byDay, start string) string {
+	return fmt.Sprintf("on the %s %s", ordinalWord(byDay), dayNames[startDay(start)])
 }

@@ -227,8 +227,175 @@ func TestRepeatRules(t *testing.T) {
 	if got := followStart("FREQ=MONTHLY;BYDAY=2TH", "2026-10-08", "2026-10-15"); got != "FREQ=MONTHLY;BYDAY=3TH" {
 		t.Error(got)
 	}
-	if got := monthlyByDayLabel(start); got != "on the second Thursday" {
+	if got := monthlyByDayLabel(nthWeekday(start), start); got != "on the second Thursday" {
 		t.Error(got)
+	}
+}
+
+func TestAZeroMoveKeepsItsInstants(t *testing.T) {
+	ny, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skip(err)
+	}
+	// The second 1:30 of the night the clocks go back, and a start with seconds.
+	second := time.Date(2026, 11, 1, 5, 30, 0, 0, time.UTC).In(ny)
+	for _, r := range []span{{second, second.Add(10 * time.Minute)}, {time.Date(2026, 10, 8, 9, 0, 30, 0, ny), time.Date(2026, 10, 8, 10, 0, 45, 0, ny)}} {
+		if got := moved(r, 0, 0, ny); !got.start.Equal(r.start) || !got.end.Equal(r.end) {
+			t.Errorf("moved: %v, want %v", got, r)
+		}
+		if got := resized(r, 0, ny); !got.start.Equal(r.start) || !got.end.Equal(r.end) {
+			t.Errorf("resized: %v, want %v", got, r)
+		}
+	}
+}
+
+func TestRepeatKeepsWhatTheSheetDoesNotShow(t *testing.T) {
+	// WKST decides which weeks an interval counts.
+	start := "2026-10-08"
+	r := repeatOf("FREQ=WEEKLY;INTERVAL=2;BYDAY=TH,SU;WKST=SU", start)
+	if got := ruleOfRepeat(*r, start); got != "FREQ=WEEKLY;INTERVAL=2;BYDAY=TH,SU;WKST=SU" {
+		t.Error(got)
+	}
+	both := "2026-02-27" // February 2026: the fourth Friday is the last
+	if !isLastWeek(both) || nthWeekday(both) != "4FR" {
+		t.Fatalf("%v %s", isLastWeek(both), nthWeekday(both))
+	}
+	r = repeatOf("FREQ=MONTHLY;BYDAY=-1FR", both)
+	if r == nil || !r.byWeekday {
+		t.Fatalf("%+v", r)
+	}
+	if got := ruleOfRepeat(*r, both); got != "FREQ=MONTHLY;BYDAY=-1FR" {
+		t.Error(got)
+	}
+	if got := monthlyByDayLabel(r.monthlyByDay(both), both); got != "on the last Friday" {
+		t.Error(got)
+	}
+	// A rule counting from the start keeps counting so.
+	r = repeatOf("FREQ=MONTHLY;BYDAY=4FR", both)
+	if got := ruleOfRepeat(*r, both); got != "FREQ=MONTHLY;BYDAY=4FR" {
+		t.Error(got)
+	}
+	// A start moved out of the last week has no last to keep.
+	r = repeatOf("FREQ=MONTHLY;BYDAY=-1FR", both)
+	if got := ruleOfRepeat(*r, "2026-02-13"); got != "FREQ=MONTHLY;BYDAY=2FR" {
+		t.Error(got)
+	}
+}
+
+func TestUntilKeepsItsTime(t *testing.T) {
+	rule := "FREQ=DAILY;UNTIL=20261031T150000Z"
+	end := endOf(rule, time.UTC)
+	if end.kind != "date" || end.date != "2026-10-31" {
+		t.Fatalf("%+v", end)
+	}
+	// A change that keeps the end keeps the end's time.
+	if got := withEnd("FREQ=WEEKLY", end, false, time.UTC); got != "FREQ=WEEKLY;UNTIL=20261031T150000Z" {
+		t.Error(got)
+	}
+	// A new date is a new end, at that day's close.
+	if got := withEnd(rule, repeatEnd{kind: "date", date: "2026-11-02"}, false, time.UTC); got != "FREQ=DAILY;UNTIL=20261102T235959Z" {
+		t.Error(got)
+	}
+	// UNTIL's form follows the event's.
+	if got := withEnd("FREQ=WEEKLY", end, true, time.UTC); got != "FREQ=WEEKLY;UNTIL=20261031" {
+		t.Error(got)
+	}
+	dateOnly := endOf("FREQ=DAILY;UNTIL=20261031", time.UTC)
+	if got := withEnd("FREQ=WEEKLY", dateOnly, false, time.UTC); got != "FREQ=WEEKLY;UNTIL=20261031T235959Z" {
+		t.Error(got)
+	}
+}
+
+func TestUntilClosesTheDayWhereMidnightIsSkipped(t *testing.T) {
+	for _, c := range []struct{ zone, date, want string }{
+		// time.Date reads the skipped midnight as the hour before here, and
+		// as the hour after in Beirut.
+		{"America/Havana", "2026-03-07", "20260308T045959Z"},
+		{"Asia/Beirut", "2026-03-28", "20260328T215959Z"},
+		{"America/New_York", "2026-03-07", "20260308T045959Z"},
+	} {
+		loc, err := time.LoadLocation(c.zone)
+		if err != nil {
+			t.Skip(err)
+		}
+		rule := withEnd("FREQ=DAILY", repeatEnd{kind: "date", date: c.date}, false, loc)
+		if want := "FREQ=DAILY;UNTIL=" + c.want; rule != want {
+			t.Errorf("%s: %s, want %s", c.zone, rule, want)
+		}
+		if got := endOf(rule, loc); got.date != c.date {
+			t.Errorf("%s: reads back as %s", c.zone, got.date)
+		}
+	}
+}
+
+func TestDraftTimesAcrossClockChanges(t *testing.T) {
+	ny, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skip(err)
+	}
+	const zone = "America/New_York"
+	// 2:30 does not happen on March 8, 2026.
+	d := newDraft(newTimes{start: time.Date(2026, 3, 8, 7, 0, 0, 0, ny), end: time.Date(2026, 3, 8, 8, 0, 0, 0, ny)}, 7, zone, ny)
+	skipped := d
+	skipped.startDate, skipped.startTime = "2026-03-08", "02:30"
+	if e := skipped.validate(); e.start != skippedTime {
+		t.Errorf("start: %+v", e)
+	}
+	skipped = d
+	skipped.endDate, skipped.endTime = "2026-03-08", "02:30"
+	skipped.startTime = "01:00"
+	if e := skipped.validate(); e.end != skippedTime {
+		t.Errorf("end: %+v", e)
+	}
+
+	// The clocks go back at 2:00 on November 1, 2026: 1:50 EDT to 1:10 EST
+	// is twenty minutes, whose end reads earlier than its start.
+	start := time.Date(2026, 11, 1, 5, 50, 0, 0, time.UTC)
+	end := time.Date(2026, 11, 1, 6, 10, 0, 0, time.UTC)
+	event := &api.CalendarEvent{CalendarID: 3, TimeZone: zone, Start: start, End: end}
+	dd := draftOf(event, "UTC", time.UTC)
+	if dd.startTime != "01:50" || dd.endTime != "01:10" {
+		t.Fatalf("%+v", dd)
+	}
+	if e := dd.validate(); e.any() {
+		t.Errorf("an event in the repeated hour cannot be saved: %+v", e)
+	}
+	if s, e := dd.instants(); !s.Equal(start) || !e.Equal(end) {
+		t.Errorf("instants %v %v", s, e)
+	}
+	// An edit of another field writes no times.
+	renamed := dd
+	renamed.summary = "Night shift"
+	if f := changedFields(&dd, renamed); f.Start != nil || f.End != nil {
+		t.Errorf("%+v", f)
+	}
+	// An event in the hour's second pass keeps it when only its end changes.
+	second := time.Date(2026, 11, 1, 6, 30, 0, 0, time.UTC)
+	later := draftOf(&api.CalendarEvent{CalendarID: 3, TimeZone: zone, Start: second, End: second.Add(10 * time.Minute)}, "UTC", time.UTC)
+	edited := later
+	edited.endTime = "01:50"
+	if e := edited.validate(); e.any() {
+		t.Errorf("%+v", e)
+	}
+	f := changedFields(&later, edited)
+	if f.Start == nil || !f.Start.Equal(second) || !f.End.Equal(second.Add(20*time.Minute)) {
+		t.Errorf("start %v, end %v", f.Start, f.End)
+	}
+	// Moving the start keeps the length, across the repeated hour too.
+	day := draftOf(&api.CalendarEvent{CalendarID: 3, TimeZone: zone, Start: time.Date(2026, 10, 31, 5, 50, 0, 0, time.UTC), End: time.Date(2026, 10, 31, 6, 10, 0, 0, time.UTC)}, "UTC", time.UTC)
+	into := moveStart(day, "2026-11-01", "01:50")
+	if into.endTime != "01:10" || into.validate().any() {
+		t.Errorf("%+v: %+v", into, into.validate())
+	}
+	if s, e := into.instants(); e.Sub(s) != 20*time.Minute {
+		t.Errorf("length %v", e.Sub(s))
+	}
+	// A change of zone reads the wall time in the new zone.
+	rezoned := dd
+	rezoned.timeZone = "UTC"
+	rezoned.endTime = "02:10"
+	if s, _ := rezoned.instants(); !s.Equal(time.Date(2026, 11, 1, 1, 50, 0, 0, time.UTC)) {
+		t.Errorf("start %v", s)
 	}
 }
 

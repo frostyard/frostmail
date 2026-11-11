@@ -3,6 +3,7 @@ package pim
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -78,7 +79,7 @@ func (m *Module) remindersView(c *ui.Context) {
 	rows := m.reminderRows()
 	if len(rows) > 0 {
 		r.had = true
-	} else if r.had {
+	} else if r.had && len(r.pending) == 0 { // an answer can still fail and bring its row back
 		r.had = false
 		m.closeReminders()
 	}
@@ -157,7 +158,8 @@ func (m *Module) openReminder(r api.Reminder) {
 	m.show(commands.Calendar)
 }
 
-// answerReminders snoozes or dismisses; the rows leave at once.
+// answerReminders snoozes or dismisses; the rows leave at once, and come
+// back with a notice if maild refuses.
 func (m *Module) answerReminders(ids []string, until *time.Time) {
 	c := m.client
 	if c == nil {
@@ -179,10 +181,20 @@ func (m *Module) answerReminders(ids []string, until *time.Time) {
 			slog.Warn("change reminders", "err", err)
 		}
 		m.o.Post(func() {
+			r := &m.remind
 			for _, id := range ids {
-				delete(m.remind.pending, id)
+				delete(r.pending, id)
 			}
-			m.remind.list.dirty = true
+			r.list.dirty = true
+			if err != nil {
+				verb := "dismiss"
+				if until != nil {
+					verb = "snooze"
+				}
+				m.o.Toast("Could not "+verb+" the reminder", err)
+				return
+			}
+			r.list.value = slices.DeleteFunc(slices.Clone(r.list.value), func(x api.Reminder) bool { return slices.Contains(ids, x.ID) })
 		})
 	}()
 }

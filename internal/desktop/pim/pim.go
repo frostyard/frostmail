@@ -37,7 +37,7 @@ const (
 	listWidth    = 360
 	detailWidth  = 320
 
-	// actionTimeout bounds one write to maild; refreshDelay is how long
+	// actionTimeout bounds one call to maild; refreshDelay is how long
 	// events are gathered before a refetch; undoLimit how many writes a
 	// module can undo.
 	actionTimeout = 60 * time.Second
@@ -241,35 +241,41 @@ func refusedText(name, reason string) string {
 	return "The server didn't accept your change to “" + name + "”."
 }
 
-// fetch keeps one call's answer: a new key or Invalidate asks again, and
-// an answer overtaken by another is dropped.
+// fetch keeps one call's answer: a new key or Invalidate asks again, one
+// call at a time, and an answer whose gen was overtaken is dropped.
 type fetch[T any] struct {
 	key     string
 	started bool
 	dirty   bool
 	gen     int
 	pending bool
+	running bool // a call is out, whether or not its answer will count
 	value   T
 	err     error
 	loaded  bool
 	version int
 }
 
-// want asks for key's answer, when it is not the one held.
+// want asks for key's answer, when it is not the one held. While a call
+// is out it starts no other: paging would pile them up. That call's answer
+// redraws, and the next frame asks for whatever is wanted by then.
 func want[T any](m *Module, f *fetch[T], key string, load func(ctx context.Context, c *api.Client) (T, error)) {
 	if m.client == nil {
 		return
 	}
 	key = fmt.Sprint(m.conn, "|", key)
-	if f.started && f.key == key && !f.dirty {
+	if (f.started && f.key == key && !f.dirty) || f.running {
 		return
 	}
-	f.key, f.started, f.dirty, f.err, f.pending = key, true, false, nil, true
+	f.key, f.started, f.dirty, f.err, f.pending, f.running = key, true, false, nil, true, true
 	f.gen++
 	gen, c, ctx := f.gen, m.client, m.ctx
 	go func() {
-		v, err := load(ctx, c)
+		call, cancel := context.WithTimeout(ctx, actionTimeout)
+		defer cancel()
+		v, err := load(call, c)
 		m.o.Post(func() {
+			f.running = false
 			if f.gen != gen {
 				return
 			}
@@ -428,15 +434,6 @@ func wireZone(zone string) string {
 		return "UTC"
 	}
 	return zone
-}
-
-// zonePtr names the app's zone for a call, nil for maild's local zone.
-func (m *Module) zonePtr() *string {
-	if m.zone == localZone {
-		return nil
-	}
-	z := m.zone
-	return &z
 }
 
 func decodePhoto(p *api.Photo) *ui.Bitmap {

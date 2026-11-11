@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
@@ -41,7 +42,8 @@ type calendarState struct {
 	timeGridOn  bool
 	press       *gridPress
 	writable    map[int64]bool
-	barDate     string // the day a pressed all-day bar was pressed on
+	grab        *barGrab
+	goneCheck   [2]int // the answers the selection was last checked against
 	scope       *scopeSheet
 	undo        []string
 	cellHeight  float32
@@ -73,12 +75,45 @@ func (m *Module) loadCalendars() {
 	})
 }
 
-// loadRange asks for a range of occurrences.
+// loadRange asks for a range of occurrences, in the app's zone. maild may
+// be on another machine, so a zone with no name to send is never left to
+// maild's: the call asks in UTC, a day wider, and keeps what falls in the
+// range here.
 func (m *Module) loadRange(f *fetch[[]api.Occurrence], from, to, extra string) {
-	zone := m.zonePtr()
-	want(m, f, from+"|"+to+"|"+m.zone+"|"+extra, func(ctx context.Context, c *api.Client) ([]api.Occurrence, error) {
-		return c.Calendar().Range(ctx, &api.CalendarRangeParams{From: from, To: to, TimeZone: zone})
+	zone, loc := m.zone, m.clock.loc
+	want(m, f, rangeKey(from, to, zone, extra), func(ctx context.Context, c *api.Client) ([]api.Occurrence, error) {
+		if zone != localZone {
+			return c.Calendar().Range(ctx, &api.CalendarRangeParams{From: from, To: to, TimeZone: &zone})
+		}
+		utc := "UTC"
+		wide, err := c.Calendar().Range(ctx, &api.CalendarRangeParams{From: addDays(from, -1), To: addDays(to, 1), TimeZone: &utc})
+		if err != nil {
+			return nil, err
+		}
+		return inRange(wide, from, to, loc), nil
 	})
+}
+
+func rangeKey(from, to, zone, extra string) string { return from + "|" + to + "|" + zone + "|" + extra }
+
+// inRange keeps the occurrences in a range of dates in a zone, with
+// all-day ones at that zone's midnights, as a call naming the zone answers.
+func inRange(occs []api.Occurrence, from, to string, loc *time.Location) []api.Occurrence {
+	start, end := dayStart(from, loc), dayStart(to, loc)
+	out := make([]api.Occurrence, 0, len(occs))
+	for _, o := range occs {
+		if o.AllDay {
+			if o.StartDate >= to || o.EndDate <= from {
+				continue
+			}
+			o.Start, o.End = dayStart(o.StartDate, loc), dayStart(o.EndDate, loc)
+		} else if !overlaps(&o, start, end) {
+			continue
+		}
+		out = append(out, o)
+	}
+	slices.SortStableFunc(out, func(a, b api.Occurrence) int { return a.Start.Compare(b.Start) })
+	return out
 }
 
 // syncCalendar asks for what the module shows and lays it out when it
@@ -92,6 +127,7 @@ func (m *Module) syncCalendar() {
 	days := monthGrid(cal.date, m.clock.weekStart)
 	m.loadRange(&cal.mini, days[0], addDays(days[41], 1), "")
 	m.syncEvent()
+	m.endRemovedOccurrence(from, to)
 	viewDaysNow := viewDays(cal.view, cal.date, m.clock.weekStart)
 	key := fmt.Sprint(cal.occ.version, "|", string(cal.view), "|", viewDaysNow[0], "|", m.zone)
 	if key != cal.layoutKey {
@@ -132,6 +168,45 @@ func (m *Module) syncEvent() {
 	if cal.event.loaded && cal.event.err != nil && cal.event.key == fmt.Sprint(m.conn, "|", fmt.Sprint(sel.eventID, "|", sel.recurrenceID)) {
 		cal.selected, cal.event.value, cal.event.err = nil, nil, nil
 	}
+}
+
+// endRemovedOccurrence ends the selection of an occurrence taken out of
+// its series. maild still answers for it from the series, so only the
+// shown range can tell: once the range and the event have both answered,
+// an occurrence dated inside the range that the range lacks is gone. An
+// override has another event ID and the same recurrence ID, and stays.
+func (m *Module) endRemovedOccurrence(from, to string) {
+	cal := &m.cal
+	sel := cal.selected
+	if sel == nil || sel.recurrenceID == "" || m.client == nil {
+		return
+	}
+	occ, event := &cal.occ, &cal.event
+	if occ.key != fmt.Sprint(m.conn, "|", rangeKey(from, to, m.zone, "")) || !occ.loaded || occ.err != nil || occ.pending || occ.dirty || event.pending || event.dirty {
+		return
+	}
+	answers := [2]int{occ.version, event.version}
+	if answers == cal.goneCheck {
+		return
+	}
+	cal.goneCheck = answers
+	e := m.shownEvent()
+	if e == nil || !m.eventInRange(e, from, to) {
+		return
+	}
+	if col := m.collection(e.CalendarID); col != nil && !col.Enabled {
+		return
+	}
+	if !slices.ContainsFunc(occ.value, func(o api.Occurrence) bool { return o.RecurrenceID == sel.recurrenceID && o.CalendarID == e.CalendarID }) {
+		cal.selected, cal.event.value = nil, nil
+	}
+}
+
+func (m *Module) eventInRange(e *api.CalendarEvent, from, to string) bool {
+	if e.AllDay {
+		return e.StartDate < to && e.EndDate > from
+	}
+	return overlaps(&api.Occurrence{Start: e.Start, End: e.End}, dayStart(from, m.clock.loc), dayStart(to, m.clock.loc))
 }
 
 // shownEvent is the selected event once loaded.

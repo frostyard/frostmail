@@ -1,12 +1,15 @@
 package pim
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -930,5 +933,390 @@ func TestDoubleClickOpensAnOccurrence(t *testing.T) {
 	f.until("the window", func() bool { w := f.window("event-"); return w != nil && f.m.windows[w.spec.Key].loaded })
 	if w := f.m.windows[f.window("event-").spec.Key]; w.draft.summary != "Review" {
 		t.Errorf("draft %+v", w.draft)
+	}
+}
+
+// A drag of a multi-day bar measures from the day it was pressed on, however
+// many of the bar's own days the pointer crosses on the way, frame by frame.
+func TestDraggingABarAcrossItsOwnDaysMeasuresFromTheGrab(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Standup")
+	if _, err := f.c.Calendar().Create(t.Context(), &api.CalendarCreateParams{CalendarID: &f.work, Fields: api.EventFields{Summary: ptr("Fair"), AllDay: ptr(true), StartDate: ptr("2026-10-05"), EndDate: ptr("2026-10-08")}}); err != nil {
+		t.Fatal(err)
+	}
+	f.text("Fair")
+	drag := func(grab, to string) {
+		t.Helper()
+		bar := f.block("Fair, ")
+		from, ok := f.tt.Find("All-day " + grab)
+		if !ok {
+			t.Fatalf("no cell %s in %s", grab, dump(f.tt))
+		}
+		dst, ok := f.tt.Find("All-day " + to)
+		if !ok {
+			t.Fatalf("no cell %s in %s", to, dump(f.tt))
+		}
+		x, y := from.X+from.W/2, bar.Y+bar.H/2
+		f.tt.Press(x, y)
+		for _, across := range []float32{x + 20, bar.X + bar.W - 10, bar.X + 10, bar.X + bar.W/2, bar.X + bar.W - 10} {
+			f.tt.Move(across, y)
+			f.tt.Frame()
+		}
+		// Below the bars, where the day's cell takes the drop.
+		f.tt.Move(dst.X+dst.W/2, dst.Y+dst.H-2)
+		f.tt.Frame()
+		f.tt.Release(dst.X+dst.W/2, dst.Y+dst.H-2)
+		f.tt.Frame()
+	}
+	// Monday's part, dropped on Thursday: three days, not the one from the
+	// last of its days the pointer crossed.
+	drag("Monday, October 5, 2026", "Thursday, October 8, 2026")
+	f.until("the move", func() bool {
+		o := f.occurrence("Fair", "2026-10-01", "2026-10-31")
+		return o.StartDate != "2026-10-05"
+	})
+	if o := f.occurrence("Fair", "2026-10-01", "2026-10-31"); o.StartDate != "2026-10-08" || o.EndDate != "2026-10-11" {
+		t.Fatalf("moved to %s – %s", o.StartDate, o.EndDate)
+	}
+	f.until("the bar in its new place", func() bool {
+		a, ok := f.tt.Find("All-day Saturday, October 10, 2026")
+		b, shown := f.tt.Find("Fair, all day")
+		return ok && shown && b.X+b.W > a.X
+	})
+	// A new press grabs afresh: Saturday's part, dropped on Wednesday.
+	drag("Saturday, October 10, 2026", "Wednesday, October 7, 2026")
+	f.until("the second move", func() bool {
+		o := f.occurrence("Fair", "2026-10-01", "2026-10-31")
+		return o.StartDate != "2026-10-08"
+	})
+	if o := f.occurrence("Fair", "2026-10-01", "2026-10-31"); o.StartDate != "2026-10-05" || o.EndDate != "2026-10-08" {
+		t.Fatalf("moved back to %s – %s", o.StartDate, o.EndDate)
+	}
+}
+
+func TestBarDayCountsTheBarsInset(t *testing.T) {
+	days := []string{"2026-10-05", "2026-10-06", "2026-10-07"}
+	bar := &allDayBar{first: 1, last: 2}
+	for _, c := range []struct {
+		x    float32
+		want string
+	}{{0, "2026-10-06"}, {97, "2026-10-06"}, {98, "2026-10-07"}, {500, "2026-10-07"}} {
+		if got := barDay(bar, days, c.x, 100); got != c.want {
+			t.Errorf("x %v: %s, want %s", c.x, got, c.want)
+		}
+	}
+	if got := barDay(bar, days, 50, 0); got != "2026-10-06" {
+		t.Errorf("no width: %s", got)
+	}
+}
+
+func TestARemovedOccurrenceEndsTheSelection(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Sync")
+	o := f.occurrence("Sync", "2026-10-08", "2026-10-09")
+	f.m.selectOccurrence(&o)
+	f.until("selection", func() bool { return f.m.shownEvent() != nil })
+	// A change elsewhere in the series keeps it.
+	other := f.occurrence("Sync", "2026-10-06", "2026-10-07")
+	scope := api.EventScopeThis
+	if _, err := f.c.Calendar().Delete(t.Context(), &api.CalendarDeleteParams{ID: other.EventID, RecurrenceID: &other.RecurrenceID, Scope: &scope}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the other gone", func() bool {
+		return !slices.ContainsFunc(f.m.cal.occ.value, func(x api.Occurrence) bool { return x.RecurrenceID == other.RecurrenceID }) && !f.m.cal.occ.pending && !f.m.cal.occ.dirty
+	})
+	if f.m.cal.selected == nil {
+		t.Fatal("removing another occurrence ended the selection")
+	}
+	// Paging away keeps a selection the range cannot judge.
+	f.m.page(1)
+	f.until("next week", func() bool {
+		return f.m.cal.occ.key != "" && !f.m.cal.occ.pending && !f.m.cal.occ.dirty && strings.Contains(f.m.cal.occ.key, "2026-10-11")
+	})
+	f.tt.Frame()
+	if f.m.cal.selected == nil {
+		t.Fatal("paging ended the selection")
+	}
+	f.m.page(-1)
+	f.until("back", func() bool {
+		return !f.m.cal.occ.pending && !f.m.cal.occ.dirty && strings.Contains(f.m.cal.occ.key, "2026-10-04")
+	})
+	// Another client takes it out of the series: maild still answers for
+	// it, but it has left the range.
+	if _, err := f.c.Calendar().Delete(t.Context(), &api.CalendarDeleteParams{ID: o.EventID, RecurrenceID: &o.RecurrenceID, Scope: &scope}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the empty pane", func() bool { return f.tt.HasText("No Event Selected") })
+	if f.m.cal.selected != nil {
+		t.Error("still selected")
+	}
+}
+
+// A zone with no name is never left to maild's own: it may be on another
+// machine.
+func TestAnUnnamedZoneDoesNotUseMaildsZone(t *testing.T) {
+	fake := &fakeCalendar{}
+	f := newFixture(t, commands.Calendar, withFake(fake))
+	f.text("Standup")
+	loc := time.FixedZone(localZone, 13*3600)
+	f.m.zone, f.m.clock.loc = localZone, loc
+	var got fetch[[]api.Occurrence]
+	f.m.loadRange(&got, "2026-10-09", "2026-10-10", "test")
+	f.until("the answer", func() bool { return got.loaded })
+	if got.err != nil {
+		t.Fatal(got.err)
+	}
+	fake.mu.Lock()
+	zones := slices.Clone(fake.zones)
+	fake.mu.Unlock()
+	if slices.Contains(zones, "") {
+		t.Errorf("a call left the zone to maild: %q", zones)
+	}
+	names := map[string]api.Occurrence{}
+	for _, o := range got.value {
+		names[o.Summary] = o
+	}
+	// Review is 14:00 UTC on the 8th: 3:00 on the 9th here. Standup, 9:00
+	// UTC, is still the 8th here, 22:00.
+	if _, ok := names["Review"]; !ok {
+		t.Errorf("Review is missing: %+v", got.value)
+	}
+	if _, ok := names["Standup"]; ok {
+		t.Errorf("Standup is on the 8th here: %+v", got.value)
+	}
+	holiday, ok := names["Holiday"]
+	if !ok || !holiday.Start.Equal(time.Date(2026, 10, 9, 0, 0, 0, 0, loc)) {
+		t.Errorf("the all-day event: %+v", holiday)
+	}
+}
+
+func TestAnUntitledNewEventWithChangesAsks(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Standup")
+	for name, change := range map[string]func(*eventWindow){
+		"location": func(w *eventWindow) { w.draft.location = "Room 9" },
+		"notes":    func(w *eventWindow) { w.draft.description = "Agenda" },
+		"time":     func(w *eventWindow) { w.draft.endTime = "13:30" },
+		"invitee":  func(w *eventWindow) { w.draft.invitees = []draftInvitee{{email: "ann@a.test"}} },
+		"alert":    func(w *eventWindow) { w.draft.alarms = []int64{15} },
+		"typed":    func(w *eventWindow) { w.inviteeText = "ann@a.test" },
+	} {
+		win, w := f.newEvent()
+		if !w.closeRequested() && !w.closing {
+			t.Fatalf("%s: an unchanged window stayed", name)
+		}
+		f.m.windows[win.spec.Key] = w
+		change(w)
+		if w.closeRequested() {
+			t.Errorf("%s: the window would close with no question", name)
+		}
+		win.tt.Frame()
+		if !win.tt.HasText(`Save changes to "New Event"?`) {
+			t.Errorf("%s: shows %s", name, dump(win.tt))
+		}
+		w.closing = false
+		w.closeNow()
+	}
+}
+
+func TestSavingCommitsATypedInvitee(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Standup")
+	win, w := f.newEvent()
+	w.calendars[0].invites = true
+	w.draft.summary = "Planning"
+	win.tt.Frame()
+	if err := win.tt.Click("Add Invitee"); err != nil {
+		t.Fatalf("%v: %s", err, dump(win.tt))
+	}
+	win.tt.Type("not an address")
+	win.tt.Frame()
+	// What is no address stays to be fixed, and nothing is sent.
+	f.clickIn(win, "Save")
+	if w.busy || !win.tt.HasText("Check the invitees' addresses") || w.inviteeText != "" || len(w.draft.invitees) != 1 {
+		t.Fatalf("draft %+v, text %q; shows %s", w.draft.invitees, w.inviteeText, dump(win.tt))
+	}
+	w.draft.invitees = nil
+	win.tt.Frame()
+	if err := win.tt.Click("Add Invitee"); err != nil {
+		t.Fatalf("%v: %s", err, dump(win.tt))
+	}
+	win.tt.Type("Ann <ann@a.test>")
+	win.tt.Frame()
+	sent := changedFields(nil, w.draft)
+	if sent.Attendees != nil {
+		t.Fatalf("committed too early: %+v", sent.Attendees)
+	}
+	w.request(false)
+	if len(w.draft.invitees) != 1 || w.draft.invitees[0].email != "ann@a.test" || w.draft.invitees[0].name != "Ann" || w.inviteeText != "" {
+		t.Errorf("draft %+v, text %q", w.draft.invitees, w.inviteeText)
+	}
+}
+
+func TestInviteesWithRolesThatCannotBeWrittenStayAsTheyAre(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Standup")
+	event := &api.CalendarEvent{ID: 1, CalendarID: f.work, Start: testNow, End: testNow.Add(time.Hour),
+		Attendees: []api.Attendee{{Email: "chair@a.test", Name: "Chair", Role: api.AttendeeRoleChair}, {Email: "ann@a.test", Name: "Ann", Role: api.AttendeeRoleRequired}}}
+	w := &eventWindow{m: f.m, key: "event-x", target: editTarget{id: 1}}
+	f.m.openWindow(w, "Roles")
+	w.loadedWith([]api.Account{{ID: f.acct, Email: "me@a.test"}}, []api.Collection{{ID: f.work, AccountID: f.acct, Name: "Work", Invites: true}}, event, nil, "UTC", time.UTC)
+	win := f.windows["event-x"]
+	win.tt.Frame()
+	if !win.tt.HasText("These invitees can't be changed here: one has a role Frostmail can't keep.") {
+		t.Errorf("no note: %s", dump(win.tt))
+	}
+	if win.tt.HasText("Add Invitee") {
+		t.Error("the input shows")
+	}
+	if a, _ := win.tt.AccessByRole(ui.RoleButton, "Remove Ann"); !a.Disabled {
+		t.Errorf("the row can change: %+v", a)
+	}
+	w.inviteeText = "bo@a.test"
+	if w.dirty() {
+		t.Error("text in a field that does not show counts as a change")
+	}
+	w.draft.summary = "Renamed"
+	w.draft.invitees = w.draft.invitees[:1]
+	if got := changedFields(w.original(), w.draft); got.Attendees != nil || got.Summary == nil {
+		t.Errorf("a write would rewrite the roles: %+v", got)
+	}
+}
+
+func TestTheRepeatSheetTakesATypedInterval(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Standup")
+	win, w := f.newEvent()
+	w.repeat = &repeatSheet{r: defaultRepeat(w.draft.startDate), interval: ""}
+	win.tt.Frame()
+	if a, _ := win.tt.AccessByRole(ui.RoleButton, "OK"); !a.Disabled {
+		t.Fatalf("OK takes an empty interval: %+v", a)
+	}
+	every, ok := win.tt.AccessByRole(ui.RoleTextField, "Every")
+	if !ok {
+		t.Fatalf("no field: %s", dump(win.tt))
+	}
+	win.tt.ClickAt(every.Bounds.X+every.Bounds.W/2, every.Bounds.Y+every.Bounds.H/2)
+	win.tt.Type("3")
+	if a, _ := win.tt.AccessByRole(ui.RoleButton, "OK"); a.Disabled {
+		t.Errorf("OK refuses a typed interval: %+v", a)
+	}
+	f.clickIn(win, "OK")
+	if w.repeat != nil || w.draft.rrule != "FREQ=WEEKLY;INTERVAL=3" {
+		t.Errorf("rule %q", w.draft.rrule)
+	}
+}
+
+// A failed answer brings its row back, says so, and keeps the window.
+func TestAFailedSnoozeComesBackAndSaysSo(t *testing.T) {
+	fake := &fakeCalendar{due: []api.Reminder{{ID: "a", EventID: 1, Summary: "Meeting", Start: testNow, DueAt: testNow}}, snoozeErr: errors.New("no")}
+	f := newFixture(t, commands.Calendar, withFake(fake))
+	f.until("the row", func() bool { w := f.windows[remindersKey]; return w != nil && w.tt.HasText("Meeting") })
+	win := f.windows[remindersKey]
+	hold := make(chan struct{})
+	fake.mu.Lock()
+	fake.hold = hold
+	fake.mu.Unlock()
+	if err := win.tt.Click("Snooze"); err != nil {
+		t.Fatal(err)
+	}
+	win.tt.Frame()
+	if err := win.tt.ChooseMenuItem("5 minutes"); err != nil {
+		t.Fatalf("%v: menu %q", err, win.tt.Menu())
+	}
+	f.until("the row leaving", func() bool { return !win.tt.HasText("Meeting") })
+	for range 3 {
+		win.tt.Frame()
+	}
+	if f.windows[remindersKey] == nil {
+		t.Fatal("the window closed before the answer came")
+	}
+	close(hold)
+	f.until("the notice", func() bool { return len(f.toasts) == 1 })
+	if !strings.Contains(f.toasts[0], "Could not snooze the reminder") {
+		t.Errorf("toast %q", f.toasts[0])
+	}
+	f.until("the row back", func() bool { return win.tt.HasText("Meeting") })
+	if f.windows[remindersKey] == nil {
+		t.Error("the window closed")
+	}
+	// A dismiss that works leaves no row to flash back, and closes it.
+	f.clickIn(win, "Dismiss")
+	f.until("the close", func() bool { return f.windows[remindersKey] == nil })
+}
+
+// One call at a time: paging starts no pile of loads, the newest key is
+// the one asked next, and an answer dropped by gen still frees the fetch.
+func TestWantHoldsOneCallAtATime(t *testing.T) {
+	var mu sync.Mutex
+	var posted []func()
+	m := New(Options{Post: func(fn func()) { mu.Lock(); defer mu.Unlock(); posted = append(posted, fn) }})
+	m.client = &api.Client{}
+	flush := func() {
+		deadline := time.Now().Add(15 * time.Second)
+		for {
+			mu.Lock()
+			list := posted
+			posted = nil
+			mu.Unlock()
+			if len(list) > 0 {
+				for _, fn := range list {
+					fn()
+				}
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("no answer posted")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	started := make(chan string, 16)
+	release := make(chan struct{})
+	var f fetch[string]
+	ask := func(key string) {
+		want(m, &f, key, func(context.Context, *api.Client) (string, error) {
+			started <- key
+			<-release
+			return key, nil
+		})
+	}
+	ask("a")
+	if got := <-started; got != "a" {
+		t.Fatal(got)
+	}
+	for _, key := range []string{"b", "c", "d"} {
+		ask(key)
+	}
+	select {
+	case got := <-started:
+		t.Fatalf("%q started while a call was out", got)
+	default:
+	}
+	release <- struct{}{}
+	flush()
+	if f.value != "a" {
+		t.Errorf("value %q", f.value)
+	}
+	ask("d")
+	if got := <-started; got != "d" {
+		t.Fatalf("asked %q next", got)
+	}
+	// An answer dropped by gen, as an optimistic write does, frees the fetch.
+	f.gen++
+	release <- struct{}{}
+	flush()
+	if f.value != "a" {
+		t.Errorf("a dropped answer was kept: %q", f.value)
+	}
+	f.dirty = true
+	ask("d")
+	if got := <-started; got != "d" {
+		t.Fatal(got)
+	}
+	release <- struct{}{}
+	flush()
+	if f.value != "d" || f.running || f.pending {
+		t.Errorf("%+v", f)
 	}
 }

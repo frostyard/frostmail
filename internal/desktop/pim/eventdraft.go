@@ -29,7 +29,32 @@ type eventDraft struct {
 	alarms                         []int64
 	transparent                    bool
 	invitees                       []draftInvitee
+
+	// startRead and endRead are the instants the times were read from.
+	startRead, endRead readTime
+	// fixedRoles says an invitee has a role calendar.update cannot write
+	// (chair or none), so the invitees are left as they are.
+	fixedRoles bool
 }
+
+// readTime is a wall time with the instant it was read from: in a repeated
+// hour the wall time alone does not say which pass it is.
+type readTime struct {
+	date, wall, zone string
+	at               time.Time
+}
+
+// instant is a wall time's instant: the one it was read from while it
+// stands, else what the zone says.
+func (r readTime) instant(date, wall, zone string, loc *time.Location) time.Time {
+	if r.date == date && r.wall == wall && r.zone == zone {
+		return r.at
+	}
+	return instantAt(date, minutesOf(wall), loc)
+}
+
+// skippedTime is the problem of a wall time the clocks jump over.
+const skippedTime = "The clocks change then, so this time doesn't exist"
 
 // draftErrors names each invalid field's problem.
 type draftErrors struct{ start, end, timeZone, invitees string }
@@ -72,8 +97,10 @@ func newDraft(t newTimes, calendarID int64, zone string, loc *time.Location) eve
 	}
 	date, m := zoned(t.start, loc)
 	d.startDate, d.startTime = date, wallTime(m)
+	d.startRead = readTime{date, d.startTime, zone, t.start}
 	date, m = zoned(t.end, loc)
 	d.endDate, d.endTime = date, wallTime(m)
+	d.endRead = readTime{date, d.endTime, zone, t.end}
 	return d
 }
 
@@ -94,6 +121,7 @@ func draftOf(e *api.CalendarEvent, appZone string, appLoc *time.Location) eventD
 	for _, a := range e.Attendees {
 		if !a.IsUser {
 			d.invitees = append(d.invitees, draftInvitee{a.Email, a.Name, a.Role == api.AttendeeRoleOptional, a.Answer})
+			d.fixedRoles = d.fixedRoles || a.Role == api.AttendeeRoleChair || a.Role == api.AttendeeRoleNone
 		}
 	}
 	return d
@@ -106,10 +134,38 @@ func (d eventDraft) zoneLoc() *time.Location {
 	return time.UTC
 }
 
-// instants are a timed draft's start and end.
+// instants are a timed draft's start and end. An end typed in a repeated
+// hour that would come before the start is the hour's second pass.
 func (d eventDraft) instants() (start, end time.Time) {
 	loc := d.zoneLoc()
-	return instantAt(d.startDate, minutesOf(d.startTime), loc), instantAt(d.endDate, minutesOf(d.endTime), loc)
+	start = d.startRead.instant(d.startDate, d.startTime, d.timeZone, loc)
+	end = d.endRead.instant(d.endDate, d.endTime, d.timeZone, loc)
+	if !end.After(start) {
+		end = secondPass(end)
+	}
+	return start, end
+}
+
+// secondPass is the later instant of a wall time the clocks going back
+// repeat; any other instant as it is.
+func secondPass(t time.Time) time.Time {
+	_, end := t.ZoneBounds()
+	if end.IsZero() {
+		return t
+	}
+	_, before := t.Zone()
+	_, after := end.Zone()
+	if later := t.Add(time.Duration(before-after) * time.Second); before > after && !later.Before(end) {
+		return later
+	}
+	return t
+}
+
+// wallExists reports whether a wall time happens in a zone: the clocks
+// going forward skip some.
+func wallExists(date, wall string, loc *time.Location) bool {
+	d, m := zoned(instantAt(date, minutesOf(wall), loc), loc)
+	return d == date && m == minutesOf(wall)
 }
 
 // validate names what keeps a draft from being saved.
@@ -137,6 +193,13 @@ func (d eventDraft) validateTimes() draftErrors {
 		}
 		return draftErrors{}
 	}
+	loc := d.zoneLoc()
+	if !wallExists(d.startDate, d.startTime, loc) {
+		return draftErrors{start: skippedTime}
+	}
+	if !wallExists(d.endDate, d.endTime, loc) {
+		return draftErrors{end: skippedTime}
+	}
 	if start, end := d.instants(); !end.After(start) {
 		return draftErrors{end: "The end is before the start"}
 	}
@@ -155,9 +218,12 @@ func moveStart(d eventDraft, startDate, startTime string) eventDraft {
 	}
 	start, end := d.instants()
 	loc := d.zoneLoc()
-	newStart := instantAt(startDate, minutesOf(startTime), loc)
-	date, m := zoned(newStart.Add(end.Sub(start)), loc)
+	newStart := d.startRead.instant(startDate, startTime, d.timeZone, loc)
+	newEnd := newStart.Add(end.Sub(start))
+	date, m := zoned(newEnd, loc)
 	out.endDate, out.endTime = date, wallTime(m)
+	out.startRead = readTime{startDate, startTime, d.timeZone, newStart}
+	out.endRead = readTime{date, out.endTime, d.timeZone, newEnd}
 	return out
 }
 
@@ -210,7 +276,7 @@ func changedFields(original *eventDraft, d eventDraft) api.EventFields {
 	if (original != nil && !slices.Equal(original.alarms, d.alarms)) || (original == nil && len(d.alarms) > 0) {
 		f.Alarms = append([]int64{}, d.alarms...)
 	}
-	if inviteesChanged(original, d) {
+	if !d.fixedRoles && inviteesChanged(original, d) {
 		f.Attendees = make([]api.Invitee, 0, len(d.invitees))
 		for _, i := range d.invitees {
 			role := api.AttendeeRoleRequired

@@ -40,8 +40,13 @@ func minuteAt(y float32) int {
 }
 
 // moved is a range moved by days and minutes of wall time, keeping its
-// length.
+// length. No move leaves its instants as they are: reading them back from
+// wall time drops their seconds, and in a repeated hour can choose the
+// hour's other pass.
 func moved(r span, days, minutes int, loc *time.Location) span {
+	if days == 0 && minutes == 0 {
+		return r
+	}
 	date, wall := zoned(r.start, loc)
 	start := instantAt(addDays(date, days), wall+minutes, loc)
 	return span{start, start.Add(r.end.Sub(r.start))}
@@ -49,6 +54,9 @@ func moved(r span, days, minutes int, loc *time.Location) span {
 
 // resized is a range whose end moved, at least a step after its start.
 func resized(r span, minutes int, loc *time.Location) span {
+	if minutes == 0 {
+		return r
+	}
 	date, wall := zoned(r.end, loc)
 	end := instantAt(date, wall+minutes, loc)
 	least := r.start.Add(dragStep * time.Minute)

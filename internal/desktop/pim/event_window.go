@@ -88,6 +88,13 @@ type repeatSheet struct {
 	interval string
 }
 
+// every reads the sheet's interval and whether OK can take it. A control
+// takes its input as it draws, so call it after the controls.
+func (s *repeatSheet) every() (int, bool) {
+	n, err := strconv.Atoi(strings.TrimSpace(s.interval))
+	return n, err == nil && n >= 1 && (s.r.frequency != "WEEKLY" || len(s.r.weekdays) > 0)
+}
+
 func (m *Module) openWindow(w *eventWindow, title string) {
 	if m.o.OpenWindow == nil {
 		return
@@ -267,10 +274,17 @@ func (w *eventWindow) dirty() bool {
 	if w.readOnly || !w.loaded {
 		return false
 	}
-	if orig := w.original(); orig != nil {
-		return w.draft.validate().any() || !emptyFields(changedFields(orig, w.draft))
-	}
-	return w.draft.summary != ""
+	return w.typedInvitees() || w.draft.validate().any() || !emptyFields(changedFields(&w.initial, w.draft))
+}
+
+// takesInvitees reports whether the Add Invitee field shows.
+func (w *eventWindow) takesInvitees() bool {
+	return !w.readOnly && !w.invited() && w.calendarInvites() && !w.draft.fixedRoles
+}
+
+// typedInvitees reports text in the Add Invitee field not yet committed.
+func (w *eventWindow) typedInvitees() bool {
+	return w.takesInvitees() && strings.TrimSpace(w.inviteeText) != ""
 }
 
 func (w *eventWindow) cannotSave() bool {
@@ -321,7 +335,16 @@ func (w *eventWindow) closeRequested() bool {
 
 // request starts a save or a delete.
 func (w *eventWindow) request(del bool) {
-	if w.busy || w.readOnly || (!del && w.cannotSave()) || (del && w.invited()) {
+	if w.busy || w.readOnly || (del && w.invited()) {
+		return
+	}
+	if !del && w.typedInvitees() {
+		w.commitInvitees()
+		if w.cannotSave() { // what was typed is no address: show it
+			w.closing = false
+		}
+	}
+	if !del && w.cannotSave() {
 		return
 	}
 	w.closing = false
@@ -714,7 +737,7 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 	t := c.Theme()
 	d := &w.draft
 	invites := w.calendarInvites()
-	frozen := disabled || !invites
+	frozen := disabled || !invites || d.fixedRoles
 	editorRow(c, "Invitees", func() {
 		removed := -1
 		for i := range d.invitees {
@@ -753,6 +776,10 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 			return
 		}
 		if disabled {
+			return
+		}
+		if d.fixedRoles {
+			ui.Text(c, "These invitees can't be changed here: one has a role Frostmail can't keep.").FontSize(12).TextColor(tertiary(t)).Wrap()
 			return
 		}
 		in := ui.TextInput(c.Key("add-invitee"), &w.inviteeText).Label("Add Invitee").FontSize(13)
@@ -845,8 +872,6 @@ func (w *eventWindow) repeatSheetView(c *ui.Context) {
 	values := []string{"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}
 	units := []string{"days", "weeks", "months", "years"}
 	at := max(slices.Index(values, s.r.frequency), 0)
-	interval, err := strconv.Atoi(strings.TrimSpace(s.interval))
-	valid := err == nil && interval >= 1 && (s.r.frequency != "WEEKLY" || len(s.r.weekdays) > 0)
 	done, cancel := false, false
 	dismissed := sheetFrame(c, "Custom Repeat", func() {
 		ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
@@ -889,13 +914,14 @@ func (w *eventWindow) repeatSheetView(c *ui.Context) {
 		if s.r.frequency == "MONTHLY" {
 			ui.RadioGroup(c, func() {
 				ui.Radio(c.Key("day"), &s.r.byWeekday, false, "on day "+strconv.Itoa(dateOf(d.startDate).Day()))
-				ui.Radio(c.Key("weekday"), &s.r.byWeekday, true, monthlyByDayLabel(d.startDate))
+				ui.Radio(c.Key("weekday"), &s.r.byWeekday, true, monthlyByDayLabel(s.r.monthlyByDay(d.startDate), d.startDate))
 			})
 		}
 		ui.Row(c).Gap(frostui.SpaceS).Justify(ui.End).Children(func() {
 			if ui.Button(c, "Cancel").Clicked() {
 				cancel = true
 			}
+			_, valid := s.every()
 			if ui.PrimaryButton(c, "OK").Disabled(!valid).Clicked() {
 				done = true
 			}
@@ -903,7 +929,7 @@ func (w *eventWindow) repeatSheetView(c *ui.Context) {
 	})
 	switch {
 	case done:
-		s.r.interval = interval
+		s.r.interval, _ = s.every()
 		loc := d.zoneLoc()
 		d.rrule = withEnd(ruleOfRepeat(s.r, d.startDate), endOf(d.rrule, loc), d.allDay, loc)
 		w.repeat = nil

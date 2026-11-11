@@ -20,6 +20,7 @@ const (
 	blockGap     = 4
 	monthLineH   = 18
 	monthCellPad = 32
+	barInset     = 2
 )
 
 // gridPress is a press in the time grid, while it lasts.
@@ -36,6 +37,14 @@ type gridPress struct {
 	canceled bool
 	preview  *span
 	seen     bool
+}
+
+// barGrab is a press on an all-day bar, while it lasts: the day it began
+// on, which a drop measures from.
+type barGrab struct {
+	key  occKey
+	date string
+	seen bool
 }
 
 // dayDrop is the value a month or all-day drag carries.
@@ -102,6 +111,9 @@ func (m *Module) timeGrid(c *ui.Context, days []string) {
 	if cal.press != nil {
 		cal.press.seen = false
 	}
+	if cal.grab != nil {
+		cal.grab.seen = false
+	}
 	m.dayHeaders(c, days)
 	m.allDayStrip(c, days)
 	ui.Scroll(c).Grow(1).Fill().TrackScroll(&cal.scroll).Children(func() {
@@ -114,6 +126,9 @@ func (m *Module) timeGrid(c *ui.Context, days []string) {
 	})
 	if cal.press != nil && !cal.press.seen {
 		cal.press = nil
+	}
+	if cal.grab != nil && !cal.grab.seen {
+		cal.grab = nil
 	}
 }
 
@@ -224,8 +239,8 @@ func (m *Module) allDayBar(c *ui.Context, bar *allDayBar, days []string, cw floa
 	color := m.colorOf(t, o.CalendarID)
 	fill, text, dashed := eventLook(t, color, o, active)
 	span := bar.last - bar.first + 1
-	b := ui.ButtonBase(c).Row().Absolute().Top(4+float32(bar.lane)*(laneHeight+laneGap)).Left(float32(bar.first)*cw+2).
-		Width(float32(span)*cw-4).Height(laneHeight).Radius(4).Padding(0, 4).AlignItems(ui.Center).Background(fill).KeepFocus().Clip().
+	b := ui.ButtonBase(c).Row().Absolute().Top(4+float32(bar.lane)*(laneHeight+laneGap)).Left(float32(bar.first)*cw+barInset).
+		Width(float32(span)*cw-2*barInset).Height(laneHeight).Radius(4).Padding(0, 4).AlignItems(ui.Center).Background(fill).KeepFocus().Clip().
 		Cursor(ui.CursorPointer).Label(title(o) + ", all day").Checked(active)
 	if dashed {
 		b.Border(1, color).BorderStyle(ui.BorderDashed)
@@ -234,13 +249,7 @@ func (m *Module) allDayBar(c *ui.Context, bar *allDayBar, days []string, cw floa
 		b.Opacity(0.6)
 	}
 	if canMove(o, m.cal.writable) {
-		if b.Pressed() {
-			if x, _, ok := b.PointerPosition(); ok && cw > 0 {
-				at := min(max(bar.first+int(x/cw), 0), len(days)-1)
-				m.cal.barDate = days[at]
-			}
-		}
-		b.Drag(dayDrop{*o, m.cal.barDate})
+		b.Drag(dayDrop{*o, m.grabbedDay(b, bar, days, cw)})
 	}
 	if b.Clicked() {
 		m.selectOccurrence(o)
@@ -256,6 +265,33 @@ func (m *Module) allDayBar(c *ui.Context, bar *allDayBar, days []string, cw floa
 			name.Strikethrough()
 		}
 	})
+}
+
+// grabbedDay is the day a drag of a bar measures from: the one the press
+// began on, read once, whichever of the bar's days the pointer crosses
+// after.
+func (m *Module) grabbedDay(b ui.Element, bar *allDayBar, days []string, cw float32) string {
+	cal := &m.cal
+	key := keyOf(bar.occ)
+	dx, _, held := b.Dragged()
+	if !held {
+		return days[bar.first]
+	}
+	if g := cal.grab; g != nil && g.key == key {
+		g.seen = true
+		return g.date
+	}
+	x, _, _ := b.PointerPosition()
+	cal.grab = &barGrab{key: key, date: barDay(bar, days, x-dx, cw), seen: true}
+	return cal.grab.date
+}
+
+// barDay is the shown day under a point x pixels into a bar.
+func barDay(bar *allDayBar, days []string, x, cw float32) string {
+	if cw <= 0 {
+		return days[bar.first]
+	}
+	return days[min(max(bar.first+int((x+barInset)/cw), 0), len(days)-1)]
 }
 
 func (m *Module) allDayMore(c *ui.Context, bars []allDayBar, days []string, cw float32) {

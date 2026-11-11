@@ -23,6 +23,9 @@ type fakeCalendar struct {
 	due       []api.Reminder
 	snoozed   []string
 	dismissed []string
+	zones     []string // each Range's zone, "" for none
+	snoozeErr error    // the next Snooze fails with it
+	hold      chan struct{}
 }
 
 func (s *fakeCalendar) ask(n *bool) error {
@@ -55,9 +58,30 @@ func (s *fakeCalendar) Reminders(context.Context, *api.CalendarRemindersParams) 
 	return append([]api.Reminder{}, s.due...), nil
 }
 
+func (s *fakeCalendar) Range(ctx context.Context, p *api.CalendarRangeParams) ([]api.Occurrence, error) {
+	zone := ""
+	if p.TimeZone != nil {
+		zone = *p.TimeZone
+	}
+	s.mu.Lock()
+	s.zones = append(s.zones, zone)
+	s.mu.Unlock()
+	return s.CalendarService.Range(ctx, p)
+}
+
 func (s *fakeCalendar) Snooze(_ context.Context, p *api.CalendarSnoozeParams) error {
 	s.mu.Lock()
+	hold := s.hold
+	s.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.snoozeErr; err != nil {
+		s.snoozeErr = nil
+		return err
+	}
 	s.snoozed = append(s.snoozed, p.IDs...)
 	s.drop(p.IDs)
 	return nil
