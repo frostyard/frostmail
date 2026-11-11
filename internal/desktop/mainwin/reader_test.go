@@ -3,6 +3,7 @@ package mainwin_test
 import (
 	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -349,6 +350,39 @@ func TestUnsubscribeBanner(t *testing.T) {
 		defer f.mu.Unlock()
 		return slices.Contains(f.links, "https://x.test/leave")
 	})
+}
+
+var mailtoHref = regexp.MustCompile(`href="(mailto:[^"]*)"`)
+
+// A message's mailto link opens with only its addressees, subject and body
+// (frostui's ADR-0010): attach= never reaches the mail client.
+func TestMailtoLinkOpensWithoutAttach(t *testing.T) {
+	f := oneMail(t, "MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n",
+		`<p><a href="mailto:a@b.test?subject=Hi&amp;attach=/etc/passwd&amp;body=x">Write to us</a></p>`)
+	f.open(t, "Alpha report")
+	var href string
+	f.until(t, "the link in the page", func() bool {
+		for _, fr := range f.live() {
+			fr.mu.Lock()
+			m := mailtoHref.FindStringSubmatch(fr.doc)
+			fr.mu.Unlock()
+			if m != nil {
+				href = html.UnescapeString(m[1])
+				return true
+			}
+		}
+		return false
+	})
+	if !strings.Contains(href, "attach=") {
+		t.Fatalf("the page's link is %q, without the attach= this test needs", href)
+	}
+	// The page's click handler (cmd/frostmail) gives the link to OpenLink.
+	f.win.OpenLink(href)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if want := []string{"mailto:a@b.test?subject=Hi&body=x"}; !slices.Equal(f.links, want) {
+		t.Errorf("opened %q, want %q", f.links, want)
+	}
 }
 
 // Attachments open by an allow-list.

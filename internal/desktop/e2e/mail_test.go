@@ -74,30 +74,42 @@ func TestHostileMailMakesNoRequests(t *testing.T) {
 	}
 }
 
-// A real click on a link in the page reaches the handler, and no window opens.
+// A real click on a link in the page reaches the handler, and no window
+// opens. A mailto link reaches it with only its addressees, subject and
+// body (frostui's ADR-0010): attach= never reaches the mail client.
 func TestLinkClickReachesTheHandler(t *testing.T) {
-	dir := t.TempDir()
-	const url = "https://example.test/clicked"
-	page := `<p><a href="` + url + `">` + strings.Repeat("click this link anywhere on these lines ", 120) + `</a></p>`
-	if err := os.WriteFile(filepath.Join(dir, "01-link.html"), []byte(page), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	s := start(t, options{fixture: []string{"-n", "0", "-hostile", dir}})
-	body := openHostile(s)
-	log := filepath.Join(s.root, "links.log")
-	origin := s.windows()[0].Content
-	clicked := func() bool {
-		b, _ := os.ReadFile(log)
-		return strings.Contains(string(b), url)
-	}
-	// The page lays out after its element exists, with no signal to wait
-	// for, so the click repeats until the handler has it.
-	eventually(t, "the link in the log", func() bool {
-		realClick(t, int(origin.X+body.Bounds.X+body.Bounds.Width/2), int(origin.Y+body.Bounds.Y+70))
-		return clicked()
-	})
-	if ws := s.windows(); len(ws) != 1 {
-		t.Errorf("windows after the click: %+v", ws)
+	for _, tc := range []struct{ name, href, want string }{
+		{"https", "https://example.test/clicked", "https://example.test/clicked"},
+		{"mailto with attach", "mailto:a@b.test?subject=Hi&amp;attach=/etc/passwd&amp;body=x", "mailto:a@b.test?subject=Hi&body=x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			page := `<p><a href="` + tc.href + `">` + strings.Repeat("click this link anywhere on these lines ", 120) + `</a></p>`
+			if err := os.WriteFile(filepath.Join(dir, "01-link.html"), []byte(page), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			s := start(t, options{fixture: []string{"-n", "0", "-hostile", dir}})
+			body := openHostile(s)
+			log := filepath.Join(s.root, "links.log")
+			origin := s.windows()[0].Content
+			var opened []string
+			// The page lays out after its element exists, with no signal to
+			// wait for, so the click repeats until the handler has it.
+			eventually(t, "the link in the log", func() bool {
+				realClick(t, int(origin.X+body.Bounds.X+body.Bounds.Width/2), int(origin.Y+body.Bounds.Y+70))
+				b, _ := os.ReadFile(log)
+				opened = strings.Fields(string(b))
+				return len(opened) > 0
+			})
+			for _, got := range opened {
+				if got != tc.want {
+					t.Errorf("the handler got %q, want %q", got, tc.want)
+				}
+			}
+			if ws := s.windows(); len(ws) != 1 {
+				t.Errorf("windows after the click: %+v", ws)
+			}
+		})
 	}
 }
 
