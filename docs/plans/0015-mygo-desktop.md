@@ -776,12 +776,14 @@ unless that pipe listed only fixture accounts.
   no groups; a second save is disabled, not queued. On Windows, in lodge
   mode, the app shows its notes through `frostmail-notify.exe`, as this
   plan's table has it (Phase 9's check).
-- **Windows and a shared atlas:** MyGo v0.8.3's windows share one glyph
-  atlas. A repack leaves a scene already built with old positions until
+- **Windows and a shared atlas:** MyGo's windows share one glyph atlas.
+  With v0.8.3 a repack left a scene already built with old positions until
   its next frame: in the checks a new window's first frame, and an idle
   window captured after another drew, showed scrambled text, and one
   redraw cleared it. `cmd/frostmail/windows.go` repaints every window
-  shortly after one opens, and a window as it takes the focus.
+  shortly after one opens, and a window as it takes the focus. v0.9.0
+  records which atlas generation a scene was painted with; whether that
+  makes the repaint unneeded has not been checked in a real window.
 
 ## Phase 9 — Packaging and CI (M)
 
@@ -1010,7 +1012,7 @@ library, MyGo, purego and frostui, so they can move by changing a path:
 - Related plans: [plan 0011](0011-m8-mail-in-lodge.md) (the web build),
   [plan 0013](0013-m6-the-standalone-desktop-flatpak.md) (the Flatpak and
   its gates)
-- MyGo v0.8.3's docs (in the module cache): `docs/ui/web-view.md`,
+- MyGo's docs (in the module cache, v0.9.0 since 2026-11-11): `docs/ui/web-view.md`,
   `docs/frontend.md` (untrusted pages), `docs/windows.md` (pages, find,
   printing, blocking content), `docs/ui/rich-text-editor.md`,
   `docs/ui/testing.md`, `docs/native.md` (notifications),
