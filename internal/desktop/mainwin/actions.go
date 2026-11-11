@@ -25,7 +25,8 @@ type heldDelete struct {
 	from []int64 // the mailboxes the row showed as the delete went
 	// unread says the delete ended, but no read has shown what it did: maild
 	// did not answer before the connection on ended, or the read after its
-	// answer failed. readBack settles it; until then no view counts.
+	// answer failed. A read proving a move, or a view delta dropping the
+	// row, settles it. An unchanged read settles only an answered delete.
 	unread   bool
 	answered bool
 	on       *api.Client
@@ -170,8 +171,8 @@ func (w *Window) delete(ids []int64) {
 	var sent, answered bool
 	var after []api.MessageSummary
 	// No deadline: maild goes on with a call the app stops waiting for, so
-	// only its answer, or the end of the connection, which ends the call
-	// in maild, tells what the delete did.
+	// only its answer tells what the delete did. A connection ending can
+	// leave a transaction committing; readBack then looks for its effect.
 	w.runWithin("delete the messages", 0, func(ctx context.Context, c *api.Client) error {
 		var err error
 		after, err = undo.Move(ctx, c, ids, func() error {
@@ -267,13 +268,11 @@ func (w *Window) deleteEnded(ids []int64, on *api.Client, sent, answered bool, a
 	}
 }
 
-// readBack reads the messages of the unread deletes on the window's
-// connection, and settles them: one maild moved or erased is done from
-// then, and one it holds where its row shows it was not deleted, and lets
-// go. A delete maild answered is read on any connection; one it did not
-// answer only on a later one, as the end of its connection ended it in
-// maild. A read that fails is tried again on the same connection while it
-// lasts, and on the next one (takeClient): nothing settles by time.
+// readBack reads the messages of unread deletes. A move or erasure proves
+// completion; an unchanged read does so only when maild answered the delete.
+// An unanswered delete is read only on a later connection, but its old
+// transaction may still commit. Failed or inconclusive reads are retried at
+// readBackEvery, on this connection or the next; time never clears a hold.
 func (w *Window) readBack() {
 	c := w.client
 	if c == nil || w.readingBack {
@@ -285,9 +284,13 @@ func (w *Window) readBack() {
 	default:
 	}
 	var ids []int64
+	unanswered := map[int64][]int64{}
 	for id, h := range w.deleting {
 		if h.unread && (h.answered || h.on != c) {
 			ids = append(ids, id)
+			if !h.answered {
+				unanswered[id] = h.from
+			}
 		}
 	}
 	if len(ids) == 0 {
@@ -300,7 +303,11 @@ func (w *Window) readBack() {
 		ctx, cancel := untilClosed(c)
 		defer cancel()
 		got, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})
-		if err != nil {
+		unchanged := slices.ContainsFunc(got, func(r api.MessageSummary) bool {
+			from, ok := unanswered[r.ID]
+			return ok && sameBoxes(r.MailboxIDs, from)
+		})
+		if err != nil || unchanged {
 			select {
 			case <-time.After(every):
 			case <-ctx.Done():
@@ -330,12 +337,14 @@ func (w *Window) readBackEnded(ids []int64, got []api.MessageSummary) {
 		if h == nil || !h.unread {
 			continue
 		}
-		h.unread = false
 		if boxes, ok := now[id]; ok && sameBoxes(boxes, h.from) {
-			delete(w.deleting, id)
+			if h.answered {
+				h.unread = false
+				delete(w.deleting, id)
+			}
 			continue
 		}
-		h.done, h.view = true, w.view
+		h.unread, h.done, h.view = false, true, w.view
 	}
 }
 

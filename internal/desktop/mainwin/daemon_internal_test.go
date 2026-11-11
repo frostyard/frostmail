@@ -367,10 +367,9 @@ func TestASlowDeleteSettlesFromItsAnswer(t *testing.T) {
 	}
 }
 
-// The connection ends before maild answers a delete, which ends the delete
-// in maild: one read on the next connection settles it, done when maild
-// moved the message, and let go when it holds it where its row shows it.
-// Until then it holds.
+// The connection ends before maild answers a delete. A read on the next
+// connection settles a move, but an unchanged row must stay held: the old
+// transaction can still commit after that read.
 func TestADeleteCutOffSettlesOnTheNextConnection(t *testing.T) {
 	row := api.MessageSummary{ID: 7, AccountID: 1, MailboxIDs: []int64{1}, Subject: "Plans"}
 	for _, tc := range []struct {
@@ -402,19 +401,16 @@ func TestADeleteCutOffSettlesOnTheNextConnection(t *testing.T) {
 			w.takeClient(next.client(t), live.NewEvents())
 			poll(t, "the read on the next connection", func() bool {
 				loop.Flush()
-				return !held.unread
+				return !held.unread || next.count("message.summaries") >= 2
 			})
-			if n := next.count("message.summaries"); n != 1 {
-				t.Errorf("%d reads on the next connection, want 1", n)
-			}
 			switch h := w.deleting[row.ID]; tc.name {
 			case "moved":
 				if h != held || !held.done {
 					t.Errorf("a delete maild carried out: %+v, want done", h)
 				}
 			default:
-				if h != nil {
-					t.Errorf("a delete maild never carried out stays held: %+v", h)
+				if h != held || !h.unread || h.done {
+					t.Errorf("an unanswered delete with an unchanged read: %+v, want held and unread", h)
 				}
 			}
 		})

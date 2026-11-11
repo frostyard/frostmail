@@ -1041,6 +1041,14 @@ finds a menu command by name (parity P-958).
 
 ### Keyboard map
 
+In the native mail list, Delete holds each selected row until the list
+reflects the operation. If the connection ends before maild answers, an
+unchanged read on the next connection does not release that hold: the old
+transaction may still commit. Reads retry until they show the message
+moved or erased; a view delta dropping the loaded row also releases it.
+An answered Delete that leaves the message unchanged can release its
+hold, since maild has finished that request.
+
 | Keys | Command | Where |
 | --- | --- | --- |
 | ↑ / ↓ | previous / next row | list, sidebar |

@@ -148,7 +148,7 @@ type Window struct {
 	redirect      *redirectSheet
 
 	// readingBack says readBack is reading; readBackEvery is how long it
-	// waits before it tries again on a connection that refused a read.
+	// waits before retrying a failed or inconclusive read.
 	readingBack   bool
 	readBackEvery time.Duration
 
