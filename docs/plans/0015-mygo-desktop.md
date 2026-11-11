@@ -634,7 +634,7 @@ unless that pipe listed only fixture accounts.
 - **A limit of the page's measuring:** it measures on load, on a change of
   width and on a press in the page, then until 3 measures agree. While the
   page has the keyboard it is measured once a second, for as long as it is
-  drawn; a page that is not drawn stops within 30 measures. See More
+  drawn; a page that is not drawn stops within 2 checks of 30 measures each. See More
   toggled from the keyboard therefore shows within a second.
 - **Conversation pages** (the open question below): decided as proposed,
   one page per expanded message, destroyed when it collapses.

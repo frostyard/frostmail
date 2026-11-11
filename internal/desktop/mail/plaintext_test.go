@@ -108,7 +108,7 @@ func TestPrintGuardHoldsTheMessageBelowTheHeader(t *testing.T) {
 		header + `+*{display:block!important;position:relative!important;z-index:0!important;transition:none!important}`,
 		header + `{display:block!important;position:relative!important;z-index:2147483647!important;`,
 		`unicode-bidi:normal!important;transition:none!important}`,
-		`writing-mode:horizontal-tb!important;transition:none!important}`,
+		`perspective:none!important;transition:none!important}`,
 	} {
 		if !strings.Contains(mail.PrintGuard, want) {
 			t.Errorf("no %q in the guard", want)
@@ -119,5 +119,27 @@ func TestPrintGuardHoldsTheMessageBelowTheHeader(t *testing.T) {
 	}
 	if !strings.HasPrefix(mail.PrintGuard, "@layer print-guard{@media print{") || !strings.HasSuffix(mail.PrintGuard, "}}") {
 		t.Error("the guard is not one layer of print rules")
+	}
+}
+
+// An ancestor's filter, opacity, blending, mask, containment or skipped
+// rendering paints its children, whatever their own values, so the guard
+// resets each on html and body.
+func TestPrintGuardKeepsTheHeadersAncestorsPlain(t *testing.T) {
+	start := strings.Index(mail.PrintGuard, "html,body{")
+	if start < 0 {
+		t.Fatal("no rule for html and body")
+	}
+	rule := mail.PrintGuard[start : start+strings.Index(mail.PrintGuard[start:], "}")]
+	for _, want := range []string{
+		"filter:none!important", "-webkit-filter:none!important", "backdrop-filter:none!important",
+		"-webkit-backdrop-filter:none!important", "opacity:1!important", "mix-blend-mode:normal!important",
+		"isolation:auto!important", "mask:none!important", "-webkit-mask:none!important",
+		"-webkit-mask-box-image:none!important", "clip-path:none!important", "contain:none!important",
+		"content-visibility:visible!important", "transform:none!important", "zoom:1!important",
+	} {
+		if !strings.Contains(rule, want) {
+			t.Errorf("html and body keep their %s", want)
+		}
 	}
 }

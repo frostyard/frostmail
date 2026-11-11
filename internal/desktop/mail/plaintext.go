@@ -192,12 +192,17 @@ const printedHeader = `body>.print-only:first-child`
 // layer a message declares, so none of its rules joins this one. So the
 // header takes only these values, the page's frame cannot move it, no
 // generated text goes with it, and no transition carries an older value
-// onto paper. The message is all in the element after the header
+// onto paper. Nor can it paint the header through an ancestor: html and
+// body take no filter, opacity, blending, mask, containment or skipped
+// rendering, which a child's own values cannot undo. The message is all in the element after the header
 // (uikit.Document), which the app writes, so no style attribute of the
 // message reaches it: it paints below the header, and so does everything
 // in it, whatever its own display, position or z-index.
 const PrintGuard = `@layer print-guard{@media print{` +
-	`html,body{display:block!important;position:static!important;float:none!important;transform:none!important;translate:none!important;rotate:none!important;scale:none!important;zoom:1!important;clip-path:none!important;mask:none!important;-webkit-mask:none!important;margin:0!important;border:0!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;columns:auto!important;writing-mode:horizontal-tb!important;transition:none!important}` +
+	`html,body{display:block!important;position:static!important;float:none!important;transform:none!important;translate:none!important;rotate:none!important;scale:none!important;zoom:1!important;clip-path:none!important;mask:none!important;-webkit-mask:none!important;margin:0!important;border:0!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;columns:auto!important;writing-mode:horizontal-tb!important;` +
+	`filter:none!important;-webkit-filter:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;` +
+	`opacity:1!important;mix-blend-mode:normal!important;isolation:auto!important;-webkit-mask-box-image:none!important;` +
+	`contain:none!important;content-visibility:visible!important;perspective:none!important;transition:none!important}` +
 	`html{padding:0!important}` +
 	`body{padding:0 20px 20px!important}` +
 	`html::before,html::after,body::before,body::after{content:none!important}` +
