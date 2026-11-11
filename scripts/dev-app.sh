@@ -9,7 +9,10 @@ MAILD=${MAILD:-build/maild}
 
 export FROSTMAIL_DATA_DIR=/var/tmp/frostmail/maild
 export FROSTMAIL_CACHE_DIR=/var/tmp/frostmail/cache
-export FROSTMAIL_SOCKET=${XDG_RUNTIME_DIR:?}/frostmail/maild.sock
+# Its own socket and app.json: the default socket is the user's maild, and
+# the user's app.json can name their lodge.
+export FROSTMAIL_SOCKET=${XDG_RUNTIME_DIR:?}/frostmail-dev/maild.sock
+export XDG_CONFIG_HOME=/var/tmp/frostmail/config
 
 "$MAILD" &
 maild_pid=$!
