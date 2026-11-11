@@ -344,7 +344,8 @@ type pass struct {
 	remotes map[string][]byte
 	// changed counts the collections whose change events this pass
 	// emitted, for the service's activity entry.
-	changed int
+	changed    int
+	davChanged map[int64]bool
 }
 
 // service syncs one service, retrying once with a new access token when

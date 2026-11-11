@@ -199,3 +199,18 @@ func TestPrefetchFetchesRecentInboxAndVIPMail(t *testing.T) {
 		}
 	}
 }
+
+func TestPrefetchActivityCountsStoredBodyBytes(t *testing.T) {
+	mem := imapxtest.StartMem(t)
+	raw := plain("ann@example.test", "Prefetched")
+	if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{Time: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testConfig
+	cfg.NoPrefetch = false
+	h := newHarnessWith(t, mem.DialOptions(), imapxtest.Password, cfg)
+	e := h.waitActivity(api.ActivityKindFetched, nil)
+	if e.N == nil || *e.N != 1 || e.Bytes == nil || *e.Bytes != int64(len(raw)) {
+		t.Fatalf("prefetch = %+v, want one body and %d bytes", e, len(raw))
+	}
+}

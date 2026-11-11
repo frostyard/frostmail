@@ -529,6 +529,9 @@ unless that pipe listed only fixture accounts.
   ones, as lines written by `activity.Line` from each kind, with the
   account's and the mailbox's names from `account.list` and
   `mailbox.list`. The desktop writes its lines with the same function.
+  `--level` filters text and JSON alike. `--json` writes the recent
+  entries as an array; with `--follow`, it writes one JSON object per
+  line for both the recent entries and the live ones.
 - **Done when (maild):** against the Dovecot container (`make
   engine-it`'s), entries are recorded for a mailbox pass, an IDLE wake, a
   flag push, a send, a refused send and a rule run, each naming its

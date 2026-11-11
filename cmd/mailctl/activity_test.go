@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frostyard/clix"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/rpctest"
@@ -139,5 +140,61 @@ func TestFollowOutlastsASlowOutput(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Errorf("follow = %v", err)
+	}
+}
+
+func TestActivityJSONFiltersByLevel(t *testing.T) {
+	srv := rpctest.Start(t)
+	srv.Activity.Record(activity.Connected(1, time.Second))
+	srv.Activity.Record(activity.Pushed(1, 2))
+	out := mustRun(t, "--socket", srv.Socket, "--json", "activity", "--level", "info")
+	var got []api.ActivityEntry
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Kind != api.ActivityKindPushed {
+		t.Fatalf("entries = %+v, want only the info entry", got)
+	}
+}
+
+type activityWriter func([]byte) (int, error)
+
+func (f activityWriter) Write(p []byte) (int, error) { return f(p) }
+
+func TestActivityJSONFollowPrintsHistoryAndLiveObjects(t *testing.T) {
+	srv := rpctest.Start(t)
+	srv.Activity.Record(activity.Connected(1, time.Second))
+	srv.Activity.Record(activity.Pushed(1, 2))
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	var got []api.ActivityKind
+	w := activityWriter(func(p []byte) (int, error) {
+		var e api.ActivityEntry
+		if err := json.Unmarshal(p, &e); err != nil {
+			return 0, err
+		}
+		if strings.Count(string(p), "\n") != 1 {
+			t.Errorf("not one JSON object per line: %q", p)
+		}
+		got = append(got, e.Kind)
+		if len(got) == 1 {
+			srv.Activity.Record(activity.Connected(1, time.Second))
+			srv.Activity.Record(activity.Sent(1, time.Second))
+		} else {
+			cancel()
+		}
+		return len(p), nil
+	})
+	clix.Stdout = w
+	t.Cleanup(func() { clix.Stdout = nil })
+	root := newRootCmd()
+	root.SetContext(ctx)
+	root.SetOut(w)
+	root.SetArgs([]string{"--socket", srv.Socket, "--json", "activity", "--follow", "--level", "info"})
+	if err := (&clix.App{Version: "test"}).RunContext(ctx, root); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != api.ActivityKindPushed || got[1] != api.ActivityKindSent {
+		t.Fatalf("entries = %v, want pushed then sent", got)
 	}
 }
