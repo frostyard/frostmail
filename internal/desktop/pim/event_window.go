@@ -166,7 +166,12 @@ func (m *Module) newEventDefault() {
 	loc := m.clock.loc
 	var start time.Time
 	if date == m.today() {
-		start = m.now().In(loc).Truncate(time.Hour).Add(time.Hour)
+		// Find the next local whole hour, including across offset changes.
+		// Absolute-hour truncation lands on :30 or :45 in fractional zones.
+		start = m.now().In(loc).Truncate(time.Minute).Add(time.Minute)
+		for start.Minute() != 0 {
+			start = start.Add(time.Minute)
+		}
 	} else {
 		start = instantAt(date, 9*60, loc)
 	}

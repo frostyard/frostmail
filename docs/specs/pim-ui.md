@@ -773,6 +773,8 @@ in Mail.app's panes, with Outlook's keys.
 - **Notes:** a heading "Notes" 12/16 `--text-secondary`, then a textarea
   named "Notes", 13/18, at least 120 high, 1px `--separator` rounded 6,
   8px padding; leaving it commits a change.
+- Switching to another module commits the task's edited title and notes
+  after the fields take their last input. Returning keeps the selection.
 - **Delete Task:** a text button 13/16 `--flag-1` at the bottom; it
   deletes the task and its subtasks at once, as Reminders does.
 - **Read-only:** the fields are read-only, the date input disabled, no
@@ -869,7 +871,7 @@ next in the calendar, and what is due.
   are neither. Clicking a task's title opens it in Tasks; a message's
   subject shows it in Mail.
 - **Data:** the tasks of the Tasks module; `calendar.range` over the
-  small month's 42 days (dots) and from today to seven days on
+  browsed small month's 42 days (dots) and from today to seven days on
   (upcoming), refetched on `calendar.changed` and every minute; the
   flagged view.
 

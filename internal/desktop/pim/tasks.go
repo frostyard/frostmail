@@ -883,6 +883,19 @@ func (m *Module) leaveTaskPane() {
 	if st.paneID == 0 || (st.source != sourceFlagged && st.selected == st.paneID) {
 		return
 	}
+	m.CommitTaskPane()
+}
+
+// TaskPaneActive reports whether task fields still belong to a task.
+func (m *Module) TaskPaneActive() bool { return m.tasks.paneID != 0 }
+
+// CommitTaskPane saves the fields after their last draw, before a module
+// switch removes them. Selection stays, so returning shows the same task.
+func (m *Module) CommitTaskPane() {
+	st := &m.tasks
+	if st.paneID == 0 {
+		return
+	}
 	id := st.paneID
 	st.paneID = 0
 	t := m.task(id)
