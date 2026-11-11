@@ -2,7 +2,9 @@ package rpcserver
 
 import (
 	"testing"
+	"time"
 
+	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 )
 
@@ -25,7 +27,7 @@ func TestOneCloseHookServesEverySubscription(t *testing.T) {
 		}
 		last, _ = hub.Subscribe()
 		st.mu.Lock()
-		st.setActivity(hooks, last)
+		st.setActivity(hooks, &feed{sub: last})
 		st.mu.Unlock()
 	}
 	if len(hooks.fns) != 1 {
@@ -38,4 +40,63 @@ func TestOneCloseHookServesEverySubscription(t *testing.T) {
 	if st.activity != nil {
 		t.Error("the connection still holds its subscription")
 	}
+}
+
+// M15: a subscription's channel keeps the entries it took before Close, so
+// a sender that only read it would send them after activity.unsubscribe
+// had answered. Once the feed has stopped, none goes.
+func TestNoEntryGoesOutAfterTheFeedStops(t *testing.T) {
+	hub := activity.New(nil)
+	sub, _ := hub.Subscribe()
+	f := &feed{sub: sub}
+	hub.Record(activity.Pushed(1, 1))
+	hub.Record(activity.Sent(1, time.Second))
+	if len(sub.C()) != 2 {
+		t.Fatalf("%d entries waiting, want 2", len(sub.C()))
+	}
+	f.stop()
+	var sent []api.ActivityEntry
+	f.run(t.Context(), func(e api.ActivityEntry) error {
+		sent = append(sent, e)
+		return nil
+	})
+	if len(sent) != 0 {
+		t.Errorf("sent %+v after the feed stopped", sent)
+	}
+}
+
+// An entry on its way when the feed stops goes out before stop returns:
+// then no entry follows the reply to activity.unsubscribe.
+func TestStopWaitsForTheEntryOnItsWay(t *testing.T) {
+	hub := activity.New(nil)
+	sub, _ := hub.Subscribe()
+	f := &feed{sub: sub}
+	hub.Record(activity.Pushed(1, 1))
+	hub.Record(activity.Sent(1, time.Second))
+	held, release, stopped, ran := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
+	sends := 0
+	go func() {
+		defer close(ran)
+		f.run(t.Context(), func(api.ActivityEntry) error {
+			sends++
+			if sends == 1 {
+				close(held)
+				<-release
+			}
+			select {
+			case <-stopped:
+				t.Error("an entry went out after the feed stopped")
+			default:
+			}
+			return nil
+		})
+	}()
+	<-held
+	go func() {
+		f.stop()
+		close(stopped)
+	}()
+	close(release)
+	<-stopped
+	<-ran
 }

@@ -2,6 +2,7 @@ package rpcserver
 
 import (
 	"context"
+	"sync"
 
 	"github.com/frostyard/lodge/kit/jsonrpc"
 
@@ -41,33 +42,25 @@ func (a activityService) Subscribe(ctx context.Context, _ *api.ActivitySubscribe
 		return nil, api.Conflict("this connection is already subscribed to activity")
 	}
 	sub, seq := a.s.opts.Activity.Subscribe()
-	st.setActivity(c, sub)
+	f := &feed{sub: sub}
+	st.setActivity(c, f)
 	jsonrpc.AfterReply(ctx, func() {
 		c.Go(func(ctx context.Context) {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case e, ok := <-sub.C():
-					if !ok {
-						return
-					}
-					env, err := api.NewEnvelope(0, api.ActivityAdded{Entry: e})
-					if err != nil {
-						a.s.opts.Logger.Warn("encode activity", "err", err)
-						continue
-					}
-					if c.Notify(api.EventMethod, env) != nil {
-						return
-					}
+			f.run(ctx, func(e api.ActivityEntry) error {
+				env, err := api.NewEnvelope(0, api.ActivityAdded{Entry: e})
+				if err != nil {
+					a.s.opts.Logger.Warn("encode activity", "err", err)
+					return nil
 				}
-			}
+				return c.Notify(api.EventMethod, env)
+			})
 		})
 	})
 	return &api.ActivitySubscription{Seq: seq}, nil
 }
 
-// Unsubscribe implements activity.unsubscribe.
+// Unsubscribe implements activity.unsubscribe. It returns once no entry
+// can follow, so nothing comes after its reply.
 func (a activityService) Unsubscribe(ctx context.Context, _ *api.ActivityUnsubscribeParams) error {
 	st := stateFrom(ctx)
 	if st == nil {
@@ -77,24 +70,66 @@ func (a activityService) Unsubscribe(ctx context.Context, _ *api.ActivityUnsubsc
 	return nil
 }
 
-// setActivity makes sub the connection's subscription; st.mu is held. One
-// hook closes whichever subscription the connection has when it ends: a
-// hook for each would keep every old subscription, with its buffer, until
-// the disconnect.
-func (st *state) setActivity(c interface{ OnClose(func()) }, sub *activity.Sub) {
-	st.activity = sub
+// feed is a connection's activity subscription and the gate its sender
+// passes with each entry. A subscription's channel still holds the entries
+// it took before Close, so closing it is not enough to stop the sender:
+// stop closes the gate, after the entry on its way if there is one.
+type feed struct {
+	sub     *activity.Sub
+	mu      sync.Mutex // held while an entry goes out
+	stopped bool
+}
+
+// run sends the subscription's entries with send until the feed stops, the
+// subscription ends, ctx ends or a send fails.
+func (f *feed) run(ctx context.Context, send func(api.ActivityEntry) error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e, ok := <-f.sub.C():
+			if !ok || !f.pass(e, send) {
+				return
+			}
+		}
+	}
+}
+
+// pass sends e unless the feed has stopped; false ends the sender.
+func (f *feed) pass(e api.ActivityEntry, send func(api.ActivityEntry) error) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return !f.stopped && send(e) == nil
+}
+
+// stop ends the feed: once it returns, the sender sends nothing more.
+func (f *feed) stop() {
+	f.mu.Lock()
+	f.stopped = true
+	f.mu.Unlock()
+	f.sub.Close()
+}
+
+// setActivity makes f the connection's feed; st.mu is held. One hook
+// stops whichever feed the connection has when it ends: a hook for each
+// would keep every old subscription, with its buffer, until the
+// disconnect.
+func (st *state) setActivity(c interface{ OnClose(func()) }, f *feed) {
+	st.activity = f
 	if !st.activityOn {
 		st.activityOn = true
 		c.OnClose(st.closeActivity)
 	}
 }
 
-// closeActivity ends the connection's subscription, if it has one.
+// closeActivity stops the connection's feed, if it has one. It waits for
+// an entry on its way, without st.mu, which that send does not need.
 func (st *state) closeActivity() {
 	st.mu.Lock()
-	defer st.mu.Unlock()
-	if st.activity != nil {
-		st.activity.Close()
-		st.activity = nil
+	f := st.activity
+	st.activity = nil
+	st.mu.Unlock()
+	if f != nil {
+		f.stop()
 	}
 }
