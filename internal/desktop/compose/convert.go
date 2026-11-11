@@ -358,9 +358,11 @@ func hasUnsavedImage(t richtext.Text) bool {
 	return false
 }
 
-// maxPastedImage bounds a pasted picture's data: URL: a draft goes to maild
-// in one message of at most 16 MiB (jsonrpc.MaxMessageSize).
-const maxPastedImage = 8 << 20
+// maxDraftHTML bounds a draft's HTML, its pictures' data: URLs and all,
+// when a paste adds pictures: a draft goes to maild in one message of at
+// most 16 MiB (jsonrpc.MaxMessageSize), with its recipients and the
+// message's own framing beside it.
+const maxDraftHTML = 8 << 20
 
 // maxPastedPixels is richtext's own limit on a pasted picture.
 const maxPastedPixels = 1 << 25
@@ -411,10 +413,12 @@ func decodesAsBitmap(src string) bool {
 // source it had in html, the clipboard's HTML it was pasted from: the
 // editor drops that source, and a bitmap's bytes cannot be read back. A
 // paste repeated in one frame brings the same pictures again. It returns
-// how many have no usable source; those lose their bitmap, so that they
-// show empty and are not asked about again.
+// how many have no usable source, or one that would take the draft's HTML
+// past maxDraftHTML; those lose their bitmap, so that they show empty and
+// are not asked about again.
 func KeepPastedImages(t richtext.Text, html string) (lost int) {
 	sources := pastedImages(html)
+	size := len(ToHTML(t)) // without the pictures that have no source yet
 	next := 0
 	for _, p := range t.Paragraphs() {
 		for _, r := range p.Runs {
@@ -427,12 +431,13 @@ func KeepPastedImages(t richtext.Text, html string) (lost int) {
 				src = sources[next%len(sources)]
 				next++
 			}
-			if !strings.HasPrefix(strings.ToLower(src), "data:image/") || len(src) > maxPastedImage {
+			if !strings.HasPrefix(strings.ToLower(src), "data:image/") || size+len(src) > maxDraftHTML {
 				a.Image = nil
 				lost++
 				continue
 			}
 			a.URL = src
+			size += len(src)
 		}
 	}
 	return lost

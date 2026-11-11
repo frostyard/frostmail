@@ -40,6 +40,8 @@ func (f *fakeSteps) save(cfg conn.AppConfig) error {
 	return err
 }
 
+func (f *fakeSteps) leaveMaild() { f.calls = append(f.calls, "leave") }
+
 func (f *fakeSteps) stopMaild() error {
 	f.calls = append(f.calls, "stop")
 	return f.stop
@@ -54,13 +56,15 @@ const testLodge = "https://lodge.example.ts.net"
 
 func lodgeCfg(url string) conn.AppConfig { return conn.AppConfig{Lodge: url} }
 
+// M7: the compose windows save and close while this computer's maild
+// still runs, before it stops.
 func TestChangeLocalToLodgeWritesThenStopsMaild(t *testing.T) {
 	f := &fakeSteps{}
 	out := change(f, true, lodgeCfg(testLodge))
 	if out.err != "" || !out.moved {
 		t.Errorf("outcome = %+v", out)
 	}
-	if !slices.Equal(f.calls, []string{"load", "save", "stop"}) {
+	if !slices.Equal(f.calls, []string{"load", "save", "leave", "stop"}) {
 		t.Errorf("calls = %q", f.calls)
 	}
 	if !slices.Equal(f.saved, []conn.AppConfig{lodgeCfg(testLodge)}) {
@@ -74,7 +78,7 @@ func TestChangeAMaildThatDoesNotStopKeepsThisComputer(t *testing.T) {
 	if out.err != didNotStop || out.moved {
 		t.Errorf("outcome = %+v", out)
 	}
-	if !slices.Equal(f.calls, []string{"load", "save", "stop", "save", "start"}) {
+	if !slices.Equal(f.calls, []string{"load", "save", "leave", "stop", "save", "start"}) {
 		t.Errorf("calls = %q", f.calls)
 	}
 	if !slices.Equal(f.saved, []conn.AppConfig{lodgeCfg(testLodge), {}}) {
@@ -89,7 +93,7 @@ func TestChangeAWriteBackThatFailsIsAddedToTheWords(t *testing.T) {
 	if out.err != want || out.moved {
 		t.Errorf("outcome = %+v", out)
 	}
-	if !slices.Equal(f.calls, []string{"load", "save", "stop", "save"}) {
+	if !slices.Equal(f.calls, []string{"load", "save", "leave", "stop", "save"}) {
 		t.Errorf("calls = %q", f.calls)
 	}
 }

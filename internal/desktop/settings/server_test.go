@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 
@@ -26,6 +27,9 @@ type serverFixture struct {
 	stopErr  error
 	startErr error
 	gate     chan struct{} // holds StopLocal and StartLocal back while set
+	// drafts holds LeaveLocal back while set, as a compose window's save
+	// in flight does.
+	drafts chan struct{}
 }
 
 func (s *serverFixture) log(step string) {
@@ -56,6 +60,13 @@ func serverSetup(t *testing.T, facts settings.ServerFacts, stored string, change
 	s.fixture = newFixture(t, setup{offline: true, options: func(o *settings.Options) {
 		o.ConfigFile, o.Facts = cfg, facts
 		o.SetTarget = func(tg conn.Target) { s.log("target " + tg.String()) }
+		o.LeaveLocal = func() {
+			s.log("leave")
+			if s.drafts != nil {
+				<-s.drafts
+			}
+			s.log("left")
+		}
 		o.StopLocal = func(ctx context.Context) error {
 			s.log("stop")
 			if s.gate != nil {
@@ -148,8 +159,8 @@ func TestChangeToLodgeWritesThenStopsThenMoves(t *testing.T) {
 	s := serverSetup(t, settings.ServerFacts{Flatpak: true}, "", nil)
 	s.chooseLodge(lodgeURL)
 	s.click("Save")
-	s.until("the move", func() bool { return len(s.seen()) == 2 })
-	if got := s.seen(); got[0] != "stop" || got[1] != "target lodge.example.ts.net" {
+	s.until("the move", func() bool { return len(s.seen()) == 4 })
+	if got := s.seen(); !slices.Equal(got, []string{"leave", "left", "stop", "target lodge.example.ts.net"}) {
 		t.Errorf("steps = %q", got)
 	}
 	if s.stored() != lodgeURL {
@@ -158,12 +169,41 @@ func TestChangeToLodgeWritesThenStopsThenMoves(t *testing.T) {
 	s.until("the stored choice shown", func() bool { return s.control(ui.RoleRadio, "maild behind lodge").Checked && s.disabled("Save") })
 }
 
+// M7: a compose window's save still running holds the change to lodge
+// back, so that this computer's maild stops only after its drafts saved.
+func TestChangeToLodgeStopsMaildAfterTheDraftsSaved(t *testing.T) {
+	s := serverSetup(t, settings.ServerFacts{Flatpak: true}, "", func(s *serverFixture) { s.drafts = make(chan struct{}) })
+	s.chooseLodge(lodgeURL)
+	s.click("Save")
+	s.until("the drafts saving", func() bool { return slices.Contains(s.seen(), "leave") })
+	if got := s.seen(); slices.Contains(got, "stop") {
+		t.Fatalf("maild stopped while a draft saved: %q", got)
+	}
+	close(s.drafts)
+	s.until("the move", func() bool { return len(s.seen()) == 4 })
+	if got := s.seen(); !slices.Equal(got, []string{"leave", "left", "stop", "target lodge.example.ts.net"}) {
+		t.Errorf("steps = %q", got)
+	}
+}
+
+// M7: a change to this computer leaves lodge's maild running, so its
+// compose windows close with the move (SetTarget), not before.
+func TestChangeToLocalLeavesNothingFirst(t *testing.T) {
+	s := serverSetup(t, settings.ServerFacts{Flatpak: true}, lodgeURL, nil)
+	s.press(s.control(ui.RoleRadio, "maild on this computer"))
+	s.click("Save")
+	s.until("the move", func() bool { return len(s.seen()) == 2 })
+	if got := s.seen(); slices.Contains(got, "leave") {
+		t.Errorf("steps = %q", got)
+	}
+}
+
 func TestAMaildThatDoesNotStopKeepsThisComputer(t *testing.T) {
 	s := serverSetup(t, settings.ServerFacts{Flatpak: true}, "", func(s *serverFixture) { s.stopErr = errors.New("maild still holds the lock") })
 	s.chooseLodge(lodgeURL)
 	s.click("Save")
 	s.sees("This computer's maild did not stop. Frostmail still uses it.")
-	if got := s.seen(); len(got) != 2 || got[0] != "stop" || got[1] != "start" {
+	if got := s.seen(); !slices.Equal(got, []string{"leave", "left", "stop", "start"}) {
 		t.Errorf("steps = %q, want stop then start and no move", got)
 	}
 	if s.stored() != "" {

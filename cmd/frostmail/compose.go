@@ -37,12 +37,17 @@ type composeWindows struct {
 	settings func(pane string)
 	all      *windowSet
 	// leaving holds the drafts whose windows are hidden, saving; gone what
-	// to run when a draft's window has closed.
+	// to run when a draft's window has closed, or stayed open as its save
+	// failed.
 	leaving map[int64]bool
 	gone    map[int64][]func()
-	// quitAsked says the app was asked to quit, which a window still
-	// saving turns down: the last to close asks again.
-	quitAsked bool
+	// quitting says a quit is asking the windows to close. A window still
+	// saving turns it down, which stops it there, before the windows after
+	// it: quitWaits holds those drafts, and each asks again through quit
+	// once it has closed.
+	quitting  bool
+	quitWaits map[int64]bool
+	quit      func()
 }
 
 // prepare runs before the first window opens.
@@ -50,11 +55,17 @@ func (s *composeWindows) prepare() {
 	if s.gone != nil {
 		return
 	}
-	s.leaving, s.gone = map[int64]bool{}, map[int64][]func(){}
+	s.leaving, s.gone, s.quitWaits = map[int64]bool{}, map[int64][]func(){}, map[int64]bool{}
+	s.quit = mygo.App.Quit
 	s.all.mu.Lock()
 	s.all.closeCompose = s.closeAll
 	s.all.mu.Unlock()
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { s.quitAsked = true })
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		s.quitting = true
+		// After this quit has asked the windows, which it does in the
+		// main thread's task that runs this.
+		go mygo.RunOnMain(func() { s.quitting = false })
+	})
 }
 
 // open shows a draft's window, raising it if it is open. c is the client
@@ -77,15 +88,19 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 	post := &poster{}
 	var win *mygo.Window
 	w := compose.New(compose.Options{Client: client, Draft: draft, Fresh: fresh, Post: post.post,
-		Close:        func() { win.Close() },
-		Hide:         func() { win.Hide() },
+		Close: func() { win.Close() },
+		Hide:  func() { win.Hide() },
+		Show: func() {
+			win.Show()
+			win.Focus()
+		},
 		SetTitle:     func(title string) { win.SetTitle(title) },
 		OpenFiles:    openFiles,
 		FilesAsBytes: func() bool { return s.main.ConnectionState().Target.Remote() || os.Getenv("FLATPAK_ID") != "" },
 		LoadPart:     s.loadPart,
 		Sent:         s.main.Sent,
 		EditSnippets: func() { s.settings(settings.PaneSnippets) },
-		SaveFailed:   func(err error) { s.main.ShowProblem("The draft was not saved", err) },
+		Kept:         func() { s.kept(draft) },
 	})
 	win = mygo.NewWindow(mygo.WindowOptions{Title: "New Message", Width: 720, Height: 560, MinWidth: 480, MinHeight: 360,
 		TitleBarStyle: mygo.TitleBarHidden, Content: ui.View(w.View)})
@@ -94,12 +109,21 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 	s.windows[draft] = win
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if !w.RequestClose() {
-			s.leaving[draft] = true
+			s.refused(draft)
 			e.PreventDefault()
 		}
 	})
 	win.OnClosed(func() { s.closed(draft) })
 	w.Start(ctx)
+}
+
+// refused records a draft's window turning down a close while it saves: a
+// quit asking it then stops there, and asks again when it has closed.
+func (s *composeWindows) refused(draft int64) {
+	s.leaving[draft] = true
+	if s.quitting {
+		s.quitWaits[draft] = true
+	}
 }
 
 // boundClient is a window's client: the current one, across reconnects,
@@ -115,7 +139,8 @@ func boundClient(target func() conn.Target, current func() *api.Client) func() *
 	}
 }
 
-// closed forgets a draft's window, once its save has ended.
+// closed forgets a draft's window, once its save has ended. A quit that
+// stopped at it goes on: the windows after it have not been asked.
 func (s *composeWindows) closed(draft int64) {
 	hooks := s.gone[draft]
 	delete(s.windows, draft)
@@ -124,15 +149,32 @@ func (s *composeWindows) closed(draft int64) {
 	for _, fn := range hooks {
 		fn()
 	}
-	if s.quitAsked && len(s.windows) == 0 {
-		mygo.App.Quit()
+	if s.quitWaits[draft] {
+		delete(s.quitWaits, draft)
+		s.quit()
+	}
+}
+
+// kept learns that a draft's window stayed open, as its save on closing
+// failed: what waited for it to close goes on, and a quit that stopped at
+// it ends there, for the window says why.
+func (s *composeWindows) kept(draft int64) {
+	hooks := s.gone[draft]
+	delete(s.leaving, draft)
+	delete(s.gone, draft)
+	if s.quitWaits[draft] {
+		clear(s.quitWaits)
+	}
+	for _, fn := range hooks {
+		fn()
 	}
 }
 
 // closeAll closes the compose windows and returns when their saves have
 // ended, for a change of maild: their drafts belong to the old one, so
-// they save there, before the session moves. It waits, so it runs on a
-// worker.
+// they save there, before the session moves, and before that maild stops
+// (settings.Options.LeaveLocal). A window whose save failed stays open,
+// saying so. It waits, so it runs on a worker.
 func (s *composeWindows) closeAll() {
 	var closing sync.WaitGroup
 	mygo.RunOnMain(func() {
@@ -155,15 +197,20 @@ func (s *windowSet) closeComposeWindows() {
 	}
 }
 
-// loadPart reads a mailpart: image for the editor, on a worker: from
-// maild's parts cache, or behind lodge, where that cache is on lodge's
-// host, from lodge's content route.
+// loadPart reads a mailpart: image for the editor, on a worker.
 func (s *composeWindows) loadPart(c *api.Client, src string) ([]byte, error) {
+	return loadPart(c, s.main.ConnectionState().Target, s.paths.CacheDir, src)
+}
+
+// loadPart reads a mailpart: image from maild's parts cache under cacheDir,
+// or, behind lodge, where that cache is on lodge's host, from lodge's
+// content route.
+func loadPart(c *api.Client, target conn.Target, cacheDir, src string) ([]byte, error) {
 	rel := strings.TrimPrefix(src, "mailpart://localhost/")
-	if l := s.main.ConnectionState().Target.Lodge; l != nil {
-		return s.fetchPart(c, *l, rel)
+	if l := target.Lodge; l != nil {
+		return fetchPart(c, *l, cacheDir, rel)
 	}
-	root, err := os.OpenRoot(filepath.Join(s.paths.CacheDir, "parts"))
+	root, err := os.OpenRoot(filepath.Join(cacheDir, "parts"))
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +237,7 @@ func partOf(rel string) (message int64, part string, ok bool) {
 
 // fetchPart asks maild to name a part on its content route, and reads it
 // from lodge. Only what partOf reads goes to maild: the path is the mail's.
-func (s *composeWindows) fetchPart(c *api.Client, l conn.Lodge, rel string) ([]byte, error) {
+func fetchPart(c *api.Client, l conn.Lodge, cacheDir, rel string) ([]byte, error) {
 	if c == nil {
 		return nil, errors.New("not connected to maild")
 	}
@@ -207,10 +254,10 @@ func (s *composeWindows) fetchPart(c *api.Client, l conn.Lodge, rel string) ([]b
 	if f.ContentPath == nil {
 		return nil, errors.New("maild names no content path for the part")
 	}
-	if err := os.MkdirAll(s.paths.CacheDir, 0o700); err != nil {
+	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp(s.paths.CacheDir, "compose-part-*")
+	dir, err := os.MkdirTemp(cacheDir, "compose-part-*")
 	if err != nil {
 		return nil, err
 	}

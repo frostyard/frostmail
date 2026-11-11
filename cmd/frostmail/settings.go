@@ -59,6 +59,7 @@ func newSettings(post func(func()), target conn.Target, main func() *mainwin.Win
 	s.w = settings.New(settings.Options{Post: redraw, ConfigFile: file, Socket: target.Socket,
 		LoadFacts:    func() settings.ServerFacts { return settings.FactsFrom(os.Getenv) },
 		SetTarget:    func(t conn.Target) { s.all.closeComposeWindows(); main().SetTarget(t) },
+		LeaveLocal:   func() { s.all.closeComposeWindows() },
 		StopLocal:    func(ctx context.Context) error { return bounded(ctx, stopBound, "mailctl", "shutdown") },
 		StartLocal:   func(ctx context.Context) error { return bounded(ctx, startBound, "frostmail", "--start-maild") },
 		OpenURL:      signInOpener(nil).OpenURL,

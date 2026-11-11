@@ -30,6 +30,7 @@ const (
 type steps interface {
 	load() (conn.AppConfig, error)
 	save(conn.AppConfig) error
+	leaveMaild()
 	stopMaild() error
 	startMaild() error
 }
@@ -46,7 +47,8 @@ type outcome struct {
 // fixes. Outside the Flatpak the app runs no maild of its own, so it only
 // writes the choice. In the Flatpak each mode passes through this
 // computer's maild:
-//   - this computer to lodge: write the choice, then stop maild; when maild
+//   - this computer to lodge: write the choice, save and close the compose
+//     windows while their maild still runs, then stop maild; when maild
 //     does not stop, write the previous choice back, and leave the session
 //     on this computer's maild;
 //   - lodge to this computer: write the choice, then start maild, and move
@@ -91,6 +93,7 @@ func toLodge(s steps, prev, next conn.AppConfig) outcome {
 	if err := s.save(next); err != nil {
 		return outcome{err: err.Error()}
 	}
+	s.leaveMaild()
 	if s.stopMaild() == nil {
 		return outcome{moved: true}
 	}
@@ -124,6 +127,12 @@ type realSteps struct{ o *Options }
 func (r realSteps) load() (conn.AppConfig, error) { return conn.ReadAppConfig(r.o.ConfigFile) }
 
 func (r realSteps) save(cfg conn.AppConfig) error { return conn.WriteAppConfig(r.o.ConfigFile, cfg) }
+
+func (r realSteps) leaveMaild() {
+	if r.o.LeaveLocal != nil {
+		r.o.LeaveLocal()
+	}
+}
 
 func (r realSteps) stopMaild() error {
 	if r.o.StopLocal == nil {

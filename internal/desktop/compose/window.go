@@ -54,9 +54,11 @@ type Options struct {
 	Post  func(func())
 	Now   func() time.Time
 	// Close closes the window, and may run on a worker; Hide hides it
-	// while its last save ends; SetTitle names it.
+	// while its last save ends, and Show shows it again when that save
+	// failed; SetTitle names it.
 	Close    func()
 	Hide     func()
+	Show     func()
 	SetTitle func(string)
 	// OpenFiles asks for files to attach; none when cancelled. It runs on
 	// a worker.
@@ -72,9 +74,9 @@ type Options struct {
 	Sent func(item *api.OutboxItem)
 	// EditSnippets opens Settings on its Snippets pane.
 	EditSnippets func()
-	// SaveFailed says the save on closing failed, when the window is gone
-	// and cannot say so itself. It runs on a worker.
-	SaveFailed func(err error)
+	// Kept says a close ended with the window open again: its save on
+	// closing failed, which the window shows. It runs on the UI thread.
+	Kept func()
 }
 
 // pending is a file still being attached.
@@ -115,13 +117,20 @@ type Window struct {
 	linkURL       string
 	seq           int
 
+	// inserting counts the snippets still being read, which go in later;
+	// deleting says the draft is being deleted, so that they do not.
+	inserting int
+	deleting  bool
+
 	touched bool
 	token   int
 
-	// closing says the save on closing has started; finished, that it has
-	// ended and the window may go.
-	closing  bool
-	finished atomic.Bool
+	// closing says the window is closing: its save on closing has started,
+	// or, with closeWaits, starts once the snippets still being read are
+	// in; finished, that it has ended and the window may go.
+	closing    bool
+	closeWaits bool
+	finished   atomic.Bool
 
 	// Saves go in order, off the UI thread: flushMu is held across the
 	// call to maild, and saveMu, which the UI thread takes, only to read
@@ -374,9 +383,9 @@ func (w *Window) flush(c *api.Client) error {
 }
 
 // canSend: at least one valid recipient, none invalid, nothing still being
-// attached or removed, and the signature known for the reminder.
+// attached, removed or inserted, and the signature known for the reminder.
 func (w *Window) canSend() bool {
-	if !w.loaded || !w.settled || w.busy || len(w.files)+len(w.detaching) > 0 {
+	if !w.loaded || !w.settled || w.busy || len(w.files)+len(w.detaching) > 0 || w.inserting > 0 {
 		return false
 	}
 	var all []string
@@ -410,6 +419,9 @@ func (w *Window) send(at *time.Time) {
 // sendNow sends what the window holds now; content1 takes no edits until
 // the send ends, as the draft goes with this content.
 func (w *Window) sendNow(at *time.Time) {
+	if !w.canSend() {
+		return
+	}
 	c := w.o.Client()
 	if c == nil {
 		w.errText = "The message was not sent: " + errDisconnected.Error()
@@ -465,6 +477,7 @@ func (w *Window) doDelete() {
 		return
 	}
 	w.token++
+	w.deleting = true
 	w.saveMu.Lock()
 	w.dirty = false
 	w.saveMu.Unlock()
@@ -476,6 +489,7 @@ func (w *Window) doDelete() {
 		w.flushMu.Unlock()
 		w.o.Post(func() {
 			if err != nil {
+				w.deleting = false
 				w.errText = "The draft was not deleted: " + err.Error()
 				return
 			}
@@ -488,7 +502,9 @@ func (w *Window) doDelete() {
 // RequestClose says whether the window may go now. Asked first, it says no:
 // it hides the window and starts the save on closing, whose end closes the
 // window again through Options.Close, and only then does it say yes. So
-// the app, which quits with its last window, outlives the save.
+// the app, which quits with its last window, outlives the save. A snippet
+// still being read goes in first, and the save starts after it. A save
+// that fails shows the window again (keep).
 func (w *Window) RequestClose() bool {
 	if w.finished.Load() {
 		return true
@@ -500,40 +516,78 @@ func (w *Window) RequestClose() bool {
 	if w.o.Hide != nil {
 		w.o.Hide()
 	}
-	w.saveOnClose(func() {
-		w.finished.Store(true)
-		w.o.Close()
-	})
+	if w.inserting > 0 {
+		w.closeWaits = true
+		return false
+	}
+	w.startClose()
 	return false
 }
 
-// saveOnClose saves what is left, telling SaveFailed if that fails, or
-// deletes a draft made for this window and never touched; then it calls
-// done, on a worker.
-func (w *Window) saveOnClose(done func()) {
+// startClose runs the save on closing, and closes the window after it, or
+// keeps it when it failed.
+func (w *Window) startClose() {
+	w.saveOnClose(func(err error) {
+		if err != nil {
+			w.o.Post(func() { w.keep(err) })
+			return
+		}
+		w.finished.Store(true)
+		w.o.Close()
+	})
+}
+
+// keep shows the window again after its save on closing failed: closing it
+// would lose what the draft has not saved. Closing it again tries again;
+// Close Anyway lets the edits go.
+func (w *Window) keep(err error) {
+	w.closing = false
+	w.errText = "The draft was not saved: " + err.Error()
+	if w.o.Show != nil {
+		w.o.Show()
+	}
+	if !w.dialogs.Showing() {
+		w.dialogs.Ask(frostui.Confirm{Title: "Close without saving?", Body: "The last changes to this draft were not saved: " + err.Error(),
+			Action: "Close Anyway", Cancel: "Keep Open", Destructive: true, OnConfirm: w.discard})
+	}
+	if w.o.Kept != nil {
+		w.o.Kept()
+	}
+}
+
+// discard closes the window without saving what is left.
+func (w *Window) discard() {
+	w.token++
+	w.finished.Store(true)
+	w.o.Close()
+}
+
+// saveOnClose saves what is left, or deletes a draft made for this window
+// and never touched; then it calls done with the save's error, on a
+// worker.
+func (w *Window) saveOnClose(done func(err error)) {
 	w.token++
 	fresh := w.o.Fresh && !w.touched
 	c := w.o.Client()
 	go func() {
-		defer done()
+		var err error
 		switch {
 		case fresh && c != nil:
 			ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-			defer cancel()
 			_ = c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: w.o.Draft})
+			cancel()
 		case fresh:
 		case c == nil:
 			w.saveMu.Lock()
 			dirty := w.dirty
 			w.saveMu.Unlock()
-			if dirty && w.o.SaveFailed != nil {
-				w.o.SaveFailed(errDisconnected)
+			if dirty {
+				err = errDisconnected
 			}
 		default:
-			if err := w.flush(c); err != nil && w.o.SaveFailed != nil {
-				w.o.SaveFailed(err)
-			}
+			err = w.flush(c)
 		}
+		done(err)
 	}()
 }
 
@@ -817,14 +871,23 @@ func (w *Window) snippetMenu(m *ui.Menu) {
 }
 
 // insertSnippet reads a snippet on a worker, as its images may come over
-// the network, and puts it in at the cursor.
+// the network, and puts it in at the cursor. Until it is in, Send waits,
+// and so does the save on closing, which would go without it.
 func (w *Window) insertSnippet(src string) {
 	load := w.partLoader(w.o.Client())
+	w.inserting++
 	go func() {
 		text := ToText(src, load)
 		w.o.Post(func() {
-			w.doc.Insert(text)
-			w.change()
+			w.inserting--
+			if !w.deleting {
+				w.doc.Insert(text)
+				w.change()
+			}
+			if w.inserting == 0 && w.closeWaits {
+				w.closeWaits = false
+				w.startClose()
+			}
 		})
 	}()
 }

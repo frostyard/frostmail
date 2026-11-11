@@ -62,6 +62,10 @@ type Options struct {
 	LoadFacts func() ServerFacts
 	// SetTarget moves the session to the maild now chosen.
 	SetTarget func(conn.Target)
+	// LeaveLocal saves and closes what keeps this computer's maild's
+	// drafts open, the compose windows, and returns once they have saved:
+	// a change to lodge runs it before StopLocal. It may be nil.
+	LeaveLocal func()
 	// StopLocal stops this computer's maild and returns once it has
 	// stopped: mailctl shutdown.
 	StopLocal func(ctx context.Context) error
