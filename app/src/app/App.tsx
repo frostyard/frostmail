@@ -1,13 +1,10 @@
 // The app root: the connection to maild around the main window, a compose
 // window's draft, an event editor, the reminders, or the settings window
 // (docs/design/app.md).
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { type Connect, Session } from "../data/session";
 import { useMail } from "../data/stores";
-import { BUTTON } from "../features/settings/labels";
 import { useFrameWindow } from "../lodge/frameWindow";
 import { IN_LODGE } from "../lodge/lodge";
 import { ComposeWindow } from "./ComposeWindow";
@@ -18,30 +15,16 @@ import { editorTarget } from "./openEvent";
 import { RemindersWindow } from "./RemindersWindow";
 import { isRemindersWindow } from "./reminders";
 import { SettingsWindow } from "./SettingsWindow";
-import { isSettingsWindow, openSettings } from "./settings";
+import { isSettingsWindow } from "./settings";
 
-/**
- * Connecting fills the window while it has no maild. In the desktop app a
- * lost connection also offers the Server pane, so the mode is reachable while
- * lodge is down (docs/specs/settings-ui.md, Server pane).
- */
+/** Connecting fills the window while it has no maild. */
 export function Connecting() {
   const connection = useMail((s) => s.connection);
-  const lost = connection.state === "lost";
-  const text = lost ? `Reconnecting to maild… (${connection.reason})` : "Connecting to maild…";
+  const text = connection.state === "lost" ? `Reconnecting to maild… (${connection.reason})` : "Connecting to maild…";
   return (
-    <div data-tauri-drag-region className="flex h-full items-center justify-center bg-window text-empty text-secondary">
-      <div data-tauri-drag-region className="flex flex-col items-center">
+    <div className="flex h-full items-center justify-center bg-window text-empty text-secondary">
+      <div className="flex flex-col items-center">
         <span>{text}</span>
-        {lost && isTauri() && (
-          <button
-            type="button"
-            className={`${BUTTON} mt-3`}
-            onClick={() => void openSettings("server").catch((err: unknown) => console.warn("settings", err))}
-          >
-            Server Settings…
-          </button>
-        )}
       </div>
     </div>
   );
@@ -76,53 +59,14 @@ function LodgeFrame() {
   );
 }
 
-/** LEFT_DRAFT and LEFT_EVENT fill a window that the app left its maild with. */
-const LEFT_DRAFT = "This draft is on the maild you left.";
-const LEFT_EVENT = "This event is on the maild you left.";
-
-/** LeftMaild fills a compose or event window whose draft or event belongs to
- *  the maild the app left (docs/specs/settings-ui.md, Server pane). */
-function LeftMaild(props: { text: string }) {
-  return (
-    <div data-tauri-drag-region className="flex h-full items-center justify-center bg-window text-empty text-secondary">
-      <span>{props.text}</span>
-    </div>
-  );
-}
-
 /** App connects to maild with connect and shows the main window, a compose window's draft, an event editor, reminders, or settings. */
 export function App(props: { connect: Connect }) {
   useHash();
   const target = composeTarget();
   const event = editorTarget();
   const settings = isSettingsWindow();
-  // Tauri creates windows hidden; show this one now that it has rendered,
-  // so it never flashes WebKit's blank white page (src-tauri main.rs).
-  useEffect(() => {
-    if (isTauri()) void getCurrentWindow().show();
-  }, []);
-  // A compose window's draft and an event window's event belong to the maild
-  // they opened on: on another maild their ids name other data, so the window
-  // closes instead of loading them there.
-  const ownMaild = !IN_LODGE && (target !== null || event !== null);
-  const leave = useCallback((): false => {
-    if (isTauri()) {
-      getCurrentWindow()
-        .close()
-        .catch((err: unknown) => console.warn("close the window", err));
-    }
-    return false;
-  }, []);
   return (
-    // The settings window keeps its toolbar and its Server pane without a
-    // maild, so a change of mode is always reachable (M6).
-    <Session
-      connect={props.connect}
-      fallback={settings && !IN_LODGE ? <SettingsWindow offline /> : <Connecting />}
-      onOtherMaild={ownMaild ? leave : undefined}
-      owner={ownMaild ? window.__frostmailMaild : undefined}
-      left={<LeftMaild text={target !== null ? LEFT_DRAFT : LEFT_EVENT} />}
-    >
+    <Session connect={props.connect} fallback={<Connecting />}>
       {IN_LODGE ? (
         <LodgeFrame />
       ) : target !== null ? (

@@ -137,7 +137,7 @@ func TestForwardKeepsAnInlineImage(t *testing.T) {
 	addr := strings.TrimSpace(strings.TrimPrefix(string(buf[:n]), "listening "))
 
 	// Sending needs the sync manager, whose IMAP the fixture points nowhere.
-	s := start(t, options{fixture: []string{"-showcase", filepath.Join(repoRoot, "app", "e2e", "showcase"), "-smtp", addr},
+	s := start(t, options{fixture: []string{"-showcase", filepath.Join(repoRoot, "tools", "uifixture", "showcase"), "-smtp", addr},
 		env: []string{"FROSTMAIL_SYNC=on", "FROSTMAIL_UNDO_DELAY=0s"}})
 	row := s.waitNode(1, "", "Your trip to Lisbon")
 	deadline := time.Now().Add(settle)

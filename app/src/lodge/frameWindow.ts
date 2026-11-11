@@ -2,8 +2,7 @@
 // build; plan 0011's Phase 4). From lodge's frame a new window would be a
 // second copy of the shell, so in the lodge build Compose, Settings, the
 // event editor and the reminder window are routes the frame shows in place
-// of the main window, which stays mounted, hidden, underneath. The desktop
-// app keeps its windows.
+// of the main window, which stays mounted, hidden, underneath.
 import { create } from "zustand";
 
 import { type EditorTarget, eventFromRoute, eventRoute } from "../app/openEvent";

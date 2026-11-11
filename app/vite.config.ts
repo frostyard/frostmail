@@ -24,9 +24,9 @@ const MIME: Record<string, string> = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-// WebKitGTK will not load the local mailpart: scheme into the dev server's
-// http page, so in dev the same files are served under /mailpart/ with the
-// protocol's rules (app/src-tauri/src/protocol.rs; docs/design/app.md).
+// A browser will not load maild's mailpart: URLs into the dev server's http
+// page, so in dev the parts cache is served under /mailpart/ with these rules
+// (docs/design/app.md).
 function mailpartDev(): Plugin {
   const cache =
     process.env.FROSTMAIL_CACHE_DIR ??
@@ -73,7 +73,6 @@ function mailpartDev(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), mailpartDev()],
   clearScreen: false,
-  envPrefix: ["VITE_", "TAURI_ENV_"],
   server: {
     host: "127.0.0.1",
     port: 5173,

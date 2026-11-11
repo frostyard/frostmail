@@ -13,7 +13,7 @@ import (
 
 func showcase(t *testing.T) *session {
 	t.Helper()
-	return start(t, options{fixture: []string{"-showcase", filepath.Join(repoRoot, "app", "e2e", "showcase")}})
+	return start(t, options{fixture: []string{"-showcase", filepath.Join(repoRoot, "tools", "uifixture", "showcase")}})
 }
 
 // writable is a calendar events can be made in.

@@ -30,17 +30,15 @@ function toolbar(over: Partial<ToolbarProps> = {}) {
 const button = (name: string) => screen.getByRole("button", { name });
 
 describe("Toolbar", () => {
-  it("is a draggable toolbar split at the pane widths", () => {
+  it("is a toolbar split at the pane widths", () => {
     toolbar();
     const bar = screen.getByRole("toolbar", { name: "Toolbar" });
-    expect(bar.hasAttribute("data-tauri-drag-region")).toBe(true);
     expect(bar.className).toContain("h-[52px]");
     expect(bar.className).toContain("bg-toolbar");
     const segments = bar.querySelectorAll(":scope > [data-segment]");
     expect([...segments].map((s) => s.getAttribute("data-segment"))).toEqual(["sidebar", "list", "reader"]);
     expect((segments[0] as HTMLElement).style.width).toBe("221px");
     expect((segments[1] as HTMLElement).style.width).toBe("361px");
-    for (const s of segments) expect(s.hasAttribute("data-tauri-drag-region")).toBe(true);
   });
 
   it("shows the title and subtitle", () => {
@@ -136,15 +134,6 @@ describe("Toolbar", () => {
   it("spins Get Mail while syncing", () => {
     toolbar({ syncing: true });
     expect(button("Get Mail").querySelector("svg")?.getAttribute("class")).toContain("animate-spin");
-  });
-
-  it("leaves double clicks on the drag region to Tauri", () => {
-    // Tauri's drag-region script maximizes on double click itself
-    // (tauri/src/window/scripts/drag.js); sending toggleMaximize too would
-    // undo it.
-    const props = toolbar();
-    fireEvent.doubleClick(screen.getByRole("toolbar", { name: "Toolbar" }));
-    expect(props.onCommand).not.toHaveBeenCalled();
   });
 
   it("keeps the sidebar segment's buttons while the sidebar is hidden", () => {

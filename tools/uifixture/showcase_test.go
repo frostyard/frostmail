@@ -11,7 +11,7 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-const showcaseDir = "../../app/e2e/showcase"
+const showcaseDir = "showcase"
 
 // The showcase builds its accounts and mailboxes from the directory, takes
 // flags and flag colors from file names, threads replies, and moves every

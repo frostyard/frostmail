@@ -31,7 +31,7 @@ Flatpak does not use it (see below).
   in `~/.local/bin`, `packaging/systemd/maild.service` in
   `~/.config/systemd/user/`, then enables and restarts the service.
   `make uninstall` reverses it and leaves the data.
-- `make install-app` builds the app in the nsl machine and runs
+- `make install-app` builds the app and runs
   `packaging/flatpak/install.sh`: the binary, the desktop entry
   (`org.frostyard.Frostmail.desktop`) and icons go into a Flatpak on
   `org.gnome.Platform//51`, installed for the user, and
@@ -59,12 +59,12 @@ Rationale: [ADR-0045](../adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md),
 and core's
 [Plan 0010, Phase 5](https://github.com/frostyard/core/blob/main/docs/plans/0010-suite-packaging.md).
 `packaging/flatpak/org.frostyard.Frostmail.json` builds the app inside the
-GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
+GNOME 51 SDK, offline, with one Go module that builds the app, maild and
+mailctl.
 
-- **Sources.** `cargo-sources.json` comes from `app/src-tauri/Cargo.lock`,
-  `node-sources.json` from `app/pnpm-lock.yaml` and `go-sources.json` from
-  `go.mod` and `go.sum` (`tools/flatpakgo`). `make flatpak-sources` writes
-  all 3 (in the nsl machine, with Go); CI fails when they are stale.
+- **Sources.** `go-sources.json` comes from `go.mod` and `go.sum`
+  (`tools/flatpakgo`). `make flatpak-sources` writes it; CI fails when it is
+  stale.
 - **Sandbox.** `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`,
   `--device=dri`, `--share=network`,
   `--talk-name=org.freedesktop.Notifications`,
@@ -73,11 +73,10 @@ GNOME 51 SDK, offline, with two modules: `maild` (Go) and the Tauri app.
   The secrets permission goes with the Flatpak's own keyring namespace: see
   [The Flatpak's own maild](#the-flatpaks-own-maild) and
   [design/accounts.md](accounts.md#secrets).
-- **Tests.** The `maild` module runs `maild -version` and `mailctl --help`.
-  The app module runs `cargo test --release --offline` (in its own session
-  bus, as `make app-test` does), `desktop-file-validate`,
-  `appstreamcli validate --no-net`, a check that the binary has no missing
-  library, a compile of the Background helper, an import of PyGObject and
+- **Tests.** The module runs `maild -version`, `mailctl --help`,
+  `desktop-file-validate`, `appstreamcli validate --no-net`, a load of the
+  libraries the app opens at run time (GTK 3, WebKitGTK 4.1), a compile of
+  the Background helper, an import of PyGObject and
   `packaging/flatpak/smoke-test.sh`.
 - **Publishing.** `.github/workflows/flatpak.yml` builds on every pull
   request and push to main. A `v*` tag starts the publish job, but only a
@@ -119,7 +118,7 @@ click and the move from a host maild.
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
   `/app/bin/maild` and `/app/bin/mailctl` are static Go binaries, and
-  `/app/libexec/frostmail-app` is the Tauri binary, with
+  `/app/libexec/frostmail-app` is the native app, also a Go binary, with
   `/app/libexec/frostmail-request-background` (a PyGObject helper) and
   `/app/libexec/frostmail-open` (a POSIX sh helper, `packaging/flatpak/open.sh`,
   which a notification's click runs).
@@ -132,7 +131,7 @@ click and the move from a host maild.
 - **Paths.** The socket is
   `$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail/frostmail/maild.sock`, the one
   directory Flatpak shares between the app's sandboxes (`FROSTMAIL_SOCKET`
-  still wins; `internal/config` and `paths.rs` derive it, each with tests).
+  still wins; `internal/config` derives it, with tests).
   The window reads decoded parts from its own `XDG_CACHE_HOME`, which is
   maild's. Data, cache, config and `maild.log` (state) are under
   `~/.var/app/org.frostyard.Frostmail/`.
@@ -204,26 +203,13 @@ click and the move from a host maild.
   org.frostyard.Frostmail`. A `secrets.json` that the Flatpak's maild kept
   before this moves into the namespace once, when a Secret Service answers.
   Details: [design/accounts.md](accounts.md#secrets).
-- **Files.** Save As asks `org.freedesktop.portal.FileChooser.SaveFile`
-  over the session bus, from the Rust layer (`src-tauri/src/portal.rs`), in
-  both modes; the path it answers is under the document portal, which every
-  instance of the app can write. Local mode writes the message there with
-  `message.save`, lodge mode downloads it there with `save_content`.
-  Outside the Flatpak, and on Windows, Save As keeps Tauri's dialog. See
+- **Files.** Save As uses GTK's native file chooser, which goes through the
+  file chooser portal in the Flatpak, in both modes; the path it answers is
+  under the document portal, which every instance of the app can write.
+  Local mode writes the message there with `message.save`, lodge mode
+  downloads it there. See
   [ADR-0046](../adr/0046-the-desktop-flatpak-carries-its-own-maild.md),
-  Files in the sandbox. The app takes a `Response` only from the unique
-  name of the portal that answered the call, because any peer of the
-  session bus may signal on the request path; and the wait ends with an
-  error when that name leaves the bus, so a portal that goes without an
-  answer cannot keep Save As open. Attaching sends the file's bytes
-  (`draft.attachData`) in both modes: Attach Files clicks the webview's own
-  file input, whose chooser goes through the FileChooser portal in a
-  sandbox, and drops reach the webview because the compose windows leave
-  them to it (`open_compose`). This closes
-  [ADR-0045](../adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)'s
-  known limit of Save As, in both modes. The home permission
-  (`--filesystem=home:ro`) stays for the move note about the host's data
-  (below); neither Save As nor attaching needs it.
+  Files in the sandbox.
 - **Moving from a host maild** (plan 0013, Phase 7). The app never reads,
   copies or stops a host maild, and never touches the host's data or its
   keyring items. When the store has no account and the host's database
@@ -279,19 +265,9 @@ click and the move from a host maild.
   asks the portal for the latest `frostmail`, or runs `frostmail` here when
   it is not there.
   `FROSTMAIL_BIN_DIR` points it at host-built binaries. The change of mode
-  has Rust unit tests on its order (`src-tauri/src/mode.rs`) and an
-  end-to-end test on the built app (`app/e2e/mode.e2e.ts`, in CI). The
-  portal's tests are in the app's Rust tests: its helpers (the request
-  path, a URI as a path, a Response's code, which Response is the portal's,
-  and that a leave still reads the answers already queued), and 3
-  session-bus tests against portals the test serves itself, which skip
-  without a bus: one whose answers are a file, a cancel and a failure, with
-  a Response forged by another peer ahead of each; one whose portal leaves
-  the bus without an answer; and one whose portal answers, then leaves,
-  then replies, whose answer must win. `saveMessage.flatpak.test.ts` and
-  `ComposeDrop.flatpak.test.tsx` cover Save As and attaching in Vitest, in
-  both modes, with a cancel. The portals themselves need the real-desktop
-  checks of plan 0013.
+  has unit tests on its order (`internal/desktop/settings`) and a real-window
+  test (`TestServerPaneChangesMode` in `internal/desktop/e2e`). The file
+  chooser portal itself needs the real-desktop checks of plan 0013.
 
 ## Application icon
 
@@ -300,11 +276,11 @@ on a chamfered dark tile ([ADR-0015](../adr/0015-use-a-frostyard-mail-icon.md)).
 Its colors come from core's `frostyard-design/tokens/colors.css`; the SVG
 master records the token names and values in a comment.
 
-Edit `app/src-tauri/icons/icon.svg`, then run `python3 scripts/render-icons.py`
+Edit `packaging/icons/icon.svg`, then run `python3 scripts/render-icons.py`
 with PyGObject, librsvg and GdkPixbuf installed. Commit the master and all three
 rendered RGBA PNGs (32, 128 and 512 pixels). Inspect them at native size on
-light and dark backgrounds. Tauri's icon configuration and the Flatpak
-installer share these PNGs; rebuilding and reinstalling the app updates the
+light and dark backgrounds. The Windows installer and the Flatpak share
+these PNGs; rebuilding and reinstalling the app updates the
 desktop icon.
 
 ## Notifications
@@ -405,37 +381,28 @@ the notifier and the installer.
   Any program the user runs can send such a URI; each does only what the
   user could with a click, and a reminder's id is opaque. Without a
   console the notifier's errors reach only maild's log (when maild ran it).
-- **The app on WebView2:** a release build is a GUI program. WebView2
-  serves the app at `http://tauri.localhost` and custom schemes as
-  `http://<scheme>.localhost`, so the navigation guard allows that origin
-  on Windows only, the app rewrites maild's `mailpart://localhost/` URLs
-  to `http://mailpart.localhost/` in what it shows and back in what it
-  saves (`app/src/lib/partURL.ts`), and the Windows CSP
-  (`tauri.windows.conf.json`) allows images from it. The commands that
-  open windows (compose, event, settings, reminders) are async, since a
-  window built in a synchronous command deadlocks WebView2's app; every
-  window shares one WebView2 environment, so all take the same browser
-  arguments (`main.rs`, `window`). The bridge opens the
-  pipe at the identification level and starts `maild.exe` from beside the
-  app when no pipe is there. The attachment types that never open
-  (`open_part`) include Windows' own (`.lnk`, `.url`, `.hta`, `.reg` and
-  the like).
-- **The installer:** Tauri's NSIS installer, per user (no administrator
-  rights), built by the Windows CI job (`frostmail-windows-installer`).
-  It installs `frostmail.exe` with `maild.exe`, `mailctl.exe` and
+- **The app on WebView2:** a release build is a GUI program, native windows
+  with WebView2 only for the reader's pages (`internal/desktop/uikit`,
+  [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)).
+  The app dials the pipe at the identification level and starts `maild.exe`
+  from beside it when no pipe is there. The attachment types that never open
+  include Windows' own (`.lnk`, `.url`, `.hta`, `.reg` and the like).
+- **The installer:** MyGo's NSIS installer, per user (no administrator
+  rights), in `%LOCALAPPDATA%\Programs\Frostmail`, built by the Windows CI
+  job (`frostmail-windows-installer`) and `make desktop-installer`. It
+  installs `Frostmail.exe` with `maild.exe`, `mailctl.exe` and
   `frostmail-notify.exe` beside it, a Start Menu shortcut, and
-  `frostmail.png` for the toasts' icon. Its hooks
-  (`app/src-tauri/windows/hooks.nsh`):
-  - before copying, rename each running sidecar aside (Windows lets a
-    running file be renamed, not replaced) and stop the user's maild, so
-    an app still open cannot restart the old maild;
-  - after copying, delete the renamed files, register the AppUserModelID
-    and `frostmail-toast:`, run `maild -autostart on`, and start maild as
-    the user;
-  - on uninstall, stop maild and remove both registrations (the template
-    removes the Run value); "Delete the application data" also removes
-    `Data` and `Cache`. An upgrade runs the old uninstaller in update
-    mode, which keeps the data, the Run value and the registrations.
+  `frostmail.png` for the toasts' icon. MyGo stops whatever runs from the
+  install folder before it replaces the files. Its macros
+  (`packaging/windows/installer.nsh`):
+  - at the start, find an install the Tauri installer made and stop what
+    runs from its folder;
+  - after copying, register the AppUserModelID and `frostmail-toast:`, remove
+    the Tauri install's own files and entries (its folder keeps `Data` and
+    `Cache`, where maild looks for the mail), run `maild -autostart on`, and
+    start maild;
+  - on uninstall, remove both registrations and the Run value, and ask
+    whether to delete `Data` and `Cache`; a silent uninstall keeps them.
 
   Releases are unsigned (ADR-0038): SmartScreen asks once per release
   ("More info", "Run anyway").
@@ -453,19 +420,19 @@ tailnet, such as the friend's Windows install.
   `%APPDATA%\Frostmail\app.json` on Windows): `{"lodge":
   "https://lodge.<tailnet>.ts.net"}` reaches maild through lodge, and no
   file, or no `lodge`, means the local socket. It is the app's own, never
-  maild's, since it names which maild to ask (`src-tauri/src/remote.rs`).
+  maild's, since it names which maild to ask (`internal/desktop/conn`).
   lodge's address is https, or http on loopback for lodge's development
   build. Settings' Server pane shows the choice
   ([settings-ui.md](../specs/settings-ui.md#server-pane)), and changing it
   ends every window's connection, which each then reconnects.
-- **The bridge's remote mode.** `bridge.rs` opens
+- **The remote connection.** `internal/desktop/conn` opens
   `wss://LODGE/app/mail/api` in place of the socket and moves the same
-  lines, one per text frame. It still never parses them.
+  JSON-RPC messages, one per text frame.
   - It connects from the desktop's own tailnet node, which lodge's
     allow-list must name. lodge checks it by WhoIs, as it does a browser.
   - It sends `Origin: https://LODGE` and no fetch metadata. lodge requires
     an Origin on an upgrade, and the origin check guards browsers, which
-    the bridge is not: identity still comes from WhoIs alone, with the
+    the app is not: identity still comes from WhoIs alone, with the
     desktop's node and login on lodge's allow-lists. lodge-http admits
     native clients this way (the lodge program's decision D7).
   - TLS is lodge's Tailscale certificate: rustls with ring and the web's
@@ -494,40 +461,31 @@ tailnet, such as the friend's Windows install.
   Flatpak, the file chooser portal's dialog takes the dialog's place
   ([The Flatpak's own maild](#the-flatpaks-own-maild), Files).
 - **Notifications.** A remote maild has no session bus, so it sends each
-  connected client `message.announced` (above), and the app's webview
-  hands the notes to `notify_mail` (`src-tauri/src/announce.rs`), which
-  shows them as maild would on this machine:
-  - on Linux, through `org.freedesktop.Notifications` on the app's own
-    session bus (zbus), with maild's hints, its Open action and its
-    group note per account that the next replaces; a click brings the
-    main window forward at the message (the `open-message` event);
+  connected client `message.announced` (above), and the app shows the notes
+  as maild would on this machine:
+  - on Linux, through MyGo's notifications; a click brings the main window
+    forward at the message;
   - on Windows, through `frostmail-notify.exe` beside the app, with the
     operation maild writes it (`mail` group, `m<id>` or `a<account>`
     tags), whose click runs `frostmail.exe --open-message`, which the
-    single instance hands to the running app;
-  - elsewhere, not yet.
+    single instance hands to the running app.
 
   A calendar reminder raises the reminder window, as with a local maild.
-- **What does not change:** with no `lodge` in `app.json`, the bridge,
+- **What does not change:** with no `lodge` in `app.json`, the connection,
   the parts and every window are as above, on maild's own socket or pipe.
-- **Tests:** `src-tauri/src/remote.rs`'s tests (addresses, the
-  configuration, downloads through the content origin `/lodge/apps` names);
-  `app/e2e/lodge.e2e.ts` runs lodge's development build, `maild --lodge` on
-  a fixture and the built app with `app.json` naming lodge, and lists,
-  reads and sends a reply through it. It needs lodge's `make e2e-build`
-  output in `FROSTMAIL_LODGE_E2E`, and skips without it.
-- **The Flatpak** gains `--share=network` for the Rust layer, and
+- **Tests:** `internal/desktop/conn`'s tests (addresses, the configuration,
+  downloads through the content origin `/lodge/apps` names).
+- **The Flatpak** gains `--share=network` for the app, and
   `--talk-name=org.freedesktop.Notifications` for its notifications. The
-  webview's CSP still forbids every fetch, so ADR-0005's third layer
+  reader's CSP still forbids every fetch, so ADR-0005's third layer
   holds, though the sandbox no longer cuts the network on its own.
 
 ## One app instance
 
-The app is single-instance (`tauri-plugin-single-instance`): a second
-launch passes its arguments to the running app, which shows and focuses
-its main window, and exits. The first launch keeps its own
-`--open-message` until the main window asks for it (`startup_message`);
-later ones arrive as the `open-message` event (`app/src/app/openMessage.ts`). `--open-message
+The app is single-instance (MyGo's lock; in the Flatpak its socket is in the
+app's shared runtime directory, so a click in another sandbox reaches it): a
+second launch passes its arguments to the running app, which shows and
+focuses its main window, and exits. `--open-message
 <id>` shows the main window, selects the message's inbox (or All Inboxes)
 and the message, and focuses the window; with no running app it starts on
 that message.

@@ -192,8 +192,8 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
   const invitation = !!event?.organizer && !event.organizer.isUser;
   const edit = () => {
     if (!writable || !event) return false;
-    void openEvent({ kind: "edit", id: event.id, recurrenceId: event.recurrenceId }, event.summary).catch(
-      (err: unknown) => console.warn("edit event", err),
+    void openEvent({ kind: "edit", id: event.id, recurrenceId: event.recurrenceId }).catch((err: unknown) =>
+      console.warn("edit event", err),
     );
     return true;
   };

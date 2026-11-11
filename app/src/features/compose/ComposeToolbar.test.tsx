@@ -20,12 +20,11 @@ function toolbar(over: Partial<ComposeToolbarProps> = {}) {
 const button = (name: string) => screen.getByRole("button", { name });
 
 describe("ComposeToolbar", () => {
-  it("is a draggable toolbar titled by the subject", () => {
+  it("is a toolbar titled by the subject", () => {
     toolbar();
     const bar = screen.getByRole("toolbar", { name: "Compose" });
-    expect(bar.hasAttribute("data-tauri-drag-region")).toBe(true);
     expect(bar.className).toContain("h-[52px]");
-    expect(screen.getByText("Lunch").hasAttribute("data-tauri-drag-region")).toBe(true);
+    expect(screen.getByText("Lunch")).toBeTruthy();
   });
 
   it("titles a draft without a subject New Message", () => {

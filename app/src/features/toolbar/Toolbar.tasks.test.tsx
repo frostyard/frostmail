@@ -35,7 +35,6 @@ describe("Toolbar in Tasks", () => {
     expect(segments.map((s) => s.getAttribute("data-segment"))).toEqual(["sidebar", "tasks", "pane"]);
     expect(segments[0]?.style.width).toBe("221px");
     expect(segments[2]?.style.width).toBe("321px");
-    for (const s of segments) expect(s.hasAttribute("data-tauri-drag-region")).toBe(true);
   });
 
   it("shows New Task, the source's name and Show Completed", () => {

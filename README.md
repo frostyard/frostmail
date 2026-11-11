@@ -30,12 +30,12 @@ HTML itinerary in the reader](docs/images/main.png)
 | ![Tasks: lists, a subtask, due dates and the task pane](docs/images/tasks.png) | ![Mail with the To-Do bar: the month, what is next and what is due](docs/images/todo-bar.png) |
 | ![An invitation answered from the reader](docs/images/invitation.png) | ![The Calendar's month](docs/images/calendar-month.png) |
 
-<sub>The screenshots show made-up mail (`app/e2e/showcase`) in the real
-app; `make screenshots` retakes them.</sub>
+<sub>The screenshots show made-up mail (`tools/uifixture/showcase`).</sub>
 
 - **maild** is a per-user Go daemon that owns sync, a SQLite cache with
   full-text search, and a JSON-RPC socket.
-- **The app** is Tauri v2 with a React UI in the system WebKitGTK.
+- **The app** is a native Go app on MyGo and frostui; lodge serves a React
+  web app of the same mail.
 - **mailctl** is a command-line client of the same socket.
 
 ## Problem records

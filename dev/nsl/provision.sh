@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision the nsl `frostmail` machine (Debian 13) with the Tauri, WebKitGTK,
+# Provision the nsl `frostmail` machine (Debian 13) with the web build's and the notifier's toolchain,
 # Node, Rust and Go toolchains the app build needs. The host is atomic and
 # cannot install -dev packages; the engine itself builds and tests on the host.
 #

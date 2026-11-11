@@ -12,11 +12,8 @@
 | IMAP, real | `*_integration_test.go` (build tag `integration`) against `frostmail-mailtest` | `make engine-it` |
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
-| App shell | the M0 spike report (`FROSTMAIL_SPIKE_EXIT=1`) | `make app-run`, or natively from `build/frostmail-app` |
-| Desktop app behind lodge | `app/e2e/lodge.e2e.ts`: lodge's development build, `maild --lodge` and the built app with `app.json` naming lodge (skips without `FROSTMAIL_LODGE_E2E`) | after `make ui-e2e`'s builds, in the nsl machine with `FROSTMAIL_LODGE_E2E` naming a copy of lodge's `make e2e-build` output it can read (under this repository's `build/`), `pnpm exec vitest run -c vitest.e2e.config.ts lodge` under `xvfb-run` |
-| Change of mode (M6) | `app/e2e/mode.e2e.ts`: the built app with `FLATPAK_ID` set, stand-ins for `mailctl` and `frostmail --start-maild` on its PATH: local to lodge (maild stops, the data stays), back to local with lodge unreachable (the note, the same accounts), and a maild that will not stop (the mode stays local, the pane's error) | CI's App shell job, under `dbus-run-session` and `xvfb-run`; `make ui-e2e F=mode` in the nsl machine |
-| Accessibility | `app/e2e/a11y.e2e.ts`: axe-core, injected over WebDriver, audits the built app on `app/e2e/showcase`'s made-up mail: the main window, the reader (with an invitation), compose, settings, calendar (week, month, day), people and tasks. It fails on serious and critical violations and prints the others. Color contrast is printed only: the text colors are the Tokens of [specs/ui.md](../specs/ui.md), and a change to them is a change of the spec and of lodge-ui. The reader's message frame holds the sender's HTML and runs no script, so axe audits the frame element, not its document | CI's App shell job; `make ui-e2e F=a11y` in the nsl machine |
-| Screenshots | `app/e2e/screenshots.e2e.ts`: the built app on `app/e2e/showcase`'s made-up mail (`tools/uifixture -showcase`, maild with `FROSTMAIL_SYNC=off`), written to `docs/images` for the README and 4 of the images in the Flatpak metainfo | `make screenshots` (nsl) |
+| Desktop app | `internal/desktop/**` with `ui.Tester` against a real maild | `make test` |
+| Desktop app, real windows | `internal/desktop/e2e` (build tag `e2e`): the automation build on fixture mail: the hostile corpus, a real link click, a forward with an inline image, dragging an event, the reminders window, and on Linux the Server pane's change of mode | `make desktop-e2e`, under Xvfb with xdotool, or on Windows' desktop |
 
 ## CI
 
@@ -34,8 +31,8 @@ as `dev/nsl/provision.sh` and runs them with `IN_NSL='sh -c'`. CI sets
 without `dbus-daemon`. Workflows follow frostyard/core ADR-0021 (actions
 pinned to full commit SHAs, `permissions: {}`, checkouts without
 persisted credentials), which `internal/workflowcheck` tests. Integration
-tests against the mail server, `make ui-e2e` and `make e2e` need incus or
-a display and stay local.
+tests against the mail server and `make e2e` need incus or a display and
+stay local.
 
 ## Windows
 
@@ -55,23 +52,12 @@ too:
   sidecars the bundle takes; the notifier's tests run with `make
   app-test`, its toast XML, activation URIs and RPC calls being the same
   on Linux.
-- CI's **Windows app** job builds `maild.exe` and `mailctl.exe`, tests
-  and builds the notifier (its C runtime linked in), runs the shell's
-  tests, and builds the NSIS installer with `pnpm tauri build --bundles
-  nsis`, which it uploads as the `frostmail-windows-installer` artifact
-  (kept 14 days). It then runs hostile, links, smoke and remote on that
-  app in WebView2: the harness starts the app with a DevTools port
-  (`FROSTMAIL_DEVTOOLS_PORT`, which the app adds to every window's
-  WebView2 arguments, since WebView2 lets an app's arguments override
-  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`) and attaches the runner's
-  msedgedriver, which matches the runner's WebView2, to it
-  (`debuggerAddress`); a session msedgedriver launched would look for that
-  port in a data folder of its own. It also runs the window chrome and the
-  keyboard map (`app/e2e/window.e2e.ts`). The harness waits up to 45 s for
-  the driver to answer and tries a second time on a new port, because the
-  first msedgedriver start on a fresh runner can take more than 20 s.
-  `FROSTMAIL_OPEN_LOG` stands in for the Linux opener stand-ins. Installs
-  and trials take that installer to the VM or one of the user's machines.
+- CI's **Windows app** job tests and builds the notifier, builds the
+  installer (`scripts/windows-installer.sh`), which it uploads as the
+  `frostmail-windows-installer` artifact (kept 14 days), installs and
+  uninstalls it silently, and runs `internal/desktop/e2e` on WebView2 in the
+  runner's interactive session. Installs and trials take that installer to
+  the VM or one of the user's machines.
 - Tests that need a socket take one from `rpctest.SocketPath`: a short
   private path on Linux, a fresh named pipe on Windows. Contract tests
   that check Unix file modes (the blob store, the plain secrets file) or

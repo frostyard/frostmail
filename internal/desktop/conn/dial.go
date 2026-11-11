@@ -51,7 +51,7 @@ func dialLodge(ctx context.Context, l Lodge) (net.Conn, error) {
 
 // lineConn is one end of a pipe whose other end moves lines: each text
 // frame from ws arrives as a line, and each line written goes to ws as one
-// text frame without its newline, as the Tauri bridge sent them. A binary
+// text frame without its newline. A binary
 // frame, or a line with no end when the pipe closes, ends the connection.
 func lineConn(ws *websocket.Conn) net.Conn {
 	app, wire := net.Pipe()

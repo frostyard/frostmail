@@ -105,8 +105,7 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   sidebar.
 - **Toolbar (52, `--bg-toolbar`, 1px `--separator` bottom):** one strip
   split at the pane boundaries. It is the window's drag region; double-click
-  on empty toolbar space toggles maximize (Tauri's drag-region handling does
-  this; the app adds nothing).
+  on empty toolbar space toggles maximize.
   - Over the sidebar: sidebar toggle, Get Mail (spins while any account
     syncs).
   - Over the list: the source title (13/600) above a subtitle (11/400
@@ -1082,9 +1081,7 @@ The compose window's own keys are in [compose-ui.md](compose-ui.md).
 - The reader frame never has `allow-scripts`; the app never fetches remote
   content (ADR-0005).
 - Every interactive element is reachable by keyboard and has an accessible
-  name. `app/e2e/a11y.e2e.ts` runs axe-core on the main views and fails on
-  serious and critical violations. It prints color contrast findings and
-  does not fail on them: the colors are the Tokens above.
+  name.
 - When the system asks for reduced motion (`prefers-reduced-motion:
   reduce`), no animation or transition runs (`app/src/styles/app.css`).
 

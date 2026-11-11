@@ -11,7 +11,7 @@ describe("parts URLs", () => {
     expect(isPartURL("http://mailpart.localhost/41/2.png", false)).toBe(false);
   });
 
-  it("take WebView2's form on Windows, and go back for maild", () => {
+  it("take the Windows form on Windows, and go back for maild", () => {
     const page = toPageParts(html, true);
     expect(page).toBe('<p><img src="http://mailpart.localhost/41/2.png"></p>');
     expect(toMaildParts(page, true)).toBe(html);

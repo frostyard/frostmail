@@ -190,8 +190,8 @@ case-insensitively, ranked by `count` and then `last_seen`.
 
 ## Compose windows
 
-- The main window opens `#/compose/<draftId>` in a new Tauri window labeled
-  `compose-<draftId>` (an existing window for that draft is focused instead).
+- The main window opens a compose window for the draft (an existing window
+  for that draft is focused instead); on the web, `#/compose/<draftId>`.
 - The compose UI: identity menu (when the account has several), To, Cc and
   Bcc fields with address tokens and suggestions, subject, a TipTap editor
   with a formatting bar, an attachment strip, Send, and close (which keeps the

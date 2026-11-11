@@ -23,7 +23,7 @@ export interface QuoteSelectionOptions {
   active?: Element | null;
 }
 
-/** readQuoteSelection reads the desktop reader only; no DOM nodes leave it. */
+/** readQuoteSelection reads a reader on this page, never lodge's content frame; no DOM nodes leave it. */
 export function readQuoteSelection({
   doc = document,
   web = IN_LODGE,

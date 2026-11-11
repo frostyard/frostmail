@@ -1,6 +1,6 @@
 // A narrow window's toolbar and message bar (docs/specs/ui.md, Narrow
-// windows), and the window controls only the desktop app draws. The message
-// bar moves the actions that do not fit into a » menu, from their end.
+// windows), and the toolbar without its window controls. The message bar
+// moves the actions that do not fit into a » menu, from their end.
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -221,7 +221,7 @@ describe("the message bar at narrow widths", () => {
 });
 
 describe("window controls", () => {
-  it("are left out where the window is not the desktop app's", () => {
+  it("are left out when windowControls is false", () => {
     toolbar({ windowControls: false });
     expect(screen.queryByRole("button", { name: "Minimize" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Close" })).toBeNull();

@@ -20,13 +20,6 @@ export interface Transport {
   onClose(handler: (reason: string) => void): () => void;
   /** Where a mail part loads from, when the transport serves one. */
   blobURL?(hash: string, ext: string): string;
-  /**
-   * A key that names the maild this transport reaches, when it can tell:
-   * "local" for the desktop app's local socket, "lodge:<url>" for a maild
-   * behind lodge. Another key means another maild, whose ids (messages,
-   * mailboxes, and the rest) are not this one's.
-   */
-  maild?: string;
 }
 
 /** asTransport is the subpath's session with maild's events (gen/api.ts). */

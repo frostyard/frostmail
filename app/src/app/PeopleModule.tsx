@@ -2,8 +2,6 @@
 
 import { Splitter } from "@frostyard/lodge-ui/react";
 import { defaultRangeExtractor, type Range, useVirtualizer, type VirtualItem } from "@tanstack/react-virtual";
-import { isTauri } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
 import { forwardRef, type Ref, type RefObject, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { type Pane, useUI } from "../data/stores";
@@ -248,10 +246,7 @@ function PeopleEditor({
     try {
       const book = books?.find((item) => item.id === contact.collectionId)?.label ?? String(contact.collectionId);
       const text = `Delete "${contact.displayName}" from ${book}? It is removed from every device that syncs this address book.`;
-      const confirmed = isTauri()
-        ? await ask(text, { title: "Delete Contact?", kind: "warning", okLabel: "Delete" })
-        : window.confirm(text);
-      if (confirmed) {
+      if (window.confirm(text)) {
         const { restoreId } = await client.people.delete({ id: contact.id });
         rememberRestore({ module: "people", restoreId });
         cancel();

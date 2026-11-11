@@ -1,7 +1,6 @@
 // Attaching a file by its bytes (draft.attachData; docs/specs/compose-ui.md,
-// Attachments): for a browser through lodge, or the desktop app on a maild
-// behind lodge, neither of which can name a path on maild's machine. The
-// file goes in chunks, in order; maild checks its name, size and type.
+// Attachments): a browser cannot name a path on maild's machine. The file
+// goes in chunks, in order; maild checks its name, size and type.
 import type { Client, DraftAttachment } from "../rpc/gen/api";
 
 /** UPLOAD_CHUNK is one chunk's bytes: its base64 stays within maild's 4 MiB a chunk. */

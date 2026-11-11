@@ -1,6 +1,6 @@
 # Spec: the compose window and sending UI (M3)
 
-The look and behavior of Frostmail's compose window (one Tauri window per
+The look and behavior of Frostmail's compose window (one window per
 draft) and of the sending feedback in the main window: the undo toast and
 the outbox. It binds the presentational components in
 `app/src/features/compose/` and `app/src/features/outbox/`, the containers
@@ -161,7 +161,7 @@ window.
   system names.
 - WebKitGTK on Linux checks nothing until the app turns it on: the shell
   turns spell checking on in the web context of every window it builds
-  (`app/src-tauri/src/spell.rs`, from `show_soon`), and sets the languages
+  and sets the languages
   from the system's locale names (`g_get_language_names`), most preferred
   first. Each name loses its encoding (`.UTF-8`) and modifier (`@euro`);
   `C` and `POSIX` are dropped, and a name is kept once; with none left,

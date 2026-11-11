@@ -1,13 +1,10 @@
 // Finishing a sign-in with the address of the page the browser could not
 // open (ADR-0043): an edit pane shows the field while this window's
-// sign-in waits, unless the desktop app is on its own maild.
+// sign-in waits.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AccountForm, type AccountFormProps, type AccountFormValue } from "./AccountForm";
-
-const env = vi.hoisted(() => ({ paste: true }));
-vi.mock("../../app/settings", () => ({ pasteSignIn: () => env.paste }));
 
 const gmail: AccountFormValue = {
   kind: "gmail",
@@ -42,10 +39,6 @@ function form(over: Partial<AccountFormProps> = {}) {
   return props;
 }
 
-beforeEach(() => {
-  env.paste = true;
-});
-
 describe("finishing a sign-in with a pasted address", () => {
   it("shows the field while a remote client's sign-in waits, and sends the address", async () => {
     const props = form();
@@ -67,13 +60,6 @@ describe("finishing a sign-in with a pasted address", () => {
     // stays, to correct or send again after an error.
     await waitFor(() => expect(button.disabled).toBe(false));
     expect(field.value).toBe(address);
-  });
-
-  it("stays away on the desktop app on its own maild", () => {
-    env.paste = false;
-    form();
-    expect(screen.queryByText(/copy that page's address/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Finish Sign-In" })).toBeNull();
   });
 
   it("stays away for another account's sign-in", () => {

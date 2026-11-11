@@ -58,11 +58,6 @@
       "why": "destructive operations: the Windows installer and its NSIS macros, which stop processes, remove a previous install, register protocol handlers and can delete the user's mail"
     },
     {
-      "glob": "app/src-tauri/{tauri.windows.conf.json,windows/**}",
-      "level": "L1",
-      "why": "destructive operations: the Windows installer and its NSIS hooks, which stop processes, register startup and URI handlers, and delete app data at uninstall"
-    },
-    {
       "glob": "packaging/lodge/**",
       "level": "L1",
       "why": "secrets and credentials: lodge's units that load the sealed secrets key, the key helper and the system user"

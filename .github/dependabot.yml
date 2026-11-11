@@ -10,20 +10,6 @@
 # Each group takes only minor and patch updates. A major update comes as a
 # PR of its own, because it can break the build and needs its own decision.
 #
-# frostyard-problems (app/src-tauri) is a cargo git dependency on a tag of
-# frostyard/std. Dependabot cannot resolve it: its update job tried std's tag
-# v0.3.0, which holds no crate, and failed. Internal bumps go by hand
-# (AGENTS.md, Releases and dependencies); internal/workflowcheck requires an
-# ignore entry for each frostyard git crate.
-#
-# zbus (app/src-tauri) stays on major 5: zbus 6 changes the API (the
-# blocking module and the MatchRule builder that src/announce.rs and
-# src/portal.rs use), and tauri-plugin-single-instance still brings zbus 5,
-# so a bump to 6 ships 2 D-Bus stacks. Its majors are ignored; minor and
-# patch updates still come. Port to zbus 6 by hand when the Tauri crates
-# move to it. Cause:
-# https://github.com/frostyard/frostmail/pull/179#issuecomment-6715086085
-#
 # The commit prefix is build (or ci): svu reads it as a patch, not a feature.
 version: 2
 updates:
@@ -60,22 +46,6 @@ updates:
       include: scope
     groups:
       app-npm:
-        patterns: ["*"]
-        update-types: [minor, patch]
-
-  - package-ecosystem: cargo
-    directory: /app/src-tauri
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: build
-      include: scope
-    ignore:
-      - dependency-name: frostyard-problems
-      - dependency-name: zbus
-        update-types: ["version-update:semver-major"]
-    groups:
-      app-cargo:
         patterns: ["*"]
         update-types: [minor, patch]
 

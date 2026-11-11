@@ -6,7 +6,6 @@
 // value.
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { pasteSignIn } from "../../app/settings";
 import type { AccountKind, AuthKind, DiscoverySource, ServerConfig, ServiceKind } from "../../rpc/gen/api";
 import { ALERT, BUTTON, FIELD, GRID, KIND_LABEL, LABEL, PRIMARY_BUTTON } from "./labels";
 import { ServerFields } from "./ServerFields";
@@ -228,7 +227,7 @@ function SignInRow(props: {
               {props.signedIn ? "Sign In Again…" : "Sign In…"}
             </button>
           </div>
-          {props.waiting && props.onFinishSignIn && pasteSignIn() && (
+          {props.waiting && props.onFinishSignIn && (
             <FinishSignInRow busy={props.busy} onFinish={props.onFinishSignIn} />
           )}
         </>
