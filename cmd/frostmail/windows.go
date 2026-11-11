@@ -19,6 +19,8 @@ var repaintDelays = []time.Duration{60 * time.Millisecond, 300 * time.Millisecon
 type windowSet struct {
 	mu  sync.Mutex
 	all map[*mygo.Window]bool
+	// closeCompose closes the compose windows; compose.go sets it.
+	closeCompose func()
 }
 
 // add tracks a window from when it opens to when it closes.

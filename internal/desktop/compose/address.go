@@ -4,14 +4,21 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/frostyard/frostmail/api"
 )
 
+// An address's parts hold no white space or control character, and none of
+// the characters that split or quote a recipient field's text.
 var (
 	angleForm   = regexp.MustCompile(`^(.*)<([^<>]*)>$`)
-	addressForm = regexp.MustCompile(`^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$`)
+	addressForm = regexp.MustCompile(`^[^@\s\x00-\x1f\x7f,;"<>]+@[^@\s.\x00-\x1f\x7f,;"<>]+(\.[^@\s.\x00-\x1f\x7f,;"<>]+)+$`)
 )
+
+// fieldSpecials are the characters that mean something in a recipient
+// field's text: RFC 5322's specials, whose name must be quoted.
+const fieldSpecials = `()<>[]:;@\,."`
 
 // ValidAddress reports whether text is a plausible email address.
 func ValidAddress(text string) bool { return addressForm.MatchString(text) }
@@ -79,15 +86,38 @@ func ParseAddresses(text string) (addresses []api.Address, invalid []string) {
 	return addresses, invalid
 }
 
-// Token writes an address as a recipient field's token.
+// plain removes what a token cannot hold, which mail can put there: line
+// breaks and other control characters become spaces, so that they split
+// nothing, and quotes go, so that they end no quotation.
+func plain(s string) string {
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		switch {
+		case r == '"':
+			return -1
+		case unicode.IsControl(r), r == '\u2028', r == '\u2029':
+			return ' '
+		}
+		return r
+	}, s))
+}
+
+// Token writes an address as a recipient field's token, which reads back
+// as this one recipient whatever the mail it came from says: the text is
+// untrusted. An address that cannot be written plainly becomes one quoted
+// piece, which is invalid and holds the send back.
 func Token(a api.Address) string {
-	if a.Name == "" {
-		return a.Address
+	address := plain(a.Address)
+	if address != a.Address || strings.ContainsAny(address, ",;<> \t") {
+		address = `"` + address + `"`
 	}
-	if strings.ContainsAny(a.Name, `,;"`) {
-		return `"` + strings.ReplaceAll(a.Name, `"`, "") + `" <` + a.Address + ">"
+	name := plain(a.Name)
+	switch {
+	case name == "":
+		return address
+	case strings.ContainsAny(name, fieldSpecials):
+		return `"` + name + `" <` + address + ">"
 	}
-	return a.Name + " <" + a.Address + ">"
+	return name + " <" + address + ">"
 }
 
 // Choice is a Send Later choice and its time.

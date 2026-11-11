@@ -1,18 +1,26 @@
 package compose_test
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/base64"
+	"image"
+	"image/png"
+	"io"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/mail"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostui"
@@ -34,16 +42,20 @@ func TestMain(m *testing.M) {
 }
 
 type fixture struct {
-	c      *api.Client
-	acct   int64
-	sink   *smtpxtest.Server
-	loop   *frostuitest.Loop
-	win    *compose.Window
-	tt     *ui.Tester
-	closed atomic.Bool
-	sent   atomic.Pointer[api.OutboxItem]
-	failed chan error
-	picked []string
+	c *api.Client
+	// current is what the window's Client answers, on the test's goroutine.
+	current *api.Client
+	srv     *rpctest.Server
+	hidden  atomic.Bool
+	acct    int64
+	sink    *smtpxtest.Server
+	loop    *frostuitest.Loop
+	win     *compose.Window
+	tt      *ui.Tester
+	closed  atomic.Bool
+	sent    atomic.Pointer[api.OutboxItem]
+	failed  chan error
+	picked  []string
 }
 
 func start(t *testing.T) *fixture {
@@ -68,7 +80,7 @@ func start(t *testing.T) *fixture {
 	if err := c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: a.ID, Password: imapxtest.Password}); err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{c: c, acct: a.ID, sink: sink, loop: frostuitest.NewLoop(), failed: make(chan error, 1)}
+	f := &fixture{c: c, current: c, srv: srv, acct: a.ID, sink: sink, loop: frostuitest.NewLoop(), failed: make(chan error, 1)}
 	deadline := time.Now().Add(15 * time.Second)
 	for {
 		s, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: []int64{1}})
@@ -84,10 +96,11 @@ func start(t *testing.T) *fixture {
 
 func (f *fixture) open(t *testing.T, d *api.Draft, fresh bool, bytesMode bool) {
 	t.Helper()
-	f.win = compose.New(compose.Options{Client: f.c, Draft: d.ID, Fresh: fresh, Post: f.loop.Post,
+	f.win = compose.New(compose.Options{Client: func() *api.Client { return f.current }, Draft: d.ID, Fresh: fresh, Post: f.loop.Post,
 		Close:        func() { f.closed.Store(true) },
+		Hide:         func() { f.hidden.Store(true) },
 		OpenFiles:    func() ([]string, error) { return f.picked, nil },
-		FilesAsBytes: bytesMode,
+		FilesAsBytes: func() bool { return bytesMode },
 		Sent:         func(i *api.OutboxItem) { f.sent.Store(i) },
 		SaveFailed:   func(err error) { f.failed <- err },
 	})
@@ -97,6 +110,57 @@ func (f *fixture) open(t *testing.T, d *api.Draft, fresh bool, bytesMode bool) {
 	}, 720, 560)
 	f.win.Start(t.Context())
 	f.until(t, "the draft", func() bool { _, ok := f.tt.Access("Message body"); return ok })
+}
+
+// hold stands between a client and maild, keeping back the calls of one
+// method until free.
+type hold struct {
+	arrived atomic.Bool
+	release chan struct{}
+	once    sync.Once
+}
+
+func (h *hold) reached() bool { return h.arrived.Load() }
+func (h *hold) free()         { h.once.Do(func() { close(h.release) }) }
+
+// holdCalls makes the window's client one whose calls of method wait.
+func (f *fixture) holdCalls(t *testing.T, method string) *hold {
+	t.Helper()
+	h := &hold{release: make(chan struct{})}
+	t.Cleanup(h.free)
+	client, front := net.Pipe()
+	back, served := net.Pipe()
+	go f.srv.RPC.ServeConn(t.Context(), served, f.srv.Router, api.Caller{Kind: api.CallerKindLocal})
+	go func() { _, _ = io.Copy(front, back) }()
+	go func() {
+		lines := bufio.NewScanner(front)
+		lines.Buffer(make([]byte, 64<<10), 16<<20)
+		for lines.Scan() {
+			if bytes.Contains(lines.Bytes(), []byte(`"`+method+`"`)) {
+				h.arrived.Store(true)
+				<-h.release
+			}
+			if _, err := back.Write(append(lines.Bytes(), '\n')); err != nil {
+				return
+			}
+		}
+	}()
+	c := api.NewClient(client)
+	t.Cleanup(func() { _ = c.Close() })
+	if _, err := c.RPC().Hello(t.Context(), &api.RPCHelloParams{Protocol: api.Protocol, Client: "held"}); err != nil {
+		t.Fatal(err)
+	}
+	f.current = c
+	return h
+}
+
+func (f *fixture) subject(t *testing.T, d *api.Draft) string {
+	t.Helper()
+	got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
+	if err != nil {
+		return ""
+	}
+	return got.Content.Subject
 }
 
 func (f *fixture) until(t *testing.T, what string, ok func() bool) {
@@ -315,7 +379,7 @@ func TestClosingAFreshUntouchedDraftDeletesIt(t *testing.T) {
 	f := start(t)
 	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
 	f.open(t, d, true, false)
-	f.win.Closing()
+	f.win.RequestClose()
 	f.until(t, "the draft gone", func() bool {
 		_, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
 		return err != nil
@@ -329,7 +393,7 @@ func TestClosingAnEditedDraftSavesIt(t *testing.T) {
 	f.focus(t, "Subject")
 	f.tt.Type("Kept")
 	f.tt.Frame()
-	f.win.Closing()
+	f.win.RequestClose()
 	f.until(t, "the saved subject", func() bool {
 		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
 		return err == nil && got.Content.Subject == "Kept"
@@ -348,7 +412,7 @@ func TestClosingTellsOfAFailedSave(t *testing.T) {
 	if err := f.c.Draft().Delete(t.Context(), &api.DraftDeleteParams{ID: d.ID}); err != nil {
 		t.Fatal(err)
 	}
-	f.win.Closing()
+	f.win.RequestClose()
 	select {
 	case err := <-f.failed:
 		if err == nil {
@@ -367,7 +431,7 @@ func TestClosingSaysNothingOfASave(t *testing.T) {
 	f.focus(t, "Subject")
 	f.tt.Type("Kept")
 	f.tt.Frame()
-	f.win.Closing()
+	f.win.RequestClose()
 	f.until(t, "the saved subject", func() bool {
 		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
 		return err == nil && got.Content.Subject == "Kept"
@@ -504,4 +568,331 @@ func TestRecipientsOfferKnownAddresses(t *testing.T) {
 	f.until(t, "the suggestion", func() bool {
 		return slices.ContainsFunc(f.tt.Texts(), func(s string) bool { return strings.Contains(s, "ann@x.test") })
 	})
+}
+
+// M33: a save that takes its time never stops the window, and what is
+// typed during it is saved after it.
+func TestTypingGoesOnDuringASlowSave(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	h := f.holdCalls(t, "draft.update")
+	f.open(t, d, true, false)
+	f.focus(t, "Subject")
+	f.tt.Type("A")
+	f.until(t, "the save reaching maild", h.reached)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f.tt.Type("B")
+		f.tt.Frame()
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		h.free()
+		t.Fatal("the window waited for the save")
+	}
+	h.free()
+	f.until(t, "the later edit saved", func() bool { return f.subject(t, d) == "AB" })
+}
+
+// M33: a save that ran while the text changed leaves it to save: closing
+// writes what the save in flight did not have.
+func TestAnEditDuringASaveStaysToSave(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	h := f.holdCalls(t, "draft.update")
+	f.open(t, d, true, false)
+	f.focus(t, "Subject")
+	f.tt.Type("A")
+	f.until(t, "the save reaching maild", h.reached)
+	f.tt.Type("B")
+	f.tt.Frame()
+	f.win.RequestClose()
+	h.free()
+	f.until(t, "the window closing", f.closed.Load)
+	if got := f.subject(t, d); got != "AB" {
+		t.Errorf("the draft's subject is %q", got)
+	}
+}
+
+// M6: the window stays, hidden, until its save ends, so the app does not
+// quit under it.
+func TestClosingWaitsForTheSave(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	h := f.holdCalls(t, "draft.update")
+	f.focus(t, "Subject")
+	f.tt.Type("Kept")
+	f.tt.Frame()
+	if f.win.RequestClose() {
+		t.Fatal("the window may go before its save")
+	}
+	if !f.hidden.Load() {
+		t.Error("the window still shows while it saves")
+	}
+	f.until(t, "the save reaching maild", h.reached)
+	if f.win.RequestClose() || f.closed.Load() {
+		t.Fatal("the window went during its save")
+	}
+	h.free()
+	f.until(t, "the window closing", f.closed.Load)
+	if !f.win.RequestClose() {
+		t.Error("the window may not go after its save")
+	}
+	if got := f.subject(t, d); got != "Kept" {
+		t.Errorf("the draft's subject is %q", got)
+	}
+}
+
+// M6: so does the deletion of a draft never touched.
+func TestClosingWaitsForTheDeletion(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	h := f.holdCalls(t, "draft.delete")
+	if f.win.RequestClose() {
+		t.Fatal("the window may go before the deletion")
+	}
+	f.until(t, "the deletion reaching maild", h.reached)
+	if f.closed.Load() {
+		t.Fatal("the window went during the deletion")
+	}
+	h.free()
+	f.until(t, "the window closing", f.closed.Load)
+}
+
+// M7: a window saves through the client of the moment, not the one it
+// opened with, which a reconnect closed.
+func TestSavesGoThroughTheCurrentClient(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	first := f.srv.Dial(t)
+	f.current = first
+	f.open(t, d, true, false)
+	_ = first.Close()
+	f.current = f.c
+	f.focus(t, "Subject")
+	f.tt.Type("After")
+	f.until(t, "the save", func() bool { return f.subject(t, d) == "After" })
+}
+
+// M7: an edit made while disconnected is saved once the connection is back.
+func TestASaveWaitsForTheConnection(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	f.current = nil
+	f.focus(t, "Subject")
+	f.tt.Type("Later")
+	f.tt.Frame()
+	if got := f.subject(t, d); got != "" {
+		t.Fatalf("saved %q with no connection", got)
+	}
+	f.current = f.c
+	f.until(t, "the save", func() bool { return f.subject(t, d) == "Later" })
+}
+
+// M7: past a change of maild the window has no client: closing writes
+// nothing anywhere and says the draft was not saved.
+func TestClosingWithNoClientWritesNothing(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, false, false)
+	f.current = nil
+	f.focus(t, "Subject")
+	f.tt.Type("Old")
+	f.tt.Frame()
+	f.win.RequestClose()
+	f.until(t, "the window closing", f.closed.Load)
+	select {
+	case err := <-f.failed:
+		if err == nil {
+			t.Error("SaveFailed got no error")
+		}
+	default:
+		t.Error("the unsaved edit was not told")
+	}
+	if got := f.subject(t, d); got != "" {
+		t.Errorf("wrote %q", got)
+	}
+}
+
+func (f *fixture) attached(t *testing.T, name string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte("%PDF-1.4 test"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f.picked = []string{path}
+	f.focus(t, "Message body")
+	f.tt.Key(ui.Cmd|ui.Shift, ui.KeyA)
+	f.until(t, "the chip", func() bool { _, ok := f.tt.Access("Remove " + name); return ok })
+}
+
+// M30: nothing goes while a file is still being removed.
+func TestSendWaitsForARemoval(t *testing.T) {
+	f := start(t)
+	f.open(t, f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew}), true, false)
+	h := f.holdCalls(t, "draft.detach")
+	f.addRecipient(t, "bo@x.test")
+	f.attached(t, "notes.pdf")
+	f.focus(t, "Remove notes.pdf")
+	f.until(t, "the removal reaching maild", h.reached)
+	f.tt.Frame()
+	if info, ok := f.tt.Access("Send (Ctrl+Enter)"); !ok || !info.Disabled {
+		t.Errorf("Send during a removal: %+v, %v", info, ok)
+	}
+	f.focus(t, "Message body")
+	f.tt.Key(ui.Cmd, ui.KeyEnter)
+	f.tt.Frame()
+	h.free()
+	f.until(t, "the chip gone", func() bool { return !f.tt.HasText("notes.pdf") })
+	if f.closed.Load() {
+		t.Fatal("sent during a removal")
+	}
+	m := f.sendAndGet(t)
+	body, err := io.ReadAll(m.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(body, []byte("notes.pdf")) {
+		t.Errorf("the removed file went: %s", body)
+	}
+}
+
+// M31: while a send runs the window takes no edits, which would be lost.
+func TestSendingFreezesTheWindow(t *testing.T) {
+	f := start(t)
+	f.open(t, f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew}), true, false)
+	h := f.holdCalls(t, "draft.send")
+	f.addRecipient(t, "bo@x.test")
+	f.focus(t, "Subject")
+	f.tt.Type("Sent")
+	f.tt.Frame()
+	f.tt.Key(ui.Cmd, ui.KeyEnter)
+	f.until(t, "the send reaching maild", h.reached)
+	f.tt.Frame()
+	for _, name := range []string{"Subject", "To", "Message body"} {
+		if info, ok := f.tt.Access(name); !ok || !info.Disabled {
+			t.Errorf("%s during the send: %+v, %v", name, info, ok)
+		}
+	}
+	h.free()
+	f.until(t, "the window closing", f.closed.Load)
+}
+
+// M32: a half-typed recipient survives the save, and still holds the send
+// back when the draft reopens.
+func TestInvalidRecipientsAreSaved(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, false, false)
+	f.addRecipient(t, "bo@x.test")
+	f.addRecipient(t, "half-typed")
+	f.until(t, "the save", func() bool {
+		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
+		return err == nil && len(got.Content.To) == 2 && got.Content.To[1].Address == "half-typed"
+	})
+	again, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.open(t, again, false, false)
+	f.until(t, "the token", func() bool { return f.tt.HasText("half-typed") })
+	if info, ok := f.tt.Access("Send (Ctrl+Enter)"); !ok || !info.Disabled {
+		t.Errorf("Send with an invalid recipient: %+v, %v", info, ok)
+	}
+}
+
+func pictureURL(t *testing.T) string {
+	t.Helper()
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 3, 2))); err != nil {
+		t.Fatal(err)
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b.Bytes())
+}
+
+// M28: a pasted picture, which the editor holds only as a bitmap, is
+// saved, and comes back when the draft reopens.
+func TestPastedPictureIsSaved(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, false, false)
+	url := pictureURL(t)
+	f.focus(t, "Message body")
+	f.tt.SetClipboardData(transfer.New(transfer.NewItem(transfer.Bytes(transfer.HTML, []byte(`<p><img src="`+url+`" alt="pic"></p>`)))))
+	f.tt.Key(ui.Cmd, ui.KeyV)
+	var saved string
+	f.until(t, "the saved picture", func() bool {
+		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
+		if err != nil {
+			return false
+		}
+		saved = got.Content.HTML
+		return strings.Contains(saved, url)
+	})
+	if strings.Contains(saved, `src=""`) {
+		t.Errorf("html %q", saved)
+	}
+	if out := compose.ToHTML(compose.ToText(saved, nil)); !strings.Contains(out, url) {
+		t.Errorf("reopened: %q", out)
+	}
+}
+
+// M34: an image alone is content, so Delete asks.
+func TestDeleteAsksForADraftWithOnlyAnImage(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	content := d.Content
+	content.HTML = `<p><img src="` + pictureURL(t) + `"></p>`
+	if _, err := f.c.Draft().Update(t.Context(), &api.DraftUpdateParams{ID: d.ID, Content: content}); err != nil {
+		t.Fatal(err)
+	}
+	f.open(t, d, false, false)
+	f.focus(t, "Message body")
+	f.tt.Key(ui.Cmd, ui.KeyBackspace)
+	f.until(t, "the question", func() bool { return f.tt.HasText("Delete Draft?") })
+}
+
+// M26: what a sender's name or address says never makes another recipient.
+func TestHostileAddressesStayOneRecipient(t *testing.T) {
+	const real = "real@x.test"
+	for _, name := range []string{
+		"extra@evil.test\nVictim", "extra@evil.test\r\nVictim", "a, extra@evil.test", "a; extra@evil.test",
+		`a" <extra@evil.test>, "b`, "<extra@evil.test>", "a <extra@evil.test> b", "\"", "extra@evil.test\u2028Victim", "tab\there", "\x00\x1f",
+	} {
+		a := api.Address{Name: name, Address: real}
+		tok := compose.Token(a)
+		good, bad := compose.ParseAddresses(tok)
+		if len(good) != 1 || len(bad) != 0 || good[0].Address != real {
+			t.Errorf("name %q: token %q reads as %+v, %q", name, tok, good, bad)
+		}
+		both, bad := compose.ParseAddresses(strings.Join([]string{tok, "bo@x.test"}, ","))
+		if len(both) != 2 || len(bad) != 0 {
+			t.Errorf("name %q beside another: %+v, %q", name, both, bad)
+		}
+	}
+	// net/mail unquotes a local part, so an address can hold what splits.
+	for _, address := range []string{"extra@evil.test,b@x.test", "extra@evil.test\nb@x.test", "a;b@x.test", `"a,b"@x.test`, "a b@x.test", "<extra@evil.test>"} {
+		for _, name := range []string{"", "Name"} {
+			tok := compose.Token(api.Address{Name: name, Address: address})
+			if good, bad := compose.ParseAddresses(tok); len(good) != 0 || len(bad) != 1 {
+				t.Errorf("address %q, name %q: token %q reads as %+v, %q", address, name, tok, good, bad)
+			}
+		}
+	}
+}
+
+// Ordinary names read back as they were.
+func TestTokensKeepOrdinaryNames(t *testing.T) {
+	for _, name := range []string{"Ann Example", "Smith, Bob", "J. Smith", "Ann (work)"} {
+		tok := compose.Token(api.Address{Name: name, Address: "a@x.test"})
+		good, bad := compose.ParseAddresses(tok)
+		if len(good) != 1 || len(bad) != 0 || good[0].Name != name {
+			t.Errorf("name %q: token %q reads as %+v, %q", name, tok, good, bad)
+		}
+	}
 }

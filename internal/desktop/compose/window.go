@@ -12,8 +12,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/richtext"
 	"github.com/frostyard/frostui"
@@ -25,9 +27,11 @@ import (
 // saveDelay is how long edits wait before draft.update; attachmentLimit
 // the size the strip warns about, maild's own; uploadChunk one chunk's
 // bytes, whose base64 stays within maild's 4 MiB; suggestPerLetter how
-// many known addresses the recipient fields offer for each first letter.
+// many known addresses the recipient fields offer for each first letter;
+// reconnectDelay how often a save waits for a connection to come back.
 const (
 	saveDelay        = 500 * time.Millisecond
+	reconnectDelay   = time.Second
 	attachmentLimit  = 25_000_000
 	uploadChunk      = 3 << 20
 	suggestPerLetter = 60
@@ -35,26 +39,35 @@ const (
 	suggestLetters   = "abcdefghijklmnopqrstuvwxyz0123456789"
 )
 
+// errDisconnected says there is no connection to maild just now.
+var errDisconnected = errors.New("not connected to maild")
+
 // Options configure a compose window.
 type Options struct {
-	Client *api.Client
+	// Client is maild's client now, nil while there is none. It runs on
+	// the UI thread: a worker uses the client read for it there.
+	Client func() *api.Client
 	Draft  int64
 	// Fresh says the draft was just made for this window: closed
 	// untouched, it is deleted.
 	Fresh bool
 	Post  func(func())
 	Now   func() time.Time
-	// Close closes the window; SetTitle names it.
+	// Close closes the window, and may run on a worker; Hide hides it
+	// while its last save ends; SetTitle names it.
 	Close    func()
+	Hide     func()
 	SetTitle func(string)
 	// OpenFiles asks for files to attach; none when cancelled. It runs on
 	// a worker.
 	OpenFiles func() ([]string, error)
 	// FilesAsBytes sends a file's bytes rather than its path: maild cannot
-	// read this computer's paths behind lodge, or from the Flatpak.
-	FilesAsBytes bool
-	// LoadPart reads a mailpart: image for the editor.
-	LoadPart PartLoader
+	// read this computer's paths behind lodge, or from the Flatpak. It says
+	// so for the connection of the moment.
+	FilesAsBytes func() bool
+	// LoadPart reads a mailpart: image for the editor, through c, which is
+	// nil while disconnected. It runs on a worker.
+	LoadPart func(c *api.Client, src string) ([]byte, error)
 	// Sent tells the main window a message went into the Outbox.
 	Sent func(item *api.OutboxItem)
 	// EditSnippets opens Settings on its Snippets pane.
@@ -93,6 +106,7 @@ type Window struct {
 	formatBar     bool
 	attached      []api.DraftAttachment
 	files         []pending
+	detaching     []int64
 	busy          bool
 	errText       string
 	linkOpen      bool
@@ -104,10 +118,20 @@ type Window struct {
 	touched bool
 	token   int
 
-	// Saves go in order, off the UI thread.
-	saveMu sync.Mutex
-	latest api.DraftContent
-	dirty  bool
+	// closing says the save on closing has started; finished, that it has
+	// ended and the window may go.
+	closing  bool
+	finished atomic.Bool
+
+	// Saves go in order, off the UI thread: flushMu is held across the
+	// call to maild, and saveMu, which the UI thread takes, only to read
+	// or change these fields. rev counts the changes to latest, so that a
+	// save clears dirty only if nothing changed while it ran.
+	flushMu sync.Mutex
+	saveMu  sync.Mutex
+	latest  api.DraftContent
+	rev     uint64
+	dirty   bool
 }
 
 // New returns a window that has not loaded its draft; Start loads it.
@@ -123,21 +147,35 @@ func New(o Options) *Window {
 
 // Start loads the draft and what its fields offer.
 func (w *Window) Start(ctx context.Context) {
+	c := w.o.Client()
+	if c == nil {
+		w.failure = errDisconnected.Error()
+		return
+	}
+	load := w.partLoader(c)
 	go func() {
-		d, err := w.o.Client.Draft().Get(ctx, &api.DraftGetParams{ID: w.o.Draft})
+		d, err := c.Draft().Get(ctx, &api.DraftGetParams{ID: w.o.Draft})
 		if err != nil {
 			w.o.Post(func() { w.failure = err.Error() })
 			return
 		}
-		doc := richtext.NewDocument(ToText(d.Content.HTML, w.o.LoadPart))
-		ids, ierr := w.o.Client.Identity().List(ctx, &api.IdentityListParams{AccountID: &d.AccountID})
+		doc := richtext.NewDocument(ToText(d.Content.HTML, load))
+		ids, ierr := c.Identity().List(ctx, &api.IdentityListParams{AccountID: &d.AccountID})
 		if ierr != nil {
 			slog.Warn("listing identities", "err", ierr) // a reminder too many is safe; a missed one is not
 		}
-		known := knownAddresses(ctx, w.o.Client)
-		snippets, _ := w.o.Client.Snippet().List(ctx, &api.SnippetListParams{})
+		known := knownAddresses(ctx, c)
+		snippets, _ := c.Snippet().List(ctx, &api.SnippetListParams{})
 		w.o.Post(func() { w.loadedDraft(d, doc, ids, known, snippets) })
 	}()
+}
+
+// partLoader reads images through c, for ToText on a worker.
+func (w *Window) partLoader(c *api.Client) PartLoader {
+	if w.o.LoadPart == nil {
+		return nil
+	}
+	return func(src string) ([]byte, error) { return w.o.LoadPart(c, src) }
 }
 
 // knownAddresses asks maild for what the recipient fields offer, by first
@@ -229,17 +267,26 @@ func normalize(list *[]string) {
 	*list = slices.Compact(out)
 }
 
+// recipients reads a field for the draft. What does not parse stays, as an
+// address that is still invalid when the draft reopens: maild takes a
+// half-typed address until sending, and canSend holds the send back.
+func recipients(list []string) []api.Address {
+	good, bad := addresses(list)
+	out := orEmpty(good)
+	for _, piece := range bad {
+		out = append(out, api.Address{Address: piece})
+	}
+	return out
+}
+
 func (w *Window) content() api.DraftContent {
-	to, _ := addresses(w.to)
-	cc, _ := addresses(w.cc)
-	bcc, _ := addresses(w.bcc)
 	identity := w.draftIdentity
 	for _, id := range w.identities {
 		if identityLabel(id) == w.identity {
 			identity = id.ID
 		}
 	}
-	return api.DraftContent{IdentityID: identity, To: orEmpty(to), Cc: orEmpty(cc), Bcc: orEmpty(bcc), Subject: w.subject, HTML: ToHTML(w.doc.Text())}
+	return api.DraftContent{IdentityID: identity, To: recipients(w.to), Cc: recipients(w.cc), Bcc: recipients(w.bcc), Subject: w.subject, HTML: ToHTML(w.doc.Text())}
 }
 
 func identityLabel(id api.Identity) string { return id.Name + " <" + id.Email + ">" }
@@ -254,48 +301,82 @@ func orEmpty(list []api.Address) []api.Address {
 // change saves the draft soon after an edit.
 func (w *Window) change() {
 	w.touched = true
+	w.stage()
+	w.token++
+	w.saveAfter(saveDelay)
+}
+
+// stage makes the editor's content what the next flush writes.
+func (w *Window) stage() {
 	content := w.content()
 	w.saveMu.Lock()
+	defer w.saveMu.Unlock()
 	w.latest, w.dirty = content, true
-	w.saveMu.Unlock()
-	w.token++
+	w.rev++
+}
+
+// saveAfter autosaves after delay, unless the window moved on by then.
+func (w *Window) saveAfter(delay time.Duration) {
 	token := w.token
-	time.AfterFunc(saveDelay, func() {
+	time.AfterFunc(delay, func() {
 		w.o.Post(func() {
 			if token == w.token {
-				go w.autosave()
+				w.autosave()
 			}
 		})
 	})
 }
 
 // autosave flushes while the window is open, and shows a failure in it.
+// Without a connection it tries again: nothing tells this window of a
+// reconnect.
 func (w *Window) autosave() {
-	if err := w.flush(); err != nil {
-		w.o.Post(func() { w.errText = "The draft was not saved: " + err.Error() })
+	c := w.o.Client()
+	if c == nil {
+		w.saveAfter(reconnectDelay)
+		return
 	}
+	go func() {
+		err := w.flush(c)
+		if err == nil {
+			return
+		}
+		select {
+		case <-c.Done():
+			w.o.Post(func() { w.saveAfter(reconnectDelay) })
+		default:
+			w.o.Post(func() { w.errText = "The draft was not saved: " + err.Error() })
+		}
+	}()
 }
 
-// flush writes what is left; it waits, so call it from a worker.
-func (w *Window) flush() error {
+// flush writes what is left through c; it waits, so call it from a worker.
+func (w *Window) flush(c *api.Client) error {
+	w.flushMu.Lock()
+	defer w.flushMu.Unlock()
 	w.saveMu.Lock()
-	defer w.saveMu.Unlock()
-	if !w.dirty {
+	content, rev, dirty := w.latest, w.rev, w.dirty
+	w.saveMu.Unlock()
+	if !dirty {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 	defer cancel()
-	if _, err := w.o.Client.Draft().Update(ctx, &api.DraftUpdateParams{ID: w.o.Draft, Content: w.latest}); err != nil {
+	if _, err := c.Draft().Update(ctx, &api.DraftUpdateParams{ID: w.o.Draft, Content: content}); err != nil {
 		return err
 	}
-	w.dirty = false
+	w.saveMu.Lock()
+	defer w.saveMu.Unlock()
+	if w.rev == rev {
+		w.dirty = false
+	}
 	return nil
 }
 
 // canSend: at least one valid recipient, none invalid, nothing still being
-// attached, and the signature known for the reminder.
+// attached or removed, and the signature known for the reminder.
 func (w *Window) canSend() bool {
-	if !w.loaded || !w.settled || w.busy || len(w.files) > 0 {
+	if !w.loaded || !w.settled || w.busy || len(w.files)+len(w.detaching) > 0 {
 		return false
 	}
 	var all []string
@@ -326,20 +407,25 @@ func (w *Window) send(at *time.Time) {
 	w.sendNow(at)
 }
 
+// sendNow sends what the window holds now; content1 takes no edits until
+// the send ends, as the draft goes with this content.
 func (w *Window) sendNow(at *time.Time) {
+	c := w.o.Client()
+	if c == nil {
+		w.errText = "The message was not sent: " + errDisconnected.Error()
+		return
+	}
 	w.busy = true
 	w.touched = true
-	content := w.content()
-	w.saveMu.Lock()
-	w.latest, w.dirty = content, true
-	w.saveMu.Unlock()
+	w.stage()
+	w.token++
 	go func() {
-		err := w.flush()
+		err := w.flush(c)
 		var item *api.OutboxItem
 		if err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 			defer cancel()
-			item, err = w.o.Client.Draft().Send(ctx, &api.DraftSendParams{ID: w.o.Draft, SendAt: at})
+			item, err = c.Draft().Send(ctx, &api.DraftSendParams{ID: w.o.Draft, SendAt: at})
 		}
 		w.o.Post(func() {
 			w.busy = false
@@ -358,11 +444,11 @@ func (w *Window) sendNow(at *time.Time) {
 // empty reports a draft with nothing of the user's in it.
 func (w *Window) empty() bool {
 	return len(w.to)+len(w.cc)+len(w.bcc) == 0 && strings.TrimSpace(w.subject) == "" && len(w.attached) == 0 &&
-		strings.TrimSpace(w.doc.Text().PlainText()) == ""
+		strings.TrimSpace(w.doc.Text().PlainText()) == "" && !hasImage(w.doc.Text())
 }
 
 func (w *Window) deleteDraft() {
-	if !w.loaded {
+	if !w.loaded || w.busy {
 		return
 	}
 	if w.empty() {
@@ -373,6 +459,11 @@ func (w *Window) deleteDraft() {
 }
 
 func (w *Window) doDelete() {
+	c := w.o.Client()
+	if c == nil {
+		w.errText = "The draft was not deleted: " + errDisconnected.Error()
+		return
+	}
 	w.token++
 	w.saveMu.Lock()
 	w.dirty = false
@@ -380,7 +471,9 @@ func (w *Window) doDelete() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
-		err := w.o.Client.Draft().Delete(ctx, &api.DraftDeleteParams{ID: w.o.Draft})
+		w.flushMu.Lock() // after a save still running
+		err := c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: w.o.Draft})
+		w.flushMu.Unlock()
 		w.o.Post(func() {
 			if err != nil {
 				w.errText = "The draft was not deleted: " + err.Error()
@@ -392,27 +485,60 @@ func (w *Window) doDelete() {
 	}()
 }
 
-// Closing runs as the window goes: it saves what is left, telling
-// SaveFailed if that fails, or deletes a draft made for this window and
-// never touched.
-func (w *Window) Closing() {
+// RequestClose says whether the window may go now. Asked first, it says no:
+// it hides the window and starts the save on closing, whose end closes the
+// window again through Options.Close, and only then does it say yes. So
+// the app, which quits with its last window, outlives the save.
+func (w *Window) RequestClose() bool {
+	if w.finished.Load() {
+		return true
+	}
+	if w.closing {
+		return false
+	}
+	w.closing = true
+	if w.o.Hide != nil {
+		w.o.Hide()
+	}
+	w.saveOnClose(func() {
+		w.finished.Store(true)
+		w.o.Close()
+	})
+	return false
+}
+
+// saveOnClose saves what is left, telling SaveFailed if that fails, or
+// deletes a draft made for this window and never touched; then it calls
+// done, on a worker.
+func (w *Window) saveOnClose(done func()) {
 	w.token++
 	fresh := w.o.Fresh && !w.touched
+	c := w.o.Client()
 	go func() {
-		if !fresh {
-			if err := w.flush(); err != nil && w.o.SaveFailed != nil {
+		defer done()
+		switch {
+		case fresh && c != nil:
+			ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+			defer cancel()
+			_ = c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: w.o.Draft})
+		case fresh:
+		case c == nil:
+			w.saveMu.Lock()
+			dirty := w.dirty
+			w.saveMu.Unlock()
+			if dirty && w.o.SaveFailed != nil {
+				w.o.SaveFailed(errDisconnected)
+			}
+		default:
+			if err := w.flush(c); err != nil && w.o.SaveFailed != nil {
 				w.o.SaveFailed(err)
 			}
-			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-		defer cancel()
-		_ = w.o.Client.Draft().Delete(ctx, &api.DraftDeleteParams{ID: w.o.Draft})
 	}()
 }
 
 func (w *Window) attachFiles() {
-	if w.o.OpenFiles == nil {
+	if w.o.OpenFiles == nil || w.busy {
 		return
 	}
 	go func() {
@@ -425,6 +551,12 @@ func (w *Window) attachFiles() {
 }
 
 func (w *Window) attachPaths(paths []string) {
+	c := w.o.Client()
+	if c == nil {
+		w.errText = "Nothing was attached: " + errDisconnected.Error()
+		return
+	}
+	asBytes := w.o.FilesAsBytes != nil && w.o.FilesAsBytes()
 	for _, path := range paths {
 		w.seq++
 		key := fmt.Sprint(w.seq)
@@ -436,10 +568,10 @@ func (w *Window) attachPaths(paths []string) {
 			defer cancel()
 			var a *api.DraftAttachment
 			var err error
-			if w.o.FilesAsBytes {
-				a, err = upload(ctx, w.o.Client, w.o.Draft, path)
+			if asBytes {
+				a, err = upload(ctx, c, w.o.Draft, path)
 			} else {
-				a, err = w.o.Client.Draft().Attach(ctx, &api.DraftAttachParams{ID: w.o.Draft, Path: path})
+				a, err = c.Draft().Attach(ctx, &api.DraftAttachParams{ID: w.o.Draft, Path: path})
 			}
 			w.o.Post(func() {
 				w.files = slices.DeleteFunc(w.files, func(p pending) bool { return p.key == key })
@@ -492,12 +624,22 @@ func upload(ctx context.Context, c *api.Client, draft int64, path string) (*api.
 }
 
 func (w *Window) detach(a api.DraftAttachment) {
+	if slices.Contains(w.detaching, a.ID) {
+		return
+	}
+	c := w.o.Client()
+	if c == nil {
+		w.errText = a.Filename + " was not removed: " + errDisconnected.Error()
+		return
+	}
 	w.touched = true
+	w.detaching = append(w.detaching, a.ID)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
-		err := w.o.Client.Draft().Detach(ctx, &api.DraftDetachParams{ID: w.o.Draft, AttachmentID: a.ID})
+		err := c.Draft().Detach(ctx, &api.DraftDetachParams{ID: w.o.Draft, AttachmentID: a.ID})
 		w.o.Post(func() {
+			w.detaching = slices.DeleteFunc(w.detaching, func(id int64) bool { return id == a.ID })
 			if err != nil {
 				w.errText = a.Filename + " was not removed: " + err.Error()
 				return
@@ -576,8 +718,9 @@ func (w *Window) content1(c *ui.Context) {
 		frostui.Empty(c, "mail-message-new", text, "").Grow(1)
 		return
 	}
-	root := ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch)
-	if dropped := root.DroppedFiles(); len(dropped) > 0 {
+	// Disabled while sending: what the message goes with is settled.
+	root := ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Disabled(w.busy)
+	if dropped := root.DroppedFiles(); len(dropped) > 0 && !w.busy {
 		w.attachPaths(dropped)
 	}
 	root.Children(func() {
@@ -597,10 +740,27 @@ func (w *Window) content1(c *ui.Context) {
 		ed := richtext.Editor(c, w.doc, richtext.EditorOptions{Label: "Message body", NoMarkdown: true, OnLink: func(string) {}, OnLinkCommand: w.askLink}).
 			Grow(1).Padding(16, 20).Bind(&w.editor)
 		if ed.Changed() {
+			w.keepPasted(c)
 			w.change()
 		}
 		w.attachmentRow(c)
 	})
+}
+
+// keepPasted gives a picture just pasted its source, from the clipboard
+// it came from: the editor keeps only its bitmap, which cannot be saved.
+func (w *Window) keepPasted(c *ui.Context) {
+	t := w.doc.Text()
+	if !hasUnsavedImage(t) {
+		return
+	}
+	html, err := c.Services().ReadClipboardData(transfer.HTML).Read(transfer.HTML)
+	if err != nil {
+		html = nil
+	}
+	if KeepPastedImages(t, string(html)) > 0 {
+		w.errText = "A pasted picture cannot be kept in the message. Attach it as a file."
+	}
 }
 
 // toolbar is the row of the window's actions.
@@ -647,14 +807,26 @@ func (w *Window) snippetMenu(m *ui.Menu) {
 	}
 	for _, s := range w.snippets {
 		if m.Item(s.Name).Chosen() {
-			w.doc.Insert(ToText(s.HTML, w.o.LoadPart))
-			w.change()
+			w.insertSnippet(s.HTML)
 		}
 	}
 	m.Separator()
 	if m.Item("Edit Snippets…").Chosen() && w.o.EditSnippets != nil {
 		w.o.EditSnippets()
 	}
+}
+
+// insertSnippet reads a snippet on a worker, as its images may come over
+// the network, and puts it in at the cursor.
+func (w *Window) insertSnippet(src string) {
+	load := w.partLoader(w.o.Client())
+	go func() {
+		text := ToText(src, load)
+		w.o.Post(func() {
+			w.doc.Insert(text)
+			w.change()
+		})
+	}()
 }
 
 func (w *Window) field(c *ui.Context, label string, draw func()) {

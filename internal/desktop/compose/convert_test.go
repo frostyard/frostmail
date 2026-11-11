@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo/ui/richtext"
+
 	"github.com/frostyard/frostmail/internal/desktop/compose"
 )
 
@@ -86,3 +88,50 @@ func TestNeedsReminder(t *testing.T) {
 		t.Error("a quoted image counted as attached")
 	}
 }
+
+// M29: lists keep their nesting, also inside a quotation.
+func TestNestedListsKeepTheirLevels(t *testing.T) {
+	for _, src := range []string{
+		`<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>`,
+		`<ol><li>a<ul><li>b<ol><li>c</li></ol></li><li>d</li></ul></li></ol><p>after</p>`,
+		`<blockquote type="cite"><ul><li>a<ul><li>b</li></ul></li></ul></blockquote>`,
+		`<ul><li>x</li></ul><ol><li>y</li></ol>`,
+	} {
+		if out := roundTrip(src); out != src {
+			t.Errorf("got  %s\nwant %s", out, src)
+		}
+	}
+}
+
+// M28: a picture with no source to find says so and writes no empty image.
+func TestPastedPictureWithNoSourceIsTold(t *testing.T) {
+	bitmap := compose.ToText(`<p><img src="`+tinyPNG+`"></p>`, nil)
+	var a *richtext.Attachment
+	for _, p := range bitmap.Paragraphs() {
+		a = p.Runs[0].Attributes.Attachment
+	}
+	if a == nil || a.Image == nil {
+		t.Fatalf("no bitmap: %+v", a)
+	}
+	a.URL = ""
+	if lost := compose.KeepPastedImages(bitmap, "<p>no picture</p>"); lost != 1 {
+		t.Errorf("lost = %d", lost)
+	}
+	if out := compose.ToHTML(bitmap); strings.Contains(out, "<img") {
+		t.Errorf("wrote %s", out)
+	}
+}
+
+// M28: only an image's data: URL is kept for a pasted picture.
+func TestPastedPictureMustBeAnImageURL(t *testing.T) {
+	bitmap := compose.ToText(`<p><img src="`+tinyPNG+`"></p>`, nil)
+	for _, p := range bitmap.Paragraphs() {
+		p.Runs[0].Attributes.Attachment.URL = ""
+	}
+	labeled := "data:text/html;base64," + strings.SplitN(tinyPNG, ",", 2)[1]
+	if lost := compose.KeepPastedImages(bitmap, `<img src="`+labeled+`">`); lost != 1 {
+		t.Errorf("lost = %d", lost)
+	}
+}
+
+const tinyPNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="

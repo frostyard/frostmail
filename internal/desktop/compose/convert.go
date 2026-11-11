@@ -4,8 +4,10 @@
 package compose
 
 import (
+	"bytes"
 	"encoding/base64"
 	"html"
+	"image"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -247,28 +249,41 @@ func (c *converter) bitmap(src, lower string) *ui.Bitmap {
 	return bmp
 }
 
+// listTag is the element of a list of kind.
+func listTag(kind richtext.ListKind) string {
+	if kind == richtext.Numbers {
+		return "ol"
+	}
+	return "ul"
+}
+
 // ToHTML writes the editor's text as the draft's HTML: a quotation's depth
-// as nested <blockquote type="cite">, lists as <ul> and <ol>.
+// as nested <blockquote type="cite">, lists as <ul> and <ol>, nested by
+// their items' Indent. A list item's Indent is its level, so a list inside
+// a quotation is at the quotation's first level.
 func ToHTML(t richtext.Text) string {
 	var b strings.Builder
 	depth := 0
-	list := richtext.NoList
+	var lists []richtext.ListKind // the open lists, each with its <li> open
 	closeList := func() {
-		switch list {
-		case richtext.Bullets:
-			b.WriteString("</ul>")
-		case richtext.Numbers:
-			b.WriteString("</ol>")
+		b.WriteString("</li></" + listTag(lists[len(lists)-1]) + ">")
+		lists = lists[:len(lists)-1]
+	}
+	closeLists := func(keep int) {
+		for len(lists) > keep {
+			closeList()
 		}
-		list = richtext.NoList
 	}
 	for _, p := range t.Paragraphs() {
 		want := 0
 		if p.Style.Quote {
-			want = p.Style.Indent + 1
+			want = 1
+			if p.Style.List == richtext.NoList {
+				want = p.Style.Indent + 1
+			}
 		}
 		if want != depth {
-			closeList()
+			closeLists(0)
 		}
 		for ; depth > want; depth-- {
 			b.WriteString("</blockquote>")
@@ -276,37 +291,159 @@ func ToHTML(t richtext.Text) string {
 		for ; depth < want; depth++ {
 			b.WriteString(`<blockquote type="cite">`)
 		}
-		if p.Style.List != list {
+		if p.Style.List == richtext.NoList {
+			closeLists(0)
+			b.WriteString("<p>")
+			writeRuns(&b, p.Runs)
+			b.WriteString("</p>")
+			continue
+		}
+		level := p.Style.Indent + 1
+		closeLists(level)
+		if len(lists) == level && lists[level-1] != p.Style.List {
 			closeList()
-			switch p.Style.List {
-			case richtext.Bullets:
-				b.WriteString("<ul>")
-			case richtext.Numbers:
-				b.WriteString("<ol>")
+		}
+		if len(lists) == level {
+			b.WriteString("</li>")
+		}
+		for len(lists) < level {
+			b.WriteString("<" + listTag(p.Style.List) + ">")
+			lists = append(lists, p.Style.List)
+			if len(lists) < level {
+				b.WriteString("<li>")
 			}
-			list = p.Style.List
 		}
-		tag := "p"
-		if list != richtext.NoList {
-			tag = "li"
-		}
-		b.WriteString("<" + tag + ">")
-		for _, r := range p.Runs {
-			writeRun(&b, r)
-		}
-		b.WriteString("</" + tag + ">")
+		b.WriteString("<li>")
+		writeRuns(&b, p.Runs)
 	}
-	closeList()
+	closeLists(0)
 	for ; depth > 0; depth-- {
 		b.WriteString("</blockquote>")
 	}
 	return b.String()
 }
 
+func writeRuns(b *strings.Builder, runs []richtext.Run) {
+	for _, r := range runs {
+		writeRun(b, r)
+	}
+}
+
+// hasImage reports an image anywhere in t.
+func hasImage(t richtext.Text) bool {
+	for _, p := range t.Paragraphs() {
+		for _, r := range p.Runs {
+			if r.Attributes.Attachment != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// unsaved reports an attachment shown from a bitmap with no source to save.
+func unsaved(a *richtext.Attachment) bool {
+	return a != nil && a.Image != nil && a.URL == ""
+}
+
+// hasUnsavedImage reports a picture in t that has no source yet.
+func hasUnsavedImage(t richtext.Text) bool {
+	for _, p := range t.Paragraphs() {
+		for _, r := range p.Runs {
+			if unsaved(r.Attributes.Attachment) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// maxPastedImage bounds a pasted picture's data: URL: a draft goes to maild
+// in one message of at most 16 MiB (jsonrpc.MaxMessageSize).
+const maxPastedImage = 8 << 20
+
+// maxPastedPixels is richtext's own limit on a pasted picture.
+const maxPastedPixels = 1 << 25
+
+// pastedImages lists the sources of the pictures in a clipboard's HTML
+// that richtext's paste decodes to bitmaps, in order: its own test.
+func pastedImages(src string) []string {
+	root, err := nethtml.Parse(strings.NewReader(src))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	var walk func(n *nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if n.Type == nethtml.ElementNode && n.DataAtom == atom.Img && decodesAsBitmap(attr(n, "src")) {
+			out = append(out, attr(n, "src"))
+		}
+		for k := n.FirstChild; k != nil; k = k.NextSibling {
+			walk(k)
+		}
+	}
+	walk(root)
+	return out
+}
+
+func decodesAsBitmap(src string) bool {
+	data, ok := strings.CutPrefix(src, "data:")
+	if !ok {
+		return false
+	}
+	_, enc, ok := strings.Cut(data, ";base64,")
+	if !ok {
+		return false
+	}
+	raw, err := base64.StdEncoding.DecodeString(enc)
+	if err != nil {
+		return false
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > maxPastedPixels {
+		return false
+	}
+	_, err = ui.DecodeBitmap(raw)
+	return err == nil
+}
+
+// KeepPastedImages gives each picture in t that has only a bitmap the
+// source it had in html, the clipboard's HTML it was pasted from: the
+// editor drops that source, and a bitmap's bytes cannot be read back. A
+// paste repeated in one frame brings the same pictures again. It returns
+// how many have no usable source; those lose their bitmap, so that they
+// show empty and are not asked about again.
+func KeepPastedImages(t richtext.Text, html string) (lost int) {
+	sources := pastedImages(html)
+	next := 0
+	for _, p := range t.Paragraphs() {
+		for _, r := range p.Runs {
+			a := r.Attributes.Attachment
+			if !unsaved(a) {
+				continue
+			}
+			src := ""
+			if len(sources) > 0 {
+				src = sources[next%len(sources)]
+				next++
+			}
+			if !strings.HasPrefix(strings.ToLower(src), "data:image/") || len(src) > maxPastedImage {
+				a.Image = nil
+				lost++
+				continue
+			}
+			a.URL = src
+		}
+	}
+	return lost
+}
+
 func writeRun(b *strings.Builder, r richtext.Run) {
 	a := r.Attributes
 	if a.Attachment != nil {
-		b.WriteString(`<img src="` + html.EscapeString(a.Attachment.URL) + `" alt="` + html.EscapeString(a.Attachment.Name) + `">`)
+		if a.Attachment.URL != "" { // a picture with no source has nothing to save
+			b.WriteString(`<img src="` + html.EscapeString(a.Attachment.URL) + `" alt="` + html.EscapeString(a.Attachment.Name) + `">`)
+		}
 		return
 	}
 	var closing []string
