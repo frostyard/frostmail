@@ -26,6 +26,8 @@ func (f *fixture) task(id int64) *api.Task {
 func TestTasksSourcesCountsAndRows(t *testing.T) {
 	f := newFixture(t, commands.Tasks)
 	f.text("Report")
+	// The task lists come from a call of their own.
+	f.until("the task lists", func() bool { return f.tt.HasText("Work Tasks") })
 	for _, want := range []string{"Today", "All Tasks", "Flagged Mail", "me@a.test", "Work Tasks", "Errands", "No Task Selected", "Today", "Q3 numbers"} {
 		if !f.tt.HasText(want) {
 			t.Errorf("no %q in %s", want, dump(f.tt))
