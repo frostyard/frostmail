@@ -90,7 +90,6 @@ func (w *Window) redirectView(c *ui.Context) {
 		return
 	}
 	open := true
-	good, bad := compose.ParseAddresses(s.to)
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(420).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label("Redirect").Children(func() {
 			frostui.Heading(c, "Redirect")
@@ -103,6 +102,9 @@ func (w *Window) redirectView(c *ui.Context) {
 				frostui.Body(c, "To")
 				ui.TextInput(c, &s.to).Label("To").AutoFocus().Grow(1)
 			})
+			// Read once the field has taken this frame's input, which a click
+			// can come with: Redirect sends what the field shows.
+			good, bad := compose.ParseAddresses(s.to)
 			if s.failure != "" {
 				frostui.Toned(c, s.failure, frostui.Danger).Wrap().Role(ui.RoleAlert)
 			}

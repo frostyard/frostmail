@@ -135,8 +135,8 @@ func inTrash(t *testing.T, c *api.Client, id int64) bool {
 }
 
 // A key repeat after the first delete has reached the server, with the
-// list not yet told: the message is in Trash, and a second delete would
-// erase it for good.
+// list not yet told, however long it waits: the message is in Trash, and a
+// second delete would erase it for good.
 func TestASecondDeleteWaitsForTheList(t *testing.T) {
 	srv, c := syncMaild(t, "Alpha report")
 	ctx := t.Context()
@@ -147,7 +147,8 @@ func TestASecondDeleteWaitsForTheList(t *testing.T) {
 	})
 	events := holdEvents(c)
 	loop := frostuitest.NewLoop()
-	w := New(Options{Target: conn.Target{Socket: srv.Socket}, Post: loop.Post, Wake: time.Millisecond})
+	now := time.Date(2026, 11, 11, 9, 0, 0, 0, time.UTC)
+	w := New(Options{Target: conn.Target{Socket: srv.Socket}, Post: loop.Post, Wake: time.Millisecond, Now: func() time.Time { return now }})
 	view := live.OpenView(c, events.Events, inbox, func() {})
 	defer view.Close()
 	poll(t, "the view", view.Ready)
@@ -169,8 +170,13 @@ func TestASecondDeleteWaitsForTheList(t *testing.T) {
 	poll(t, "the first delete", mailDeleted)
 	poll(t, "the move's replay", func() bool { return inTrash(t, c, row.ID) && replayed(t, srv, row.ID) })
 
+	now = now.Add(time.Hour) // the list is no wiser for the wait
 	w.releaseDeletes()
+	first := w.deleting[row.ID]
 	w.deleteKey()
+	if h := w.deleting[row.ID]; h == nil || h != first {
+		t.Fatal("a second Delete went out for the row the list still shows")
+	}
 	deadline := time.Now().Add(300 * time.Millisecond)
 	for time.Now().Before(deadline) {
 		if !inTrash(t, c, row.ID) {
@@ -192,27 +198,247 @@ func TestASecondDeleteWaitsForTheList(t *testing.T) {
 	}
 }
 
-// A delete the list never shows lets go in the end, and a failed one at
-// once, so the message can be deleted.
+// A delete never sent lets go at once, and so does one that left the
+// message where its row shows it (maild skips a message still moving):
+// another Delete acts on what the list shows. One that moved it holds
+// until the list shows that, and one that ended unread holds too.
 func TestAHeldDeleteLetsGo(t *testing.T) {
-	now := time.Date(2026, 11, 11, 9, 0, 0, 0, time.UTC)
-	w := New(Options{Target: conn.Target{Socket: "none"}, Post: func(fn func()) { fn() }, Now: func() time.Time { return now }})
-	w.deleting[1], w.deleting[2] = &heldDelete{}, &heldDelete{}
-	w.deleteEnded([]int64{1}, fmt.Errorf("refused"))
+	w := New(Options{Target: conn.Target{Socket: "none"}, Post: func(fn func()) { fn() }})
+	inbox := []int64{1}
+	for id := range int64(5) {
+		w.deleting[id+1] = &heldDelete{from: inbox}
+	}
+	w.deleteEnded([]int64{1}, false, nil)
 	if w.deleting[1] != nil {
-		t.Error("a failed delete stays held")
+		t.Error("a delete never sent stays held")
 	}
-	w.deleteEnded([]int64{2}, nil)
-	if w.deleting[2] == nil || !w.deleting[2].done {
-		t.Fatal("a finished delete is not held")
-	}
-	w.deleting[3] = &heldDelete{}
-	w.releaseDeletes() // no view: nothing lists it
+	w.deleteEnded([]int64{2}, true, []api.MessageSummary{{ID: 2, MailboxIDs: inbox}})
 	if w.deleting[2] != nil {
+		t.Error("a delete that left the message where the list shows it stays held")
+	}
+	w.deleteEnded([]int64{3}, true, []api.MessageSummary{{ID: 3, MailboxIDs: []int64{9}}})
+	w.deleteEnded([]int64{4}, true, nil)
+	for _, id := range []int64{3, 4} {
+		if h := w.deleting[id]; h == nil || !h.done {
+			t.Fatalf("delete %d: %+v, want held and done", id, h)
+		}
+	}
+	w.releaseDeletes() // no view: nothing lists them
+	if w.deleting[3] != nil || w.deleting[4] != nil {
 		t.Error("a finished delete of a row no list has stays held")
 	}
-	if w.deleting[3] == nil {
+	if w.deleting[5] == nil {
 		t.Error("a delete still running let go")
+	}
+}
+
+// fakeView opens a view on s that lists row, as maild's list would.
+func fakeView(t *testing.T, c *api.Client, events *live.Events) *live.View {
+	t.Helper()
+	view := live.OpenView(c, events, api.ViewQuery{}, func() {})
+	t.Cleanup(view.Close)
+	poll(t, "the view", view.Ready)
+	view.Ensure(0, 10)
+	poll(t, "the row", func() bool { _, ok := view.Row(0); return ok })
+	return view
+}
+
+// A delete done but not read back may have moved the message to Trash: it
+// holds while the list shows the row as it was, and another Delete of it
+// sends nothing. It lets go once the list shows the row moved.
+func TestADeleteNotReadBackStaysHeld(t *testing.T) {
+	row := api.MessageSummary{ID: 7, AccountID: 1, MailboxIDs: []int64{1}, Subject: "Plans"}
+	s := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1},
+		"view.range": []api.MessageSummary{row}, "message.summaries": []api.MessageSummary{row}},
+		fail: map[string]int{"message.summaries": 2}} // the read after the delete
+	loop := frostuitest.NewLoop()
+	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond})
+	c := s.client(t)
+	events := live.NewEvents()
+	w.client, w.view, w.pane = c, fakeView(t, c, events), paneList
+	w.chosen.Add(row.ID)
+	w.deleteKey()
+	loop.RunUntil(t, func() bool { return len(w.toasts) > 0 })
+	if n := s.count("message.delete"); n != 1 {
+		t.Fatalf("%d deletes", n)
+	}
+	held := w.deleting[row.ID]
+	if held == nil || !held.done {
+		t.Fatalf("a delete done but not read back let go: %+v", held)
+	}
+	if got := w.toasts[0].Title; got != "Undo cannot take this back" {
+		t.Errorf("toast %q", got)
+	}
+
+	w.repairSelection()
+	w.deleteKey()
+	if w.deleting[row.ID] != held {
+		t.Fatal("a second Delete went out for the row the list still shows")
+	}
+
+	moved := row
+	moved.MailboxIDs = []int64{2}
+	s.mu.Lock()
+	s.result["message.summaries"] = []api.MessageSummary{moved}
+	s.mu.Unlock()
+	events.Deliver(api.MessageChanged{IDs: []int64{row.ID}})
+	poll(t, "the row moved", func() bool {
+		rows := w.view.Rows([]int64{row.ID})
+		return len(rows) == 1 && slices.Equal(rows[0].MailboxIDs, moved.MailboxIDs)
+	})
+	w.repairSelection()
+	if len(w.deleting) != 0 {
+		t.Errorf("still held with the row shown moved: %v", w.deleting)
+	}
+}
+
+// An edit and a click that come before one frame: Redirect sends what the
+// field shows once it has taken the edit, not what it held before.
+func TestRedirectSendsTheEditOfItsFrame(t *testing.T) {
+	s := &fakeMaild{result: map[string]any{"message.redirect": api.OutboxItem{ID: 1}}}
+	loop := frostuitest.NewLoop()
+	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond})
+	w.client = s.client(t)
+	w.redirect = &redirectSheet{summary: api.MessageSummary{ID: 7, Subject: "Plans"}, to: "a@x.test"}
+	var tt *ui.Tester
+	var input func() // input for the next frame, all of it before that frame
+	tt = ui.NewTester(func(c *ui.Context) {
+		loop.Flush()
+		if fn := input; fn != nil {
+			input = nil
+			fn() // the Tester builds no frame while one builds: this one takes it all
+		}
+		w.redirectView(c)
+	}, 800, 600)
+	tt.Frame()
+	info, ok := tt.AccessByRole(ui.RoleButton, "Redirect")
+	if !ok || info.Disabled {
+		t.Fatalf("Redirect with an address: %+v, %v", info, ok)
+	}
+	tt.Command("selectAll")
+	input = func() {
+		tt.Type("b@x.test")
+		tt.ClickAt(info.Bounds.X+info.Bounds.W/2, info.Bounds.Y+info.Bounds.H/2)
+	}
+	tt.Frame()
+	draw(t, tt, "the sheet to close", func() bool { return w.redirect == nil })
+	req, ok := s.call("message.redirect")
+	if !ok {
+		t.Fatal("no message.redirect")
+	}
+	var p api.MessageRedirectParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.To) != 1 || p.To[0].Address != "b@x.test" {
+		t.Errorf("redirected to %+v, want b@x.test", p.To)
+	}
+}
+
+// paletteOn draws the window's palette alone, over w's own commands none,
+// and runs after after the palette in each frame.
+func paletteOn(w *Window, loop *frostuitest.Loop, after *func()) *ui.Tester {
+	return ui.NewTester(func(c *ui.Context) {
+		loop.Flush()
+		w.shell.Palette.View(c, nil)
+		if fn := *after; fn != nil {
+			*after = nil
+			fn()
+		}
+	}, 900, 700)
+}
+
+// The last maild's answer to the palette comes after the window moved to
+// another maild: its messages never show there.
+func TestPaletteDropsAnAnswerOfTheLastMaild(t *testing.T) {
+	old := api.MessageSummary{ID: 42, Subject: "Old plans", From: api.Address{Address: "ann@x.test"}}
+	release := make(chan struct{})
+	a := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1}, "view.range": []api.MessageSummary{old}},
+		hold: map[string]chan struct{}{"view.range": release}}
+	b := &fakeMaild{}
+	loop := frostuitest.NewLoop()
+	var posted sync.Mutex
+	posts := 0
+	w := New(Options{Target: conn.Target{Socket: "none"}, Wake: time.Millisecond, Post: func(fn func()) {
+		posted.Lock()
+		posts++
+		posted.Unlock()
+		loop.Post(fn)
+	}})
+	w.client = a.client(t)
+	var after func()
+	tt := paletteOn(w, loop, &after)
+	w.shell.Palette.Show()
+	w.shell.Palette.Query = "plans"
+	tt.Frame()
+	poll(t, "the search", func() bool { _, ok := a.call("view.range"); return ok })
+
+	w.leaveDaemon()
+	w.client = b.client(t)
+	posted.Lock()
+	before := posts
+	posted.Unlock()
+	close(release)
+	poll(t, "the last maild's answer", func() bool {
+		posted.Lock()
+		defer posted.Unlock()
+		return posts > before
+	})
+	tt.Frame()
+	if tt.HasText("Old plans") {
+		t.Errorf("the palette shows the last maild's message: %q", tt.Texts())
+	}
+	if w.shell.Palette.Open {
+		t.Error("the palette stayed open on the last maild's query")
+	}
+}
+
+// An item chosen just before the window moved to another maild runs after
+// the move: it names the last one's message or mailbox, and does nothing.
+func TestPaletteChoiceStaysWithItsMaild(t *testing.T) {
+	old := api.MessageSummary{ID: 42, Subject: "Old plans", From: api.Address{Address: "ann@x.test"}}
+	for _, tc := range []struct {
+		name, shown string
+		tree        map[string]mail.Item
+	}{
+		{name: "message", shown: "Old plans"},
+		{name: "mailbox", shown: "Plans folder", tree: map[string]mail.Item{"mailbox:5": {Key: "mailbox:5", Label: "Plans folder", Selectable: true, MailboxID: 5}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1}, "view.range": []api.MessageSummary{old}}}
+			b := &fakeMaild{}
+			loop := frostuitest.NewLoop()
+			w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond})
+			w.client, w.tree = a.client(t), tc.tree
+			var next *api.Client
+			if tc.tree == nil {
+				next = b.client(t)
+			}
+			var after func()
+			tt := paletteOn(w, loop, &after)
+			w.shell.Palette.Show()
+			w.shell.Palette.Query = "plans"
+			draw(t, tt, "the results", func() bool { return tt.HasText(tc.shown) && tt.HasText("Old plans") })
+
+			after = func() {
+				if w.shell.Palette.Open {
+					t.Error("Enter did not choose the item")
+				}
+				w.leaveDaemon() // between the choice and its run
+				w.client = next
+			}
+			tt.Key(0, ui.KeyEnter)
+			tt.Frame()
+			if w.pendingOpen != 0 {
+				t.Errorf("the item went on to open message %d on the new maild", w.pendingOpen)
+			}
+			if n := b.count("message.summaries"); n != 0 {
+				t.Errorf("the new maild was asked for the last one's message %d times", n)
+			}
+			if w.q.Source.Kind != mail.AllInboxes {
+				t.Errorf("the item went on to show %+v on the new maild", w.q.Source)
+			}
+		})
 	}
 }
 
@@ -232,6 +458,8 @@ func TestDeleteLeavesAMessageTheListDoesNotHold(t *testing.T) {
 type fakeMaild struct {
 	mu     sync.Mutex
 	result map[string]any
+	fail   map[string]int           // the call of a method, counted from 1, answered with an error
+	hold   map[string]chan struct{} // a method's answers wait for its channel to close
 	calls  []api.Frame
 }
 
@@ -260,8 +488,18 @@ func (s *fakeMaild) client(t *testing.T) *api.Client {
 func (s *fakeMaild) answer(c net.Conn, write *sync.Mutex, req api.Frame) {
 	s.mu.Lock()
 	s.calls = append(s.calls, req)
+	n := 0
+	for _, f := range s.calls {
+		if f.Method == req.Method {
+			n++
+		}
+	}
 	result, ok := s.result[req.Method]
+	failed, held := s.fail[req.Method] == n, s.hold[req.Method]
 	s.mu.Unlock()
+	if held != nil {
+		<-held
+	}
 	if !ok {
 		result = struct{}{}
 	}
@@ -269,7 +507,11 @@ func (s *fakeMaild) answer(c net.Conn, write *sync.Mutex, req api.Frame) {
 	if err != nil {
 		return
 	}
-	line, err := json.Marshal(api.Frame{JSONRPC: "2.0", ID: req.ID, Result: data})
+	frame := api.Frame{JSONRPC: "2.0", ID: req.ID, Result: data}
+	if failed {
+		frame.Result, frame.Error = nil, api.Errorf(api.CodeInternal, "failed")
+	}
+	line, err := json.Marshal(frame)
 	if err != nil {
 		return
 	}
@@ -286,6 +528,19 @@ func (s *fakeMaild) call(method string) (api.Frame, bool) {
 		return api.Frame{}, false
 	}
 	return s.calls[i], true
+}
+
+// count is how many calls of method came.
+func (s *fakeMaild) count(method string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := 0
+	for _, f := range s.calls {
+		if f.Method == method {
+			n++
+		}
+	}
+	return n
 }
 
 // windowOn runs a window on target, drawing in a Tester.

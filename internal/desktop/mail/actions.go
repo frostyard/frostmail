@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"sync"
@@ -337,26 +338,40 @@ func (u *Undo) Len() int {
 	return len(u.entries)
 }
 
-// Move runs act, a move or a delete of ids, and remembers its inverse.
-func (u *Undo) Move(ctx context.Context, c *api.Client, ids []int64, act func() error) error {
+// ErrNotRemembered says an action was done, but could not be read back, so
+// Undo cannot take it back.
+var ErrNotRemembered = errors.New("done, but Undo cannot take it back")
+
+// Move runs act, a move or a delete of ids, and remembers the inverse of
+// what it changed: also when act fails part way, as when one account's
+// messages moved and another's did not. It returns the messages as maild
+// holds them after act, an erased one not among them, and nil when they
+// could not be read. Its error is act's, or ErrNotRemembered when act was
+// done but could not be read back.
+func (u *Undo) Move(ctx context.Context, c *api.Client, ids []int64, act func() error) ([]api.MessageSummary, error) {
 	if len(ids) == 0 {
-		return nil
+		return []api.MessageSummary{}, nil
 	}
 	u.acting.RLock()
 	defer u.acting.RUnlock()
-	before, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})
+	params := &api.MessageSummariesParams{IDs: ids}
+	before, err := c.Message().Summaries(ctx, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := act(); err != nil {
-		return err
-	}
-	after, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})
-	if err != nil {
-		return err
+	acted := act()
+	after, err := c.Message().Summaries(ctx, params)
+	switch {
+	case err != nil && acted != nil:
+		return nil, acted
+	case err != nil:
+		return nil, fmt.Errorf("%w: %w", ErrNotRemembered, err)
 	}
 	u.remember(MoveBack(before, after))
-	return nil
+	if after == nil {
+		after = []api.MessageSummary{}
+	}
+	return after, acted
 }
 
 // Flags changes flags and remembers the earlier values.

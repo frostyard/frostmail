@@ -2,6 +2,7 @@ package mainwin
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"time"
@@ -9,20 +10,21 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 )
 
 // actionTimeout bounds one action on messages.
 const actionTimeout = 60 * time.Second
 
-// deleteHold is how long a finished delete stays held while the view goes
-// on listing its row, as one that also shows Trash does.
-const deleteHold = 10 * time.Second
-
-// heldDelete is a delete sent for a message the view still lists.
+// heldDelete is a delete sent for a message the list shows. Until the list
+// drops the row or shows it moved, however long that takes, the row is the
+// one the delete was sent for, and another Delete of it would find the
+// message in Trash, and erase it.
 type heldDelete struct {
-	done bool
-	at   time.Time // when it finished
+	from []int64    // the mailboxes the row showed as the delete went
+	done bool       // the delete ended
+	view *live.View // the list's view then: one opened since shows maild's state after it
 }
 
 // selectedIDs are the chosen messages, without rows not loaded yet.
@@ -71,7 +73,11 @@ func (w *Window) runThen(what string, fn func(ctx context.Context, c *api.Client
 		}
 		w.o.Post(func() {
 			if err != nil {
-				w.toasts = append(w.toasts, ui.Toast{Title: "Could not " + what, Description: err.Error(), Type: "error"})
+				title := "Could not " + what
+				if errors.Is(err, mail.ErrNotRemembered) {
+					title = "Undo cannot take this back" // it was done
+				}
+				w.toasts = append(w.toasts, ui.Toast{Title: title, Description: err.Error(), Type: "error"})
 			}
 			if done != nil {
 				done(err)
@@ -112,7 +118,7 @@ func (w *Window) moveGroups(groups []mail.MoveGroup) {
 	}
 	undo := w.undo
 	w.run("move the messages", func(ctx context.Context, c *api.Client) error {
-		return undo.Move(ctx, c, ids, func() error {
+		_, err := undo.Move(ctx, c, ids, func() error {
 			for _, p := range params {
 				if err := c.Message().Move(ctx, p); err != nil {
 					return err
@@ -120,6 +126,7 @@ func (w *Window) moveGroups(groups []mail.MoveGroup) {
 			}
 			return nil
 		})
+		return err
 	})
 }
 
@@ -140,11 +147,18 @@ func (w *Window) delete(ids []int64) {
 		return
 	}
 	undo, gen := w.undo, w.gen
+	var sent bool
+	var after []api.MessageSummary
 	w.runThen("delete the messages", func(ctx context.Context, c *api.Client) error {
-		return undo.Move(ctx, c, ids, func() error { return c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids}) })
-	}, func(err error) {
+		var err error
+		after, err = undo.Move(ctx, c, ids, func() error {
+			sent = true
+			return c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids})
+		})
+		return err
+	}, func(error) {
 		if gen == w.gen {
-			w.deleteEnded(ids, err)
+			w.deleteEnded(ids, sent, after)
 		}
 	})
 }
@@ -169,33 +183,46 @@ func (w *Window) holdDeletes(ids []int64) []int64 {
 	out := make([]int64, 0, len(rows))
 	for _, r := range rows {
 		if w.deleting[r.ID] == nil {
-			w.deleting[r.ID] = &heldDelete{}
+			w.deleting[r.ID] = &heldDelete{from: slices.Clone(r.MailboxIDs)}
 			out = append(out, r.ID)
 		}
 	}
 	return out
 }
 
-// deleteEnded lets go of what failed, which can be tried again; the rest
-// stays held until the list drops it. A revealed message the list has no
-// row for will never be dropped, so it goes now.
-func (w *Window) deleteEnded(ids []int64, err error) {
-	now := w.o.Now()
-	for _, id := range ids {
-		if err != nil {
-			delete(w.deleting, id)
-		} else if h := w.deleting[id]; h != nil {
-			h.done, h.at = true, now
-		}
+// deleteEnded settles the holds of a delete that ended. What was never sent
+// lets go, and so does a message maild holds, after it, in the mailboxes
+// its row shows: another Delete acts on what the list shows. The rest stay
+// held until the list drops or moves the row, also when the delete failed
+// or could not be read back: it may have moved the message to Trash. A
+// revealed message the list has no row for will never be dropped, so it
+// goes now.
+func (w *Window) deleteEnded(ids []int64, sent bool, after []api.MessageSummary) {
+	now := make(map[int64][]int64, len(after))
+	for _, r := range after {
+		now[r.ID] = r.MailboxIDs
 	}
-	if r := w.revealing; err == nil && r != nil && slices.Contains(ids, r.ID) && (w.view == nil || w.view.IndexOf(r.ID) < 0) {
+	for _, id := range ids {
+		h := w.deleting[id]
+		if h == nil {
+			continue
+		}
+		boxes, there := now[id]
+		if !sent || there && sameBoxes(boxes, h.from) {
+			delete(w.deleting, id)
+			continue
+		}
+		h.done, h.view = true, w.view
+	}
+	if r := w.revealing; r != nil && w.deleting[r.ID] != nil && slices.Contains(ids, r.ID) && (w.view == nil || w.view.IndexOf(r.ID) < 0) {
 		w.chosen.Remove(r.ID)
 		w.revealing = nil
 	}
 }
 
 // releaseDeletes lets go of the finished deletes whose rows the list has
-// dropped, or that have waited for it long enough.
+// dropped or shows in other mailboxes, and of those a view opened since
+// shows: that one shows maild's state after the delete.
 func (w *Window) releaseDeletes() {
 	var finished []int64
 	for id, h := range w.deleting {
@@ -206,18 +233,24 @@ func (w *Window) releaseDeletes() {
 	if len(finished) == 0 {
 		return
 	}
-	listed := map[int64]bool{}
+	listed := map[int64][]int64{}
 	if w.view != nil {
 		for _, r := range w.view.Rows(finished) {
-			listed[r.ID] = true
+			listed[r.ID] = r.MailboxIDs
 		}
 	}
-	now := w.o.Now()
 	for _, id := range finished {
-		if !listed[id] || now.Sub(w.deleting[id].at) >= deleteHold {
+		h := w.deleting[id]
+		boxes, ok := listed[id]
+		if !ok || h.view != w.view || !sameBoxes(boxes, h.from) {
 			delete(w.deleting, id)
 		}
 	}
+}
+
+// sameBoxes reports whether two lists name the same mailboxes.
+func sameBoxes(a, b []int64) bool {
+	return slices.Equal(slices.Sorted(slices.Values(a)), slices.Sorted(slices.Values(b)))
 }
 
 // writable leaves out the rows of read-only accounts.

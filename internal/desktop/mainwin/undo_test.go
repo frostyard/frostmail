@@ -29,7 +29,7 @@ func TestUndoWaitsForTheActionRunning(t *testing.T) {
 
 	var u mail.Undo
 	undone := make(chan bool, 1)
-	err = u.Move(ctx, f.c, []int64{id}, func() error {
+	_, err = u.Move(ctx, f.c, []int64{id}, func() error {
 		if err := f.c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: []int64{id}}); err != nil {
 			return err
 		}

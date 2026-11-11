@@ -22,6 +22,9 @@ type moveServer struct {
 	moves []int64
 	slow  int64
 	skips int // moves still to report done without doing, as maild does for a move not yet replayed
+	// failRead is the message.summaries call, counted from 1, answered with
+	// an error; reads counts them.
+	failRead, reads int
 }
 
 func (s *moveServer) client(t *testing.T) *api.Client {
@@ -48,10 +51,15 @@ func (s *moveServer) client(t *testing.T) *api.Client {
 
 func (s *moveServer) answer(conn net.Conn, write *sync.Mutex, req api.Frame) {
 	var result any
+	var failure *api.Error
 	switch req.Method {
 	case "message.summaries":
 		s.mu.Lock()
 		result = []api.MessageSummary{{ID: 1, MailboxIDs: []int64{s.box}}}
+		s.reads++
+		if s.reads == s.failRead {
+			failure = api.Errorf(api.CodeInternal, "the read failed")
+		}
 		s.mu.Unlock()
 	case "message.move":
 		var p api.MessageMoveParams
@@ -80,7 +88,11 @@ func (s *moveServer) answer(conn net.Conn, write *sync.Mutex, req api.Frame) {
 	if err != nil {
 		return
 	}
-	line, err := json.Marshal(api.Frame{JSONRPC: "2.0", ID: req.ID, Result: data})
+	frame := api.Frame{JSONRPC: "2.0", ID: req.ID, Result: data}
+	if failure != nil {
+		frame.Result, frame.Error = nil, failure
+	}
+	line, err := json.Marshal(frame)
 	if err != nil {
 		return
 	}
@@ -97,7 +109,7 @@ func TestUndosRunOneAtATime(t *testing.T) {
 	ctx := t.Context()
 	var u mail.Undo
 	for _, to := range []int64{20, 30} {
-		if err := u.Move(ctx, c, []int64{1}, func() error {
+		if _, err := u.Move(ctx, c, []int64{1}, func() error {
 			return c.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{1}, MailboxID: to})
 		}); err != nil {
 			t.Fatal(err)
@@ -120,10 +132,61 @@ func TestUndosRunOneAtATime(t *testing.T) {
 	}
 }
 
+// One account's messages moved and the next account's failed: the move
+// made can still be undone.
+func TestAMoveThatFailsPartWayCanBeUndone(t *testing.T) {
+	s := &moveServer{box: 10}
+	c := s.client(t)
+	ctx := t.Context()
+	u := mail.Undo{Retry: time.Millisecond}
+	refused := errors.New("refused")
+	after, err := u.Move(ctx, c, []int64{1}, func() error {
+		if err := c.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{1}, MailboxID: 20}); err != nil {
+			return err
+		}
+		return refused // the next account's group
+	})
+	if !errors.Is(err, refused) {
+		t.Fatalf("move = %v, want the group's error", err)
+	}
+	if len(after) != 1 || !slices.Equal(after[0].MailboxIDs, []int64{20}) {
+		t.Errorf("after = %+v", after)
+	}
+	if u.Len() != 1 {
+		t.Fatalf("%d entries, want the group that moved", u.Len())
+	}
+	if ok, err := u.Do(ctx, c); !ok || err != nil {
+		t.Fatalf("undo = %v, %v", ok, err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.box != 10 {
+		t.Errorf("the message is in %d, want 10", s.box)
+	}
+}
+
+// An action done but not read back says so, apart from one that failed:
+// it was done, and Undo cannot take it back.
+func TestAMoveNotReadBack(t *testing.T) {
+	s := &moveServer{box: 10, failRead: 2}
+	c := s.client(t)
+	ctx := t.Context()
+	var u mail.Undo
+	after, err := u.Move(ctx, c, []int64{1}, func() error {
+		return c.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{1}, MailboxID: 20})
+	})
+	if !errors.Is(err, mail.ErrNotRemembered) || after != nil {
+		t.Fatalf("move = %+v, %v; want nothing read and ErrNotRemembered", after, err)
+	}
+	if u.Len() != 0 {
+		t.Errorf("%d entries", u.Len())
+	}
+}
+
 func movedOnce(t *testing.T, u *mail.Undo, c *api.Client) {
 	t.Helper()
 	ctx := t.Context()
-	if err := u.Move(ctx, c, []int64{1}, func() error {
+	if _, err := u.Move(ctx, c, []int64{1}, func() error {
 		return c.Message().Move(ctx, &api.MessageMoveParams{IDs: []int64{1}, MailboxID: 20})
 	}); err != nil {
 		t.Fatal(err)

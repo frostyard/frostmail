@@ -27,7 +27,9 @@ func (w *Window) paletteSources() []frostui.PaletteSource {
 	}
 }
 
-// queryMailboxes finds the sidebar's rows by name.
+// queryMailboxes finds the sidebar's rows by name. Like a message's, an
+// item names one maild's mailbox: chosen after a change of maild, it does
+// nothing.
 func (w *Window) queryMailboxes(q *frostui.PaletteQuery) {
 	if q.Text == "" {
 		q.Reply(nil)
@@ -46,13 +48,15 @@ func (w *Window) queryMailboxes(q *frostui.PaletteQuery) {
 		if !ok {
 			continue
 		}
-		items = append(items, frostui.PaletteItem{ID: it.Key, Title: it.Label, Icon: it.Icon, Run: func() { w.setSource(source) }})
+		items = append(items, frostui.PaletteItem{ID: it.Key, Title: it.Label, Icon: it.Icon, Run: w.bound(func() { w.setSource(source) })})
 	}
 	q.Reply(items)
 }
 
 // queryMessages searches every mailbox through a view of its own, on a
-// worker, and drops the answer if the user has typed on.
+// worker, and drops the answer if the user has typed on, or if the window
+// has moved to another maild: its IDs name the last one's mail, and so an
+// item chosen after the move does nothing.
 func (w *Window) queryMessages(q *frostui.PaletteQuery) {
 	text, c := strings.TrimSpace(q.Text), w.client
 	if text == "" || c == nil {
@@ -61,19 +65,23 @@ func (w *Window) queryMessages(q *frostui.PaletteQuery) {
 	}
 	query := mail.ListQuery(mail.ListState{Source: mail.Source{Kind: mail.AllInboxes}, Search: text, SearchAll: true,
 		Filter: mail.FilterAll, Sort: api.ViewSortDate})
-	go func() {
-		ctx := q.Context()
-		rows, err := searchMessages(ctx, c, query)
-		if err != nil {
-			return
-		}
+	var rows []api.MessageSummary
+	reply := w.bound(func() {
 		items := make([]frostui.PaletteItem, 0, len(rows))
 		for _, r := range rows {
 			id := r.ID
 			items = append(items, frostui.PaletteItem{ID: strconv.FormatInt(id, 10), Title: r.Subject, Detail: mail.DisplayName(r.From),
-				Icon: "mail-read", Run: func() { w.OpenMessage(id) }})
+				Icon: "mail-read", Run: w.bound(func() { w.OpenMessage(id) })})
 		}
-		w.o.Post(func() { q.Reply(items) })
+		q.Reply(items)
+	})
+	go func() {
+		var err error
+		rows, err = searchMessages(q.Context(), c, query)
+		if err != nil {
+			return
+		}
+		w.o.Post(reply)
 	}()
 }
 

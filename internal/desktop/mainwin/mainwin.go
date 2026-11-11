@@ -330,6 +330,9 @@ func (w *Window) leaveDaemon() {
 	w.branches = map[string]bool{}
 	w.onFrame = nil
 	w.rawSource, w.redirect = nil, nil
+	// Its query, its results and what they were asked go: they name the
+	// last maild's mail (its items do nothing now, chosen or not).
+	w.shell.Palette.Open = false
 	w.later = compose.TimeSheet{}
 	w.newSheets()
 	*w.shell.Dialogs = frostui.Dialogs{} // the same one Calendar's module holds
