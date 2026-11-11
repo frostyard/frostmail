@@ -32,11 +32,10 @@ no ChairLift pattern where it does not fit.
   what it lacks today (a tray, an unread badge, a `mailto:` handler, `.eml`
   files, dragging attachments out, search tokens) stays out of this plan.
 
-Status (2026-11-10, later): Phases 3 to 8 are built on Linux over
-frostui v0.2.0, each with its own status below. Phase 9's parts that
-leave Tauri in place are built, and the Windows checks that need no
-installer have run. Phase 10 waits on the switch of packaging and CI, the
-installer and the manual passes; Tauri stays until then.
+Status (2026-11-10, later): Phases 3 to 9 are built, each with its own
+status below, and Phase 10's removal of Tauri is the branch's last commit.
+The parity gate does not pass until the manual passes on real desktops are
+done; that is the owner's decision.
 
 Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
@@ -752,11 +751,9 @@ unless that pipe listed only fixture accounts.
 - **Differences to confirm at the gate:** a sidebar of panes instead of
   the toolbar's tabs; lists capped at 196 high above their forms; smart
   mailboxes in the notify scope as "Smart Mailbox: name", as `Select` has
-  no groups; a second save is disabled, not queued. `maild` runs
-  `frostmail-notify.exe` as it does today. In lodge mode the native app
-  shows its notes through MyGo's notifications on Windows too; this
-  plan's table has the notifier there, which is not built, and that path
-  has not been run.
+  no groups; a second save is disabled, not queued. On Windows, in lodge
+  mode, the app shows its notes through `frostmail-notify.exe`, as this
+  plan's table has it (Phase 9's check).
 - **Windows and a shared atlas:** MyGo v0.8.3's windows share one glyph
   atlas. A repack leaves a scene already built with old positions until
   its next frame: in the checks a new window's first frame, and an idle
@@ -864,6 +861,11 @@ unless that pipe listed only fixture accounts.
 - **Done when:** the PR is ready for review with no gap list, and a
   release candidate's Flatpak and Windows installer pass plan 0013's
   clean-install gate.
+- **Status (2026-11-10): the code is removed; the gate is open.**
+  `app/src-tauri`, `app/e2e` and the desktop-only code of `app/src` are
+  gone in the branch's last commit, which reverts on its own. The React
+  app builds for lodge. Still by hand: GNOME and KDE, Windows 11, Orca,
+  Narrator, and clicking a real toast.
 
 ### Differences the owner accepted (2026-11-10)
 
