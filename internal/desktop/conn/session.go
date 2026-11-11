@@ -89,6 +89,16 @@ func (s *Session) State() State {
 // one that client reached: only the session's goroutine changes it.
 func (s *Session) Target() Target { return s.currentTarget() }
 
+// Key names the target in full, as Same tells targets apart: lodge's
+// origin with its scheme, or the socket's path. String is for people, and
+// names every socket "Local".
+func (t Target) Key() string {
+	if t.Remote() {
+		return "lodge " + t.Lodge.Origin()
+	}
+	return "socket " + t.Socket
+}
+
 // Same reports whether t and u name one maild: IDs from one mean the same
 // on the other.
 func (t Target) Same(u Target) bool {

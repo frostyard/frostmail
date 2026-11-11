@@ -26,7 +26,7 @@ import (
 // partTimeout bounds reading one image from lodge.
 const partTimeout = 30 * time.Second
 
-// draftKey names a draft: its maild, as conn.Target.String names it, and
+// draftKey names a draft: its maild, as conn.Target.Key names it, and
 // its ID there. A draft's ID means something only to its maild, so the same
 // ID on another maild is another draft.
 type draftKey struct {
@@ -84,7 +84,7 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 	if c != s.main.Client() {
 		return // that connection has ended, and maybe its maild with it
 	}
-	key := draftKey{target: s.main.ConnectionState().Target.String(), draft: draft}
+	key := draftKey{target: s.main.ConnectionState().Target.Key(), draft: draft}
 	if win, ok := s.existing(key, func() { s.reopen(ctx, key) }); ok {
 		if win != nil {
 			win.Restore()
@@ -144,7 +144,7 @@ func (s *composeWindows) existing(key draftKey, reopen func()) (win *mygo.Window
 // reopen opens a draft again after its window closed, while the session is
 // on the draft's maild.
 func (s *composeWindows) reopen(ctx context.Context, key draftKey) {
-	if s.main.ConnectionState().Target.String() != key.target {
+	if s.main.ConnectionState().Target.Key() != key.target {
 		return
 	}
 	s.open(ctx, s.main.Client(), key.draft, false)
@@ -163,9 +163,9 @@ func (s *composeWindows) refused(key draftKey) {
 // while the target is the one it opened on. A draft's ID means something
 // only to its maild, so past a change of target there is none.
 func boundClient(target func() conn.Target, current func() *api.Client) func() *api.Client {
-	openedOn := target().String()
+	openedOn := target()
 	return func() *api.Client {
-		if target().String() != openedOn {
+		if !target().Same(openedOn) {
 			return nil
 		}
 		return current()

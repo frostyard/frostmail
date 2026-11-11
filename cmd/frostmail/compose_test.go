@@ -151,8 +151,40 @@ func TestBoundClientEndsWithItsTarget(t *testing.T) {
 	}
 }
 
+// Targets the status bar names alike are still other mailds: every socket
+// is "Local", and lodge's name drops its scheme.
+func TestBoundClientTellsAlikeTargetsApart(t *testing.T) {
+	plain, err := conn.ParseLodge("http://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secure, err := conn.ParseLodge("https://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ from, to conn.Target }{
+		{conn.Target{Socket: "/run/a"}, conn.Target{Socket: "/run/b"}},
+		{conn.Target{Lodge: &plain}, conn.Target{Lodge: &secure}},
+	} {
+		if c.from.String() != c.to.String() {
+			t.Fatalf("%q and %q are not named alike", c.from, c.to)
+		}
+		target := c.from
+		client := boundClient(func() conn.Target { return target }, func() *api.Client { return &api.Client{} })
+		target = c.to
+		if got := client(); got != nil {
+			t.Errorf("%s: a client for another maild named alike", c.to)
+		}
+		if c.from.Key() == c.to.Key() {
+			t.Errorf("%s: one key for two mailds", c.to)
+		}
+	}
+}
+
 // local is a draft of this computer's maild.
-func local(draft int64) draftKey { return draftKey{target: "Local", draft: draft} }
+func local(draft int64) draftKey {
+	return draftKey{target: conn.Target{Socket: "/run/a"}.Key(), draft: draft}
+}
 
 func testComposeWindows(drafts ...draftKey) (*composeWindows, *int) {
 	quits := 0
@@ -217,7 +249,7 @@ func TestAKeptComposerEndsTheQuit(t *testing.T) {
 // of its own, and never raises the old maild's window, kept open after a
 // failed save. The old maild's draft still finds its own.
 func TestComposeWindowsAreKeyedByTheirMaild(t *testing.T) {
-	old, other := local(7), draftKey{target: "lodge.example.ts.net", draft: 7}
+	old, other := local(7), draftKey{target: conn.Target{Socket: "/run/b"}.Key(), draft: 7}
 	s, _ := testComposeWindows()
 	kept := &mygo.Window{} // its save on closing failed
 	s.windows[old] = kept
