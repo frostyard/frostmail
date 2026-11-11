@@ -359,6 +359,28 @@ func (w *Window) autosave() {
 	}()
 }
 
+// SaveNow writes what is left of the draft before it returns, waiting at
+// most limit: the OS ends the session (logout, shutdown), and the process
+// can end once the quit's listeners return. It never deletes an untouched
+// draft. Call it on the UI thread.
+func (w *Window) SaveNow(limit time.Duration) error {
+	c := w.o.Client()
+	if c == nil {
+		return errors.New("compose: not connected")
+	}
+	if w.loaded && w.touched {
+		w.stage()
+	}
+	done := make(chan error, 1)
+	go func() { done <- w.flush(c) }()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(limit):
+		return errors.New("compose: the draft's save did not end in time")
+	}
+}
+
 // flush writes what is left through c; it waits, so call it from a worker.
 func (w *Window) flush(c *api.Client) error {
 	w.flushMu.Lock()

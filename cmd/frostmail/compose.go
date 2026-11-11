@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,6 +57,9 @@ type composeWindows struct {
 	quitting  bool
 	quitWaits map[draftKey]bool
 	quit      func()
+	// models are the open windows' drafts, saved at once when the OS
+	// ends the session.
+	models map[draftKey]*compose.Window
 }
 
 // prepare runs before the first window opens.
@@ -64,11 +68,16 @@ func (s *composeWindows) prepare() {
 		return
 	}
 	s.leaving, s.gone, s.quitWaits = map[draftKey]bool{}, map[draftKey][]func(){}, map[draftKey]bool{}
+	s.models = map[draftKey]*compose.Window{}
 	s.quit = mygo.App.Quit
 	s.all.mu.Lock()
 	s.all.closeCompose = s.closeAll
 	s.all.mu.Unlock()
-	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if e.SessionEnding {
+			s.saveAllNow(sessionEndBudget)
+			return
+		}
 		s.quitting = true
 		// After this quit has asked the windows, which it does in the
 		// main thread's task that runs this.
@@ -115,6 +124,7 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 	post.attach(win)
 	s.all.add(win)
 	s.windows[key] = win
+	s.models[key] = w
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if !w.RequestClose() {
 			s.refused(key)
@@ -177,6 +187,7 @@ func boundClient(target func() conn.Target, current func() *api.Client) func() *
 func (s *composeWindows) closed(key draftKey) {
 	hooks := s.gone[key]
 	delete(s.windows, key)
+	delete(s.models, key)
 	delete(s.leaving, key)
 	delete(s.gone, key)
 	for _, fn := range hooks {
@@ -304,4 +315,25 @@ func fetchPart(c *api.Client, l conn.Lodge, cacheDir, rel string) ([]byte, error
 
 func openFiles() ([]string, error) {
 	return mygo.Dialog.Open(mygo.OpenDialogOptions{Title: "Attach Files", Multiple: true})
+}
+
+// sessionEndBudget bounds the saves when the OS ends the session: Windows
+// gives an app a few seconds before it ends it.
+const sessionEndBudget = 3 * time.Second
+
+// saveAllNow writes every open draft's last edits before it returns, within
+// budget in all: the OS ends the session, the quit cannot be refused, and
+// the process may end once the quit's listeners return (MyGo v0.9.0's
+// QuitEvent.SessionEnding, on Windows and macOS).
+func (s *composeWindows) saveAllNow(budget time.Duration) {
+	deadline := time.Now().Add(budget)
+	for key, w := range s.models {
+		left := time.Until(deadline)
+		if left <= 0 {
+			return
+		}
+		if err := w.SaveNow(left); err != nil {
+			slog.Warn("saving a draft as the session ends", "draft", key.draft, "err", err)
+		}
+	}
 }
