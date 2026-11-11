@@ -731,8 +731,9 @@ unless that pipe listed only fixture accounts.
 - **Measured:** `TestWeekViewOfA400EventMonthFrameTime`, 400 events in a
   month and 101 in the week shown, at 1200 × 780, in `ui.Tester` on the
   development machine: a median of 0.884 ms and a maximum of 3.37 ms over
-  200 frames. The test logs these and asserts no limit; it has not run on
-  CI or a real GPU, so this plan's 16 ms on CI is not yet shown.
+  200 frames. The test fails when the median is over 16 ms, outside the
+  race detector, and CI's verify job passed it at `3f657fcd`. It draws on
+  the CPU; it has not run on a real GPU.
 - **Check of 2026-11-10, built app in the Flatpak's sandbox, showcase
   fixture:** Ctrl+2, 3 and 4 showed Calendar, People and Tasks; the week
   showed its events; Ctrl+N in Calendar opened a window titled "New
