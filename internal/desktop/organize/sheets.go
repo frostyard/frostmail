@@ -3,6 +3,7 @@ package organize
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,47 @@ func alert(c *ui.Context, text string) {
 	}
 }
 
+// sheet is a sheet's column: its title, rows that scroll when the window is
+// too short for them, and foot, always in view under them.
+func sheet(c *ui.Context, width float32, title string, rows, foot func()) {
+	t := c.Theme()
+	_, height := c.Size()
+	// The modal's panel keeps a margin of Space(5) on each side, and pads
+	// its content by as much.
+	ui.Column(c).Width(width).MaxHeight(height - t.Space(20)).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label(title).Children(func() {
+		frostui.Heading(c, title)
+		ui.Scroll(c).Shrink(1).MinHeight(0).Children(func() {
+			ui.Column(c).Padding(frostui.SpaceXS).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Children(rows)
+		})
+		foot()
+	})
+}
+
+// cloneConditions copies conditions, which the editors change in place: an
+// original that a list holds, or a save under way, keeps what it had.
+func cloneConditions(conds api.Conditions) api.Conditions {
+	conds.Conditions = slices.Clone(conds.Conditions)
+	return conds
+}
+
+// cloneActions copies actions, as cloneConditions does.
+func cloneActions(actions []api.RuleAction) []api.RuleAction {
+	out := slices.Clone(actions)
+	for i := range out {
+		out[i].MailboxID = clonePointer(out[i].MailboxID)
+		out[i].Color = clonePointer(out[i].Color)
+	}
+	return out
+}
+
+func clonePointer[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
+}
+
 // SmartSheet makes or edits a smart mailbox.
 type SmartSheet struct {
 	Deps
@@ -81,12 +123,12 @@ func (s *SmartSheet) New() {
 // text, with both boxes checked.
 func (s *SmartSheet) FromSearch(text string, conds api.Conditions) {
 	s.New()
-	s.name, s.conds, s.trash, s.sent = text, conds, true, true
+	s.name, s.conds, s.trash, s.sent = text, cloneConditions(conds), true, true
 }
 
 // Edit opens the sheet on a smart mailbox.
 func (s *SmartSheet) Edit(m api.SmartMailbox) {
-	s.open, s.id, s.name, s.conds, s.trash, s.sent, s.busy, s.failure = true, m.ID, m.Name, m.Conditions, m.IncludeTrash, m.IncludeSent, false, ""
+	s.open, s.id, s.name, s.conds, s.trash, s.sent, s.busy, s.failure = true, m.ID, m.Name, cloneConditions(m.Conditions), m.IncludeTrash, m.IncludeSent, false, ""
 }
 
 // View draws the sheet while it is open.
@@ -99,8 +141,7 @@ func (s *SmartSheet) View(c *ui.Context) {
 		title = "Edit Smart Mailbox"
 	}
 	ui.Modal(c, &s.open, func() {
-		ui.Column(c).Width(560).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label(title).Children(func() {
-			frostui.Heading(c, title)
+		sheet(c, 560, title, func() {
 			ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				frostui.Body(c, "Smart Mailbox Name:")
 				ui.TextInput(c, &s.name).Label("Smart Mailbox Name").MaxLength(100).AutoFocus().Grow(1)
@@ -108,6 +149,7 @@ func (s *SmartSheet) View(c *ui.Context) {
 			ConditionEditor(c, &s.conds, s.Context(), "Contains messages that match", "of the following conditions:")
 			ui.Checkbox(c, &s.trash, "Include messages from Trash")
 			ui.Checkbox(c, &s.sent, "Include messages from Sent")
+		}, func() {
 			alert(c, s.failure)
 			buttons(c, "OK", strings.TrimSpace(s.name) == "" || s.busy, func() { s.open = false }, s.save1)
 		})
@@ -116,7 +158,7 @@ func (s *SmartSheet) View(c *ui.Context) {
 
 func (s *SmartSheet) save1() {
 	s.busy, s.failure = true, ""
-	id, name, conds, trash, sent := s.id, strings.TrimSpace(s.name), s.conds, s.trash, s.sent
+	id, name, conds, trash, sent := s.id, strings.TrimSpace(s.name), cloneConditions(s.conds), s.trash, s.sent
 	var created int64
 	s.save(func(ctx context.Context, c *api.Client) error {
 		if id != 0 {
@@ -164,7 +206,7 @@ func (s *RuleSheet) New(n int) {
 
 // Edit opens the sheet on a rule.
 func (s *RuleSheet) Edit(r api.Rule) {
-	s.open, s.id, s.name, s.conds, s.actions, s.busy, s.failure = true, r.ID, r.Name, r.Conditions, r.Actions, false, ""
+	s.open, s.id, s.name, s.conds, s.actions, s.busy, s.failure = true, r.ID, r.Name, cloneConditions(r.Conditions), cloneActions(r.Actions), false, ""
 }
 
 // View draws the sheet while it is open.
@@ -178,14 +220,14 @@ func (s *RuleSheet) View(c *ui.Context) {
 	}
 	ctx := s.Context()
 	ui.Modal(c, &s.open, func() {
-		ui.Column(c).Width(640).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label(title).Children(func() {
-			frostui.Heading(c, title)
+		sheet(c, 640, title, func() {
 			ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				frostui.Body(c, "Description:")
 				ui.TextInput(c, &s.name).Label("Description").MaxLength(100).AutoFocus().Grow(1)
 			})
 			ConditionEditor(c, &s.conds, ctx, "If", "of the following conditions are met:")
 			ActionEditor(c, &s.actions, ctx)
+		}, func() {
 			alert(c, s.failure)
 			disabled := strings.TrimSpace(s.name) == "" || !ActionsComplete(s.actions, ctx.Mailboxes) || s.busy
 			buttons(c, "OK", disabled, func() { s.open = false }, s.save1)
@@ -195,7 +237,7 @@ func (s *RuleSheet) View(c *ui.Context) {
 
 func (s *RuleSheet) save1() {
 	s.busy, s.failure = true, ""
-	id, name, conds, actions := s.id, strings.TrimSpace(s.name), s.conds, s.actions
+	id, name, conds, actions := s.id, strings.TrimSpace(s.name), cloneConditions(s.conds), cloneActions(s.actions)
 	s.save(func(ctx context.Context, c *api.Client) error {
 		if id != 0 {
 			_, err := c.Rule().Update(ctx, &api.RuleUpdateParams{ID: id, Name: &name, Conditions: &conds, Actions: actions})

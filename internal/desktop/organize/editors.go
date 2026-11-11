@@ -22,12 +22,11 @@ type choice struct{ value, label string }
 // choice (a condition made elsewhere) shows as it can and changes only
 // when edited.
 func picker(c *ui.Context, name string, choices []choice, value *string) bool {
-	labels := make([]string, 0, len(choices))
+	labels := distinctLabels(choices)
 	selected := ""
-	for _, ch := range choices {
-		labels = append(labels, ch.label)
+	for i, ch := range choices {
 		if ch.value == *value {
-			selected = ch.label
+			selected = labels[i]
 		}
 	}
 	before := selected
@@ -40,6 +39,22 @@ func picker(c *ui.Context, name string, choices []choice, value *string) bool {
 	}
 	*value = choices[i].value
 	return true
+}
+
+// distinctLabels are the choices' labels, a repeated one numbered: a menu
+// tells its items by label, and two flags can share a name.
+func distinctLabels(choices []choice) []string {
+	labels := make([]string, len(choices))
+	used := make(map[string]bool, len(choices))
+	for i, ch := range choices {
+		label := ch.label
+		for n := 2; used[label]; n++ {
+			label = fmt.Sprintf("%s (%d)", ch.label, n)
+		}
+		used[label] = true
+		labels[i] = label
+	}
+	return labels
 }
 
 func mailboxChoices(ctx Context) []choice {
@@ -174,9 +189,10 @@ func multiPicker(c *ui.Context, name string, choices []choice, value *string) bo
 		label = fmt.Sprintf("%d chosen", count)
 	}
 	changed := false
+	labels := distinctLabels(choices)
 	ui.MenuButton(c, label, func(m *ui.Menu) {
-		for _, ch := range choices {
-			if m.Item(ch.label).Checked(slices.Contains(chosen, ch.value)).Chosen() {
+		for i, ch := range choices {
+			if m.Item(labels[i]).Checked(slices.Contains(chosen, ch.value)).Chosen() {
 				var next []string
 				for _, other := range choices {
 					if (other.value == ch.value) != slices.Contains(chosen, other.value) {
