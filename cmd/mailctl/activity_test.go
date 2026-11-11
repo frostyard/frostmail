@@ -52,16 +52,22 @@ func TestActivityCommand(t *testing.T) {
 
 // blockedWriter holds every write until open is closed.
 type blockedWriter struct {
-	open chan struct{}
-	mu   sync.Mutex
-	buf  strings.Builder
+	open    chan struct{}
+	started chan struct{}
+	writes  chan struct{}
+	first   sync.Once
+	mu      sync.Mutex
+	buf     strings.Builder
 }
 
 func (w *blockedWriter) Write(p []byte) (int, error) {
+	w.first.Do(func() { close(w.started) })
 	<-w.open
 	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
+	n, err := w.buf.Write(p)
+	w.mu.Unlock()
+	w.writes <- struct{}{}
+	return n, err
 }
 
 func (w *blockedWriter) String() string {
@@ -77,69 +83,106 @@ func TestFollowOutlastsASlowOutput(t *testing.T) {
 	defer serverSide.Close()
 	c := api.NewClient(clientSide)
 	defer c.Close()
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
+	stop := context.AfterFunc(ctx, func() { _ = c.Close() })
+	defer stop()
 
+	// Acknowledge delivery to the drain. An unpaced producer can overflow
+	// the RPC buffer merely by outrunning event decoding on a busy runner;
+	// this test isolates the blocked stdout, not that independent overload.
+	events := make(chan api.EventEnvelope)
+	received := make(chan struct{})
+	go func() {
+		defer close(events)
+		for env := range c.Notifications() {
+			select {
+			case events <- env:
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case received <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	hub := activity.New(nil)
 	hub.Record(activity.SendFailed(1, errors.New("no"), true))
 	entry := hub.Recent(1)[0]
-	send := func(seq int64) error {
+	send := func(seq int64, kind api.ActivityKind) {
+		t.Helper()
 		e := entry
-		e.Seq = seq
+		e.Seq, e.Kind = seq, kind
 		env, err := api.NewEnvelope(0, api.ActivityAdded{Entry: e})
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
 		params, err := json.Marshal(env)
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
 		line, err := json.Marshal(api.Frame{JSONRPC: "2.0", Method: api.EventMethod, Params: params})
 		if err != nil {
-			return err
+			t.Fatal(err)
 		}
-		_, err = serverSide.Write(append(line, '\n'))
-		return err
-	}
-
-	w := &blockedWriter{open: make(chan struct{})}
-	names := &clientNames{c: c, accounts: map[int64]string{1: "me@a.test"}, mailboxes: map[int64]string{}}
-	done := make(chan error, 1)
-	go func() {
-		done <- followActivity(ctx, c, drainActivity(c.Notifications(), api.ActivityLevelInfo), w, names, api.ActivityLevelInfo, 0)
-	}()
-
-	n := int64(2 * api.EventBuffer)
-	for seq := int64(1); seq <= n; seq++ {
-		if err := send(seq); err != nil {
-			t.Fatalf("event %d: the connection closed behind a slow output: %v (%v)", seq, err, c.Err())
+		if _, err := serverSide.Write(append(line, '\n')); err != nil {
+			t.Fatalf("event %d: %v (%v)", seq, err, c.Err())
 		}
-	}
-	close(w.open)
-
-	// The next entry reaches the output, after the count of those lost.
-	if err := send(n + 1); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.After(10 * time.Second)
-	tick := time.NewTicker(10 * time.Millisecond)
-	defer tick.Stop()
-	for !strings.Contains(w.String(), "not shown") {
 		select {
-		case <-tick.C:
-			if err := send(n + 1); err != nil {
-				t.Fatal(err)
-			}
-		case <-deadline:
-			t.Fatalf("no dropped line in:\n%s", w.String())
+		case <-received:
+		case <-ctx.Done():
+			t.Fatal("activity drain blocked behind stdout")
 		}
+	}
+	w := &blockedWriter{open: make(chan struct{}), started: make(chan struct{}), writes: make(chan struct{}, activity.SubscriberBuffer+3)}
+	names := &clientNames{c: c, accounts: map[int64]string{1: "me@a.test"}, mailboxes: map[int64]string{}}
+	live := drainActivity(events, api.ActivityLevelInfo)
+	done := make(chan error, 1)
+	go func() { done <- followActivity(ctx, c, live, w, names, api.ActivityLevelInfo, 0) }()
+	release := sync.OnceFunc(func() { close(w.open) })
+	defer func() {
+		release()
+		cancel()
+		_ = c.Close()
+		if err := <-done; err != nil {
+			t.Errorf("follow = %v", err)
+		}
+	}()
+	send(1, api.ActivityKindSendfailed)
+	select {
+	case <-w.started:
+	case <-ctx.Done():
+		t.Fatal("stdout never started")
+	}
+	n := int64(2 * api.EventBuffer)
+	for seq := int64(2); seq <= n; seq++ {
+		send(seq, api.ActivityKindSendfailed)
+	}
+	release()
+	// The in-flight write and the bounded queue drain before the next
+	// event carries the accumulated dropped count. No polling or repeats.
+	for range activity.SubscriberBuffer + 1 {
+		select {
+		case <-w.writes:
+		case <-ctx.Done():
+			t.Fatal("stdout did not drain")
+		}
+	}
+	send(n+1, api.ActivityKindSent)
+	for !strings.Contains(w.String(), "not shown") || !strings.Contains(w.String(), "sent a message") {
+		select {
+		case <-w.writes:
+		case <-ctx.Done():
+			t.Fatal("dropped notice and next entry did not arrive")
+		}
+	}
+	if !strings.Contains(w.String(), "not shown") {
+		t.Fatalf("no dropped line in:\n%s", w.String())
 	}
 	if err := c.Err(); err != nil {
 		t.Errorf("the connection ended: %v", err)
-	}
-	cancel()
-	if err := <-done; err != nil {
-		t.Errorf("follow = %v", err)
 	}
 }
 
