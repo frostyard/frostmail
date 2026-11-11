@@ -231,8 +231,10 @@ func FlagsBack(before []api.MessageSummary, c api.FlagChanges) []UndoCall {
 type Undo struct {
 	mu      sync.Mutex
 	entries [][]UndoCall
-	// acting is held for reading while an action runs. A row leaves the
-	// list before its action has remembered its inverse, so Do waits.
+	// acting is held for reading while an action runs, and for writing
+	// while an undo does. A row leaves the list before its action has
+	// remembered its inverse, so Do waits; and inverses run one at a time,
+	// newest first.
 	acting sync.RWMutex
 }
 
@@ -296,10 +298,11 @@ func (u *Undo) Flags(ctx context.Context, c *api.Client, ids []int64, ch api.Fla
 }
 
 // Do removes and performs the newest inverse action; false when none. It
-// waits for an action still running, which is the newest once it ends.
+// waits for an action still running, which is the newest once it ends, and
+// for an undo still running.
 func (u *Undo) Do(ctx context.Context, c *api.Client) (bool, error) {
 	u.acting.Lock()
-	u.acting.Unlock() //nolint:staticcheck // only waits for the actions running
+	defer u.acting.Unlock()
 	u.mu.Lock()
 	if len(u.entries) == 0 {
 		u.mu.Unlock()
