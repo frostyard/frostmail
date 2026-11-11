@@ -800,7 +800,8 @@ interface ServerPaneProps {
   reconnects to the maild now chosen. In the Flatpak it changes the mode
   in a fixed order (ADR-0046):
   - **To lodge:** it writes `app.json` with lodge (a temporary file,
-    renamed), then runs `mailctl shutdown`, bounded at 35 s: it calls
+    renamed), closes the compose windows once their last save has ended
+    (the desktop app), then runs `mailctl shutdown`, bounded at 35 s: it calls
     `rpc.shutdown` while a maild answers, and returns once the socket is
     silent and the data directory's lock is free, within 30 s. On success
     it ends every window's connection. On failure it writes the previous
