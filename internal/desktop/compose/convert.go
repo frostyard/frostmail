@@ -23,7 +23,7 @@ import (
 type PartLoader func(src string) ([]byte, error)
 
 // converter walks a draft's HTML into paragraphs. A quotation's depth is
-// kept in Indent, since the editor's Quote is one level (plan 0015).
+// kept separately from list indentation, including while the editor splits it.
 type converter struct {
 	load  PartLoader
 	paras []richtext.Paragraph
@@ -55,7 +55,7 @@ func ToText(src string, load PartLoader) richtext.Text {
 func (c *converter) style() richtext.ParagraphStyle {
 	var s richtext.ParagraphStyle
 	if c.quote > 0 {
-		s.Quote, s.Indent = true, c.quote-1
+		s.Quote, s.QuoteDepth = true, c.quote
 	}
 	if n := len(c.list); n > 0 {
 		s.List, s.Indent = c.list[n-1], n-1
@@ -259,8 +259,7 @@ func listTag(kind richtext.ListKind) string {
 
 // ToHTML writes the editor's text as the draft's HTML: a quotation's depth
 // as nested <blockquote type="cite">, lists as <ul> and <ol>, nested by
-// their items' Indent. A list item's Indent is its level, so a list inside
-// a quotation is at the quotation's first level.
+// their items' Indent. QuoteDepth is independent of the list nesting.
 func ToHTML(t richtext.Text) string {
 	var b strings.Builder
 	depth := 0
@@ -277,10 +276,7 @@ func ToHTML(t richtext.Text) string {
 	for _, p := range t.Paragraphs() {
 		want := 0
 		if p.Style.Quote {
-			want = 1
-			if p.Style.List == richtext.NoList {
-				want = p.Style.Indent + 1
-			}
+			want = max(1, p.Style.QuoteDepth)
 		}
 		if want != depth {
 			closeLists(0)

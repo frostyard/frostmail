@@ -312,7 +312,8 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 2. **Compose.** `richtext` holds what TipTap's schema holds, except a
    quotation inside a quotation, which `ParseHTML` merges into 1 level
    ([Phase 0's records](#phase-0s-records-2026-11-10)). A small converter
-   keeps the depth in the paragraph's `Indent` and writes nested
+   keeps the depth in the paragraph's `QuoteDepth`, independently of
+   list `Indent`, and writes nested
    `<blockquote type="cite">` back. `mailpart:` images in a draft must be
    loaded for display and written back as their URLs, at their real
    size; pasted remote images must be dropped, as `SafeImage` does; and
@@ -660,7 +661,7 @@ unless that pipe listed only fixture accounts.
 ## Phase 5 — Compose (L)
 
 - The draft's HTML through a converter around `richtext`: a quotation's
-  depth kept in `Indent` and written back as nested
+  depth kept in `QuoteDepth`, independently of list `Indent`, and written back as nested
   `<blockquote type="cite">`, headings read as body paragraphs (TipTap's
   schema has none), and `mailpart:` images loaded so that they keep their
   real size.
