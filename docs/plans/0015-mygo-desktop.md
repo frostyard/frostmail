@@ -633,9 +633,9 @@ unless that pipe listed only fixture accounts.
   covers the handlers and the order of loading through a fake page.
 - **A limit of the page's measuring:** it measures on load, on a change of
   width and on a press in the page, then until 3 measures agree. While the
-  page has the keyboard it is measured every second, for up to 120 measures
-  from the focus or the last press; See More toggled from the keyboard
-  after that shows at the next press, resize or change of focus.
+  page has the keyboard it is measured once a second, for as long as it is
+  drawn; a page that is not drawn stops within 30 measures. See More
+  toggled from the keyboard therefore shows within a second.
 - **Conversation pages** (the open question below): decided as proposed,
   one page per expanded message, destroyed when it collapses.
 - **A trap for checks in the sandbox:** `flatpak run` resets

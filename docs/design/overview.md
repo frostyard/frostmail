@@ -118,6 +118,7 @@ may open, and runs as the system user `frostmail`.
 | `FROSTMAIL_SOCKET` | `$XDG_RUNTIME_DIR/frostmail/maild.sock`; Windows: `\\.\pipe\frostmail-<user SID>` | maild, mailctl, the app |
 | `FROSTMAIL_SECRETS=file` | unset | maild: keep secrets in a plain file, not the Secret Service or DPAPI (development, CI), with a warning |
 | `FROSTMAIL_SECRETS=sealed` | unset | maild on a server: seal the secrets in `secrets.sealed` with the key of the systemd credential `frostmail-secrets-key`, never a fallback (Linux only; [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)) |
+| `FROSTMAIL_INSTANCE=dev` | unset | the desktop app: a single-instance identity of its own, so a development run (`scripts/dev-app.sh`) never hands its arguments to the installed app |
 | `FROSTMAIL_NOTIFIER` | `frostmail-notify.exe` beside maild | maild on Windows: the toast notifier ([desktop.md](desktop.md#windows)) |
 | `FROSTMAIL_APP` | `frostmail` on `PATH`; Windows: `frostmail.exe` beside the notifier | maild on Linux, the notifier on Windows: the app a notification's click runs |
 | `FROSTMAIL_WEBKIT_SAFE=1` | unset | the app: WebKitGTK CPU-rendering workarounds |

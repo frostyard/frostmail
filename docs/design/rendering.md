@@ -53,9 +53,11 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
     the attribute); image URLs (`src`, `background`, CSS `url()`) follow the
     URL rules below.
   - CSS (`style` attributes and `<style>` text) goes through a tokenizer:
-    `@import`, `@font-face`, `@namespace`, `expression(`, `behavior`,
-    `-moz-binding` and `javascript:` are removed; `url()` follows the image
-    rules; everything else is kept, so layout survives.
+    `@import`, `@font-face`, `@namespace`, `@page`, `expression(`,
+    `behavior`, `-moz-binding` and `javascript:` are removed; every `@layer`
+    name gets a `message-` prefix, so a message cannot join the app's print
+    guard; `url()` follows the image rules; everything else is kept, so
+    layout survives.
 - **Image URLs:**
   - `cid:X` → the part with Content-ID X is decoded into
     `parts/m/<messageID>/<part>.<ext>` and embedded as a `data:` URL.
