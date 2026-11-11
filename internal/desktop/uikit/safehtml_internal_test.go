@@ -415,9 +415,11 @@ func TestSafeFrameMeasuresAfterAClick(t *testing.T) {
 		}
 		tt.ClickAt(page.Bounds.X+page.Bounds.W/2, page.Bounds.Y+page.Bounds.H/2)
 		idle()
-		// The click also gave the page the keyboard, which it keeps.
-		if got := f.page.evaluated(); got != settled+measureAgree+watchLimit {
-			t.Errorf("%d measures, want %d", got, settled+measureAgree+watchLimit)
+		// The click also gave the page the keyboard, which it keeps; with
+		// no frame drawing the page after it, the watch ends at its second
+		// look.
+		if got := f.page.evaluated(); got != settled+measureAgree+2*watchCheck+1 {
+			t.Errorf("%d measures, want %d", got, settled+measureAgree+2*watchCheck+1)
 		}
 		if h := frame.Height(); h != 320 {
 			t.Errorf("height after the click = %v", h)
@@ -483,7 +485,7 @@ func TestSafeFrameMeasuresAKeyboardChange(t *testing.T) {
 		idle()
 		tt.Key(0, ui.KeyTab) // into the page
 		synctest.Wait()
-		time.Sleep(30 * time.Second) // reading, with the keyboard in the page
+		time.Sleep(20 * time.Second) // reading, with the keyboard in the page
 		synctest.Wait()
 		f.page.setHeight(640)
 		time.Sleep(2 * watchInterval)
@@ -497,9 +499,68 @@ func TestSafeFrameMeasuresAKeyboardChange(t *testing.T) {
 	})
 }
 
-// A page left with the keyboard is measured for a while, and then no more.
-func TestSafeFrameWatchEnds(t *testing.T) {
-	endless := make([]float64, 2*(measureLimit+watchLimit))
+// drawWhileAsked stands for the app: it draws a frame each time the frame
+// notifies, as a new height or the watch asks it to, until stop is closed.
+func drawWhileAsked(f *pageFixture, tt *ui.Tester, stop <-chan struct{}) {
+	seen := 0
+	for {
+		select {
+		case <-stop:
+			return
+		case <-time.After(watchInterval):
+		}
+		f.mu.Lock()
+		asked := f.notified != seen
+		seen = f.notified
+		f.mu.Unlock()
+		if asked {
+			tt.Frame()
+		}
+	}
+}
+
+// M1: a page keeps the keyboard as long as the reader likes, and See More
+// toggled from the keyboard hours later still shows; the page is measured
+// all that time at watchInterval, no faster.
+func TestSafeFrameWatchesAsLongAsThePageHasTheKeyboard(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := newPageFixture(compiled, 100)
+		margin := float32(0)
+		frame, tt := drawn(t, f, &margin)
+		tt.Frame()
+		f.page.didFinish()
+		idle()
+		tt.Key(0, ui.KeyTab) // into the page
+		synctest.Wait()
+		before := f.page.evaluated()
+		stop := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			drawWhileAsked(f, tt, stop)
+		}()
+		const reading = 3 * time.Hour
+		time.Sleep(reading)
+		synctest.Wait()
+		if got, most := f.page.evaluated()-before, measureAgree+int(reading/watchInterval); got > most {
+			t.Errorf("%d measures in %v, over %d", got, reading, most)
+		}
+		f.page.setHeight(640)
+		time.Sleep(2 * watchInterval)
+		synctest.Wait()
+		close(stop)
+		<-done
+		if h := frame.Height(); h != 640 {
+			t.Errorf("height after %v with the keyboard = %v", reading, h)
+		}
+	})
+}
+
+// A page no frame draws any more, as when the window shows another module,
+// hears of no frame telling it the keyboard left: the watch ends all the
+// same, and no idle page is measured.
+func TestSafeFrameWatchEndsWhenThePageIsNotDrawn(t *testing.T) {
+	endless := make([]float64, 4*watchCheck)
 	for i := range endless {
 		endless[i] = float64(i + 1)
 	}
@@ -514,13 +575,10 @@ func TestSafeFrameWatchEnds(t *testing.T) {
 				f.page.didFinish()
 				idle()
 				measured := f.page.evaluated()
-				if measured > measureLimit+watchLimit {
-					t.Errorf("%d measures, over the bound of %d", measured, measureLimit+watchLimit)
+				if most := measureLimit + 2*watchCheck + 1; measured > most {
+					t.Errorf("%d measures, over the bound of %d", measured, most)
 				}
-				for range 3 {
-					tt.Frame()
-					idle()
-				}
+				idle()
 				if got := f.page.evaluated(); got != measured {
 					t.Errorf("%d measures after the watch ended at %d", got, measured)
 				}
@@ -550,7 +608,7 @@ func TestSafeFrameWatchEndsWithTheFocus(t *testing.T) {
 		if got := f.page.evaluated(); got != stopped {
 			t.Errorf("%d measures after the focus left, at %d when it did", got, stopped)
 		}
-		if stopped >= watchLimit {
+		if stopped >= watchCheck {
 			t.Errorf("%d measures: the watch ran on", stopped)
 		}
 	})

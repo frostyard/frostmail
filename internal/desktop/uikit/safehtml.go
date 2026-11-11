@@ -120,8 +120,9 @@ type webPage struct {
 }
 
 // NewSafeHTMLView starts compiling the rules for pages of win, as the list
-// rulesID; open gets each link clicked, on a worker, and notify runs when a
-// page's height changes. Call it after the app is ready.
+// rulesID; open gets each link clicked, on a worker, and notify, which must
+// have the window draw a frame, runs when a page's height changes, and now
+// and then while a page has the keyboard. Call it after the app is ready.
 func NewSafeHTMLView(win *mygo.Window, rulesID string, open func(url string), notify func()) *SafeHTMLView {
 	session := mygo.NewEphemeralSession()
 	newPage := func() (webPage, error) {
@@ -172,8 +173,7 @@ type safeFrame struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	width   [2]float32 // the window's and the element's; the UI thread's
-	focused bool       // the page had the keyboard at the last frame; the UI thread's
+	width [2]float32 // the window's and the element's; the UI thread's
 
 	loading chan struct{} // holds a token while a document goes to the page
 
@@ -182,9 +182,11 @@ type safeFrame struct {
 	height   float32
 	shown    bool // a document has finished loading
 	polling  bool
-	agreed   int // measures in a row, this poll, that gave height
-	measures int // measures since the last event
-	watch    int // measures left while the page has the keyboard
+	agreed   int  // measures in a row, this poll, that gave height
+	measures int  // measures since the last event
+	watching bool // the page had the keyboard at the last frame that drew it
+	drawn    bool // a frame drew the page since the watch last looked
+	quiet    int  // watch measures since the watch last looked
 }
 
 // Load waits for the rules, so that no page shows without them: a page
@@ -228,7 +230,7 @@ func (f *safeFrame) isNewest(number int) bool {
 // View draws the page. A new width or a click (on See More, say) can change
 // the page's height, and no script in it can say so: each measures it again.
 // So can a key the page takes for itself, which nothing here hears of: while
-// the page has the keyboard, a watch measures it for a while.
+// the page has the keyboard, a watch measures it, however long that is.
 func (f *safeFrame) View(c *ui.Context) ui.Element {
 	e := ui.WebView(c, f.web.view)
 	// The window's width is this frame's, the element's the last frame's.
@@ -239,11 +241,7 @@ func (f *safeFrame) View(c *ui.Context) ui.Element {
 		f.width = width
 	}
 	pressed, focused := e.PressedInside(), e.Focused()
-	if focused != f.focused || focused && pressed {
-		f.focused = focused
-		f.watchKeyboard(focused)
-	}
-	if resized || pressed {
+	if f.drawnWith(focused) || resized || pressed {
 		f.remeasure()
 	}
 	return e
@@ -258,15 +256,19 @@ func (f *safeFrame) Height() float32 {
 // A poll measures the page every measureInterval until measureAgree
 // measures in a row agree, or measureLimit measures since the last event
 // have not: then nothing measures the page until the next event. While the
-// page has the keyboard the poll goes on, every watchInterval for watchLimit
-// measures from the focus or the last press: a page left focused stops being
-// measured all the same.
+// page has the keyboard the poll goes on, every watchInterval, until the
+// keyboard leaves it, the window's included: a key can change the page at
+// any time, and nothing else says so. Only a frame that draws the page
+// says where the keyboard is, and a page no longer drawn hears of no frame:
+// every watchCheck measures the watch asks for a frame, and ends when no
+// frame drew the page since it last asked. A page without the keyboard is
+// not measured until the next event.
 const (
 	measureInterval = 400 * time.Millisecond
 	measureAgree    = 3
 	measureLimit    = 25
 	watchInterval   = time.Second
-	watchLimit      = 120
+	watchCheck      = 30
 )
 
 const measureScript = `Math.ceil(Math.max(document.body.scrollHeight,document.body.getBoundingClientRect().height))`
@@ -294,24 +296,24 @@ func (f *safeFrame) remeasure() {
 	}
 }
 
-// watchKeyboard starts the watch of a page that took the keyboard, or ends
-// it when the page lost it.
-func (f *safeFrame) watchKeyboard(focused bool) {
+// drawnWith notes a frame that drew the page, and whether the page has the
+// keyboard: the watch starts when the page took it, and ends when it lost
+// it. It reports whether the watch started.
+func (f *safeFrame) drawnWith(focused bool) bool {
 	f.mu.Lock()
-	f.watch = 0
-	if focused {
-		f.watch = watchLimit
+	defer f.mu.Unlock()
+	f.drawn = true
+	if focused == f.watching {
+		return false
 	}
-	f.mu.Unlock()
-	if focused {
-		f.remeasure()
-	}
+	f.watching, f.quiet = focused, 0
+	return focused
 }
 
 func (f *safeFrame) poll() {
 	for {
-		changed, wait := f.record(f.measure())
-		if changed {
+		redraw, wait := f.record(f.measure())
+		if redraw {
 			f.owner.notify()
 		}
 		if wait == 0 {
@@ -335,9 +337,10 @@ func (f *safeFrame) measure() (float32, bool) {
 	return float32(h), ok
 }
 
-// record takes a measure, and reports whether the height changed and how
-// long until the next measure: 0 when the poll is over.
-func (f *safeFrame) record(height float32, ok bool) (changed bool, wait time.Duration) {
+// record takes a measure, and reports whether the window should draw a
+// frame, as the height changed or the watch asks for one, and how long
+// until the next measure: 0 when the poll is over.
+func (f *safeFrame) record(height float32, ok bool) (redraw bool, wait time.Duration) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.measures++
@@ -350,19 +353,25 @@ func (f *safeFrame) record(height float32, ok bool) (changed bool, wait time.Dur
 		f.agreed = 1
 	}
 	if ok {
-		changed = height != f.height
+		redraw = height != f.height
 		f.height = height
 	}
 	switch {
 	case f.agreed < measureAgree && f.measures < measureLimit:
 		wait = measureInterval
-	case f.watch > 0:
-		f.watch--
+	case f.watching && f.quiet < watchCheck:
+		f.quiet++
 		wait = watchInterval
+	case f.watching && f.drawn:
+		f.drawn, f.quiet = false, 0
+		redraw, wait = true, watchInterval
 	default:
-		f.polling = false
+		// Unless a frame drew the page since the watch last asked, the
+		// page is off the screen, and has not the keyboard, whatever the
+		// last frame that drew it said.
+		f.watching, f.polling = false, false
 	}
-	return changed, wait
+	return redraw, wait
 }
 
 func (f *safeFrame) Selection() string {
