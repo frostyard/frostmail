@@ -41,6 +41,26 @@ func corpus(t *testing.T, origin string) string {
 	return dir
 }
 
+// openHostile shows the Hostile mailbox and opens its first message, and
+// returns the reader's page. A click can land before the row is drawn, or
+// be lost to a change of the list, so it is repeated until the page shows.
+func openHostile(s *session) node {
+	s.t.Helper()
+	s.press(1, s.waitNode(1, "treeItem", "^Hostile"))
+	row := s.waitNode(1, "listItem", "Hostile")
+	deadline := time.Now().Add(settle)
+	for {
+		s.center(1, row)
+		time.Sleep(time.Second)
+		if body := find(s.tree(1), "", "Message body"); body != nil {
+			return *body
+		}
+		if time.Now().After(deadline) {
+			s.t.Fatalf("the first message did not open; the window shows:\n%s", dump(s.tree(1)))
+		}
+	}
+}
+
 // Every hostile message, shown in the real page, asks for nothing.
 func TestHostileMailMakesNoRequests(t *testing.T) {
 	var hits atomic.Int64
@@ -54,10 +74,7 @@ func TestHostileMailMakesNoRequests(t *testing.T) {
 
 	dir := corpus(t, "http://"+ln.Addr().String())
 	s := start(t, options{fixture: []string{"-n", "2", "-hostile", dir}})
-	s.press(1, s.waitNode(1, "treeItem", "^Hostile"))
-	s.waitNode(1, "", `^\d+ messages?$`)
-	s.click(1, 400, 200)
-	s.waitFor(1, "the reader's page", func(tree []node) bool { return find(tree, "", "Message body") != nil })
+	openHostile(s)
 	entries, _ := os.ReadDir(dir)
 	for range entries {
 		s.key(1, "Down")
@@ -78,10 +95,7 @@ func TestLinkClickReachesTheHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := start(t, options{fixture: []string{"-n", "0", "-hostile", dir}})
-	s.press(1, s.waitNode(1, "treeItem", "^Hostile"))
-	s.waitNode(1, "", `^1 message$`)
-	s.click(1, 400, 200)
-	body := s.waitNode(1, "", "Message body")
+	body := openHostile(s)
 	time.Sleep(2 * time.Second) // the page lays out after the element exists
 	log := filepath.Join(s.root, "links.log")
 	origin := s.windows()[0].Content
@@ -126,8 +140,14 @@ func TestForwardKeepsAnInlineImage(t *testing.T) {
 	s := start(t, options{fixture: []string{"-showcase", filepath.Join(repoRoot, "app", "e2e", "showcase"), "-smtp", addr},
 		env: []string{"FROSTMAIL_SYNC=on", "FROSTMAIL_UNDO_DELAY=0s"}})
 	row := s.waitNode(1, "", "Your trip to Lisbon")
-	s.center(1, row)
-	s.waitNode(1, "", "Message body")
+	deadline := time.Now().Add(settle)
+	for find(s.tree(1), "", "Message body") == nil {
+		if time.Now().After(deadline) {
+			t.Fatalf("the message did not open; the window shows:\n%s", dump(s.tree(1)))
+		}
+		s.center(1, row)
+		time.Sleep(time.Second)
+	}
 	s.key(1, "CmdOrCtrl+Shift+F")
 	w := s.waitWindow("Fwd|Trip|trip|Lisbon")
 	to := s.waitNode(w, "comboBox", "^To$")
