@@ -151,41 +151,44 @@ func TestBoundClientEndsWithItsTarget(t *testing.T) {
 	}
 }
 
-func testComposeWindows(drafts ...int64) (*composeWindows, *int) {
+// local is a draft of this computer's maild.
+func local(draft int64) draftKey { return draftKey{target: "Local", draft: draft} }
+
+func testComposeWindows(drafts ...draftKey) (*composeWindows, *int) {
 	quits := 0
-	s := &composeWindows{windows: map[int64]*mygo.Window{}, leaving: map[int64]bool{}, gone: map[int64][]func(){},
-		quitWaits: map[int64]bool{}, quit: func() { quits++ }}
+	s := &composeWindows{windows: map[draftKey]*mygo.Window{}, leaving: map[draftKey]bool{}, gone: map[draftKey][]func(){},
+		quitWaits: map[draftKey]bool{}, quit: func() { quits++ }}
 	for _, d := range drafts {
 		s.windows[d] = nil
 	}
 	return s, &quits
 }
 
-// askedByQuit is a quit's pass over the windows reaching draft's, which
+// askedByQuit is a quit's pass over the windows reaching key's, which
 // turns it down to save: the pass stops there.
-func askedByQuit(s *composeWindows, draft int64) {
+func askedByQuit(s *composeWindows, key draftKey) {
 	s.quitting = true
-	s.refused(draft)
+	s.refused(key)
 	s.quitting = false
 }
 
 // RR1-N1: a quit stops at the first compose window still saving, before it
 // asks the windows after it; it goes on each time such a window closes.
 func TestQuitGoesOnAfterEachComposerCloses(t *testing.T) {
-	s, quits := testComposeWindows(1, 2, 3)
-	askedByQuit(s, 1)
-	s.closed(1)
+	s, quits := testComposeWindows(local(1), local(2), local(3))
+	askedByQuit(s, local(1))
+	s.closed(local(1))
 	if *quits != 1 {
 		t.Fatalf("quits after the first window closed: %d", *quits)
 	}
-	askedByQuit(s, 2)
-	s.closed(2)
+	askedByQuit(s, local(2))
+	s.closed(local(2))
 	if *quits != 2 {
 		t.Fatalf("quits after the second window closed: %d", *quits)
 	}
 	// A window the user closed, with no quit asking, quits nothing.
-	s.refused(3)
-	s.closed(3)
+	s.refused(local(3))
+	s.closed(local(3))
 	if *quits != 2 {
 		t.Errorf("quits after a window the user closed: %d", *quits)
 	}
@@ -194,17 +197,47 @@ func TestQuitGoesOnAfterEachComposerCloses(t *testing.T) {
 // RR1-N1, M28: a window whose save failed stays open, saying so: what
 // waited for it goes on, and the quit it stopped ends there.
 func TestAKeptComposerEndsTheQuit(t *testing.T) {
-	s, quits := testComposeWindows(1)
-	askedByQuit(s, 1)
+	s, quits := testComposeWindows(local(1))
+	askedByQuit(s, local(1))
 	waited := false
-	s.gone[1] = []func(){func() { waited = true }}
-	s.kept(1)
-	if !waited || s.leaving[1] {
-		t.Errorf("waited %v, leaving %v", waited, s.leaving[1])
+	s.gone[local(1)] = []func(){func() { waited = true }}
+	s.kept(local(1))
+	if !waited || s.leaving[local(1)] {
+		t.Errorf("waited %v, leaving %v", waited, s.leaving[local(1)])
 	}
-	s.refused(1)
-	s.closed(1)
+	s.refused(local(1))
+	s.closed(local(1))
 	if *quits != 0 {
 		t.Errorf("quits after a kept window closed later: %d", *quits)
+	}
+}
+
+// RR2-N1: a draft's window belongs to its maild. Past a change of maild,
+// the new maild's draft of the same ID is another draft: it opens a window
+// of its own, and never raises the old maild's window, kept open after a
+// failed save. The old maild's draft still finds its own.
+func TestComposeWindowsAreKeyedByTheirMaild(t *testing.T) {
+	old, other := local(7), draftKey{target: "lodge.example.ts.net", draft: 7}
+	s, _ := testComposeWindows()
+	kept := &mygo.Window{} // its save on closing failed
+	s.windows[old] = kept
+	if win, ok := s.existing(other, func() {}); ok || win != nil {
+		t.Fatalf("lodge's draft 7 found this computer's draft 7's window: %p, %v", win, ok)
+	}
+	if len(s.gone) != 0 {
+		t.Errorf("hooks %v", s.gone)
+	}
+	if win, ok := s.existing(old, func() {}); !ok || win != kept {
+		t.Fatalf("this computer's draft 7 found %p, %v", win, ok)
+	}
+	// While the old window saves, its own draft opens again after it.
+	s.leaving[old] = true
+	reopened := false
+	if win, ok := s.existing(old, func() { reopened = true }); !ok || win != nil {
+		t.Fatalf("this computer's draft 7 while it saves: %p, %v", win, ok)
+	}
+	s.closed(old)
+	if !reopened {
+		t.Error("its draft did not open again after the window closed")
 	}
 }

@@ -26,9 +26,17 @@ import (
 // partTimeout bounds reading one image from lodge.
 const partTimeout = 30 * time.Second
 
+// draftKey names a draft: its maild, as conn.Target.String names it, and
+// its ID there. A draft's ID means something only to its maild, so the same
+// ID on another maild is another draft.
+type draftKey struct {
+	target string
+	draft  int64
+}
+
 // composeWindows keeps one window per draft. It belongs to the UI thread.
 type composeWindows struct {
-	windows map[int64]*mygo.Window
+	windows map[draftKey]*mygo.Window
 	main    *mainwin.Window
 	// target is the one the app started on; the session's is the one now.
 	target conn.Target
@@ -39,14 +47,14 @@ type composeWindows struct {
 	// leaving holds the drafts whose windows are hidden, saving; gone what
 	// to run when a draft's window has closed, or stayed open as its save
 	// failed.
-	leaving map[int64]bool
-	gone    map[int64][]func()
+	leaving map[draftKey]bool
+	gone    map[draftKey][]func()
 	// quitting says a quit is asking the windows to close. A window still
 	// saving turns it down, which stops it there, before the windows after
 	// it: quitWaits holds those drafts, and each asks again through quit
 	// once it has closed.
 	quitting  bool
-	quitWaits map[int64]bool
+	quitWaits map[draftKey]bool
 	quit      func()
 }
 
@@ -55,7 +63,7 @@ func (s *composeWindows) prepare() {
 	if s.gone != nil {
 		return
 	}
-	s.leaving, s.gone, s.quitWaits = map[int64]bool{}, map[int64][]func(){}, map[int64]bool{}
+	s.leaving, s.gone, s.quitWaits = map[draftKey]bool{}, map[draftKey][]func(){}, map[draftKey]bool{}
 	s.quit = mygo.App.Quit
 	s.all.mu.Lock()
 	s.all.closeCompose = s.closeAll
@@ -69,20 +77,20 @@ func (s *composeWindows) prepare() {
 }
 
 // open shows a draft's window, raising it if it is open. c is the client
-// the draft was made or found on.
+// the draft was made or found on: the session's now, else nothing opens, as
+// the draft may be another maild's.
 func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, fresh bool) {
 	s.prepare()
-	if win := s.windows[draft]; win != nil {
-		if s.leaving[draft] {
-			s.gone[draft] = append(s.gone[draft], func() { s.open(ctx, c, draft, false) })
-			return
-		}
-		win.Restore()
-		win.Focus()
-		return
-	}
 	if c != s.main.Client() {
 		return // that connection has ended, and maybe its maild with it
+	}
+	key := draftKey{target: s.main.ConnectionState().Target.String(), draft: draft}
+	if win, ok := s.existing(key, func() { s.reopen(ctx, key) }); ok {
+		if win != nil {
+			win.Restore()
+			win.Focus()
+		}
+		return
 	}
 	client := boundClient(func() conn.Target { return s.main.ConnectionState().Target }, s.main.Client)
 	post := &poster{}
@@ -100,29 +108,54 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 		LoadPart:     s.loadPart,
 		Sent:         s.main.Sent,
 		EditSnippets: func() { s.settings(settings.PaneSnippets) },
-		Kept:         func() { s.kept(draft) },
+		Kept:         func() { s.kept(key) },
 	})
 	win = mygo.NewWindow(mygo.WindowOptions{Title: "New Message", Width: 720, Height: 560, MinWidth: 480, MinHeight: 360,
 		TitleBarStyle: mygo.TitleBarHidden, Content: ui.View(w.View)})
 	post.attach(win)
 	s.all.add(win)
-	s.windows[draft] = win
+	s.windows[key] = win
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if !w.RequestClose() {
-			s.refused(draft)
+			s.refused(key)
 			e.PreventDefault()
 		}
 	})
-	win.OnClosed(func() { s.closed(draft) })
+	win.OnClosed(func() { s.closed(key) })
 	w.Start(ctx)
+}
+
+// existing finds the window of key's draft, kept or not, to raise; another
+// maild's draft of the same ID has a window of its own. A window still
+// saving is not raised, win is nil, and its draft opens again through
+// reopen once it has closed.
+func (s *composeWindows) existing(key draftKey, reopen func()) (win *mygo.Window, ok bool) {
+	win = s.windows[key]
+	if win == nil {
+		return nil, false
+	}
+	if s.leaving[key] {
+		s.gone[key] = append(s.gone[key], reopen)
+		return nil, true
+	}
+	return win, true
+}
+
+// reopen opens a draft again after its window closed, while the session is
+// on the draft's maild.
+func (s *composeWindows) reopen(ctx context.Context, key draftKey) {
+	if s.main.ConnectionState().Target.String() != key.target {
+		return
+	}
+	s.open(ctx, s.main.Client(), key.draft, false)
 }
 
 // refused records a draft's window turning down a close while it saves: a
 // quit asking it then stops there, and asks again when it has closed.
-func (s *composeWindows) refused(draft int64) {
-	s.leaving[draft] = true
+func (s *composeWindows) refused(key draftKey) {
+	s.leaving[key] = true
 	if s.quitting {
-		s.quitWaits[draft] = true
+		s.quitWaits[key] = true
 	}
 }
 
@@ -141,16 +174,16 @@ func boundClient(target func() conn.Target, current func() *api.Client) func() *
 
 // closed forgets a draft's window, once its save has ended. A quit that
 // stopped at it goes on: the windows after it have not been asked.
-func (s *composeWindows) closed(draft int64) {
-	hooks := s.gone[draft]
-	delete(s.windows, draft)
-	delete(s.leaving, draft)
-	delete(s.gone, draft)
+func (s *composeWindows) closed(key draftKey) {
+	hooks := s.gone[key]
+	delete(s.windows, key)
+	delete(s.leaving, key)
+	delete(s.gone, key)
 	for _, fn := range hooks {
 		fn()
 	}
-	if s.quitWaits[draft] {
-		delete(s.quitWaits, draft)
+	if s.quitWaits[key] {
+		delete(s.quitWaits, key)
 		s.quit()
 	}
 }
@@ -158,11 +191,11 @@ func (s *composeWindows) closed(draft int64) {
 // kept learns that a draft's window stayed open, as its save on closing
 // failed: what waited for it to close goes on, and a quit that stopped at
 // it ends there, for the window says why.
-func (s *composeWindows) kept(draft int64) {
-	hooks := s.gone[draft]
-	delete(s.leaving, draft)
-	delete(s.gone, draft)
-	if s.quitWaits[draft] {
+func (s *composeWindows) kept(key draftKey) {
+	hooks := s.gone[key]
+	delete(s.leaving, key)
+	delete(s.gone, key)
+	if s.quitWaits[key] {
 		clear(s.quitWaits)
 	}
 	for _, fn := range hooks {
@@ -178,9 +211,9 @@ func (s *composeWindows) kept(draft int64) {
 func (s *composeWindows) closeAll() {
 	var closing sync.WaitGroup
 	mygo.RunOnMain(func() {
-		for draft, win := range s.windows {
+		for key, win := range s.windows {
 			closing.Add(1)
-			s.gone[draft] = []func(){closing.Done} // and no reopening: its maild is going
+			s.gone[key] = []func(){closing.Done} // and no reopening: its maild is going
 			win.Close()
 		}
 	})

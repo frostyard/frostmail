@@ -136,7 +136,7 @@ func run() error {
 				composer.open(ctx, c, draft, fresh)
 			},
 		})
-		composer = &composeWindows{windows: map[int64]*mygo.Window{}, main: main, target: target, paths: paths, settings: prefs.open, all: windows}
+		composer = &composeWindows{windows: map[draftKey]*mygo.Window{}, main: main, target: target, paths: paths, settings: prefs.open, all: windows}
 		prefs.main, prefs.all = main, windows
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Frostmail", Width: 1200, Height: 780, MinWidth: 800, MinHeight: 500,
