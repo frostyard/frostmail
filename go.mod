@@ -11,7 +11,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/frostyard/clix v0.5.0
-	github.com/frostyard/frostui v0.2.0
+	github.com/frostyard/frostui v0.3.0
 	github.com/frostyard/lodge/kit v0.4.0
 	github.com/frostyard/std v0.4.0
 	github.com/godbus/dbus/v5 v5.2.4
