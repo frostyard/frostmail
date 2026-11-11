@@ -1,16 +1,14 @@
 /** Filter a mailto link before handing it to another app (ADR-0056).
  * Non-mailto URLs pass through. Retained fields stay byte for byte. */
 export function filterMailto(url: string): string | null {
-  // A browser ignores tabs/newlines and leading whitespace in schemes.
-  // Recognize those forms too, then refuse them rather than bypass filtering.
-  const colon = url.indexOf(":");
-  if (colon < 0) return url;
-  const scheme = url
-    .slice(0, colon)
-    .replace(/[\t\n\r]/g, "")
-    .trimStart()
-    .toLowerCase();
-  if (scheme !== "mailto") return url;
+  // Recognize the scheme as the browser does, including ignored leading
+  // controls and embedded tabs/newlines. Only inspect the protocol; keep
+  // the original address and fields below, without decoding or serializing.
+  try {
+    if (new URL(url).protocol !== "mailto:") return url;
+  } catch {
+    return url;
+  }
   if (!/^mailto:/i.test(url) || [...url].some((c) => c.charCodeAt(0) <= 0x20 || c.charCodeAt(0) === 0x7f)) return null;
   const fragment = url.indexOf("#");
   const bare = fragment < 0 ? url : url.slice(0, fragment);

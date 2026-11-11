@@ -36,6 +36,8 @@ describe.each(["lodge", "browser"])("mailto links opened through %s", (through) 
 
   it.each([
     " mailto:a@e.test?attach=x",
+    "\u0000mailto:a@e.test?attach=x",
+    "\u001fmailto:a@e.test?attach=x",
     "mail\nto:a@e.test?attach=x",
     "MAIL\tTO:a@e.test?attach=x",
     "mailto:a@e.test?body=a b",
