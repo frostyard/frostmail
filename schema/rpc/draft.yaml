@@ -74,6 +74,18 @@ methods:
     errors: [notFound]
     callers: [local, session, agent]
     scope: write
+  - name: image
+    doc: >-
+      Name an existing cached image referenced by an img src in the saved
+      draft. Never fetches remote content. The path is relative to the parts
+      cache; only regular image files within that cache and the renderer's
+      size limit are admitted. On Lodge, contentPath names its signed route.
+    params:
+      - {name: id, type: int}
+      - {name: path, type: string}
+    result: PartFile
+    errors: [notFound, invalidParams, unavailable]
+    callers: [local, session]
   - name: list
     doc: Drafts, most recently changed first.
     params:

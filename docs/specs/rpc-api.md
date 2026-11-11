@@ -1057,6 +1057,18 @@ Errors: `notFound`.
 Callers of this method: `local`, `session`, `agent`.
 An agent's scope must grant `write`.
 
+### `draft.image`
+
+Name an existing cached image referenced by an img src in the saved draft. Never fetches remote content. The path is relative to the parts cache; only regular image files within that cache and the renderer's size limit are admitted. On Lodge, contentPath names its signed route.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+| `path` | `string` |  |
+
+Result: `PartFile`.
+Errors: `notFound`, `invalidParams`, `unavailable`.
+
 ### `draft.list`
 
 Drafts, most recently changed first.
@@ -1836,7 +1848,7 @@ A message prepared for the reader.
 
 ### Type `PartFile`
 
-A message part decoded into the parts cache.
+A message part or draft image in the parts cache.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

@@ -1146,6 +1146,12 @@ export interface DraftGetParams {
   id: number;
 }
 
+/** Params of draft.image. */
+export interface DraftImageParams {
+  id: number;
+  path: string;
+}
+
 /** Params of draft.list. */
 export interface DraftListParams {
   accountId?: number;
@@ -1233,6 +1239,13 @@ export interface DraftClient {
   open(params: DraftOpenParams): Promise<Draft>;
   /** One draft. */
   get(params: DraftGetParams): Promise<Draft>;
+  /**
+   * Name an existing cached image referenced by an img src in the saved
+   * draft. Never fetches remote content. The path is relative to the parts
+   * cache; only regular image files within that cache and the renderer's size
+   * limit are admitted. On Lodge, contentPath names its signed route.
+   */
+  image(params: DraftImageParams): Promise<PartFile>;
   /** Drafts, most recently changed first. */
   list(params?: DraftListParams): Promise<Draft[]>;
   /**
@@ -1282,6 +1295,7 @@ function draftClient(t: Transport): DraftClient {
     create: (params) => t.call<Draft>("draft.create", params),
     open: (params) => t.call<Draft>("draft.open", params),
     get: (params) => t.call<Draft>("draft.get", params),
+    image: (params) => t.call<PartFile>("draft.image", params),
     list: (params = {}) => t.call<Draft[]>("draft.list", params),
     unsaved: (params = {}) => t.call<Draft[]>("draft.unsaved", params),
     update: (params) => t.call<Draft>("draft.update", params),
@@ -1717,7 +1731,7 @@ export interface Rendering {
   contentPath?: string;
 }
 
-/** A message part decoded into the parts cache. */
+/** A message part or draft image in the parts cache. */
 export interface PartFile {
   /** Relative to the parts cache, as in a mailpart://localhost/ URL. */
   path: string;
@@ -3415,6 +3429,7 @@ export const METHODS = [
   "draft.create",
   "draft.open",
   "draft.get",
+  "draft.image",
   "draft.list",
   "draft.unsaved",
   "draft.update",

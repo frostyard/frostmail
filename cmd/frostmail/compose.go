@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -114,7 +113,7 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 		SetTitle:     func(title string) { win.SetTitle(title) },
 		OpenFiles:    openFiles,
 		FilesAsBytes: func() bool { return s.main.ConnectionState().Target.Remote() || os.Getenv("FLATPAK_ID") != "" },
-		LoadPart:     s.loadPart,
+		LoadPart:     func(c *api.Client, src string) ([]byte, error) { return s.loadPart(c, draft, src) },
 		Sent:         s.main.Sent,
 		EditSnippets: func() { s.settings(settings.PaneSnippets) },
 		Kept:         func() { s.kept(key) },
@@ -242,17 +241,17 @@ func (s *windowSet) closeComposeWindows() {
 }
 
 // loadPart reads a mailpart: image for the editor, on a worker.
-func (s *composeWindows) loadPart(c *api.Client, src string) ([]byte, error) {
-	return loadPart(c, s.main.ConnectionState().Target, s.paths.CacheDir, src)
+func (s *composeWindows) loadPart(c *api.Client, draft int64, src string) ([]byte, error) {
+	return loadPart(c, s.main.ConnectionState().Target, s.paths.CacheDir, draft, src)
 }
 
 // loadPart reads a mailpart: image from maild's parts cache under cacheDir,
 // or, behind lodge, where that cache is on lodge's host, from lodge's
 // content route.
-func loadPart(c *api.Client, target conn.Target, cacheDir, src string) ([]byte, error) {
+func loadPart(c *api.Client, target conn.Target, cacheDir string, draft int64, src string) ([]byte, error) {
 	rel := strings.TrimPrefix(src, "mailpart://localhost/")
 	if l := target.Lodge; l != nil {
-		return fetchPart(c, *l, cacheDir, rel)
+		return fetchPart(c, *l, cacheDir, draft, rel)
 	}
 	root, err := os.OpenRoot(filepath.Join(cacheDir, "parts"))
 	if err != nil {
@@ -280,18 +279,21 @@ func partOf(rel string) (message int64, part string, ok bool) {
 }
 
 // fetchPart asks maild to name a part on its content route, and reads it
-// from lodge. Only what partOf reads goes to maild: the path is the mail's.
-func fetchPart(c *api.Client, l conn.Lodge, cacheDir, rel string) ([]byte, error) {
+// from lodge. Other cached images must occur in the saved draft.
+func fetchPart(c *api.Client, l conn.Lodge, cacheDir string, draft int64, rel string) ([]byte, error) {
 	if c == nil {
 		return nil, errors.New("not connected to maild")
 	}
 	message, part, ok := partOf(rel)
-	if !ok {
-		return nil, fmt.Errorf("not a message part: %s", rel)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), partTimeout)
 	defer cancel()
-	f, err := c.Message().Part(ctx, &api.MessagePartParams{ID: message, Path: part})
+	var f *api.PartFile
+	var err error
+	if ok {
+		f, err = c.Message().Part(ctx, &api.MessagePartParams{ID: message, Path: part})
+	} else {
+		f, err = c.Draft().Image(ctx, &api.DraftImageParams{ID: draft, Path: rel})
+	}
 	if err != nil {
 		return nil, err
 	}
