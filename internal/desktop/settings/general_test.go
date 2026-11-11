@@ -165,3 +165,18 @@ func TestAnnouncementsReachTheNotifier(t *testing.T) {
 		return len(got) == 1 && got[0].Title == "New mail"
 	})
 }
+
+// A stored change coming back must not take the text being typed.
+func TestFlagNamesKeepTheFieldBeingTyped(t *testing.T) {
+	f := newFixture(t, setup{})
+	f.general()
+	f.fill("Flag 2 name", "Half typed")
+	names := []string{"Elsewhere", "", "", "", "", "", ""}
+	if _, err := f.c.Settings().Set(t.Context(), &api.SettingsSetParams{FlagNames: names}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the other field to follow", func() bool { return f.value("Flag 1 name") == "Elsewhere" })
+	if got := f.value("Flag 2 name"); got != "Half typed" {
+		t.Errorf("the field being typed in holds %q", got)
+	}
+}

@@ -28,6 +28,10 @@ import (
 // version is stamped at build time.
 var version = "dev"
 
+// testLaunch stands in for the system's handler of links in the automation
+// build, when a check asks; nil opens them.
+var testLaunch func(url string) error
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "frostmail:", err)
@@ -108,6 +112,7 @@ func run() error {
 			DownloadDir:  filepath.Join(paths.CacheDir, "frostmail-app", "attachments"),
 			NewFrame:     func() (uikit.Frame, error) { return frames.New() },
 			SaveDialog:   saveDialog,
+			Launch:       testLaunch,
 			SocketLost:   func(err error) { rec.Error(codeSocketLost, err) },
 			Settings:     prefs.w,
 			OpenSettings: prefs.open,

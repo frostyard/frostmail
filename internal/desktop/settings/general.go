@@ -17,10 +17,12 @@ import (
 // generalPane is what the General pane holds: maild's preferences are in
 // the window's data.
 type generalPane struct {
-	names   [7]string // what the flag fields hold
-	synced  []string  // the stored names they last took
-	focused int       // the flag field with the focus, -1 for none
-	err     string
+	names  [7]string // what the flag fields hold
+	synced []string  // the stored names they last took
+	// flagSave closes when the newest save of the names has ended.
+	flagSave chan struct{}
+	focused  int // the flag field with the focus, -1 for none
+	err      string
 }
 
 // scope is a notification scope as the drop-down offers it.
@@ -134,13 +136,18 @@ func (w *Window) flagField(c *ui.Context, g *generalPane, i int, off bool) {
 	})
 }
 
-// syncFlagNames shows the stored names whenever they change.
+// syncFlagNames shows the stored names whenever they change, except in
+// the field being typed in: an earlier save coming back must not take the
+// text from under the user, and leaving the field saves it.
 func (w *Window) syncFlagNames(g *generalPane) {
 	if w.data.settings == nil || slices.Equal(g.synced, w.data.settings.FlagNames) && g.synced != nil {
 		return
 	}
 	g.synced = w.data.settings.FlagNames
 	for i := range g.names {
+		if i == g.focused {
+			continue
+		}
 		g.names[i] = ""
 		if i < len(g.synced) {
 			g.names[i] = g.synced[i]
@@ -162,9 +169,25 @@ func (w *Window) saveFlagNames(g *generalPane) {
 		}
 		changed = changed || trimmed[i] != stored
 	}
-	if changed {
-		w.setSettings(&api.SettingsSetParams{FlagNames: trimmed})
+	if !changed {
+		return
 	}
+	// Each save carries all 7 names, so they go in order: an older one
+	// landing last would put back what a newer one changed.
+	prev, done := g.flagSave, make(chan struct{})
+	g.flagSave = done
+	w.generalCall(func(ctx context.Context, c *api.Client) error {
+		defer close(done)
+		if prev != nil {
+			select {
+			case <-prev:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		_, err := c.Settings().Set(ctx, &api.SettingsSetParams{FlagNames: trimmed})
+		return err
+	})
 }
 
 // blockedRows lists the blocked senders, by address.

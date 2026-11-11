@@ -98,9 +98,7 @@ func TestWeekViewShowsEvents(t *testing.T) {
 	f := newFixture(t, commands.Calendar)
 	f.text("Standup")
 	for _, want := range []string{"October 2026", "Holiday", "all-day", "10:30 AM", "Thu", "9 AM", "No Event Selected", "me@a.test", "Work", "Home"} {
-		if !f.tt.HasText(want) {
-			t.Errorf("no %q in %s", want, dump(f.tt))
-		}
+		f.text(want) // the calendars' list can come after the events
 	}
 	if a, ok := f.tt.AccessByRole(ui.RoleButton, "Standup, 9:00 – 9:15 AM, Room 4"); !ok {
 		t.Errorf("no block named with its time and place: %+v", a)
@@ -525,6 +523,7 @@ func TestCalendarToggleWritesEnabled(t *testing.T) {
 func TestDefaultCalendarMenu(t *testing.T) {
 	f := newFixture(t, commands.Calendar)
 	f.text("Standup")
+	f.text("Work")
 	if err := f.tt.RightClick("Work"); err != nil {
 		t.Fatal(err)
 	}

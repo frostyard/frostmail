@@ -21,9 +21,7 @@ func TestPeopleListLetteredAndSelection(t *testing.T) {
 	f := newFixture(t, commands.People)
 	f.text("Ada Lovelace")
 	for _, want := range []string{"All Contacts", "3 contacts", "L", "T", "H", "Contacts", "me@a.test", "No Contact Selected", "Search Contacts"} {
-		if !f.tt.HasText(want) {
-			t.Errorf("no %q in %s", want, dump(f.tt))
-		}
+		f.text(want) // the address books can come after the people
 	}
 	f.click("Ada Lovelace")
 	f.until("the pane", func() bool { return f.tt.HasText("Countess · Engines") })

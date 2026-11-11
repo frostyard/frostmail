@@ -462,10 +462,13 @@ func TestMailboxBehaviorsNameTheMailboxesAndLeaveOutTheRest(t *testing.T) {
 	if p.EraseJunkDays != nil {
 		t.Errorf("eraseJunkDays sent with no Junk mailbox: %v", *p.EraseJunkDays)
 	}
-	f.check("Read only: never change anything on the server")
-	if !f.control(ui.RolePopUpButton, "Erase deleted messages").Disabled {
-		t.Error("a read-only account can erase")
-	}
+	// The save's answer resets the form, so check until the box stays.
+	f.until("the behaviors off", func() bool {
+		if !f.checked("Read only: never change anything on the server") {
+			f.check("Read only: never change anything on the server")
+		}
+		return f.control(ui.RolePopUpButton, "Erase deleted messages").Disabled
+	})
 }
 
 func TestAnAnswerAfterAChangeOfConnectionRemovesNothing(t *testing.T) {
@@ -613,6 +616,8 @@ func TestFinishingASignInFromAPastedAddress(t *testing.T) {
 	f.notSeen("Finish Sign-In")
 	f.click("Sign In…")
 	f.sees("Finish Sign-In")
+	// The row shows before maild answers: wait for the page to open.
+	f.until("the browser", func() bool { return len(f.wantOpened()) == 1 })
 	f.sees("If your browser cannot open the page after you sign in, copy that page's address and paste it here.")
 	if !f.disabled("Finish Sign-In") {
 		t.Error("Finish Sign-In works with no address")
@@ -670,15 +675,23 @@ func TestAWaitingSignInEnds(t *testing.T) {
 	f.open("ann@gmail.com")
 	f.until("the first account", func() bool { return f.tt.HasText("Not signed in") })
 
+	// The row shows before maild answers, and a click waits for an answer
+	// still out: each sign-in goes on once its page has opened.
+	signIn := func() {
+		t.Helper()
+		before := len(f.wantOpened())
+		f.click("Sign In…")
+		f.sees("Finish Sign-In")
+		f.until("the browser", func() bool { return len(f.wantOpened()) > before })
+	}
+
 	// After maild's limit.
-	f.click("Sign In…")
-	f.sees("Finish Sign-In")
+	signIn()
 	at.Add(5*time.Minute + time.Second)
 	f.until("the limit", func() bool { return !f.tt.HasText("Finish Sign-In") })
 
 	// When another account is selected.
-	f.click("Sign In…")
-	f.sees("Finish Sign-In")
+	signIn()
 	f.click("other@a.test")
 	f.until("the other account", func() bool { return f.value("Email Address:") == "other@a.test" })
 	f.click("ann@gmail.com")
@@ -686,8 +699,7 @@ func TestAWaitingSignInEnds(t *testing.T) {
 	f.notSeen("Finish Sign-In")
 
 	// When it finishes elsewhere.
-	f.click("Sign In…")
-	f.sees("Finish Sign-In")
+	signIn()
 	opened := f.wantOpened()
 	if got, err := f.c.Account().FinishSignIn(t.Context(), &api.AccountFinishSignInParams{URL: back(t, opened[len(opened)-1])}); err != nil || !got.SignedIn || got.ID != a.ID {
 		t.Fatalf("finishSignIn = %+v, %v", got, err)

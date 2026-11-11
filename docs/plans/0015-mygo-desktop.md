@@ -34,14 +34,14 @@ no ChairLift pattern where it does not fit.
 
 Status (2026-11-10, later): Phases 3 to 8 are built on Linux over
 frostui v0.2.0, each with its own status below. Phase 9's parts that
-leave Tauri in place are built. Phase 10 waits on the Windows test
-machine, the manual passes and the owner's view of the differences
-listed under each phase; Tauri stays until then.
+leave Tauri in place are built, and the Windows checks that need no
+installer have run. Phase 10 waits on the switch of packaging and CI, the
+installer and the manual passes; Tauri stays until then.
 
 Status (2026-11-10): Phase 0 is in review (this plan, ADR-0054 and
 [ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md),
 Proposed). Phase 0's Linux and Flatpak spikes are run and recorded; its
-Windows spike waits for the test VM. Phase 1's window runs on Linux
+Windows spike ran on 2026-11-10. Phase 1's window runs on Linux
 against a real maild, on frostui v0.2.0's `PaneShell`. Phase 2's maild side and Phase 3 (sidebar, list, search) are built. The console of maild's activity (Phase 2) was
 added on 2026-11-10 at the owner's request, relayed by the orchestrating
 session ("it'd be fun to use that console view from chairlift to show
@@ -439,9 +439,27 @@ inside a quotation merges into 1 level; and a `mailpart:` image with no
 loaded picture is written with `width="1" height="1"`. What Phase 5 does
 about each is in its work items.
 
-**Windows: not run.** `frostmail-win11` does not start: its `virtio` disk
-names `/home/bjk/Downloads/virtio-win-0.1.302.iso`, which no longer
-exists. The WebView2 reader run and the Windows spike wait for that.
+**Windows: run on 2026-11-10,** on `frostmail-win11` (Windows 11 build
+26300, WebView2 156.0.4314.50), with every path under `C:\fm\test`, a
+named pipe of the check's own and fixture mail only; each run stopped
+unless that pipe listed only fixture accounts.
+
+- **The reader spike** (the 50 hostile files and a script probe, against
+  a local canary):
+
+  | Variant | Requests | Script ran |
+  | --- | --- | --- |
+  | none | 2,379 | yes |
+  | CSP only | 1 (`29-meta-refresh.html`) | no |
+  | rules only | 0 | yes |
+  | CSP and rules | 0 | no |
+
+  On WebView2 the CSP alone let the meta refresh through, which it did not
+  on WebKitGTK; the rules stopped it. `Eval` read the height and the
+  selection, and `FindInPage` reported 1 of 2.
+- **Over SSH** MyGo makes no window: `DCompositionCreateDevice2 failed
+  (HRESULT 0x80070005)`, in session 0. Windows need someone signed in at
+  the console, as Brian was for these checks.
 
 ## Phase 1 — The skeleton and the data layer (L)
 
@@ -476,7 +494,7 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   that scrolls with every visible row filled, and comes back by itself
   after maild restarts; the Windows build starts and connects on
   `frostmail-win11`.
-- **Status (2026-11-10): built, with its Linux check run; Windows waits.**
+- **Status (2026-11-10): built, with its Linux and Windows checks run.**
   `conn`, `live`, `commands`, `mainwin`, `frame`, `uikit.SummaryRow` and
   `cmd/frostmail`. The check, driven with `mygo-automation` on this
   desktop against a maild with `FROSTMAIL_SYNC=off`: the window showed
@@ -484,7 +502,7 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   built around row 4,762 all held their text; killing maild showed
   `● Reconnecting to maild…`, and restarting it showed `● Local` and rows
   again, within the 4 s the check waited. `cmd/frostmail` cross-builds for
-  Windows; running it there waits for `frostmail-win11`
+  Windows, and ran there on 2026-11-10
   ([Phase 0's records](#phase-0s-records-2026-11-10)).
 - **Not in this phase after all:** `--open-message` needs the reader, so
   it moves to Phase 4; problem records and the production build flags
@@ -588,9 +606,18 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   does not separate it from the page's defenses; Phase 0's spike did, on
   the same CSP and rules. On the last message the find bar reported "1 of
   1" for text in its body, so that page had loaded.
-- **Not run:** WebView2 (the Windows VM is down); clicking a link in the
-  built app, which would open the desktop's browser (Phase 0's spike ran
-  the handlers); a direct probe for script in the built app.
+- **Check of 2026-11-10, built app on Windows 11, WebView2, fixture
+  maild:** the 50 files of the hostile corpus, selected in turn, 0.7 s
+  each: the canary logged 0 requests. On the last message the find bar
+  reported "1 of 1" for text in its body, and "No matches" for text not
+  in it. A real mouse click on an `https` link in the page reached the
+  link handler (the automation build logs it rather than opening a
+  browser), and the window count stayed at 1. A `file:` link in the same
+  message reached the page as plain text, since maild's sanitizer had
+  removed the link.
+- **Not run:** clicking a link in the built app on WebKitGTK, and a
+  direct probe for script in the built app on either engine (the spikes
+  ran those on the page).
 - **Differences from the React reader, to confirm at the gate:**
   - Find covers the message bodies only, not the native header and
     banners. Text bodies are drawn in a page too, so find, print and
@@ -725,8 +752,11 @@ exists. The WebView2 reader run and the Windows spike wait for that.
 - **Differences to confirm at the gate:** a sidebar of panes instead of
   the toolbar's tabs; lists capped at 196 high above their forms; smart
   mailboxes in the notify scope as "Smart Mailbox: name", as `Select` has
-  no groups; a second save is disabled, not queued. Windows' toast
-  notifier (`frostmail-notify.exe`) is not wired to the native app.
+  no groups; a second save is disabled, not queued. `maild` runs
+  `frostmail-notify.exe` as it does today. In lodge mode the native app
+  shows its notes through MyGo's notifications on Windows too; this
+  plan's table has the notifier there, which is not built, and that path
+  has not been run.
 - **Windows and a shared atlas:** MyGo v0.8.3's windows share one glyph
   atlas. A repack leaves a scene already built with old positions until
   its next frame: in the checks a new window's first frame, and an idle
@@ -762,6 +792,17 @@ exists. The WebView2 reader run and the Windows spike wait for that.
   `make desktop-build` and `make desktop-build-windows` build the app
   with the production flags, and `cmd/frostmail` records crashes and
   `bridge.socket_lost` (`TestLosingTheSocketIsRecorded`).
+- **Check of 2026-11-10 on Windows 11, fixture maild:** the build from
+  `GOOS=windows` ran: the main window with Windows' caption buttons and
+  frostui's embedded icons, the reader, compose, Settings, and Calendar
+  with its events. `maild.exe` and `mailctl.exe` ran on a named pipe of
+  the check's own. `frostmail-notify.exe` showed a toast, which the
+  toast history then held under its tag, and removed it. `--activate`
+  with a message started a stand-in for the app with `--open-message 42`,
+  and with a dismiss reached the fixture's maild, which answered `invalid
+  reminder id`. The notifier was the installed copy, built 2026-10-16; its
+  one later change is a dependency bump. A toast was not clicked: its
+  handler is the real install's.
 - **Not done, on purpose:** the Flatpak manifest, the Windows installer
   and the `app` and `windows-app` CI jobs still build Tauri. Moving them
   removes the shipping app, and the brief keeps Tauri until the parity
@@ -781,6 +822,21 @@ exists. The WebView2 reader run and the Windows spike wait for that.
 - **Done when:** the PR is ready for review with no gap list, and a
   release candidate's Flatpak and Windows installer pass plan 0013's
   clean-install gate.
+
+### Differences the owner accepted (2026-11-10)
+
+Brian's words, relayed by the orchestrating session: "the differences are
+fine". That covers these 5 from the native app's report:
+
+- find covers the message bodies only;
+- print prints the selected message only;
+- HTML and SVG attachments need Save As;
+- the action buttons sit in a row under the top bar;
+- recipient completion loads when compose opens.
+
+It passes nothing else on this gate. The other differences listed under
+Phases 5 to 8 were not named in that report's list and have no decision
+recorded.
 
 ## Phase 11 — Spell check (M, after parity)
 

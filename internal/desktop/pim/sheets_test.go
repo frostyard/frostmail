@@ -286,11 +286,11 @@ func TestRemindersRaiseListSnoozeDismissAndClose(t *testing.T) {
 		t.Fatalf("%v: menu %q", err, win.tt.Menu())
 	}
 	f.until("the row leaving", func() bool { return !win.tt.HasText("Meeting a") })
-	fake.mu.Lock()
-	if len(fake.snoozed) != 1 || fake.snoozed[0] != "a" {
-		t.Errorf("snoozed %v", fake.snoozed)
-	}
-	fake.mu.Unlock()
+	f.until("the snooze reaching maild", func() bool {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return len(fake.snoozed) == 1 && fake.snoozed[0] == "a"
+	})
 	f.until("no Dismiss All", func() bool { return !win.tt.HasText("Dismiss All") })
 	// Opening keeps the reminder and shows the occurrence.
 	f.clickIn(win, "Meeting b")

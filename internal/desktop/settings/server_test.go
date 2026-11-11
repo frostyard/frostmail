@@ -331,7 +331,7 @@ func TestFactsFrom(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	env := map[string]string{"HOME": home, "FROSTMAIL_DATA_DIR": data}
+	env := map[string]string{"HOME": home, "FROSTMAIL_CACHE_DIR": data, "FROSTMAIL_DATA_DIR": data}
 	get := func(key string) string { return env[key] }
 	if f := settings.FactsFrom(get); f != (settings.ServerFacts{}) {
 		t.Errorf("no facts = %+v", f)

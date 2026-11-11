@@ -172,6 +172,20 @@ tasks are not Mail's and are not listed; their parity is
 | P-958 | The Help menu's search, which finds a menu command by name | The command palette, Ctrl+Shift+P, with each command's shortcut; a Commands button in the web build ([ui.md](ui.md#command-palette)) | Have | `keymap.palette.test.ts`, `CommandPalette.test.tsx`, `Palette.test.tsx`, `Palette.lodge.test.tsx` | `TestPaletteOpensWithBothKeysAndListsBuiltCommands`, `TestItemsNameAndDisable` |
 | P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |  |
 
+## Accepted differences of the native app
+
+The native desktop app ([plan 0015](../plans/0015-mygo-desktop.md)) differs
+from the React app in these ways, which Brian accepted on 2026-11-10 ("the
+differences are fine", relayed by the orchestrating session):
+
+- Find in the message (P-309) covers the message bodies only, not the
+  header and banners.
+- Print (P-307) prints the selected message only.
+- HTML and SVG attachments need Save As: they do not open.
+- The action buttons sit in a row under the top bar.
+- Recipient completion (P-504) loads when compose opens, not as each
+  letter is typed.
+
 ## References
 
 - Plan: [plans/0008](../plans/0008-m5-mail-app-parity.md),
