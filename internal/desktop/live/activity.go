@@ -72,20 +72,31 @@ func (a *Activity) Connect(ctx context.Context, c *api.Client, events *Events) e
 			out = append(out, a.take(e))
 		}
 	}
-	if a.lost > 0 {
-		out = append(out, activity.Dropped(a.lost, time.Now()))
-	}
-	for _, e := range a.pending {
-		if e.Seq == 0 || e.Seq > a.seen {
-			out = append(out, a.take(e))
+	// Keep buffering live entries until all history callbacks have run.
+	// Callbacks run outside mu, so an entry arriving during one is queued
+	// for the next drain instead of overtaking the rest of the history.
+	for {
+		if a.lost > 0 {
+			out = append(out, activity.Dropped(a.lost, time.Now()))
 		}
+		for _, e := range a.pending {
+			if e.Seq == 0 || e.Seq > a.seen {
+				out = append(out, a.take(e))
+			}
+		}
+		a.pending, a.lost = nil, 0
+		if len(out) == 0 {
+			a.ready = true
+			a.mu.Unlock()
+			return nil
+		}
+		a.mu.Unlock()
+		for _, e := range out {
+			a.onEntry(e)
+		}
+		out = nil
+		a.mu.Lock()
 	}
-	a.ready, a.pending, a.lost = true, nil, 0
-	a.mu.Unlock()
-	for _, e := range out {
-		a.onEntry(e)
-	}
-	return nil
 }
 
 func (a *Activity) event(ev api.Event) {

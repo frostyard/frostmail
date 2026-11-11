@@ -206,6 +206,7 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 		if err != nil {
 			return fmt.Errorf("fetch dav objects: %w", err)
 		}
+		changed := false
 		err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
 			for _, o := range objects {
 				if err := p.indexDAV(ctx, tx, col, o); err != nil {
@@ -216,7 +217,8 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 			if err != nil {
 				return err
 			}
-			if len(objects) > 0 || n > 0 {
+			changed = len(objects) > 0 || n > 0
+			if changed {
 				if err := p.emitDAV(ctx, tx, col.Kind); err != nil {
 					return err
 				}
@@ -226,6 +228,9 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 		if err != nil {
 			return fmt.Errorf("store dav batch: %w", err)
 		}
+		if changed {
+			p.markDAVChanged(col.ID)
+		}
 	}
 	return nil
 }
@@ -234,12 +239,14 @@ func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, col store.Collecti
 	if len(hrefs) == 0 {
 		return nil
 	}
+	changed := false
 	err := p.m.db.Tx(ctx, func(tx *store.Tx) error {
 		n, err := tx.DeleteObjects(ctx, col.ID, hrefs)
 		if err != nil {
 			return err
 		}
-		if n > 0 {
+		changed = n > 0
+		if changed {
 			if err := p.emitDAV(ctx, tx, col.Kind); err != nil {
 				return err
 			}
@@ -249,11 +256,25 @@ func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, col store.Collecti
 	if err != nil {
 		return fmt.Errorf("delete dav objects: %w", err)
 	}
+	if changed {
+		p.markDAVChanged(col.ID)
+	}
 	return nil
 }
 
+// markDAVChanged counts a collection once per pass, after its transaction
+// commits, even when its objects span several batches and deletions.
+func (p *pass) markDAVChanged(id int64) {
+	if p.davChanged == nil {
+		p.davChanged = make(map[int64]bool)
+	}
+	if !p.davChanged[id] {
+		p.davChanged[id] = true
+		p.changed++
+	}
+}
+
 func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind api.CollectionKind) error {
-	p.changed++
 	switch kind {
 	case api.CollectionKindAddressbook:
 		return tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID})

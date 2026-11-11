@@ -51,8 +51,16 @@ func (a *actor) bodyLoop(ctx context.Context) {
 	// failed are the messages a prefetch could not fetch, which it does
 	// not try again.
 	failed := map[int64]bool{}
-	// got counts the bodies this prefetch run fetched since began.
+	// Count completed bodies and their stored bytes for this prefetch run.
 	got, began := 0, time.Time{}
+	var size int64
+	finish := func() {
+		if !began.IsZero() {
+			a.record(activity.Fetched(a.acct.ID, got, size, time.Since(began)))
+		}
+		got, size, began = 0, 0, time.Time{}
+	}
+	defer finish()
 	for {
 		// A request from the user goes before the next prefetch.
 		select {
@@ -79,20 +87,28 @@ func (a *actor) bodyLoop(ctx context.Context) {
 			s = a.answer(ctx, s, req)
 		case <-a.prefetch:
 			queue = a.prefetchQueue(ctx, failed)
+			if len(queue) == 0 {
+				finish()
+			}
 		case <-more:
 			id := queue[0]
 			queue = queue[1:]
-			if got == 0 {
+			if began.IsZero() {
 				began = time.Now()
 			}
 			var err error
-			if s, _, err = a.serveBody(ctx, s, id, false); err == nil {
-				got++
+			var n int64
+			if s, _, n, err = a.serveBody(ctx, s, id, false); err == nil {
+				if n > 0 { // a user request may already have fetched this body
+					got++
+					size += n
+				}
 			} else {
 				if s == nil {
 					// C3 cannot connect: try again after the next pass.
 					a.m.log.Warn("prefetch stopped", "account", a.acct.ID, "err", err)
 					queue = nil
+					finish()
 					continue
 				}
 				a.m.log.Debug("prefetch", "account", a.acct.ID, "message", id, "err", err)
@@ -101,9 +117,8 @@ func (a *actor) bodyLoop(ctx context.Context) {
 			if len(queue) == 0 {
 				queue = a.prefetchQueue(ctx, failed)
 			}
-			if len(queue) == 0 && got > 0 {
-				a.record(activity.Fetched(a.acct.ID, got, 0, time.Since(began)))
-				got = 0
+			if len(queue) == 0 {
+				finish()
 			}
 		}
 	}
@@ -111,7 +126,7 @@ func (a *actor) bodyLoop(ctx context.Context) {
 
 // answer serves one request and returns the session to keep.
 func (a *actor) answer(ctx context.Context, s *imapx.Session, req bodyRequest) *imapx.Session {
-	s, id, err := a.serveBody(ctx, s, req.id, req.whole)
+	s, id, _, err := a.serveBody(ctx, s, req.id, req.whole)
 	req.reply <- bodyResult{blobID: id, err: err}
 	return s
 }
@@ -133,67 +148,68 @@ func (a *actor) prefetchQueue(ctx context.Context, failed map[int64]bool) []int6
 // serveBody makes sure a message's body is stored, the whole message or
 // what a reader shows, fetching it on s. It opens C3 when needed and once
 // more when the open connection turns out to be dead, and returns the
-// session to keep, nil when there is none.
-func (a *actor) serveBody(ctx context.Context, s *imapx.Session, msgID int64, whole bool) (*imapx.Session, string, error) {
+// session to keep, nil when there is none, and the bytes stored by this
+// fetch (zero for a body already cached).
+func (a *actor) serveBody(ctx context.Context, s *imapx.Session, msgID int64, whole bool) (*imapx.Session, string, int64, error) {
 	// An earlier request may have fetched it while this one waited.
 	detail, err := a.m.db.GetMessage(ctx, msgID)
 	if err != nil {
-		return s, "", err
+		return s, "", 0, err
 	}
 	if id := a.m.stored(detail, whole); id != "" {
-		return s, id, nil
+		return s, id, 0, nil
 	}
 	whole = whole || (detail.Size > 0 && detail.Size <= wholeLimit)
 	for attempt := 0; ; attempt++ {
 		if s == nil {
 			var err error
 			if s, err = a.openBodies(ctx); err != nil {
-				return nil, "", fmt.Errorf("%w: %w", ErrOffline, err)
+				return nil, "", 0, fmt.Errorf("%w: %w", ErrOffline, err)
 			}
 		}
-		id, err := a.fetchBody(ctx, s, msgID, whole)
+		id, size, err := a.fetchBody(ctx, s, msgID, whole)
 		var imapErr *imap.Error
 		if err == nil || errors.Is(err, store.ErrNotFound) || errors.Is(err, imapx.ErrNoMessage) || errors.As(err, &imapErr) {
-			return s, id, err
+			return s, id, size, err
 		}
 		// The connection failed (it may have timed out while idle).
 		_ = s.Close()
 		s = nil
 		if attempt > 0 || ctx.Err() != nil {
-			return nil, "", err
+			return nil, "", 0, err
 		}
 	}
 }
 
 // fetchBody downloads a message's body into the blob store on C3: the
 // whole message, or its display copy.
-func (a *actor) fetchBody(ctx context.Context, s *imapx.Session, id int64, whole bool) (string, error) {
+func (a *actor) fetchBody(ctx context.Context, s *imapx.Session, id int64, whole bool) (string, int64, error) {
 	loc, err := a.m.db.MessageLocation(ctx, id)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	// C3 keeps its mailbox between requests: examining Gmail's All Mail
 	// takes a second.
 	kept := s.Mailbox() == loc.MailboxPath
 	if !kept {
 		if _, err := s.Select(ctx, loc.MailboxPath); err != nil {
-			return "", err
+			return "", 0, err
 		}
 	}
 	raw, got, err := fetchOn(ctx, s, loc.UID, whole)
 	if errors.Is(err, imapx.ErrNoMessage) && kept {
 		// Perhaps newer than the selection: examine the mailbox again.
 		if _, err := s.Select(ctx, loc.MailboxPath); err != nil {
-			return "", err
+			return "", 0, err
 		}
 		raw, got, err = fetchOn(ctx, s, loc.UID, whole)
 	}
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	blobID, err := a.m.blobs.Put(ctx, bytes.NewReader(raw))
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	err = a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		if !got {
@@ -205,7 +221,7 @@ func (a *actor) fetchBody(ctx context.Context, s *imapx.Session, id int64, whole
 		}
 		return tx.Emit(ctx, api.MessageChanged{AccountID: a.acct.ID, IDs: []int64{id}})
 	})
-	return blobID, err
+	return blobID, int64(len(raw)), err
 }
 
 // fetchOn fetches message uid in the selected mailbox, whole or its

@@ -241,3 +241,25 @@ func TestEvictedRowsHaveNotDeparted(t *testing.T) {
 		t.Errorf("departed = %v", got)
 	}
 }
+
+// A live event arriving during a history callback stays after the entire
+// history. Deliver synchronously here so the old interleaving is certain.
+func TestActivityFinishesHistoryBeforeLiveEntries(t *testing.T) {
+	at := time.Now()
+	entries := []api.ActivityEntry{{Seq: 1, At: at}, {Seq: 2, At: at}}
+	s := newHoldServer(map[string]any{"activity.subscribe": api.ActivitySubscription{Seq: 2}, "activity.recent": entries})
+	events := NewEvents()
+	var got []int64
+	a := NewActivity(func(e api.ActivityEntry) {
+		got = append(got, e.Seq)
+		if e.Seq == 1 || e.Seq == 3 {
+			events.Deliver(api.ActivityAdded{Entry: api.ActivityEntry{Seq: e.Seq + 2, At: at}})
+		}
+	})
+	if err := a.Connect(t.Context(), s.client(t), events); err != nil {
+		t.Fatal(err)
+	}
+	if want := []int64{1, 2, 3, 5}; !slices.Equal(got, want) {
+		t.Fatalf("callbacks = %v, want %v", got, want)
+	}
+}

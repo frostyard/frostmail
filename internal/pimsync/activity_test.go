@@ -220,3 +220,26 @@ func TestActivityOfARetriedWriteIsNoRefusal(t *testing.T) {
 		}
 	}
 }
+
+func TestActivityCountsDAVCollectionsAcrossBatchesAndDeletions(t *testing.T) {
+	e := newContactEnv(t)
+	hub := e.recording() // two objects per multiget
+	other := e.dav.AddressBook("other", "Other")
+	for _, book := range []string{e.book, other} {
+		for i := range 5 {
+			card := fmt.Sprintf("BEGIN:VCARD\r\nVERSION:3.0\r\nUID:person%d\r\nFN:Person %d\r\nEND:VCARD\r\n", i, i)
+			e.dav.Put(fmt.Sprintf("%sperson%d.vcf", book, i), []byte(card))
+		}
+	}
+	e.dav.Delete(e.book + "ann.vcf")
+	e.pass()
+	got := hub.Recent(1)
+	if len(got) != 1 || got[0].Changed == nil || *got[0].Changed != 2 {
+		t.Fatalf("pass = %+v, want two changed collections", got)
+	}
+	e.pass()
+	got = hub.Recent(1)
+	if len(got) != 1 || got[0].Changed == nil || *got[0].Changed != 0 {
+		t.Fatalf("quiet pass = %+v, want no changed collections", got)
+	}
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"slices"
@@ -49,6 +50,7 @@ func newActivityCmd(opts *rootOptions) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			recent = slices.DeleteFunc(recent, func(e api.ActivityEntry) bool { return !shown(e, least) })
 			if !follow {
 				if written, err := clix.OutputJSON(recent); err != nil || written {
 					return err
@@ -68,7 +70,7 @@ func newActivityCmd(opts *rootOptions) *cobra.Command {
 			return followActivity(ctx, c, live, w, n, least, seq)
 		},
 	}
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "keep printing entries as maild records them")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "keep printing entries as maild records them (with --json, one JSON object per line)")
 	cmd.Flags().Int64Var(&limit, "limit", 50, "how many of the newest entries to print first (1 to 500)")
 	cmd.Flags().StringVar(&level, "level", "info", "the least level to print: debug, info, warn or error")
 	return cmd
@@ -143,6 +145,14 @@ func shown(e api.ActivityEntry, least api.ActivityLevel) bool {
 func printActivity(ctx context.Context, w io.Writer, e api.ActivityEntry, n *clientNames, least api.ActivityLevel) error {
 	if !shown(e, least) {
 		return nil
+	}
+	if clix.JSONOutput {
+		data, err := json.Marshal(e)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(w, string(data))
+		return err
 	}
 	n.load(ctx, e)
 	source, text := activity.Line(e, n)
