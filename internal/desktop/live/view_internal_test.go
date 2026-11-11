@@ -1,7 +1,11 @@
 package live
 
 import (
+	"context"
+	"encoding/json/v2"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 )
@@ -55,5 +59,42 @@ func TestASnapshotDoesNotChange(t *testing.T) {
 	}
 	if snap.Count() != 2 {
 		t.Errorf("count %d", snap.Count())
+	}
+}
+
+// M27: a view.open that answers after the view gave up on it. maild opened
+// the view all the same, and only the answer says which: dropped, it would
+// keep that view, and its deltas, until the connection ends.
+func TestALateViewOpenIsClosedInMaild(t *testing.T) {
+	s := newHoldServer(map[string]any{"view.open": api.ViewInfo{ID: 42, Count: 3}})
+	s.held = "view.open"
+	changed := make(chan struct{}, 1)
+	v := openView(s.client(t), NewEvents(), api.ViewQuery{}, func() {
+		select {
+		case changed <- struct{}{}:
+		default:
+		}
+	}, time.Millisecond)
+	defer v.Close()
+	s.waitFor(t, "view.open")
+	select {
+	case <-changed:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the view did not give up")
+	}
+	if err := v.Err(); !errors.Is(err, context.DeadlineExceeded) || v.Ready() {
+		t.Fatalf("after the deadline: ready %v, err %v", v.Ready(), err)
+	}
+	close(s.release)
+	req := s.waitFor(t, "view.close")
+	var p api.ViewCloseParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.ID != 42 {
+		t.Fatalf("closed view %d, want 42", p.ID)
+	}
+	if v.Ready() || !errors.Is(v.Err(), context.DeadlineExceeded) {
+		t.Errorf("the late answer opened the view: ready %v, err %v", v.Ready(), v.Err())
 	}
 }

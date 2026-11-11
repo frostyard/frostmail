@@ -44,6 +44,7 @@ type View struct {
 	window  [2]int64
 	closed  bool
 	early   []api.ViewDelta // deltas that came before view.open's reply
+	gaveUp  bool            // view.open did not answer in time: its answer is closed
 	version uint64
 	// departed are the messages deltas removed from loaded rows, until a
 	// reply shows one back or TakeDeparted hands them on.
@@ -52,11 +53,17 @@ type View struct {
 
 // OpenView opens a view of q on c and keeps it current from events.
 func OpenView(c *api.Client, events *Events, q api.ViewQuery, notify func()) *View {
+	return openView(c, events, q, notify, callTimeout)
+}
+
+// openView is OpenView with the time view.open has before the view gives
+// up on it.
+func openView(c *api.Client, events *Events, q api.ViewQuery, notify func(), timeout time.Duration) *View {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &View{c: c, query: q, notify: notify, ctx: ctx, cancel: cancel,
 		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{}}
 	v.off = events.On(v.event)
-	go v.open()
+	go v.open(timeout)
 	return v
 }
 
@@ -239,14 +246,17 @@ func (v *View) Close() {
 	}
 }
 
-// open does not end with Close: maild may have opened the view already,
-// and only its answer says which one to close.
-func (v *View) open() {
-	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
-	defer cancel()
-	info, err := v.c.View().Open(ctx, &api.ViewOpenParams{Query: v.query})
+// open asks maild for the view. Its call does not end with Close, nor
+// with a deadline: maild may have opened the view already, and only its
+// answer says which one to close. After timeout the view gives up and says
+// so; an answer that comes later, or after Close, is closed in maild. The
+// call ends with the connection at the latest.
+func (v *View) open(timeout time.Duration) {
+	late := time.AfterFunc(timeout, v.giveUp)
+	info, err := v.c.View().Open(context.Background(), &api.ViewOpenParams{Query: v.query})
+	late.Stop()
 	v.mu.Lock()
-	if v.closed {
+	if v.closed || v.gaveUp {
 		v.mu.Unlock()
 		if err == nil {
 			cctx, cancel := context.WithTimeout(context.Background(), callTimeout)
@@ -276,12 +286,29 @@ func (v *View) open() {
 	v.notify()
 }
 
+// giveUp ends the wait for view.open's answer, which has taken too long:
+// the view fails as the call would have, and the answer is closed when it
+// comes.
+func (v *View) giveUp() {
+	v.mu.Lock()
+	if v.closed || v.opened || v.err != nil {
+		v.mu.Unlock()
+		return
+	}
+	v.gaveUp = true
+	v.err = context.DeadlineExceeded
+	v.early = nil
+	v.changedLocked()
+	v.mu.Unlock()
+	v.notify()
+}
+
 func (v *View) event(ev api.Event) {
 	switch e := ev.(type) {
 	case api.ViewDelta:
 		v.mu.Lock()
 		switch {
-		case v.closed:
+		case v.closed, v.err != nil:
 		case !v.opened: // a delta can overtake view.open's reply
 			v.early = append(v.early, e)
 		case e.ID == v.id:
