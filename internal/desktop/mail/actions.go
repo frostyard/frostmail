@@ -231,6 +231,9 @@ func FlagsBack(before []api.MessageSummary, c api.FlagChanges) []UndoCall {
 type Undo struct {
 	mu      sync.Mutex
 	entries [][]UndoCall
+	// acting is held for reading while an action runs. A row leaves the
+	// list before its action has remembered its inverse, so Do waits.
+	acting sync.RWMutex
 }
 
 func (u *Undo) remember(calls []UndoCall) {
@@ -257,6 +260,8 @@ func (u *Undo) Move(ctx context.Context, c *api.Client, ids []int64, act func() 
 	if len(ids) == 0 {
 		return nil
 	}
+	u.acting.RLock()
+	defer u.acting.RUnlock()
 	before, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})
 	if err != nil {
 		return err
@@ -277,6 +282,8 @@ func (u *Undo) Flags(ctx context.Context, c *api.Client, ids []int64, ch api.Fla
 	if len(ids) == 0 {
 		return nil
 	}
+	u.acting.RLock()
+	defer u.acting.RUnlock()
 	before, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})
 	if err != nil {
 		return err
@@ -288,8 +295,11 @@ func (u *Undo) Flags(ctx context.Context, c *api.Client, ids []int64, ch api.Fla
 	return nil
 }
 
-// Do removes and performs the newest inverse action; false when none.
+// Do removes and performs the newest inverse action; false when none. It
+// waits for an action still running, which is the newest once it ends.
 func (u *Undo) Do(ctx context.Context, c *api.Client) (bool, error) {
+	u.acting.Lock()
+	u.acting.Unlock() //nolint:staticcheck // only waits for the actions running
 	u.mu.Lock()
 	if len(u.entries) == 0 {
 		u.mu.Unlock()
