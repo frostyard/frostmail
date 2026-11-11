@@ -253,6 +253,14 @@ func TestReaderActionsShowBesideTheWindowControls(t *testing.T) {
 				t.Errorf("at %d wide, %q is at %+v, %v", width, name, info.Bounds, ok)
 			}
 		}
+		// The top bar's end stays clear of the window controls; below
+		// 160 DIPs the palette's field is its icon button (frostui v0.3.1).
+		for _, name := range []string{"New Message (Ctrl+N)", "Search or run a command", "Activity (Ctrl J)", "Main menu"} {
+			info, ok := f.tt.Access(name)
+			if !ok || info.Bounds.W < 20 || info.Bounds.X+info.Bounds.W > float32(width-224) {
+				t.Errorf("at %d wide, the top bar's %q is at %+v, %v: under the window controls", width, name, info.Bounds, ok)
+			}
+		}
 	}
 }
 
