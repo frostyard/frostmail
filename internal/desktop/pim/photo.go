@@ -3,25 +3,75 @@ package pim
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	_ "image/png" // decodes PNG photos
+	"io"
+	"os"
 
 	"github.com/frostyard/frostmail/api"
 )
 
 // photoSize is the widest and tallest a contact photo is; photoLimit the
-// most bytes maild takes.
+// most bytes maild takes; photoFileLimit the largest file the editor reads,
+// and photoPixelLimit the most pixels it decodes: a small PNG can declare
+// more than memory holds.
 const (
-	photoSize  = 512
-	photoLimit = 256 * 1024
+	photoSize       = 512
+	photoLimit      = 256 * 1024
+	photoFileLimit  = 20_000_000
+	photoPixelLimit = 40_000_000
 )
 
+var (
+	errPhotoFileTooBig = errors.New("the photo's file is over 20 MB")
+	errPhotoTooBig     = errors.New("the photo is over 40 million pixels")
+)
+
+// readPhoto reads the chosen file, refusing one over photoFileLimit before
+// it holds the bytes.
+func readPhoto(path string) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // the file the user chose
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > photoFileLimit {
+		return nil, errPhotoFileTooBig
+	}
+	// The size can be wrong, as a pipe's or a growing file's.
+	data, err := io.ReadAll(io.LimitReader(f, photoFileLimit+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > photoFileLimit {
+		return nil, errPhotoFileTooBig
+	}
+	return data, nil
+}
+
 // scalePhoto crops an image to its centered square and scales it to at
-// most 512 by 512, as a JPEG (docs/specs/pim-ui.md, Photo well).
+// most 512 by 512, as a JPEG (docs/specs/pim-ui.md, Photo well). It reads
+// the image's header first, and refuses what would take too much memory
+// to decode.
 func scalePhoto(data []byte) (*api.Photo, error) {
+	if len(data) > photoFileLimit {
+		return nil, errPhotoFileTooBig
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("read the photo: %w", err)
+	}
+	if int64(cfg.Width)*int64(cfg.Height) > photoPixelLimit {
+		return nil, errPhotoTooBig
+	}
 	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("read the photo: %w", err)

@@ -372,6 +372,38 @@ func (s *session) waitFor(w int64, what string, ok func([]node) bool) []node {
 	}
 }
 
+// within waits up to d for what ok wants and returns the tree that had it,
+// or nil.
+func (s *session) within(w int64, d time.Duration, ok func([]node) bool) []node {
+	s.t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if tree := s.tree(w); ok(tree) {
+			return tree
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return nil
+}
+
+// clickUntil clicks the node until the window has an element labelled want,
+// and returns that element. A click can land before the row is drawn, or be
+// lost to a change of the list, so it is repeated only when a wait for its
+// result runs out.
+func (s *session) clickUntil(n node, want string) node {
+	s.t.Helper()
+	has := func(tree []node) bool { return find(tree, "", want) != nil }
+	deadline := time.Now().Add(settle)
+	for time.Now().Before(deadline) {
+		s.center(1, n)
+		if tree := s.within(1, 5*time.Second, has); tree != nil {
+			return *find(tree, "", want)
+		}
+	}
+	s.t.Fatalf("no %s after clicking %q; the window shows:\n%s", want, n.Label, dump(s.tree(1)))
+	return node{}
+}
+
 func dump(tree []node) string {
 	var b strings.Builder
 	for _, n := range tree {

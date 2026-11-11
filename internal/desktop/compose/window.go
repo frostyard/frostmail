@@ -20,7 +20,6 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
-	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // saveDelay is how long edits wait before draft.update; attachmentLimit
@@ -60,6 +59,9 @@ type Options struct {
 	Sent func(item *api.OutboxItem)
 	// EditSnippets opens Settings on its Snippets pane.
 	EditSnippets func()
+	// SaveFailed says the save on closing failed, when the window is gone
+	// and cannot say so itself. It runs on a worker.
+	SaveFailed func(err error)
 }
 
 // pending is a file still being attached.
@@ -71,7 +73,7 @@ type Window struct {
 	shell   frostui.PaneShell
 	table   *frostui.CommandTable
 	dialogs frostui.Dialogs
-	later   uikit.TimeSheet
+	later   TimeSheet
 	editor  ui.Handle
 
 	loaded        bool
@@ -261,10 +263,17 @@ func (w *Window) change() {
 	time.AfterFunc(saveDelay, func() {
 		w.o.Post(func() {
 			if token == w.token {
-				go func() { _ = w.flush() }()
+				go w.autosave()
 			}
 		})
 	})
+}
+
+// autosave flushes while the window is open, and shows a failure in it.
+func (w *Window) autosave() {
+	if err := w.flush(); err != nil {
+		w.o.Post(func() { w.errText = "The draft was not saved: " + err.Error() })
+	}
 }
 
 // flush writes what is left; it waits, so call it from a worker.
@@ -277,7 +286,6 @@ func (w *Window) flush() error {
 	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 	defer cancel()
 	if _, err := w.o.Client.Draft().Update(ctx, &api.DraftUpdateParams{ID: w.o.Draft, Content: w.latest}); err != nil {
-		w.o.Post(func() { w.errText = "The draft was not saved: " + err.Error() })
 		return err
 	}
 	w.dirty = false
@@ -384,14 +392,17 @@ func (w *Window) doDelete() {
 	}()
 }
 
-// Closing runs as the window goes: it saves what is left, or deletes a
-// draft made for this window and never touched.
+// Closing runs as the window goes: it saves what is left, telling
+// SaveFailed if that fails, or deletes a draft made for this window and
+// never touched.
 func (w *Window) Closing() {
 	w.token++
 	fresh := w.o.Fresh && !w.touched
 	go func() {
 		if !fresh {
-			_ = w.flush()
+			if err := w.flush(); err != nil && w.o.SaveFailed != nil {
+				w.o.SaveFailed(err)
+			}
 			return
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)

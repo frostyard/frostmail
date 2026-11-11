@@ -118,11 +118,10 @@ the React app's structure. Since then:
 - **Generic patterns wait in one package.** UI patterns that other
   frostyard apps could use go in `internal/desktop/uikit`, which imports
   only the standard library, MyGo, purego and frostui (a test enforces
-  it), so they can move into frostui by changing an import path. The
-  first is a shell without the page rail: frostui's `Shell` puts its
-  content in a padded scroll capped at 1,320 wide, which three
-  full-height panes cannot use. Frostmail never edits frostui from this
-  repository.
+  it), so they can move into frostui by changing an import path. They
+  are SafeHTMLView, SummaryRow and TokenSuggest. The frame without the
+  page rail is frostui's `PaneShell`, with its `Panes`, `CommandTable`
+  and `Waker`. Frostmail never edits frostui from this repository.
 - **Accessibility is tested in Go.** Views name every control, and
   `ui.NewTester` tests check roles, names and states with `AccessByRole`
   and `Access`, as the axe audit of [#222](https://github.com/frostyard/frostmail/pull/222)

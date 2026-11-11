@@ -104,7 +104,7 @@ func (w *Window) redirectView(c *ui.Context) {
 				frostui.Toned(c, s.failure, frostui.Danger).Wrap().Role(ui.RoleAlert)
 			}
 			ui.Row(c).Gap(frostui.SpaceS).Justify(ui.End).Children(func() {
-				if ui.Button(c, "Cancel").Clicked() {
+				if ui.Button(c, "Cancel").Disabled(s.busy).Clicked() {
 					open = false
 				}
 				if ui.PrimaryButton(c, "Redirect").Disabled(len(good) == 0 || len(bad) > 0 || s.busy).Clicked() {
@@ -113,7 +113,8 @@ func (w *Window) redirectView(c *ui.Context) {
 			})
 		})
 	})
-	if !open {
+	// A redirect on its way goes on: Escape and the backdrop wait for it too.
+	if !open && !s.busy {
 		w.redirect = nil
 	}
 }

@@ -17,8 +17,9 @@ type SummaryIcon struct{ Name, Label string }
 // Summary is what one row of a list of items shows: mail, notes or feeds.
 type Summary struct {
 	Title, Date, Subtitle, Preview string
-	// Unread draws the dot in the row's gutter.
-	Unread bool
+	// Unread draws the dot in the row's gutter; UnreadLabel names it.
+	Unread      bool
+	UnreadLabel string
 	// Mark, when not zero, draws a flag of this color in the gutter;
 	// MarkLabel names it.
 	Mark      ui.Color
@@ -46,7 +47,7 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 		ui.Column(c).Width(10).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Height(18).Center().Children(func() {
 				if s.Unread {
-					ui.Box(c).Size(8, 8).Radius(4).Background(t.Accent).Label("Unread")
+					ui.Box(c).Size(8, 8).Radius(4).Background(t.Accent).Label(s.UnreadLabel)
 				}
 			})
 			if s.MarkLabel != "" {

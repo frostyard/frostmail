@@ -626,6 +626,15 @@ unless that pipe listed only fixture accounts.
   - Attachments open by an allow-list (`mail.AttachmentOpener`), which is
     narrower than the old deny list: HTML and SVG, for example, no longer
     open. A chip's menu adds Save As… to keep such a file.
+- **What only a real window checks in `SafeHTMLView`:** its `Untrusted`
+  ephemeral session and compiled rules, the engines enforcing the CSP and
+  the rules, navigation and `target=_blank` reaching the handlers, the
+  measured height, find, print and selection. `safehtml_internal_test.go`
+  covers the handlers and the order of loading through a fake page.
+- **A limit of the page's measuring:** it measures on load, on a change of
+  width and on a press in the page, then until 3 measures agree. See More
+  toggled from the keyboard inside the page is not measured until the next
+  click or resize, so the expanded text can stay clipped until then.
 - **Conversation pages** (the open question below): decided as proposed,
   one page per expanded message, destroyed when it collapses.
 - **A trap for checks in the sandbox:** `flatpak run` resets
@@ -664,6 +673,10 @@ unless that pipe listed only fixture accounts.
   output. A forward with an inline image is in Phase 9's check; maild's
   quoted rendering gave its small picture as a `data:` URL, so it went out
   that way, not as a `cid:` part (`design/send.md` describes `mailpart:`).
+  **Known gap, not a difference from the React app:** the embedding is in
+  maild (`internal/render`, since 2026-10-08) and the React editor keeps
+  `data:` images too (`composeEditor.test.ts`); its send was not run for
+  this record. Many mail clients do not show `data:` images.
 - **Differences from the React window, to confirm at the gate:**
   - The actions are a row under the top bar, in compose and over the
     reader, rather than in the top bar. GTK's window controls took about
@@ -692,6 +705,10 @@ unless that pipe listed only fixture accounts.
   Move Mailbox, Save as Smart Mailbox, Redirect, Remind Me… and the reply
   family in the row's menu. The rule sheet shows from Settings' Rules
   pane (Phase 8).
+  Flag names are in Settings' General pane
+  (`TestFlagNamesSaveOnEnterAndWhenLeft`, P-408), erasing old Trash and
+  Junk in the sidebar's menu, and the refused notices in
+  `internal/desktop/pim`.
 - **Differences to confirm at the gate:** `is any of` is a menu of checks
   rather than a four-row list, as MyGo's `Select` chooses one.
 
@@ -785,6 +802,9 @@ unless that pipe listed only fixture accounts.
   internal-crate line change with the files they name.
 - **Done when:** CI builds the Flatpak and the Windows installer from the
   Go app, and both install and run on the test machines.
+- **The automation build stays out of what ships:**
+  `TestShippedBuildsLeaveOutAutomation` checks the manifest, the installer's
+  files, the release workflows and the Makefile.
 - **Status (2026-11-10): built.** The Flatpak builds `cmd/frostmail`,
   maild and mailctl in one Go module; `make desktop-installer` builds
   MyGo's installer with `packaging/windows/installer.nsh`, and the `app`
@@ -912,7 +932,6 @@ Windows notifications keep `frostmail-notify.exe` (decided the same day).
 | `internal/desktop/settings` | the settings window, first run, modes | yes |
 | `internal/desktop/platform` | notifications, the portal, Windows' pieces | some |
 | `internal/desktop/uikit` | SafeHTMLView, SummaryRow, TokenSuggest | yes (only std, MyGo, purego, frostui) |
-| `internal/desktop/frame` | a stand-in for frostui's frame and waker, deleted when they land | yes |
 | `internal/desktop/mainwin` | the main window: frame, panes, sidebar, list, search, commands | yes |
 
 Pure packages hold the decisions and are tested with `go test` alone; view

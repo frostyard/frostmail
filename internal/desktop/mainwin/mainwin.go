@@ -16,6 +16,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
+	"github.com/frostyard/frostmail/internal/desktop/compose"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
@@ -131,7 +132,7 @@ type Window struct {
 	handlers      map[commands.Command]func()
 	toasts        []ui.Toast
 	onFrame       []func(c *ui.Context) // what needs the window's context
-	later         uikit.TimeSheet
+	later         compose.TimeSheet
 	pim           *pim.Module
 	module        commands.Module
 	tableModule   commands.Module
@@ -267,11 +268,25 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 	w.o.Post(func() {
 		w.closeView()
 		w.client, w.events = c, events
-		w.photos, w.bitmaps = live.NewPhotos(c, w.waker.Wake), map[string]*ui.Bitmap{}
+		w.photos, w.bitmaps = live.NewPhotos(connContext(ctx, c), c, w.waker.Wake), map[string]*ui.Bitmap{}
 		w.openView()
 		w.deliverOpen()
 	})
 	return nil
+}
+
+// connContext returns a context that ends with the connection c; ctx is
+// the session's, which outlives it.
+func connContext(ctx context.Context, c *api.Client) context.Context {
+	out, cancel := context.WithCancel(ctx)
+	go func() {
+		defer cancel()
+		select {
+		case <-c.Done():
+		case <-out.Done():
+		}
+	}()
+	return out
 }
 
 // changed runs on the session's goroutine for each change of state.

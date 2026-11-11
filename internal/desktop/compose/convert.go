@@ -12,6 +12,8 @@ import (
 	"github.com/egoist/mygo/ui/richtext"
 	nethtml "golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
+
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // PartLoader reads a mailpart: image's bytes; nil, or an error, leaves the
@@ -238,7 +240,7 @@ func (c *converter) bitmap(src, lower string) *ui.Bitmap {
 	default:
 		return nil
 	}
-	bmp, err := ui.DecodeBitmap(data)
+	bmp, err := uikit.DecodeBitmap(data)
 	if err != nil {
 		return nil
 	}

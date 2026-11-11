@@ -82,26 +82,59 @@ type Frame interface {
 // ephemeral session, under PageRules, whose links go to Open and which
 // never navigate or open a window.
 type SafeHTMLView struct {
-	win     *mygo.Window
 	open    func(url string)
 	notify  func()
-	session *mygo.Session
+	newPage func() (webPage, error)
 
 	ready chan struct{}
 	rules *mygo.ContentRules
 	err   error
 }
 
-// NewSafeHTMLView starts compiling the rules for pages of win; open gets
-// each link clicked, on a worker, and notify runs when a page's height
-// changes. Call it after the app is ready.
-func NewSafeHTMLView(win *mygo.Window, open func(url string), notify func()) *SafeHTMLView {
-	v := &SafeHTMLView{win: win, open: open, notify: notify, session: mygo.NewEphemeralSession(), ready: make(chan struct{})}
+// page is what a frame asks of its page, as *mygo.Page has it; the tests
+// put a fake in its place.
+type page interface {
+	OnWillNavigate(fn func(e *mygo.NavigateEvent)) (off func())
+	SetWindowOpenHandler(fn func(req mygo.WindowOpenRequest) *mygo.WindowOptions)
+	OnDidFinishLoad(fn func()) (off func())
+	SetContentRules(rules ...*mygo.ContentRules)
+	LoadHTML(html, baseURL string)
+	EvalContext(ctx context.Context, code string) (any, error)
+	FindInPage(text string, opts mygo.FindOptions) (mygo.FindResult, error)
+	StopFindInPage()
+	Print()
+}
+
+// webPage is a page, the native view showing it, and what destroys both.
+type webPage struct {
+	page    page
+	view    ui.NativeWebView
+	destroy func()
+}
+
+// NewSafeHTMLView starts compiling the rules for pages of win, as the list
+// rulesID; open gets each link clicked, on a worker, and notify runs when a
+// page's height changes. Call it after the app is ready.
+func NewSafeHTMLView(win *mygo.Window, rulesID string, open func(url string), notify func()) *SafeHTMLView {
+	session := mygo.NewEphemeralSession()
+	newPage := func() (webPage, error) {
+		view, err := win.NewWebView(mygo.WebViewOptions{ScrollToContainer: true,
+			Page: mygo.PageOptions{Untrusted: true, Session: session}})
+		if err != nil {
+			return webPage{}, err
+		}
+		return webPage{page: view.Page(), view: view, destroy: view.Destroy}, nil
+	}
+	return newSafeHTMLView(rulesID, mygo.CompileContentRules, newPage, open, notify)
+}
+
+func newSafeHTMLView(rulesID string, compile func(id, rules string) (*mygo.ContentRules, error), newPage func() (webPage, error), open func(url string), notify func()) *SafeHTMLView {
+	v := &SafeHTMLView{open: open, notify: notify, newPage: newPage, ready: make(chan struct{})}
 	go func() {
 		defer close(v.ready)
-		v.rules, v.err = mygo.CompileContentRules("frostmail-reader", PageRules)
+		v.rules, v.err = compile(rulesID, PageRules)
 		if v.err != nil {
-			slog.Error("compiling the reader's content rules", "err", v.err)
+			slog.Error("compiling the pages' content rules", "id", rulesID, "err", v.err)
 		}
 	}()
 	return v
@@ -109,33 +142,37 @@ func NewSafeHTMLView(win *mygo.Window, open func(url string), notify func()) *Sa
 
 // New makes a page. It shows nothing until Load.
 func (v *SafeHTMLView) New() (Frame, error) {
-	view, err := v.win.NewWebView(mygo.WebViewOptions{ScrollToContainer: true,
-		Page: mygo.PageOptions{Untrusted: true, Session: v.session}})
+	web, err := v.newPage()
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	f := &safeFrame{owner: v, view: view, ctx: ctx, cancel: cancel}
-	p := view.Page()
+	f := &safeFrame{owner: v, web: web, ctx: ctx, cancel: cancel}
+	p := web.page
 	p.OnWillNavigate(func(e *mygo.NavigateEvent) { e.PreventDefault() })
 	p.SetWindowOpenHandler(func(req mygo.WindowOpenRequest) *mygo.WindowOptions {
 		go v.open(req.URL)
 		return nil
 	})
-	p.OnDidFinishLoad(func() { go f.measureLoop() })
+	p.OnDidFinishLoad(f.loaded)
 	return f, nil
 }
 
 // safeFrame is a Frame over a web view.
 type safeFrame struct {
 	owner  *SafeHTMLView
-	view   *mygo.WebView
+	web    webPage
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu      sync.Mutex
-	height  float32
-	polling bool
+	width [2]float32 // the window's and the element's; the UI thread's
+
+	mu       sync.Mutex
+	height   float32
+	shown    bool // a document has finished loading
+	polling  bool
+	agreed   int // measures in a row, this poll, that gave height
+	measures int // measures since the last event
 }
 
 // Load waits for the rules, so that no page shows without them: a page
@@ -150,13 +187,27 @@ func (f *safeFrame) Load(document string) {
 		if f.owner.err != nil {
 			return
 		}
-		p := f.view.Page()
-		p.SetContentRules(f.owner.rules)
-		p.LoadHTML(document, "")
+		f.web.page.SetContentRules(f.owner.rules)
+		f.web.page.LoadHTML(document, "")
 	}()
 }
 
-func (f *safeFrame) View(c *ui.Context) ui.Element { return ui.WebView(c, f.view) }
+// View draws the page. A new width or a click (on See More, say) can change
+// the page's height, and no script in it can say so: each measures it again.
+func (f *safeFrame) View(c *ui.Context) ui.Element {
+	e := ui.WebView(c, f.web.view)
+	// The window's width is this frame's, the element's the last frame's.
+	window, _ := c.Size()
+	width := [2]float32{window, e.Bounds().W}
+	resized := width[1] > 0 && width != f.width
+	if resized {
+		f.width = width
+	}
+	if resized || e.PressedInside() {
+		f.remeasure()
+	}
+	return e
+}
 
 func (f *safeFrame) Height() float32 {
 	f.mu.Lock()
@@ -164,22 +215,49 @@ func (f *safeFrame) Height() float32 {
 	return f.height
 }
 
-// measureInterval is how often a page shown is measured: a click on See
-// More, or a new width, changes its height and no script in it can say so.
-const measureInterval = 400 * time.Millisecond
+// A poll measures the page every measureInterval until measureAgree
+// measures in a row agree, or measureLimit measures since the last event
+// have not: then nothing measures the page until the next event.
+const (
+	measureInterval = 400 * time.Millisecond
+	measureAgree    = 3
+	measureLimit    = 25
+)
 
 const measureScript = `Math.ceil(Math.max(document.body.scrollHeight,document.body.getBoundingClientRect().height))`
 
-func (f *safeFrame) measureLoop() {
+// loaded runs when a document has finished loading.
+func (f *safeFrame) loaded() {
 	f.mu.Lock()
-	if f.polling {
-		f.mu.Unlock()
+	f.shown = true
+	f.mu.Unlock()
+	f.remeasure()
+}
+
+// remeasure starts a poll of the page's height, or starts the running one
+// over; a page not loaded yet waits for loaded.
+func (f *safeFrame) remeasure() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.shown || f.ctx.Err() != nil {
 		return
 	}
-	f.polling = true
-	f.mu.Unlock()
+	f.agreed, f.measures = 0, 0
+	if !f.polling {
+		f.polling = true
+		go f.poll()
+	}
+}
+
+func (f *safeFrame) poll() {
 	for {
-		f.measure()
+		changed, done := f.record(f.measure())
+		if changed {
+			f.owner.notify()
+		}
+		if done {
+			return
+		}
 		select {
 		case <-f.ctx.Done():
 			return
@@ -188,41 +266,63 @@ func (f *safeFrame) measureLoop() {
 	}
 }
 
-func (f *safeFrame) measure() {
-	h, err := mygo.EvalAs[float64](f.view.Page(), measureScript)
+// measure asks the page for its height; false when it did not say.
+func (f *safeFrame) measure() (float32, bool) {
+	v, err := f.web.page.EvalContext(f.ctx, measureScript)
 	if err != nil {
-		return
+		return 0, false
 	}
+	h, ok := v.(float64)
+	return float32(h), ok
+}
+
+// record takes a measure, and reports whether the height changed and
+// whether the poll is over.
+func (f *safeFrame) record(height float32, ok bool) (changed, done bool) {
 	f.mu.Lock()
-	changed := f.height != float32(h)
-	f.height = float32(h)
-	f.mu.Unlock()
-	if changed {
-		f.owner.notify()
+	defer f.mu.Unlock()
+	f.measures++
+	switch {
+	case !ok:
+		f.agreed = 0
+	case f.agreed > 0 && height == f.height:
+		f.agreed++
+	default:
+		f.agreed = 1
 	}
+	if ok {
+		changed = height != f.height
+		f.height = height
+	}
+	done = f.agreed >= measureAgree || f.measures >= measureLimit
+	if done {
+		f.polling = false
+	}
+	return changed, done
 }
 
 func (f *safeFrame) Selection() string {
-	s, err := mygo.EvalAs[string](f.view.Page(), `String(window.getSelection())`)
+	v, err := f.web.page.EvalContext(f.ctx, `String(window.getSelection())`)
 	if err != nil {
 		return ""
 	}
+	s, _ := v.(string)
 	return s
 }
 
 func (f *safeFrame) Find(text string, next, back bool) (active, matches int) {
-	res, err := f.view.Page().FindInPage(text, mygo.FindOptions{FindNext: next, Backward: back})
+	res, err := f.web.page.FindInPage(text, mygo.FindOptions{FindNext: next, Backward: back})
 	if err != nil {
 		return 0, 0
 	}
 	return res.Active, res.Matches
 }
 
-func (f *safeFrame) StopFind() { f.view.Page().StopFindInPage() }
+func (f *safeFrame) StopFind() { f.web.page.StopFindInPage() }
 
-func (f *safeFrame) Print() { f.view.Page().Print() }
+func (f *safeFrame) Print() { f.web.page.Print() }
 
 func (f *safeFrame) Close() {
 	f.cancel()
-	f.view.Destroy()
+	f.web.destroy()
 }

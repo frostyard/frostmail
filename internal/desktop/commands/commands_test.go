@@ -15,8 +15,51 @@ type chord struct {
 	key  ui.Key
 }
 
+// window is a window binding a module's commands with frostui's
+// CommandTable, as the app's do, with a text field to focus. Every command
+// is enabled, and records itself.
+type window struct {
+	tt    *ui.Tester
+	ran   []commands.Command
+	table *frostui.CommandTable
+	field string
+}
+
+func newWindow(m commands.Module) *window {
+	w := &window{}
+	run := map[commands.Command]func(){}
+	for _, b := range commands.Bindings {
+		run[b.Command] = func() { w.ran = append(w.ran, b.Command) }
+	}
+	w.table = frostui.NewCommandTable(commands.Table(m, func() int { return 1 }, run)...)
+	w.tt = ui.NewTester(func(c *ui.Context) {
+		w.table.Bind(c)
+		ui.TextInput(c, &w.field).Label("Field")
+		ui.Text(c, "Elsewhere")
+	}, 400, 200)
+	return w
+}
+
+// press presses a key with the focus in the text field or out of it, and
+// returns what it ran.
+func (w *window) press(t *testing.T, k chord, inField bool) []commands.Command {
+	t.Helper()
+	target := "Elsewhere"
+	if inField {
+		target = "Field"
+	}
+	if err := w.tt.Click(target); err != nil {
+		t.Fatal(err)
+	}
+	w.tt.Frame()
+	w.ran = nil
+	w.tt.Key(k.mods, k.key)
+	return w.ran
+}
+
 // The cases of keymap.test.ts (T-0034's contract), and the desktop's keys.
-func TestForOutsideTextFields(t *testing.T) {
+func TestKeysOutsideTextFields(t *testing.T) {
+	w := newWindow(commands.Mail)
 	for k, want := range map[chord]commands.Command{
 		{0, ui.KeyUp}: commands.Previous, {0, ui.KeyDown}: commands.Next, {ui.Shift, ui.KeyUp}: commands.ExtendPrevious,
 		{ui.Shift, ui.KeyDown}: commands.ExtendNext, {0, ui.KeyHome}: commands.First, {0, ui.KeyEnd}: commands.Last,
@@ -31,34 +74,62 @@ func TestForOutsideTextFields(t *testing.T) {
 		{ui.Cmd | ui.Shift, ui.KeyF}: commands.Forward, {0, ui.KeyEnter}: commands.Open,
 		{ui.Cmd | ui.Shift, ui.KeyJ}: commands.Junk,
 	} {
-		if got, ok := commands.For(k.mods, k.key, false); !ok || got != want {
-			t.Errorf("%v = %q, %v; want %s", k, got, ok, want)
+		if got := w.press(t, k, false); !slices.Equal(got, []commands.Command{want}) {
+			t.Errorf("%v ran %q; want %s", k, got, want)
 		}
 	}
 	for _, k := range []chord{{0, ui.KeyA}, {ui.Cmd | ui.Shift, ui.KeyA}, {ui.Alt, ui.KeyUp}, {ui.Cmd, ui.KeyDown}, {ui.Cmd, ui.KeyDelete},
 		{ui.Shift, ui.KeyDelete}, {ui.Cmd | ui.Alt | ui.Shift, ui.KeyA}, {ui.Cmd, ui.Key5}, {ui.Cmd | ui.Alt, ui.KeyN},
 		{ui.Cmd | ui.Alt, ui.KeyR}, {0, ui.KeyF10}, {ui.Alt, ui.KeyTab}} {
-		if got, ok := commands.For(k.mods, k.key, false); ok {
-			t.Errorf("%v = %s, want nothing", k, got)
+		if got := w.press(t, k, false); len(got) != 0 {
+			t.Errorf("%v ran %q, want nothing", k, got)
 		}
 	}
 }
 
-func TestForInATextField(t *testing.T) {
+func TestKeysInATextField(t *testing.T) {
+	w := newWindow(commands.Mail)
 	for k, want := range map[chord]commands.Command{
 		{0, ui.KeyEscape}: commands.Escape, {0, ui.KeyTab}: commands.NextPane, {ui.Shift, ui.KeyTab}: commands.PreviousPane,
 		{ui.Cmd | ui.Shift, ui.KeyN}: commands.GetMail, {ui.Cmd, ui.Key1}: commands.AllInboxes, {ui.Cmd, ui.KeyComma}: commands.Settings,
 		{ui.Cmd | ui.Alt, ui.KeyF}: commands.FocusSearch, {ui.Cmd | ui.Alt, ui.KeyS}: commands.ToggleSidebar, {ui.Cmd | ui.Shift, ui.KeyU}: commands.ToggleRead,
 		{ui.Cmd | ui.Shift, ui.KeyF}: commands.Forward,
 	} {
-		if got, ok := commands.For(k.mods, k.key, true); !ok || got != want {
-			t.Errorf("%v = %q, %v; want %s", k, got, ok, want)
+		if got := w.press(t, k, true); !slices.Equal(got, []commands.Command{want}) {
+			t.Errorf("%v in a field ran %q; want %s", k, got, want)
 		}
 	}
 	for _, k := range []chord{{0, ui.KeyUp}, {0, ui.KeyDown}, {0, ui.KeySpace}, {0, ui.KeyDelete}, {0, ui.KeyBackspace},
 		{ui.Cmd, ui.KeyA}, {ui.Cmd, ui.KeyF}, {0, ui.KeyEnter}} {
-		if got, ok := commands.For(k.mods, k.key, true); ok {
-			t.Errorf("%v in a field = %s, want nothing", k, got)
+		if got := w.press(t, k, true); len(got) != 0 {
+			t.Errorf("%v in a field ran %q, want nothing", k, got)
+		}
+	}
+}
+
+// Every binding of the modules' tables acts or steps aside by its scope.
+func TestEveryBindingFollowsItsScope(t *testing.T) {
+	for _, m := range commands.Modules {
+		w := newWindow(m)
+		for _, cmd := range w.table.Commands() {
+			for _, b := range cmd.Bindings {
+				k := chord{b.Mods, b.Key}
+				want := commands.Command(cmd.ID)
+				if got := w.press(t, k, false); !slices.Equal(got, []commands.Command{want}) {
+					t.Errorf("%s: %v outside a field ran %q; want %s", m, k, got, want)
+				}
+				got := w.press(t, k, true)
+				switch b.Scope {
+				case frostui.OutsideText:
+					if len(got) != 0 {
+						t.Errorf("%s: %v in a field ran %q, want nothing", m, k, got)
+					}
+				default:
+					if !slices.Equal(got, []commands.Command{want}) {
+						t.Errorf("%s: %v in a field ran %q; want %s", m, k, got, want)
+					}
+				}
+			}
 		}
 	}
 }

@@ -42,6 +42,7 @@ type fixture struct {
 	tt     *ui.Tester
 	closed atomic.Bool
 	sent   atomic.Pointer[api.OutboxItem]
+	failed chan error
 	picked []string
 }
 
@@ -67,7 +68,7 @@ func start(t *testing.T) *fixture {
 	if err := c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: a.ID, Password: imapxtest.Password}); err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{c: c, acct: a.ID, sink: sink, loop: frostuitest.NewLoop()}
+	f := &fixture{c: c, acct: a.ID, sink: sink, loop: frostuitest.NewLoop(), failed: make(chan error, 1)}
 	deadline := time.Now().Add(15 * time.Second)
 	for {
 		s, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: []int64{1}})
@@ -88,6 +89,7 @@ func (f *fixture) open(t *testing.T, d *api.Draft, fresh bool, bytesMode bool) {
 		OpenFiles:    func() ([]string, error) { return f.picked, nil },
 		FilesAsBytes: bytesMode,
 		Sent:         func(i *api.OutboxItem) { f.sent.Store(i) },
+		SaveFailed:   func(err error) { f.failed <- err },
 	})
 	f.tt = ui.NewTester(func(c *ui.Context) {
 		f.loop.Flush()
@@ -332,6 +334,49 @@ func TestClosingAnEditedDraftSavesIt(t *testing.T) {
 		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
 		return err == nil && got.Content.Subject == "Kept"
 	})
+}
+
+// The window is gone, so a failed save on closing is told to the main
+// window: draft.update fails here as the draft no longer exists.
+func TestClosingTellsOfAFailedSave(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	f.focus(t, "Subject")
+	f.tt.Type("Lost")
+	f.tt.Frame()
+	if err := f.c.Draft().Delete(t.Context(), &api.DraftDeleteParams{ID: d.ID}); err != nil {
+		t.Fatal(err)
+	}
+	f.win.Closing()
+	select {
+	case err := <-f.failed:
+		if err == nil {
+			t.Error("SaveFailed got no error")
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("the failed save was not told")
+	}
+}
+
+// Nothing is told of a save on closing that worked.
+func TestClosingSaysNothingOfASave(t *testing.T) {
+	f := start(t)
+	d := f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew})
+	f.open(t, d, true, false)
+	f.focus(t, "Subject")
+	f.tt.Type("Kept")
+	f.tt.Frame()
+	f.win.Closing()
+	f.until(t, "the saved subject", func() bool {
+		got, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: d.ID})
+		return err == nil && got.Content.Subject == "Kept"
+	})
+	select {
+	case err := <-f.failed:
+		t.Errorf("SaveFailed: %v", err)
+	default:
+	}
 }
 
 func TestDeleteAsksWhenTheDraftHasContent(t *testing.T) {

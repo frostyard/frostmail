@@ -45,10 +45,16 @@ func loadedWeek(t *testing.T) *fixture {
 	return f
 }
 
+// frameLimit is plan 0015's gate for a frame of the week view (Phase 7).
+const frameLimit = 16 * time.Millisecond
+
 // The week view of a 400-event month (plan 0015, Phase 7: under 16 ms on
-// the CI runner). The test records what this machine measures: it fails
-// only if a frame cannot be drawn at all.
+// the CI runner). The test fails when the median frame is over the limit;
+// the race detector slows every frame, so it does not run under it.
 func TestWeekViewOfA400EventMonthFrameTime(t *testing.T) {
+	if raceDetector {
+		t.Skip("the race detector's frames say nothing of the gate")
+	}
 	f := loadedWeek(t)
 	shown := len(f.m.cal.occ.value)
 	const frames = 200
@@ -68,6 +74,9 @@ func TestWeekViewOfA400EventMonthFrameTime(t *testing.T) {
 		sum += s
 	}
 	t.Logf("week view, %d occurrences in the week, %d frames at 1200x780: min %v, median %v, mean %v, p95 %v, max %v", shown, frames, samples[0], samples[frames/2], sum/frames, samples[frames*95/100], samples[frames-1])
+	if median := samples[frames/2]; median > frameLimit {
+		t.Errorf("the median frame took %v, over the gate's %v", median, frameLimit)
+	}
 	// A frame that lays the week out again, as after calendar.changed.
 	for i := range frames {
 		f.m.cal.layoutKey = ""

@@ -11,6 +11,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
@@ -60,7 +61,7 @@ func newSettings(post func(func()), target conn.Target, main func() *mainwin.Win
 		SetTarget:    func(t conn.Target) { main().SetTarget(t) },
 		StopLocal:    func(ctx context.Context) error { return bounded(ctx, stopBound, "mailctl", "shutdown") },
 		StartLocal:   func(ctx context.Context) error { return bounded(ctx, startBound, "frostmail", "--start-maild") },
-		OpenURL:      mygo.Shell.OpenExternal,
+		OpenURL:      signInOpener(nil).OpenURL,
 		OpenSettings: s.open,
 		Connection:   func() conn.State { return main().ConnectionState() },
 		Toast:        func(title string, err error) { main().ShowProblem(title, err) },
@@ -68,6 +69,13 @@ func newSettings(post func(func()), target conn.Target, main func() *mainwin.Win
 		Announce:     newAnnouncer(post, main),
 	})
 	return s, nil
+}
+
+// signInOpener opens a sign-in page. The URL comes from maild, which behind
+// lodge is another machine, and a sign-in is always https; launch is the
+// system's handler when nil.
+func signInOpener(launch func(string) error) frostui.Opener {
+	return frostui.Opener{Schemes: []string{"https"}, Launch: launch}
 }
 
 // editRule opens the rule sheet over the settings window.

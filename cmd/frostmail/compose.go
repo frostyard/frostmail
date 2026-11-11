@@ -45,6 +45,7 @@ func (s *composeWindows) open(ctx context.Context, c *api.Client, draft int64, f
 		LoadPart:     s.loadPart,
 		Sent:         s.main.Sent,
 		EditSnippets: func() { s.settings(settings.PaneSnippets) },
+		SaveFailed:   func(err error) { s.main.ShowProblem("The draft was not saved", err) },
 	})
 	win = mygo.NewWindow(mygo.WindowOptions{Title: "New Message", Width: 720, Height: 560, MinWidth: 480, MinHeight: 360,
 		TitleBarStyle: mygo.TitleBarHidden, Content: ui.View(w.View)})

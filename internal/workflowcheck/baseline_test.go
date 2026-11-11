@@ -400,6 +400,13 @@ var governedPaths = []string{
 	"packaging/flatpak/frostmail",
 	"packaging/nfpm.yaml",
 	"mygo.json",
+	"internal/desktop/uikit/safehtml.go",
+	"internal/desktop/mail/reader.go",
+	"internal/desktop/mainwin/links.go",
+	"internal/desktop/settings/signin.go",
+	"internal/desktop/settings/accounts.go",
+	"internal/desktop/settings/mode.go",
+	"cmd/frostmail/settings.go",
 	"packaging/windows/installer.nsh",
 	"scripts/windows-installer.sh",
 	"packaging/lodge/make-secrets-key.sh",
@@ -1175,4 +1182,29 @@ func TestDependabotCoversManifests(t *testing.T) {
 		t.Fatal("no dependency manifest found")
 	}
 	t.Logf("%d manifests, %d Dependabot entries", manifests, len(cfg.Updates))
+}
+
+// TestShippedBuildsLeaveOutAutomation: the automation build can press, scroll
+// and capture windows that show mail, so only the checks build it. Neither
+// the Flatpak, the Windows installer, the release workflows nor the release
+// make targets may name its tag.
+func TestShippedBuildsLeaveOutAutomation(t *testing.T) {
+	for _, f := range []string{
+		"packaging/flatpak/org.frostyard.Frostmail.json",
+		"packaging/nfpm.yaml",
+		"mygo.json",
+		"scripts/windows-installer.sh",
+		".github/workflows/flatpak.yml",
+		".github/workflows/release.yml",
+		".github/workflows/promote.yml",
+		"Makefile",
+	} {
+		data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(f)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "automation") {
+			t.Errorf("%s names the automation build", f)
+		}
+	}
 }

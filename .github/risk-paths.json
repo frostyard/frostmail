@@ -53,6 +53,21 @@
       "why": "publication: the user unit that make install puts in place"
     },
     {
+      "glob": "internal/desktop/{uikit/safehtml.go,mail/reader.go,mainwin/links.go}",
+      "level": "L1",
+      "why": "secrets and credentials: the boundary between untrusted mail and the user's data: the page that shows mail, its CSP and content rules, and what a link or an attachment may open"
+    },
+    {
+      "glob": "internal/desktop/settings/{signin.go,accounts.go,mode.go}",
+      "level": "L1",
+      "why": "secrets and credentials: the native app's sign-in, its password and client-secret entry, and the change of mode that stops and starts maild"
+    },
+    {
+      "glob": "cmd/frostmail/settings.go",
+      "level": "L1",
+      "why": "secrets and credentials: what opens a sign-in page, and the commands that stop and start maild"
+    },
+    {
       "glob": "{mygo.json,packaging/windows/**,scripts/windows-installer.sh}",
       "level": "L1",
       "why": "destructive operations: the Windows installer and its NSIS macros, which stop processes, remove a previous install, register protocol handlers and can delete the user's mail"

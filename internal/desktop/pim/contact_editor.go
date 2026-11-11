@@ -3,7 +3,6 @@ package pim
 import (
 	"context"
 	"fmt"
-	"os"
 	"slices"
 	"strconv"
 
@@ -192,7 +191,7 @@ func (e *contactEditor) pickPhoto() {
 			}
 			return
 		}
-		data, err := os.ReadFile(path)
+		data, err := readPhoto(path)
 		var photo *api.Photo
 		if err == nil {
 			photo, err = scalePhoto(data)

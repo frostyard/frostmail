@@ -39,9 +39,67 @@
 
 Var FmOld
 
+; Sets $R3 to 1 when the folders $R1 and $R2 are the same or one holds the
+; other, else to "". The uninstaller removes the install folder whole, so it
+; must not be, hold or sit in the folder with the mail.
+Function FmOverlap
+  StrCpy $R3 ""
+  ${If} $R1 == ""
+  ${OrIf} $R2 == ""
+    Return
+  ${EndIf}
+  ; No trailing backslash, as a drive's root has.
+  StrCpy $R4 $R1 "" -1
+  ${If} $R4 == "\"
+    StrCpy $R1 $R1 -1
+  ${EndIf}
+  StrCpy $R4 $R2 "" -1
+  ${If} $R4 == "\"
+    StrCpy $R2 $R2 -1
+  ${EndIf}
+  ; $R1 is the shorter.
+  StrLen $R4 $R1
+  StrLen $R5 $R2
+  ${If} $R4 > $R5
+    StrCpy $R6 $R1
+    StrCpy $R1 $R2
+    StrCpy $R2 $R6
+    StrLen $R4 $R1
+  ${EndIf}
+  StrCpy $R6 $R2 $R4
+  ${If} $R6 == $R1
+    StrCpy $R6 $R2 1 $R4
+    ${If} $R6 == ""
+    ${OrIf} $R6 == "\"
+      StrCpy $R3 "1"
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
+
+; Sets $R3 to 1 when $INSTDIR overlaps the mail's folder or the Tauri install.
+Function FmFolderRefused
+  StrCpy $R1 $INSTDIR
+  StrCpy $R2 "${FM_DATA_ROOT}"
+  Call FmOverlap
+  ${If} $R3 == ""
+    StrCpy $R1 $INSTDIR
+    StrCpy $R2 $FmOld
+    Call FmOverlap
+  ${EndIf}
+FunctionEnd
+
+; The directory page calls this as the user types: a refused folder leaves
+; Next disabled.
+Function .onVerifyInstDir
+  Call FmFolderRefused
+  ${If} $R3 != ""
+    Abort
+  ${EndIf}
+FunctionEnd
+
 ; The Tauri app and its maild hold the mail's lock and their own files, so
 ; they stop first. In .onInit, where a user who says no leaves with nothing
-; changed.
+; changed. /D= skips the directory page, so a refused folder ends it here.
 !macro customInit
   ReadRegStr $FmOld HKCU "${FM_TAURI_KEY}" "InstallLocation"
   ${If} $FmOld != ""
@@ -50,6 +108,14 @@ Var FmOld
     ${If} $R0 == '"'
       StrCpy $FmOld $FmOld -1 1
     ${EndIf}
+  ${EndIf}
+  Call FmFolderRefused
+  ${If} $R3 != ""
+    MessageBox MB_OK|MB_ICONSTOP "${FM_NAME} cannot be installed in $INSTDIR: that folder holds your mail." /SD IDOK
+    SetErrorLevel 2
+    Quit
+  ${EndIf}
+  ${If} $FmOld != ""
     Push $FmOld
     Call CloseApp
   ${EndIf}
@@ -59,7 +125,6 @@ Var FmOld
 ; mail, in Data and Cache, which stay where maild looks for them.
 !macro FROSTMAIL_TAKE_OVER
   ${If} $FmOld != ""
-  ${AndIf} $FmOld != $INSTDIR
     Delete "$FmOld\frostmail.exe"
     Delete "$FmOld\maild.exe"
     Delete "$FmOld\mailctl.exe"

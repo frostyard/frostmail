@@ -131,7 +131,7 @@ func run() error {
 		windows.add(win)
 		win.OnClosed(prefs.close)
 		win.OnClosed(main.SaveState)
-		frames = uikit.NewSafeHTMLView(win, main.OpenLink, func() { post.post(func() {}) })
+		frames = uikit.NewSafeHTMLView(win, "frostmail-reader", main.OpenLink, func() { post.post(func() {}) })
 		main.Start(ctx)
 		if id, ok := openMessageArg(os.Args[1:]); ok {
 			post.post(func() { main.OpenMessage(id) })

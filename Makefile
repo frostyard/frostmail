@@ -45,13 +45,14 @@ build-windows: ## Cross-compile maild.exe (a GUI program: no console at sign-in)
 
 # A release of the native app: no inspector, and MyGo's production mode
 # (plan 0015, Phase 9).
-DESKTOP_FLAGS = -trimpath -tags mygo_noinspector -ldflags '$(LDFLAGS) -X github.com/egoist/mygo.production=1'
+DESKTOP_TAGS = mygo_noinspector
+DESKTOP_LDFLAGS = $(LDFLAGS) -X github.com/egoist/mygo.production=1
 
 desktop-build: ## Build the native desktop app into build/frostmail
-	CGO_ENABLED=0 go build $(DESKTOP_FLAGS) -o build/frostmail ./cmd/frostmail
+	CGO_ENABLED=0 go build -trimpath -tags $(DESKTOP_TAGS) -ldflags '$(DESKTOP_LDFLAGS)' -o build/frostmail ./cmd/frostmail
 
 desktop-build-windows: ## Cross-compile the native desktop app into build/windows/frostmail.exe
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags mygo_noinspector -ldflags '$(LDFLAGS) -X github.com/egoist/mygo.production=1 -H=windowsgui' -o build/windows/frostmail.exe ./cmd/frostmail
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags $(DESKTOP_TAGS) -ldflags '$(DESKTOP_LDFLAGS) -H=windowsgui' -o build/windows/frostmail.exe ./cmd/frostmail
 
 # The Windows installer holds maild, mailctl and the notifier beside the app.
 # NOTIFIER is frostmail-notify.exe, which cargo builds in app/notify.

@@ -146,17 +146,3 @@ func Keys(c Command) []frostui.KeyBinding {
 	}
 	return keys
 }
-
-// For maps a key press to its command, with the focus in a text field or
-// not; false for none.
-func For(mods ui.Modifiers, key ui.Key, inTextField bool) (Command, bool) {
-	for _, b := range Bindings {
-		if b.Mods == mods && b.Key == key {
-			if inTextField && b.Scope == frostui.OutsideText {
-				return "", false
-			}
-			return b.Command, true
-		}
-	}
-	return "", false
-}

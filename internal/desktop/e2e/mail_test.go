@@ -42,23 +42,11 @@ func corpus(t *testing.T, origin string) string {
 }
 
 // openHostile shows the Hostile mailbox and opens its first message, and
-// returns the reader's page. A click can land before the row is drawn, or
-// be lost to a change of the list, so it is repeated until the page shows.
+// returns the reader's page.
 func openHostile(s *session) node {
 	s.t.Helper()
 	s.press(1, s.waitNode(1, "treeItem", "^Hostile"))
-	row := s.waitNode(1, "listItem", "Hostile")
-	deadline := time.Now().Add(settle)
-	for {
-		s.center(1, row)
-		time.Sleep(time.Second)
-		if body := find(s.tree(1), "", "Message body"); body != nil {
-			return *body
-		}
-		if time.Now().After(deadline) {
-			s.t.Fatalf("the first message did not open; the window shows:\n%s", dump(s.tree(1)))
-		}
-	}
+	return s.clickUntil(s.waitNode(1, "listItem", "Hostile"), "Message body")
 }
 
 // Every hostile message, shown in the real page, asks for nothing.
@@ -96,19 +84,17 @@ func TestLinkClickReachesTheHandler(t *testing.T) {
 	}
 	s := start(t, options{fixture: []string{"-n", "0", "-hostile", dir}})
 	body := openHostile(s)
-	time.Sleep(2 * time.Second) // the page lays out after the element exists
 	log := filepath.Join(s.root, "links.log")
 	origin := s.windows()[0].Content
-	for _, dy := range []float64{40, 70, 100, 130} {
-		realClick(t, int(origin.X+body.Bounds.X+body.Bounds.Width/2), int(origin.Y+body.Bounds.Y+dy))
-		time.Sleep(500 * time.Millisecond)
-		if _, err := os.Stat(log); err == nil {
-			break
-		}
-	}
-	eventually(t, "the link in the log", func() bool {
+	clicked := func() bool {
 		b, _ := os.ReadFile(log)
 		return strings.Contains(string(b), url)
+	}
+	// The page lays out after its element exists, with no signal to wait
+	// for, so the click repeats until the handler has it.
+	eventually(t, "the link in the log", func() bool {
+		realClick(t, int(origin.X+body.Bounds.X+body.Bounds.Width/2), int(origin.Y+body.Bounds.Y+70))
+		return clicked()
 	})
 	if ws := s.windows(); len(ws) != 1 {
 		t.Errorf("windows after the click: %+v", ws)
@@ -139,15 +125,7 @@ func TestForwardKeepsAnInlineImage(t *testing.T) {
 	// Sending needs the sync manager, whose IMAP the fixture points nowhere.
 	s := start(t, options{fixture: []string{"-showcase", filepath.Join(repoRoot, "tools", "uifixture", "showcase"), "-smtp", addr},
 		env: []string{"FROSTMAIL_SYNC=on", "FROSTMAIL_UNDO_DELAY=0s"}})
-	row := s.waitNode(1, "", "Your trip to Lisbon")
-	deadline := time.Now().Add(settle)
-	for find(s.tree(1), "", "Message body") == nil {
-		if time.Now().After(deadline) {
-			t.Fatalf("the message did not open; the window shows:\n%s", dump(s.tree(1)))
-		}
-		s.center(1, row)
-		time.Sleep(time.Second)
-	}
+	s.clickUntil(s.waitNode(1, "", "Your trip to Lisbon"), "Message body")
 	s.key(1, "CmdOrCtrl+Shift+F")
 	w := s.waitWindow("Fwd|Trip|trip|Lisbon")
 	to := s.waitNode(w, "comboBox", "^To$")

@@ -15,6 +15,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // downloadTimeout bounds fetching an attachment.
@@ -31,7 +32,7 @@ func base64Decode(s string) []byte {
 }
 
 func decodePhoto(data []byte) *ui.Bitmap {
-	b, err := ui.DecodeBitmap(data)
+	b, err := uikit.DecodeBitmap(data)
 	if err != nil {
 		return nil
 	}

@@ -199,7 +199,7 @@ func (w *Window) photo(address string) *ui.Bitmap {
 	if data == nil {
 		return nil
 	}
-	b, err := ui.DecodeBitmap(data)
+	b, err := uikit.DecodeBitmap(data)
 	if err != nil {
 		b = nil
 	}
@@ -376,7 +376,7 @@ func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 	}
 	st := w.mail.State()
 	s := uikit.Summary{Title: mail.DisplayName(r.From), Date: mail.ListDate(r.Date, w.o.Now()), Subtitle: r.Subject, Preview: r.Preview,
-		Unread: !r.Flags.Seen, Photo: w.photo(r.From.Address)}
+		Unread: !r.Flags.Seen, UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
 	if r.Flags.Flagged {
 		s.Mark = flagColor(c.Theme(), r.Flags.FlagColor)
 		names := []string(nil)

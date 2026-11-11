@@ -1,6 +1,7 @@
 package mainwin_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -590,6 +591,14 @@ func TestUndoSendReopensTheDraft(t *testing.T) {
 		defer f.mu.Unlock()
 		return slices.Contains(f.drafts, d.ID)
 	})
+}
+
+// A compose window closed with a failed save tells the main window, whose
+// toast says so (cmd/frostmail/compose.go wires ShowProblem).
+func TestShowProblemShowsAToast(t *testing.T) {
+	f := oneMail(t, "", "Body")
+	f.win.ShowProblem("The draft was not saved", errors.New("maild is gone"))
+	f.has(t, "the toast", "The draft was not saved")
 }
 
 // A message sent later shows no toast: it waits in its own section.

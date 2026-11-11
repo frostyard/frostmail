@@ -243,6 +243,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $setup = (Get-Item build/mygo/windows-amd64/*-setup-*.exe).FullName
           $dir = Join-Path $env:RUNNER_TEMP 'frostmail-install'
+          $mail = Join-Path $env:LOCALAPPDATA 'Frostmail'
+          # The uninstaller removes the install folder whole, so the folder
+          # with the mail is refused.
+          $refused = Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$mail"
+          [void]$refused.Handle
+          $refused.WaitForExit()
+          if ($refused.ExitCode -eq 0) { throw 'the installer took the folder with the mail' }
+          if (Test-Path (Join-Path $mail 'Frostmail.exe')) { throw 'the refused install left files' }
           # Not Start-Process -Wait, which also waits for the maild it leaves running.
           (Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$dir").WaitForExit()
           foreach ($f in 'Frostmail.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
@@ -251,7 +259,11 @@ jobs:
           foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
             if (-not (Test-Path $k)) { throw "the install has no $k" }
           }
+          # A silent uninstall keeps the mail.
+          $probe = Join-Path $mail 'Data\probe'
+          New-Item -Force -ItemType File $probe | Out-Null
           (Start-Process -PassThru -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S', "_?=$dir").WaitForExit()
+          if (-not (Test-Path $probe)) { throw 'the silent uninstall deleted the mail' }
           foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
             if (Test-Path $k) { throw "the uninstall left $k" }
           }

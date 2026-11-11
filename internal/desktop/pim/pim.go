@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/live"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // The modules' pane IDs. The sidebar's is the main window's, so its
@@ -446,7 +447,7 @@ func decodePhoto(p *api.Photo) *ui.Bitmap {
 	if err != nil {
 		return nil
 	}
-	b, err := ui.DecodeBitmap(data)
+	b, err := uikit.DecodeBitmap(data)
 	if err != nil {
 		return nil
 	}

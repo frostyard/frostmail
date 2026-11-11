@@ -1,4 +1,4 @@
-package uikit
+package compose
 
 import (
 	"time"
@@ -7,8 +7,8 @@ import (
 	"github.com/frostyard/frostui"
 )
 
-// TimeSheet asks for a future date and time. Keep one in the window's
-// state, Show it, and call View every frame.
+// TimeSheet asks for a future date and time, for Send Later and Remind Me.
+// Keep one in the window's state, Show it, and call View every frame.
 type TimeSheet struct {
 	open   bool
 	title  string
