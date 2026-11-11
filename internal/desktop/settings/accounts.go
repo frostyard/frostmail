@@ -816,25 +816,27 @@ func tlsOptions() []option[api.TLSMode] {
 }
 
 // serverFields edits one server's host, port, security and user name. id
-// names its fields for assistive technology, as "imap Server".
+// names its fields for assistive technology, as "imap Server". Explicit
+// values keep disabled fields readable: MyGo paints their text but omits
+// the editor value from accessibility while the fieldset is disabled.
 func serverFields(c *ui.Context, id, legend string, v *api.ServerConfig, off bool) {
 	name := strings.ToUpper(id)
 	ui.Form(c, func() {
 		ui.Fieldset(c, legend, func() {
-			ui.Field(c.Key("host"), "Server:", func() { ui.TextInput(c, &v.Host).Label(name + " Server") })
+			ui.Field(c.Key("host"), "Server:", func() { ui.TextInput(c, &v.Host).Label(name + " Server").Value(v.Host) })
 			ui.Field(c.Key("port"), "Port:", func() {
 				text := ""
 				if v.Port != 0 {
 					text = strconv.FormatInt(v.Port, 10)
 				}
-				if ui.TextInput(c, &text).Label(name + " Port").Width(96).Changed() {
+				if ui.TextInput(c, &text).Label(name + " Port").Value(text).Width(96).Changed() {
 					v.Port = parsePort(text)
 				}
 			})
 			ui.Field(c.Key("tls"), "Security:", func() {
 				choose(c, name+" Security", v.TLS, tlsOptions(), off, func(tls api.TLSMode) { *v = withTLS(id, *v, tls) })
 			})
-			ui.Field(c.Key("user"), "User Name:", func() { ui.TextInput(c, &v.Username).Label(name + " User Name") })
+			ui.Field(c.Key("user"), "User Name:", func() { ui.TextInput(c, &v.Username).Label(name + " User Name").Value(v.Username) })
 		}).Disabled(off)
 	})
 }

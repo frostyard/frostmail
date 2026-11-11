@@ -97,7 +97,8 @@ describe("an existing account's mailbox behaviors", () => {
     await screen.findByRole("navigation", { name: "Accounts" });
     const select = (await screen.findByLabelText("Erase deleted messages:")) as HTMLSelectElement;
     const list = await screen.findByLabelText("Erase junk messages:");
-    expect(chosen(select)).toBe("After One Week");
+    // Controls mount before the asynchronous account read fills them.
+    await waitFor(() => expect(chosen(select)).toBe("After One Week"));
     expect(chosen(list as HTMLSelectElement)).toBe("Never");
 
     // The names are the account's trash and junk mailboxes, from mailbox.list.

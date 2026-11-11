@@ -227,3 +227,31 @@ func TestUnblockGoesToTheAddressPressed(t *testing.T) {
 	}
 	f.sees("b@y.test")
 }
+
+func TestFlagNamesSaveWhenFocusMovesBackward(t *testing.T) {
+	for _, keyboard := range []bool{false, true} {
+		name := "click"
+		if keyboard {
+			name = "Shift+Tab"
+		}
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t, setup{})
+			f.general()
+			f.fill("Flag 3 name", "Follow up")
+			if keyboard {
+				f.tt.Key(ui.Shift, ui.KeyTab)
+			} else {
+				f.click("Flag 2 name")
+			}
+			f.until("the name after moving backward", func() bool {
+				return f.settings().FlagNames[2] == "Follow up"
+			})
+			f.fill("Flag 2 name", "Next")
+			f.tt.Key(0, ui.KeyEnter)
+			f.until("both names", func() bool {
+				names := f.settings().FlagNames
+				return names[1] == "Next" && names[2] == "Follow up"
+			})
+		})
+	}
+}
