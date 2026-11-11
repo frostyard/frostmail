@@ -2,6 +2,7 @@ package mail_test
 
 import (
 	"bufio"
+	"context"
 	"encoding/json/v2"
 	"errors"
 	"net"
@@ -17,11 +18,13 @@ import (
 // moveServer answers message.summaries and message.move for message 1,
 // keeping its mailbox, and answers a move to slow late.
 type moveServer struct {
-	mu    sync.Mutex
-	box   int64
-	moves []int64
-	slow  int64
-	skips int // moves still to report done without doing, as maild does for a move not yet replayed
+	mu      sync.Mutex
+	box     int64
+	moves   []int64
+	slow    int64
+	started chan int64
+	release <-chan struct{}
+	skips   int // moves still to report done without doing, as maild does for a move not yet replayed
 	// failRead is the message.summaries call, counted from 1, answered with
 	// an error; reads counts them.
 	failRead, reads int
@@ -69,8 +72,11 @@ func (s *moveServer) answer(conn net.Conn, write *sync.Mutex, req api.Frame) {
 		s.mu.Lock()
 		slow := p.MailboxID == s.slow
 		s.mu.Unlock()
+		if s.started != nil {
+			s.started <- p.MailboxID
+		}
 		if slow {
-			time.Sleep(50 * time.Millisecond) // lets a second undo overtake, if it can
+			<-s.release
 		}
 		s.mu.Lock()
 		if s.skips > 0 {
@@ -106,7 +112,8 @@ func (s *moveServer) answer(conn net.Conn, write *sync.Mutex, req api.Frame) {
 func TestUndosRunOneAtATime(t *testing.T) {
 	s := &moveServer{box: 10}
 	c := s.client(t)
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 	var u mail.Undo
 	for _, to := range []int64{20, 30} {
 		if _, err := u.Move(ctx, c, []int64{1}, func() error {
@@ -118,15 +125,55 @@ func TestUndosRunOneAtATime(t *testing.T) {
 	s.mu.Lock()
 	s.slow = 20
 	s.mu.Unlock()
-	var wg sync.WaitGroup
+	release := make(chan struct{})
+	var workers sync.WaitGroup
+	defer func() {
+		close(release)
+		cancel()
+		workers.Wait()
+	}()
+	s.started, s.release = make(chan int64, 2), release
+	waiting := make(chan struct{}, 2)
+	u.BeforeUndo = func() { waiting <- struct{}{} }
+	done := make(chan error, 2)
+	run := func() {
+		_, err := u.Do(ctx, c)
+		done <- err
+	}
+	workers.Go(run)
+	select {
+	case to := <-s.started:
+		if to != 20 {
+			t.Fatalf("first undo moves to %d, want 20", to)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("first undo did not reach the server")
+	}
+	<-waiting
+	workers.Go(run)
+	select {
+	case <-waiting:
+	case <-time.After(30 * time.Second):
+		t.Fatal("second undo did not reach its wait")
+	}
+	select {
+	case to := <-s.started:
+		t.Fatalf("second undo overtook the held move: %d", to)
+	case <-time.After(50 * time.Millisecond):
+		// Only a bound on the negative assertion: the first move stays
+		// held until this check ends, however slow the runner is.
+	}
+	release <- struct{}{}
 	for range 2 {
-		wg.Go(func() {
-			if _, err := u.Do(ctx, c); err != nil {
+		select {
+		case err := <-done:
+			if err != nil {
 				t.Errorf("undo: %v", err)
 			}
-		})
+		case <-time.After(30 * time.Second):
+			t.Fatal("undo did not finish")
+		}
 	}
-	wg.Wait()
 	if want := []int64{20, 30, 20, 10}; !slices.Equal(s.moves, want) {
 		t.Errorf("moves = %v, want %v", s.moves, want)
 	}
