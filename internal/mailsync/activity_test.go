@@ -206,10 +206,12 @@ func TestActivityCountsTheFlagsThatChanged(t *testing.T) {
 	if _, err := other.Select(ctx, "INBOX"); err != nil {
 		t.Fatal(err)
 	}
+	// Read before the change: the server's IDLE can wake a pass that takes
+	// it before Sync.Now does, and that pass's entry is the one to see.
+	before := h.newestActivity()
 	if err := other.StoreFlags(ctx, []uint32{1}, []string{`\Flagged`}, nil); err != nil {
 		t.Fatal(err)
 	}
-	before := h.newestActivity()
 	if err := h.c.Sync().Now(ctx, &api.SyncNowParams{AccountID: h.acct}); err != nil {
 		t.Fatal(err)
 	}
