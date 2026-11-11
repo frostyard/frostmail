@@ -201,37 +201,41 @@ func TestASecondDeleteWaitsForTheList(t *testing.T) {
 // A delete never sent lets go at once, and so does one that left the
 // message where its row shows it (maild skips a message still moving):
 // another Delete acts on what the list shows. One that moved it holds
-// until the list shows that, and one that ended unread holds too.
+// until the list shows that, and one whose end no read has shown holds
+// unread, whatever the list shows.
 func TestAHeldDeleteLetsGo(t *testing.T) {
 	w := New(Options{Target: conn.Target{Socket: "none"}, Post: func(fn func()) { fn() }})
 	inbox := []int64{1}
-	for id := range int64(5) {
+	for id := range int64(6) {
 		w.deleting[id+1] = &heldDelete{from: inbox}
 	}
-	w.deleteEnded([]int64{1}, false, nil)
+	w.deleteEnded([]int64{1}, nil, false, false, nil)
 	if w.deleting[1] != nil {
 		t.Error("a delete never sent stays held")
 	}
-	w.deleteEnded([]int64{2}, true, []api.MessageSummary{{ID: 2, MailboxIDs: inbox}})
+	w.deleteEnded([]int64{2}, nil, true, true, []api.MessageSummary{{ID: 2, MailboxIDs: inbox}})
 	if w.deleting[2] != nil {
 		t.Error("a delete that left the message where the list shows it stays held")
 	}
-	w.deleteEnded([]int64{3}, true, []api.MessageSummary{{ID: 3, MailboxIDs: []int64{9}}})
+	w.deleteEnded([]int64{3}, nil, true, true, []api.MessageSummary{{ID: 3, MailboxIDs: []int64{9}}})
 	if h := w.deleting[3]; h == nil || !h.done {
 		t.Fatalf("a finished delete: %+v, want held and done", h)
 	}
-	if unknown := w.deleteEnded([]int64{4}, true, nil); !slices.Equal(unknown, []int64{4}) {
-		t.Errorf("a delete not read back is not one to confirm: %v", unknown)
-	}
-	if h := w.deleting[4]; h == nil || h.done {
-		t.Fatalf("a delete not read back: %+v, want held and not done", h)
+	w.deleteEnded([]int64{4}, nil, true, true, nil)                                               // answered, not read back
+	w.deleteEnded([]int64{5}, nil, true, false, []api.MessageSummary{{ID: 5, MailboxIDs: inbox}}) // not answered
+	for _, id := range []int64{4, 5} {
+		if h := w.deleting[id]; h == nil || h.done || !h.unread {
+			t.Fatalf("delete %d: %+v, want held and unread", id, h)
+		}
 	}
 	w.releaseDeletes() // no view: nothing lists them
 	if w.deleting[3] != nil {
 		t.Error("a finished delete of a row no list has stays held")
 	}
-	if w.deleting[4] == nil || w.deleting[5] == nil {
-		t.Error("a delete still running, in maild or here, let go")
+	for _, id := range []int64{4, 5, 6} {
+		if w.deleting[id] == nil {
+			t.Errorf("delete %d, still running in maild or here, let go", id)
+		}
 	}
 }
 
@@ -246,32 +250,63 @@ func fakeView(t *testing.T, c *api.Client, events *live.Events) *live.View {
 	return view
 }
 
-// A delete done but not read back may have moved the message to Trash: it
-// holds while the list shows the row as it was, and another Delete of it
-// sends nothing. It lets go once the list shows the row moved.
-func TestADeleteNotReadBackStaysHeld(t *testing.T) {
-	row := api.MessageSummary{ID: 7, AccountID: 1, MailboxIDs: []int64{1}, Subject: "Plans"}
-	s := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1},
-		"view.range": []api.MessageSummary{row}, "message.summaries": []api.MessageSummary{row}},
-		fail: map[string]int{"message.summaries": 2}} // the read after the delete
+// heldDeleteOn is a window whose list shows row from s, with row selected
+// and its Delete sent; maild answers the delete once release closes.
+func heldDeleteOn(t *testing.T, s *fakeMaild, row api.MessageSummary, release chan struct{}) (*Window, *api.Client, *frostuitest.Loop) {
+	t.Helper()
+	s.result = map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1},
+		"view.range": []api.MessageSummary{row}, "message.summaries": []api.MessageSummary{row}}
+	s.hold = map[string]chan struct{}{"message.delete": release}
 	loop := frostuitest.NewLoop()
 	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond})
-	w.confirmEvery = time.Millisecond
+	w.readBackEvery = time.Millisecond
 	c := s.client(t)
-	events := live.NewEvents()
-	w.client, w.view, w.pane = c, fakeView(t, c, events), paneList
+	w.client, w.view, w.pane = c, fakeView(t, c, live.NewEvents()), paneList
 	w.chosen.Add(row.ID)
 	w.deleteKey()
+	poll(t, "the delete", func() bool { return s.count("message.delete") == 1 })
+	return w, c, loop
+}
+
+// moveTo has s answer message.summaries and view.range with row in boxes.
+func (s *fakeMaild) moveTo(row api.MessageSummary, boxes ...int64) {
+	row.MailboxIDs = boxes
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.result["message.summaries"] = []api.MessageSummary{row}
+	s.result["view.range"] = []api.MessageSummary{row}
+}
+
+// A delete maild answered, whose read after failed: it may have moved the
+// message to Trash. It holds, the read is tried again until one gets
+// through, and a second Delete meanwhile sends nothing. It lets go once
+// the list shows the row moved.
+func TestADeleteNotReadBackStaysHeld(t *testing.T) {
+	row := api.MessageSummary{ID: 7, AccountID: 1, MailboxIDs: []int64{1}, Subject: "Plans"}
+	release := make(chan struct{})
+	s := &fakeMaild{fail: map[string][]int{"message.summaries": {2, 3}}} // the read after, and the first read back
+	w, _, loop := heldDeleteOn(t, s, row, release)
+	s.moveTo(row, 2)
+	close(release)
 	loop.RunUntil(t, func() bool { return len(w.toasts) > 0 })
-	if n := s.count("message.delete"); n != 1 {
-		t.Fatalf("%d deletes", n)
+	if got := w.toasts[0].Title; got != "Undo cannot take this back" {
+		t.Errorf("toast %q", got)
 	}
 	held := w.deleting[row.ID]
 	if held == nil {
 		t.Fatal("a delete done but not read back let go")
 	}
-	if got := w.toasts[0].Title; got != "Undo cannot take this back" {
-		t.Errorf("toast %q", got)
+	w.repairSelection()
+	w.deleteKey()
+	if w.deleting[row.ID] != held {
+		t.Fatal("a second Delete went out for the row the list still shows")
+	}
+	poll(t, "the move read back", func() bool {
+		loop.Flush()
+		return held.done || w.deleting[row.ID] != held
+	})
+	if n := s.count("message.summaries"); n != 4 {
+		t.Errorf("%d reads, want the one before, the one after and 2 reads back", n)
 	}
 
 	w.repairSelection()
@@ -279,17 +314,10 @@ func TestADeleteNotReadBackStaysHeld(t *testing.T) {
 	if w.deleting[row.ID] != held {
 		t.Fatal("a second Delete went out for the row the list still shows")
 	}
-
-	moved := row
-	moved.MailboxIDs = []int64{2}
-	s.mu.Lock()
-	s.result["message.summaries"] = []api.MessageSummary{moved}
-	s.mu.Unlock()
-	events.Deliver(api.MessageChanged{IDs: []int64{row.ID}})
-	poll(t, "the row moved, and the move read back", func() bool {
-		loop.Flush()
+	w.view = fakeView(t, w.client, live.NewEvents())
+	poll(t, "the row moved", func() bool {
 		rows := w.view.Rows([]int64{row.ID})
-		return held.done && len(rows) == 1 && slices.Equal(rows[0].MailboxIDs, moved.MailboxIDs)
+		return len(rows) == 1 && !slices.Equal(rows[0].MailboxIDs, row.MailboxIDs)
 	})
 	w.repairSelection()
 	if len(w.deleting) != 0 {
@@ -297,57 +325,37 @@ func TestADeleteNotReadBackStaysHeld(t *testing.T) {
 	}
 }
 
-// timedOutDelete deletes row through a window whose delete maild holds
-// past its deadline, until the test closes release; the window reads the
-// message back for confirmFor.
-func timedOutDelete(t *testing.T, row api.MessageSummary, release chan struct{}, confirmFor time.Duration) (*Window, *fakeMaild, *frostuitest.Loop) {
-	t.Helper()
-	s := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1},
-		"view.range": []api.MessageSummary{row}, "message.summaries": []api.MessageSummary{row}},
-		hold: map[string]chan struct{}{"message.delete": release}}
-	loop := frostuitest.NewLoop()
-	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond})
-	w.timeout, w.confirmEvery, w.confirmFor = 50*time.Millisecond, time.Millisecond, confirmFor
-	c := s.client(t)
-	w.client, w.view, w.pane = c, fakeView(t, c, live.NewEvents()), paneList
-	w.chosen.Add(row.ID)
-	w.deleteKey()
-	loop.RunUntil(t, func() bool { return len(w.toasts) > 0 }) // the deadline passed
-	return w, s, loop
-}
-
-// A delete past its deadline goes on in maild. A view that loads meanwhile
-// shows the row as it was, also once maild has moved the message to Trash:
-// it is no proof of the move, and a second Delete must not erase it.
-func TestATimedOutDeleteWaitsForMaild(t *testing.T) {
+// maild takes its time over a delete, past any deadline: only its answer
+// settles the hold. A view that loads meanwhile, and keeps the row as it
+// was after the move, is no proof of it, and Delete pressed before the
+// answer or after it never reaches maild again.
+func TestASlowDeleteSettlesFromItsAnswer(t *testing.T) {
 	row := api.MessageSummary{ID: 7, AccountID: 1, MailboxIDs: []int64{1}, Subject: "Plans"}
 	release := make(chan struct{})
-	w, s, loop := timedOutDelete(t, row, release, time.Minute)
+	s := &fakeMaild{}
+	w, c, loop := heldDeleteOn(t, s, row, release)
 	held := w.deleting[row.ID]
-	if held == nil {
-		t.Fatal("let go of a delete maild may still run")
-	}
-	if held.done {
-		t.Errorf("a delete maild may still run is done: %+v", held)
-	}
-
-	w.view = fakeView(t, w.client, live.NewEvents()) // loads while maild still deletes
-	w.repairSelection()
-	w.deleteKey()
-	if w.deleting[row.ID] != held {
-		t.Fatal("a second Delete went out while maild still ran the first")
-	}
-
-	moved := row
-	moved.MailboxIDs = []int64{2}
-	s.mu.Lock()
-	s.result["message.summaries"] = []api.MessageSummary{moved}
-	s.mu.Unlock()
-	close(release) // maild ends the delete: the message is in Trash
-	poll(t, "the move read back", func() bool {
+	w.view = fakeView(t, c, live.NewEvents()) // loads while maild still deletes
+	// However long maild takes, the hold stays, and so does what it is.
+	for start := time.Now(); time.Since(start) < 300*time.Millisecond; {
 		loop.Flush()
-		return held.done || w.deleting[row.ID] != held
+		w.repairSelection()
+		w.deleteKey()
+		if w.deleting[row.ID] != held || held.done || held.unread {
+			t.Fatalf("while maild deletes: %+v, want the hold sent", w.deleting[row.ID])
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	s.moveTo(row, 2)
+	close(release) // maild answers: the message is in Trash
+	poll(t, "the answer", func() bool {
+		loop.Flush()
+		return held.done || held.unread || w.deleting[row.ID] != held
 	})
+	if !held.done || held.unread {
+		t.Fatalf("after the answer: %+v, want done from it", held)
+	}
 	w.repairSelection()
 	w.deleteKey()
 	if w.deleting[row.ID] != held {
@@ -358,17 +366,58 @@ func TestATimedOutDeleteWaitsForMaild(t *testing.T) {
 	}
 }
 
-// A delete past its deadline that maild never carried out: once the wait
-// for it ends with the message where its row shows it, the hold lets go.
-func TestATimedOutDeleteMaildNeverRanLetsGo(t *testing.T) {
+// The connection ends before maild answers a delete, which ends the delete
+// in maild: one read on the next connection settles it, done when maild
+// moved the message, and let go when it holds it where its row shows it.
+// Until then it holds.
+func TestADeleteCutOffSettlesOnTheNextConnection(t *testing.T) {
 	row := api.MessageSummary{ID: 7, AccountID: 1, MailboxIDs: []int64{1}, Subject: "Plans"}
-	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
-	w, _, loop := timedOutDelete(t, row, release, 50*time.Millisecond)
-	poll(t, "the hold to go", func() bool {
-		loop.Flush()
-		return w.deleting[row.ID] == nil
-	})
+	for _, tc := range []struct {
+		name  string
+		boxes []int64
+	}{{"moved", []int64{2}}, {"not moved", row.MailboxIDs}} {
+		t.Run(tc.name, func(t *testing.T) {
+			release := make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			s := &fakeMaild{}
+			w, c, loop := heldDeleteOn(t, s, row, release)
+			held := w.deleting[row.ID]
+			_ = c.Close()
+			poll(t, "the delete to end unanswered", func() bool {
+				loop.Flush()
+				return held.unread
+			})
+			w.repairSelection()
+			w.deleteKey()
+			if w.deleting[row.ID] != held || held.done {
+				t.Fatalf("before the next connection: %+v, want the same hold, unread", w.deleting[row.ID])
+			}
+			if n := s.count("message.summaries"); n != 1 {
+				t.Errorf("%d reads on the connection that ended", n)
+			}
+
+			next := &fakeMaild{result: map[string]any{"view.open": api.ViewInfo{ID: 1, Count: 1}}}
+			next.moveTo(row, tc.boxes...)
+			w.takeClient(next.client(t), live.NewEvents())
+			poll(t, "the read on the next connection", func() bool {
+				loop.Flush()
+				return !held.unread
+			})
+			if n := next.count("message.summaries"); n != 1 {
+				t.Errorf("%d reads on the next connection, want 1", n)
+			}
+			switch h := w.deleting[row.ID]; tc.name {
+			case "moved":
+				if h != held || !held.done {
+					t.Errorf("a delete maild carried out: %+v, want done", h)
+				}
+			default:
+				if h != nil {
+					t.Errorf("a delete maild never carried out stays held: %+v", h)
+				}
+			}
+		})
+	}
 }
 
 // An edit and a click that come before one frame: Redirect sends what the
@@ -537,7 +586,7 @@ func TestDeleteLeavesAMessageTheListDoesNotHold(t *testing.T) {
 type fakeMaild struct {
 	mu     sync.Mutex
 	result map[string]any
-	fail   map[string]int           // the call of a method, counted from 1, answered with an error
+	fail   map[string][]int         // the calls of a method, counted from 1, answered with an error
 	hold   map[string]chan struct{} // a method's answers wait for its channel to close
 	calls  []api.Frame
 }
@@ -574,7 +623,7 @@ func (s *fakeMaild) answer(c net.Conn, write *sync.Mutex, req api.Frame) {
 		}
 	}
 	result, ok := s.result[req.Method]
-	failed, held := s.fail[req.Method] == n, s.hold[req.Method]
+	failed, held := slices.Contains(s.fail[req.Method], n), s.hold[req.Method]
 	s.mu.Unlock()
 	if held != nil {
 		<-held

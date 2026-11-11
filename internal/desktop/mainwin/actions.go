@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"maps"
 	"slices"
 	"time"
 
@@ -24,10 +23,16 @@ const actionTimeout = 60 * time.Second
 // message in Trash, and erase it.
 type heldDelete struct {
 	from []int64 // the mailboxes the row showed as the delete went
-	// done says maild has ended the delete: it answered, or a read showed
-	// the message moved (confirmDeletes). Until then no view counts.
+	// unread says the delete ended, but no read has shown what it did: maild
+	// did not answer before the connection on ended, or the read after its
+	// answer failed. readBack settles it; until then no view counts.
+	unread   bool
+	answered bool
+	on       *api.Client
+	// done says what the delete did is known, from maild's answer or a
+	// read: the list's view then is view, and one opened since shows it.
 	done bool
-	view *live.View // the list's view then: one opened since shows maild's state after it
+	view *live.View
 }
 
 // selectedIDs are the chosen messages, without rows not loaded yet.
@@ -60,12 +65,24 @@ func (w *Window) run(what string, fn func(ctx context.Context, c *api.Client) er
 
 // runThen is run, and tells done how it ended, on the UI thread.
 func (w *Window) runThen(what string, fn func(ctx context.Context, c *api.Client) error, done func(error)) {
-	c, timeout := w.client, w.timeout
+	w.runWithin(what, actionTimeout, fn, done)
+}
+
+// runWithin is runThen with a deadline of timeout; with 0, the call lasts
+// as long as maild takes to answer it, or the connection.
+func (w *Window) runWithin(what string, timeout time.Duration, fn func(ctx context.Context, c *api.Client) error, done func(error)) {
+	c := w.client
 	if c == nil {
 		return
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		var ctx context.Context
+		var cancel context.CancelFunc
+		if timeout > 0 {
+			ctx, cancel = context.WithTimeout(context.Background(), timeout)
+		} else {
+			ctx, cancel = untilClosed(c)
+		}
 		defer cancel()
 		err := fn(ctx, c)
 		if err != nil {
@@ -150,11 +167,13 @@ func (w *Window) delete(ids []int64) {
 		return
 	}
 	undo, gen, client := w.undo, w.gen, w.client
-	var sent bool
+	var sent, answered bool
 	var after []api.MessageSummary
-	w.runThen("delete the messages", func(ctx context.Context, c *api.Client) error {
+	// No deadline: maild goes on with a call the app stops waiting for, so
+	// only its answer, or the end of the connection, which ends the call
+	// in maild, tells what the delete did.
+	w.runWithin("delete the messages", 0, func(ctx context.Context, c *api.Client) error {
 		var err error
-		answered := false
 		after, err = undo.Move(ctx, c, ids, func() error {
 			sent = true
 			err := c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids})
@@ -162,17 +181,27 @@ func (w *Window) delete(ids []int64) {
 			answered = err == nil || errors.As(err, &refused)
 			return err
 		})
-		if !answered {
-			after = nil // maild may still be at it: the deadline does not stop it
-		}
 		return err
 	}, func(error) {
 		if gen == w.gen {
-			if unknown := w.deleteEnded(ids, sent, after); len(unknown) > 0 {
-				w.confirmDeletes(client, unknown)
-			}
+			w.deleteEnded(ids, client, sent, answered, after)
+			w.readBack()
 		}
 	})
+}
+
+// untilClosed returns a context that ends with the connection c, or with
+// cancel, which also ends the goroutine that watches c.
+func untilClosed(c *api.Client) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-c.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
 }
 
 // deleteKey is Delete and Backspace, which act in the list alone
@@ -202,15 +231,15 @@ func (w *Window) holdDeletes(ids []int64) []int64 {
 	return out
 }
 
-// deleteEnded settles the holds of a delete that ended, and returns those
-// whose end in maild is unknown. What was never sent lets go, and so does
-// a message maild holds, after it, in the mailboxes its row shows: another
-// Delete acts on what the list shows. A delete maild answered is done, and
-// holds until the list drops or moves the row. One it did not answer, or
-// whose messages could not be read back, may still move them to Trash: it
-// holds, and no view counts, until confirmDeletes knows. A revealed
-// message the list has no row for will never be dropped, so it goes now.
-func (w *Window) deleteEnded(ids []int64, sent bool, after []api.MessageSummary) (unknown []int64) {
+// deleteEnded settles the holds of a delete that ended on the connection
+// on. What was never sent lets go, and so does a message maild holds,
+// after its answer, in the mailboxes its row shows: another Delete acts on
+// what the list shows. One it moved or erased is done, and holds until the
+// list drops or moves the row. A delete whose answer or read after it did
+// not come may have moved the message to Trash: it holds, unread, however
+// long, until readBack knows. A revealed message the list has no row for
+// will never be dropped, so it goes now.
+func (w *Window) deleteEnded(ids []int64, on *api.Client, sent, answered bool, after []api.MessageSummary) {
 	now := make(map[int64][]int64, len(after))
 	for _, r := range after {
 		now[r.ID] = r.MailboxIDs
@@ -222,10 +251,12 @@ func (w *Window) deleteEnded(ids []int64, sent bool, after []api.MessageSummary)
 		}
 		boxes, there := now[id]
 		switch {
-		case !sent || there && sameBoxes(boxes, h.from):
+		case !sent:
 			delete(w.deleting, id)
-		case after == nil:
-			unknown = append(unknown, id)
+		case !answered || after == nil:
+			h.unread, h.answered, h.on = true, answered, on
+		case there && sameBoxes(boxes, h.from):
+			delete(w.deleting, id)
 		default:
 			h.done, h.view = true, w.view
 		}
@@ -234,79 +265,77 @@ func (w *Window) deleteEnded(ids []int64, sent bool, after []api.MessageSummary)
 		w.chosen.Remove(r.ID)
 		w.revealing = nil
 	}
-	return unknown
 }
 
-// confirmDeletes reads back, every confirmEvery, the messages of deletes
-// whose end is unknown: maild goes on with a call the app stopped waiting
-// for. Once a read shows a message moved, its hold is done from then, so
-// only a view opened after counts. A message maild still holds where its
-// row shows it once confirmFor has passed was not deleted, and lets go;
-// one no read reached by then is done from then.
-func (w *Window) confirmDeletes(c *api.Client, ids []int64) {
-	from := make(map[int64][]int64, len(ids))
-	for _, id := range ids {
-		from[id] = w.deleting[id].from
+// readBack reads the messages of the unread deletes on the window's
+// connection, and settles them: one maild moved or erased is done from
+// then, and one it holds where its row shows it was not deleted, and lets
+// go. A delete maild answered is read on any connection; one it did not
+// answer only on a later one, as the end of its connection ended it in
+// maild. A read that fails is tried again on the same connection while it
+// lasts, and on the next one (takeClient): nothing settles by time.
+func (w *Window) readBack() {
+	c := w.client
+	if c == nil || w.readingBack {
+		return
 	}
-	gen, every, limit := w.gen, w.confirmEvery, w.confirmFor
-	settle := func(ids []int64, release bool) {
-		w.o.Post(func() {
-			if gen == w.gen {
-				w.deletesConfirmed(ids, release)
-			}
-		})
+	select {
+	case <-c.Done():
+		return // the next connection reads
+	default:
 	}
+	var ids []int64
+	for id, h := range w.deleting {
+		if h.unread && (h.answered || h.on != c) {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	slices.Sort(ids)
+	w.readingBack = true
+	gen, every := w.gen, w.readBackEvery
 	go func() {
-		deadline := time.Now().Add(limit)
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), limit)
-			got, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: slices.Sorted(maps.Keys(from))})
-			cancel()
-			if err == nil {
-				now := make(map[int64][]int64, len(got))
-				for _, r := range got {
-					now[r.ID] = r.MailboxIDs
-				}
-				var moved []int64
-				for id, boxes := range from {
-					if b, ok := now[id]; !ok || !sameBoxes(b, boxes) {
-						moved = append(moved, id)
-						delete(from, id)
-					}
-				}
-				if len(moved) > 0 {
-					settle(moved, false)
-				}
-				if len(from) == 0 {
-					return
-				}
-			}
-			if !time.Now().Before(deadline) {
-				settle(slices.Collect(maps.Keys(from)), err == nil)
-				return
-			}
+		ctx, cancel := untilClosed(c)
+		defer cancel()
+		got, err := c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})
+		if err != nil {
 			select {
 			case <-time.After(every):
-			case <-c.Done(): // no read can come: wait out the bound
-				<-time.After(time.Until(deadline))
-				settle(slices.Collect(maps.Keys(from)), false)
-				return
+			case <-ctx.Done():
 			}
 		}
+		w.o.Post(func() {
+			if gen != w.gen {
+				return
+			}
+			w.readingBack = false
+			if err == nil {
+				w.readBackEnded(ids, got)
+			}
+			w.readBack() // again, or those that came meanwhile
+		})
 	}()
 }
 
-// deletesConfirmed ends confirmDeletes's wait: the holds let go, or are
-// done from now.
-func (w *Window) deletesConfirmed(ids []int64, release bool) {
+// readBackEnded settles the unread deletes of ids from what a read found.
+func (w *Window) readBackEnded(ids []int64, got []api.MessageSummary) {
+	now := make(map[int64][]int64, len(got))
+	for _, r := range got {
+		now[r.ID] = r.MailboxIDs
+	}
 	for _, id := range ids {
-		switch h := w.deleting[id]; {
-		case h == nil || h.done:
-		case release:
-			delete(w.deleting, id)
-		default:
-			h.done, h.view = true, w.view
+		h := w.deleting[id]
+		if h == nil || !h.unread {
+			continue
 		}
+		h.unread = false
+		if boxes, ok := now[id]; ok && sameBoxes(boxes, h.from) {
+			delete(w.deleting, id)
+			continue
+		}
+		h.done, h.view = true, w.view
 	}
 }
 

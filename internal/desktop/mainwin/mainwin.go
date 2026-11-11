@@ -146,9 +146,10 @@ type Window struct {
 	mailboxSheet  *organize.MailboxSheet
 	redirect      *redirectSheet
 
-	// How long an action may take, and how often and how long a delete
-	// whose end is unknown is read back (confirmDeletes).
-	timeout, confirmEvery, confirmFor time.Duration
+	// readingBack says readBack is reading; readBackEvery is how long it
+	// waits before it tries again on a connection that refused a read.
+	readingBack   bool
+	readBackEvery time.Duration
 
 	mu     sync.Mutex
 	latest map[int64]string // each account's newest activity, for the status bar
@@ -165,8 +166,7 @@ func New(o Options) *Window {
 	w := &Window{o: o, listWidth: listDefault, selected: -1, table: frostui.NewCommandTable(), branches: map[string]bool{},
 		q:       mail.ListState{Source: mail.Source{Kind: mail.AllInboxes}, Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate, SearchAll: true},
 		console: frostui.NewConsole(5000), latest: map[int64]string{}, state: conn.State{Target: o.Target},
-		daemon: o.Target, undo: &mail.Undo{}, deleting: map[int64]*heldDelete{},
-		timeout: actionTimeout, confirmEvery: time.Second, confirmFor: actionTimeout}
+		daemon: o.Target, undo: &mail.Undo{}, deleting: map[int64]*heldDelete{}, readBackEvery: time.Second}
 	w.waker = frostui.NewWaker(o.Post, o.Wake)
 	w.shell.Dialogs = &frostui.Dialogs{}
 	w.shell.Console.Title = "Activity"
@@ -282,14 +282,18 @@ func (w *Window) connected(ctx context.Context, c *api.Client, _ *api.Hello) err
 			return err
 		}
 	}
-	w.o.Post(func() {
-		w.closeView()
-		w.client, w.events = c, events
-		w.photos, w.bitmaps = live.NewPhotos(connContext(c), c, w.waker.Wake), map[string]*ui.Bitmap{}
-		w.openView()
-		w.deliverOpen()
-	})
+	w.o.Post(func() { w.takeClient(c, events) })
 	return nil
+}
+
+// takeClient makes c, a new connection, the window's, on the UI thread.
+func (w *Window) takeClient(c *api.Client, events *live.Events) {
+	w.closeView()
+	w.client, w.events = c, events
+	w.photos, w.bitmaps = live.NewPhotos(connContext(c), c, w.waker.Wake), map[string]*ui.Bitmap{}
+	w.openView()
+	w.deliverOpen()
+	w.readBack() // the deletes the last connection ended before their end was known
 }
 
 // connContext returns a context that ends with the connection c.
@@ -327,7 +331,7 @@ func (w *Window) leaveDaemon() {
 	w.closeConv()
 	w.pim.Leave()
 	w.undo = &mail.Undo{}
-	w.deleting = map[int64]*heldDelete{}
+	w.deleting, w.readingBack = map[int64]*heldDelete{}, false
 	w.q.Source, w.q.Search, w.searchDraft = mail.Source{Kind: mail.AllInboxes}, "", ""
 	w.searchToken++
 	w.clearSelection()
