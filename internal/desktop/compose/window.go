@@ -198,8 +198,11 @@ func knownAddresses(ctx context.Context, c *api.Client) []api.Address {
 	for _, letter := range suggestLetters {
 		list, err := c.Address().Suggest(ctx, &api.AddressSuggestParams{Prefix: string(letter), Limit: &limit})
 		if err != nil {
-			slog.Warn("listing known addresses", "err", err)
-			return nil
+			slog.Warn("listing known addresses", "prefix", string(letter), "err", err)
+			if ctx.Err() != nil {
+				break
+			}
+			continue
 		}
 		lists = append(lists, list)
 	}

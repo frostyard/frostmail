@@ -3,6 +3,7 @@ package compose_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"hash/crc32"
@@ -65,6 +66,11 @@ type fixture struct {
 
 func start(t *testing.T) *fixture {
 	t.Helper()
+	return startWithServices(t, nil)
+}
+
+func startWithServices(t *testing.T, services func(*api.Services)) *fixture {
+	t.Helper()
 	mem := imapxtest.StartMemFull(t)
 	raw := "From: Ann <ann@x.test>\r\nTo: me@x.test\r\nSubject: Plans\r\nMessage-ID: <a@x.test>\r\nDate: Mon, 09 Nov 2026 09:41:00 +0000\r\n\r\nFirst line\r\nSecond line\r\n"
 	if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}}); err != nil {
@@ -73,7 +79,7 @@ func start(t *testing.T) *fixture {
 	sink := smtpxtest.Start(t, imapxtest.Password)
 	cfg := mailsync.Config{PollInterval: time.Hour, IdleMax: time.Minute, MinBackoff: 50 * time.Millisecond, Chunk: 50, NoPrefetch: true,
 		DraftQuiet: 20 * time.Millisecond, SendRetry: 50 * time.Millisecond}
-	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg})
+	srv := rpctest.StartWith(t, rpctest.Options{Sync: &cfg, Services: services})
 	c := srv.Dial(t)
 	ctx := t.Context()
 	o := mem.DialOptions()
@@ -1101,4 +1107,39 @@ func TestSaveNowWritesTheLastEdits(t *testing.T) {
 		t.Errorf("SaveNow waited %v past its limit", waited)
 	}
 	h.free()
+}
+
+// A failed letter in the middle must keep both earlier and later lists.
+func TestRecipientsKeepSuggestionsWhenOneLetterFails(t *testing.T) {
+	for _, address := range []string{"ann@x.test", "zed@x.test"} {
+		t.Run(address, func(t *testing.T) {
+			service := &partialAddresses{}
+			f := startWithServices(t, func(s *api.Services) { s.Address = service })
+			f.open(t, f.draft(t, &api.DraftCreateParams{Kind: api.DraftKindNew}), true, false)
+			f.focus(t, "To")
+			f.tt.Type(strings.Split(address, "@")[0])
+			f.until(t, "the surviving suggestion", func() bool {
+				return slices.ContainsFunc(f.tt.Texts(), func(s string) bool { return strings.Contains(s, address) })
+			})
+			if got := service.calls.Load(); got != 36 {
+				t.Errorf("address.suggest calls = %d, want 36", got)
+			}
+		})
+	}
+}
+
+type partialAddresses struct{ calls atomic.Int32 }
+
+func (s *partialAddresses) Suggest(_ context.Context, p *api.AddressSuggestParams) ([]api.Address, error) {
+	s.calls.Add(1)
+	switch p.Prefix {
+	case "a":
+		return []api.Address{{Name: "Ann", Address: "ann@x.test"}}, nil
+	case "b":
+		return nil, api.Unavailable("one letter failed")
+	case "z":
+		return []api.Address{{Name: "Zed", Address: "zed@x.test"}}, nil
+	default:
+		return nil, nil
+	}
 }
