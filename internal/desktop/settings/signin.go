@@ -41,11 +41,18 @@ func (w *Window) loadClient() {
 	})
 }
 
+// setClient takes a stored client. The field follows it only while it holds
+// what it last took, or what was just stored: a late answer must not take
+// an ID the user is typing.
 func (p *signInPane) setClient(client *api.OAuthClient) {
 	p.client = client
-	if client.ClientID != p.synced {
-		p.synced, p.id = client.ClientID, client.ClientID
+	if client.ClientID == p.synced {
+		return
 	}
+	if typed := strings.TrimSpace(p.id); typed == p.synced || typed == client.ClientID {
+		p.id = client.ClientID
+	}
+	p.synced = client.ClientID
 }
 
 func (p *signInPane) status() string {

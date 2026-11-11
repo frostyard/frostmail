@@ -131,9 +131,13 @@ func (w *Window) snippetsBody(c *ui.Context) {
 		ui.Column(c).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Children(func() {
 			listBox(c, "Snippets", func() {
 				for _, s := range p.snippets {
-					if listRow(c.Key(s.ID), s.Name, "", selected != nil && s.ID == selected.ID, false).Clicked() {
+					shown := selected != nil && s.ID == selected.ID
+					if listRow(c.Key(s.ID), s.Name, "", shown, false).Clicked() {
 						p.selected = s.ID
-						p.closeNew()
+						// A click on the open snippet leaves its edits as they are.
+						if p.adding || !shown {
+							p.closeNew()
+						}
 					}
 				}
 			})

@@ -133,14 +133,18 @@ func (w *Window) serverNote() string {
 
 func (w *Window) serverBody(c *ui.Context) {
 	s := &w.server
-	chosen := ""
-	if s.remote {
-		chosen = strings.TrimSpace(s.address)
+	// Read when asked: the controls below take their input as they are
+	// drawn, so s does not hold this frame's yet.
+	chosen := func() string {
+		if s.remote {
+			return strings.TrimSpace(s.address)
+		}
+		return ""
 	}
-	off := s.busy || s.remote && chosen == "" || chosen == s.stored
+	off := func() bool { return s.busy || s.remote && chosen() == "" || chosen() == s.stored }
 	save := func() {
-		if !off {
-			w.saveServer(chosen)
+		if !off() {
+			w.saveServer(chosen())
 		}
 	}
 	ui.Column(c.Key(s.saved)).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleGroup).Label("Server").Children(func() {
@@ -166,7 +170,7 @@ func (w *Window) serverBody(c *ui.Context) {
 		}
 		alert(c, s.err)
 		buttons(c, func() {
-			if ui.PrimaryButton(c, "Save").Disabled(off).Clicked() {
+			if ui.PrimaryButton(c, "Save").Disabled(off()).Clicked() {
 				save()
 			}
 		})

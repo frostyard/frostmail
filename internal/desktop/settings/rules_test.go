@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/organize"
 	"github.com/frostyard/frostmail/internal/desktop/settings"
 	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/frostyard/frostmail/internal/store"
@@ -185,4 +186,42 @@ func TestRuleShowsItsProblem(t *testing.T) {
 		t.Skipf("maild reports no problem for this rule: %+v, %v", list, err)
 	}
 	f.until("the problem's icon", func() bool { _, ok := f.tt.AccessByRole(ui.RoleImage, *list[0].Problem); return ok })
+}
+
+// The rule sheet edits a copy: Duplicate after a cancelled edit copies the
+// rule as maild has it.
+func TestDuplicateAfterACancelledEditCopiesTheRule(t *testing.T) {
+	sheet := organize.RuleSheet{Deps: organize.Deps{Post: func(fn func()) { fn() }, Client: func() *api.Client { return nil },
+		Context: func() organize.Context { return organize.Context{} }}}
+	f := newFixture(t, setup{options: func(o *settings.Options) {
+		o.EditRule = func(r *api.Rule) { sheet.Edit(*r) }
+	}})
+	f.addRule("First")
+	f.show(settings.PaneRules)
+	f.sees("First")
+	f.click("First")
+	f.click("Edit")
+
+	tt := ui.NewTester(sheet.View, 900, 700)
+	tt.Frame()
+	value, ok := tt.AccessByRole(ui.RoleTextField, "Condition 1 value")
+	if !ok {
+		t.Fatalf("no value in %q", tt.Texts())
+	}
+	tt.ClickAt(value.Bounds.X+value.Bounds.W/2, value.Bounds.Y+value.Bounds.H/2)
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Type("edited")
+	if err := tt.Click("Cancel"); err != nil {
+		t.Fatal(err)
+	}
+
+	f.click("Duplicate")
+	f.until("the copy", func() bool { return slices.Equal(f.ruleNames(), []string{"First", "First Copy"}) })
+	list, err := f.c.Rule().List(t.Context(), &api.RuleListParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := list[1].Conditions.Conditions[0].Value; got != "x" {
+		t.Errorf("the copy's condition holds %q", got)
+	}
 }

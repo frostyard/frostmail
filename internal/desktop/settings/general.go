@@ -202,7 +202,9 @@ func (w *Window) blockedRows() []frostui.Setting {
 			title, subtitle = b.Address, ""
 		}
 		rows = append(rows, frostui.Setting{Title: title, Subtitle: subtitle, Control: func(c *ui.Context) {
-			if ui.Button(c, "Unblock").Label("Unblock " + b.Address).Clicked() {
+			// Keyed by the address: frostui keys the row by its title, which
+			// two senders can share.
+			if ui.Button(c.Key(b.Address), "Unblock").Label("Unblock " + b.Address).Clicked() {
 				w.unblock(b.Address)
 			}
 		}})

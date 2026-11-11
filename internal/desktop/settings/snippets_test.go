@@ -100,3 +100,19 @@ func TestSnippetAddErrorLeavesTheFormOpen(t *testing.T) {
 	f.click("Cancel")
 	f.notSeen("New Snippet")
 }
+
+func TestAClickOnTheOpenSnippetKeepsItsEdits(t *testing.T) {
+	f := newFixture(t, setup{})
+	f.show(settings.PaneSnippets)
+	if _, err := f.c.Snippet().Create(t.Context(), &api.SnippetCreateParams{Name: "Alpha", HTML: "<p>one</p>"}); err != nil {
+		t.Fatal(err)
+	}
+	f.sees("Alpha")
+	f.until("its text", func() bool { return f.value("Text:") == "one" })
+	f.fill("Name:", "Edited")
+	f.press(f.control(ui.RoleButton, "Alpha"))
+	f.tt.Frame()
+	if got := f.value("Name:"); got != "Edited" {
+		t.Errorf("the name went back to %q", got)
+	}
+}

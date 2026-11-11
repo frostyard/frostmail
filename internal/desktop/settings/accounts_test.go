@@ -35,6 +35,30 @@ type spy struct {
 	services []api.ServiceSettings
 	discover error
 	setURL   string
+
+	finds      int                               // calls of account.discover
+	found      *api.Discovery                    // what account.discover answers, when set
+	holdUpdate chan struct{}                     // holds account.update back, until closed
+	holdFind   chan struct{}                     // holds account.discover back, until closed
+	holdSvc    map[api.ServiceKind]chan struct{} // hold account.setService back, until closed
+}
+
+// held returns the channel get reads under the lock.
+func held[T any](s *spy, get func() T) T {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return get()
+}
+
+// wait blocks until gate closes; a nil gate does not hold.
+func wait(ctx context.Context, gate chan struct{}) {
+	if gate == nil {
+		return
+	}
+	select {
+	case <-gate:
+	case <-ctx.Done():
+	}
 }
 
 func (s *spy) log(call string) {
@@ -59,6 +83,7 @@ func (s *spy) Update(ctx context.Context, p *api.AccountUpdateParams) (*api.Acco
 	s.mu.Lock()
 	s.update = p
 	s.mu.Unlock()
+	wait(ctx, held(s, func() chan struct{} { return s.holdUpdate }))
 	return s.AccountService.Update(ctx, p)
 }
 
@@ -72,6 +97,7 @@ func (s *spy) SetPassword(ctx context.Context, p *api.AccountSetPasswordParams) 
 
 func (s *spy) SetService(ctx context.Context, p *api.AccountSetServiceParams) (*api.ServiceSettings, error) {
 	s.log("setService " + string(p.Service))
+	wait(ctx, held(s, func() chan struct{} { return s.holdSvc[p.Service] }))
 	s.mu.Lock()
 	err := s.failSvc[p.Service]
 	if p.URL != nil {
@@ -112,10 +138,17 @@ func (s *spy) Authorize(ctx context.Context, p *api.AccountAuthorizeParams) (*ap
 
 func (s *spy) Discover(ctx context.Context, p *api.AccountDiscoverParams) (*api.Discovery, error) {
 	s.mu.Lock()
-	err := s.discover
+	s.finds++
+	s.mu.Unlock()
+	wait(ctx, held(s, func() chan struct{} { return s.holdFind }))
+	s.mu.Lock()
+	err, found := s.discover, s.found
 	s.mu.Unlock()
 	if err != nil {
 		return nil, err
+	}
+	if found != nil {
+		return found, nil
 	}
 	return s.AccountService.Discover(ctx, p)
 }
@@ -825,4 +858,138 @@ func signInForServices(f *fixture) ui.AccessInfo {
 	a.Bounds.X = box.X + box.W + 12
 	a.Bounds.W = 40
 	return a
+}
+
+// addAccountAt makes an account whose servers are at host.
+func (f *fixture) addAccountAt(email, host string) *api.Account {
+	f.t.Helper()
+	a, err := f.c.Account().Create(f.t.Context(), &api.AccountCreateParams{Kind: api.AccountKindIMAP, Email: email, Auth: api.AuthKindPassword,
+		IMAP: &api.ServerConfig{Host: "imap." + host, Port: 993, TLS: api.TLSModeTLS, Username: email},
+		SMTP: &api.ServerConfig{Host: "smtp." + host, Port: 465, TLS: api.TLSModeTLS, Username: email}})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return a
+}
+
+// formOf waits for the form headed title.
+func (f *fixture) formOf(title string) {
+	f.t.Helper()
+	f.until(title+"'s form", func() bool { _, ok := f.tt.AccessByRole(ui.RoleHeading, title); return ok })
+}
+
+func (s *spy) called(call string) func() bool {
+	return func() bool { return slices.Contains(s.seen(), call) }
+}
+
+// A save that ends after the user went to another account leaves that
+// account's form, which a next Save would otherwise write over it.
+func TestALateSaveLeavesAnotherAccountsForm(t *testing.T) {
+	f, s := accountsFixture(t, nil)
+	f.addAccountAt("a@a.test", "a.test")
+	b := f.addAccountAt("b@b.test", "b.test")
+	f.open("a@a.test")
+	f.until("a's form", func() bool { return f.value("IMAP Server") == "imap.a.test" })
+	f.sees("b@b.test")
+	f.fill("IMAP Server", "imap.new.test")
+	gate := make(chan struct{})
+	s.mu.Lock()
+	s.holdUpdate = gate
+	s.mu.Unlock()
+	f.click("Save")
+	f.until("the save", s.called("update"))
+	f.click("b@b.test")
+	f.formOf("b@b.test")
+	close(gate)
+	f.until("the save's end", func() bool { return !f.disabled("Save") })
+	if got := f.value("IMAP Server"); got != "imap.b.test" {
+		t.Fatalf("b's form took %q from a's save", got)
+	}
+	f.click("Save")
+	f.until("b's save", func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.update != nil && s.update.ID == b.ID
+	})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.update.IMAP == nil || s.update.IMAP.Host != "imap.b.test" {
+		t.Errorf("b saved %+v", s.update.IMAP)
+	}
+}
+
+func foundServers() *api.Discovery {
+	return &api.Discovery{Kind: api.AccountKindGmail, Auth: []api.AuthKind{api.AuthKindOAuth2}, Source: api.DiscoverySourceProfile,
+		IMAP: &api.ServerConfig{Host: "imap.found.test", Port: 993, TLS: api.TLSModeTLS},
+		SMTP: &api.ServerConfig{Host: "smtp.found.test", Port: 465, TLS: api.TLSModeTLS}}
+}
+
+func TestALateDiscoveryLeavesAnotherForm(t *testing.T) {
+	f, s := accountsFixture(t, nil)
+	f.addAccountAt("a@a.test", "a.test")
+	gate := make(chan struct{})
+	s.mu.Lock()
+	s.found, s.holdFind = foundServers(), gate
+	s.mu.Unlock()
+	f.open("a@a.test")
+	f.click("Add Account")
+	f.sees("New Account")
+	f.fill("Email Address:", "new@n.test")
+	f.click("Find Settings")
+	f.until("the lookup", func() bool { return held(s, func() int { return s.finds }) > 0 })
+	f.click("a@a.test")
+	f.formOf("a@a.test")
+	close(gate)
+	f.until("the lookup's end", func() bool { return !f.disabled("Save") })
+	if got := f.value("IMAP Server"); got != "imap.a.test" {
+		t.Errorf("a's form took %q from the lookup", got)
+	}
+	if got := f.choice("Account Type"); got != "IMAP" {
+		t.Errorf("a's form became %q", got)
+	}
+}
+
+// An answer about the address the form held before tells nothing of this one.
+func TestALateDiscoveryOfAnotherAddressFillsNothing(t *testing.T) {
+	f, s := accountsFixture(t, nil)
+	gate := make(chan struct{})
+	s.mu.Lock()
+	s.found, s.holdFind = foundServers(), gate
+	s.mu.Unlock()
+	f.sees("New Account")
+	f.fill("Email Address:", "old@n.test")
+	f.click("Find Settings")
+	f.until("the lookup", func() bool { return held(s, func() int { return s.finds }) > 0 })
+	f.fill("Email Address:", "new@n.test")
+	close(gate)
+	f.until("the lookup's end", func() bool { return !f.disabled("Add This Account") })
+	if got := f.value("IMAP Server"); got != "" {
+		t.Errorf("the form took %q for another address", got)
+	}
+	f.notSeen("Looking up servers…")
+}
+
+func TestTwoServicesConnectAtOnce(t *testing.T) {
+	f, s := accountsFixture(t, nil)
+	contacts, calendars := make(chan struct{}), make(chan struct{})
+	s.mu.Lock()
+	s.services = []api.ServiceSettings{svc(api.ServiceKindContacts, nil), svc(api.ServiceKindCalendar, nil)}
+	s.holdSvc = map[api.ServiceKind]chan struct{}{api.ServiceKindContacts: contacts, api.ServiceKindCalendar: calendars}
+	s.mu.Unlock()
+	f.addIMAP("me@a.test")
+	f.open("me@a.test")
+	f.until("the rows", func() bool { _, ok := f.tt.AccessByRole(ui.RoleCheckBox, "Calendars"); return ok })
+	f.check("Contacts")
+	f.check("Calendars")
+	f.until("both calls", func() bool { return s.called("setService contacts")() && s.called("setService calendar")() })
+	if !f.disabled("Contacts") || !f.disabled("Calendars") {
+		t.Errorf("while both connect, off: contacts %v, calendars %v", f.disabled("Contacts"), f.disabled("Calendars"))
+	}
+	close(calendars)
+	f.until("calendars' end", func() bool { return !f.disabled("Calendars") })
+	if !f.disabled("Contacts") {
+		t.Error("the end of one service freed the other")
+	}
+	close(contacts)
+	f.until("contacts' end", func() bool { return !f.disabled("Contacts") })
 }

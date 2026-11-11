@@ -64,7 +64,7 @@ type accountServices struct {
 	id     int64
 	list   []api.ServiceSettings
 	load   loader
-	busy   api.ServiceKind
+	busy   map[api.ServiceKind]bool
 	errors map[api.ServiceKind]string
 	urls   map[api.ServiceKind]string
 }
@@ -231,7 +231,7 @@ func (w *Window) accountShown(a *accountsPane) {
 	a.erase, a.eraseLoad = eraseNames{}, &loader{}
 	a.services = nil
 	if a.selected > 0 {
-		a.services = &accountServices{id: a.selected, errors: map[api.ServiceKind]string{}, urls: map[api.ServiceKind]string{}}
+		a.services = &accountServices{id: a.selected, busy: map[api.ServiceKind]bool{}, errors: map[api.ServiceKind]string{}, urls: map[api.ServiceKind]string{}}
 		w.loadServices(a, a.services)
 		w.loadEraseNames(a)
 	}
@@ -347,11 +347,19 @@ func (w *Window) finishSignIn(a *accountsPane) {
 }
 
 func (w *Window) discover(a *accountsPane) {
-	email := strings.TrimSpace(a.value.Email)
+	email, form := strings.TrimSpace(a.value.Email), a.formNo
 	a.discovery = discoveryState{finding: true}
 	w.run(&a.request, func(ctx context.Context, c *api.Client) error {
 		d, err := c.Account().Discover(ctx, &api.AccountDiscoverParams{Email: email})
 		w.o.Post(func() {
+			// The answer is for the form that asked, about that address.
+			if a.formNo != form {
+				return
+			}
+			if strings.TrimSpace(a.value.Email) != email {
+				a.discovery = discoveryState{}
+				return
+			}
 			if err != nil {
 				a.discovery = discoveryState{failed: message(err)}
 				return
@@ -393,7 +401,7 @@ func (w *Window) submitAccount(a *accountsPane) {
 }
 
 func (w *Window) createAccount(a *accountsPane) {
-	v := a.value
+	v, form := a.value, a.formNo
 	w.run(&a.request, func(ctx context.Context, c *api.Client) error {
 		readOnly, notify := v.ReadOnly, v.Notify
 		p := &api.AccountCreateParams{Kind: v.Kind, Email: strings.TrimSpace(v.Email), DisplayName: v.DisplayName, Auth: v.Auth, ReadOnly: &readOnly, Notify: &notify}
@@ -410,6 +418,9 @@ func (w *Window) createAccount(a *accountsPane) {
 			return err
 		}
 		w.o.Post(func() {
+			if a.formNo != form {
+				return // the user went to another form meanwhile
+			}
 			a.selected, a.value = created.ID, valueOf(*created)
 			a.formNo++
 			w.accountShown(a)
@@ -450,7 +461,7 @@ func enableServices(ctx context.Context, c *api.Client, id int64, services []api
 }
 
 func (w *Window) updateAccount(a *accountsPane, account api.Account) {
-	v := a.value
+	v, form := a.value, a.formNo
 	p := &api.AccountUpdateParams{ID: account.ID, DisplayName: &v.DisplayName, IMAP: &v.IMAP, SMTP: &v.SMTP, ReadOnly: &v.ReadOnly, Notify: &v.Notify, SyncDays: &v.SyncDays}
 	// A behavior whose mailbox the account has not got, or whose name has
 	// not loaded, shows Never in a select the user cannot use: leave its
@@ -472,6 +483,9 @@ func (w *Window) updateAccount(a *accountsPane, account api.Account) {
 			}
 		}
 		w.o.Post(func() {
+			if a.formNo != form {
+				return // the form now edits another account
+			}
 			a.value = valueOf(*updated)
 			a.secretNo++
 		})
@@ -498,7 +512,7 @@ func (w *Window) toggleService(a *accountsPane, s *accountServices, service api.
 	if cn == nil {
 		return
 	}
-	s.busy = service
+	s.busy[service] = true
 	go func() {
 		ctx, cancel := context.WithTimeout(cn.ctx, callTimeout)
 		defer cancel()
@@ -508,9 +522,7 @@ func (w *Window) toggleService(a *accountsPane, s *accountServices, service api.
 		}
 		_, err := cn.client.Account().SetService(ctx, p)
 		w.o.Post(func() {
-			if s.busy == service {
-				s.busy = ""
-			}
+			delete(s.busy, service)
 			if err != nil {
 				s.errors[service] = message(err)
 				return
@@ -552,7 +564,8 @@ func (w *Window) accountList(c *ui.Context, a *accountsPane) {
 						status += " · Read-only"
 					}
 				}
-				if listRow(c.Key(account.ID), title, status, a.selected == account.ID, !account.SignedIn).Clicked() {
+				// A click on the open account leaves its form as it is.
+				if listRow(c.Key(account.ID), title, status, a.selected == account.ID, !account.SignedIn).Clicked() && a.selected != account.ID {
 					w.selectAccount(a, account.ID)
 				}
 			}
@@ -964,7 +977,7 @@ func (w *Window) serviceRow(c *ui.Context, a *accountsPane, s *accountServices, 
 	ui.Column(c).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Children(func() {
 		ui.Row(c).Gap(frostui.SpaceM).AlignItems(ui.Center).Children(func() {
 			on := svc.Enabled
-			if ui.Checkbox(c, &on, serviceName(svc.Service)).Disabled(s.busy == svc.Service).Changed() {
+			if ui.Checkbox(c, &on, serviceName(svc.Service)).Disabled(s.busy[svc.Service]).Changed() {
 				w.toggleService(a, s, svc.Service, on, "")
 			}
 			text, failed := serviceStatus(svc, s, provider, w.o.Now())
@@ -985,7 +998,7 @@ func (w *Window) serviceRow(c *ui.Context, a *accountsPane, s *accountServices, 
 // serviceStatus says how a service stands, and whether that is a failure.
 func serviceStatus(svc api.ServiceSettings, s *accountServices, provider string, now time.Time) (string, bool) {
 	switch {
-	case s.busy == svc.Service:
+	case s.busy[svc.Service]:
 		return "Connecting…", false
 	case !svc.Enabled:
 		return "", false
@@ -1015,7 +1028,7 @@ func (w *Window) serviceURLRow(c *ui.Context, a *accountsPane, s *accountService
 		if ui.TextInput(c, &url).Label(serviceName(service) + " Server").Placeholder("https://dav.example.com/").Grow(1).MinWidth(0).Changed() {
 			s.urls[service] = url
 		}
-		if ui.Button(c, "Connect").Disabled(strings.TrimSpace(url) == "" || s.busy == service).Clicked() {
+		if ui.Button(c, "Connect").Disabled(strings.TrimSpace(url) == "" || s.busy[service]).Clicked() {
 			w.toggleService(a, s, service, true, strings.TrimSpace(url))
 		}
 	})

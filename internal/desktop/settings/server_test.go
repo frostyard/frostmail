@@ -358,3 +358,16 @@ func TestFactsFrom(t *testing.T) {
 		t.Errorf("another app's Flatpak = %+v", f)
 	}
 }
+
+// A field takes its input as it is drawn: text that arrives in the frame of
+// Enter, as an input method's commit does, is part of what Enter saves.
+func TestEnterSavesTheTextOfItsOwnFrame(t *testing.T) {
+	s := serverSetup(t, settings.ServerFacts{}, "", nil)
+	s.chooseLodge("https://lodge.example")
+	s.tt.Compose(".ts.net", 7)
+	s.tt.Key(0, ui.KeyEnter)
+	s.until("the move", func() bool { return len(s.seen()) == 1 })
+	if s.stored() != lodgeURL {
+		t.Errorf("app.json says %q", s.stored())
+	}
+}

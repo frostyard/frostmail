@@ -180,3 +180,50 @@ func TestFlagNamesKeepTheFieldBeingTyped(t *testing.T) {
 		t.Errorf("the field being typed in holds %q", got)
 	}
 }
+
+// sameNames shows every blocked sender under one name, as two addresses of
+// one company can be.
+type sameNames struct {
+	api.BlockService
+	removed *atomic.Int32
+}
+
+func (s sameNames) List(ctx context.Context, p *api.BlockListParams) ([]api.BlockedSender, error) {
+	list, err := s.BlockService.List(ctx, p)
+	for i := range list {
+		list[i].Name = "Spam Co"
+	}
+	return list, err
+}
+
+func (s sameNames) Remove(ctx context.Context, p *api.BlockRemoveParams) error {
+	s.removed.Add(1)
+	return s.BlockService.Remove(ctx, p)
+}
+
+// frostui keys a row by its title: when a row leaves under a press, the next
+// sender of that name must not take the click.
+func TestUnblockGoesToTheAddressPressed(t *testing.T) {
+	var removed atomic.Int32
+	f := newFixture(t, setup{server: rpctest.Options{Services: func(s *api.Services) { s.Block = sameNames{s.Block, &removed} }}})
+	f.general()
+	if _, err := f.c.Block().Add(t.Context(), &api.BlockAddParams{Addresses: []string{"a@y.test", "b@y.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	f.sees("b@y.test")
+	first := f.control(ui.RoleButton, "Unblock a@y.test")
+	x, y := first.Bounds.X+first.Bounds.W/2, first.Bounds.Y+first.Bounds.H/2
+	f.tt.Press(x, y)
+	if err := f.c.Block().Remove(t.Context(), &api.BlockRemoveParams{Addresses: []string{"a@y.test"}}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the row's end", func() bool { return !f.tt.HasText("a@y.test") })
+	f.tt.Release(x, y)
+	// A change made after the release: a click, had there been one, went first.
+	f.choose("Undo send delay", "20 Seconds")
+	f.until("the delay", func() bool { return f.settings().UndoDelay == 20 })
+	if n := removed.Load(); n != 1 {
+		t.Errorf("block.remove ran %d times, want the test's own", n)
+	}
+	f.sees("b@y.test")
+}
