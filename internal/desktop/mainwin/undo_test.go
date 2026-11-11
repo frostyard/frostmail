@@ -48,7 +48,7 @@ func TestUndoWaitsForTheActionRunning(t *testing.T) {
 		}
 		select {
 		case ok := <-undone:
-			t.Errorf("the undo ended during the action: %v", ok)
+			t.Fatalf("the undo ended during the action: %v", ok)
 		default:
 		}
 		return nil
