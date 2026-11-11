@@ -3,9 +3,6 @@
   "runtime": "org.gnome.Platform",
   "runtime-version": "51",
   "sdk": "org.gnome.Sdk",
-  "sdk-extensions": [
-    "org.freedesktop.Sdk.Extension.golang"
-  ],
   "command": "frostmail",
   "finish-args": [
     "--socket=wayland",
@@ -22,7 +19,7 @@
       "name": "frostmail",
       "buildsystem": "simple",
       "build-options": {
-        "append-path": "/usr/lib/sdk/golang/bin",
+        "append-path": "/run/build/frostmail/go-sdk/bin",
         "env": {
           "GOPROXY": "file:///run/build/frostmail/goproxy",
           "GOSUMDB": "off",
@@ -72,6 +69,15 @@
             "docs",
             "flatpak_app",
             "repo"
+          ]
+        },
+        {
+          "type": "archive",
+          "url": "https://dl.google.com/go/go1.27.4.linux-amd64.tar.gz",
+          "sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
+          "dest": "go-sdk",
+          "only-arches": [
+            "x86_64"
           ]
         },
         "go-sources.json"

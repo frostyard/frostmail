@@ -64,7 +64,9 @@ mailctl.
 
 - **Sources.** `go-sources.json` comes from `go.mod` and `go.sum`
   (`tools/flatpakgo`). `make flatpak-sources` writes it; CI fails when it is
-  stale.
+  stale. Go itself is Go's own tarball, pinned by checksum, as Flathub's
+  golang extension can lag `go.mod`; `GOTOOLCHAIN=local` makes a mismatch
+  fail the build.
 - **Sandbox.** `--socket=wayland`, `--socket=fallback-x11`, `--share=ipc`,
   `--device=dri`, `--share=network`,
   `--talk-name=org.freedesktop.Notifications`,

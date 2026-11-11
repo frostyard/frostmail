@@ -165,7 +165,7 @@ the React app's structure. Since then:
   `Calendar` is only the month picker.
 - MyGo is young, with one main author. The app pins it in `go.mod` and
   keeps frostui between its views and MyGo where it can. It needs Go
-  1.27.3, which `go.mod`'s `go` line moves to.
+  1.27.3 or later, which `go.mod`'s `go` line covers.
 - Frostmail is the suite's first MyGo app in a Flatpak and on Windows:
   ChairLift ships a system package for Linux only. Plan 0015's Phase 0
   checks both before the port depends on them.

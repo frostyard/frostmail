@@ -1208,3 +1208,33 @@ func TestShippedBuildsLeaveOutAutomation(t *testing.T) {
 		}
 	}
 }
+
+// TestFlatpakBuildsWithGoModsGo: the Flatpak's Go is a tarball the manifest
+// pins, which must be go.mod's version, so that a security release reaches
+// the Flatpak with the rest of the builds.
+func TestFlatpakBuildsWithGoModsGo(t *testing.T) {
+	mod, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var version string
+	for line := range strings.Lines(string(mod)) {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			version = v
+			break
+		}
+	}
+	if version == "" {
+		t.Fatal("go.mod has no go line")
+	}
+	manifest, err := os.ReadFile(filepath.Join("..", "..", "packaging", "flatpak", "org.frostyard.Frostmail.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/go" + version + ".linux-amd64.tar.gz"; !strings.Contains(string(manifest), want) {
+		t.Errorf("the manifest does not build with %s", want)
+	}
+	if !strings.Contains(string(manifest), `"GOTOOLCHAIN": "local"`) {
+		t.Error("the manifest lets the build fetch another Go")
+	}
+}
