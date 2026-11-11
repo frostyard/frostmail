@@ -37,13 +37,14 @@ type calendarState struct {
 	occ         fetch[[]api.Occurrence]
 	mini        fetch[[]api.Occurrence]
 	event       fetch[*api.CalendarEvent]
+	series      fetch[[]string] // the UIDs of the events that may be the selection's override
 	month       miniMonthState
 	scroll      ui.ScrollState
 	timeGridOn  bool
 	press       *gridPress
 	writable    map[int64]bool
 	grab        *barGrab
-	goneCheck   [2]int // the answers the selection was last checked against
+	goneCheck   [3]int // the answers the selection was last checked against
 	scope       *scopeSheet
 	undo        []string
 	cellHeight  float32
@@ -62,7 +63,7 @@ func (m *Module) setUpCalendar() {
 }
 
 func (m *Module) calendarChanged() {
-	m.cal.occ.dirty, m.cal.mini.dirty, m.cal.event.dirty = true, true, true
+	m.cal.occ.dirty, m.cal.mini.dirty, m.cal.event.dirty, m.cal.series.dirty = true, true, true, true
 	m.todo.mini.dirty, m.todo.upcoming.dirty = true, true
 	m.remindersChanged()
 }
@@ -173,8 +174,14 @@ func (m *Module) syncEvent() {
 // endRemovedOccurrence ends the selection of an occurrence taken out of
 // its series. maild still answers for it from the series, so only the
 // shown range can tell: once the range and the event have both answered,
-// an occurrence dated inside the range that the range lacks is gone. An
-// override has another event ID and the same recurrence ID, and stays.
+// an occurrence dated inside the range that the range lacks is gone.
+//
+// Another series can have an occurrence at the same time, with the same
+// recurrence ID, so the range's occurrence must be the series' own: the
+// series' event ID, or an override of the series. An override has
+// another event ID and the same recurrence ID, and stays; maild names
+// its series, the event's UID, which another series' event does not
+// share.
 func (m *Module) endRemovedOccurrence(from, to string) {
 	cal := &m.cal
 	sel := cal.selected
@@ -185,7 +192,8 @@ func (m *Module) endRemovedOccurrence(from, to string) {
 	if occ.key != fmt.Sprint(m.conn, "|", rangeKey(from, to, m.zone, "")) || !occ.loaded || occ.err != nil || occ.pending || occ.dirty || event.pending || event.dirty {
 		return
 	}
-	answers := [2]int{occ.version, event.version}
+	// The series' answer counts too: when it comes, the check runs again.
+	answers := [3]int{occ.version, event.version, cal.series.version}
 	if answers == cal.goneCheck {
 		return
 	}
@@ -197,9 +205,36 @@ func (m *Module) endRemovedOccurrence(from, to string) {
 	if col := m.collection(e.CalendarID); col != nil && !col.Enabled {
 		return
 	}
-	if !slices.ContainsFunc(occ.value, func(o api.Occurrence) bool { return o.RecurrenceID == sel.recurrenceID && o.CalendarID == e.CalendarID }) {
-		cal.selected, cal.event.value = nil, nil
+	var others []int64
+	for _, o := range occ.value {
+		if o.RecurrenceID != sel.recurrenceID || o.CalendarID != e.CalendarID {
+			continue
+		}
+		if o.EventID == sel.eventID {
+			return
+		}
+		others = append(others, o.EventID)
 	}
+	if len(others) > 0 {
+		key := fmt.Sprint(others)
+		want(m, &cal.series, key, func(ctx context.Context, c *api.Client) ([]string, error) {
+			uids := make([]string, 0, len(others))
+			for _, id := range others {
+				ev, err := c.Calendar().Event(ctx, &api.CalendarEventParams{ID: id})
+				if err != nil {
+					return nil, err
+				}
+				uids = append(uids, ev.UID)
+			}
+			return uids, nil
+		})
+		s := &cal.series
+		// Until maild has named them, or when it could not, the selection stays.
+		if s.key != fmt.Sprint(m.conn, "|", key) || !s.loaded || s.pending || s.err != nil || slices.Contains(s.value, e.UID) {
+			return
+		}
+	}
+	cal.selected, cal.event.value = nil, nil
 }
 
 func (m *Module) eventInRange(e *api.CalendarEvent, from, to string) bool {

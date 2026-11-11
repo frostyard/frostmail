@@ -1052,6 +1052,71 @@ func TestARemovedOccurrenceEndsTheSelection(t *testing.T) {
 	}
 }
 
+// Another series with an occurrence at the same time has the same
+// recurrence ID: it keeps no removed occurrence selected, while an
+// occurrence its own series overrode, under another event ID, stays.
+func TestAnotherSeriesAtTheSameTimeKeepsNoRemovedOccurrence(t *testing.T) {
+	f := newFixture(t, commands.Calendar)
+	f.text("Standup")
+	// Echo repeats as Sync does, at 11:00 UTC from October 5.
+	start := time.Date(2026, 10, 5, 11, 0, 0, 0, time.UTC)
+	summary, rule, zone := "Echo", "FREQ=DAILY;COUNT=5", "UTC"
+	if _, err := f.c.Calendar().Create(t.Context(), &api.CalendarCreateParams{CalendarID: &f.work, Fields: api.EventFields{Summary: &summary,
+		AllDay: ptr(false), Start: &start, End: ptr(start.Add(30 * time.Minute)), TimeZone: &zone, Rrule: &rule}}); err != nil {
+		t.Fatal(err)
+	}
+	occurrenceOn := func(date string) api.Occurrence {
+		t.Helper()
+		sync, echo := f.occurrence("Sync", date, addDays(date, 1)), f.occurrence("Echo", date, addDays(date, 1))
+		if sync.RecurrenceID != echo.RecurrenceID || sync.CalendarID != echo.CalendarID || sync.EventID == echo.EventID {
+			t.Fatalf("not at the same time: %+v, %+v", sync, echo)
+		}
+		return sync
+	}
+	settled := func() bool {
+		occ, event := &f.m.cal.occ, &f.m.cal.event
+		return slices.ContainsFunc(occ.value, func(o api.Occurrence) bool { return o.Summary == summary }) &&
+			!occ.pending && !occ.dirty && !event.pending && !event.dirty
+	}
+	scope := api.EventScopeThis
+
+	// Changed alone, it becomes an override, with an event ID of its own:
+	// the selection stays once maild has named the series.
+	o := occurrenceOn("2026-10-07")
+	f.m.selectOccurrence(&o)
+	f.until("the selection", func() bool { return f.m.shownEvent() != nil && settled() })
+	moved := "Sync moved"
+	if _, err := f.c.Calendar().Update(t.Context(), &api.CalendarUpdateParams{ID: o.EventID, RecurrenceID: &o.RecurrenceID, Scope: &scope,
+		Fields: api.EventFields{Summary: &moved}}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the override's series", func() bool {
+		cal := &f.m.cal
+		if !settled() || !slices.ContainsFunc(cal.occ.value, func(x api.Occurrence) bool { return x.Summary == moved }) {
+			return false
+		}
+		var others []int64
+		for _, x := range cal.occ.value {
+			if x.RecurrenceID == o.RecurrenceID && x.CalendarID == o.CalendarID && x.EventID != o.EventID {
+				others = append(others, x.EventID)
+			}
+		}
+		return cal.series.key == fmt.Sprint(f.m.conn, "|", fmt.Sprint(others)) && cal.series.loaded && !cal.series.pending
+	})
+	if f.m.cal.selected == nil {
+		t.Fatal("the override ended the selection")
+	}
+
+	// Taken out of its series, with Echo's still at its time: it ends.
+	o = occurrenceOn("2026-10-08")
+	f.m.selectOccurrence(&o)
+	f.until("the selection", func() bool { return f.m.shownEvent() != nil && settled() })
+	if _, err := f.c.Calendar().Delete(t.Context(), &api.CalendarDeleteParams{ID: o.EventID, RecurrenceID: &o.RecurrenceID, Scope: &scope}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the empty pane", func() bool { return f.m.cal.selected == nil && f.tt.HasText("No Event Selected") })
+}
+
 // A zone with no name is never left to maild's own: it may be on another
 // machine.
 func TestAnUnnamedZoneDoesNotUseMaildsZone(t *testing.T) {

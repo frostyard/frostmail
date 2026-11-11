@@ -159,13 +159,20 @@ func (f *fixture) openWindow(s WindowSpec) {
 	}, int(s.Width), int(s.Height))
 }
 
+// closeWindow closes a window as the app's does (cmd/frostmail, MyGo's
+// Window.Close): CloseRequested can keep it open.
 func (f *fixture) closeWindow(key string) {
+	w, ok := f.windows[key]
+	if !ok {
+		return
+	}
+	if w.spec.CloseRequested != nil && !w.spec.CloseRequested() {
+		return
+	}
 	f.closed = append(f.closed, key)
-	if w, ok := f.windows[key]; ok {
-		delete(f.windows, key)
-		if w.spec.OnClose != nil {
-			w.spec.OnClose()
-		}
+	delete(f.windows, key)
+	if w.spec.OnClose != nil {
+		w.spec.OnClose()
 	}
 }
 

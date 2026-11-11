@@ -56,10 +56,17 @@ type calendarChoice struct {
 
 // eventWindow is one event's editor.
 type eventWindow struct {
-	m       *Module
-	key     string
+	m   *Module
+	key string
+	// daemon is the maild the window edits on (Module.daemon): its IDs
+	// name that maild's events and calendars, and it never writes to
+	// another.
+	daemon  int
 	target  editTarget
 	dialogs frostui.Dialogs
+	// closed: the window closes without asking about its changes, as after
+	// a save, Don't Save or a change of maild.
+	closed bool
 
 	failure   string
 	loaded    bool
@@ -101,8 +108,19 @@ func (m *Module) openWindow(w *eventWindow, title string) {
 	}
 	m.windows[w.key] = w
 	m.o.OpenWindow(WindowSpec{Key: w.key, Title: title, Width: 480, Height: 600, MinWidth: 420, MinHeight: 480, Frameless: true, View: w.view,
-		OnClose: func() { delete(m.windows, w.key) }, CloseRequested: w.closeRequested})
+		OnClose: w.forget, CloseRequested: w.closeRequested})
 }
+
+// forget takes the window out of the module's, unless another window has
+// its key since.
+func (w *eventWindow) forget() {
+	if w.m.windows[w.key] == w {
+		delete(w.m.windows, w.key)
+	}
+}
+
+// stale reports that the module has left the maild the window edits on.
+func (w *eventWindow) stale() bool { return w.daemon != w.m.daemon }
 
 func eventWindowKey(id int64, recurrenceID string) string {
 	key := fmt.Sprintf("event-%d", id)
@@ -133,7 +151,7 @@ func (m *Module) editSelected() {
 		m.openWindow(w, title)
 		return
 	}
-	w := &eventWindow{m: m, key: key, target: editTarget{id: sel.eventID, recurrenceID: sel.recurrenceID}}
+	w := &eventWindow{m: m, key: key, daemon: m.daemon, target: editTarget{id: sel.eventID, recurrenceID: sel.recurrenceID}}
 	m.openWindow(w, title)
 	w.load()
 }
@@ -163,7 +181,7 @@ func (m *Module) newAllDay(date string) {
 
 func (m *Module) newEvent(t newTimes) {
 	m.newCount++
-	w := &eventWindow{m: m, key: fmt.Sprintf("event-new-%d", m.newCount), target: editTarget{isNew: true, times: t}}
+	w := &eventWindow{m: m, key: fmt.Sprintf("event-new-%d", m.newCount), daemon: m.daemon, target: editTarget{isNew: true, times: t}}
 	m.openWindow(w, "New Event")
 	w.load()
 }
@@ -303,8 +321,11 @@ func (w *eventWindow) calendarInvites() bool {
 	return false
 }
 
+// closeNow closes the window, its changes saved or dropped: the app's
+// Close asks closeRequested, which lets it go.
 func (w *eventWindow) closeNow() {
-	delete(w.m.windows, w.key)
+	w.closed = true
+	w.forget()
 	if w.m.o.CloseWindow != nil {
 		w.m.o.CloseWindow(w.key)
 	}
@@ -322,20 +343,26 @@ func (w *eventWindow) requestClose() {
 	w.closeNow()
 }
 
-// closeRequested answers the system's close button.
+// closeRequested answers the system's close button, and the app's Close.
+// A window closing for good, or whose maild the module has left, goes
+// without a question: only that maild could take its changes.
 func (w *eventWindow) closeRequested() bool {
+	if w.closed || w.stale() {
+		w.forget()
+		return true
+	}
 	if w.busy || w.dirty() {
 		w.requestClose()
 		w.m.o.Wake()
 		return false
 	}
-	delete(w.m.windows, w.key)
+	w.forget()
 	return true
 }
 
 // request starts a save or a delete.
 func (w *eventWindow) request(del bool) {
-	if w.busy || w.readOnly || (del && w.invited()) {
+	if w.busy || w.readOnly || (del && w.invited()) || w.stale() {
 		return
 	}
 	if !del && w.typedInvitees() {
@@ -361,7 +388,7 @@ func (w *eventWindow) request(del bool) {
 }
 
 func (w *eventWindow) perform(del bool, scope *api.EventScope) {
-	if del && w.event == nil {
+	if (del && w.event == nil) || w.stale() {
 		return
 	}
 	w.busy, w.saveFailure = true, ""
@@ -388,6 +415,9 @@ func (w *eventWindow) perform(del bool, scope *api.EventScope) {
 		return res.RestoreID, nil
 	}, func(o writeOutcome) {
 		w.busy = false
+		if w.stale() { // the window went with the maild it wrote to
+			return
+		}
 		switch {
 		case o.err != nil:
 			w.saveFailure = o.err.Error()

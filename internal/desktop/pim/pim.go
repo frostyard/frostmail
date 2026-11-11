@@ -103,10 +103,16 @@ type Module struct {
 	cancel context.CancelFunc
 
 	// The UI thread's.
-	client   *api.Client
-	ctx      context.Context
-	events   *live.Events
-	conn     int
+	client *api.Client
+	ctx    context.Context
+	events *live.Events
+	conn   int
+	// daemon counts the maild the module has followed: Leave adds one. A
+	// write's answer that began on an earlier one changes none of the next
+	// one's state, and an event window opened on one never writes to
+	// another. A reconnect to the same maild keeps it, as the IDs keep
+	// their meaning there.
+	daemon   int
 	accounts fetch[[]api.Account]
 	clock    clock
 	zone     string
@@ -453,14 +459,17 @@ func decodePhoto(p *api.Photo) *ui.Bitmap {
 
 // Leave forgets what names the last maild's events, people and tasks, on a
 // change of maild: the same id means another item on the next one. Event
-// windows close, and the views keep only their choice of view and day.
+// windows close without asking about their changes, which only the last
+// maild could take, and the views keep only their choice of view and day.
 func (m *Module) Leave() {
-	if m.o.CloseWindow != nil {
-		for key := range m.windows {
+	windows := m.windows
+	m.windows = map[string]*eventWindow{}
+	for key, w := range windows {
+		w.closed = true
+		if m.o.CloseWindow != nil {
 			m.o.CloseWindow(key)
 		}
 	}
-	m.windows = map[string]*eventWindow{}
 	m.closeReminders()
 	view, date := m.cal.view, m.cal.date
 	m.accounts = fetch[[]api.Account]{}
@@ -470,4 +479,5 @@ func (m *Module) Leave() {
 	m.setUpTasks()
 	m.cal.view, m.cal.date = view, date
 	m.conn++
+	m.daemon++
 }

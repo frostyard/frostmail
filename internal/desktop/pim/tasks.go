@@ -334,6 +334,11 @@ func (m *Module) toggleTask(id int64, completed bool) {
 // maild takes them in the user's order. A failure shows as a toast and
 // refetches. Each write keeps the connection it was asked on: task IDs
 // mean nothing to another daemon.
+//
+// The next write waits for maild's answer to the last, with no deadline of
+// the app's own: a write the app stopped waiting for could still land
+// after the next one and undo it. The answer comes, or the connection
+// ends, and maild cancels the request's context with it.
 func (m *Module) writeTask(id int64, what string, call func(ctx context.Context, c *api.Client) error) {
 	st := &m.tasks
 	if m.client == nil {
@@ -347,15 +352,23 @@ func (m *Module) writeTask(id int64, what string, call func(ctx context.Context,
 	}
 }
 
-// nextTaskWrite runs the first write waiting on a task.
+// nextTaskWrite runs the first write waiting on a task. An answer from a
+// maild the module has left only reports a failure: that maild's queue
+// went with it, and the same ID names another task now.
 func (m *Module) nextTaskWrite(id int64) {
 	st := &m.tasks
 	w := st.writes[id][0]
+	daemon := m.daemon
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
-		defer cancel()
-		err := w.call(ctx, w.client)
+		err := w.call(context.Background(), w.client)
 		m.o.Post(func() {
+			if m.daemon != daemon {
+				if err != nil {
+					slog.Warn(w.what, "err", err)
+					m.o.Toast("Could not "+w.what, err)
+				}
+				return
+			}
 			if err != nil {
 				slog.Warn(w.what, "err", err)
 				m.o.Toast("Could not "+w.what, err)
@@ -441,7 +454,9 @@ func (m *Module) createTask() {
 
 // submitNewTask creates the task a New Task field holds. The field keeps
 // its text until maild has the task, so a failure loses nothing, and it
-// keeps what was typed since. While a create runs, Enter does nothing.
+// keeps what was typed since. While a create runs, Enter does nothing. A
+// create's answer from a maild the module has left only reports a
+// failure: the field is the next maild's now.
 func (m *Module) submitNewTask(text *string, creating *bool, p api.TasksCreateParams) {
 	sent := *text
 	p.Title = strings.TrimSpace(sent)
@@ -458,11 +473,19 @@ func (m *Module) submitNewTask(text *string, creating *bool, p api.TasksCreatePa
 		return
 	}
 	*creating = true
+	daemon := m.daemon
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
 		_, err := c.Tasks().Create(ctx, &p)
 		m.o.Post(func() {
+			if m.daemon != daemon {
+				if err != nil {
+					slog.Warn("create the task", "err", err)
+					m.o.Toast("Could not create the task", err)
+				}
+				return
+			}
 			*creating = false
 			if err != nil {
 				slog.Warn("create the task", "err", err)
@@ -755,10 +778,16 @@ func (m *Module) flaggedRow(c *ui.Context, r api.MessageSummary) {
 }
 
 // taskPane draws the selected task or flagged message.
+//
+// A field takes the input that came since the last frame as it is built.
+// So when the selection or the source has moved on from the task the
+// fields edit, the pane shows that task for one more frame: its fields
+// take what was typed, or what an input method committed, before they
+// are committed against it and bound to the next task.
 func (m *Module) taskPane(c *ui.Context) {
 	t := c.Theme()
 	st := &m.tasks
-	m.leaveTaskPane()
+	leaving := st.paneID != 0 && (st.source == sourceFlagged || st.selected != st.paneID)
 	pane := ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Focusable().TabStop(false).FocusRing(false).Background(t.Background).Label("Task details")
 	if st.focusAsk == paneTask {
 		st.focusAsk = ""
@@ -767,7 +796,23 @@ func (m *Module) taskPane(c *ui.Context) {
 	if pane.FocusWithin() {
 		st.focus = paneTask
 	}
+	// Each task's fields are its own, so input meant for one never
+	// reaches another's.
+	details := func(task *api.Task) {
+		ui.Scroll(c.Key(task.ID)).Grow(1).Fill().Children(func() {
+			ui.Column(c).Padding(20).Gap(frostui.SpaceS).AlignItems(ui.Stretch).Children(func() { m.taskDetails(c, task) })
+		})
+	}
 	pane.Children(func() {
+		if leaving {
+			if task := m.task(st.paneID); task != nil {
+				focusTitle := st.focusTitle // the next task's
+				st.focusTitle = false
+				details(task)
+				st.focusTitle = focusTitle
+				return
+			}
+		}
 		if st.source == sourceFlagged {
 			for _, r := range st.flaggedShown {
 				if r.ID == st.selected {
@@ -783,10 +828,12 @@ func (m *Module) taskPane(c *ui.Context) {
 			centered(c, "No Task Selected", 13)
 			return
 		}
-		ui.Scroll(c).Grow(1).Fill().Children(func() {
-			ui.Column(c).Padding(20).Gap(frostui.SpaceS).AlignItems(ui.Stretch).Children(func() { m.taskDetails(c, task) })
-		})
+		details(task)
 	})
+	if leaving {
+		m.leaveTaskPane()
+		c.AnimationFrame()
+	}
 }
 
 func (m *Module) flaggedPane(c *ui.Context, r api.MessageSummary) {
@@ -829,8 +876,8 @@ func (m *Module) editTask(id int64, p api.TasksUpdateParams) {
 }
 
 // leaveTaskPane commits the pane's fields against the task they were
-// editing, once another selection or source has taken the pane: by the
-// time the field's blur is seen, the fields hold the next task.
+// editing, once another selection or source has taken the pane and the
+// fields have taken their last input (taskPane).
 func (m *Module) leaveTaskPane() {
 	st := &m.tasks
 	if st.paneID == 0 || (st.source != sourceFlagged && st.selected == st.paneID) {

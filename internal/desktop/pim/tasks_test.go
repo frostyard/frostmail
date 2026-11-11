@@ -377,7 +377,8 @@ type fakeTasks struct {
 	api.TasksService
 	mu         sync.Mutex
 	updates    []api.TasksUpdateParams
-	holdUpdate chan struct{} // the first Update waits for it, when set
+	holds      []chan struct{} // the nth Update waits for the nth, when set
+	updateErrs []error         // the nth Update fails with the nth, when set
 	creates    int
 	createErr  error         // the next Create fails with it
 	holdCreate chan struct{} // Create waits for it, when set
@@ -386,13 +387,21 @@ type fakeTasks struct {
 func (s *fakeTasks) Update(ctx context.Context, p *api.TasksUpdateParams) (*api.Task, error) {
 	s.mu.Lock()
 	s.updates = append(s.updates, *p)
+	n := len(s.updates)
 	var hold chan struct{}
-	if len(s.updates) == 1 {
-		hold = s.holdUpdate
+	var err error
+	if n <= len(s.holds) {
+		hold = s.holds[n-1]
+	}
+	if n <= len(s.updateErrs) {
+		err = s.updateErrs[n-1]
 	}
 	s.mu.Unlock()
 	if hold != nil {
 		<-hold
+	}
+	if err != nil {
+		return nil, err
 	}
 	return s.TasksService.Update(ctx, p)
 }
@@ -508,7 +517,7 @@ func TestLeavingATaskWritesNoStaleTitle(t *testing.T) {
 
 func TestWritesToOneTaskRunInOrder(t *testing.T) {
 	hold := make(chan struct{})
-	fake := &fakeTasks{holdUpdate: hold}
+	fake := &fakeTasks{holds: []chan struct{}{hold}}
 	f := newFixture(t, commands.Tasks, withFakeTasks(fake))
 	f.text("Report")
 	first, second, milk := "First", "Second", "Milk"
@@ -594,6 +603,98 @@ func TestNewTaskKeepsItsTextUntilCreated(t *testing.T) {
 			}
 			if n := len(slices.DeleteFunc(all, func(x api.Task) bool { return x.Title != "Water" })); n != 1 {
 				t.Errorf("%d tasks named Water", n)
+			}
+		})
+	}
+}
+
+// The next write to a task waits for maild's answer to the last, however
+// long it takes: a write the app stopped waiting for could still land in
+// maild after the next one and undo it.
+func TestATaskWriteWaitsForTheLastAnswer(t *testing.T) {
+	hold := make(chan struct{})
+	fake := &fakeTasks{holds: []chan struct{}{hold}}
+	f := newFixture(t, commands.Tasks, withFakeTasks(fake))
+	f.text("Report")
+	first, second := "First", "Second"
+	deadline := make(chan bool, 1)
+	f.m.writeTask(f.report, "change the task", func(ctx context.Context, c *api.Client) error {
+		_, has := ctx.Deadline()
+		deadline <- has
+		_, err := c.Tasks().Update(ctx, &api.TasksUpdateParams{ID: f.report, Title: &first})
+		return err
+	})
+	f.m.editTask(f.report, api.TasksUpdateParams{Title: &second})
+	f.until("the first write", func() bool { return len(fake.sent()) == 1 })
+	if <-deadline {
+		t.Error("the write has a deadline of the app's own: past it, the next write goes while maild still runs this one")
+	}
+	f.tt.Frame()
+	if got := fake.sent(); len(got) != 1 {
+		t.Fatalf("while the first write ran, sent %+v", got)
+	}
+	close(hold)
+	f.until("both writes", func() bool { return len(f.m.tasks.writes) == 0 })
+	if got := fake.sent(); len(got) != 2 || got[0].Title == nil || *got[0].Title != first || got[1].Title == nil || *got[1].Title != second {
+		t.Errorf("sent %+v", got)
+	}
+	if x := f.task(f.report); x == nil || x.Title != second {
+		t.Errorf("maild holds %+v", x)
+	}
+}
+
+// An edit and a change of the selection or the source in one frame, as an
+// input method's commit and a click: the field takes the edit before the
+// pane moves on, so it is saved to the task it was typed into, and the
+// next task's fields never hold it.
+func TestAnEditInTheFrameOfASwitchStaysWithItsTask(t *testing.T) {
+	title := func(f *fixture) {
+		f.m.tasks.focusTitle = true
+		f.tt.Frame()
+	}
+	notes := func(f *fixture) {
+		r, ok := f.tt.Find("Notes")
+		if !ok {
+			f.t.Fatalf("no Notes in %s", dump(f.tt))
+		}
+		f.tt.ClickAt(r.X+r.W/2, r.Y+r.H+40)
+		f.tt.Frame()
+	}
+	titled := func(x *api.Task) bool { return strings.Contains(x.Title, "zz") }
+	noted := func(x *api.Task) bool { return strings.Contains(x.Notes, "zz") }
+	another := func(f *fixture) { f.m.tasks.selected = f.milk }
+	source := func(f *fixture) { f.m.setTaskSource(sourceAll) }
+	for _, tc := range []struct {
+		name  string
+		focus func(*fixture)
+		leave func(*fixture)
+		saved func(*api.Task) bool
+		next  int64
+	}{
+		{"title for another task", title, another, titled, 0},
+		{"notes for another task", notes, another, noted, 0},
+		{"title for another source", title, source, titled, -1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, commands.Tasks)
+			f.text("Report")
+			f.click("Q3 numbers")
+			f.until("the pane", func() bool { return f.tt.HasText("Delete Task") && f.m.tasks.paneID == f.report })
+			tc.focus(f)
+			// The switch comes in the frame that brings the typed text.
+			f.loop.Post(func() { tc.leave(f) })
+			f.tt.Type("zz")
+			f.until("the write", func() bool { x := f.task(f.report); return x != nil && tc.saved(x) })
+			next := f.milk
+			if tc.next < 0 {
+				next = 0
+			}
+			f.until("the next pane", func() bool { return f.m.tasks.paneID == next && len(f.m.tasks.writes) == 0 })
+			if next != 0 && (f.m.tasks.paneTitle != "Buy oat milk" || f.m.tasks.paneNotes != "") {
+				t.Errorf("the next task's fields hold %q, %q", f.m.tasks.paneTitle, f.m.tasks.paneNotes)
+			}
+			if x := f.task(f.milk); x.Title != "Buy oat milk" || x.Notes != "" {
+				t.Errorf("the next task took the edit: %+v", x)
 			}
 		})
 	}
