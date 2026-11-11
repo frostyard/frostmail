@@ -264,7 +264,7 @@ func (w *Window) Sent(item *api.OutboxItem) {
 	id := item.ID
 	w.onFrame = append(w.onFrame, func(c *ui.Context) {
 		frostui.ShowActionToast(c, frostui.ActionToast{Title: "Sending “" + subject + "”…", Action: "Undo", Timeout: left, Countdown: true,
-			OnAction: func() { w.undoSend(id) }})
+			OnAction: w.bound(func() { w.undoSend(id) })})
 	})
 }
 

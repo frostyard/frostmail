@@ -329,13 +329,18 @@ func (w *Window) toggleHeaders(cv *conv, m *openMsg) {
 
 func (w *Window) showRawSource(cv *conv, m *openMsg) {
 	id, summary := m.summary.ID, m.summary
+	gen := w.gen // read here, on the UI thread
 	go func() {
 		src, err := cv.client.Message().Source(cv.ctx, &api.MessageSourceParams{ID: id})
 		if err != nil {
 			w.toast("Could not read the message", err)
 			return
 		}
-		w.o.Post(func() { w.rawSource = &rawSourceSheet{summary: summary, source: src} })
+		w.o.Post(func() {
+			if gen == w.gen { // not after a change of maild
+				w.rawSource = &rawSourceSheet{summary: summary, source: src}
+			}
+		})
 	}()
 }
 

@@ -318,8 +318,9 @@ func (w *Window) follow(t conn.Target) {
 func (w *Window) leaveDaemon() {
 	w.gen++
 	w.closeView()
+	w.closeFind() // before the pages it searches close
 	w.closeConv()
-	w.closeFind()
+	w.pim.Leave()
 	w.undo = &mail.Undo{}
 	w.deleting = map[int64]*heldDelete{}
 	w.q.Source, w.q.Search, w.searchDraft = mail.Source{Kind: mail.AllInboxes}, "", ""

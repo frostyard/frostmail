@@ -62,8 +62,8 @@ func (w *Window) syncReader() {
 	if w.conv != nil && w.conv.id == want && w.conv.client == w.client {
 		return
 	}
+	w.closeFind() // before the pages it searches close
 	w.closeConv()
-	w.closeFind()
 	if want != 0 && w.client != nil {
 		w.openConv(want)
 	}
@@ -196,8 +196,8 @@ func (w *Window) syncExpanded(cv *conv) {
 
 func (w *Window) setExpanded(cv *conv, id int64, open bool) {
 	cv.expanded[id] = open
+	w.closeFind() // before a collapsed message's page closes
 	w.syncExpanded(cv)
-	w.closeFind()
 }
 
 func (w *Window) loadMessage(cv *conv, r api.MessageSummary) {

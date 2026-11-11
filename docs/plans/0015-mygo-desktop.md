@@ -711,7 +711,10 @@ unless that pipe listed only fixture accounts.
   Junk in the sidebar's menu, and the refused notices in
   `internal/desktop/pim`.
 - **Differences to confirm at the gate:** `is any of` is a menu of checks
-  rather than a four-row list, as MyGo's `Select` chooses one.
+  rather than a four-row list, as MyGo's `Select` chooses one. Redirect's
+  To is a plain text field, not compose's token field with suggestions:
+  MyGo's `TokenField` does not expose the text being typed, which Redirect
+  must send without a comma.
 
 ## Phase 7 — Calendar, People and Tasks (L)
 

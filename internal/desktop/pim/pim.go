@@ -450,3 +450,24 @@ func decodePhoto(p *api.Photo) *ui.Bitmap {
 	}
 	return b
 }
+
+// Leave forgets what names the last maild's events, people and tasks, on a
+// change of maild: the same id means another item on the next one. Event
+// windows close, and the views keep only their choice of view and day.
+func (m *Module) Leave() {
+	if m.o.CloseWindow != nil {
+		for key := range m.windows {
+			m.o.CloseWindow(key)
+		}
+	}
+	m.windows = map[string]*eventWindow{}
+	m.closeReminders()
+	view, date := m.cal.view, m.cal.date
+	m.accounts = fetch[[]api.Account]{}
+	m.cal, m.people, m.tasks, m.todo, m.remind = calendarState{}, peopleState{}, tasksState{}, todoState{}, remindersState{}
+	m.setUpCalendar()
+	m.setUpPeople()
+	m.setUpTasks()
+	m.cal.view, m.cal.date = view, date
+	m.conn++
+}
