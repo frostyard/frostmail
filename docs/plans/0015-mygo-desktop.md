@@ -632,9 +632,10 @@ unless that pipe listed only fixture accounts.
   measured height, find, print and selection. `safehtml_internal_test.go`
   covers the handlers and the order of loading through a fake page.
 - **A limit of the page's measuring:** it measures on load, on a change of
-  width and on a press in the page, then until 3 measures agree. See More
-  toggled from the keyboard inside the page is not measured until the next
-  click or resize, so the expanded text can stay clipped until then.
+  width and on a press in the page, then until 3 measures agree. While the
+  page has the keyboard it is measured every second, for up to 120 measures
+  from the focus or the last press; See More toggled from the keyboard
+  after that shows at the next press, resize or change of focus.
 - **Conversation pages** (the open question below): decided as proposed,
   one page per expanded message, destroyed when it collapses.
 - **A trap for checks in the sandbox:** `flatpak run` resets

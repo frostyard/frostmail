@@ -135,3 +135,17 @@ func TestPastedPictureMustBeAnImageURL(t *testing.T) {
 }
 
 const tinyPNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
+// A pasted remote image is dropped when the draft is written.
+func TestARemoteImageNeverReachesTheDraft(t *testing.T) {
+	text := richtext.TextOf(richtext.Paragraph{Runs: []richtext.Run{{Text: "\uFFFC", Attributes: richtext.Attributes{
+		Attachment: &richtext.Attachment{URL: "https://tracker.example/x.png"}}}}})
+	if out := compose.ToHTML(text); strings.Contains(out, "tracker.example") {
+		t.Errorf("wrote %s", out)
+	}
+	kept := richtext.TextOf(richtext.Paragraph{Runs: []richtext.Run{{Text: "\uFFFC", Attributes: richtext.Attributes{
+		Attachment: &richtext.Attachment{URL: "mailpart://localhost/m/1/2.png"}}}}})
+	if out := compose.ToHTML(kept); !strings.Contains(out, "mailpart://localhost/m/1/2.png") {
+		t.Errorf("a part was dropped: %s", out)
+	}
+}

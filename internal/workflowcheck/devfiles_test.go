@@ -110,6 +110,9 @@ func TestDevAppKeepsAwayFromTheUsersMaild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if s := seen["FROSTMAIL_SECRETS"]; s != "file" {
+		t.Errorf("the dev run's secrets = %q, want its own file, not the user's keyring", s)
+	}
 	if s := seen["FROSTMAIL_SOCKET"]; s == "" || s == socket {
 		t.Errorf("the app's socket = %q, the user's is %q", s, socket)
 	}

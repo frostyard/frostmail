@@ -441,7 +441,7 @@ func KeepPastedImages(t richtext.Text, html string) (lost int) {
 func writeRun(b *strings.Builder, r richtext.Run) {
 	a := r.Attributes
 	if a.Attachment != nil {
-		if a.Attachment.URL != "" { // a picture with no source has nothing to save
+		if keptImageURL(a.Attachment.URL) { // a picture with no source, or a remote one, is not saved
 			b.WriteString(`<img src="` + html.EscapeString(a.Attachment.URL) + `" alt="` + html.EscapeString(a.Attachment.Name) + `">`)
 		}
 		return
@@ -470,4 +470,12 @@ func writeRun(b *strings.Builder, r richtext.Run) {
 	for i := len(closing) - 1; i >= 0; i-- {
 		b.WriteString(closing[i])
 	}
+}
+
+// keptImageURL reports an image source a draft keeps: a data: picture or a
+// part of a message. A pasted remote image is dropped (docs/specs/compose-ui.md),
+// as the app never loads, nor sends a reference to, remote content.
+func keptImageURL(src string) bool {
+	lower := strings.ToLower(src)
+	return strings.HasPrefix(lower, "data:image/") || strings.HasPrefix(lower, "mailpart:")
 }

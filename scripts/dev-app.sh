@@ -13,6 +13,9 @@ export FROSTMAIL_CACHE_DIR=/var/tmp/frostmail/cache
 # the user's app.json can name their lodge.
 export FROSTMAIL_SOCKET=${XDG_RUNTIME_DIR:?}/frostmail-dev/maild.sock
 export XDG_CONFIG_HOME=/var/tmp/frostmail/config
+# Its own secrets file: the host keyring would share account/1/password with a
+# real maild on this machine.
+export FROSTMAIL_SECRETS=file
 
 "$MAILD" &
 maild_pid=$!
