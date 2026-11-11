@@ -1,12 +1,16 @@
 package pim
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/png"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +18,8 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
+	"github.com/frostyard/frostmail/internal/desktop/live"
+	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/frostyard/frostmail/internal/store"
 )
 
@@ -320,4 +326,380 @@ func TestTabCyclesThePeoplePanes(t *testing.T) {
 	if f.m.people.focus != panePerson {
 		t.Errorf("Tab went to %q", f.m.people.focus)
 	}
+}
+
+// fakePeople passes calls on to maild, noting them; a test can fail or
+// hold some.
+type fakePeople struct {
+	api.PeopleService
+	mu         sync.Mutex
+	creates    int
+	updates    []api.ContactFields
+	photos     int
+	photoErr   error // the next SetPhoto fails with it
+	restores   int
+	restoreErr error         // the next Restore fails with it
+	hold       chan struct{} // Restore waits for it, when set
+}
+
+func (s *fakePeople) Create(ctx context.Context, p *api.PeopleCreateParams) (*api.ContactWrite, error) {
+	s.mu.Lock()
+	s.creates++
+	s.mu.Unlock()
+	return s.PeopleService.Create(ctx, p)
+}
+
+func (s *fakePeople) Update(ctx context.Context, p *api.PeopleUpdateParams) (*api.ContactWrite, error) {
+	s.mu.Lock()
+	s.updates = append(s.updates, p.Fields)
+	s.mu.Unlock()
+	return s.PeopleService.Update(ctx, p)
+}
+
+func (s *fakePeople) SetPhoto(ctx context.Context, p *api.PeopleSetPhotoParams) (*api.ContactWrite, error) {
+	s.mu.Lock()
+	s.photos++
+	err := s.photoErr
+	s.photoErr = nil
+	s.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return s.PeopleService.SetPhoto(ctx, p)
+}
+
+func (s *fakePeople) Restore(ctx context.Context, p *api.PeopleRestoreParams) error {
+	s.mu.Lock()
+	s.restores++
+	err, hold := s.restoreErr, s.hold
+	s.restoreErr = nil
+	s.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+	if err != nil {
+		return err
+	}
+	return s.PeopleService.Restore(ctx, p)
+}
+
+func (s *fakePeople) restoreCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.restores
+}
+
+func withFakePeople(fake *fakePeople) options {
+	return options{Options: rpctest.Options{Services: func(s *api.Services) {
+		fake.PeopleService = s.People
+		s.People = fake
+	}}}
+}
+
+// contactOf is the only contact of the person with that name.
+func (f *fixture) contactOf(name string) int64 {
+	f.t.Helper()
+	ctx := f.t.Context()
+	all, err := f.c.People().List(ctx, &api.PeopleListParams{})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	i := slices.IndexFunc(all, func(p api.PersonSummary) bool { return p.DisplayName == name })
+	if i < 0 {
+		f.t.Fatalf("no %q in %+v", name, all)
+	}
+	p, err := f.c.People().Get(ctx, &api.PeopleGetParams{ID: all[i].ID})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return p.Contacts[0].ID
+}
+
+// deleted deletes a person's contact and returns the write's restore.
+func (f *fixture) deleted(name string) string {
+	f.t.Helper()
+	w, err := f.c.People().Delete(f.t.Context(), &api.PeopleDeleteParams{ID: f.contactOf(name)})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return w.RestoreID
+}
+
+func (f *fixture) hasPerson(name string) bool {
+	f.t.Helper()
+	all, err := f.c.People().List(f.t.Context(), &api.PeopleListParams{})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return slices.ContainsFunc(all, func(p api.PersonSummary) bool { return p.DisplayName == name })
+}
+
+// undoAcrossADisconnect presses Undo while disconnected, which must keep
+// the entry, and again after the reconnect, which must restore it.
+func undoAcrossADisconnect(t *testing.T, f *fixture, undo func(), entries func() int, restored func() bool) {
+	t.Helper()
+	f.m.Disconnect()
+	f.until("the disconnect", func() bool { return f.m.client == nil })
+	undo()
+	f.tt.Frame()
+	if entries() != 1 {
+		t.Fatalf("an Undo while disconnected left %d entries", entries())
+	}
+	if len(f.toasts) != 1 {
+		t.Errorf("toasts %q", f.toasts)
+	}
+	if err := f.m.Connect(t.Context(), f.c, live.NewEvents()); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the connection", func() bool { return f.m.client != nil })
+	undo()
+	f.until("the restore", func() bool { return entries() == 0 && restored() })
+}
+
+func TestUndoWhileDisconnectedKeepsTheEntry(t *testing.T) {
+	t.Run("people", func(t *testing.T) {
+		f := newFixture(t, commands.People)
+		f.text("Alan Turing")
+		f.m.people.undo = []string{f.deleted("Alan Turing")}
+		undoAcrossADisconnect(t, f, f.m.undoPeople, func() int { return len(f.m.people.undo) }, func() bool { return f.hasPerson("Alan Turing") })
+	})
+	t.Run("calendar", func(t *testing.T) {
+		f := newFixture(t, commands.Calendar)
+		f.text("Review")
+		r := f.block("Review, ")
+		f.drag(r.X+r.W/2, r.Y+10, 0, 24)
+		f.until("the write", func() bool { return len(f.m.cal.undo) == 1 })
+		undoAcrossADisconnect(t, f, f.m.undoCalendar, func() int { return len(f.m.cal.undo) }, func() bool {
+			return f.occurrence("Review", "2026-10-08", "2026-10-09").Start.Equal(time.Date(2026, 10, 8, 14, 0, 0, 0, time.UTC))
+		})
+	})
+}
+
+func TestAFailedUndoKeepsTheEntry(t *testing.T) {
+	fake := &fakePeople{restoreErr: errors.New("refused")}
+	f := newFixture(t, commands.People, withFakePeople(fake))
+	f.text("Alan Turing")
+	f.m.people.undo = []string{f.deleted("Alan Turing")}
+	f.m.undoPeople()
+	f.until("the toast", func() bool { return len(f.toasts) == 1 })
+	if len(f.m.people.undo) != 1 {
+		t.Fatalf("a failed undo left %v", f.m.people.undo)
+	}
+	f.m.undoPeople()
+	f.until("the restore", func() bool { return len(f.m.people.undo) == 0 && f.hasPerson("Alan Turing") })
+}
+
+func TestARestoreMaildNoLongerHoldsLeavesTheList(t *testing.T) {
+	f := newFixture(t, commands.People)
+	f.text("Alan Turing")
+	older := f.deleted("Alan Turing")
+	f.m.people.undo = []string{older, "never-made"}
+	f.m.undoPeople()
+	f.until("the entry leaving", func() bool { return len(f.m.people.undo) == 1 })
+	if f.m.people.undo[0] != older || len(f.toasts) != 1 {
+		t.Fatalf("undo %v, toasts %q", f.m.people.undo, f.toasts)
+	}
+	f.m.undoPeople()
+	f.until("the older restore", func() bool { return len(f.m.people.undo) == 0 && f.hasPerson("Alan Turing") })
+}
+
+func TestUndosRunOneAtATime(t *testing.T) {
+	hold := make(chan struct{})
+	fake := &fakePeople{hold: hold}
+	f := newFixture(t, commands.People, withFakePeople(fake))
+	f.text("Alan Turing")
+	alan, grace := f.deleted("Alan Turing"), f.deleted("Grace Hopper")
+	f.m.people.undo = []string{alan, grace}
+	f.m.undoPeople()
+	f.m.undoPeople()
+	f.until("the first restore", func() bool { return fake.restoreCount() == 1 })
+	if len(f.m.people.undo) != 2 {
+		t.Fatalf("a running restore left %v", f.m.people.undo)
+	}
+	// A write made during the restore moves it from the end of the list.
+	f.m.people.undo = remember(f.m.people.undo, "newer")
+	close(hold)
+	f.until("the restore", func() bool { return len(f.m.people.undo) == 2 && !f.m.people.restoring })
+	if fake.restoreCount() != 1 || !slices.Equal(f.m.people.undo, []string{alan, "newer"}) {
+		t.Errorf("%d restores, undo %v", fake.restoreCount(), f.m.people.undo)
+	}
+	if !f.hasPerson("Grace Hopper") || f.hasPerson("Alan Turing") {
+		t.Error("restored the wrong contact")
+	}
+}
+
+func TestANoteOnlyEditLeavesTheLists(t *testing.T) {
+	fake := &fakePeople{}
+	f := newFixture(t, commands.People, withFakePeople(fake))
+	f.text("Alan Turing")
+	f.click("Alan Turing")
+	f.until("edit", func() bool { return f.tt.HasText("Edit Contact") })
+	f.click("Edit Contact")
+	f.until("the editor", func() bool { return f.m.Inert() && f.tt.HasText("Done") })
+	e := f.m.people.editing
+	if len(e.draft.emails) != 1 || e.draft.emails[0].Label != "" {
+		t.Fatalf("drawing changed the draft: %+v", e.draft.emails)
+	}
+	if !f.tt.HasText("home") {
+		t.Errorf("an empty label shows no default: %s", dump(f.tt))
+	}
+	e.draft.note = "A note"
+	f.tt.SetSize(1200, 1600)
+	f.tt.Frame()
+	f.click("Done")
+	f.until("the write", func() bool { return f.m.people.editing == nil })
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.updates) != 1 {
+		t.Fatalf("updates %+v", fake.updates)
+	}
+	got := fake.updates[0]
+	if got.Note == nil || *got.Note != "A note" {
+		t.Errorf("note %v", got.Note)
+	}
+	got.Note = nil
+	if !emptyContactFields(got) {
+		t.Errorf("sent more than the note: %+v", got)
+	}
+}
+
+func scaledPhoto(t *testing.T) *api.Photo {
+	t.Helper()
+	var data bytes.Buffer
+	if err := png.Encode(&data, image.NewRGBA(image.Rect(0, 0, 80, 60))); err != nil {
+		t.Fatal(err)
+	}
+	photo, err := scalePhoto(data.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return photo
+}
+
+func TestAFailedPhotoThenDoneDoesNotCreateAgain(t *testing.T) {
+	fake := &fakePeople{photoErr: errors.New("photo refused")}
+	f := newFixture(t, commands.People, withFakePeople(fake))
+	f.text("Ada Lovelace")
+	f.until("the books", func() bool { return len(f.m.writableBooks()) > 0 })
+	f.m.newContact()
+	e := f.m.people.editing
+	e.draft.givenName = "Dorothy"
+	e.photoChanged, e.photo = true, scaledPhoto(t)
+	f.tt.SetSize(1200, 1600)
+	f.tt.Frame()
+	f.click("Done")
+	f.until("the failure", func() bool { return strings.Contains(e.failure, "photo refused") && !e.busy })
+	if e.isNew || e.contact == nil || f.m.people.editing != e {
+		t.Fatalf("after the create: isNew %v, contact %+v", e.isNew, e.contact)
+	}
+	f.until("the editor on its person", func() bool { return f.tt.HasText("Done") && f.m.shownPerson() != nil })
+	f.click("Done")
+	f.until("written", func() bool { return f.m.people.editing == nil })
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.creates != 1 || fake.photos != 2 {
+		t.Errorf("%d creates, %d photos", fake.creates, fake.photos)
+	}
+	if len(fake.updates) != 0 {
+		t.Errorf("the retry rewrote the fields: %+v", fake.updates)
+	}
+	if len(f.m.people.undo) != 2 {
+		t.Errorf("undo %v", f.m.people.undo)
+	}
+}
+
+func TestARelinkKeepsTheEditorOnScreen(t *testing.T) {
+	f := newFixture(t, commands.People)
+	f.text("Grace Hopper")
+	ctx := t.Context()
+	grace := f.contactOf("Grace Hopper")
+	// A shared address joins Grace's contact to Alan's person.
+	if _, err := f.c.People().Update(ctx, &api.PeopleUpdateParams{ID: grace, Fields: api.ContactFields{Emails: []api.LabeledValue{{Value: "alan@a.test"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the join", func() bool { return len(f.m.people.list.value) == 2 })
+	f.click("Alan Turing")
+	f.until("both contacts", func() bool { p := f.m.shownPerson(); return p != nil && len(p.Contacts) == 2 })
+	p := f.m.shownPerson()
+	f.m.editContact(&p.Contacts[slices.IndexFunc(p.Contacts, func(c api.Contact) bool { return c.ID == grace })])
+	f.tt.SetSize(1200, 1600)
+	f.until("the editor", func() bool { return f.tt.HasText("Done") })
+	// Another device gives the contact its own address again.
+	if _, err := f.c.People().Update(ctx, &api.PeopleUpdateParams{ID: grace, Fields: api.ContactFields{Emails: []api.LabeledValue{{Value: "grace@a.test"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("the split", func() bool { p := f.m.shownPerson(); return p != nil && len(p.Contacts) == 1 })
+	f.tt.Frame()
+	if !f.m.Inert() || !f.tt.HasText("Done") {
+		t.Fatalf("the editor went: inert %v, shows %s", f.m.Inert(), dump(f.tt))
+	}
+	f.click("Cancel")
+	f.until("closed", func() bool { return !f.m.Inert() })
+}
+
+func TestDoneWaitsForThePhoto(t *testing.T) {
+	f := newFixture(t, commands.People)
+	path := filepath.Join(t.TempDir(), "p.png")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(file, image.NewRGBA(image.Rect(0, 0, 80, 60))); err != nil {
+		t.Fatal(err)
+	}
+	file.Close()
+	release := make(chan struct{})
+	f.m.o.OpenImage = func() (string, error) { <-release; return path, nil }
+	f.text("Ada Lovelace")
+	f.click("Ada Lovelace")
+	f.until("edit", func() bool { return f.tt.HasText("Edit Contact") })
+	f.click("Edit Contact")
+	f.until("the editor", func() bool { return f.m.Inert() })
+	f.tt.SetSize(1200, 1600)
+	f.tt.Frame()
+	f.click("Change Photo")
+	e := f.m.people.editing
+	if a, _ := f.tt.AccessByRole(ui.RoleButton, "Done"); !e.picking || !a.Disabled {
+		t.Errorf("picking %v, Done %+v", e.picking, a)
+	}
+	e.done()
+	if e.busy {
+		t.Error("Done ran while the photo was being prepared")
+	}
+	close(release)
+	f.until("the photo", func() bool { return e.photoChanged && !e.picking })
+	f.click("Done")
+	f.until("written", func() bool { return f.m.people.editing == nil })
+	f.until("the person's photo", func() bool { return f.m.shownPerson() != nil && f.m.shownPerson().HasPhoto })
+}
+
+func TestACancelledPhotoPickEndsThePick(t *testing.T) {
+	f := newFixture(t, commands.People)
+	f.m.o.OpenImage = func() (string, error) { return "", nil }
+	f.text("Ada Lovelace")
+	f.until("the books", func() bool { return len(f.m.writableBooks()) > 0 })
+	f.m.newContact()
+	e := f.m.people.editing
+	e.pickPhoto()
+	f.until("the pick's end", func() bool { return !e.picking })
+	if e.photoChanged || e.failure != "" {
+		t.Errorf("changed %v, failure %q", e.photoChanged, e.failure)
+	}
+}
+
+func TestAddressBooksWithOneNameStayApart(t *testing.T) {
+	f := newFixture(t, commands.People)
+	f.text("Ada Lovelace")
+	f.until("the books", func() bool { return len(f.m.writableBooks()) > 0 && f.m.account(f.acct) != nil })
+	f.m.people.books.value = []api.Collection{{ID: f.book, Name: "Same", AccountID: f.acct}, {ID: f.book + 100, Name: "Same", AccountID: f.acct}}
+	f.m.newContact()
+	e := f.m.people.editing
+	f.click("Same — me@a.test")
+	f.click("Same — me@a.test (2)")
+	f.until("the second book", func() bool { return e.collectionID == f.book+100 })
+	f.tt.Frame()
+	if !f.tt.HasText("Same — me@a.test (2)") {
+		t.Errorf("the select shows %s", dump(f.tt))
+	}
+	e.cancel()
 }

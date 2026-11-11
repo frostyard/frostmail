@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/frostyard/frostui"
@@ -101,23 +102,47 @@ func remember(list []string, restore string) []string {
 // undoCalendar restores the newest calendar write; a restore that would
 // tell invitees asks first, and Cancel keeps the entry.
 func (m *Module) undoCalendar() {
-	n := len(m.cal.undo)
-	if n == 0 || m.client == nil {
+	m.undoNewest(&m.cal.undo, func(ctx context.Context, c *api.Client, restore string, notify *bool) error {
+		return c.Calendar().Restore(ctx, &api.CalendarRestoreParams{RestoreID: restore, Notify: notify})
+	})
+}
+
+// undoNewest restores the newest entry of list. The entry stays until the
+// restore has run: it is the only way back to what was written, so Cancel,
+// a lost connection or a failure leaves it to try again. One restore runs
+// at a time, and an Undo during it does nothing.
+func (m *Module) undoNewest(list *[]string, send func(ctx context.Context, c *api.Client, restore string, notify *bool) error) {
+	n := len(*list)
+	if n == 0 || m.people.restoring {
 		return
 	}
-	restore := m.cal.undo[n-1]
-	m.cal.undo = m.cal.undo[:n-1]
+	restore := (*list)[n-1]
+	m.people.restoring = true
 	m.withNotify(m.o.Dialogs, func(ctx context.Context, c *api.Client, notify *bool) (string, error) {
-		return "", c.Calendar().Restore(ctx, &api.CalendarRestoreParams{RestoreID: restore, Notify: notify})
+		return "", send(ctx, c, restore, notify)
 	}, func(o writeOutcome) {
-		switch {
-		case o.cancelled:
-			m.cal.undo = remember(m.cal.undo, restore)
-		case o.err != nil:
-			slog.Warn("undo event", "err", o.err)
-			m.o.Toast("Could not undo", o.err)
+		m.people.restoring = false
+		if o.cancelled {
+			return
 		}
+		if o.err != nil {
+			slog.Warn("undo", "err", o.err)
+			m.o.Toast("Could not undo", o.err)
+			if !restoreGone(o.err) {
+				return
+			}
+		}
+		// By value: writes made during the restore moved it from the end.
+		*list = slices.DeleteFunc(slices.Clone(*list), func(r string) bool { return r == restore })
 	})
+}
+
+// restoreGone reports that maild no longer holds a restore, which has
+// expired or belongs to another daemon: trying again cannot work, and
+// keeping it would block the older entries.
+func restoreGone(err error) bool {
+	var e *api.Error
+	return errors.As(err, &e) && e.Code == api.CodeNotFound
 }
 
 // scopeSheet asks which occurrences a change or a delete affects.

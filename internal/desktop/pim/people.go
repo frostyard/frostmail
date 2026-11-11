@@ -54,6 +54,8 @@ type peopleState struct {
 	rowsAt   int
 	editing  *contactEditor
 	undo     []string
+	// restoring is set while a People or Calendar undo runs (undoNewest).
+	restoring bool
 }
 
 func (m *Module) setUpPeople() {
@@ -193,6 +195,14 @@ func (m *Module) shownPerson() *api.Person {
 	return p
 }
 
+// showsContact reports whether the shown person holds a contact. A relink
+// can move the contact being edited to another person, and the editor,
+// which keeps the list inert, must stay on screen.
+func (m *Module) showsContact(id int64) bool {
+	p := m.shownPerson()
+	return p != nil && slices.ContainsFunc(p.Contacts, func(c api.Contact) bool { return c.ID == id })
+}
+
 func firstEmail(p *api.Person) string {
 	for _, c := range p.Contacts {
 		if len(c.Emails) > 0 {
@@ -252,16 +262,9 @@ func (m *Module) cyclePeople(step int) {
 }
 
 func (m *Module) undoPeople() {
-	st := &m.people
-	n := len(st.undo)
-	if n == 0 {
-		return
-	}
-	restore := st.undo[n-1]
-	st.undo = st.undo[:n-1]
-	m.run("undo", func(ctx context.Context, c *api.Client) error {
+	m.undoNewest(&m.people.undo, func(ctx context.Context, c *api.Client, restore string, _ *bool) error {
 		return c.People().Restore(ctx, &api.PeopleRestoreParams{RestoreID: restore})
-	}, nil)
+	})
 }
 
 func (m *Module) peoplePanes(c *ui.Context) []frostui.Pane {
@@ -477,7 +480,7 @@ func (m *Module) personPane(c *ui.Context) {
 		st.focus = panePerson
 	}
 	pane.Children(func() {
-		if e := st.editing; e != nil && e.isNew {
+		if e := st.editing; e != nil && (e.isNew || !m.showsContact(e.contact.ID)) {
 			ui.Scroll(c).Grow(1).Fill().Children(func() {
 				ui.Column(c).Padding(frostui.SpaceXL).Gap(20).AlignItems(ui.Stretch).Children(func() { e.view(c) })
 			})

@@ -24,6 +24,7 @@ type contactEditor struct {
 	preview      *ui.Bitmap
 	hadPhoto     bool
 	busy         bool
+	picking      bool // a photo is being chosen or prepared
 	failure      string
 	custom       map[string]bool
 }
@@ -73,7 +74,7 @@ func (e *contactEditor) cancel() {
 
 // done writes the changes: the fields, then the photo.
 func (e *contactEditor) done() {
-	if e.busy || len(validateContact(e.draft, e.isNew)) > 0 {
+	if e.busy || e.picking || len(validateContact(e.draft, e.isNew)) > 0 {
 		return
 	}
 	m := e.m
@@ -88,17 +89,14 @@ func (e *contactEditor) done() {
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
 		var restores []string
-		var person int64
+		var last *api.ContactWrite // the newest write that went through
 		contactID := int64(0)
 		var err error
 		if isNew {
 			var w *api.ContactWrite
 			w, err = c.People().Create(ctx, &api.PeopleCreateParams{CollectionID: &collection, Fields: fields})
 			if err == nil {
-				contactID, restores = w.ContactID, append(restores, w.RestoreID)
-				if w.Person != nil {
-					person = w.Person.ID
-				}
+				contactID, last, restores = w.ContactID, w, append(restores, w.RestoreID)
 			}
 		} else {
 			contactID = contact.ID
@@ -106,7 +104,7 @@ func (e *contactEditor) done() {
 				var w *api.ContactWrite
 				w, err = c.People().Update(ctx, &api.PeopleUpdateParams{ID: contact.ID, Fields: fields})
 				if err == nil {
-					restores = append(restores, w.RestoreID)
+					last, restores = w, append(restores, w.RestoreID)
 				}
 			}
 		}
@@ -114,31 +112,46 @@ func (e *contactEditor) done() {
 			var w *api.ContactWrite
 			w, err = c.People().SetPhoto(ctx, &api.PeopleSetPhotoParams{ID: contactID, Photo: photo})
 			if err == nil {
-				restores = append(restores, w.RestoreID)
-				if w.Person != nil && person == 0 {
-					person = w.Person.ID
-				}
+				last, restores = w, append(restores, w.RestoreID)
 			}
 		}
-		m.o.Post(func() { e.finished(restores, person, err) })
+		m.o.Post(func() { e.finished(restores, last, err) })
 	}()
 }
 
-func (e *contactEditor) finished(restores []string, person int64, err error) {
+// finished ends a Done. last is the newest write that went through: the
+// selection follows its person, which a relink can have changed.
+func (e *contactEditor) finished(restores []string, last *api.ContactWrite, err error) {
 	st := &e.m.people
 	for _, r := range restores {
 		st.undo = remember(st.undo, r)
 	}
 	e.busy = false
+	if last != nil && last.Person != nil {
+		st.selected = last.Person.ID
+	}
+	st.list.dirty, st.person.dirty, st.photo.dirty = true, true, true
 	if err != nil {
 		e.failure = err.Error()
+		if last != nil {
+			e.written(last)
+		}
 		return
 	}
 	st.editing = nil
-	if e.isNew && person != 0 {
-		st.selected = person
+}
+
+// written makes the contact as saved the one being edited, when a later
+// step failed: another Done sends only what is left, and never creates
+// the contact a second time.
+func (e *contactEditor) written(w *api.ContactWrite) {
+	e.isNew, e.contact = false, &api.Contact{ID: w.ContactID, CollectionID: e.collectionID}
+	if w.Person == nil {
+		return
 	}
-	st.list.dirty, st.person.dirty, st.photo.dirty = true, true, true
+	if i := slices.IndexFunc(w.Person.Contacts, func(c api.Contact) bool { return c.ID == w.ContactID }); i >= 0 {
+		e.contact = &w.Person.Contacts[i]
+	}
 }
 
 func (e *contactEditor) delete() {
@@ -180,28 +193,27 @@ func (e *contactEditor) delete() {
 
 func (e *contactEditor) pickPhoto() {
 	m := e.m
-	if m.o.OpenImage == nil {
+	if m.o.OpenImage == nil || e.busy || e.picking {
 		return
 	}
+	e.picking = true
 	go func() {
 		path, err := m.o.OpenImage()
-		if err != nil || path == "" {
-			if err != nil {
-				m.o.Post(func() { e.failure = err.Error() })
-			}
-			return
-		}
-		data, err := readPhoto(path)
 		var photo *api.Photo
-		if err == nil {
-			photo, err = scalePhoto(data)
+		if err == nil && path != "" {
+			var data []byte
+			if data, err = readPhoto(path); err == nil {
+				photo, err = scalePhoto(data)
+			}
 		}
 		m.o.Post(func() {
-			if err != nil {
+			e.picking = false
+			switch {
+			case err != nil:
 				e.failure = err.Error()
-				return
+			case photo != nil:
+				e.photoChanged, e.photo, e.preview = true, photo, decodePhoto(photo)
 			}
-			e.photoChanged, e.photo, e.preview = true, photo, decodePhoto(photo)
 		})
 	}()
 }
@@ -247,7 +259,7 @@ func (e *contactEditor) view(c *ui.Context) {
 			if ui.Button(c, "Cancel").Disabled(e.busy).Clicked() {
 				e.cancel()
 			}
-			if ui.PrimaryButton(c, "Done").Disabled(e.busy || len(errs) > 0).Clicked() {
+			if ui.PrimaryButton(c, "Done").Disabled(e.busy || e.picking || len(errs) > 0).Clicked() {
 				e.done()
 			}
 		})
@@ -260,18 +272,34 @@ func (e *contactEditor) view(c *ui.Context) {
 func (e *contactEditor) bookSelect(c *ui.Context, books []api.Collection) {
 	m := e.m
 	names := make([]string, len(books))
-	current := ""
 	for i, b := range books {
 		names[i] = b.Name + " — " + m.accountEmail(b.AccountID)
-		if b.ID == e.collectionID {
-			current = names[i]
-		}
+	}
+	names = distinctLabels(names)
+	current := ""
+	if i := slices.IndexFunc(books, func(b api.Collection) bool { return b.ID == e.collectionID }); i >= 0 {
+		current = names[i]
 	}
 	editLabel(c.Key("address book"), "address book", func() {
 		if ui.Select(c.Key("book"), &current, names).Label("address book").Changed() {
 			e.collectionID = books[slices.Index(names, current)].ID
 		}
 	})
+}
+
+// distinctLabels numbers repeated labels, as a Select answers with the
+// label and two address books can share a name.
+func distinctLabels(labels []string) []string {
+	seen := make(map[string]bool, len(labels))
+	out := make([]string, len(labels))
+	for i, label := range labels {
+		name := label
+		for n := 2; seen[name]; n++ {
+			name = fmt.Sprintf("%s (%d)", label, n)
+		}
+		seen[name], out[i] = true, name
+	}
+	return out
 }
 
 func (e *contactEditor) photoWell(c *ui.Context) {
@@ -284,12 +312,12 @@ func (e *contactEditor) photoWell(c *ui.Context) {
 		}
 	}
 	editLabel(c.Key("photo row"), "photo", func() {
-		b := ui.ButtonBase(c.Key("photo")).Size(64, 64).Radius(32).Label("Change Photo").Cursor(ui.CursorPointer)
+		b := ui.ButtonBase(c.Key("photo")).Size(64, 64).Radius(32).Label("Change Photo").Cursor(ui.CursorPointer).Disabled(e.busy || e.picking)
 		if b.Clicked() {
 			e.pickPhoto()
 		}
 		b.Children(func() { avatar(c, 64, name, email, e.preview) })
-		if e.preview != nil && addButton(c.Key("remove-photo"), "Remove Photo", t.Accent).Clicked() {
+		if e.preview != nil && addButton(c.Key("remove-photo"), "Remove Photo", t.Accent).Disabled(e.busy || e.picking).Clicked() {
 			e.photoChanged, e.photo, e.preview = true, nil, nil
 		}
 	})
@@ -307,10 +335,12 @@ func (e *contactEditor) labelSelect(c *ui.Context, kind listKind, name string, i
 		options = append(options, *label)
 	}
 	options = append(options, "Custom…")
-	if *label == "" {
-		*label = options[0]
-	}
+	// An empty label shows the first choice and stays empty: drawing must
+	// not change the draft, or Done sends a list nobody edited.
 	current := *label
+	if current == "" {
+		current = options[0]
+	}
 	if ui.Select(c.Key("label"), &current, options).Label(fmt.Sprintf("Label for %s %d", name, i+1)).Width(80).Changed() {
 		if current == "Custom…" {
 			e.custom[key] = true

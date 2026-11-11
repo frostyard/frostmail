@@ -2,7 +2,6 @@ package pim
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -19,6 +18,7 @@ type todoState struct {
 	mini     fetch[[]api.Occurrence]
 	upcoming fetch[[]api.Occurrence]
 	newTitle string
+	creating bool
 	busyKey  string
 	busy     map[string]bool
 }
@@ -80,10 +80,7 @@ func (m *Module) todoTasks(c *ui.Context) {
 			frostui.Icon(c, "list-add").FontSize(16).TextColor(tertiary(t))
 			in := ui.TextInputBase(c.Key("todo-new"), &st.newTitle).Grow(1).Shrink(1).MinWidth(0).Label("New Task").Placeholder("New Task").FontSize(13)
 			if in.Submitted() {
-				if title := strings.TrimSpace(st.newTitle); title != "" {
-					m.createDefaultTask(title)
-				}
-				st.newTitle = ""
+				m.submitNewTask(&st.newTitle, &st.creating, api.TasksCreateParams{})
 			}
 		})
 		ui.Column(c).AlignItems(ui.Stretch).Role(ui.RoleList).Label("Due").Children(func() {
@@ -98,10 +95,6 @@ func (m *Module) todoTasks(c *ui.Context) {
 			ui.Text(c, "Nothing Due").FontSize(12).TextColor(tertiary(t)).Padding(0, frostui.SpaceM)
 		}
 	})
-}
-
-func (m *Module) createDefaultTask(title string) {
-	m.run("create the task", createTaskCall(title), nil)
 }
 
 func (m *Module) todoTask(c *ui.Context, task *api.Task, today string) {

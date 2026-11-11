@@ -2,7 +2,9 @@ package pim
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,6 +22,15 @@ import (
 
 const flaggedRows = 200
 
+var errNotConnected = errors.New("not connected")
+
+// taskWrite is one write waiting its turn on a task.
+type taskWrite struct {
+	client *api.Client
+	what   string
+	call   func(ctx context.Context, c *api.Client) error
+}
+
 // tasksState is the Tasks module's state.
 type tasksState struct {
 	source        taskSource
@@ -34,6 +45,8 @@ type tasksState struct {
 	tasks         []api.Task
 	flagged       *live.View
 	newTitle      string
+	creating      bool
+	writes        map[int64][]taskWrite // each task's writes; the first is running
 	focusNew      bool
 	focusTitle    bool
 	sources       frostui.SourceList[string]
@@ -42,17 +55,22 @@ type tasksState struct {
 	lines         []taskLine
 	flaggedShown  []api.MessageSummary
 
-	paneID     int64
-	paneTitle  string
-	paneNotes  string
-	dueT       time.Time
-	dueOpen    bool
-	skipCommit bool
+	paneID    int64
+	paneTitle string
+	paneNotes string
+	// What the fields last took from the task or sent to it: a field that
+	// differs from these holds the user's edit.
+	paneTitleWas string
+	paneNotesWas string
+	dueT         time.Time
+	dueOpen      bool
+	skipCommit   bool
 }
 
 func (m *Module) setUpTasks() {
 	st := &m.tasks
 	st.source, st.row, st.focus, st.ticked = sourceToday, -1, paneTasks, map[int64]bool{}
+	st.writes = map[int64][]taskWrite{}
 	st.sources.Label = "Task Lists"
 	st.sources.Row = func(key string) frostui.SourceRow { return m.taskSourceRow(key) }
 	st.sources.OnSelect = func(key string) { m.setTaskSource(sourceOfKey(key)) }
@@ -306,10 +324,51 @@ func (m *Module) toggleTask(id int64, completed bool) {
 	if completed {
 		st.ticked[id] = true
 	}
-	m.run("change the task", func(ctx context.Context, c *api.Client) error {
+	m.writeTask(id, "change the task", func(ctx context.Context, c *api.Client) error {
 		_, err := c.Tasks().Update(ctx, &api.TasksUpdateParams{ID: id, Completed: &completed})
 		return err
-	}, func() { st.all.dirty = true })
+	})
+}
+
+// writeTask sends a write of a task after those already asked of it, so
+// maild takes them in the user's order. A failure shows as a toast and
+// refetches. Each write keeps the connection it was asked on: task IDs
+// mean nothing to another daemon.
+func (m *Module) writeTask(id int64, what string, call func(ctx context.Context, c *api.Client) error) {
+	st := &m.tasks
+	if m.client == nil {
+		m.o.Toast("Could not "+what, errNotConnected)
+		st.all.dirty = true
+		return
+	}
+	st.writes[id] = append(st.writes[id], taskWrite{m.client, what, call})
+	if len(st.writes[id]) == 1 {
+		m.nextTaskWrite(id)
+	}
+}
+
+// nextTaskWrite runs the first write waiting on a task.
+func (m *Module) nextTaskWrite(id int64) {
+	st := &m.tasks
+	w := st.writes[id][0]
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
+		defer cancel()
+		err := w.call(ctx, w.client)
+		m.o.Post(func() {
+			if err != nil {
+				slog.Warn(w.what, "err", err)
+				m.o.Toast("Could not "+w.what, err)
+				st.all.dirty = true
+			}
+			st.writes[id] = st.writes[id][1:]
+			if len(st.writes[id]) == 0 {
+				delete(st.writes, id)
+				return
+			}
+			m.nextTaskWrite(id)
+		})
+	}()
 }
 
 func (m *Module) clearFlag(id int64) {
@@ -345,9 +404,9 @@ func (m *Module) deleteSelectedTask() {
 	}
 	st.all.gen++
 	st.tasks = slices.DeleteFunc(slices.Clone(st.tasks), func(x api.Task) bool { return gone[x.ID] })
-	m.run("delete the task", func(ctx context.Context, c *api.Client) error {
+	m.writeTask(id, "delete the task", func(ctx context.Context, c *api.Client) error {
 		return c.Tasks().Delete(ctx, &api.TasksDeleteParams{ID: id})
-	}, func() { st.all.dirty = true })
+	})
 }
 
 func (m *Module) openSelectedTask() {
@@ -364,30 +423,57 @@ func (m *Module) openSelectedTask() {
 	st.focusTitle = true
 }
 
-func (m *Module) createTask(title string) {
+// createTask creates the task the New Task field holds, in the source.
+func (m *Module) createTask() {
 	st := &m.tasks
 	if !m.canCreateTask() {
 		return
 	}
-	p := &api.TasksCreateParams{Title: title}
+	p := api.TasksCreateParams{}
 	switch {
 	case st.source >= 0:
 		p.ListID = ptr(int64(st.source))
 	case st.source == sourceToday:
 		p.Due = ptr(m.today())
 	}
-	m.run("create the task", func(ctx context.Context, c *api.Client) error {
-		_, err := c.Tasks().Create(ctx, p)
-		return err
-	}, nil)
+	m.submitNewTask(&st.newTitle, &st.creating, p)
 }
 
-// createTaskCall adds a task to the default list.
-func createTaskCall(title string) func(ctx context.Context, c *api.Client) error {
-	return func(ctx context.Context, c *api.Client) error {
-		_, err := c.Tasks().Create(ctx, &api.TasksCreateParams{Title: title})
-		return err
+// submitNewTask creates the task a New Task field holds. The field keeps
+// its text until maild has the task, so a failure loses nothing, and it
+// keeps what was typed since. While a create runs, Enter does nothing.
+func (m *Module) submitNewTask(text *string, creating *bool, p api.TasksCreateParams) {
+	sent := *text
+	p.Title = strings.TrimSpace(sent)
+	if p.Title == "" {
+		*text = ""
+		return
 	}
+	if *creating {
+		return
+	}
+	c := m.client
+	if c == nil {
+		m.o.Toast("Could not create the task", errNotConnected)
+		return
+	}
+	*creating = true
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
+		defer cancel()
+		_, err := c.Tasks().Create(ctx, &p)
+		m.o.Post(func() {
+			*creating = false
+			if err != nil {
+				slog.Warn("create the task", "err", err)
+				m.o.Toast("Could not create the task", err)
+				return
+			}
+			if *text == sent {
+				*text = ""
+			}
+		})
+	}()
 }
 
 func (m *Module) tasksPanes(c *ui.Context) []frostui.Pane {
@@ -493,10 +579,7 @@ func (m *Module) newTaskField(c *ui.Context) {
 			st.focusAsk = paneTasks
 		})
 		if in.Submitted() {
-			if title := strings.TrimSpace(st.newTitle); title != "" {
-				m.createTask(title)
-			}
-			st.newTitle = ""
+			m.createTask()
 		}
 	})
 	frostui.RowDivider(c)
@@ -675,6 +758,7 @@ func (m *Module) flaggedRow(c *ui.Context, r api.MessageSummary) {
 func (m *Module) taskPane(c *ui.Context) {
 	t := c.Theme()
 	st := &m.tasks
+	m.leaveTaskPane()
 	pane := ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Focusable().TabStop(false).FocusRing(false).Background(t.Background).Label("Task details")
 	if st.focusAsk == paneTask {
 		st.focusAsk = ""
@@ -738,10 +822,36 @@ func (m *Module) editTask(id int64, p api.TasksUpdateParams) {
 	if p.Due != nil {
 		x.Due = *p.Due
 	}
-	m.run("change the task", func(ctx context.Context, c *api.Client) error {
+	m.writeTask(id, "change the task", func(ctx context.Context, c *api.Client) error {
 		_, err := c.Tasks().Update(ctx, &p)
 		return err
-	}, func() { st.all.dirty = true })
+	})
+}
+
+// leaveTaskPane commits the pane's fields against the task they were
+// editing, once another selection or source has taken the pane: by the
+// time the field's blur is seen, the fields hold the next task.
+func (m *Module) leaveTaskPane() {
+	st := &m.tasks
+	if st.paneID == 0 || (st.source != sourceFlagged && st.selected == st.paneID) {
+		return
+	}
+	id := st.paneID
+	st.paneID = 0
+	t := m.task(id)
+	if t == nil {
+		return
+	}
+	var p api.TasksUpdateParams
+	if v := strings.TrimSpace(st.paneTitle); v != "" && st.paneTitle != st.paneTitleWas && v != t.Title {
+		p.Title = &v
+	}
+	if v := st.paneNotes; v != st.paneNotesWas && v != t.Notes {
+		p.Notes = &v
+	}
+	if p.Title != nil || p.Notes != nil {
+		m.editTask(id, p)
+	}
 }
 
 func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
@@ -750,6 +860,7 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 	readOnly := !m.taskWritable(task)
 	if st.paneID != task.ID {
 		st.paneID, st.paneTitle, st.paneNotes, st.dueOpen = task.ID, task.Title, task.Notes, false
+		st.paneTitleWas, st.paneNotesWas = task.Title, task.Notes
 	}
 	title := ui.TextInput(c.Key("title"), &st.paneTitle).Label("Title").FontSize(17).FontWeight(600).ReadOnly(readOnly)
 	if st.focusTitle {
@@ -757,7 +868,7 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 		title.Focus()
 	}
 	if !title.Focused() && !title.FocusWithin() && st.paneTitle != task.Title && !title.Submitted() && !title.FocusLeft() {
-		st.paneTitle = task.Title // the server's newer title
+		st.paneTitle, st.paneTitleWas = task.Title, task.Title // the server's newer title
 	}
 	commitTitle := func() {
 		if v := strings.TrimSpace(st.paneTitle); v == "" {
@@ -765,9 +876,10 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 		} else if v != task.Title {
 			m.editTask(task.ID, api.TasksUpdateParams{Title: &v})
 		}
+		st.paneTitleWas = st.paneTitle
 	}
 	title.OnShortcut(0, ui.KeyEscape, func() {
-		st.paneTitle = task.Title
+		st.paneTitle, st.paneTitleWas = task.Title, task.Title
 		st.skipCommit = true
 		st.focusAsk = paneTasks
 	})
@@ -812,9 +924,10 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 	notes := ui.TextArea(c.Key("notes"), &st.paneNotes).Label("Notes").FontSize(13).MinHeight(120).ReadOnly(readOnly)
 	if notes.FocusLeft() && st.paneNotes != task.Notes {
 		v := st.paneNotes
+		st.paneNotesWas = v
 		m.editTask(task.ID, api.TasksUpdateParams{Notes: &v})
 	} else if !notes.Focused() && !notes.FocusWithin() && st.paneNotes != task.Notes {
-		st.paneNotes = task.Notes
+		st.paneNotes, st.paneNotesWas = task.Notes, task.Notes
 	}
 	if !readOnly && textButton(c.Key("delete"), "Delete Task", flagColor(t, 1), 13).Clicked() {
 		st.selected = task.ID

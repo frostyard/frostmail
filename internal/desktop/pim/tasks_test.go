@@ -2,7 +2,10 @@ package pim
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -366,4 +369,232 @@ func TestToDoBarNewTaskGoesToTheDefaultList(t *testing.T) {
 		}
 		return slices.ContainsFunc(all, func(x api.Task) bool { return x.Title == "From the bar" })
 	})
+}
+
+// fakeTasks passes calls on to maild, noting them; a test can fail or
+// hold some.
+type fakeTasks struct {
+	api.TasksService
+	mu         sync.Mutex
+	updates    []api.TasksUpdateParams
+	holdUpdate chan struct{} // the first Update waits for it, when set
+	creates    int
+	createErr  error         // the next Create fails with it
+	holdCreate chan struct{} // Create waits for it, when set
+}
+
+func (s *fakeTasks) Update(ctx context.Context, p *api.TasksUpdateParams) (*api.Task, error) {
+	s.mu.Lock()
+	s.updates = append(s.updates, *p)
+	var hold chan struct{}
+	if len(s.updates) == 1 {
+		hold = s.holdUpdate
+	}
+	s.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+	return s.TasksService.Update(ctx, p)
+}
+
+func (s *fakeTasks) Create(ctx context.Context, p *api.TasksCreateParams) (*api.Task, error) {
+	s.mu.Lock()
+	s.creates++
+	err, hold := s.createErr, s.holdCreate
+	s.createErr = nil
+	s.mu.Unlock()
+	if hold != nil {
+		<-hold
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.TasksService.Create(ctx, p)
+}
+
+func (s *fakeTasks) sent() []api.TasksUpdateParams {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.updates)
+}
+
+func (s *fakeTasks) createCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.creates
+}
+
+func withFakeTasks(fake *fakeTasks) options {
+	return options{Options: rpctest.Options{Services: func(s *api.Services) {
+		fake.TasksService = s.Tasks
+		s.Tasks = fake
+	}}}
+}
+
+func TestLeavingATaskCommitsItsEdits(t *testing.T) {
+	title := func(f *fixture) {
+		f.m.tasks.focusTitle = true
+		f.tt.Frame()
+	}
+	notes := func(f *fixture) {
+		r, ok := f.tt.Find("Notes")
+		if !ok {
+			f.t.Fatalf("no Notes in %s", dump(f.tt))
+		}
+		f.tt.ClickAt(r.X+r.W/2, r.Y+r.H+40)
+		f.tt.Frame()
+	}
+	titled := func(x *api.Task) bool { return strings.Contains(x.Title, "zz") }
+	noted := func(x *api.Task) bool { return strings.Contains(x.Notes, "zz") }
+	another := func(f *fixture) { f.click("Buy oat milk") }
+	source := func(f *fixture) { f.click("All Tasks") }
+	flagged := func(f *fixture) { f.m.setTaskSource(sourceFlagged) }
+	// Another device moves the task out of Today: the selection ends with
+	// the field still focused.
+	moved := func(f *fixture) {
+		if _, err := f.c.Tasks().Update(f.t.Context(), &api.TasksUpdateParams{ID: f.report, Due: ptr("2026-10-20")}); err != nil {
+			f.t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		focus func(*fixture)
+		leave func(*fixture)
+		saved func(*api.Task) bool
+	}{
+		{"title for another task", title, another, titled},
+		{"notes for another task", notes, another, noted},
+		{"title for another source", title, source, titled},
+		{"notes for another source", notes, source, noted},
+		{"title for Flagged Mail", title, flagged, titled},
+		{"title as the task leaves the view", title, moved, titled},
+		{"notes as the task leaves the view", notes, moved, noted},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, commands.Tasks)
+			f.text("Report")
+			f.click("Q3 numbers")
+			f.until("the pane", func() bool { return f.tt.HasText("Delete Task") && f.m.tasks.paneID == f.report })
+			tc.focus(f)
+			f.tt.Type("zz")
+			f.tt.Frame()
+			tc.leave(f)
+			f.until("the write", func() bool { x := f.task(f.report); return x != nil && tc.saved(x) })
+			f.until("the pane leaving", func() bool { return f.m.tasks.paneID != f.report })
+			if x := f.task(f.milk); x.Title != "Buy oat milk" || x.Notes != "" {
+				t.Errorf("the next task took the edit: %+v", x)
+			}
+		})
+	}
+}
+
+func TestLeavingATaskWritesNoStaleTitle(t *testing.T) {
+	fake := &fakeTasks{}
+	f := newFixture(t, commands.Tasks, withFakeTasks(fake))
+	f.text("Report")
+	f.click("Q3 numbers")
+	f.until("the pane", func() bool { return f.m.tasks.paneID == f.report })
+	// A refetch brings a newer title as the selection moves: the field
+	// holds the old one, which the user did not type.
+	f.m.tasks.tasks = slices.Clone(f.m.tasks.tasks)
+	i := slices.IndexFunc(f.m.tasks.tasks, func(x api.Task) bool { return x.ID == f.report })
+	f.m.tasks.tasks[i].Title = "Newer"
+	f.m.tasks.selected = f.milk
+	f.until("the pane", func() bool { return f.m.tasks.paneID == f.milk })
+	if got := fake.sent(); len(got) != 0 {
+		t.Errorf("wrote %+v", got)
+	}
+}
+
+func TestWritesToOneTaskRunInOrder(t *testing.T) {
+	hold := make(chan struct{})
+	fake := &fakeTasks{holdUpdate: hold}
+	f := newFixture(t, commands.Tasks, withFakeTasks(fake))
+	f.text("Report")
+	first, second, milk := "First", "Second", "Milk"
+	f.m.editTask(f.report, api.TasksUpdateParams{Title: &first})
+	f.m.editTask(f.report, api.TasksUpdateParams{Title: &second})
+	f.m.toggleTask(f.report, true)
+	f.until("the first write", func() bool { return len(fake.sent()) == 1 })
+	// Another task does not wait.
+	f.m.editTask(f.milk, api.TasksUpdateParams{Title: &milk})
+	f.until("the other task", func() bool { x := f.task(f.milk); return x != nil && x.Title == milk })
+	if got := fake.sent(); len(got) != 2 || got[1].ID != f.milk {
+		t.Fatalf("while the first write ran, sent %+v", got)
+	}
+	close(hold)
+	f.until("every write", func() bool { return len(f.m.tasks.writes) == 0 })
+	var titles []string
+	var last api.TasksUpdateParams
+	for _, p := range fake.sent() {
+		if p.ID != f.report {
+			continue
+		}
+		last = p
+		if p.Title != nil {
+			titles = append(titles, *p.Title)
+		}
+	}
+	if !slices.Equal(titles, []string{first, second}) || last.Completed == nil {
+		t.Errorf("titles %v, last %+v", titles, last)
+	}
+	if x := f.task(f.report); x.Title != second || !x.Completed {
+		t.Errorf("maild holds %+v", x)
+	}
+}
+
+func TestATaskWriteWhileDisconnectedSaysSo(t *testing.T) {
+	f := newFixture(t, commands.Tasks)
+	f.text("Report")
+	f.m.Disconnect()
+	f.until("the disconnect", func() bool { return f.m.client == nil })
+	f.m.toggleTask(f.report, true)
+	if len(f.toasts) != 1 || len(f.m.tasks.writes) != 0 {
+		t.Errorf("toasts %q, writes %v", f.toasts, f.m.tasks.writes)
+	}
+}
+
+func TestNewTaskKeepsItsTextUntilCreated(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		module commands.Module
+		focus  func(*fixture)
+		text   func(*fixture) string
+	}{
+		{"tasks", commands.Tasks, func(f *fixture) { f.tt.Key(ui.Cmd, ui.KeyN); f.tt.Frame() }, func(f *fixture) string { return f.m.tasks.newTitle }},
+		{"to-do bar", commands.Mail, func(f *fixture) { f.click("New Task") }, func(f *fixture) string { return f.m.todo.newTitle }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hold := make(chan struct{})
+			fake := &fakeTasks{createErr: errors.New("refused"), holdCreate: hold}
+			f := newFixture(t, tc.module, withFakeTasks(fake))
+			f.text("Report")
+			tc.focus(f)
+			f.tt.Type("Water")
+			f.tt.Key(0, ui.KeyEnter)
+			f.until("the create", func() bool { return fake.createCount() == 1 })
+			if got := tc.text(f); got != "Water" {
+				t.Errorf("while the create ran, the field holds %q", got)
+			}
+			f.tt.Key(0, ui.KeyEnter)
+			f.tt.Frame()
+			close(hold)
+			f.until("the failure", func() bool { return len(f.toasts) == 1 })
+			if got := tc.text(f); got != "Water" {
+				t.Errorf("after the failure, the field holds %q", got)
+			}
+			if got := fake.createCount(); got != 1 {
+				t.Errorf("Enter during a create sent %d creates", got)
+			}
+			f.tt.Key(0, ui.KeyEnter)
+			f.until("the field emptying", func() bool { return tc.text(f) == "" })
+			all, err := f.c.Tasks().List(t.Context(), &api.TasksListParams{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n := len(slices.DeleteFunc(all, func(x api.Task) bool { return x.Title != "Water" })); n != 1 {
+				t.Errorf("%d tasks named Water", n)
+			}
+		})
+	}
 }
