@@ -373,14 +373,17 @@ func TestMailtoLinkOpensWithoutAttach(t *testing.T) {
 		}
 		return false
 	})
-	if !strings.Contains(href, "attach=") {
-		t.Fatalf("the page's link is %q, without the attach= this test needs", href)
+	const clean = "mailto:a@b.test?subject=Hi&body=x"
+	if href != clean {
+		t.Fatalf("the page's link is %q, want %q", href, clean)
 	}
 	// The page's click handler (cmd/frostmail) gives the link to OpenLink.
 	f.win.OpenLink(href)
+	// The opener still protects links that did not pass through maild's sanitizer.
+	f.win.OpenLink("mailto:a@b.test?subject=Hi&attach=/etc/passwd&body=x")
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if want := []string{"mailto:a@b.test?subject=Hi&body=x"}; !slices.Equal(f.links, want) {
+	if want := []string{clean, clean}; !slices.Equal(f.links, want) {
 		t.Errorf("opened %q, want %q", f.links, want)
 	}
 }

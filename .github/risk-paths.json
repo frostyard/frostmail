@@ -101,6 +101,11 @@
       "glob": "internal/store/migrations/**",
       "level": "L1",
       "why": "destructive operations: schema migrations of the user's mail database"
+    },
+    {
+      "glob": "{app/src/lib/mailto.ts,app/src/app/ReaderContainer.tsx,internal/render/sanitize.go}",
+      "level": "L1",
+      "why": "secrets and credentials: filtering untrusted mail links before the browser or an external mail client opens them"
     }
   ]
 }

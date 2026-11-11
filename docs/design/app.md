@@ -123,7 +123,11 @@ client.
     WebKitGTK runs no listener inside the frame, the parent's included.
   - Browsers on the dev gateway do run listeners there: a capturing click
     listener on the frame document cancels every navigation and opens
-    `http`, `https` and `mailto` links in a browser tab.
+    `http`, `https` and `mailto` links in a browser tab. The shared
+    `openLink` filters mailto fields before handing a link to the browser
+    or Lodge; maild applies the same rule to HTML links that open directly
+    from the content-origin frame
+    ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
   - Text-only messages render as React elements (`PlainText`), not in a
     frame.
   - **In lodge** the frame shows the reader page from lodge's content node

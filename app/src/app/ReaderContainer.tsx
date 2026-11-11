@@ -34,6 +34,7 @@ import { SenderCheckBanner } from "../features/reader/SenderCheckBanner";
 import { UnsubscribeBanner } from "../features/reader/UnsubscribeBanner";
 import { zoned } from "../lib/calendarDates";
 import { whenText } from "../lib/later";
+import { filterMailto } from "../lib/mailto";
 import { isVip, vipSet } from "../lib/vips";
 import { IN_LODGE, lodge, openOutside } from "../lodge/lodge";
 import { permalink } from "../lodge/routes";
@@ -81,7 +82,8 @@ export interface ReaderHandle {
  * place and anything else in a new tab.
  */
 export function openLink(url: string): void {
-  if (!openOutside(url)) window.open(url, "_blank", "noopener,noreferrer");
+  const target = filterMailto(url);
+  if (target && !openOutside(target)) window.open(target, "_blank", "noopener,noreferrer");
 }
 
 /**
