@@ -41,8 +41,7 @@ func (a activityService) Subscribe(ctx context.Context, _ *api.ActivitySubscribe
 		return nil, api.Conflict("this connection is already subscribed to activity")
 	}
 	sub, seq := a.s.opts.Activity.Subscribe()
-	st.activity = sub
-	c.OnClose(sub.Close)
+	st.setActivity(c, sub)
 	jsonrpc.AfterReply(ctx, func() {
 		c.Go(func(ctx context.Context) {
 			for {
@@ -74,11 +73,28 @@ func (a activityService) Unsubscribe(ctx context.Context, _ *api.ActivityUnsubsc
 	if st == nil {
 		return nil
 	}
+	st.closeActivity()
+	return nil
+}
+
+// setActivity makes sub the connection's subscription; st.mu is held. One
+// hook closes whichever subscription the connection has when it ends: a
+// hook for each would keep every old subscription, with its buffer, until
+// the disconnect.
+func (st *state) setActivity(c interface{ OnClose(func()) }, sub *activity.Sub) {
+	st.activity = sub
+	if !st.activityOn {
+		st.activityOn = true
+		c.OnClose(st.closeActivity)
+	}
+}
+
+// closeActivity ends the connection's subscription, if it has one.
+func (st *state) closeActivity() {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.activity != nil {
 		st.activity.Close()
 		st.activity = nil
 	}
-	return nil
 }

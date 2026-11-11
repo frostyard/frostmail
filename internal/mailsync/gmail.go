@@ -190,10 +190,11 @@ func (a *actor) reconcileGmail(ctx context.Context, conn conn, mb store.Mailbox)
 			if err != nil {
 				return err
 			}
-			changed += len(ups)
-			if err := a.applyGmail(ctx, mb, allMail, ups); err != nil {
+			n, err := a.applyGmail(ctx, mb, allMail, ups)
+			if err != nil {
 				return err
 			}
+			changed += n
 		}
 	}
 	if err := a.storeSyncState(ctx, mb.ID, store.SyncState{
@@ -258,12 +259,14 @@ func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool,
 	return added, applied(ctx, err)
 }
 
-// applyGmail stores flag and label changes reported for kept UIDs.
-func (a *actor) applyGmail(ctx context.Context, mb store.Mailbox, allMail bool, ups []store.FlagUpdate) error {
+// applyGmail stores flag and label changes reported for kept UIDs, and
+// returns how many messages changed.
+func (a *actor) applyGmail(ctx context.Context, mb store.Mailbox, allMail bool, ups []store.FlagUpdate) (int, error) {
 	if len(ups) == 0 {
-		return nil
+		return 0, nil
 	}
-	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	n := 0
+	err := applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		changed, err := tx.UpdateFlags(ctx, mb.ID, ups)
 		if err != nil {
 			return err
@@ -290,6 +293,7 @@ func (a *actor) applyGmail(ctx context.Context, mb store.Mailbox, allMail bool, 
 				}
 			}
 		}
+		n = len(changed)
 		if len(changed) == 0 {
 			return nil
 		}
@@ -298,6 +302,7 @@ func (a *actor) applyGmail(ctx context.Context, mb store.Mailbox, allMail bool, 
 		}
 		return a.announce(ctx, tx, changed, touched)
 	}))
+	return n, err
 }
 
 // removeGmail drops UIDs a synced folder no longer has; the messages wait

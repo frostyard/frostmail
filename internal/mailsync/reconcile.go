@@ -99,10 +99,11 @@ func (a *actor) reconcile(ctx context.Context, cmd *imapx.Session, mb store.Mail
 			if err != nil {
 				return err
 			}
-			changed += len(ups)
-			if err := a.applyFlags(ctx, mb, ups); err != nil {
+			n, err := a.applyFlags(ctx, mb, ups)
+			if err != nil {
 				return err
 			}
+			changed += n
 		}
 	}
 
@@ -237,19 +238,21 @@ func (a *actor) remove(ctx context.Context, mb store.Mailbox, uids []uint32) err
 	}))
 }
 
-// applyFlags stores flags the server reports and emits the messages whose
-// flags changed. On a server that keeps no keywords, a message's keywords
-// and color stay as they are here.
-func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.FlagUpdate) error {
+// applyFlags stores flags the server reports, emits the messages whose
+// flags changed, and returns how many did. On a server that keeps no
+// keywords, a message's keywords and color stay as they are here.
+func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.FlagUpdate) (int, error) {
 	if len(ups) == 0 {
-		return nil
+		return 0, nil
 	}
 	update := (*store.Tx).UpdateFlags
 	if providers.ForKind(a.acct.Kind).Quirks.NoKeywords {
 		update = (*store.Tx).UpdateSystemFlags
 	}
-	return applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
+	n := 0
+	err := applied(ctx, a.m.db.Tx(ctx, func(tx *store.Tx) error {
 		changed, err := update(tx, ctx, mb.ID, ups)
+		n = len(changed)
 		if err != nil || len(changed) == 0 {
 			return err
 		}
@@ -265,4 +268,5 @@ func (a *actor) applyFlags(ctx context.Context, mb store.Mailbox, ups []store.Fl
 		}
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
 	}))
+	return n, err
 }

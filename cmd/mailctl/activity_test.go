@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
+	"encoding/json/v2"
+	"errors"
+	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,5 +46,98 @@ func TestActivityCommand(t *testing.T) {
 	}
 	if _, err := runMailctl(t, "--socket", srv.Socket, "activity", "--level", "loud"); err == nil {
 		t.Error("activity --level loud: no error")
+	}
+}
+
+// blockedWriter holds every write until open is closed.
+type blockedWriter struct {
+	open chan struct{}
+	mu   sync.Mutex
+	buf  strings.Builder
+}
+
+func (w *blockedWriter) Write(p []byte) (int, error) {
+	<-w.open
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *blockedWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.String()
+}
+
+// A slow stdout loses entries and says so; the stream stays open. Without
+// the drain, the client's event buffer fills and it closes the connection.
+func TestFollowOutlastsASlowOutput(t *testing.T) {
+	serverSide, clientSide := net.Pipe()
+	defer serverSide.Close()
+	c := api.NewClient(clientSide)
+	defer c.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	hub := activity.New(nil)
+	hub.Record(activity.SendFailed(1, errors.New("no"), true))
+	entry := hub.Recent(1)[0]
+	send := func(seq int64) error {
+		e := entry
+		e.Seq = seq
+		env, err := api.NewEnvelope(0, api.ActivityAdded{Entry: e})
+		if err != nil {
+			return err
+		}
+		params, err := json.Marshal(env)
+		if err != nil {
+			return err
+		}
+		line, err := json.Marshal(api.Frame{JSONRPC: "2.0", Method: api.EventMethod, Params: params})
+		if err != nil {
+			return err
+		}
+		_, err = serverSide.Write(append(line, '\n'))
+		return err
+	}
+
+	w := &blockedWriter{open: make(chan struct{})}
+	names := &clientNames{c: c, accounts: map[int64]string{1: "me@a.test"}, mailboxes: map[int64]string{}}
+	done := make(chan error, 1)
+	go func() {
+		done <- followActivity(ctx, c, drainActivity(c.Notifications(), api.ActivityLevelInfo), w, names, api.ActivityLevelInfo, 0)
+	}()
+
+	n := int64(2 * api.EventBuffer)
+	for seq := int64(1); seq <= n; seq++ {
+		if err := send(seq); err != nil {
+			t.Fatalf("event %d: the connection closed behind a slow output: %v (%v)", seq, err, c.Err())
+		}
+	}
+	close(w.open)
+
+	// The next entry reaches the output, after the count of those lost.
+	if err := send(n + 1); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.After(10 * time.Second)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for !strings.Contains(w.String(), "not shown") {
+		select {
+		case <-tick.C:
+			if err := send(n + 1); err != nil {
+				t.Fatal(err)
+			}
+		case <-deadline:
+			t.Fatalf("no dropped line in:\n%s", w.String())
+		}
+	}
+	if err := c.Err(); err != nil {
+		t.Errorf("the connection ended: %v", err)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Errorf("follow = %v", err)
 	}
 }

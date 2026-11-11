@@ -36,12 +36,14 @@ func newActivityCmd(opts *rootOptions) *cobra.Command {
 			}
 			defer c.Close()
 			var seq int64
+			var live <-chan api.ActivityEntry
 			if follow { // before reading the recent entries, so none falls between
 				sub, err := c.Activity().Subscribe(ctx, &api.ActivitySubscribeParams{})
 				if err != nil {
 					return err
 				}
 				seq = sub.Seq
+				live = drainActivity(c.Notifications(), least)
 			}
 			recent, err := c.Activity().Recent(ctx, &api.ActivityRecentParams{Limit: &limit})
 			if err != nil {
@@ -63,7 +65,7 @@ func newActivityCmd(opts *rootOptions) *cobra.Command {
 			if !follow {
 				return nil
 			}
-			return followActivity(ctx, c, w, n, least, seq)
+			return followActivity(ctx, c, live, w, n, least, seq)
 		},
 	}
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "keep printing entries as maild records them")
@@ -72,35 +74,74 @@ func newActivityCmd(opts *rootOptions) *cobra.Command {
 	return cmd
 }
 
-// followActivity prints the live entries newer than seq until ctx ends or
-// the connection closes; a dropped entry (seq 0) is always new.
-func followActivity(ctx context.Context, c *api.Client, w io.Writer, n *clientNames, least api.ActivityLevel, seq int64) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case env, ok := <-c.Notifications():
-			if !ok {
-				return c.Err()
-			}
+// drainActivity reads the connection's notifications as they come, however
+// slow the output is, because a client that stops reading them loses its
+// connection (api.EventBuffer). It keeps the entries at least level in a
+// bounded buffer, and like a subscription that falls behind (ADR-0055) it
+// loses what does not fit and counts it in one dropped entry, before the
+// next entry that fits. The channel closes with the connection.
+func drainActivity(events <-chan api.EventEnvelope, least api.ActivityLevel) <-chan api.ActivityEntry {
+	out := make(chan api.ActivityEntry, activity.SubscriberBuffer)
+	go func() {
+		defer close(out)
+		var lost int64
+		for env := range events {
 			ev, err := api.DecodeEvent(env.Event, env.Data)
 			if err != nil {
 				continue
 			}
 			a, ok := ev.(api.ActivityAdded)
-			if !ok || (a.Entry.Seq != 0 && a.Entry.Seq <= seq) {
+			if !ok || !shown(a.Entry, least) {
 				continue
 			}
-			seq = max(seq, a.Entry.Seq)
-			if err := printActivity(ctx, w, a.Entry, n, least); err != nil {
+			if lost > 0 {
+				select {
+				case out <- activity.Dropped(lost, a.Entry.At):
+					lost = 0
+				default:
+					lost++
+					continue
+				}
+			}
+			select {
+			case out <- a.Entry:
+			default:
+				lost++
+			}
+		}
+	}()
+	return out
+}
+
+// followActivity prints the live entries newer than seq until ctx ends or
+// the connection closes; a dropped entry (seq 0) is always new.
+func followActivity(ctx context.Context, c *api.Client, live <-chan api.ActivityEntry, w io.Writer, n *clientNames, least api.ActivityLevel, seq int64) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case e, ok := <-live:
+			if !ok {
+				return c.Err()
+			}
+			if e.Seq != 0 && e.Seq <= seq {
+				continue
+			}
+			seq = max(seq, e.Seq)
+			if err := printActivity(ctx, w, e, n, least); err != nil {
 				return err
 			}
 		}
 	}
 }
 
+// shown reports whether --level prints e.
+func shown(e api.ActivityEntry, least api.ActivityLevel) bool {
+	return slices.Index(levels, e.Level) >= slices.Index(levels, least)
+}
+
 func printActivity(ctx context.Context, w io.Writer, e api.ActivityEntry, n *clientNames, least api.ActivityLevel) error {
-	if slices.Index(levels, e.Level) < slices.Index(levels, least) {
+	if !shown(e, least) {
 		return nil
 	}
 	n.load(ctx, e)

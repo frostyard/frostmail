@@ -210,6 +210,14 @@ func dropped(account *int64, n int64) api.ActivityEntry {
 	return e
 }
 
+// Dropped: a client lost n entries behind its own buffer, as of at. Like a
+// subscription's dropped entry it has seq 0 and names no account.
+func Dropped(n int64, at time.Time) api.ActivityEntry {
+	e := dropped(nil, n)
+	e.At = at
+	return e
+}
+
 func entry(level api.ActivityLevel, kind api.ActivityKind, account int64, fill func(*api.ActivityEntry)) Entry {
 	e := api.ActivityEntry{Level: level, Kind: kind, AccountID: &account}
 	fill(&e)

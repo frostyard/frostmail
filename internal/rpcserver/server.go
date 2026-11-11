@@ -91,6 +91,7 @@ type state struct {
 	mu         sync.Mutex
 	subscribed bool
 	activity   *activity.Sub // activity.subscribe's, until unsubscribe
+	activityOn bool          // the hook that closes activity at the end is set
 	app        bool          // said AppClient in rpc.hello
 }
 

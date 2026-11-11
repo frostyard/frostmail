@@ -181,8 +181,10 @@ func (p *pass) deleteEvent(ctx context.Context, c objectServer, col store.Collec
 	case err == nil || errors.Is(err, davx.ErrNotFound):
 		return p.done(ctx, op, nil)
 	case errors.Is(err, davx.ErrPrecondition):
+		p.refusal(col.Kind, err)
 		return p.refusedEvent(ctx, op, col, nil, "changed")
 	case refusal(err):
+		p.refusal(col.Kind, err)
 		return p.refusedEvent(ctx, op, col, nil, "refused")
 	}
 	return p.failed(ctx, op, err)

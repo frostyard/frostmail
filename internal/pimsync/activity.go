@@ -9,6 +9,7 @@ import (
 	"github.com/frostyard/frostmail/internal/davx"
 	"github.com/frostyard/frostmail/internal/graph"
 	"github.com/frostyard/frostmail/internal/gtasks"
+	"github.com/frostyard/frostmail/internal/oauth"
 	"github.com/frostyard/frostmail/internal/providers"
 )
 
@@ -35,7 +36,9 @@ func (p *pass) record(s api.ServiceKind, changed int, d time.Duration, err error
 	switch {
 	case err == nil:
 		h.Record(activity.PIMSynced(p.acct.ID, srv, changed, d))
-	case errors.Is(err, davx.ErrUnauthorized), errors.Is(err, gtasks.ErrUnauthorized), errors.Is(err, graph.ErrUnauthorized):
+	case errors.Is(err, davx.ErrUnauthorized), errors.Is(err, gtasks.ErrUnauthorized), errors.Is(err, graph.ErrUnauthorized),
+		errors.Is(err, errSignIn), errors.Is(err, errScope),
+		errors.Is(err, oauth.ErrReauth), errors.Is(err, oauth.ErrNoClient), errors.Is(err, oauth.ErrNoScope):
 		h.Record(activity.SignInNeeded(p.acct.ID, srv, err))
 	default:
 		h.Record(activity.Lost(p.acct.ID, srv, err))
