@@ -1,14 +1,10 @@
 // Opening events in the event editor window (docs/specs/pim-ui.md, Event
-// editor window). In the app each event gets its own Tauri window, labeled
-// event-<id> (event-<id>-<occurrence> for one occurrence of a series,
-// event-new-<n> for a new event), which learns what it edits from an
-// initialization script; in a browser (the dev gateway) it opens in a new
-// tab at #/event/<id>?recurrenceId=… or #/event/new?….
-import { invoke, isTauri } from "@tauri-apps/api/core";
-
+// editor window). In lodge each is a route the frame shows; in a browser on
+// the dev gateway it opens in a new tab at #/event/<id>?recurrenceId=… or
+// #/event/new?…, named event-<id> (event-<id>-<occurrence> for one occurrence
+// of a series, event-new-<n> for a new event).
 import { addDays, instantAt, zoned } from "../lib/calendarDates";
 import { openFrameWindow } from "../lodge/frameWindow";
-import { maildKey } from "../rpc/transport/tauri";
 
 /** EditorTarget is what an event editor window edits: a stored event (one
  *  occurrence of a series when recurrenceId is set), or a new event with
@@ -27,13 +23,6 @@ export type EditorTarget =
       startDate: string;
       endDate: string;
     };
-
-declare global {
-  interface Window {
-    /** Set by the event editor window's initialization script. */
-    __frostmailEvent?: EditorTarget;
-  }
-}
 
 function fromHash(hash: string): EditorTarget | null {
   const m = /^#\/event\/(new|\d+)(?:\?(.*))?$/.exec(hash);
@@ -74,10 +63,10 @@ export function eventFromRoute(route: string): EditorTarget | null {
 
 /** editorTarget returns what this window edits, or null when it is not an event editor. */
 export function editorTarget(): EditorTarget | null {
-  return window.__frostmailEvent ?? fromHash(window.location.hash);
+  return fromHash(window.location.hash);
 }
 
-/** windowLabel is the editor window's Tauri label for a target. */
+/** windowLabel is the editor tab's name for a target. */
 export function windowLabel(target: EditorTarget, now = Date.now()): string {
   if (target.kind === "new") return `event-new-${now}`;
   const occurrence = target.recurrenceId.replace(/[^A-Za-z0-9]+/g, "-").replace(/-+$/, "");
@@ -85,21 +74,9 @@ export function windowLabel(target: EditorTarget, now = Date.now()): string {
 }
 
 /** openEvent shows an event (or a new one) in its editor window, focusing the window that already shows it. */
-export async function openEvent(target: EditorTarget, title = ""): Promise<void> {
+export async function openEvent(target: EditorTarget): Promise<void> {
   if (openFrameWindow({ kind: "event", target })) return;
-  const label = windowLabel(target);
-  if (isTauri()) {
-    // The editor compares every connection with the maild that owns the
-    // event, so it closes rather than edit the id on another one.
-    await invoke("open_event", {
-      label,
-      target,
-      title: title || (target.kind === "new" ? "New Event" : "Event"),
-      maild: maildKey() ?? null,
-    });
-    return;
-  }
-  window.open(`${window.location.pathname}${toHash(target)}`, label);
+  window.open(`${window.location.pathname}${toHash(target)}`, windowLabel(target));
 }
 
 /** newEventAt is a new event's first times on a date: an hour from the next whole hour today, else from 9:00 AM. */

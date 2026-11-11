@@ -452,6 +452,115 @@ function accountClient(t: Transport): AccountClient {
   };
 }
 
+// ---- activity ----
+
+/** How much an entry matters. */
+export type ActivityLevel = "debug" | "info" | "warn" | "error";
+export const ActivityLevelValues: readonly ActivityLevel[] = ["debug", "info", "warn", "error"];
+
+/** What happened. The client writes the line from the kind and the fields. */
+export type ActivityKind = "connect" | "list" | "mailboxsynced" | "idle" | "fetched" | "pushed" | "draftsaved" | "sent" | "sendfailed" | "sendlater" | "rulesapplied" | "remindfired" | "announced" | "erased" | "pimsynced" | "pimrefused" | "tokenrefreshed" | "signinneeded" | "offline" | "failed" | "dropped";
+export const ActivityKindValues: readonly ActivityKind[] = ["connect", "list", "mailboxsynced", "idle", "fetched", "pushed", "draftsaved", "sent", "sendfailed", "sendlater", "rulesapplied", "remindfired", "announced", "erased", "pimsynced", "pimrefused", "tokenrefreshed", "signinneeded", "offline", "failed", "dropped"];
+
+/** The server or service an entry is about. */
+export type ActivityServer = "imap" | "smtp" | "caldav" | "carddav" | "graph" | "gtasks" | "oauth";
+export const ActivityServerValues: readonly ActivityServer[] = ["imap", "smtp", "caldav", "carddav", "graph", "gtasks", "oauth"];
+
+/** What kind of failure, read from the error's type, never from its text. */
+export type ErrorClass = "network" | "timeout" | "tls" | "auth" | "refused" | "quota" | "protocol" | "internal";
+export const ErrorClassValues: readonly ErrorClass[] = ["network", "timeout", "tls", "auth", "refused", "quota", "protocol", "internal"];
+
+/**
+ * The IMAP response codes maild tells apart (RFC 5530); other is any other
+ * code.
+ */
+export type ImapCode = "authenticationfailed" | "authorizationfailed" | "unavailable" | "overquota" | "limit" | "nonexistent" | "alreadyexists" | "cannot" | "serverbug" | "other";
+export const ImapCodeValues: readonly ImapCode[] = ["authenticationfailed", "authorizationfailed", "unavailable", "overquota", "limit", "nonexistent", "alreadyexists", "cannot", "serverbug", "other"];
+
+/** One thing maild did. It has no string field, by design (ADR-0055). */
+export interface ActivityEntry {
+  /** Increases by 1 per entry within one run of maild. */
+  seq: number;
+  at: string /* RFC 3339 */;
+  level: ActivityLevel;
+  kind: ActivityKind;
+  accountId?: number;
+  mailboxId?: number;
+  service?: ActivityServer;
+  /** How many: messages, mailboxes, changes or entries, by kind. */
+  n?: number;
+  added?: number;
+  changed?: number;
+  removed?: number;
+  bytes?: number;
+  /** How long it took, in milliseconds. */
+  ms?: number;
+  errorClass?: ErrorClass;
+  /** An SMTP reply code or an HTTP status. */
+  code?: number;
+  imapCode?: ImapCode;
+}
+
+/** The state of a new activity subscription. */
+export interface ActivitySubscription {
+  /**
+   * The newest entry's seq when the subscription started; 0 when there is
+   * none.
+   */
+  seq: number;
+}
+
+/** Params of activity.recent. */
+export interface ActivityRecentParams {
+  /** 1 to 500; default 200. */
+  limit?: number;
+}
+
+/** Params of activity.subscribe. */
+export type ActivitySubscribeParams = Record<string, never>;
+
+/** Params of activity.unsubscribe. */
+export type ActivityUnsubscribeParams = Record<string, never>;
+
+/**
+ * An entry, sent live to the connections that called activity.subscribe.
+ * Never replayed.
+ */
+export interface ActivityAdded {
+  entry: ActivityEntry;
+}
+
+/**
+ * What maild does in the background, for a client's console (ADR-0055): typed
+ * entries that hold only numbers, times and enums, never text, so no subject,
+ * body, address, credential or server message can travel in one. maild keeps
+ * the newest 2,000 in memory; they are not stored or replayed.
+ */
+export interface ActivityClient {
+  /** The newest entries, oldest first. */
+  recent(params?: ActivityRecentParams): Promise<ActivityEntry[]>;
+  /**
+   * Send activity.added events on this connection from now on, apart from
+   * events.subscribe. A connection that falls 256 entries behind loses
+   * entries and then gets one dropped entry that counts them; it is never
+   * closed for it.
+   */
+  subscribe(params?: ActivitySubscribeParams): Promise<ActivitySubscription>;
+  /**
+   * Stop sending activity.added events on this connection; nothing when it
+   * was not subscribed.
+   */
+  unsubscribe(params?: ActivityUnsubscribeParams): Promise<void>;
+}
+
+function activityClient(t: Transport): ActivityClient {
+  return {
+    recent: (params = {}) => t.call<ActivityEntry[]>("activity.recent", params),
+    subscribe: (params = {}) => t.call<ActivitySubscription>("activity.subscribe", params),
+    unsubscribe: (params = {}) => t.call<null>("activity.unsubscribe", params).then(() => undefined),
+  };
+}
+
 // ---- address ----
 
 /** Params of address.suggest. */
@@ -3244,6 +3353,7 @@ function vipClient(t: Transport): VipClient {
 /** A server notification. Durable events carry seq. */
 export type Event =
   | { event: "account.changed"; seq?: number; data: AccountChanged }
+  | { event: "activity.added"; seq?: number; data: ActivityAdded }
   | { event: "block.changed"; seq?: number; data: BlockChanged }
   | { event: "calendar.changed"; seq?: number; data: CalendarChanged }
   | { event: "calendar.reminders"; seq?: number; data: CalendarReminders }
@@ -3282,6 +3392,9 @@ export const METHODS = [
   "account.setService",
   "account.collections",
   "account.setCollection",
+  "activity.recent",
+  "activity.subscribe",
+  "activity.unsubscribe",
   "address.suggest",
   "block.list",
   "block.add",
@@ -3398,6 +3511,7 @@ export const METHODS = [
 /** The typed maild API over a Transport. */
 export class Client {
   readonly account: AccountClient;
+  readonly activity: ActivityClient;
   readonly address: AddressClient;
   readonly block: BlockClient;
   readonly calendar: CalendarClient;
@@ -3422,6 +3536,7 @@ export class Client {
 
   constructor(readonly transport: Transport) {
     this.account = accountClient(transport);
+    this.activity = activityClient(transport);
     this.address = addressClient(transport);
     this.block = blockClient(transport);
     this.calendar = calendarClient(transport);

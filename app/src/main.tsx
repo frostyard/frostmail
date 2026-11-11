@@ -7,10 +7,9 @@ import { App } from "./app/App";
 import type { Connect } from "./data/session";
 import { IN_LODGE } from "./lodge/lodge";
 
-// VITE_MOCK=1 serves the UI from MockTransport and VITE_MAILD_WS from maild's
-// dev gateway (docs/design/app.md, Dev and test); the lodge build reaches
-// maild through lodge's shell (docs/specs/lodge-app.md); otherwise the
-// Tauri bridge connects to maild.
+// The lodge build reaches maild through lodge's shell (docs/specs/lodge-app.md).
+// For development, VITE_MAILD_WS connects to maild's dev gateway and VITE_MOCK=1
+// serves the UI from MockTransport (docs/design/app.md, Dev and test).
 const gateway = import.meta.env.VITE_MAILD_WS as string | undefined;
 
 async function connector(): Promise<Connect> {
@@ -34,7 +33,9 @@ async function connector(): Promise<Connect> {
       return new MockTransport(mockData({ inbox: rows, invitation: true }), { latency: 15 });
     };
   }
-  return async () => (await import("./rpc/transport/tauri")).connectTauri();
+  return async () => {
+    throw new Error("no maild: build with --mode lodge, or set VITE_MAILD_WS or VITE_MOCK");
+  };
 }
 
 const root = document.getElementById("root");

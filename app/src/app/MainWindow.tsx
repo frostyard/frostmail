@@ -26,12 +26,11 @@ import type { Client, InviteNotice } from "../rpc/gen/api";
 import { watchAnnouncements } from "./announce";
 import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
-import { FirstRun, useOpenSettingsOnFirstRun } from "./FirstRun";
+import { FirstRun } from "./FirstRun";
 import { ListContainer, type ListHandle } from "./ListContainer";
 import { calendarPane, narrowPane, peoplePane, tasksPane, useNarrow } from "./narrow";
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
-import { watchOpenRequests } from "./openMessage";
 import { PaletteContainer } from "./PaletteContainer";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
 import { watchPermalinks } from "./permalink";
@@ -326,7 +325,6 @@ function useWindowEvents(
   tasks: TasksData,
 ) {
   const client = useClient();
-  useEffect(() => watchOpenRequests(client), [client]);
   useEffect(() => watchAnnouncements(client), [client]);
   useEffect(() => watchPermalinks(client), [client]);
   useEffect(() => watchReminders(client), [client]);
@@ -638,7 +636,6 @@ export function MainWindow() {
   // run): the welcome takes the modules' place, and the window opens the
   // settings window on Accounts itself, once.
   const firstRun = useMail((state) => state.accounts).length === 0;
-  useOpenSettingsOnFirstRun(firstRun);
   useWindowEvents(handles, model, people, calendar, tasks);
   const onDelete = useCallback(
     (ids: number[]) => {

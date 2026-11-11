@@ -47,6 +47,9 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("graph: HTTP %d %s: %s", e.Status, e.Code, e.Message)
 }
 
+// HTTPStatus is the response's status (internal/activity's classifier).
+func (e *StatusError) HTTPStatus() int { return e.Status }
+
 // Client talks to Graph for one account.
 type Client struct {
 	// Base is Graph's URL, BaseURL unless a test server stands in.

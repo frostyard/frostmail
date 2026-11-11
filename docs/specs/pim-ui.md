@@ -511,7 +511,7 @@ width and its right segment the event pane's.
 ### Event editor window (`EventEditor`)
 
 M5.5, Phase 3 (ADR-0020, ADR-0031, ADR-0033). A window of its own, as
-compose is: in the app, a Tauri window labeled `event-<id>`
+compose is: in the app, a window keyed `event-<id>`
 (`event-<id>-<occurrence>` for one occurrence of a series, the
 recurrence ID's letters and digits joined by hyphens; `event-new-<n>`
 for a new event), opened by the `open_event` command, which focuses the
@@ -891,7 +891,7 @@ whatever the app shows.
 └──────────────────────────────────────┘
 ```
 
-- **Window:** the Tauri window labeled `reminders` (`open_reminders`; a
+- **Window:** the window keyed `reminders` (a
   new tab at `#/reminders` in a browser), 380 × 300, always on top, no
   system title bar. `--bg-window`.
 - **Title strip** (36 high, 1px `--separator` bottom, draggable): "Reminders"

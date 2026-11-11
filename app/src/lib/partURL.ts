@@ -1,16 +1,15 @@
 // URLs of the parts cache (docs/specs/rpc-protocol.md): maild writes
-// mailpart://localhost/<path> (render.PartURL) on every platform. WebView2
-// serves Tauri's custom protocols as http://<scheme>.localhost instead
-// (ADR-0038), so on Windows the app turns maild's URLs into that form for
-// the page, and back into maild's when HTML returns to maild (a draft).
+// mailpart://localhost/<path> (render.PartURL) on every platform. On Windows
+// the app turns maild's URLs into the http://mailpart.localhost/ form for the
+// page (ADR-0038), and back into maild's when HTML returns to maild (a draft).
 
 /** PART_URL is the prefix maild writes. */
 export const PART_URL = "mailpart://localhost/";
 
-/** WINDOWS_PART_URL is the same parts on WebView2. */
+/** WINDOWS_PART_URL is the same parts on Windows. */
 export const WINDOWS_PART_URL = "http://mailpart.localhost/";
 
-/** onWindows reports whether the app runs on Windows (WebView2). */
+/** onWindows reports whether the app runs on Windows. */
 export const onWindows = typeof navigator !== "undefined" && /\bWindows\b/.test(navigator.userAgent);
 
 /** toPageParts gives HTML from maild the parts URLs the page loads. */

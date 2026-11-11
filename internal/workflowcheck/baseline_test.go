@@ -399,8 +399,16 @@ var governedPaths = []string{
 	"packaging/flatpak/org.frostyard.Frostmail.json",
 	"packaging/flatpak/frostmail",
 	"packaging/nfpm.yaml",
-	"app/src-tauri/tauri.windows.conf.json",
-	"app/src-tauri/windows/hooks.nsh",
+	"mygo.json",
+	"internal/desktop/uikit/safehtml.go",
+	"internal/desktop/mail/reader.go",
+	"internal/desktop/mainwin/links.go",
+	"internal/desktop/settings/signin.go",
+	"internal/desktop/settings/accounts.go",
+	"internal/desktop/settings/mode.go",
+	"cmd/frostmail/settings.go",
+	"packaging/windows/installer.nsh",
+	"scripts/windows-installer.sh",
 	"packaging/lodge/make-secrets-key.sh",
 	"packaging/lodge/frostmail.service",
 	"scripts/seal-mail-secrets.sh",
@@ -981,9 +989,8 @@ func cargoIgnores(cfg dependabotFile) map[[2]string]bool {
 }
 
 // TestDependabotLeavesInternalGitCratesAlone: Dependabot cannot resolve a
-// cargo git dependency on a frostyard tag (its job for app/src-tauri failed on
-// frostyard-problems), and internal bumps go by hand, so its cargo entry ignores
-// each such crate.
+// cargo git dependency on a frostyard tag, and internal bumps go by hand, so
+// its cargo entry ignores each such crate.
 func TestDependabotLeavesInternalGitCratesAlone(t *testing.T) {
 	ignored := cargoIgnores(readDependabot(t))
 	crates := 0
@@ -1010,9 +1017,6 @@ func TestDependabotLeavesInternalGitCratesAlone(t *testing.T) {
 				t.Errorf("%s: the internal git crate %s has no ignore entry in the cargo entry for %s", f, name, dir)
 			}
 		}
-	}
-	if crates == 0 {
-		t.Fatal("no internal git crate found; the Cargo.toml files changed")
 	}
 	t.Logf("%d internal git crates checked", crates)
 }
@@ -1178,4 +1182,59 @@ func TestDependabotCoversManifests(t *testing.T) {
 		t.Fatal("no dependency manifest found")
 	}
 	t.Logf("%d manifests, %d Dependabot entries", manifests, len(cfg.Updates))
+}
+
+// TestShippedBuildsLeaveOutAutomation: the automation build can press, scroll
+// and capture windows that show mail, so only the checks build it. Neither
+// the Flatpak, the Windows installer, the release workflows nor the release
+// make targets may name its tag.
+func TestShippedBuildsLeaveOutAutomation(t *testing.T) {
+	for _, f := range []string{
+		"packaging/flatpak/org.frostyard.Frostmail.json",
+		"packaging/nfpm.yaml",
+		"mygo.json",
+		"scripts/windows-installer.sh",
+		".github/workflows/flatpak.yml",
+		".github/workflows/release.yml",
+		".github/workflows/promote.yml",
+		"Makefile",
+	} {
+		data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(f)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "automation") {
+			t.Errorf("%s names the automation build", f)
+		}
+	}
+}
+
+// TestFlatpakBuildsWithGoModsGo: the Flatpak's Go is a tarball the manifest
+// pins, which must be go.mod's version, so that a security release reaches
+// the Flatpak with the rest of the builds.
+func TestFlatpakBuildsWithGoModsGo(t *testing.T) {
+	mod, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var version string
+	for line := range strings.Lines(string(mod)) {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "go "); ok {
+			version = v
+			break
+		}
+	}
+	if version == "" {
+		t.Fatal("go.mod has no go line")
+	}
+	manifest, err := os.ReadFile(filepath.Join("..", "..", "packaging", "flatpak", "org.frostyard.Frostmail.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "/go" + version + ".linux-amd64.tar.gz"; !strings.Contains(string(manifest), want) {
+		t.Errorf("the manifest does not build with %s", want)
+	}
+	if !strings.Contains(string(manifest), `"GOTOOLCHAIN": "local"`) {
+		t.Error("the manifest lets the build fetch another Go")
+	}
 }

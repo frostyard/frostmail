@@ -137,7 +137,7 @@ export interface ToolbarNarrow {
 export interface ToolbarProps {
   /** Set in a narrow window. */
   narrow?: ToolbarNarrow;
-  /** Minimize, Maximize and Close; only the desktop app's windows have them (default true). */
+  /** Minimize, Maximize and Close; the main window leaves them off (default true). */
   windowControls?: boolean;
   /** Draw the Commands button; the web build's (default false). */
   palette?: boolean;
@@ -270,7 +270,6 @@ function SidebarSegment({
   return (
     <div
       data-segment="sidebar"
-      data-tauri-drag-region
       className="flex h-full shrink-0 items-center gap-1 px-2"
       style={sidebarWidth > 0 ? { width: `${sidebarWidth + 1}px` } : undefined}
     >
@@ -310,13 +309,8 @@ function ListSegment({
   onCommand: (cmd: ToolbarCommand) => void;
 }) {
   return (
-    <div
-      data-segment="list"
-      data-tauri-drag-region
-      className="flex h-full shrink-0 items-center px-3"
-      style={{ width: `${listWidth + 1}px` }}
-    >
-      <div data-tauri-drag-region className="flex min-w-0 flex-1 flex-col">
+    <div data-segment="list" className="flex h-full shrink-0 items-center px-3" style={{ width: `${listWidth + 1}px` }}>
+      <div className="flex min-w-0 flex-1 flex-col">
         <span className="text-toolbar-title truncate">{title}</span>
         <span className="text-toolbar-subtitle truncate text-secondary">{subtitle}</span>
       </div>
@@ -711,8 +705,8 @@ function ReaderSegment({
   const fixedPane = mode === "calendar" || mode === "tasks";
   // Windows draws its caption buttons as the strip's full height, to its right
   // edge: the segment keeps no right padding, and the row holding them fills
-  // it. Only when it draws them: a browser on Windows has none of its own (the
-  // web build), and Settings then keeps the Linux padding, off the edge.
+  // it. Only when it draws them: without them Settings keeps the Linux padding,
+  // off the edge.
   const windows = platform === "windows" && windowControls;
   const { box, row, fit } = useActionFit(mode === "mail");
   const [more, setMore] = useState<{ x: number; y: number } | null>(null);
@@ -726,7 +720,6 @@ function ReaderSegment({
   return (
     <div
       data-segment={fixedPane ? "pane" : "reader"}
-      data-tauri-drag-region
       className={`flex h-full min-w-0 items-center gap-1 ${windows ? "pl-2" : "px-2"} ${fixedPane ? "shrink-0" : "flex-1"}`}
       style={fixedPane ? { width: `${(paneWidth ?? 320) + 1}px` } : undefined}
     >
@@ -736,7 +729,6 @@ function ReaderSegment({
         <div
           ref={box}
           data-message-actions
-          data-tauri-drag-region
           className="relative flex min-w-0 grow-0 shrink items-center gap-1 overflow-hidden"
           style={basis === null ? undefined : { flexBasis: `${basis}px` }}
         >
@@ -769,7 +761,7 @@ function ReaderSegment({
           )}
         </div>
       )}
-      <div data-tauri-drag-region className="flex-1" />
+      <div className="flex-1" />
       {mode === "mail" && (
         <IconButton
           label="To-Do Bar"
@@ -787,11 +779,7 @@ function ReaderSegment({
           {search}
         </div>
       )}
-      <div
-        data-window-controls
-        data-tauri-drag-region
-        className={`flex shrink-0 items-center gap-1${windows ? " h-full" : ""}`}
-      >
+      <div data-window-controls className={`flex shrink-0 items-center gap-1${windows ? " h-full" : ""}`}>
         {palette && (
           <IconButton
             label="Commands"
@@ -817,7 +805,7 @@ function CalendarSegment({
   const labels: Record<CalendarView, string> = { day: "Day", week: "Week", month: "Month" };
   const views: CalendarView[] = ["day", "week", "month"];
   return (
-    <div data-segment="calendar" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
+    <div data-segment="calendar" className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
       <IconButton
         label="New Event"
         keys="Ctrl+N"
@@ -842,9 +830,7 @@ function CalendarSegment({
         icon={ChevronRight}
         onClick={() => onCommand({ kind: "nextPeriod" })}
       />
-      <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">
-        {calendar.title}
-      </span>
+      <span className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">{calendar.title}</span>
       <div role="radiogroup" aria-label="View" className="flex h-7 shrink-0 items-center rounded-md bg-badge p-0.5">
         {views.map((view) => (
           // biome-ignore lint/a11y/useSemanticElements: a segmented control: buttons with radio semantics, named by their text.
@@ -867,7 +853,7 @@ function CalendarSegment({
 
 function TasksSegment({ tasks, onCommand }: { tasks: ToolbarTasks; onCommand: ToolbarProps["onCommand"] }) {
   return (
-    <div data-segment="tasks" data-tauri-drag-region className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
+    <div data-segment="tasks" className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
       <IconButton
         label="New Task"
         keys="Ctrl+N"
@@ -875,9 +861,7 @@ function TasksSegment({ tasks, onCommand }: { tasks: ToolbarTasks; onCommand: To
         disabled={tasks.canCreate === false}
         onClick={() => onCommand({ kind: "newTask" })}
       />
-      <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">
-        {tasks.title}
-      </span>
+      <span className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">{tasks.title}</span>
       {tasks.showCompleted !== null && (
         <button
           type="button"
@@ -1164,7 +1148,6 @@ export function Toolbar(props: ToolbarProps) {
       onPointerDownCapture={props.onPointerDownCapture}
       onKeyDownCapture={props.onKeyDownCapture}
       aria-label="Toolbar"
-      data-tauri-drag-region
       className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar"
     >
       <ToolbarSegments props={props} onOpenMenu={openMenu} onSelect={choose} />

@@ -2,7 +2,7 @@
 
 The look and behavior of Frostmail's main window: a Mail.app-style three-pane
 reader (sidebar, message list, reader) with its toolbar. It binds the app's
-CSS tokens (`app/src/styles/tokens.css`), the presentational components built
+CSS tokens (lodge-ui's `tokens.css`), the presentational components built
 from task cards, and the app tests. Measurements are CSS pixels at 100% zoom.
 Shortcuts use Ctrl where Mail.app uses ⌘ and Alt where it uses ⌥ or ⌃⌘.
 
@@ -105,8 +105,7 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   sidebar.
 - **Toolbar (52, `--bg-toolbar`, 1px `--separator` bottom):** one strip
   split at the pane boundaries. It is the window's drag region; double-click
-  on empty toolbar space toggles maximize (Tauri's drag-region handling does
-  this; the app adds nothing).
+  on empty toolbar space toggles maximize.
   - Over the sidebar: sidebar toggle, Get Mail (spins while any account
     syncs).
   - Over the list: the source title (13/600) above a subtitle (11/400
@@ -1065,6 +1064,8 @@ finds a menu command by name (parity P-958).
 | Ctrl+Shift+F | forward the selection | anywhere |
 | Ctrl+, | open the settings window ([settings-ui.md](settings-ui.md)) | anywhere |
 | Ctrl+Shift+P | the [command palette](#command-palette) | anywhere |
+| Ctrl+K | the command palette (native app; plan 0015, shared rule 1) | anywhere but a text editor |
+| Ctrl+J | show or hide Activity (native app) | anywhere |
 | Ctrl+Z | undo the newest move, delete or flag change (M5) | anywhere but a text field |
 | Ctrl+Shift+E | Redirect… the selection's last message (M5) | anywhere with a selection, writable account |
 | Ctrl+P | print the message shown (M5) | anywhere with one message selected |
@@ -1080,9 +1081,7 @@ The compose window's own keys are in [compose-ui.md](compose-ui.md).
 - The reader frame never has `allow-scripts`; the app never fetches remote
   content (ADR-0005).
 - Every interactive element is reachable by keyboard and has an accessible
-  name. `app/e2e/a11y.e2e.ts` runs axe-core on the main views and fails on
-  serious and critical violations. It prints color contrast findings and
-  does not fail on them: the colors are the Tokens above.
+  name.
 - When the system asks for reduced motion (`prefers-reduced-motion:
   reduce`), no animation or transition runs (`app/src/styles/app.css`).
 

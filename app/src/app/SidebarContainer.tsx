@@ -1,8 +1,6 @@
 // The sidebar, fed by the mail store (docs/specs/ui.md, Sidebar).
 
 import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
-import { isTauri } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
 import { useMemo, useState } from "react";
 import { useClient } from "../data/session";
 import { sourceFromKey, sourceKey, useMail, useUI } from "../data/stores";
@@ -80,8 +78,7 @@ async function confirmMailbox(mailbox: Mailbox, erase: boolean): Promise<boolean
   const text = erase
     ? `Erase the ${mailbox.total} messages in "${mailbox.name}"? They cannot be recovered.`
     : `Delete the mailbox "${mailbox.name}" and the messages in it?`;
-  const title = erase ? (mailbox.role === "trash" ? "Erase Deleted Items?" : "Erase Junk Mail?") : "Delete Mailbox?";
-  return isTauri() ? ask(text, { title, kind: "warning", okLabel: erase ? "Erase" : "Delete" }) : window.confirm(text);
+  return window.confirm(text);
 }
 
 interface MailboxEdit {

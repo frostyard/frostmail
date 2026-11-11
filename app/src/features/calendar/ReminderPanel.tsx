@@ -41,13 +41,8 @@ export function ReminderPanel(props: ReminderPanelProps) {
         }
       }}
     >
-      <header
-        data-tauri-drag-region
-        className="flex h-[36px] shrink-0 items-center justify-between border-b border-separator px-3"
-      >
-        <h1 data-tauri-drag-region className="text-[13px]/[16px] font-semibold">
-          Reminders
-        </h1>
+      <header className="flex h-[36px] shrink-0 items-center justify-between border-b border-separator px-3">
+        <h1 className="text-[13px]/[16px] font-semibold">Reminders</h1>
         <button
           type="button"
           aria-label="Close"

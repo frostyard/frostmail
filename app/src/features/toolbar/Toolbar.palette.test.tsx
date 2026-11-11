@@ -1,5 +1,5 @@
 // The toolbar's Commands button (docs/specs/ui.md, Command palette: The web
-// build): the web build draws it, the desktop app does not.
+// build): the web build draws it.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

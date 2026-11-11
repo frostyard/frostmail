@@ -59,14 +59,10 @@ describe("Toolbar's window controls on Windows", () => {
     expect(controls.contains(button("Settings"))).toBe(false);
   });
 
-  it("fills the strip's height, and keeps the drag region off the buttons", () => {
+  it("fills the strip's height", () => {
     toolbar({ platform: "windows" });
     const group = document.querySelector<HTMLElement>("[data-window-controls]");
     expect(group?.className).toContain("h-full");
-    expect(group?.hasAttribute("data-tauri-drag-region")).toBe(true);
-    for (const name of ["Minimize", "Maximize", "Close", "Settings"]) {
-      expect(button(name).hasAttribute("data-tauri-drag-region")).toBe(false);
-    }
     // No padding after Close, so the last caption button reaches the window's edge.
     const segment = document.querySelector<HTMLElement>('[data-segment="reader"]');
     expect(segment?.className).toContain("pl-2");
@@ -75,8 +71,7 @@ describe("Toolbar's window controls on Windows", () => {
   });
 
   it("keeps the Linux padding when no window controls are drawn, as in a browser", () => {
-    // A browser on Windows draws no window buttons (the web build), so Settings
-    // must not sit at the window's edge.
+    // Without window buttons, Settings must not sit at the window's edge.
     toolbar({ platform: "windows", windowControls: false });
     expect(screen.queryByRole("group", { name: "Window controls" })).toBeNull();
     const segment = document.querySelector<HTMLElement>('[data-segment="reader"]');
@@ -111,7 +106,6 @@ describe("Toolbar's window controls on Linux", () => {
     }
     const group = document.querySelector<HTMLElement>("[data-window-controls]");
     expect(group?.className).toBe("flex shrink-0 items-center gap-1");
-    expect(group?.hasAttribute("data-tauri-drag-region")).toBe(true);
     const segment = document.querySelector<HTMLElement>('[data-segment="reader"]');
     expect(segment?.className).toContain("px-2");
     expect(segment?.className).not.toContain("pl-2");

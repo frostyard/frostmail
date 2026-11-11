@@ -253,6 +253,7 @@ func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, col store.Collecti
 }
 
 func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind api.CollectionKind) error {
+	p.changed++
 	switch kind {
 	case api.CollectionKindAddressbook:
 		return tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID})

@@ -19,7 +19,7 @@ describe("GeneralPane in a browser", () => {
     expect(screen.queryByRole("button", { name: "Allow Notifications…" })).toBeNull();
   });
 
-  it("says nothing of a browser in the desktop app", () => {
+  it("says nothing of a browser that has no notifications", () => {
     render(<GeneralPane settings={null} onChange={vi.fn()} />);
     expect(screen.queryByText("In this browser:")).toBeNull();
   });

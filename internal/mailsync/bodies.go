@@ -10,6 +10,7 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -50,6 +51,8 @@ func (a *actor) bodyLoop(ctx context.Context) {
 	// failed are the messages a prefetch could not fetch, which it does
 	// not try again.
 	failed := map[int64]bool{}
+	// got counts the bodies this prefetch run fetched since began.
+	got, began := 0, time.Time{}
 	for {
 		// A request from the user goes before the next prefetch.
 		select {
@@ -79,8 +82,13 @@ func (a *actor) bodyLoop(ctx context.Context) {
 		case <-more:
 			id := queue[0]
 			queue = queue[1:]
+			if got == 0 {
+				began = time.Now()
+			}
 			var err error
-			if s, _, err = a.serveBody(ctx, s, id, false); err != nil {
+			if s, _, err = a.serveBody(ctx, s, id, false); err == nil {
+				got++
+			} else {
 				if s == nil {
 					// C3 cannot connect: try again after the next pass.
 					a.m.log.Warn("prefetch stopped", "account", a.acct.ID, "err", err)
@@ -92,6 +100,10 @@ func (a *actor) bodyLoop(ctx context.Context) {
 			}
 			if len(queue) == 0 {
 				queue = a.prefetchQueue(ctx, failed)
+			}
+			if len(queue) == 0 && got > 0 {
+				a.record(activity.Fetched(a.acct.ID, got, 0, time.Since(began)))
+				got = 0
 			}
 		}
 	}

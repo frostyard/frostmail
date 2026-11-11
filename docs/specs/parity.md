@@ -19,6 +19,9 @@ tasks are not Mail's and are not listed; their parity is
 
 ## Rules
 
+- The Test column is the web build's and maild's. The Desktop test column
+  is the native desktop app's ([plan 0015](../plans/0015-mygo-desktop.md));
+  an empty cell on a Have row is a gap until that plan's parity gate.
 - Every row has a status, and Later and Out rows a reason.
 - A row becomes Have only in the change that adds or names its test.
 - Mail.app's ⌘ is Ctrl and ⌥ is Alt; a shortcut Frostmail already uses
@@ -31,143 +34,157 @@ tasks are not Mail's and are not listed; their parity is
 
 ## Mailboxes and the sidebar
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`, `mailboxTree.test.ts` (unified mailboxes) |
-| P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | Have | `TestMailboxRolesAndErase`, `Favorites.test.tsx`, `mailboxTree.favorites.test.ts` |
-| P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color in use, counted | Have | `mailboxTree.sources.test.ts`, `SidebarSources.test.tsx` |
-| P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` |
-| P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` |
-| P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |
-| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | Have | `TestMailboxOperations`, `TestDovecotMailboxes`, `TestMailboxChangesWaitForQueuedOps`, `Mailboxes.test.tsx` |
-| P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | Have | `DragDrop.test.tsx`, `Sidebar.drop.test.tsx` |
-| P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account; not on Gmail | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
-| P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` |
-| P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |
-| P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` |
-| P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry). In lodge, the rail and the home-screen icon show the inboxes' unread count (`/health`'s `badge`): `TestHealthBadge` |
-| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Have | `TestEraseOld`, `TestDovecotEraseOld`, `AccountForm.erase.test.tsx`, `SettingsWindow.erase.test.tsx` |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-101 | Favorites: All Inboxes and unified mailboxes per role | Favorites: All Inboxes, All Drafts, Sent, Junk, Trash, Archives | Have | `TestViewRoleAndThreads`, `mailboxTree.test.ts` (unified mailboxes) | `TestSidebarUnifiesAndSums` |
+| P-102 | Add a mailbox to Favorites, reorder, remove | Same, kept by maild | Have | `TestMailboxRolesAndErase`, `Favorites.test.tsx`, `mailboxTree.favorites.test.ts` | `TestSidebarExtras`, `TestAddToFavorites` |
+| P-103 | Flagged, with a mailbox per flag color in use | Flagged with a row per color in use, counted | Have | `mailboxTree.sources.test.ts`, `SidebarSources.test.tsx` | `TestSidebarExtras` |
+| P-104 | VIPs, with a mailbox per VIP | Same | Have | `SidebarSources.test.tsx`, `TestVIPs` | `TestSidebarExtras` |
+| P-105 | Smart Mailboxes: any or all of a list of conditions; include Trash, include Sent | Same, compiled to the search SQL, live as views | Have | `TestSmartMailboxViews`, `TestSmartMailboxAcrossAccounts`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx`, `ConditionEditor.test.tsx` | `TestSmartMailboxShowsAndLists` |
+| P-106 | Smart mailbox folders | Groups of smart mailboxes | Later | Grouping; few smart mailboxes in practice |  |
+| P-107 | New, rename, delete and move mailboxes | Same, as offline ops (labels on Gmail) | Have | `TestMailboxOperations`, `TestDovecotMailboxes`, `TestMailboxChangesWaitForQueuedOps`, `Mailboxes.test.tsx` | `TestNewAndRenameMailbox`, `TestRoleMailboxesStay` |
+| P-108 | Drag messages to a mailbox (Alt: copy) | Same; Ctrl copies too | Have | `DragDrop.test.tsx`, `Sidebar.drop.test.tsx` | `TestDragToAMailboxMoves` |
+| P-109 | Use This Mailbox For Drafts, Sent, Junk, Trash, Archive | Override a role per account; not on Gmail | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` | `TestUseThisMailboxFor` |
+| P-110 | Erase Deleted Items, Erase Junk Mail | Same, after a confirmation | Have | `TestMailboxRolesAndErase`, `Mailboxes.test.tsx` | `TestEraseAsksFirst` |
+| P-111 | On My Mac (local mailboxes) | | Later | Every mailbox is on a server today; needs a local-only kind |  |
+| P-112 | Unread counts in the sidebar | Same, inboxes summed in All Inboxes | Have | `mailboxTree.test.ts` | `TestSidebarUnifiesAndSums` |
+| P-113 | The unread count on the app's icon (the Dock badge) | | Later | Only some desktops show a launcher badge (Unity's LauncherEntry). In lodge, the rail and the home-screen icon show the inboxes' unread count (`/health`'s `badge`): `TestHealthBadge` |  |
+| P-114 | Erase deleted and junk messages by themselves: never, after a day, a week or a month, per account | Same, by maild, counted from when maild first stored the message in that mailbox; off by default; only the Trash and Junk roles ([ADR-0051](../adr/0051-erase-old-trash-and-junk-when-the-user-asks.md)) | Have | `TestEraseOld`, `TestDovecotEraseOld`, `AccountForm.erase.test.tsx`, `SettingsWindow.erase.test.tsx` | `TestMailboxBehaviorsNameTheMailboxesAndLeaveOutTheRest` |
 
 ## The message list
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-201 | Organize by Conversation, with a count | Conversation mode, with a badge | Have | `TestViewRoleAndThreads`, `MessageRow.test.tsx` |
-| P-202 | Turn conversations on and off | The Sort menu's Conversations | Have | `SortMenu.test.tsx`, `SortList.test.tsx` |
-| P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | Have | `TestViewSort`, `SortList.test.tsx`, `stores.sort.test.ts` |
-| P-204 | Filter: Unread, Flagged, Attachments | The filter bar | Have | `FilterBar.test.tsx`, `ListFilter.test.tsx` |
-| P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | Have | `FilterBar.more.test.tsx`, `stores.filter.more.test.ts`, `ListFilter.more.test.tsx` |
-| P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` |
-| P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` |
-| P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` |
-| P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` |
-| P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |
-| P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |
-| P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |
-| P-213 | Highlight a selected conversation's other messages | | Later | Cosmetic |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-201 | Organize by Conversation, with a count | Conversation mode, with a badge | Have | `TestViewRoleAndThreads`, `MessageRow.test.tsx` | `TestRowShowsCountAndVIPStar` |
+| P-202 | Turn conversations on and off | The Sort menu's Conversations | Have | `SortMenu.test.tsx`, `SortList.test.tsx` | `TestConversationsToggle` |
+| P-203 | Sort by Date, From, To, Subject, Size, Flags, Unread, Attachments; ascending or descending | Same, in the view query | Have | `TestViewSort`, `SortList.test.tsx`, `stores.sort.test.ts` | `TestListQuery`, `TestSortMenuSorts` |
+| P-204 | Filter: Unread, Flagged, Attachments | The filter bar | Have | `FilterBar.test.tsx`, `ListFilter.test.tsx` | `TestFilterRowNarrowsTheList` |
+| P-205 | Filter: To: Me, Cc: Me, Only from VIPs | More filter bar choices, as conditions | Have | `FilterBar.more.test.tsx`, `stores.filter.more.test.ts`, `ListFilter.more.test.tsx` | `TestListQuery`, `TestMoreFilterNarrows` |
+| P-206 | Flag color in the row | Same | Have | `MessageRow.test.tsx` | `TestRowMenuFlagsAndMarks` |
+| P-207 | Actions on a row (swipe; Frostmail: hover) | Flag, Archive, Delete | Have | `MessageRow.actions.test.tsx`, `RowActions.test.tsx` | `TestRowHoverActions` |
+| P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` | `TestRowShowsCountAndVIPStar` |
+| P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` | `TestContactPhotosInTheList` |
+| P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |  |
+| P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |  |
+| P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |  |
+| P-213 | Highlight a selected conversation's other messages | | Later | Cosmetic |  |
 
 ## The reader
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` |
-| P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` |
-| P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |
-| P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` |
-| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestGuardRefusesInsideAddresses`, `Unsubscribe.test.tsx` |
-| P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` |
-| P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` |
-| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` |
-| P-309 | Find in the message | Ctrl+F opens a find bar in the reader with a message shown; Ctrl+Alt+F focuses search; the web build leaves Ctrl+F to the browser ([ADR-0052](../adr/0052-find-in-the-message-shown.md)) | Have | `app/src/features/reader/findInMessage.test.ts`, `app/src/features/reader/FindBar.test.tsx`, `app/src/app/Find.test.tsx` |
-| P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` |
-| P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` |
-| P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-301 | The whole conversation, related messages included | Same, with Show Earlier Messages | Have | `TestThreadMessages` | `TestConversationCollapsesReadMessages`, `TestConversationShowsEarlierOnAsking` |
+| P-302 | Remote content blocked until asked | Blocked, loaded per message | Have | `remote.e2e.ts`, `hostile.e2e.ts` | `TestRemoteContentBanner` |
+| P-303 | Mail Privacy Protection (proxied loads) | | Out | Frostmail blocks instead of proxying (ADR-0005) |  |
+| P-304 | Raw Source, All Headers | Same, from the blob store | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx`, `RawSourceSheet.test.tsx` | `TestMoreActionsShowsHeadersAndSource` |
+| P-305 | Unsubscribe banner (List-Unsubscribe) | After a confirmation: RFC 8058 one-click `POST` by maild, else mailto through the outbox, else the page in the browser ([ADR-0027](../adr/0027-unsubscribe-with-one-click.md)) | Have | `TestUnsubscribe`, `TestPostRefusesTheLocalServer`, `TestGuardRefusesInsideAddresses`, `Unsubscribe.test.tsx` | `TestUnsubscribeBanner` |
+| P-306 | Remind Me banner and clock | Same | Have | `ReminderBanner.test.tsx`, `MessageRow.remind.test.tsx`, `RemindMe.test.tsx` | `TestReminderBanner` |
+| P-307 | Print | Same: the reader pane only | Have | `ReaderMore.test.tsx` | `TestPrintGoesToThePage` |
+| P-308 | Save As (raw source) and Export as PDF | Save the .eml; PDF through Print to File | Have | `TestMessageSourceAndSave`, `ReaderMore.test.tsx` | `TestSaveAsWritesTheMessage` |
+| P-309 | Find in the message | Ctrl+F opens a find bar in the reader with a message shown; Ctrl+Alt+F focuses search; the web build leaves Ctrl+F to the browser ([ADR-0052](../adr/0052-find-in-the-message-shown.md)) | Have | `app/src/features/reader/findInMessage.test.ts`, `app/src/features/reader/FindBar.test.tsx`, `app/src/app/Find.test.tsx` | `TestFindCountsAcrossThePages` |
+| P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` | `TestConversationCollapsesReadMessages` |
+| P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` | `TestInvitationCard` |
+| P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` | `TestContactPopover` |
 
 ## Acting on messages
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` |
-| P-402 | Redirect | A resend with the original headers, as maild sends | Have | `TestRedirect`, `Redirect.test.tsx` |
-| P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` |
-| P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` |
-| P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` |
-| P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | Have | `undo.test.ts`, `Undo.test.tsx` |
-| P-407 | Flag with seven colors, Clear Flag | Same (`$MailFlagBit0–2`) | Have | `TestFlagsRoundTrip`, `TestFlagChangesReplayToServer` |
-| P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` |
-| P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` |
-| P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` |
-| P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` |
-| P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` |
-| P-413 | Follow Up: sent mail with no reply after three days returns | A sidebar section of sent mail with no reply after 3 days, VIPs first, at most 25 shown with the count | Have | `FollowUp.test.tsx`, `followup.test.ts`, `TestAwaitingOthers` |
-| P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` |
-| P-415 | Move to the predicted mailbox | | Out | On-device learning |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-401 | Reply, Reply All, Forward | Same | Have | `TestReplyRecipients`, `TestSubjects`, `ComposeWindow.test.tsx` | `TestRowMenuStartsAReply`, `TestReplyGoesToTheSenderWithItsQuote`, `TestForward` |
+| P-402 | Redirect | A resend with the original headers, as maild sends | Have | `TestRedirect`, `Redirect.test.tsx` | `TestRedirectSheet` |
+| P-403 | Forward as Attachment | Same | Have | `TestForwardAsAttachment`, `Redirect.test.tsx` | `TestRowMenuStartsAReply` |
+| P-404 | Archive, Delete, Move, Copy | Same, as offline ops | Have | `TestDovecotMoveAndDelete`, `TestCopyBetweenFolders`, `TestGmailArchiveAndMoveBetweenLabels` | `TestDeleteAndUndo`, `TestDragToAMailboxMoves` |
+| P-405 | Move to Junk, Not Junk | Mark as Spam, Not Spam | Have | `TestGmailJunkAndBack`, `ListMenu.test.tsx` | `TestMarkAsSpam` |
+| P-406 | Undo a move, delete or flag (⌘Z) | Ctrl+Z replays the inverse op | Have | `undo.test.ts`, `Undo.test.tsx` | `TestDeleteAndUndo`, `TestUndoCalls` |
+| P-407 | Flag with seven colors, Clear Flag | Same (`$MailFlagBit0–2`) | Have | `TestFlagsRoundTrip`, `TestFlagChangesReplayToServer` | `TestRowMenuFlagsAndMarks` |
+| P-408 | Rename flags | Names kept by maild | Have | `GeneralPane.test.tsx`, `FlagNames.test.tsx`, `TestSettings` | `TestFlagNamesSaveOnEnterAndWhenLeft` |
+| P-409 | Mark as Read, Unread | Same | Have | `TestFlagChangesReplayToServer` | `TestRowMenuFlagsAndMarks` |
+| P-410 | Mute a conversation | Same; a muted conversation never notifies | Have | `TestMuteThreads`, `TestMuteAndBlockAPI`, `TestMutedAndBlockedNeverNotify`, `Mute.test.tsx` | `TestMuteFromTheRow` |
+| P-411 | Block a sender: mark blocked, or move to Trash | Same, kept by maild | Have | `TestBlockedMailToTrash`, `TestMutedAndBlockedNeverNotify`, `Block.test.tsx`, `SettingsWindow.block.test.tsx` | `TestBlockFromThePopover` |
+| P-412 | Remind Me: 1 hour, tonight, tomorrow, a chosen time | Same, fired by maild, back to the top of the inbox | Have | `TestRemindMe`, `later.test.ts`, `RemindMe.test.tsx` | `TestRemindMeFromTheRow` |
+| P-413 | Follow Up: sent mail with no reply after three days returns | A sidebar section of sent mail with no reply after 3 days, VIPs first, at most 25 shown with the count | Have | `FollowUp.test.tsx`, `followup.test.ts`, `TestAwaitingOthers` | `TestFollowUpRowOpensTheMessage` |
+| P-414 | Apply Rules to the selection | Same, from the list's menu (no shortcut: Ctrl+Alt+L locks the screen) | Have | `TestApplyRules`, `ListMenu.rules.test.tsx`, `TestRulesApplyCommand` | `TestApplyRulesInTheRowMenu` |
+| P-415 | Move to the predicted mailbox | | Out | On-device learning |  |
 
 ## Writing and sending
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` |
-| P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` |
-| P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` |
-| P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` |
-| P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` |
-| P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` |
-| P-507 | Message priority | | Later | Rarely used |
-| P-508 | Reply quoting the selected text | Same, in the desktop app; the web build quotes the whole message | Have | `TestQuoteHTMLSelectedText`, `TestReplyQuotesTheSelectedText`; `quoteSelection.test.ts`, `commands.quoteSelection.test.ts`, `Palette.test.tsx` (holds the reader selection before its field takes focus, and clears it on close) |
-| P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |
-| P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |
-| P-511 | Check Spelling While Typing | The subject and the body, never the address fields; WebKitGTK in the system's languages, the browser's and WebView2's own checker elsewhere ([compose-ui.md](compose-ui.md#spelling)) | Have | `ComposeWindow.spellcheck.test.tsx`, `spell::tests` |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-501 | Compose with formatting, attachments, inline images | Same | Have | `compose.e2e.ts`, `ComposeAttachments.test.tsx` | `TestNewMessageWithAttachment`, `TestAttachByBytes`, `TestBccToggleAndFormatBar`, `TestForwardKeepsAnInlineImage` (e2e) |
+| P-502 | Identities and a signature per account | Same | Have | `IdentityEditor.test.tsx`, `SettingsWindow.identities.test.tsx` | `TestSignatureEditsAsTextAndSavesAsHTML`, `TestAddAndRemoveAnAddress` |
+| P-503 | Several signatures per account, chosen in compose | Snippets kept by maild, put in at the cursor from compose's Insert Snippet menu; a second signature is a snippet, and each identity keeps one default signature ([send.md](../design/send.md#snippets)) | Have | `TestSnippets`, `SnippetsPane.test.tsx`, `ComposeSnippets.test.tsx` | `TestInsertSnippet` |
+| P-504 | Address completion, contacts first | Same | Have | `RecipientField.test.tsx`, `TestSuggestContactsFirst` | `TestRecipientsOfferKnownAddresses` |
+| P-505 | Undo Send, with a delay of Off, 10, 20 or 30 seconds | The toast; the delay a setting in the General pane | Have | `TestUndoCancelsASend`, `TestUndoDelayFollowsTheSetting`, `GeneralPane.test.tsx`, `Outbox.test.tsx` | `TestUndoSendReopensTheDraft` |
+| P-506 | Send Later, with its mailbox, to edit or cancel | An outbox row due at the chosen time, dated then; a Send Later section | Have | `TestSendLater`, `TestSendLaterCanBeEdited`, `ComposeWindow.later.test.tsx`, `SendLater.test.tsx` | `TestSendLaterQueuesForItsTime`, `TestSendLaterShowsNoToast` |
+| P-507 | Message priority | | Later | Rarely used |  |
+| P-508 | Reply quoting the selected text | Same, in the desktop app; the web build quotes the whole message | Have | `TestQuoteHTMLSelectedText`, `TestReplyQuotesTheSelectedText`; `quoteSelection.test.ts`, `commands.quoteSelection.test.ts`, `Palette.test.tsx` (holds the reader selection before its field takes focus, and clears it on close) | `TestReplyQuotesTheSelection`, `TestReplyWithSelectionKeepsOnlyTheSelection` |
+| P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |  |
+| P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |  |
+| P-511 | Check Spelling While Typing | The subject and the body, never the address fields; WebKitGTK in the system's languages, the browser's and WebView2's own checker elsewhere ([compose-ui.md](compose-ui.md#spelling)) | Have | `ComposeWindow.spellcheck.test.tsx`, `spell::tests` |  |
 
 ## Search
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-601 | Search all mailboxes or the current one | The search language and scope bar | Have | `TestViewSearchLanguage`, `TestParseTerms`, `SearchField.test.tsx` |
-| P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` |
-| P-603 | Search suggestions as tokens (People, Subjects) | | Later | The language covers the operators |
-| P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window, on demand ([#163](https://github.com/frostyard/frostmail/issues/163)). The line that says how far a search looked is built (`ui.md`, Search coverage); server search waits for its spec |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-601 | Search all mailboxes or the current one | The search language and scope bar | Have | `TestViewSearchLanguage`, `TestParseTerms`, `SearchField.test.tsx` | `TestSearchNarrowsAndClears`, `TestListQuery` |
+| P-602 | Save a search as a smart mailbox | Same | Have | `TestSearchAsConditions`, `TestSmartMailboxes`, `SmartMailboxes.test.tsx` | `TestSaveSearchAsSmartMailbox` |
+| P-603 | Search suggestions as tokens (People, Subjects) | | Later | The language covers the operators |  |
+| P-604 | Search the server beyond what is stored | | Later | Plan 0006 Later: mail outside the sync window, on demand ([#163](https://github.com/frostyard/frostmail/issues/163)). The line that says how far a search looked is built (`ui.md`, Search coverage); server search waits for its spec |  |
 
 ## Rules
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild once on new inbox mail before it notifies | Have | `TestRulesActOnNewInboxMail`, `TestRulesRunOnce`, `TestDovecotRules`, `TestGmailRulesMoveToALabel`, `RulesPane.test.tsx`, `SettingsWindow.rules.test.tsx` |
-| P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions; junk is Mailbox Type is Junk; no Previous Recipients list | Have | `TestCompileEveryCondition`, `RuleSheet.test.tsx` |
-| P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | Have | `TestRulesActOnNewInboxMail`, `TestDovecotRules`, `ActionEditor.test.tsx`, `TestRules` |
-| P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking; the user's choice (plan 0008) |
-| P-705 | Set Color, Play Sound, Bounce Icon | | Later | Cosmetic |
-| P-706 | Run AppleScript | | Out | macOS only; a command action would be a new trust boundary |
-| P-707 | Rules shared through iCloud Drive | | Out | Rules, VIPs and smart mailboxes are maild's, on this machine |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-701 | Rules: any or all conditions, actions in order, Stop Evaluating Rules, the list's order | Same, run by maild once on new inbox mail before it notifies | Have | `TestRulesActOnNewInboxMail`, `TestRulesRunOnce`, `TestDovecotRules`, `TestGmailRulesMoveToALabel`, `RulesPane.test.tsx`, `SettingsWindow.rules.test.tsx` | `TestRuleSelectEditEnableMove`, `TestRuleDuplicateGoesAfterTheOriginal` |
+| P-702 | Conditions on From, To, Cc, any recipient, Subject, content, dates, account, VIP, Contacts, previous recipients, attachments, junk | The smart mailbox conditions; junk is Mailbox Type is Junk; no Previous Recipients list | Have | `TestCompileEveryCondition`, `RuleSheet.test.tsx` | `TestEveryFieldHasOperatorsWithLabels`, `TestChoosingAnOperatorKeepsAValueOfTheSameKind` |
+| P-703 | Move, Copy, Mark as Read, Mark as Flagged (color), Delete, Send Notification | Same | Have | `TestRulesActOnNewInboxMail`, `TestDovecotRules`, `ActionEditor.test.tsx`, `TestRules` | `TestWithKindKeepsWhatTheKindTakes`, `TestActionsComplete` |
+| P-704 | Reply, Forward, Redirect as rule actions | | Later | They send with nobody looking; the user's choice (plan 0008) |  |
+| P-705 | Set Color, Play Sound, Bounce Icon | | Later | Cosmetic |  |
+| P-706 | Run AppleScript | | Out | macOS only; a command action would be a new trust boundary |  |
+| P-707 | Rules shared through iCloud Drive | | Out | Rules, VIPs and smart mailboxes are maild's, on this machine |  |
 
 ## Notifications
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` |
-| P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` |
-| P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` |
-| P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` |
-| P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-801 | New mail notifications; clicking opens the message | Same; one per message, a group for four or more | Have | `TestDesktopAnnouncesAndOpens`, `TestNotesGroupFourOrMore` | `TestOpenMessageRevealsIt` (the click; maild notifies) |
+| P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` | `TestGeneralNotifyScope` |
+| P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` | `TestGeneralNotifiesForASmartMailbox` |
+| P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` | maild only: no desktop code |
+| P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |  |
 
 ## Categories
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-901 | Primary, Transactions, Updates, Promotions | | Out | Gmail's are reachable only by search and iCloud has none; a local guess agreed with Gmail on 58% ([ADR-0029](../adr/0029-show-no-mail-categories.md)) |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-901 | Primary, Transactions, Updates, Promotions | | Out | Gmail's are reachable only by search and iCloud has none; a local guess agreed with Gmail on 58% ([ADR-0029](../adr/0029-show-no-mail-categories.md)) |  |
 
 ## Settings, accounts and the rest
 
-| ID | Mail.app | Frostmail | Status | Test |
-| --- | --- | --- | --- | --- |
-| P-951 | Accounts, servers, sign-in | Same, with discovery and Google sign-in | Have | `SettingsWindow.add.test.tsx`, `AccountForm.test.tsx` |
-| P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` |
-| P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |
-| P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` |
-| P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts; the backlog's [#164](https://github.com/frostyard/frostmail/issues/164) |
-| P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` |
-| P-958 | The Help menu's search, which finds a menu command by name | The command palette, Ctrl+Shift+P, with each command's shortcut; a Commands button in the web build ([ui.md](ui.md#command-palette)) | Have | `keymap.palette.test.ts`, `CommandPalette.test.tsx`, `Palette.test.tsx`, `Palette.lodge.test.tsx` |
-| P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |
+| ID | Mail.app | Frostmail | Status | Test | Desktop test |
+| --- | --- | --- | --- | --- | --- |
+| P-951 | Accounts, servers, sign-in | Same, with discovery and Google sign-in | Have | `SettingsWindow.add.test.tsx`, `AccountForm.test.tsx` | `TestAddAccountWithPassword`, `TestAddAccountLeavesOutEmptyServers`, `TestAddAccountKeepsTheFormOnAnError` |
+| P-952 | New accounts are writable | Same; Read only is a checkbox when adding | Have | `SettingsWindow.writable.test.tsx` | `TestNewAccountsAreWritableUnlessChecked` |
+| P-953 | Junk mail filter and its settings | The server's filtering | Out | Gmail and iCloud filter on the server; Frostmail moves and reports |  |
+| P-954 | Connection Doctor, Activity | `mailctl verify`, the sync state in the sidebar | Have | `TestVerifyAfterACleanSync`, `TestGmailVerify` | `TestConsoleShowsMailActivity` |
+| P-955 | Import Mailboxes, Export Mailbox (mbox) | | Later | Not needed by the user's accounts; the backlog's [#164](https://github.com/frostyard/frostmail/issues/164) |  |
+| P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` | `TestForOutsideTextFields`, `TestForInATextField` |
+| P-958 | The Help menu's search, which finds a menu command by name | The command palette, Ctrl+Shift+P, with each command's shortcut; a Commands button in the web build ([ui.md](ui.md#command-palette)) | Have | `keymap.palette.test.ts`, `CommandPalette.test.tsx`, `Palette.test.tsx`, `Palette.lodge.test.tsx` | `TestPaletteOpensWithBothKeysAndListsBuiltCommands`, `TestItemsNameAndDisable` |
+| P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |  |
+
+## Accepted differences of the native app
+
+The native desktop app ([plan 0015](../plans/0015-mygo-desktop.md)) differs
+from the React app in these ways, which Brian accepted on 2026-11-10 ("the
+differences are fine", relayed by the orchestrating session):
+
+- Find in the message (P-309) covers the message bodies only, not the
+  header and banners.
+- Print (P-307) prints the selected message only.
+- HTML and SVG attachments need Save As: they do not open.
+- The action buttons sit in a row under the top bar.
+- Recipient completion (P-504) loads when compose opens, not as each
+  letter is typed.
 
 ## References
 

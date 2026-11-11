@@ -1,6 +1,6 @@
 #!/bin/sh
 # Frostmail's launcher in the Flatpak (docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
-# The manifest installs it as /app/bin/frostmail, and the Tauri app as
+# The manifest installs it as /app/bin/frostmail, and the app as
 # /app/libexec/frostmail-app.
 #
 #   frostmail --background   Run maild and nothing else. A second maild on the
@@ -37,7 +37,7 @@
 # and a test's own directory in its tests.
 #
 # A maild that the window's sandbox started would die with the sandbox, and
-# with a duplicate window that tauri-plugin-single-instance closes at once.
+# with a duplicate window that the app's single-instance lock closes at once.
 # So the launcher has the Flatpak portal start `frostmail --background` in a
 # new sandbox of this app, and then ends the flatpak-spawn process it made
 # once that maild answers: flatpak-spawn forwards catchable signals to the

@@ -1,0 +1,118 @@
+domain: activity
+doc: >-
+  What maild does in the background, for a client's console (ADR-0055):
+  typed entries that hold only numbers, times and enums, never text, so no
+  subject, body, address, credential or server message can travel in one.
+  maild keeps the newest 2,000 in memory; they are not stored or replayed.
+enums:
+  - name: ActivityLevel
+    doc: How much an entry matters.
+    values:
+      - {name: debug, doc: "Routine detail: an IDLE wake, a fetch batch."}
+      - {name: info, doc: "Work done: a mailbox pass, a send, a rule run."}
+      - {name: warn, doc: "Work that did not happen and will be retried: offline, a refused change."}
+      - {name: error, doc: "Work that failed and needs the user: a send refused, a sign-in needed."}
+  - name: ActivityKind
+    doc: What happened. The client writes the line from the kind and the fields.
+    values:
+      - {name: connect, doc: "Connected and logged in to the account's server (ms)."}
+      - {name: list, doc: "Listed the account's mailboxes (n mailboxes, ms)."}
+      - {name: mailboxsynced, doc: "Reconciled a mailbox (mailboxId; added, changed and removed messages; ms)."}
+      - {name: idle, doc: "IDLE woke for a mailbox with news (mailboxId)."}
+      - {name: fetched, doc: "Fetched message bodies (n messages, bytes, ms)."}
+      - {name: pushed, doc: "Replayed offline changes to the server (n changes)."}
+      - {name: draftsaved, doc: "Saved a draft's copy on the server."}
+      - {name: sent, doc: "Sent a message (ms)."}
+      - {name: sendfailed, doc: "A send failed (errorClass, code); retried unless the server refused it."}
+      - {name: sendlater, doc: "Queued a message to send later (n messages)."}
+      - {name: rulesapplied, doc: "Rules acted on new mail (n messages)."}
+      - {name: remindfired, doc: "Remind Me brought messages back (n messages)."}
+      - {name: announced, doc: "Announced new mail (n messages)."}
+      - {name: erased, doc: "Erased old mail from Trash or Junk (mailboxId, n messages)."}
+      - {name: pimsynced, doc: "A contacts, calendar or tasks pass ran (service; changed, the collections it changed; ms)."}
+      - {name: pimrefused, doc: "The server refused a contact, event or task change (service, errorClass, code)."}
+      - {name: tokenrefreshed, doc: "Refreshed an OAuth access token."}
+      - {name: signinneeded, doc: "The server refused the credentials; the account waits for a sign-in (service, errorClass, code)."}
+      - {name: offline, doc: "The server could not be reached; retrying with backoff (service, errorClass)."}
+      - {name: failed, doc: "Other work failed (service, errorClass, code); retried with backoff."}
+      - {name: dropped, doc: "n entries were not recorded or not delivered, past a limit."}
+  - name: ActivityServer
+    doc: The server or service an entry is about.
+    values:
+      - {name: imap}
+      - {name: smtp}
+      - {name: caldav}
+      - {name: carddav}
+      - {name: graph}
+      - {name: gtasks}
+      - {name: oauth}
+  - name: ErrorClass
+    doc: What kind of failure, read from the error's type, never from its text.
+    values:
+      - {name: network, doc: "The server could not be reached, or the connection broke."}
+      - {name: timeout}
+      - {name: tls, doc: "The TLS handshake or the certificate failed."}
+      - {name: auth, doc: "The server refused the credentials."}
+      - {name: refused, doc: "The server refused the request (an SMTP 5xx, an HTTP 4xx, an IMAP NO)."}
+      - {name: quota, doc: "A quota or a limit was reached."}
+      - {name: protocol, doc: "The server answered something maild could not use."}
+      - {name: internal, doc: "maild's own failure."}
+  - name: ImapCode
+    doc: The IMAP response codes maild tells apart (RFC 5530); other is any other code.
+    values:
+      - {name: authenticationfailed}
+      - {name: authorizationfailed}
+      - {name: unavailable}
+      - {name: overquota}
+      - {name: limit}
+      - {name: nonexistent}
+      - {name: alreadyexists}
+      - {name: cannot}
+      - {name: serverbug}
+      - {name: other}
+types:
+  - name: ActivityEntry
+    doc: One thing maild did. It has no string field, by design (ADR-0055).
+    fields:
+      - {name: seq, type: int, doc: "Increases by 1 per entry within one run of maild."}
+      - {name: at, type: time}
+      - {name: level, type: ActivityLevel}
+      - {name: kind, type: ActivityKind}
+      - {name: accountId, type: int, optional: true}
+      - {name: mailboxId, type: int, optional: true}
+      - {name: service, type: ActivityServer, optional: true}
+      - {name: n, type: int, optional: true, doc: "How many: messages, mailboxes, changes or entries, by kind."}
+      - {name: added, type: int, optional: true}
+      - {name: changed, type: int, optional: true}
+      - {name: removed, type: int, optional: true}
+      - {name: bytes, type: int, optional: true}
+      - {name: ms, type: int, optional: true, doc: "How long it took, in milliseconds."}
+      - {name: errorClass, type: ErrorClass, optional: true}
+      - {name: code, type: int, optional: true, doc: "An SMTP reply code or an HTTP status."}
+      - {name: imapCode, type: ImapCode, optional: true}
+  - name: ActivitySubscription
+    doc: The state of a new activity subscription.
+    fields:
+      - {name: seq, type: int, doc: "The newest entry's seq when the subscription started; 0 when there is none."}
+methods:
+  - name: recent
+    doc: The newest entries, oldest first.
+    params:
+      - {name: limit, type: int, optional: true, doc: "1 to 500; default 200."}
+    result: "[]ActivityEntry"
+    errors: [invalidParams]
+  - name: subscribe
+    doc: >-
+      Send activity.added events on this connection from now on, apart from
+      events.subscribe. A connection that falls 256 entries behind loses
+      entries and then gets one dropped entry that counts them; it is never
+      closed for it.
+    result: ActivitySubscription
+    errors: [conflict, unavailable]
+  - name: unsubscribe
+    doc: Stop sending activity.added events on this connection; nothing when it was not subscribed.
+events:
+  - name: added
+    doc: An entry, sent live to the connections that called activity.subscribe. Never replayed.
+    fields:
+      - {name: entry, type: ActivityEntry}

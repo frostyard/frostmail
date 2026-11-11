@@ -16,16 +16,34 @@ var blockedFunctions = map[string]bool{
 	"paint": true, "src": true,
 }
 
+// layerPrefix starts the name of every cascade layer a message declares, so
+// that none is, or reopens, a layer of the page around it: the desktop
+// app's print guard is the page's first layer (internal/desktop/mail,
+// PrintGuard), and a rule a message put into it would beat the guard's own.
+const layerPrefix = "message-"
+
 // sanitizeCSS returns src without constructs that load resources or run code:
 // @import, @font-face, @namespace and @charset rules, blocked functions, and
-// the behavior and -moz-binding properties. Every url() goes through resolve,
-// which returns the URL to use or "" to drop it (the url() becomes none).
-// Names are compared after resolving CSS escapes, removals leave a space so
-// neighboring tokens cannot join, and "<" is escaped in the output so the
-// text cannot close a <style> element.
+// the behavior and -moz-binding properties. It also drops @page rules, whose
+// margin boxes would print text outside the page's content, and puts
+// layerPrefix before each name in an @layer rule. Every url() goes through
+// resolve, which returns the URL to use or "" to drop it (the url() becomes
+// none). Names are compared after resolving CSS escapes, removals leave a
+// space so neighboring tokens cannot join, and "<" is escaped in the output
+// so the text cannot close a <style> element.
 func sanitizeCSS(src string, resolve func(raw string) string) string {
 	l := css.NewLexer(parse.NewInputString(src))
 	var b strings.Builder
+	// layer is true from an @layer to the end of its prelude in the
+	// output, the next {, ; or } written. Every word written in between
+	// starts with layerPrefix, whatever wrote it: a name, a replacement,
+	// or a name a removal brought in.
+	layer := false
+	word := func() {
+		if layer {
+			b.WriteString(layerPrefix)
+		}
+	}
 	for {
 		tt, data := l.Next()
 		switch tt {
@@ -37,17 +55,23 @@ func sanitizeCSS(src string, resolve func(raw string) string) string {
 			b.WriteByte(' ')
 		case css.AtKeywordToken:
 			switch strings.ToLower(cssUnescape(string(data[1:]))) {
-			case "import", "namespace", "charset", "font-face":
+			case "import", "namespace", "charset", "font-face", "page":
 				skipStatement(l)
 				b.WriteByte(' ')
+			case "layer":
+				b.Write(data)
+				layer = true
 			default:
 				b.Write(data)
 			}
 		case css.URLToken:
+			word()
 			writeURL(&b, resolve(urlTokenValue(data)))
 		case css.BadURLToken:
+			word()
 			b.WriteString("none")
 		case css.FunctionToken:
+			word()
 			name := strings.ToLower(cssUnescape(string(data[:len(data)-1])))
 			switch {
 			case name == "url":
@@ -59,12 +83,16 @@ func sanitizeCSS(src string, resolve func(raw string) string) string {
 				b.Write(data)
 			}
 		case css.IdentToken:
+			word()
 			switch strings.ToLower(cssUnescape(string(data))) {
 			case "behavior", "-moz-binding":
 				b.WriteString("x-blocked")
 			default:
 				b.Write(data)
 			}
+		case css.LeftBraceToken, css.SemicolonToken, css.RightBraceToken:
+			layer = false
+			b.Write(data)
 		default:
 			b.Write(data)
 		}

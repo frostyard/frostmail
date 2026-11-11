@@ -1,7 +1,6 @@
 // The reader: the selected message's conversation (docs/design/app.md, Reader).
 
 import { Menu as ContextMenu, type MenuEntry as MenuItem } from "@frostyard/lodge-ui/react";
-import { invoke, isTauri } from "@tauri-apps/api/core";
 import {
   forwardRef,
   type MouseEvent as ReactMouseEvent,
@@ -77,13 +76,12 @@ export interface ReaderHandle {
 }
 
 /**
- * openLink opens a URL in the system browser; in lodge, through the shell,
- * which opens a canonical lodge URL (another app's, or mail's own
- * permanent route) in place and anything else in a new tab.
+ * openLink opens a URL in a new tab; in lodge, through the shell, which opens
+ * a canonical lodge URL (another app's, or mail's own permanent route) in
+ * place and anything else in a new tab.
  */
 export function openLink(url: string): void {
-  if (isTauri()) void invoke("open_link", { url }).catch((err: unknown) => console.warn("open link", err));
-  else if (!openOutside(url)) window.open(url, "_blank", "noopener,noreferrer");
+  if (!openOutside(url)) window.open(url, "_blank", "noopener,noreferrer");
 }
 
 /**
@@ -413,11 +411,7 @@ function ConversationMessage({
     (part: Part) => {
       void client.message.part({ id, path: part.path }).then((f) => {
         const l = lodge();
-        if (isTauri())
-          void invoke("open_part", { path: f.path, contentPath: f.contentPath ?? null, filename: f.filename }).catch(
-            (err: unknown) => console.warn("open part", err),
-          );
-        else if (l && f.contentPath) l.open(l.contentURL(f.contentPath));
+        if (l && f.contentPath) l.open(l.contentURL(f.contentPath));
         else window.open(`/mailpart/${f.path}`, "_blank", "noopener,noreferrer");
       });
     },
@@ -447,12 +441,12 @@ function ConversationMessage({
       } else if (action === "source") {
         setSource(await client.message.source({ id }));
       } else if (action === "save") {
-        await saveMessage(client, id, summary.subject);
+        await saveMessage(client, id);
       } else if (action === "print") {
         window.print();
       }
     },
-    [client, id, headers, summary.subject],
+    [client, id, headers],
   );
 
   // New articles start at the current count so retained requests cannot
@@ -526,7 +520,7 @@ function ConversationMessage({
           truncated={source.truncated}
           onClose={() => setSource(null)}
           onSave={() => {
-            void saveMessage(client, id, summary.subject).catch((err: unknown) =>
+            void saveMessage(client, id).catch((err: unknown) =>
               setError(err instanceof Error ? err.message : String(err)),
             );
           }}

@@ -114,3 +114,18 @@ type ChallengeError struct {
 func (e *ChallengeError) Error() string {
 	return fmt.Sprintf("xoauth2: refused with status %s (scope %s)", e.Status, e.Scope)
 }
+
+// AuthRefused is true: the mail server refused the token (internal/activity's
+// classifier).
+func (e *ChallengeError) AuthRefused() bool { return true }
+
+// AuthRefused reports whether the token endpoint refused the grant or the
+// client, so the account needs a new sign-in (internal/activity's
+// classifier).
+func (e *TokenError) AuthRefused() bool {
+	switch e.Code {
+	case "invalid_grant", "invalid_client", "unauthorized_client", "access_denied":
+		return true
+	}
+	return false
+}

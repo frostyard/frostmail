@@ -1,10 +1,6 @@
 // A compose window: one draft, edited in place and saved to maild as it
 // changes (docs/specs/compose-ui.md). maild keeps the draft and its server
 // copy; this window only edits, attaches and sends.
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ask, open as openFiles } from "@tauri-apps/plugin-dialog";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,7 +17,6 @@ import { sendChoices } from "../lib/later";
 import { uploadFile } from "../lib/upload";
 import { closeFrameWindow } from "../lodge/frameWindow";
 import type { Client, Draft, DraftAttachment, DraftContent, Identity } from "../rpc/gen/api";
-import { filesAsBytes, remoteMaild } from "../rpc/transport/tauri";
 import {
   activeFormats,
   composeExtensions,
@@ -59,10 +54,7 @@ export function ComposeWindow(props: { draftId: number; fresh: boolean }) {
 
   if (!draft) {
     return (
-      <div
-        data-tauri-drag-region
-        className="flex h-full items-center justify-center bg-window text-empty text-secondary"
-      >
+      <div className="flex h-full items-center justify-center bg-window text-empty text-secondary">
         {failure === "" ? "Opening draft…" : `This draft cannot be opened: ${failure}`}
       </div>
     );
@@ -76,12 +68,7 @@ function message(err: unknown): string {
 
 function closeWindow(): void {
   if (closeFrameWindow()) return;
-  if (isTauri()) void getCurrentWindow().close();
-  else window.close();
-}
-
-function basename(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path;
+  window.close();
 }
 
 /** Composer edits one loaded draft. */
@@ -96,7 +83,6 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
   const [identitiesSettled, setIdentitiesSettled] = useState(false);
   const [showBcc, setShowBcc] = useState(initial.content.bcc.length > 0);
   const [formatBar, setFormatBar] = useState(false);
-  const [maximized, setMaximized] = useState(false);
   const [error, setError] = useState("");
   const [linkUrl, setLinkUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -177,18 +163,8 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
 
   useEffect(() => {
     const title = content.subject.trim() === "" ? "New Message" : content.subject;
-    if (isTauri()) void getCurrentWindow().setTitle(title);
-    else document.title = title;
+    document.title = title;
   }, [content.subject]);
-
-  useEffect(() => {
-    if (!isTauri()) return;
-    const win = getCurrentWindow();
-    const update = () => void win.isMaximized().then(setMaximized);
-    update();
-    const off = win.onResized(update);
-    return () => void off.then((f) => f());
-  }, []);
 
   const recipients = [...content.to, ...content.cc, ...content.bcc];
   const canSend =
@@ -198,31 +174,8 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     recipients.length > 0 &&
     recipients.every((a) => isValidAddress(a.address));
 
-  const attachPaths = useCallback(
-    (paths: string[]) => {
-      for (const path of paths) {
-        const key = `${Date.now()}-${Math.random()}`;
-        touched.current = true;
-        setPending((p) => [...p, { key, filename: basename(path) }]);
-        client.draft
-          .attach({ id, path })
-          .then((a) => setAttachments((list) => [...list, a]))
-          .catch((err: unknown) =>
-            setError(
-              remoteMaild()
-                ? `${basename(path)} was not attached: a maild behind lodge cannot read this computer's files; use Attach Files.`
-                : `${basename(path)} was not attached: ${message(err)}`,
-            ),
-          )
-          .finally(() => setPending((p) => p.filter((x) => x.key !== key)));
-      }
-    },
-    [client, id],
-  );
-
-  // The webview sends the file's bytes when maild cannot read a path this
-  // machine sees: in a browser, on a maild behind lodge, and in the Flatpak
-  // (docs/specs/compose-ui.md, Attachments).
+  // The page sends each file's bytes: maild cannot read a path on this
+  // machine (docs/specs/compose-ui.md, Attachments).
   const attachFiles = useCallback(
     (files: File[]) => {
       for (const file of files) {
@@ -238,19 +191,8 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     [client, id],
   );
 
-  // Files dropped anywhere on the window are attached: as paths in the app
-  // on a maild of its own, as bytes in a browser, on a maild behind lodge and
-  // in the Flatpak, whose compose windows leave drops to the webview
-  // (open_compose).
+  // Files dropped anywhere on the window are attached.
   useEffect(() => {
-    if (!isTauri() || filesAsBytes()) return;
-    const off = getCurrentWebview().onDragDropEvent((e) => {
-      if (e.payload.type === "drop") attachPaths(e.payload.paths);
-    });
-    return () => void off.then((f) => f());
-  }, [attachPaths]);
-  useEffect(() => {
-    if (isTauri() && !filesAsBytes()) return;
     const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes("Files") === true;
     const over = (e: DragEvent) => {
       if (hasFiles(e)) e.preventDefault();
@@ -268,15 +210,9 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
     };
   }, [attachFiles]);
 
-  const pickFiles = useCallback(async () => {
-    if (!isTauri() || filesAsBytes()) {
-      fileInput.current?.click();
-      return;
-    }
-    const picked = await openFiles({ multiple: true, directory: false, title: "Attach Files" });
-    if (picked === null) return;
-    attachPaths(Array.isArray(picked) ? picked : [picked]);
-  }, [attachPaths]);
+  const pickFiles = useCallback(() => {
+    fileInput.current?.click();
+  }, []);
 
   const sendNow = useCallback(
     async (at?: Date) => {
@@ -321,10 +257,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
 
   const discard = useCallback(async () => {
     if (!isEmpty()) {
-      const sure = isTauri()
-        ? await ask("This draft will be deleted.", { title: "Delete Draft?", kind: "warning", okLabel: "Delete" })
-        : window.confirm("Delete this draft?");
-      if (!sure) return;
+      if (!window.confirm("Delete this draft?")) return;
     }
     clearTimeout(timer.current);
     dirty.current = false;
@@ -361,19 +294,13 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
           void openSettings("snippets").catch((err) => console.warn("settings", err));
           break;
         case "attach":
-          void pickFiles();
+          pickFiles();
           break;
         case "toggleFormatBar":
           setFormatBar((v) => !v);
           break;
         case "delete":
           void discard();
-          break;
-        case "minimize":
-          if (isTauri()) void getCurrentWindow().minimize();
-          break;
-        case "toggleMaximize":
-          if (isTauri()) void getCurrentWindow().toggleMaximize();
           break;
         case "close":
           void close();
@@ -401,7 +328,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         f();
       };
       if (k === "enter" && !e.shiftKey) run(() => void send());
-      else if (k === "a" && e.shiftKey) run(() => void pickFiles());
+      else if (k === "a" && e.shiftKey) run(() => pickFiles());
       else if (k === "b" && e.shiftKey) run(() => setShowBcc((v) => !v));
       else if (k === "backspace" && !e.shiftKey) run(() => void discard());
       else if (k === "w" && !e.shiftKey) run(() => void close());
@@ -419,7 +346,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         subject={content.subject}
         canSend={canSend}
         formatBarShown={formatBar}
-        maximized={maximized}
+        maximized={false}
         laterChoices={laterChoices}
         snippets={snippets}
         onInsertSnippet={(snippetId) => {
@@ -428,7 +355,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
         }}
         onSendAt={(at) => void send(at)}
         onCommand={onCommand}
-        windowControls={isTauri()}
+        windowControls={false}
       />
       {sendLater && (
         <TimeSheet
@@ -448,7 +375,7 @@ function Composer(props: { client: Client; initial: Draft; fresh: boolean }) {
           onCancel={() => setReminder(null)}
           onAttach={() => {
             setReminder(null);
-            void pickFiles();
+            pickFiles();
           }}
           onSendAnyway={() => {
             const { at } = reminder;

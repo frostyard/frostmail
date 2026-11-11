@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/mailsync"
@@ -64,9 +65,12 @@ type Deps struct {
 	Secrets secrets.Store
 	Log     *slog.Logger
 	Sync    Syncer
-	Blobs   *blob.Store
-	Views   *view.Manager
-	Render  *render.Renderer
+	// Activity records Send Later's queueing (ADR-0055); nil records
+	// nothing.
+	Activity *activity.Hub
+	Blobs    *blob.Store
+	Views    *view.Manager
+	Render   *render.Renderer
 	// UndoDelay, when set, overrides the undoDelay setting
 	// (FROSTMAIL_UNDO_DELAY, tests).
 	UndoDelay time.Duration

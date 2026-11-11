@@ -84,6 +84,7 @@ func (p *pass) replayOne(ctx context.Context, op store.PIMOp, services []store.S
 		}
 		err := c.Delete(ctx, op.Href, op.IfMatch)
 		if err != nil && kind == davx.AddressBooks && refusal(err) {
+			p.refusal(col.Kind, err)
 			return p.refusedDelete(ctx, op, col)
 		}
 		if err != nil {
@@ -131,10 +132,12 @@ func (p *pass) put(ctx context.Context, c objectServer, kind davx.Kind, col stor
 	}
 	w, err := c.Put(ctx, op.Href, obj.Raw, kind, op.IfMatch)
 	if err != nil && col.Kind == api.CollectionKindCalendar && refusal(err) {
+		p.refusal(col.Kind, err)
 		return p.refusedPut(ctx, c, col, op, err)
 	}
 	if err != nil {
 		if payload, edit := ParseContactPayload(op.Payload); edit && kind == davx.AddressBooks && refusal(err) {
+			p.refusal(col.Kind, err)
 			if errors.Is(err, davx.ErrPrecondition) && !payload.Whole {
 				return p.reapply(ctx, c, col, op, payload)
 			}
@@ -276,6 +279,11 @@ func (p *pass) failed(ctx context.Context, op store.PIMOp, err error) error {
 	refused := refusal(err) || errors.As(err, &ae) && ae.Status/100 == 4
 	if wait := retryAfter(op.Attempts); !refused && wait > 0 {
 		next = p.m.db.Now().Add(wait)
+	}
+	if refused {
+		if col, cerr := p.m.db.GetCollection(ctx, op.CollectionID); cerr == nil {
+			p.refusal(col.Kind, err)
+		}
 	}
 	return p.m.db.Tx(ctx, func(tx *store.Tx) error {
 		if err := tx.RetryPIMOp(ctx, op.ID, next, err.Error()); err != nil {

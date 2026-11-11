@@ -1,10 +1,7 @@
 // The sandboxed HTML body (ADR-0005; docs/design/app.md, Reader). The frame
 // never gets allow-scripts. allow-same-origin lets this component size the
-// frame; maild has already sanitized the HTML and the app CSP forbids the
-// network. Links target _blank and allow-popups lets them ask for a new
-// window, which the app shell opens in the system browser without creating
-// one (ADR-0036): WebKit runs no event listener, not even the parent's,
-// inside a frame sandboxed without scripts.
+// frame; maild has already sanitized the HTML. Links target _blank and
+// allow-popups lets them ask for a new window (ADR-0036).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toPageParts } from "../../lib/partURL";
 
@@ -35,8 +32,8 @@ const PAGE_STYLE = [
 
 /** frameDocument wraps sanitized HTML in the frame's page. */
 export function frameDocument(html: string, dev = import.meta.env.DEV): string {
-  // WebKitGTK does not load mailpart: into the dev server's page; Vite
-  // serves the same files under /mailpart/ (vite.config.ts). WebView2 has
+  // A browser does not load mailpart: into the dev server's page; Vite
+  // serves the same files under /mailpart/ (vite.config.ts). Windows has
   // its own form of the URL (lib/partURL.ts).
   const body = dev ? html.replaceAll("mailpart://localhost/", "/mailpart/") : toPageParts(html);
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><base target="_blank"><style>${PAGE_STYLE}</style></head><body>${body}</body></html>`;
@@ -69,8 +66,7 @@ export function MessageFrame({ html, onOpenLink, quoteSource }: MessageFrameProp
     if (!el) return;
     let observer: ResizeObserver | undefined;
     let page: Document | null = null;
-    // Browsers (the dev gateway) run these listeners; WebKitGTK does not, and
-    // its links reach the shell as new-window requests instead.
+    // These listeners catch every click and form inside the frame.
     const onClick = (e: MouseEvent) => {
       // Cancel every navigation; only links open, outside the app.
       e.preventDefault();

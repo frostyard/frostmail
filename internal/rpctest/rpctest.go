@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/discover"
 	"github.com/frostyard/frostmail/internal/engine"
@@ -97,6 +98,9 @@ type Server struct {
 	Parts   *render.PartsCache
 	OAuth   *oauth.Manager
 	Content *lodge.Content // nil unless Options.Lodge was set
+	// Activity is the server's activity hub (ADR-0055), shared by sync,
+	// PIM, OAuth and the engine as in maild.
+	Activity *activity.Hub
 
 	ctx     context.Context
 	stop    func()
@@ -150,7 +154,9 @@ func StartWith(t testing.TB, o Options) *Server {
 	if undo == 0 {
 		undo = 50 * time.Millisecond
 	}
-	srv.OAuth = &oauth.Manager{DB: db, Secrets: sec, Log: log, Endpoints: o.OAuthEndpoints}
+	srv.Activity = activity.New(nil)
+	srv.OAuth = &oauth.Manager{DB: db, Secrets: sec, Log: log, Endpoints: o.OAuthEndpoints,
+		Refreshed: func(id int64, err error) { srv.Activity.Record(activity.Refreshed(id, err)) }}
 	if o.Lodge {
 		if srv.Content, err = lodge.NewContent(srv.Parts, srv.Blobs); err != nil {
 			t.Fatal(err)
@@ -158,13 +164,14 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	deps := engine.Deps{DB: db, Secrets: sec, Log: log, Blobs: srv.Blobs, Views: views,
 		Render: &render.Renderer{Parts: srv.Parts}, UndoDelay: undo, OAuth: srv.OAuth, Discovery: o.Discovery,
-		Unsubscriber: o.Unsubscriber}
+		Unsubscriber: o.Unsubscriber, Activity: srv.Activity}
 	if srv.Content != nil {
 		deps.Content = srv.Content
 	}
 	if o.PIM != nil {
 		cfg := *o.PIM
 		cfg.Tokens = srv.OAuth
+		cfg.Activity = srv.Activity
 		if cfg.Now == nil {
 			cfg.Now = o.Now
 		}
@@ -177,6 +184,7 @@ func StartWith(t testing.TB, o Options) *Server {
 			cfg.Parts = srv.Parts
 		}
 		cfg.Tokens = srv.OAuth
+		cfg.Activity = srv.Activity
 		if o.Broadcast {
 			cfg.Announce = notify.Broadcast(broker.Publish)
 		}
@@ -196,7 +204,7 @@ func StartWith(t testing.TB, o Options) *Server {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	// rpc.shutdown ends Serve, as it does maild's.
-	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Logger: log, OnAttended: o.OnAttended,
+	rpc := rpcserver.New(rpcserver.Options{Name: Name, Broker: broker, Activity: srv.Activity, Logger: log, OnAttended: o.OnAttended,
 		Build: o.Build, Shutdown: cancel})
 	srv.RPC = rpc
 	eng := engine.New(deps)
@@ -206,6 +214,7 @@ func StartWith(t testing.TB, o Options) *Server {
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
 		Settings: eng.Settings(), Vip: eng.Vips(), Block: eng.Blocks(), Smart: eng.Smart(), Rule: eng.Rules(), Snippet: eng.Snippets(),
+		Activity: rpc.Activity(),
 	}
 	if o.Services != nil {
 		o.Services(&services)

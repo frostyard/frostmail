@@ -32,6 +32,17 @@ func TestSanitizeCSS(t *testing.T) {
 		{"style breakout", `p{content:"</style><b>"}`, `p{content:"\3c /style>\3c b>"}`},
 		{"comments and cdo", "<!-- p{color:red} /* x */ -->", "  p{color:red}    "},
 		{"unterminated url string", `\75rl("`, "none"},
+		{"page", `@page{margin:0;@top-left{content:"From: Bank"}} p{color:red}`, "  p{color:red}"},
+		{"page in media", `@media print{@page :first{size:1in}}`, "@media print{ }"},
+		{"escaped page", `@pag\65{margin:0}`, " "},
+		{"layer block", "@layer print-guard{p{color:red}}", "@layer message-print-guard{p{color:red}}"},
+		{"layer statement", "@layer a, print-guard;", "@layer message-a, message-print-guard;"},
+		{"sublayer", "@layer print-guard.x{}", "@layer message-print-guard.message-x{}"},
+		{"anonymous layer", "@layer{p{color:red}}", "@layer{p{color:red}}"},
+		{"layer in media", "@media print{@layer print-guard{p{color:red}}}", "@media print{@layer message-print-guard{p{color:red}}}"},
+		{"comment in a layer name", "@layer/**/print-guard{}", "@layer message-print-guard{}"},
+		{"removal in a layer prelude", "@layer @import url(x); print-guard{}", "@layer   message-print-guard{}"},
+		{"names after the prelude", "@layer a{p{color:red}} b{color:blue}", "@layer message-a{p{color:red}} b{color:blue}"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -56,5 +67,38 @@ func TestCSSUnescape(t *testing.T) {
 		if got := cssUnescape(in); got != want {
 			t.Errorf("cssUnescape(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A message's CSS cannot reach the page's own layers or its paper. The
+// desktop app's print guard is the page's first layer: a rule in it, or
+// in a layer within it, would beat the guard's own (M46). An @page rule
+// prints text in the margins, outside the page's content (issue #238).
+// However a message spells the name, what is left names no layer of the
+// page and holds no @page rule.
+func TestSanitizeCSSKeepsMessagesOffThePage(t *testing.T) {
+	const hide = `{@media print{body>.print-only:first-child{display:none!important}}}`
+	for _, in := range []string{
+		"@layer print-guard" + hide,
+		"@layer print-guard.x" + hide,
+		"@layer x, print-guard;@layer print-guard" + hide,
+		`@layer \70 rint-guard` + hide,
+		`@layer \000070rint-guard` + hide,
+		`@layer pr\69nt-guard` + hide,
+		`@l\61yer print-guard` + hide,
+		"@LAYER print-guard" + hide,
+		"@layer /**/print-guard" + hide,
+		"@layer @font-face{x:y} print-guard" + hide,
+		"@layer url(x) print-guard" + hide,
+		"@media print{@layer print-guard" + hide + "}",
+		`@page{@top-left{content:"From: Bank"}}`,
+		`@PAGE :first{margin:0}`,
+		`@pa\67 e{size:1in}`,
+		`@media print{@page{margin:-1in}}`,
+	} {
+		t.Run(in, func(t *testing.T) {
+			out := sanitizeCSS(in, func(string) string { return "" })
+			checkCSS(t, out, out)
+		})
 	}
 }

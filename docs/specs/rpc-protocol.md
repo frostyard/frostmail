@@ -89,6 +89,16 @@ and unknown events.
 - A connection may subscribe once (`conflict` (1002) after that).
 - A subscriber more than 1024 events behind is disconnected; it reconnects
   and resumes with its last `seq`.
+- **Activity** ([ADR-0055](../adr/0055-maild-streams-its-activity-as-typed-entries.md))
+  is a stream of its own: `activity.subscribe` starts the transient event
+  `activity.added` on the connection, whether or not it called
+  `events.subscribe`, and `activity.unsubscribe` stops it. It comes in the
+  same envelope, without `seq`; the entry's own `seq` orders entries
+  within one run of maild. A subscriber more than 256 entries behind loses
+  entries and then gets one entry of kind `dropped` (entry `seq` 0) that
+  counts them; it is never disconnected for it. `activity.recent` returns
+  the newest entries, so a client subscribes first, then reads the recent
+  ones, and drops a live entry whose `seq` it has already shown.
 
 ## Message parts (`mailpart://`)
 
@@ -97,9 +107,7 @@ In the app, `mailpart://localhost/<path>` serves
 and normal components; anything else is 400. A path that resolves outside
 `parts/` (through a symlink) is 403. Responses carry `nosniff` and
 `Content-Security-Policy: default-src 'none'; img-src data:; style-src
-'unsafe-inline'; sandbox`. WebKitGTK loads the scheme only from
-`tauri://localhost` pages, not from the `tauri dev` http origin. WebView2
-serves it as `http://mailpart.localhost/<path>` instead: maild still
+'unsafe-inline'; sandbox`. A browser on Windows gets it as `http://mailpart.localhost/<path>` instead: maild still
 writes `mailpart://localhost/`, and the app rewrites the one form to the
 other in the HTML it shows and back in the HTML it saves
 (`app/src/lib/partURL.ts`).
@@ -110,6 +118,5 @@ other in the HTML it shows and back in the HTML it saves
   `Client.<Domain>()` returns the typed methods; `Client.Notifications()`
   delivers events (the client fails with `ErrEventsOverflow` if 1024
   undelivered events pile up).
-- TypeScript: `JsonRpcSession` over a line channel; `connectTauri()` uses the
-  bridge's `maild_connect` (a `Channel` of `{kind:"line",line}` and a final
-  `{kind:"closed",error}`) and `maild_send` (one line).
+- TypeScript: `JsonRpcSession` over a line channel, on lodge's WebSocket
+  (`app/src/rpc/transport/lodge.ts`).

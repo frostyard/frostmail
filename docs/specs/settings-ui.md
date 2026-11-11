@@ -173,7 +173,7 @@ the rule sheet ([organize-ui.md](organize-ui.md#the-rule-sheet)).
   the original.
 - **Remove** asks first, as removing an account does (title "Remove
   Rule?", the text `Remove the rule "<name>"?`, OK labeled Remove;
-  `window.confirm` outside Tauri), then calls `rule.delete`.
+  `window.confirm` on the web), then calls `rule.delete`.
 - **Move Up** and **Move Down** call `rule.move {id, position}` with the
   position one less or one more.
 - The sheet's mailboxes, accounts and flag names come from the mail
@@ -800,7 +800,8 @@ interface ServerPaneProps {
   reconnects to the maild now chosen. In the Flatpak it changes the mode
   in a fixed order (ADR-0046):
   - **To lodge:** it writes `app.json` with lodge (a temporary file,
-    renamed), then runs `mailctl shutdown`, bounded at 35 s: it calls
+    renamed), closes the compose windows once their last save has ended
+    (the desktop app), then runs `mailctl shutdown`, bounded at 35 s: it calls
     `rpc.shutdown` while a maild answers, and returns once the socket is
     silent and the data directory's lock is free, within 30 s. On success
     it ends every window's connection. On failure it writes the previous
@@ -835,9 +836,8 @@ interface ServerPaneProps {
   it, the first one too, so a window that could not reach its own maild does
   not take the next one for it. A connection that reaches another maild
   closes the window, and the window never loads its id there (a fresh draft
-  closed on the wrong maild would delete that maild's draft). `Session` asks
-  the window with `onOtherMaild`: App answers false and closes the window
-  (`getCurrentWindow().close()`, in Tauri), shows "This draft is on the
+  closed on the wrong maild would delete that maild's draft). The app closes
+  the window, shows "This draft is on the
   maild you left." or "This event is on the maild you left.", and never
   mounts the draft or the event on the new maild. The main, reminders and
   settings windows keep the behavior above, and a window with no key (a

@@ -35,7 +35,6 @@ describe("Toolbar in Calendar", () => {
     expect(segments.map((s) => s.getAttribute("data-segment"))).toEqual(["sidebar", "calendar", "pane"]);
     expect(segments[0]?.style.width).toBe("221px");
     expect(segments[2]?.style.width).toBe("321px");
-    for (const s of segments) expect(s.hasAttribute("data-tauri-drag-region")).toBe(true);
   });
 
   it("shows Today, paging, the title and the views", () => {

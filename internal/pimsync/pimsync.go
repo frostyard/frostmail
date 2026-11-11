@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/davx"
 	"github.com/frostyard/frostmail/internal/graph"
 	"github.com/frostyard/frostmail/internal/gtasks"
@@ -52,6 +53,9 @@ type Config struct {
 	Local *time.Location
 	// GraphURL replaces Microsoft Graph's URL, for test servers.
 	GraphURL string
+	// Activity, when set, records each service's pass and refused changes
+	// (ADR-0055); nil records nothing.
+	Activity *activity.Hub
 }
 
 func (c Config) withDefaults() Config {
@@ -269,10 +273,12 @@ func (m *Manager) Pass(ctx context.Context, accountID int64) error {
 		if !s.Enabled || s.URL == "" {
 			continue
 		}
+		began, before := time.Now(), p.changed
 		err := p.service(ctx, s)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		p.record(s.Service, p.changed-before, time.Since(began), err)
 		text := ""
 		if err != nil {
 			text = err.Error()
@@ -336,6 +342,9 @@ type pass struct {
 	// remotes holds, by href, the Graph JSON of objects graphObjects read
 	// in this pass, for indexDAV to keep beside their sources.
 	remotes map[string][]byte
+	// changed counts the collections whose change events this pass
+	// emitted, for the service's activity entry.
+	changed int
 }
 
 // service syncs one service, retrying once with a new access token when

@@ -13,6 +13,7 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -591,6 +592,12 @@ func (a *actor) replay(ctx context.Context, cmd conn) error {
 	if err != nil {
 		return err
 	}
+	pushed := 0
+	defer func() {
+		if pushed > 0 {
+			a.record(activity.Pushed(a.acct.ID, pushed))
+		}
+	}()
 	for _, op := range ops {
 		err := a.replayOne(ctx, cmd, op)
 		var imapErr *imap.Error
@@ -601,6 +608,7 @@ func (a *actor) replay(ctx context.Context, cmd conn) error {
 			if err := a.m.db.Tx(ctx, func(tx *store.Tx) error { return tx.DeleteOp(ctx, op.ID) }); err != nil {
 				return err
 			}
+			pushed++
 		case errors.As(err, &imapErr) || errors.Is(err, store.ErrNotFound) || errors.Is(err, errUIDValidityChanged):
 			a.m.log.Warn("server refused an offline action", "account", a.acct.ID, "op", op.Kind, "err", err)
 			if err := a.undo(ctx, op, err.Error()); err != nil {

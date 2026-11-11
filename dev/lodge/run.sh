@@ -11,7 +11,7 @@
 # the manifest and the web build (make web-build first, in the nsl machine)
 # under ROOT in lodge's install layout, replacing only mail's own files (a
 # root may hold lodge's state and other apps), and builds the mail:
-#   showcase  hand-written mail (app/e2e/showcase), the default; maild runs
+#   showcase  hand-written mail (tools/uifixture/showcase), the default; maild runs
 #             with sync off, so it reaches no server and sends nothing
 #   fixture   200 mailgen messages and the hostile-HTML corpus; the account
 #             sends to tools/smtpsink, and its IMAP server is a closed
@@ -61,7 +61,7 @@ sync=on
 [ "$kind" = showcase ] && sync=off
 if [ ! -e "$data/frostmail.db" ]; then
   case $kind in
-    showcase) build/uifixture -out "$data" -showcase app/e2e/showcase ;;
+    showcase) build/uifixture -out "$data" -showcase tools/uifixture/showcase ;;
     fixture) build/uifixture -out "$data" -n 200 -hostile internal/render/testdata/hostile -smtp "$addr" ;;
     *) echo "unknown mail: $kind (showcase or fixture)" >&2; exit 1 ;;
   esac

@@ -53,7 +53,7 @@ export interface ComposeToolbarProps {
   onInsertSnippet?: (id: number) => void;
   onSendAt?: (at: Date) => void;
   onCommand: (command: ComposeCommand) => void;
-  /** Minimize and Maximize; only the desktop app's windows have them (default true). Close always shows. */
+  /** Minimize and Maximize; the compose window leaves them off (default true). Close always shows. */
   windowControls?: boolean;
 }
 
@@ -195,14 +195,13 @@ function SendLaterButton(props: ComposeToolbarProps) {
 }
 
 /** ComposeToolbar is the compose window's title bar: Send, the draft's
- * title in the drag region, its actions and the window controls. */
+ * title, its actions and the window controls. */
 export function ComposeToolbar(props: ComposeToolbarProps) {
   const title = props.subject.trim() === "" ? "New Message" : props.subject;
   return (
     <div
       role="toolbar"
       aria-label="Compose"
-      data-tauri-drag-region
       className="flex h-[52px] shrink-0 items-center gap-1 border-b border-separator bg-toolbar px-2"
     >
       <ComposeButton
@@ -215,9 +214,7 @@ export function ComposeToolbar(props: ComposeToolbarProps) {
         onCommand={props.onCommand}
       />
       <SendLaterButton {...props} />
-      <span data-tauri-drag-region className="min-w-0 flex-1 truncate px-2 text-toolbar-title">
-        {title}
-      </span>
+      <span className="min-w-0 flex-1 truncate px-2 text-toolbar-title">{title}</span>
       <SnippetsButton {...props} />
       <ComposeButton
         name="Attach Files"

@@ -1,25 +1,9 @@
 // Opening drafts in compose windows (docs/specs/compose-ui.md, Entry
-// points). In the app each draft gets its own Tauri window, labeled
-// compose-<id>, which learns its draft from an initialization script; in a
-// browser (the dev gateway) it opens in a new tab at #/compose/<id>.
-import { invoke, isTauri } from "@tauri-apps/api/core";
-
+// points). In lodge each is a route the frame shows; in a browser on the dev
+// gateway it opens in a new tab at #/compose/<id>.
 import { openFrameWindow } from "../lodge/frameWindow";
 import { type Client, type DraftCreateParams, type DraftKind, ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
-import { maildKey } from "../rpc/transport/tauri";
-
-declare global {
-  interface Window {
-    /** Set by the compose window's initialization script. */
-    __frostmailCompose?: number;
-    /** True when the draft was created for this window. */
-    __frostmailComposeFresh?: boolean;
-    /** The key of the maild that owns this window's draft, from the opener
-     *  (rpc/transport.ts): the window compares every connection with it. */
-    __frostmailMaild?: string;
-  }
-}
 
 /** ComposeTarget is the draft a compose window shows. */
 export interface ComposeTarget {
@@ -30,9 +14,6 @@ export interface ComposeTarget {
 
 /** composeTarget returns the draft this window composes, or null in the main window. */
 export function composeTarget(): ComposeTarget | null {
-  if (typeof window.__frostmailCompose === "number") {
-    return { draftId: window.__frostmailCompose, fresh: window.__frostmailComposeFresh === true };
-  }
   const m = /^#\/compose\/(\d+)(\?fresh)?$/.exec(window.location.hash);
   return m?.[1] ? { draftId: Number(m[1]), fresh: m[2] !== undefined } : null;
 }
@@ -40,12 +21,6 @@ export function composeTarget(): ComposeTarget | null {
 /** openCompose shows a draft in its compose window, focusing it when it is already open. */
 export async function openCompose(draftId: number, fresh = false): Promise<void> {
   if (openFrameWindow({ kind: "compose", draftId, fresh })) return;
-  if (isTauri()) {
-    // The window compares every connection with the maild that owns the
-    // draft, so it closes rather than open the id on another one.
-    await invoke("open_compose", { draftId, fresh, maild: maildKey() ?? null });
-    return;
-  }
   window.open(`${window.location.pathname}#/compose/${draftId}${fresh ? "?fresh" : ""}`, `compose-${draftId}`);
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/compose"
 	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/store"
@@ -54,7 +55,12 @@ func (a *actor) saveDrafts(ctx context.Context, cmd *imapx.Session) error {
 	if err != nil {
 		return err
 	}
-	saved := false
+	saved := 0
+	defer func() {
+		if saved > 0 {
+			a.record(activity.DraftSaved(a.acct.ID, saved))
+		}
+	}()
 	for _, d := range list {
 		if a.unsaved[d.ID].Equal(d.UpdatedAt) {
 			continue // refused before, unchanged since
@@ -90,7 +96,7 @@ func (a *actor) saveDrafts(ctx context.Context, cmd *imapx.Session) error {
 			}
 		}
 		delete(a.unsaved, d.ID)
-		saved = true
+		saved++
 		err = a.m.db.Tx(ctx, func(tx *store.Tx) error {
 			err := tx.SetDraftServerCopy(ctx, d.ID, uid, d.UpdatedAt)
 			if errors.Is(err, store.ErrNotFound) { // discarded while saving
@@ -108,7 +114,7 @@ func (a *actor) saveDrafts(ctx context.Context, cmd *imapx.Session) error {
 			return err
 		}
 	}
-	if !saved {
+	if saved == 0 {
 		return nil
 	}
 	if err := a.replay(ctx, cmd); err != nil { // the replaced copies

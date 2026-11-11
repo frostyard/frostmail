@@ -17,6 +17,7 @@ import (
 	"github.com/frostyard/std/problems"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/blob"
 	"github.com/frostyard/frostmail/internal/notify"
 	"github.com/frostyard/frostmail/internal/render"
@@ -69,6 +70,9 @@ type Config struct {
 	// a store write that applies the server's state fails (ADR-0049); nil
 	// records nothing.
 	Problems *problems.Recorder
+	// Activity, when set, records what sync does in the background
+	// (ADR-0055); nil records nothing.
+	Activity *activity.Hub
 }
 
 func (c Config) withDefaults() Config {
@@ -337,6 +341,9 @@ func (m *Manager) actor(id int64) *actor {
 	defer m.mu.Unlock()
 	return m.actors[id]
 }
+
+// record keeps an activity entry (ADR-0055).
+func (a *actor) record(e activity.Entry) { a.m.cfg.Activity.Record(e) }
 
 // progress publishes a transient sync.progress event.
 func (m *Manager) progress(s api.SyncStatus) {

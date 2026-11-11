@@ -158,6 +158,17 @@ func unavailable(e *imap.Error) bool {
 		strings.Contains(strings.ToLower(e.Text), "authenticated but not connected")
 }
 
+// ResponseCode returns the response code of the server's NO or BAD in err
+// ("" when it gave none), and whether err holds such a response at all. It
+// never returns the response's text (internal/activity, ADR-0055).
+func ResponseCode(err error) (string, bool) {
+	e, ok := errors.AsType[*imap.Error](err)
+	if !ok {
+		return "", false
+	}
+	return string(e.Code), true
+}
+
 // login signs in with LOGIN, or AUTHENTICATE XOAUTH2 for OAuth; a refused
 // token carries the server's failure details.
 func login(c *imapclient.Client, opts DialOptions) error {

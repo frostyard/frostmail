@@ -1,12 +1,7 @@
 // The settings window (docs/specs/settings-ui.md): the pane tabs and the
 // containers that connect the General, Accounts, Signatures, Snippets, Rules and Sign-In
-// panes to maild, and the Server pane to the shell, which stays usable while
-// the window has no maild (M6).
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ask } from "@tauri-apps/plugin-dialog";
-import { AtSign, KeyRound, ListFilter, PenLine, ScrollText, Server, Settings2, X } from "lucide-react";
+// panes to maild.
+import { AtSign, KeyRound, ListFilter, PenLine, ScrollText, Settings2, X } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { useClient } from "../data/session";
@@ -23,7 +18,6 @@ import { GeneralPane } from "../features/settings/GeneralPane";
 import { type IdentityChange, IdentityEditor } from "../features/settings/IdentityEditor";
 import { OAuthClientForm } from "../features/settings/OAuthClientForm";
 import { RulesPane } from "../features/settings/RulesPane";
-import { ServerPane, saveStatus } from "../features/settings/ServerPane";
 import { ServicesSection } from "../features/settings/ServicesSection";
 import { type SnippetChange, SnippetsPane } from "../features/settings/SnippetsPane";
 import { closeFrameWindow } from "../lodge/frameWindow";
@@ -44,7 +38,7 @@ import { ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 import { browserNotifications } from "./announce";
 import { openInBrowser } from "./settings";
-import { paneFrom, type SettingsPane, useSettingsPane } from "./settingsPane";
+import { type SettingsPane, useSettingsPane } from "./settingsPane";
 import { useSnippets } from "./useSnippets";
 
 const TABS: { pane: SettingsPane; label: string; icon: ReactNode }[] = [
@@ -54,48 +48,24 @@ const TABS: { pane: SettingsPane; label: string; icon: ReactNode }[] = [
   { pane: "snippets", label: "Snippets", icon: <ScrollText size={18} /> },
   { pane: "rules", label: "Rules", icon: <ListFilter size={18} /> },
   { pane: "signin", label: "Sign-In", icon: <KeyRound size={18} /> },
-  // Which maild the desktop app asks: not in a browser, which reaches the
-  // maild that served it.
-  ...(isTauri() ? [{ pane: "server" as const, label: "Server", icon: <Server size={18} /> }] : []),
 ];
 
-/** SettingsWindow is the settings window's content; offline, it is the window without a maild (M6). */
-export function SettingsWindow({ offline = false }: { offline?: boolean }) {
+/** SettingsWindow is the settings window's content. */
+export function SettingsWindow() {
   // The pane outlives the window's connection, so a reconnection keeps it.
   const pane = useSettingsPane((s) => s.pane);
   const setPane = useSettingsPane((s) => s.setPane);
   useEffect(() => {
     document.title = "Settings";
   }, []);
-  // An open settings window switches to the pane its opener names (M6).
-  useEffect(() => {
-    if (!isTauri()) return;
-    let stop: (() => void) | null = null;
-    let stopped = false;
-    void listen<string>("settings-pane", (event) => {
-      const next = paneFrom(event.payload);
-      if (next !== null) setPane(next);
-    }).then((unlisten) => {
-      if (stopped) unlisten();
-      else stop = unlisten;
-    });
-    return () => {
-      stopped = true;
-      stop?.();
-    };
-  }, [setPane]);
   const close = () => {
     if (closeFrameWindow()) return;
-    if (isTauri()) void getCurrentWindow().close();
-    else window.close();
+    window.close();
   };
   return (
     <div className="flex h-full flex-col bg-window text-primary">
-      <div
-        data-tauri-drag-region
-        className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar px-2"
-      >
-        <div data-tauri-drag-region className="flex-1" />
+      <div className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar px-2">
+        <div className="flex-1" />
         {TABS.map((t) => (
           <button
             key={t.pane}
@@ -110,7 +80,7 @@ export function SettingsWindow({ offline = false }: { offline?: boolean }) {
             {t.label}
           </button>
         ))}
-        <div data-tauri-drag-region className="flex-1" />
+        <div className="flex-1" />
         <button
           type="button"
           aria-label="Close"
@@ -121,9 +91,7 @@ export function SettingsWindow({ offline = false }: { offline?: boolean }) {
           <X size={16} />
         </button>
       </div>
-      <div className="min-h-0 flex-1">
-        <PaneContent pane={pane} offline={offline} />
-      </div>
+      <div className="min-h-0 flex-1">{PANES[pane]()}</div>
     </div>
   );
 }
@@ -136,26 +104,7 @@ const PANES: Record<SettingsPane, () => ReactNode> = {
   snippets: () => <SnippetsPaneContainer />,
   rules: () => <RulesPaneContainer />,
   signin: () => <SignInPane />,
-  server: () => <ServerPaneContainer />,
 };
-
-/**
- * PaneContent shows a pane. Without a maild only the Server pane works: it
- * asks the shell, not maild. Every other pane says what the main window says
- * while it has no connection (docs/specs/settings-ui.md, Window).
- */
-function PaneContent({ pane, offline }: { pane: SettingsPane; offline: boolean }) {
-  if (pane !== "server" && offline) return <OfflinePane />;
-  const Content = PANES[pane];
-  return <Content />;
-}
-
-/** OfflinePane is a pane without a maild: the main window's connecting text. */
-function OfflinePane() {
-  const connection = useMail((s) => s.connection);
-  const text = connection.state === "lost" ? `Reconnecting to maild… (${connection.reason})` : "Connecting to maild…";
-  return <div className="flex h-full items-center justify-center text-empty text-secondary">{text}</div>;
-}
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -283,10 +232,7 @@ function RulesPaneContainer() {
   const remove = (rule: Rule) =>
     change(async () => {
       const text = `Remove the rule "${rule.name}"?`;
-      const confirmed = isTauri()
-        ? await ask(text, { title: "Remove Rule?", kind: "warning", okLabel: "Remove" })
-        : window.confirm(text);
-      if (!confirmed) return false;
+      if (!window.confirm(text)) return false;
       await client.rule.delete({ id: rule.id });
     });
   return (
@@ -407,7 +353,7 @@ async function enableServices(client: Client, id: number, services: ServiceKind[
 
 async function confirmRemove(email: string): Promise<boolean> {
   const text = `Remove ${email}? Its mail is deleted from this computer, not from the server.`;
-  return isTauri() ? ask(text, { title: "Remove Account?", kind: "warning", okLabel: "Remove" }) : window.confirm(text);
+  return window.confirm(text);
 }
 
 // Keyed by the selected ID so requests and field state cannot follow the
@@ -730,10 +676,7 @@ function SnippetsPaneContainer() {
     if (!snippet) return;
     void run(async () => {
       const text = `Remove the snippet “${snippet.name}”?`;
-      const confirmed = isTauri()
-        ? await ask(text, { title: "Remove Snippet?", kind: "warning", okLabel: "Remove" })
-        : window.confirm(text);
-      if (!confirmed) return;
+      if (!window.confirm(text)) return;
       await client.snippet.delete({ id });
     });
   };
@@ -771,10 +714,7 @@ function SignaturesPane() {
     if (!identity || !account) return;
     void run(async () => {
       const text = `Remove ${identity.email}? Drafts from it will be sent from ${account.email}.`;
-      const confirmed = isTauri()
-        ? await ask(text, { title: "Remove Address?", kind: "warning", okLabel: "Remove" })
-        : window.confirm(text);
-      if (!confirmed) return;
+      if (!window.confirm(text)) return;
       await client.identity.delete({ id });
       await load();
     });
@@ -788,75 +728,6 @@ function SignaturesPane() {
       onSave={save}
       onAdd={add}
       onRemove={remove}
-    />
-  );
-}
-
-/** ServerFacts are the shell's local facts for the Server pane. */
-interface ServerFacts {
-  flatpak: boolean;
-  localData: boolean;
-}
-
-function ServerPaneContainer() {
-  // A change of mode ends this window's connection, so its progress, its
-  // error and the count of finished saves live in the store, and the pane
-  // remounts with them (M6).
-  const busy = useSettingsPane((s) => s.busy);
-  const status = useSettingsPane((s) => s.status);
-  const error = useSettingsPane((s) => s.error);
-  const saved = useSettingsPane((s) => s.saved);
-  const setBusy = useSettingsPane((s) => s.setBusy);
-  const setError = useSettingsPane((s) => s.setError);
-  const finishSave = useSettingsPane((s) => s.finishSave);
-  const [lodge, setLodge] = useState<string | null>(null);
-  const [facts, setFacts] = useState<ServerFacts>({ flatpak: false, localData: false });
-  // The stored choice, read again after each finished save, failed or not,
-  // by whichever container is mounted then: the shell runs the whole ordered
-  // change, and a failed stop writes the previous choice back.
-  useEffect(() => {
-    let active = true;
-    void Promise.all([invoke<{ lodge?: string }>("app_config_get"), invoke<ServerFacts>("server_facts")]).then(
-      ([config, found]) => {
-        if (!active) return;
-        setLodge(config.lodge ?? null);
-        setFacts(found);
-      },
-      (err: unknown) => {
-        // A finished save's own error says more than the read after it.
-        const shown = saved > 0 && useSettingsPane.getState().error !== null;
-        if (active && !shown) setError(message(err));
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [setError, saved]);
-  const save = (next: string | null) => {
-    void (async () => {
-      setBusy(true, saveStatus(facts.flatpak, lodge, next));
-      setError(null);
-      let failure: string | null = null;
-      try {
-        await invoke("app_config_set", { config: next === null ? {} : { lodge: next } });
-      } catch (err) {
-        failure = message(err);
-      }
-      finishSave(failure);
-    })();
-  };
-  return (
-    // Each finished save remounts the pane on the stored choice, which can
-    // equal what the pane read before the user changed it.
-    <ServerPane
-      key={saved}
-      lodge={lodge}
-      flatpak={facts.flatpak}
-      localData={facts.localData}
-      busy={busy}
-      status={status}
-      error={error}
-      onSave={save}
     />
   );
 }

@@ -2,9 +2,7 @@
 // People; ADR-0032): each module keeps its own list of the restores its
 // writes returned, newest last, and Ctrl+Z restores the newest. Writes in
 // another window (the event editor) announce their restores to the main
-// window: a Tauri event there, a BroadcastChannel message in a browser.
-import { isTauri } from "@tauri-apps/api/core";
-import { emitTo, listen } from "@tauri-apps/api/event";
+// window with a BroadcastChannel message.
 import { create } from "zustand";
 
 import { withNotify } from "../lib/notify";
@@ -65,10 +63,6 @@ export async function announceRestore(restore: PimRestore): Promise<void> {
     rememberRestore(restore);
     return;
   }
-  if (isTauri()) {
-    await emitTo("main", EVENT, restore);
-    return;
-  }
   const channel = new BroadcastChannel("frostmail");
   channel.postMessage({ kind: EVENT, ...restore });
   channel.close();
@@ -82,7 +76,6 @@ function isRestore(data: unknown): data is PimRestore {
 
 /** watchRestores keeps the restores other windows announce, in the main window; it returns the cleanup. */
 export function watchRestores(): () => void {
-  let stopped = false;
   const channel = new BroadcastChannel("frostmail");
   channel.onmessage = (event: MessageEvent<unknown>) => {
     if (event.origin !== "" && event.origin !== window.location.origin) return;
@@ -91,20 +84,5 @@ export function watchRestores(): () => void {
       rememberRestore({ module: data.module, restoreId: data.restoreId });
     }
   };
-  let stop: (() => void) | null = null;
-  if (isTauri()) {
-    void listen<unknown>(EVENT, (event) => {
-      if (isRestore(event.payload)) rememberRestore(event.payload);
-    })
-      .then((unlisten) => {
-        if (stopped) unlisten();
-        else stop = unlisten;
-      })
-      .catch((err: unknown) => console.warn("watch restores", err));
-  }
-  return () => {
-    stopped = true;
-    channel.close();
-    stop?.();
-  };
+  return () => channel.close();
 }

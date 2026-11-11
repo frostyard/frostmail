@@ -11,7 +11,7 @@ describe("frameDocument", () => {
     expect(doc).toContain("<body><p>x</p></body>");
   });
 
-  it("makes every link ask for a new window, which the app shell opens in the browser", () => {
+  it("makes every link ask for a new window", () => {
     expect(frameDocument('<a href="https://example.test">x</a>', false)).toContain('<base target="_blank">');
   });
 

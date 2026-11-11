@@ -89,7 +89,13 @@ func (d *Desktop) Close() error { return nil }
 // Announce shows the notes of one account's new mail (Notes). A group note
 // replaces the account's previous group note.
 func (d *Desktop) Announce(ctx context.Context, accountID int64, mail []Mail) error {
-	for _, n := range Notes(mail) {
+	return d.Show(ctx, accountID, Notes(mail))
+}
+
+// Show shows notes already written: the app's, for a maild behind lodge,
+// which sends them as message.announced.
+func (d *Desktop) Show(ctx context.Context, accountID int64, notes []Note) error {
+	for _, n := range notes {
 		tag := "m" + strconv.FormatInt(n.MessageID, 10)
 		if n.MessageID == 0 {
 			tag = "a" + strconv.FormatInt(accountID, 10)

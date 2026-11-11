@@ -36,7 +36,6 @@ func defaultCacheDir(getenv func(string) string) (string, error) {
 // shares $XDG_RUNTIME_DIR/app/<id> between every sandbox of the app, and the
 // rest of $XDG_RUNTIME_DIR is private to each sandbox, so the window, maild
 // and mailctl meet only there (docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
-// app/src-tauri/src/paths.rs must stay in step with this function.
 func DefaultSocket(getenv func(string) string) (string, error) {
 	run := getenv("XDG_RUNTIME_DIR")
 	if !filepath.IsAbs(run) {
@@ -51,7 +50,6 @@ func DefaultSocket(getenv func(string) string) (string, error) {
 // AppConfigFile is the app's own configuration, app.json:
 // $XDG_CONFIG_HOME/frostmail/app.json, under HOME/.config without it. In
 // the Flatpak that is ~/.var/app/org.frostyard.Frostmail/config/frostmail.
-// app/src-tauri/src/paths.rs (config_dir) must stay in step with it.
 func AppConfigFile(getenv func(string) string) (string, error) {
 	dir, err := xdg(getenv, "XDG_CONFIG_HOME", ".config")
 	return filepath.Join(dir, "frostmail", "app.json"), err

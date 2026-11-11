@@ -9,7 +9,7 @@ import (
 )
 
 // localAppData is %LOCALAPPDATA%\Frostmail, where the app is installed
-// (Tauri's per-user default), with maild's data in its Data folder and
+// (the old installer's folder), with maild's data in its Data folder and
 // parts in its Cache folder. Local app data does not roam, so SQLite stays
 // on a local disk (ADR-0038).
 func localAppData(getenv func(string) string) (string, error) {
@@ -41,7 +41,7 @@ func DefaultSocket(func(string) string) (string, error) {
 }
 
 // AppConfigFile is the app's own configuration, app.json:
-// %APPDATA%\Frostmail\app.json (app/src-tauri/src/paths.rs, config_dir).
+// %APPDATA%\Frostmail\app.json.
 func AppConfigFile(getenv func(string) string) (string, error) {
 	dir := getenv("APPDATA")
 	if !filepath.IsAbs(dir) {

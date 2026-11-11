@@ -1,16 +1,14 @@
 #!/bin/sh
 # Stamps a release version into the Flatpak's build files, on a v* tag run.
 #
-# The Flatpak's maild and mailctl report the version they were built with:
-# `maild -version` prints it, so a copy installed from the OCI image names the
-# release it holds. Software centres show the metainfo's newest release, which
-# is how the release reaches a user's installed app. So the tag's version goes
+# The Flatpak's app, maild and mailctl report the version they were built
+# with: `maild -version` prints it, so a copy installed from the OCI image
+# names the release it holds, and the app's problem records carry it
+# (ADR-0049). Software centres show the metainfo's newest release, which is
+# how the release reaches a user's installed app. So the tag's version goes
 # into the ldflags of the manifest, and with the UTC date into the metainfo's
-# <releases>. The app's shell (Tauri) reports the "version" of its
-# tauri.conf.json, which its problem records carry (ADR-0049), so the
-# version goes there too; Cargo.toml keeps 0.0.0, so that Cargo.lock does not
-# change. The committed files keep "flatpak" and 0.0.0: a build of main
-# names itself flatpak, its shell records no problems, and no release is
+# <releases>. The committed files keep "flatpak" and 0.0.0: a build of main
+# names itself flatpak, its app records no problems, and no release is
 # listed before one exists.
 #
 # Frostmail releases by promotion (plan 0013, Phase 10): a candidate tag
@@ -18,19 +16,16 @@
 # workflow passes X.Y.Z, never the -rc.N part, and the date is the UTC date of
 # the candidate's build.
 #
-# Usage: stamp-version.sh VERSION COMMIT [DIR [TAURI_CONF]]
+# Usage: stamp-version.sh VERSION COMMIT [DIR]
 #   VERSION     the tag without its v and its -rc.N, as MAJOR.MINOR.PATCH (0.4.1)
 #   COMMIT      the tag's commit, 7 to 40 lowercase hex digits
 #   DIR         holds org.frostyard.Frostmail.json and
 #               org.frostyard.Frostmail.metainfo.xml; the script's own
 #               directory when omitted.
-#   TAURI_CONF  the app's tauri.conf.json; app/src-tauri/tauri.conf.json of
-#               the script's checkout when omitted.
 #
 # The files are edited in place, and the script stops at the first doubt: a
-# version it has already stamped, a manifest without the text it replaces, a
-# metainfo without exactly one <releases>, or a tauri.conf.json without
-# exactly one "version": "0.0.0".
+# version it has already stamped, a manifest without the text it replaces, or
+# a metainfo without exactly one <releases>.
 set -eu
 
 die() {
@@ -38,12 +33,11 @@ die() {
 	exit 1
 }
 
-[ "$#" -ge 2 ] && [ "$#" -le 4 ] || die 'usage: stamp-version.sh VERSION COMMIT [DIR [TAURI_CONF]]'
+[ "$#" -ge 2 ] && [ "$#" -le 3 ] || die 'usage: stamp-version.sh VERSION COMMIT [DIR]'
 
 version=$1
 commit=$2
 dir=${3:-$(dirname "$0")}
-tauri=${4:-$(dirname "$0")/../../app/src-tauri/tauri.conf.json}
 
 printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' ||
 	die "version '$version' is not MAJOR.MINOR.PATCH"
@@ -54,7 +48,6 @@ manifest=$dir/org.frostyard.Frostmail.json
 metainfo=$dir/org.frostyard.Frostmail.metainfo.xml
 [ -f "$manifest" ] || die "no manifest at $manifest"
 [ -f "$metainfo" ] || die "no metainfo at $metainfo"
-[ -f "$tauri" ] || die "no tauri.conf.json at $tauri"
 
 # Every check comes before the first edit, so a run refused by a check changes
 # nothing. A failure during the edits (an I/O error) can leave the manifest
@@ -69,11 +62,8 @@ found=$(grep -oF '<releases>' "$metainfo" | wc -l)
 if grep -Fq "version=\"$version\"" "$metainfo"; then
 	die "$metainfo already lists version $version"
 fi
-tauri_old='"version": "0.0.0"'
-found=$(grep -oF -- "$tauri_old" "$tauri" | wc -l)
-[ "$found" -eq 1 ] || die "$tauri holds '$tauri_old' $found times, want exactly once"
 
-# The manifest: name the version and the commit in maild's ldflags, replacing
+# The manifest: name the version and the commit in the build's ldflags, replacing
 # the word that a main build reports.
 sed -i "s/-X main\.version=flatpak/-X main.version=$version -X main.commit=$commit/" "$manifest"
 grep -Fq -- "$new" "$manifest" || die "$manifest did not take the stamp"
@@ -96,10 +86,4 @@ sed -i "/<releases>/a\\
 $indent$release" "$metainfo"
 grep -Fq -- "$release" "$metainfo" || die "$metainfo did not take the release"
 
-# tauri.conf.json: the shell's version, which Tauri's package_info gives the
-# shell's problem records.
-tauri_new="\"version\": \"$version\""
-sed -i "s/\"version\": \"0\.0\.0\"/$tauri_new/" "$tauri"
-grep -Fq -- "$tauri_new" "$tauri" || die "$tauri did not take the version"
-
-printf 'stamped %s (%s) into %s and %s\n' "$version" "$commit" "$dir" "$tauri"
+printf 'stamped %s (%s) into %s\n' "$version" "$commit" "$dir"

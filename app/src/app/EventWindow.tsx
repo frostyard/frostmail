@@ -1,6 +1,4 @@
 // One event's draft and the requests that save it (docs/specs/pim-ui.md).
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -70,8 +68,7 @@ function message(error: unknown): string {
 
 function closeWindow(): void {
   if (closeFrameWindow()) return;
-  if (isTauri()) void getCurrentWindow().close();
-  else window.close();
+  window.close();
 }
 
 /** EventWindow loads and edits its target's event. */
@@ -113,14 +110,11 @@ export function EventWindow({ target }: { target: EditorTarget }) {
 function TitleStrip({ title, onClose, busy }: { title: string; onClose: () => void; busy?: boolean }) {
   // Keep the window title in sync with the editor before the updated form is visible.
   useLayoutEffect(() => {
-    if (isTauri()) void getCurrentWindow().setTitle(title);
-    else document.title = title;
+    document.title = title;
   }, [title]);
   return (
-    <div data-tauri-drag-region className="flex h-8 shrink-0 items-center gap-2 border-b border-separator px-3">
-      <span data-tauri-drag-region className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-        {title}
-      </span>
+    <div className="flex h-8 shrink-0 items-center gap-2 border-b border-separator px-3">
+      <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{title}</span>
       <button
         type="button"
         aria-label="Close"

@@ -1,7 +1,5 @@
 // The toolbar, fed by the stores and the list (docs/specs/ui.md, Toolbar).
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { type Ref, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type Ref, type RefObject, useCallback, useMemo, useRef } from "react";
 
 import { useClient } from "../data/session";
 import { listQuery, sourceTitle, useMail, useUI } from "../data/stores";
@@ -46,19 +44,6 @@ interface ToolbarContainerProps {
   narrow?: ToolbarNarrow;
   /** "bar" is the narrow window's message bar at the foot of Mail, in place of the toolbar. */
   part?: "toolbar" | "bar";
-}
-
-function useMaximized() {
-  const [maximized, setMaximized] = useState(false);
-  useEffect(() => {
-    if (!isTauri()) return;
-    const win = getCurrentWindow();
-    const update = () => void win.isMaximized().then(setMaximized);
-    update();
-    const off = win.onResized(update);
-    return () => void off.then((stop) => stop());
-  }, []);
-  return maximized;
 }
 
 function mailTitle(model: ViewModel | null) {
@@ -141,15 +126,6 @@ function windowCommand(command: ToolbarCommand, active: Element | null | undefin
       break;
     case "settings":
       void openSettings().catch((err: unknown) => console.warn("settings", err));
-      break;
-    case "minimize":
-      if (isTauri()) void getCurrentWindow().minimize();
-      break;
-    case "toggleMaximize":
-      if (isTauri()) void getCurrentWindow().toggleMaximize();
-      break;
-    case "close":
-      if (isTauri()) void getCurrentWindow().close();
       break;
     default:
       return false;
@@ -266,7 +242,6 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
   const flagNames = useMail((s) => s.settings?.flagNames);
   const data = useToolbarData(props.model, props.people);
   const frame = useCalendarFrame();
-  const maximized = useMaximized();
   const pressedActive = useRef<Element | null | undefined>(undefined);
   const onCommand = useToolbarCommand(props, pressedActive);
   const capture: Pick<Parameters<typeof Toolbar>[0], "onPointerDownCapture" | "onKeyDownCapture"> = {
@@ -293,7 +268,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
     <Toolbar
       {...capture}
       narrow={props.narrow}
-      windowControls={isTauri()}
+      windowControls={false}
       palette={IN_LODGE}
       mode={ui.module}
       people={{ canCreate: Boolean(props.people?.writableBooks.length) && ui.peopleEditing === null }}
@@ -331,7 +306,7 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
       flagNames={flagNames}
       canArchive={data.archive !== undefined}
       moveTargets={data.moveTargets}
-      maximized={maximized}
+      maximized={false}
       onCommand={onCommand}
       search={<ToolbarSearch searchRef={props.searchRef} />}
     />

@@ -9,11 +9,11 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 ## Architecture
 
 ```
- Tauri app (WebKitGTK)            mailctl (Go CLI)
- React UI ── Client (gen/api.ts)  Client (api)
-     │ lines over Tauri IPC            │
- Rust bridge (bridge.rs) ──────┐       │
- mailpart:// (protocol.rs)     │       │
+ Native app (MyGo, frostui)       mailctl (Go CLI)
+ Client (api)                     Client (api)
+     │                                 │
+ internal/desktop/conn ────────┐       │
+ reader pages (uikit)          │       │
      ▲ files                   ▼       ▼
      │               $XDG_RUNTIME_DIR/frostmail/maild.sock
      │                 JSON-RPC 2.0, one message per line
@@ -56,9 +56,9 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
   unread keeps rows that are read while it is open (`ViewFilter.Keep`), so
   a message read in an Unread list stays until the view is reopened.
   Request handlers reach their connection through `api.ConnFrom(ctx)`.
-- **The app** keeps all mail logic out of Rust: `bridge.rs` moves lines and
-  `transport.ts` matches responses to calls. The `mailpart://` scheme serves
-  decoded parts from maild's cache so large data never travels as JSON
+- **The app** keeps all mail logic in maild: `internal/desktop/conn` and
+  `api.Client` carry the calls, and the reader shows decoded parts from
+  maild's cache, so large data never travels as JSON
   ([ADR-0005](../adr/0005-html-mail-rendering.md)). The UI lists messages
   only through views and renders mail that maild has sanitized
   ([design/app.md](app.md), [design/rendering.md](rendering.md)).
@@ -106,7 +106,7 @@ may open, and runs as the system user `frostmail`.
   maild, mailctl and the shell record panics and a few coded errors with
   frostyard/std, under `org.frostyard.Frostmail`. maild's recorder comes from
   `internal/problemrec` and reaches mailsync (`Config.Problems`) and the
-  renderer (`Renderer.Problems`); the shell's is `src/problems.rs`. A code
+  renderer (`Renderer.Problems`); the app's is in `cmd/frostmail`. A code
   names the failure; the error text stays in the record's local `MESSAGE`.
 
 ## Configuration
@@ -118,6 +118,7 @@ may open, and runs as the system user `frostmail`.
 | `FROSTMAIL_SOCKET` | `$XDG_RUNTIME_DIR/frostmail/maild.sock`; Windows: `\\.\pipe\frostmail-<user SID>` | maild, mailctl, the app |
 | `FROSTMAIL_SECRETS=file` | unset | maild: keep secrets in a plain file, not the Secret Service or DPAPI (development, CI), with a warning |
 | `FROSTMAIL_SECRETS=sealed` | unset | maild on a server: seal the secrets in `secrets.sealed` with the key of the systemd credential `frostmail-secrets-key`, never a fallback (Linux only; [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)) |
+| `FROSTMAIL_INSTANCE=dev` | unset | the desktop app: a single-instance identity of its own, so a development run (`scripts/dev-app.sh`) never hands its arguments to the installed app |
 | `FROSTMAIL_NOTIFIER` | `frostmail-notify.exe` beside maild | maild on Windows: the toast notifier ([desktop.md](desktop.md#windows)) |
 | `FROSTMAIL_APP` | `frostmail` on `PATH`; Windows: `frostmail.exe` beside the notifier | maild on Linux, the notifier on Windows: the app a notification's click runs |
 | `FROSTMAIL_WEBKIT_SAFE=1` | unset | the app: WebKitGTK CPU-rendering workarounds |
@@ -127,8 +128,7 @@ may open, and runs as the system user `frostmail`.
 | `FROSTMAIL_IT_HOST` | set by `make engine-it` | integration tests |
 | `FROSTMAIL_EXECUTOR_MODEL` | `EXECUTOR_MODEL` in the Makefile | `taskrun` |
 
-`internal/config` and `app/src-tauri/src/paths.rs` resolve the same paths
-and must agree (the app's Windows paths come in plan 0010's Phase 5). The
+`internal/config` resolves the paths for maild, mailctl and the app. The
 socket directory must be private (0700, owned by the user); the socket is
 0600. On Windows the named pipe's DACL grants only the user
 ([rpc-protocol.md](../specs/rpc-protocol.md#transport)).

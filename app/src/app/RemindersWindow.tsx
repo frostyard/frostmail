@@ -1,6 +1,4 @@
 // The reminder window's container (docs/specs/pim-ui.md, Reminder window).
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useClient } from "../data/session";
 import { ReminderPanel } from "../features/calendar/ReminderPanel";
@@ -12,11 +10,7 @@ import { useCalendarColors, useCalendarFrame } from "./useCalendar";
 
 function closeWindow() {
   if (closeFrameWindow()) return;
-  if (isTauri())
-    void getCurrentWindow()
-      .close()
-      .catch((err: unknown) => console.warn("close reminders", err));
-  else window.close();
+  window.close();
 }
 
 function useReminders() {

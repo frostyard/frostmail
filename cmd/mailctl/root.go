@@ -43,6 +43,7 @@ func newRootCmd() *cobra.Command {
 		newCalCmd(opts),
 		newTasksCmd(opts),
 		newWaitingCmd(opts),
+		newActivityCmd(opts),
 		newRulesCmd(opts),
 		newExportCmd(opts),
 		newImportCmd(opts),

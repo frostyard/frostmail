@@ -2,10 +2,10 @@
 
 Frostmail is a Linux mail client that works like Apple Mail.app without
 looking like a GNOME or KDE app. A headless Go daemon, `maild`, owns sync,
-storage and the RPC socket. A Tauri v2 app with a React UI and `mailctl`, a
+storage and the RPC socket. A native Go app on MyGo and frostui and `mailctl`, a
 CLI, are clients of that socket. maild also runs as the `mail` app of
 [lodge](https://github.com/frostyard/lodge), frostyard's tailnet web shell,
-where the same UI runs in a browser. Start at [docs/README.md](docs/README.md);
+where a React web app runs in a browser. Start at [docs/README.md](docs/README.md);
 the architecture entry point is
 [docs/design/overview.md](docs/design/overview.md).
 
@@ -69,6 +69,18 @@ attachment reminder (#160), Phase 3, snippets (#161), and Phase 4, erasing
 old Trash and Junk (#162), are built; #163 to #166 are its backlog. nexmail is AGPL-3.0:
 take its ideas only, never its code.
 
+Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
+[ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
+(Proposed, 2026-11-10) replace the old shell with a native Go app on MyGo
+and frostui; the React app stays as lodge's web app.
+[ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
+(Proposed) adds maild's activity stream for the app's console; its maild
+side is built (`mailctl activity`). `cmd/frostmail` draws every window on
+Linux on frostui v0.2.0 (`internal/desktop/`: `mainwin`, `compose`, `organize`,
+`pim`, `settings`), and the Flatpak, the Windows installer and CI build it.
+Tauri's shell is gone; plan 0015 has each phase's status, and the parity gate
+waits on the owner's checks on real desktops.
+
 ## Two kinds of agent work
 
 - **Planning and core work** (architecture, contracts, the sync engine,
@@ -90,7 +102,10 @@ take its ideas only, never its code.
 - `internal/store`: SQLite (modernc, pure Go): migrations, the single-writer
   `Tx`, the durable `changes` log, queries.
 - `internal/events`: fans committed events out to subscribers and replays
-  the log. `internal/rpcserver`: the socket server, on the kit's
+  the log. `internal/activity`: what maild does in the background, as
+  typed entries with no text ([ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)):
+  the only package that makes an `api.ActivityEntry`; `Classify` reads an
+  error's type, never its text; clients write lines with `Line`. `internal/rpcserver`: the socket server, on the kit's
   JSON-RPC server, with its private socket (the kit's on Linux, a named pipe
   on Windows). `internal/engine`: the API
   domains over the store. `internal/rpctest`: a real server for tests.
@@ -111,28 +126,28 @@ take its ideas only, never its code.
   `problems`; the version rule); `cmd/maild` records `store.migrate_failed`,
   `secrets.unseal_failed` and crashes (`CrashOutput`), `internal/mailsync`
   `sync.apply_failed` (`apply.go`), `internal/render` `mime.parse_failed`;
-  `app/src-tauri/src/problems.rs` is the shell's (`bridge.socket_lost` in
-  `bridge.rs`). Tests read records from a test socket
-  (`internal/problemstest`; `problems::testing` in Rust).
+  `cmd/frostmail` is the app's (`bridge.socket_lost`). Tests read records from
+  a test socket (`internal/problemstest`).
 - `internal/compose`: outgoing mail (reply rules, the message builder).
   `internal/smtpx`: the only package that imports go-smtp.
-- `app/`: Tauri v2 + React + TypeScript. `app/src-tauri/src/bridge.rs` only
-  moves lines, to the local socket or, in remote mode, to lodge
-  (`remote.rs`); JSON-RPC multiplexing is in `app/src/rpc/transport.ts`.
-  `app/src/rpc/gen/api.ts` is generated. `app/src/lodge/` runs the UI in
-  lodge's frame (routes, windows as routes), over
-  `app/src/rpc/transport/lodge.ts`.
+- `cmd/frostmail` and `internal/desktop/`: the desktop app, native on MyGo
+  and frostui. `internal/desktop/e2e` drives it in real windows.
+- `app/`: the React web app that lodge serves. `app/src/rpc/gen/api.ts` is
+  generated; `app/src/lodge/` runs the UI in lodge's frame (routes, windows as
+  routes), over `app/src/rpc/transport/lodge.ts`. `app/notify` is the Windows
+  toast notifier (Rust).
 - `packaging/flatpak`: the app's Flatpak manifest, its metainfo and desktop
-  entry, and the offline `cargo-sources.json`, `node-sources.json` and
-  `go-sources.json` (`make flatpak-sources`; [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
+  entry, and the offline `go-sources.json` (`make flatpak-sources`;
+  [ADR-0045](docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md)).
   The Flatpak holds the app, maild and mailctl (`/app/bin`, built from
   `go-sources.json`), the launcher `frostmail.sh`, the Background helper and
   a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
   CI builds it in `.github/workflows/flatpak.yml`; on a `v*` tag,
   `stamp-version.sh` first stamps the version (without `-rc.N`) into the
-  manifest, the metainfo and `app/src-tauri/tauri.conf.json` (the shell's
-  version, ADR-0049), which keep `flatpak` and 0.0.0 in git. `install.sh` is the
-  wrapper for the development bundle, with a host maild.
+  manifest and the metainfo, which keep `flatpak` and 0.0.0 in git. `install.sh`
+  is the wrapper for the development bundle, with a host maild.
+- `packaging/windows/installer.nsh` and `mygo.json`: MyGo's Windows installer
+  (`make desktop-installer`). `packaging/icons`: the app's icons.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
@@ -147,13 +162,13 @@ take its ideas only, never its code.
   gofmt, the pinned golangci-lint (`mise install`), unit tests, and the fork's
   tests. Run it before claiming any Go change is complete.
 - `make engine-it` runs integration tests against the Dovecot container
-  (resetting it first). `make ui-test` and `make app-build` run in the nsl
-  machine. `make ci` is verify plus race tests and the app checks.
-- `make flatpak-sources` regenerates the 3 sources files of the Flatpak. Run
-  it after any change to `app/src-tauri/Cargo.lock`, `app/pnpm-lock.yaml`,
-  `go.mod` or `go.sum`, in the nsl machine (it needs Python 3 with venv and
-  Go, not Node or Rust); CI's job
+  (resetting it first). `make ui-test` runs in the nsl machine. `make ci` is verify plus race tests and the app checks.
+- `make flatpak-sources` regenerates the Flatpak's `go-sources.json`. Run it
+  after any change to `go.mod` or `go.sum`; CI's job
   "Flatpak sources (make flatpak-sources)" fails on a stale file.
+- `make desktop-e2e` drives the built app in real windows on fixture mail
+  (`internal/desktop/e2e`, `-tags e2e`; it needs a display: Xvfb with xdotool,
+  or Windows' desktop).
 - `make vulncheck` runs govulncheck (pinned in the Makefile; needs the
   network). It is not part of `check`, `verify` or `ci`; the CI job
   "Vulnerabilities (make vulncheck)" runs it. Keep it at 0 reachable findings.
@@ -181,15 +196,11 @@ take its ideas only, never its code.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
   `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.4.0 (direct:
   `problems`; clix needs it too).
-- Internal Rust crate (`app/src-tauri/Cargo.toml`): `frostyard-problems`, a cargo git
-  dependency on std's tag `v0.5.0` (the crate in std's `rust/`, not on crates.io);
-  `Cargo.lock` and `packaging/flatpak/cargo-sources.json` pin its commit.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
-- The generated Flatpak sources (`packaging/flatpak/go-sources.json` and
-  `node-sources.json`, from `make flatpak-sources`) mirror the Go and UI versions above,
-  and `cargo-sources.json` the Rust crate's tag; they change with every bump. Run
-  `make flatpak-sources` after a change to `go.mod`, `go.sum` or `Cargo.lock`.
+- The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
+  the Go versions above; it changes with every bump. Run `make flatpak-sources`
+  after a change to `go.mod` or `go.sum`.
   `mise.toml`, the other `packaging/` files, the workflows and `scripts/` pin no
   frostyard or bketelsen module.
 - Users: lodge hosts maild as its `mail` app, and Porter calls `/mcp/mail`. Other users:
@@ -210,12 +221,10 @@ take its ideas only, never its code.
   within protocol 1 are additive only. Quote doc strings inside inline YAML
   `{...}` mappings.
 - The app never fetches remote content. In the desktop app, message HTML is
-  rendered only in a `srcdoc` iframe with
-  `sandbox="allow-same-origin allow-popups"` (never `allow-scripts`) under
-  the CSP in `app/src-tauri/tauri.conf.json`
-  ([ADR-0005](docs/adr/0005-html-mail-rendering.md)). Its links open in the
-  system browser through the shell's new-window handler, which never makes a
-  window ([ADR-0036](docs/adr/0036-reader-links-open-as-new-window-requests.md)).
+  shown only in a page with no script, under a CSP and the engine's content
+  rules (`internal/desktop/uikit`, [ADR-0005](docs/adr/0005-html-mail-rendering.md),
+  [ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)).
+  Its links open in the system browser, and never make a window.
   In lodge's web build, the reader frame loads the page from lodge's content
   origin instead, under its sandbox policy, which allows no script and no
   same-origin access ([specs/lodge-app.md](docs/specs/lodge-app.md)).
@@ -248,10 +257,9 @@ The repository follows core's baseline (frostyard/core ADR-0071, its spec
   `app/package.json`, each `Cargo.toml`). A new manifest gets an entry.
   Groups take only minor and patch updates; a major comes as its own PR.
   Each cargo git crate of frostyard or bketelsen has an `ignore` entry
-  (Dependabot cannot resolve it; internal bumps go by hand). A gomod, npm
-  or `app/src-tauri` cargo PR fails the Flatpak sources check until the
-  owner runs `make flatpak-sources` (nsl) on its branch and pushes the
-  result during triage.
+  (Dependabot cannot resolve it; internal bumps go by hand). A gomod PR
+  fails the Flatpak sources check until the owner runs
+  `make flatpak-sources` on its branch and pushes the result during triage.
 
 `.github/pull_request_template.md` (B7) holds the risk tier. Vulnerabilities
 are reported privately ([SECURITY.md](SECURITY.md), B14). No `CODEOWNERS`

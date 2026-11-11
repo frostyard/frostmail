@@ -96,8 +96,6 @@ type Params = Record<string, unknown>;
 export class MockTransport implements Transport {
   /** Every call, for assertions. */
   readonly calls: { method: string; params: unknown }[] = [];
-  /** The maild this mock stands for, for a test that switches connections. */
-  maild?: string;
   private readonly messages = new Map<number, MockMessage>();
   private readonly mailboxes: MockMailbox[];
   private readonly accounts: Account[];

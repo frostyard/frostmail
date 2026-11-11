@@ -3,11 +3,6 @@
   "runtime": "org.gnome.Platform",
   "runtime-version": "51",
   "sdk": "org.gnome.Sdk",
-  "sdk-extensions": [
-    "org.freedesktop.Sdk.Extension.golang",
-    "org.freedesktop.Sdk.Extension.node24",
-    "org.freedesktop.Sdk.Extension.rust-stable"
-  ],
   "command": "frostmail",
   "finish-args": [
     "--socket=wayland",
@@ -21,27 +16,43 @@
   ],
   "modules": [
     {
-      "name": "maild",
+      "name": "frostmail",
       "buildsystem": "simple",
       "build-options": {
-        "append-path": "/usr/lib/sdk/golang/bin",
+        "append-path": "/run/build/frostmail/go-sdk/bin",
         "env": {
-          "GOPROXY": "file:///run/build/maild/goproxy",
+          "GOPROXY": "file:///run/build/frostmail/goproxy",
           "GOSUMDB": "off",
           "GOTOOLCHAIN": "local",
           "GOFLAGS": "-trimpath -buildvcs=false -modcacherw",
-          "GOMODCACHE": "/run/build/maild/.gomodcache",
-          "GOCACHE": "/run/build/maild/.gocache",
+          "GOMODCACHE": "/run/build/frostmail/.gomodcache",
+          "GOCACHE": "/run/build/frostmail/.gocache",
           "CGO_ENABLED": "0"
         }
       },
       "build-commands": [
-        "go build -ldflags '-s -w -X main.version=flatpak' -o build/ ./cmd/maild ./cmd/mailctl",
-        "install -Dm755 -t /app/bin build/maild build/mailctl"
+        "go build -tags mygo_noinspector -ldflags '-s -w -X main.version=flatpak -X github.com/egoist/mygo.production=1' -o build/ ./cmd/frostmail ./cmd/maild ./cmd/mailctl",
+        "install -Dm755 -t /app/bin build/maild build/mailctl",
+        "install -Dm755 build/frostmail /app/libexec/frostmail-app",
+        "install -Dm755 packaging/flatpak/frostmail.sh /app/bin/frostmail",
+        "install -Dm755 packaging/flatpak/request-background.py /app/libexec/frostmail-request-background",
+        "install -Dm755 packaging/flatpak/open.sh /app/libexec/frostmail-open",
+        "install -Dm644 packaging/flatpak/org.frostyard.Frostmail.desktop -t /app/share/applications",
+        "install -Dm644 packaging/flatpak/org.frostyard.Frostmail.metainfo.xml -t /app/share/metainfo",
+        "install -Dm644 packaging/icons/icon.svg /app/share/icons/hicolor/scalable/apps/org.frostyard.Frostmail.svg",
+        "install -Dm644 packaging/icons/128x128.png /app/share/icons/hicolor/128x128/apps/org.frostyard.Frostmail.png",
+        "install -Dm644 packaging/icons/icon.png /app/share/icons/hicolor/512x512/apps/org.frostyard.Frostmail.png"
       ],
       "test-commands": [
         "/app/bin/maild -version",
-        "/app/bin/mailctl --help"
+        "/app/bin/mailctl --help",
+        "desktop-file-validate /app/share/applications/org.frostyard.Frostmail.desktop",
+        "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",
+        "python3 -c \"import ctypes; [ctypes.CDLL(n) for n in ('libgtk-3.so.0', 'libwebkit2gtk-4.1.so.0', 'libjavascriptcoregtk-4.1.so.0', 'libsoup-3.0.so.0')]\"",
+        "python3 -m py_compile packaging/flatpak/request-background.py",
+        "sh -n packaging/flatpak/open.sh",
+        "python3 -c \"from gi.repository import Gio, GLib\"",
+        "sh packaging/flatpak/smoke-test.sh"
       ],
       "sources": [
         {
@@ -60,101 +71,16 @@
             "repo"
           ]
         },
-        "go-sources.json"
-      ]
-    },
-    {
-      "name": "frostmail",
-      "buildsystem": "simple",
-      "build-options": {
-        "append-path": "/usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin",
-        "env": {
-          "CARGO_HOME": "/run/build/frostmail/cargo",
-          "CARGO_NET_OFFLINE": "true",
-          "XDG_CACHE_HOME": "/run/build/frostmail/flatpak-node/cache",
-          "CI": "true"
-        }
-      },
-      "build-commands": [
-        "export PATH=\"$PWD/pnpm-bin:$PATH\" && pnpm install --offline --frozen-lockfile --trust-lockfile",
-        "export PATH=\"$PWD/pnpm-bin:$PATH\" && pnpm tauri build",
-        "install -Dm755 src-tauri/target/release/frostmail /app/libexec/frostmail-app",
-        "install -Dm755 flatpak/frostmail.sh /app/bin/frostmail",
-        "install -Dm755 flatpak/request-background.py /app/libexec/frostmail-request-background",
-        "install -Dm755 flatpak/open.sh /app/libexec/frostmail-open",
-        "install -Dm644 flatpak/org.frostyard.Frostmail.desktop -t /app/share/applications",
-        "install -Dm644 flatpak/org.frostyard.Frostmail.metainfo.xml -t /app/share/metainfo",
-        "install -Dm644 src-tauri/icons/icon.svg /app/share/icons/hicolor/scalable/apps/org.frostyard.Frostmail.svg",
-        "install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/org.frostyard.Frostmail.png",
-        "install -Dm644 src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/org.frostyard.Frostmail.png"
-      ],
-      "test-commands": [
-        "cd src-tauri && if command -v dbus-run-session >/dev/null; then dbus-run-session -- cargo test --release --offline; else env -u DBUS_SESSION_BUS_ADDRESS cargo test --release --offline; fi",
-        "desktop-file-validate /app/share/applications/org.frostyard.Frostmail.desktop",
-        "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",
-        "libs=$(ldd /app/libexec/frostmail-app) && ! printf '%s\\n' \"$libs\" | grep 'not found'",
-        "python3 -m py_compile flatpak/request-background.py",
-        "sh -n flatpak/open.sh",
-        "python3 -c \"from gi.repository import Gio, GLib\"",
-        "sh flatpak/smoke-test.sh"
-      ],
-      "sources": [
-        {
-          "type": "dir",
-          "path": "../../app",
-          "skip": [
-            "node_modules",
-            "dist",
-            "src-tauri/target"
-          ]
-        },
-        {
-          "type": "file",
-          "path": "frostmail.sh",
-          "dest": "flatpak"
-        },
-        {
-          "type": "file",
-          "path": "request-background.py",
-          "dest": "flatpak"
-        },
-        {
-          "type": "file",
-          "path": "open.sh",
-          "dest": "flatpak"
-        },
-        {
-          "type": "file",
-          "path": "smoke-test.sh",
-          "dest": "flatpak"
-        },
-        {
-          "type": "file",
-          "path": "org.frostyard.Frostmail.desktop",
-          "dest": "flatpak"
-        },
-        {
-          "type": "file",
-          "path": "org.frostyard.Frostmail.metainfo.xml",
-          "dest": "flatpak"
-        },
         {
           "type": "archive",
-          "url": "https://registry.npmjs.org/@pnpm/exe.linux-x64/-/exe.linux-x64-12.10.1.tgz",
-          "sha512": "641c95d034605b319a0d28d3e5d75104049dc33fabfea3cc621ee8e911a63d08ed4463456d297de316360dc00cf26a82399254503b405d0fb0a415dc7692a592",
-          "dest": "pnpm-bin",
+          "url": "https://dl.google.com/go/go1.27.4.linux-amd64.tar.gz",
+          "sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
+          "dest": "go-sdk",
           "only-arches": [
             "x86_64"
           ]
         },
-        {
-          "type": "shell",
-          "commands": [
-            "sed -i '/^storeDir:/d' pnpm-workspace.yaml"
-          ]
-        },
-        "node-sources.json",
-        "cargo-sources.json"
+        "go-sources.json"
       ]
     }
   ]

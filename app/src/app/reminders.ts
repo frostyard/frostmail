@@ -1,18 +1,9 @@
 // The reminder window: raising it from the main window, and asking the main
 // window to open an occurrence (docs/specs/pim-ui.md, Reminder window).
-import { invoke, isTauri } from "@tauri-apps/api/core";
-import { emitTo, listen } from "@tauri-apps/api/event";
 import { useUI } from "../data/stores";
 import { closeFrameWindow, frameWindowOpen, openFrameWindow } from "../lodge/frameWindow";
 import { IN_LODGE } from "../lodge/lodge";
 import type { Client } from "../rpc/gen/api";
-
-declare global {
-  interface Window {
-    /** Set by the reminder window's initialization script. */
-    __frostmailReminders?: boolean;
-  }
-}
 
 /** OccurrenceRequest names an occurrence for the main window to open. */
 export interface OccurrenceRequest {
@@ -24,7 +15,7 @@ export interface OccurrenceRequest {
 
 /** isRemindersWindow reports whether this window shows the reminders. */
 export function isRemindersWindow(): boolean {
-  return window.__frostmailReminders === true || window.location.hash === "#/reminders";
+  return window.location.hash === "#/reminders";
 }
 
 /** openReminders shows the reminder window, raising it when it is open. */
@@ -34,20 +25,12 @@ export async function openReminders(): Promise<void> {
     if (!frameWindowOpen()) openFrameWindow({ kind: "reminders" });
     return;
   }
-  if (isTauri()) {
-    await invoke("open_reminders");
-    return;
-  }
   window.open(`${window.location.pathname}#/reminders`, "reminders");
 }
 
 /** openOccurrenceInMain asks the main window to open an occurrence in Calendar. */
 export async function openOccurrenceInMain(request: OccurrenceRequest): Promise<void> {
   closeFrameWindow(); // in lodge, back to the main window to show it
-  if (isTauri()) {
-    await emitTo("main", "open-occurrence", request);
-    return;
-  }
   // BroadcastChannel crosses documents; also deliver requests made in this
   // document directly, without waiting for the broadcast round trip.
   window.dispatchEvent(new CustomEvent<OccurrenceRequest>("open-occurrence", { detail: request }));
@@ -103,18 +86,8 @@ export function watchOccurrenceRequests(): () => void {
     if (!("date" in data) || typeof data.date !== "string") return;
     reveal({ eventId: data.eventId, recurrenceId: data.recurrenceId, date: data.date });
   };
-  let stop: (() => void) | null = null;
-  if (isTauri()) {
-    void listen<OccurrenceRequest>("open-occurrence", (event) => reveal(event.payload))
-      .then((unlisten) => {
-        if (stopped) unlisten();
-        else stop = unlisten;
-      })
-      .catch((err: unknown) => console.warn("watch occurrence requests", err));
-  }
   return () => {
     stopped = true;
-    stop?.();
     window.removeEventListener("open-occurrence", onLocalRequest);
     channel.close();
   };

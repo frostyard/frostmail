@@ -16,6 +16,6 @@ configure({ asyncUtilTimeout: 5000 });
 
 afterEach(cleanup);
 
-// The settings window's pane and the Server pane's save outlive a window's
-// remount by design (app/settingsPane.ts), so each test starts afresh.
+// The settings window's pane outlives a window's remount by design
+// (app/settingsPane.ts), so each test starts afresh.
 afterEach(() => useSettingsPane.setState(useSettingsPane.getInitialState()));

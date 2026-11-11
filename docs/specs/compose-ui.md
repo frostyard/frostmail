@@ -1,6 +1,6 @@
 # Spec: the compose window and sending UI (M3)
 
-The look and behavior of Frostmail's compose window (one Tauri window per
+The look and behavior of Frostmail's compose window (one window per
 draft) and of the sending feedback in the main window: the undo toast and
 the outbox. It binds the presentational components in
 `app/src/features/compose/` and `app/src/features/outbox/`, the containers
@@ -161,7 +161,7 @@ window.
   system names.
 - WebKitGTK on Linux checks nothing until the app turns it on: the shell
   turns spell checking on in the web context of every window it builds
-  (`app/src-tauri/src/spell.rs`, from `show_soon`), and sets the languages
+  and sets the languages
   from the system's locale names (`g_get_language_names`), most preferred
   first. Each name loses its encoding (`.UTF-8`) and modifier (`@euro`);
   `C` and `POSIX` are dropped, and a name is kept once; with none left,
@@ -176,8 +176,15 @@ window.
   close; maild saves the server copy after 5 seconds of quiet. Closing the
   window keeps the draft; Delete Draft (Ctrl+Backspace) discards it, at
   once when it is empty and after a confirmation otherwise.
+- The desktop app closes a window only once its last save has ended, and
+  waits for a snippet still loading first. When that save fails, the
+  window stays open and says "The draft was not saved", with a sheet
+  "Close without saving?" (Close Anyway, Keep Open); closing again tries
+  the save again. Pasted pictures are kept while the draft's HTML stays
+  within 8 MiB in all; remote pictures are never kept.
 - Send (Ctrl+Enter) is enabled when the draft has at least one valid
-  recipient and no invalid one, and nothing is still being attached. Sending
+  recipient and no invalid one, and nothing is still being attached or
+  inserted. Sending
   closes the window at once and shows the undo toast in the main window;
   a Send Later message (`scheduled`) shows none.
 - Undo, before the delay runs out, cancels the send (`outbox.cancel`) and
