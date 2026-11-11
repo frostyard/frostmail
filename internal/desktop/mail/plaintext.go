@@ -188,21 +188,26 @@ const printedHeader = `body>.print-only:first-child`
 // paper. The message's <style> shares the page and can name anything, with
 // !important and any specificity. These rules come first in the page, in
 // the first cascade layer, and the first layer's !important beats every
-// later layer's and every unlayered one's. So the header takes only these
-// values, the page's frame cannot move it, no generated text goes with it,
-// and each top-level element of the message paints below it.
+// later layer's and every unlayered one's; maild's sanitizer renames every
+// layer a message declares, so none of its rules joins this one. So the
+// header takes only these values, the page's frame cannot move it, no
+// generated text goes with it, and no transition carries an older value
+// onto paper. The message is all in the element after the header
+// (uikit.Document), which the app writes, so no style attribute of the
+// message reaches it: it paints below the header, and so does everything
+// in it, whatever its own display, position or z-index.
 const PrintGuard = `@layer print-guard{@media print{` +
-	`html,body{display:block!important;position:static!important;float:none!important;transform:none!important;translate:none!important;rotate:none!important;scale:none!important;zoom:1!important;clip-path:none!important;mask:none!important;-webkit-mask:none!important;margin:0!important;border:0!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;columns:auto!important;writing-mode:horizontal-tb!important}` +
+	`html,body{display:block!important;position:static!important;float:none!important;transform:none!important;translate:none!important;rotate:none!important;scale:none!important;zoom:1!important;clip-path:none!important;mask:none!important;-webkit-mask:none!important;margin:0!important;border:0!important;width:auto!important;min-width:0!important;max-width:none!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;columns:auto!important;writing-mode:horizontal-tb!important;transition:none!important}` +
 	`html{padding:0!important}` +
 	`body{padding:0 20px 20px!important}` +
 	`html::before,html::after,body::before,body::after{content:none!important}` +
-	printedHeader + `,` + printedHeader + ` *{all:initial!important;font:12px/1.45 system-ui,sans-serif!important;color:#000!important;overflow-wrap:anywhere!important;direction:ltr!important;unicode-bidi:normal!important}` +
+	printedHeader + `,` + printedHeader + ` *{all:initial!important;font:12px/1.45 system-ui,sans-serif!important;color:#000!important;overflow-wrap:anywhere!important;direction:ltr!important;unicode-bidi:normal!important;transition:none!important}` +
 	printedHeader + `{display:block!important;position:relative!important;z-index:2147483647!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;margin:0 0 16px!important;padding:0 0 8px!important;border-bottom:1px solid #ccc!important}` +
 	printedHeader + ` div{display:block!important;margin:2px 0!important}` +
 	printedHeader + ` b{font-weight:700!important}` +
 	printedHeader + `::before,` + printedHeader + `::after,` + printedHeader + ` *::before,` + printedHeader + ` *::after{content:none!important}` +
 	printedHeader + `::first-line,` + printedHeader + `::first-letter,` + printedHeader + ` *::first-line,` + printedHeader + ` *::first-letter{all:inherit!important}` +
-	printedHeader + `~*{position:relative!important;z-index:0!important}` +
+	printedHeader + `+*{display:block!important;position:relative!important;z-index:0!important;transition:none!important}` +
 	`}}`
 
 // PrintHeader writes the lines that head a message on paper, escaped; a

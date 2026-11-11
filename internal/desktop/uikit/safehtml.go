@@ -28,13 +28,17 @@ const PageRules = `[
 const pageStyle = `html{color-scheme:light}` +
 	`body{margin:0;padding:20px;background:#fff;color:#000;font:14px/1.45 "Inter Variable",system-ui,sans-serif;overflow-wrap:anywhere}` +
 	`img{max-width:100%;height:auto}` +
-	`@media screen{.print-only{display:none}}` +
+	`@media screen{.print-only{display:none}body>.print-only:first-child+div{display:contents}}` +
 	`.print-only{font-size:12px;margin:0 0 16px;padding:0 0 8px;border-bottom:1px solid #ccc}` +
 	`.print-only div{margin:2px 0}`
 
 // Document wraps sanitized HTML in the page. printHeader is HTML, already
 // escaped, that shows only on paper: what the app draws natively above the
-// page on screen.
+// page on screen. With a header, the body's children are the header and
+// one element holding all of the message, which lays out on screen as if
+// it were not there: on paper a print guard (mail.PrintGuard) can then
+// keep the whole message below the header in one rule, as no element of
+// the message can.
 func Document(body, printHeader, extraStyle string) string {
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="`)
@@ -43,12 +47,15 @@ func Document(body, printHeader, extraStyle string) string {
 	b.WriteString(pageStyle)
 	b.WriteString(extraStyle)
 	b.WriteString(`</style></head><body>`)
-	if printHeader != "" {
+	if printHeader == "" {
+		b.WriteString(body)
+	} else {
 		b.WriteString(`<div class="print-only">`)
 		b.WriteString(printHeader)
+		b.WriteString(`</div><div>`)
+		b.WriteString(body)
 		b.WriteString(`</div>`)
 	}
-	b.WriteString(body)
 	b.WriteString(`</body></html>`)
 	return b.String()
 }

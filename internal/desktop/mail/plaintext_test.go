@@ -95,3 +95,29 @@ func TestPrintHeaderEscapes(t *testing.T) {
 		t.Errorf("header: %s", out)
 	}
 }
+
+// M46: on paper the message is below the header, all of it. uikit.Document
+// puts the message in one element after the header, which the guard makes
+// a stacking context under the header's: whatever an element of the
+// message says, with display:contents or a style attribute, it paints
+// inside that element. No transition carries a value from the screen onto
+// paper, where the guard's !important would not reach it.
+func TestPrintGuardHoldsTheMessageBelowTheHeader(t *testing.T) {
+	const header = `body>.print-only:first-child`
+	for _, want := range []string{
+		header + `+*{display:block!important;position:relative!important;z-index:0!important;transition:none!important}`,
+		header + `{display:block!important;position:relative!important;z-index:2147483647!important;`,
+		`unicode-bidi:normal!important;transition:none!important}`,
+		`writing-mode:horizontal-tb!important;transition:none!important}`,
+	} {
+		if !strings.Contains(mail.PrintGuard, want) {
+			t.Errorf("no %q in the guard", want)
+		}
+	}
+	if strings.Contains(mail.PrintGuard, header+`~`) {
+		t.Error("a rule reaches the message's own elements, where a style attribute beats it")
+	}
+	if !strings.HasPrefix(mail.PrintGuard, "@layer print-guard{@media print{") || !strings.HasSuffix(mail.PrintGuard, "}}") {
+		t.Error("the guard is not one layer of print rules")
+	}
+}

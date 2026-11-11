@@ -86,18 +86,26 @@ func checkSafe(t *testing.T, out string) {
 
 // checkCSS lexes sanitized CSS again and fails on anything that could load
 // or run: loading at-rules, url() with a URL that is not allowed, blocked
-// functions and properties, and "<".
+// functions and properties, and "<". It also fails on what could change
+// the page around the message: @page rules, and a cascade layer name that
+// does not start with layerPrefix.
 func checkCSS(t *testing.T, src, out string) {
 	t.Helper()
 	if strings.Contains(src, "<") {
 		t.Errorf("CSS contains '<':\n%s", out)
 	}
 	l := css.NewLexer(parse.NewInputString(src))
+	layer := false
 	for {
 		tt, data := l.Next()
+		if layer && tt == css.IdentToken && !strings.HasPrefix(cssUnescape(string(data)), layerPrefix) {
+			t.Errorf("layer name %q in CSS:\n%s", data, out)
+		}
 		switch tt {
 		case css.ErrorToken:
 			return
+		case css.LeftBraceToken, css.SemicolonToken, css.RightBraceToken:
+			layer = false
 		case css.URLToken:
 			if u := urlTokenValue(data); !allowedURL.MatchString(u) {
 				t.Errorf("CSS url %q in output:\n%s", u, out)
@@ -106,8 +114,10 @@ func checkCSS(t *testing.T, src, out string) {
 			t.Errorf("bad url token %q in CSS:\n%s", data, out)
 		case css.AtKeywordToken:
 			switch strings.ToLower(cssUnescape(string(data[1:]))) {
-			case "import", "font-face", "namespace", "charset":
+			case "import", "font-face", "namespace", "charset", "page":
 				t.Errorf("at-rule %q in CSS:\n%s", data, out)
+			case "layer":
+				layer = true
 			}
 		case css.IdentToken:
 			switch strings.ToLower(cssUnescape(string(data))) {
