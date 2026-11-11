@@ -104,9 +104,11 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
   for older readers); `multipart/*` and `message/*` types are sent as
   `application/octet-stream`. The result is 7-bit with CRLF line endings.
 - **Inline images:** a quoted message's inline images appear in the draft's
-  HTML as `mailpart:` URLs. When building, maild replaces each with a
-  `cid:` URL and adds the part as an inline image; remote images were never
-  in the quoted rendering.
+  HTML as base64 `data:` image sources or `mailpart:` URLs. When building,
+  maild replaces them with `cid:` URLs and adds each distinct image URL
+  once as an inline part. Images pasted into the editor use the same path.
+  The stored draft and reader keep their original URLs; invalid data
+  sources stay as written. Remote images were never in the quoted rendering.
 - The same builder makes the Drafts copy and the sent message.
 
 ## Outbox

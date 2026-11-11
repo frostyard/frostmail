@@ -114,8 +114,7 @@ func TestLinkClickReachesTheHandler(t *testing.T) {
 }
 
 // A forward from the native window keeps the message's inline image, as
-// maild's quoted rendering gives it: a cid: part, or a data: URL for a small
-// picture.
+// maild's quoted rendering gives it, sent as a cid: related part.
 func TestForwardKeepsAnInlineImage(t *testing.T) {
 	sinkDir := t.TempDir()
 	sink := exec.Command(exe("smtpsink"), "-dir", sinkDir)
@@ -162,7 +161,7 @@ func TestForwardKeepsAnInlineImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	cid, html := inlineParts(t, msg.Header.Get("Content-Type"), msg.Body)
-	if !strings.Contains(html, "data:image/png;base64,") && (cid == "" || !strings.Contains(html, "cid:"+strings.Trim(cid, "<>"))) {
+	if cid == "" || !strings.Contains(html, "cid:"+strings.Trim(cid, "<>")) || strings.Contains(html, "data:image/") {
 		t.Errorf("the forward lost its picture (Content-ID %q):\n%s", cid, html)
 	}
 }
