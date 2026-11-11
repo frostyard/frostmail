@@ -61,7 +61,15 @@ func TestServerPaneChangesMode(t *testing.T) {
 	config := filepath.Join(s.root, "config", "frostmail", "app.json")
 
 	stopped := make(chan struct{})
-	go func() { _ = s.maild.Wait(); s.maild = nil; close(stopped) }()
+	// Transfer ownership before starting the waiter: an early Fatal must
+	// not leave the session cleanup calling Wait on this command too.
+	maild := s.maild
+	s.maild = nil
+	go func() { _ = maild.Wait(); close(stopped) }()
+	t.Cleanup(func() {
+		_ = maild.Process.Kill()
+		<-stopped
+	})
 
 	s.key(1, "CmdOrCtrl+,")
 	w := s.waitWindow("^Settings$")

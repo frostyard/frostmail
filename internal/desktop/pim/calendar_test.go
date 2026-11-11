@@ -503,9 +503,7 @@ func TestMiniMonthPagesAndSelects(t *testing.T) {
 	// It returns to the selection's month when the selection changes.
 	f.tt.Key(ui.Cmd, ui.KeyT)
 	f.until("back", func() bool { return f.m.cal.month.shown == "2026-10-08" })
-	if !f.m.cal.busy["2026-10-08"] {
-		t.Error("no dot on a busy day")
-	}
+	f.until("the busy-day range", func() bool { return f.m.cal.busy["2026-10-08"] })
 }
 
 func TestCalendarToggleWritesEnabled(t *testing.T) {

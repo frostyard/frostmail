@@ -310,6 +310,10 @@ type Undo struct {
 	// while its messages are still moving [200ms, 10s].
 	Retry, Patience time.Duration
 
+	// BeforeUndo runs just before Do waits for actions and earlier undos.
+	// Tests can use it to observe the wait; set it before calling Do.
+	BeforeUndo func()
+
 	mu      sync.Mutex
 	entries [][]UndoCall
 	// acting is held for reading while an action runs, and for writing
@@ -398,6 +402,9 @@ func (u *Undo) Flags(ctx context.Context, c *api.Client, ids []int64, ch api.Fla
 // stays (ErrUndoWaiting); no action can add one above it meanwhile, as
 // actions wait for an undo.
 func (u *Undo) Do(ctx context.Context, c *api.Client) (bool, error) {
+	if u.BeforeUndo != nil {
+		u.BeforeUndo()
+	}
 	u.acting.Lock()
 	defer u.acting.Unlock()
 	u.mu.Lock()

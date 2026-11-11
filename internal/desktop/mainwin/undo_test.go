@@ -27,7 +27,8 @@ func TestUndoWaitsForTheActionRunning(t *testing.T) {
 	}
 	id := rows[0].ID
 
-	var u mail.Undo
+	waiting := make(chan struct{})
+	u := mail.Undo{BeforeUndo: func() { close(waiting) }}
 	undone := make(chan bool, 1)
 	_, err = u.Move(ctx, f.c, []int64{id}, func() error {
 		if err := f.c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: []int64{id}}); err != nil {
@@ -41,9 +42,14 @@ func TestUndoWaitsForTheActionRunning(t *testing.T) {
 			undone <- ok
 		}()
 		select {
+		case <-waiting:
+		case <-time.After(30 * time.Second):
+			t.Fatal("the undo did not reach its wait")
+		}
+		select {
 		case ok := <-undone:
-			t.Errorf("the undo ended during the action: %v", ok)
-		case <-time.After(200 * time.Millisecond):
+			t.Fatalf("the undo ended during the action: %v", ok)
+		default:
 		}
 		return nil
 	})

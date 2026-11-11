@@ -169,6 +169,7 @@ func TestNewContactAndDelete(t *testing.T) {
 	f.until("edit", func() bool { return f.tt.HasText("Edit Contact") })
 	f.click("Edit Contact")
 	f.until("the editor", func() bool { return f.m.Inert() })
+	f.until("the account", func() bool { return f.m.account(f.acct) != nil })
 	f.click("Delete Contact")
 	f.until("the question", func() bool { return f.shell.Dialogs.Showing() && f.tt.HasText("Delete Contact?") })
 	if !slices.ContainsFunc(f.tt.Texts(), func(s string) bool {
