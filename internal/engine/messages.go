@@ -178,8 +178,9 @@ func (m messages) read(ctx context.Context, id int64, whole bool) ([]byte, error
 }
 
 // readBody reads a message's whole body or its display copy, stored or
-// fetched, and names what it used. A fault of the blob store is a storage
-// error: it does not become a fetch.
+// fetched, and names what it used. A row that cannot be read keeps its answer
+// of unavailable, and a fault of the blob store is a storage error: neither
+// becomes a fetch.
 func (m messages) readBody(ctx context.Context, id int64, whole bool) (body, error) {
 	if m.Blobs == nil {
 		return body{}, api.Unavailable("sync is not running")
@@ -189,7 +190,7 @@ func (m messages) readBody(ctx context.Context, id int64, whole bool) (body, err
 		return body{}, api.NotFound("message %d does not exist", id)
 	}
 	if err != nil {
-		return body{}, err
+		return body{}, api.Unavailable("message %d is not stored locally and cannot be fetched now: %v", id, err)
 	}
 	blobID, err := m.storedBody(info, whole)
 	if err != nil {

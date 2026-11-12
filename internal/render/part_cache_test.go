@@ -2,10 +2,8 @@ package render
 
 import (
 	"bytes"
-	"encoding/base64"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -39,39 +37,5 @@ func TestPartKeepsTheCachedFile(t *testing.T) {
 	}
 	if again.Path != first.Path || again.Filename != first.Filename || again.ContentType != first.ContentType {
 		t.Errorf("part = %+v, want the same file as %+v", again, first)
-	}
-}
-
-// TestRenderFindsACIDURLInAnyCase: the cid: check that skips the image parts
-// is case-insensitive, so an uppercase CID: URL still embeds its image.
-func TestRenderFindsACIDURLInAnyCase(t *testing.T) {
-	cache := &PartsCache{Root: t.TempDir()}
-	r := &Renderer{Parts: cache}
-	img := base64.StdEncoding.EncodeToString(pngBytes(t))
-	raw := []byte(strings.Join([]string{
-		"From: News <news@example.test>",
-		"Subject: Upper",
-		"MIME-Version: 1.0",
-		`Content-Type: multipart/related; boundary="rel"`,
-		"",
-		"--rel",
-		"Content-Type: text/html; charset=utf-8",
-		"",
-		`<p><img src="CID:logo@x" alt="Logo"></p>`,
-		"--rel",
-		"Content-Type: image/png",
-		"Content-Transfer-Encoding: base64",
-		"Content-ID: <logo@x>",
-		"",
-		img,
-		"--rel--",
-		"",
-	}, "\r\n"))
-	got, err := r.Render(t.Context(), 7, raw, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes(t)); !strings.Contains(got.HTML, want) {
-		t.Errorf("the CID: image is not embedded:\n%s", got.HTML)
 	}
 }

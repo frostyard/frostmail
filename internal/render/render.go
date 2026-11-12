@@ -124,13 +124,12 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	if strings.TrimSpace(src) == "" {
 		return out, nil
 	}
-	// A message that names no cid: URL never reads its image parts.
+	// The image parts are read only for a message that names a cid: URL.
+	// Only the resolver can tell: the sanitizer decodes an entity or a CSS
+	// escape first, so the URL is not in the source as written.
 	var inline map[string]inlinePart
-	if hasCID(src) {
-		if inline, err = inlineParts(raw); err != nil {
-			return Rendering{}, r.parseFailed(err)
-		}
-	}
+	var inlineErr error
+	inlineLoaded := false
 	nonce, err := randomHex(16)
 	if err != nil {
 		return Rendering{}, err
@@ -138,23 +137,27 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	var pending []string
 	index := map[string]int{}
 	embed := &embedder{parts: r.Parts}
-	resolve := func(raw string, tracker bool) string {
-		raw = strings.TrimSpace(raw)
-		lower := strings.ToLower(raw)
+	resolve := func(ref string, tracker bool) string {
+		ref = strings.TrimSpace(ref)
+		lower := strings.ToLower(ref)
 		switch {
 		case strings.HasPrefix(lower, "cid:"):
-			rel := r.inlinePart(messageID, inline, raw[4:])
+			if !inlineLoaded {
+				inline, inlineErr = inlineParts(raw)
+				inlineLoaded = true
+			}
+			rel := r.inlinePart(messageID, inline, ref[4:])
 			if rel == "" {
 				return ""
 			}
 			return embed.url(rel)
 		case strings.HasPrefix(lower, "data:"):
-			if dataImage.MatchString(raw) {
-				return raw
+			if dataImage.MatchString(ref) {
+				return ref
 			}
 			return ""
 		case strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://"):
-			u, err := url.Parse(raw)
+			u, err := url.Parse(ref)
 			if err != nil {
 				return ""
 			}
@@ -179,6 +182,9 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	html, err := sanitizeHTML(src, resolve)
 	if err != nil {
 		return Rendering{}, err
+	}
+	if inlineErr != nil {
+		return Rendering{}, r.parseFailed(inlineErr)
 	}
 	if len(pending) > 0 {
 		paths := r.fetchAll(ctx, pending)
@@ -268,18 +274,6 @@ func (r *Renderer) inlinePart(messageID int64, parts map[string]inlinePart, cid 
 		}
 	}
 	return rel
-}
-
-// hasCID reports whether src may hold a cid: URL, in any case, so that the
-// image parts are read only for a message that can name one.
-func hasCID(src string) bool {
-	const cid = "cid:"
-	for i := 0; i+len(cid) <= len(src); i++ {
-		if strings.EqualFold(src[i:i+len(cid)], cid) {
-			return true
-		}
-	}
-	return false
 }
 
 // Part decodes the part at path (an IMAP part specifier) into

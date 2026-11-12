@@ -157,3 +157,52 @@ func TestReadReportsAStorageFault(t *testing.T) {
 		t.Errorf("display fetches = %d, want 1", n)
 	}
 }
+
+// TestReadKeepsTheAnswerForADBFault: a message row that cannot be read keeps
+// the answer clients had before the narrow read, unavailable with the same
+// words, and starts no fetch, though the blob store is there.
+func TestReadKeepsTheAnswerForADBFault(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	db, err := store.Open(ctx, filepath.Join(dir, "frostmail.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	var id int64
+	err = db.Tx(ctx, func(tx *store.Tx) error {
+		a, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindIMAP, Email: "test1@mailtest.test", Auth: api.AuthKindPassword,
+			IMAP: store.ServerConfig{Host: "mailtest.test", Port: 993, TLS: api.TLSModeTLS, Username: "test1@mailtest.test"},
+			SMTP: store.ServerConfig{Host: "mailtest.test", Port: 587, TLS: api.TLSModeStartTLS, Username: "test1@mailtest.test"}})
+		if err != nil {
+			return err
+		}
+		mbs, err := tx.ReplaceMailboxes(ctx, a.ID, []store.ServerMailbox{
+			{Path: "INBOX", Role: api.MailboxRoleInbox, Selectable: true}})
+		if err != nil {
+			return err
+		}
+		ids, err := tx.InsertHeaders(ctx, a.ID, mbs[0].ID, []store.MessageHeader{
+			{UID: 1, InternalDate: time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC), Subject: "Unreadable"}})
+		if err != nil {
+			return err
+		}
+		id = ids[0]
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sync := &countingSync{}
+	msgs := New(Deps{DB: db, Blobs: blob.New(filepath.Join(dir, "blobs")), Sync: sync}).Messages()
+	if _, err := msgs.Body(ctx, &api.MessageBodyParams{ID: id}); apiCode(err) != api.CodeUnavailable ||
+		!strings.Contains(err.Error(), "is not stored locally and cannot be fetched now") {
+		t.Errorf("body with a closed store = %v; want unavailable with the old words", err)
+	}
+	if n := sync.body.Load() + sync.display.Load(); n != 0 {
+		t.Errorf("the read started %d fetches, want 0", n)
+	}
+}
