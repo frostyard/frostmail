@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Client } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
-import { announceRestore, rememberRestore, undoPim, usePimUndo, watchRestores } from "./pimUndo";
+import { announceRestore, rememberRestore, undoPim, usePimUndo } from "./pimUndo";
 import { UNDO_LIMIT } from "./undo";
 
 beforeEach(() => {
@@ -51,10 +51,8 @@ describe("pimUndo", () => {
     expect(usePimUndo.getState().calendar).toEqual([]);
   });
 
-  it("takes restores another window announces", async () => {
-    const stop = watchRestores();
+  it("takes the restores the event editor announces", async () => {
     await announceRestore({ module: "calendar", restoreId: "r-from-editor" });
-    await vi.waitFor(() => expect(usePimUndo.getState().calendar).toEqual(["r-from-editor"]));
-    stop();
+    expect(usePimUndo.getState().calendar).toEqual(["r-from-editor"]);
   });
 });

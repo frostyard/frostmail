@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0154 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: the event editor is a route the frame
+// shows (lodge/frameWindow.ts), not a browser tab.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +9,7 @@ import { useUI } from "../data/stores";
 import { Client } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { frameRoute } from "../testing/frame";
 import { MainWindow } from "./MainWindow";
 import { usePimUndo } from "./pimUndo";
 
@@ -39,7 +42,6 @@ async function setup(exactSeconds = false) {
     });
     mock.calls.length = 0;
   }
-  const open = vi.spyOn(window, "open").mockReturnValue(null);
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <MainWindow />
@@ -50,7 +52,7 @@ async function setup(exactSeconds = false) {
   await screen.findByRole("group", { name: "Thursday, October 8, 2026" });
   await within(day("Thursday, October 8, 2026")).findByRole("button", { name: /^Design review/ });
   const calls = (method: string) => mock.calls.filter((c) => c.method === method);
-  return { calls, open };
+  return { calls };
 }
 
 const day = (name: string) => screen.getByRole("group", { name });
@@ -141,14 +143,14 @@ describe("dragging events in Calendar", () => {
   });
 
   it("opens the editor on a range drawn across empty time", async () => {
-    const { open, calls } = await setup();
+    const { calls } = await setup();
     const creates = calls("calendar.create").length; // the setup's series
     down(day("Monday, October 5, 2026"), 150, 9 * 48);
     move(150, 10 * 48 + 10);
     up(150, 10 * 48 + 10);
-    await waitFor(() => expect(open).toHaveBeenCalled());
-    expect(String(open.mock.calls[0]?.[0])).toMatch(
-      /#\/event\/new\?allDay=0&start=2026-10-05T09%3A00%3A00\.000Z&end=2026-10-05T10%3A15%3A00\.000Z$/,
+    await waitFor(() => expect(frameRoute()).not.toBe(""));
+    expect(frameRoute()).toMatch(
+      /^\/event\/new\?allDay=0&start=2026-10-05T09%3A00%3A00\.000Z&end=2026-10-05T10%3A15%3A00\.000Z$/,
     );
     expect(calls("calendar.create")).toHaveLength(creates);
   });

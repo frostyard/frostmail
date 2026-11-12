@@ -1,12 +1,11 @@
 // The app's other windows inside lodge (docs/specs/lodge-app.md, The web
 // build; plan 0011's Phase 4). From lodge's frame a new window would be a
-// second copy of the shell, so in the lodge build Compose, Settings, the
-// event editor and the reminder window are routes the frame shows in place
-// of the main window, which stays mounted, hidden, underneath.
+// second copy of the shell, so Compose, Settings, the event editor and the
+// reminder window are routes the frame shows in place of the main window,
+// which stays mounted, hidden, underneath.
 import { create } from "zustand";
 
 import { type EditorTarget, eventFromRoute, eventRoute } from "../app/openEvent";
-import { IN_LODGE } from "./lodge";
 
 /** FrameWindow is a window the frame shows in place of the main window. */
 export type FrameWindow =
@@ -23,18 +22,14 @@ export function frameWindowOpen(): boolean {
   return useFrameWindow.getState().open !== null;
 }
 
-/** openFrameWindow shows w in the frame; false outside lodge, where windows are windows. */
-export function openFrameWindow(w: FrameWindow): boolean {
-  if (!IN_LODGE) return false;
+/** openFrameWindow shows w in the frame. */
+export function openFrameWindow(w: FrameWindow): void {
   useFrameWindow.setState({ open: w });
-  return true;
 }
 
-/** closeFrameWindow goes back to the main window; false outside lodge. */
-export function closeFrameWindow(): boolean {
-  if (!IN_LODGE) return false;
+/** closeFrameWindow goes back to the main window. */
+export function closeFrameWindow(): void {
   useFrameWindow.setState({ open: null });
-  return true;
 }
 
 /** windowRoute is a window's route. */

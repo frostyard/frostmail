@@ -1,18 +1,13 @@
 // The command palette in the web build (docs/specs/ui.md, Command palette:
 // The web build): Firefox keeps Ctrl+Shift+P, so the toolbar has a button.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
 import { useFrameWindow } from "../lodge/frameWindow";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { MainWindow } from "./MainWindow";
-
-vi.mock("../lodge/lodge", async (original) => ({
-  ...(await original<typeof import("../lodge/lodge")>()),
-  IN_LODGE: true,
-}));
 
 beforeEach(() => {
   localStorage.clear();

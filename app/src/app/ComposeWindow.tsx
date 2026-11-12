@@ -67,8 +67,7 @@ function message(err: unknown): string {
 }
 
 function closeWindow(): void {
-  if (closeFrameWindow()) return;
-  window.close();
+  closeFrameWindow();
 }
 
 /** Composer edits one loaded draft. */

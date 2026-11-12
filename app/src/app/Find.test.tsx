@@ -1,8 +1,8 @@
-// Ctrl+F finds in the message shown, and keeps the search field's meaning
-// where no message shows (ADR-0052; docs/specs/ui.md, Find in the message,
-// Keyboard map).
+// Ctrl+F focuses the search field where no message shows, and Ctrl+Alt+F
+// always does; with one message shown, Ctrl+F is the browser's find
+// (ADR-0052; docs/specs/ui.md, Find in the message, Keyboard map).
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
@@ -13,11 +13,6 @@ import { MainWindow } from "./MainWindow";
 beforeEach(() => {
   localStorage.clear();
   useUI.setState(useUI.getInitialState());
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
 });
 
 async function setup({ select = true } = {}) {
@@ -50,93 +45,13 @@ function press(key: string, mods: { ctrlKey?: boolean; shiftKey?: boolean; altKe
   return event.defaultPrevented;
 }
 
-const findField = () => screen.queryByRole("searchbox", { name: "Find in Message" });
 const searchField = () => screen.getByRole("searchbox", { name: "Search" });
 
 describe("Ctrl+F", () => {
-  it("opens the find bar with the field focused while a message shows", async () => {
-    await setup();
-    expect(press("f", { ctrlKey: true })).toBe(true);
-    const field = await screen.findByRole("searchbox", { name: "Find in Message" });
-    await waitFor(() => expect(document.activeElement).toBe(field));
-    // A second Ctrl+F keeps the bar, and the field comes back to it.
-    fireEvent.change(field, { target: { value: "Lisbon" } });
-    fireEvent.blur(field);
-    expect(press("f", { ctrlKey: true })).toBe(true);
-    expect(findField()).toBe(field);
-    expect(document.activeElement).toBe(field);
-  });
-
-  it("keeps the bar's own words out of the search, and out of the print", async () => {
-    await setup();
-    press("f", { ctrlKey: true });
-    const field = await screen.findByRole("searchbox", { name: "Find in Message" });
-    fireEvent.change(field, { target: { value: "Previous Match" } });
-    expect(screen.getByText("No Matches")).toBeTruthy();
-    // The bar marks itself as no part of the message, which no match may
-    // touch, and the print leaves it out.
-    const bar = field.closest("[data-find-skip]");
-    expect(bar?.className).toContain("print:hidden");
-  });
-
-  it("focuses the search field instead when no message shows", async () => {
+  it("focuses the search field when no message shows", async () => {
     await setup({ select: false });
     expect(press("f", { ctrlKey: true })).toBe(true);
     expect(document.activeElement).toBe(searchField());
-    expect(findField()).toBeNull();
-  });
-
-  it("closes the bar on Done, and the reader has the keys again", async () => {
-    await setup();
-    press("f", { ctrlKey: true });
-    await screen.findByRole("searchbox", { name: "Find in Message" });
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(findField()).toBeNull());
-    expect(document.activeElement).toBe(screen.getByRole("region", { name: "Message" }));
-  });
-
-  it("keeps Enter on Done away from the window's open command", async () => {
-    // A click on a row leaves the keys with the list, whose Enter opens the
-    // message: that key must not swallow the button's own activation.
-    await setup();
-    press("f", { ctrlKey: true });
-    await screen.findByRole("searchbox", { name: "Find in Message" });
-    const done = screen.getByRole("button", { name: "Done" });
-    done.focus();
-    const enter = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
-    let reachedWindow = 0;
-    const spy = (event: KeyboardEvent) => {
-      if (event.key === "Enter") reachedWindow += 1;
-    };
-    window.addEventListener("keydown", spy);
-    done.dispatchEvent(enter);
-    window.removeEventListener("keydown", spy);
-    // The window never saw the key, so it ran no command and stopped nothing.
-    expect(reachedWindow).toBe(0);
-    expect(enter.defaultPrevented).toBe(false);
-    // The button keeps its own meaning: a click closes the bar.
-    fireEvent.click(done);
-    await waitFor(() => expect(findField()).toBeNull());
-  });
-
-  it("closes the bar when the reader shows another selection", async () => {
-    const { list } = await setup();
-    press("f", { ctrlKey: true });
-    await screen.findByRole("searchbox", { name: "Find in Message" });
-    const rows = within(list).getAllByRole("option");
-    const other = rows[1];
-    if (!other) throw new Error("no second row");
-    fireEvent.click(other);
-    await waitFor(() => expect(findField()).toBeNull());
-    // Back on the first message, the bar stays closed.
-    const first = within(list).getAllByRole("option")[0];
-    if (!first) throw new Error("no first row");
-    fireEvent.click(first);
-    const reader = screen.getByRole("region", { name: "Message" });
-    await waitFor(() =>
-      expect(within(reader).getAllByRole("button", { name: "More Actions" }).length).toBeGreaterThan(0),
-    );
-    expect(findField()).toBeNull();
   });
 });
 
@@ -145,6 +60,5 @@ describe("Ctrl+Alt+F", () => {
     await setup();
     expect(press("f", { ctrlKey: true, altKey: true })).toBe(true);
     expect(document.activeElement).toBe(searchField());
-    expect(findField()).toBeNull();
   });
 });

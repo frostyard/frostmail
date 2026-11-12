@@ -648,7 +648,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   | --- | --- |
   | `/compose/<draft id>`, `/compose/<draft id>?fresh` | the draft in Compose; `fresh` when it was made to open it, so closing it untouched discards it |
   | `/settings` | Settings |
-  | `/event/<id>`, `/event/<id>?recurrenceId=…`, `/event/new?…` | the event editor, as the desktop's `#/event/…` |
+  | `/event/<id>`, `/event/<id>?recurrenceId=…`, `/event/new?…` | the event editor |
   | `/reminders` | the reminder window |
 
   Opening one pushes its route, and closing it (Send, Close, Discard)

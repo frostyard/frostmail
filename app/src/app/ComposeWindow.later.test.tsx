@@ -5,9 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
 import { atLocal } from "../lib/later";
+import { openFrameWindow } from "../lodge/frameWindow";
 import { Client, type OutboxItem } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { closeWatch } from "../testing/frame";
 import { ComposeWindow } from "./ComposeWindow";
 
 async function setup() {
@@ -18,7 +20,8 @@ async function setup() {
     id: draft.id,
     content: { ...draft.content, subject: "Later", to: [{ name: "Bob", address: "bob@x.test" }] },
   });
-  const close = vi.spyOn(window, "close").mockImplementation(() => {});
+  openFrameWindow({ kind: "compose", draftId: draft.id, fresh: false });
+  const close = closeWatch();
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <ComposeWindow draftId={draft.id} fresh={false} />

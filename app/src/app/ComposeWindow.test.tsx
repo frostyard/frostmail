@@ -3,9 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
+import { openFrameWindow } from "../lodge/frameWindow";
 import { Client, type DraftContent } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { closeWatch } from "../testing/frame";
 import { ComposeWindow, SAVE_MS } from "./ComposeWindow";
 
 async function setup(opts: { fresh?: boolean; content?: Partial<DraftContent> } = {}) {
@@ -13,7 +15,8 @@ async function setup(opts: { fresh?: boolean; content?: Partial<DraftContent> } 
   const client = new Client(mock);
   const draft = await client.draft.create({ kind: "new" });
   if (opts.content) await client.draft.update({ id: draft.id, content: { ...draft.content, ...opts.content } });
-  const close = vi.spyOn(window, "close").mockImplementation(() => {});
+  openFrameWindow({ kind: "compose", draftId: draft.id, fresh: opts.fresh ?? false });
+  const close = closeWatch();
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <ComposeWindow draftId={draft.id} fresh={opts.fresh ?? false} />
@@ -91,12 +94,13 @@ describe("ComposeWindow", () => {
 
   it("keeps a reopened draft closed untouched, saving pending edits first", async () => {
     const user = userEvent.setup();
-    const { calls, close } = await setup({ fresh: false });
+    const { calls, close, draft } = await setup({ fresh: false });
     await user.click(button("Close"));
     await waitFor(() => expect(close).toHaveBeenCalled());
     expect(calls("draft.delete")).toHaveLength(0);
 
     close.mockClear();
+    openFrameWindow({ kind: "compose", draftId: draft.id, fresh: false });
     await user.type(screen.getByRole("textbox", { name: "Subject" }), "x");
     await user.click(button("Close"));
     await waitFor(() => expect(close).toHaveBeenCalled());

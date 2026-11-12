@@ -24,7 +24,7 @@ components ◄── containers ◄── stores, ViewModel ◄── Client (ge
 
 | Path | What | Owner |
 | --- | --- | --- |
-| `main.tsx` | connects through lodge (the build's `lodge` mode), renders `App` | planner |
+| `main.tsx` | connects through lodge, renders `App` | planner |
 | `rpc/` | `transport.ts` (JSON-RPC session), `transport/lodge.ts`, `gen/api.ts` (generated) | planner |
 | `rpc/mock/` | `MockTransport` and its fixture data, for the tests | planner |
 | `data/` | `ViewModel`, `useView`, the mailbox, sync and UI stores, `ClientContext` | planner |
@@ -156,7 +156,7 @@ The development build), with the sibling checkout `../lodge`:
    `FAKE_APPS=0 dev/e2e.sh ROOT`. Keep ROOT short: a socket's path is at
    most 108 bytes.
 2. In this repository: `make web-build` (nsl) builds the app for lodge's `/app/mail/`
-   (Vite's `lodge` mode, `src/lodge/`), and `dev/lodge/run.sh ROOT` stages
+   (`src/lodge/`), and `dev/lodge/run.sh ROOT` stages
    it with maild, then runs `maild --lodge` on generated mail under ROOT.
 3. `LODGE_ROOT=ROOT ../lodge/build/lodgectl reload` picks the app up; open
    `http://127.0.0.1:8480/mail`. After a change, stop `dev/lodge/run.sh`,

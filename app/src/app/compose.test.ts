@@ -1,65 +1,37 @@
 // Starting a draft and opening its window (docs/specs/compose-ui.md, Entry
-// points).
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// points): the draft shows in the frame, in place of the main window.
+import { describe, expect, it } from "vitest";
 
+import { useFrameWindow } from "../lodge/frameWindow";
 import { type Client, type Draft, type DraftCreateParams, ErrorCode } from "../rpc/gen/api";
 import { RPCError } from "../rpc/transport";
 import { openCompose, startDraft } from "./compose";
 
-beforeEach(() => {
-  vi.spyOn(window, "open").mockReturnValue(null);
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe("startDraft", () => {
-  it("retries once without quote when an older maild rejects it", async () => {
-    const create = vi
-      .fn<(params: DraftCreateParams) => Promise<Draft>>()
-      .mockRejectedValueOnce(new RPCError(ErrorCode.invalidParams, "unknown member quote"))
-      .mockResolvedValueOnce({ id: 7 } as Draft);
+  it("creates the draft, which quotes the whole message, and shows it in the frame", async () => {
+    const created: DraftCreateParams[] = [];
+    const create = async (params: DraftCreateParams) => {
+      created.push(params);
+      return { id: 7 } as Draft;
+    };
     const client = { draft: { create } } as unknown as Client;
-    await startDraft(client, "reply", 12, "selected text");
-    expect(create.mock.calls).toEqual([
-      [{ kind: "reply", sourceId: 12, quote: "selected text" }],
-      [{ kind: "reply", sourceId: 12 }],
-    ]);
-    expect(window.open).toHaveBeenCalledWith(`${window.location.pathname}#/compose/7?fresh`, "compose-7");
+    await startDraft(client, "reply", 12);
+    expect(created).toEqual([{ kind: "reply", sourceId: 12 }]);
+    expect(useFrameWindow.getState().open).toEqual({ kind: "compose", draftId: 7, fresh: true });
   });
 
-  it("does not retry other errors", async () => {
+  it("fails as maild does, and opens nothing", async () => {
     const error = new RPCError(ErrorCode.unavailable, "offline");
-    const create = vi.fn().mockRejectedValue(error);
-    const client = { draft: { create } } as unknown as Client;
-    await expect(startDraft(client, "reply", 12, "selected text")).rejects.toBe(error);
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(window.open).not.toHaveBeenCalled();
-  });
-
-  it("does not retry invalidParams when no quote was sent", async () => {
-    const error = new RPCError(ErrorCode.invalidParams, "bad source");
-    const create = vi.fn().mockRejectedValue(error);
+    const create = async () => Promise.reject(error);
     const client = { draft: { create } } as unknown as Client;
     await expect(startDraft(client, "reply", 12)).rejects.toBe(error);
-    expect(create).toHaveBeenCalledTimes(1);
-    expect(window.open).not.toHaveBeenCalled();
-  });
-
-  it("does not retry a failed fallback", async () => {
-    const error = new RPCError(ErrorCode.invalidParams, "bad source");
-    const create = vi.fn().mockRejectedValue(error);
-    const client = { draft: { create } } as unknown as Client;
-    await expect(startDraft(client, "reply", 12, "selected text")).rejects.toBe(error);
-    expect(create).toHaveBeenCalledTimes(2);
-    expect(window.open).not.toHaveBeenCalled();
+    expect(useFrameWindow.getState().open).toBeNull();
   });
 });
 
 describe("openCompose", () => {
-  it("opens a tab at the draft's route", async () => {
+  it("shows the draft's window", async () => {
     await openCompose(7);
-    expect(window.open).toHaveBeenCalledWith(`${window.location.pathname}#/compose/7`, "compose-7");
+    expect(useFrameWindow.getState().open).toEqual({ kind: "compose", draftId: 7, fresh: false });
   });
 });

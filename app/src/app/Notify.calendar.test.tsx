@@ -1,12 +1,16 @@
 // CONTRACT TEST for task card T-0158 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: closing the editor goes back to the main
+// window in the frame (lodge/frameWindow.ts), not window.close.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
+import { openFrameWindow } from "../lodge/frameWindow";
 import { Client } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { closeWatch } from "../testing/frame";
 import { EventWindow } from "./EventWindow";
 import { MainWindow } from "./MainWindow";
 import { usePimUndo } from "./pimUndo";
@@ -142,7 +146,8 @@ describe("asking before invitees hear", () => {
 
   it("asks before the editor's Save and Delete Event, and stays open on Cancel", async () => {
     const mock = inviting();
-    const close = vi.spyOn(window, "close").mockImplementation(() => {});
+    openFrameWindow({ kind: "event", target: { kind: "edit", id: 302, recurrenceId: "" } });
+    const close = closeWatch();
     render(
       <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
         <EventWindow target={{ kind: "edit", id: 302, recurrenceId: "" }} />
@@ -169,7 +174,8 @@ describe("asking before invitees hear", () => {
 
   it("asks before the editor deletes an event with invitees", async () => {
     const mock = inviting();
-    const close = vi.spyOn(window, "close").mockImplementation(() => {});
+    openFrameWindow({ kind: "event", target: { kind: "edit", id: 302, recurrenceId: "" } });
+    const close = closeWatch();
     render(
       <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
         <EventWindow target={{ kind: "edit", id: 302, recurrenceId: "" }} />

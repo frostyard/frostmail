@@ -91,38 +91,12 @@ describe("the command palette", () => {
     expect(calls("message.move")).toEqual([]);
   });
 
-  it("holds the reader selection before its field takes focus, and clears it on close", async () => {
+  it("reply all answers the selected message, which the draft quotes whole", async () => {
     const { id, calls } = await setup();
-    vi.spyOn(window, "open").mockReturnValue(null);
-    // A plain-text body in an older expanded message can own the selection.
-    const body = document.createElement("div");
-    body.dataset.quoteSource = String(id);
-    body.textContent = "only this < & text";
-    document.body.append(body);
-    try {
-      const range = document.createRange();
-      range.selectNodeContents(body);
-      document.getSelection()?.removeAllRanges();
-      document.getSelection()?.addRange(range);
-      const field = openPalette("reply all");
-      expect(useUI.getState().paletteQuote).toEqual({ messageId: id, text: "only this < & text" });
-      // Changing the live selection must not change the held quote.
-      document.getSelection()?.removeAllRanges();
-      fireEvent.keyDown(field, { key: "Enter" });
-      await waitFor(() =>
-        expect(calls("draft.create")).toEqual([{ kind: "replyall", sourceId: id, quote: "only this < & text" }]),
-      );
-      expect(useUI.getState().paletteQuote).toBeNull();
-      expect(dialog()).toBeNull();
-      // A later palette opening must not reuse the old text.
-      const next = openPalette("reply");
-      expect(useUI.getState().paletteQuote).toBeNull();
-      fireEvent.keyDown(next, { key: "Escape" });
-      expect(useUI.getState().paletteQuote).toBeNull();
-    } finally {
-      document.getSelection()?.removeAllRanges();
-      body.remove();
-    }
+    const field = openPalette("reply all");
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(calls("draft.create")).toEqual([{ kind: "replyall", sourceId: id }]));
+    expect(dialog()).toBeNull();
   });
 
   it("closes on Escape without running a command", async () => {

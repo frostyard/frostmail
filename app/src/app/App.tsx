@@ -1,21 +1,13 @@
-// The app root: the connection to maild around the main window, a compose
-// window's draft, an event editor, the reminders, or the settings window
-// (docs/design/app.md).
-import { useEffect, useState } from "react";
-
+// The app root: the connection to maild around the main window, covered by
+// the window a route names (docs/design/app.md).
 import { type Connect, Session } from "../data/session";
 import { useMail } from "../data/stores";
 import { useFrameWindow } from "../lodge/frameWindow";
-import { IN_LODGE } from "../lodge/lodge";
 import { ComposeWindow } from "./ComposeWindow";
-import { composeTarget } from "./compose";
 import { EventWindow } from "./EventWindow";
 import { MainWindow } from "./MainWindow";
-import { editorTarget } from "./openEvent";
 import { RemindersWindow } from "./RemindersWindow";
-import { isRemindersWindow } from "./reminders";
 import { SettingsWindow } from "./SettingsWindow";
-import { isSettingsWindow } from "./settings";
 
 /** Connecting fills the window while it has no maild. */
 export function Connecting() {
@@ -28,17 +20,6 @@ export function Connecting() {
       </div>
     </div>
   );
-}
-
-/** useHash re-renders on hash changes (a browser may open #/compose/<id>, #/event/<id>, #/reminders or #/settings in the same tab). */
-function useHash() {
-  const [hash, setHash] = useState(window.location.hash);
-  useEffect(() => {
-    const update = () => setHash(window.location.hash);
-    window.addEventListener("hashchange", update);
-    return () => window.removeEventListener("hashchange", update);
-  }, []);
-  return hash;
 }
 
 /** LodgeFrame is the app in lodge's frame: the main window, covered by the
@@ -59,27 +40,12 @@ function LodgeFrame() {
   );
 }
 
-/** App connects to maild with connect and shows the main window, a compose window's draft, an event editor, reminders, or settings. */
+/** App connects to maild with connect and shows the main window, covered by
+ * the window a route names. */
 export function App(props: { connect: Connect }) {
-  useHash();
-  const target = composeTarget();
-  const event = editorTarget();
-  const settings = isSettingsWindow();
   return (
     <Session connect={props.connect} fallback={<Connecting />}>
-      {IN_LODGE ? (
-        <LodgeFrame />
-      ) : target !== null ? (
-        <ComposeWindow draftId={target.draftId} fresh={target.fresh} />
-      ) : event !== null ? (
-        <EventWindow target={event} />
-      ) : isRemindersWindow() ? (
-        <RemindersWindow />
-      ) : settings ? (
-        <SettingsWindow />
-      ) : (
-        <MainWindow />
-      )}
+      <LodgeFrame />
     </Session>
   );
 }

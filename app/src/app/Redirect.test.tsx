@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0126 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: compose is a route the frame shows
+// (lodge/frameWindow.ts), not a browser tab.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +8,7 @@ import { Session } from "../data/session";
 import { useUI } from "../data/stores";
 import { FIXTURE, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { frameRoute } from "../testing/frame";
 import { MainWindow } from "./MainWindow";
 
 beforeEach(() => {
@@ -54,14 +57,12 @@ async function choose(row: HTMLElement, label: string) {
 
 describe("Forward as Attachment and Redirect", () => {
   it("forwards the message as an attachment in a compose window", async () => {
-    const open = vi.spyOn(window, "open").mockImplementation(() => null);
     const { calls } = setup();
     const row = await firstRow();
     const id = Number(row.getAttribute("data-message-id"));
     await choose(row, "Forward as Attachment");
     await waitFor(() => expect(calls("draft.create")).toEqual([{ kind: "attached", sourceId: id }]));
-    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
-    expect(String(open.mock.calls[0]?.[0])).toMatch(/#\/compose\/\d+\?fresh$/);
+    await waitFor(() => expect(frameRoute()).toMatch(/^\/compose\/\d+\?fresh$/));
   });
 
   it("redirects from the sheet, which closes", async () => {

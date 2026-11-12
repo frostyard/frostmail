@@ -161,7 +161,7 @@ ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 app-build: desktop-build ## Build the release app binary into build/frostmail
 
 web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs/specs/lodge-app.md)
-	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --mode lodge --base /app/mail/ --outDir ../build/web --emptyOutDir && cp ../packaging/icons/icon.svg ../build/web/icon.svg'
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --base /app/mail/ --outDir ../build/web --emptyOutDir && cp ../packaging/icons/icon.svg ../build/web/icon.svg'
 
 # lodge-package stages maild as lodge's mail app under LODGE_DESTDIR, in
 # lodge's install layout (docs/specs/lodge-app.md), with

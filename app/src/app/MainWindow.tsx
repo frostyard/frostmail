@@ -9,7 +9,6 @@ import type { ViewModel } from "../data/view";
 import { useNotify } from "../features/calendar/NotifySheet";
 import { FilterBar } from "../features/list/FilterBar";
 import { SortMenu } from "../features/list/SortMenu";
-import { type QuoteSelection, readQuoteSelection } from "../features/reader/quoteSelection";
 import { searchCoverage, searchedAccounts } from "../features/search/coverage";
 import { ScopeBar } from "../features/search/SearchField";
 import { ModuleTabs } from "../features/sidebar/ModuleTabs";
@@ -20,7 +19,6 @@ import { type Command, commandFor } from "../lib/keymap";
 import { vipGroups } from "../lib/mailboxTree";
 import { panePercent } from "../lib/panes";
 import { frameWindowOpen } from "../lodge/frameWindow";
-import { IN_LODGE } from "../lodge/lodge";
 import { backToList } from "../lodge/shell";
 import type { Client, InviteNotice } from "../rpc/gen/api";
 import { watchAnnouncements } from "./announce";
@@ -34,7 +32,7 @@ import { newEventAt, openEvent } from "./openEvent";
 import { PaletteContainer } from "./PaletteContainer";
 import { type PeopleHandle, PeopleModule, peopleCommand } from "./PeopleModule";
 import { watchPermalinks } from "./permalink";
-import { undoPim, watchRestores } from "./pimUndo";
+import { undoPim } from "./pimUndo";
 import { ReaderContainer, type ReaderHandle } from "./ReaderContainer";
 import { RefusedNotices } from "./RefusedNotices";
 import { watchOccurrenceRequests, watchReminders } from "./reminders";
@@ -103,13 +101,7 @@ function focusPane(handles: WindowHandles, direction: 1 | -1) {
   }
 }
 
-function mailCommand(
-  command: Command,
-  client: Client,
-  model: ViewModel | null,
-  handles: WindowHandles,
-  quote?: QuoteSelection | null,
-) {
+function mailCommand(command: Command, client: Client, model: ViewModel | null, handles: WindowHandles) {
   const ui = useUI.getState();
   const { accounts, mailboxes } = useMail.getState();
   const ids = ui.selected;
@@ -159,9 +151,7 @@ function mailCommand(
     case "reply":
     case "replyAll":
     case "forward":
-      void compose(client, command, ids, quote === undefined ? readQuoteSelection() : quote).catch((err: unknown) =>
-        console.warn("compose", err),
-      );
+      void compose(client, command, ids).catch((err: unknown) => console.warn("compose", err));
       break;
     default:
       return ui.focus === "list" && (handles.list.current?.command(command) ?? false);
@@ -269,22 +259,16 @@ function runCommand(
   people: PeopleData,
   calendar: CalendarData,
   tasks: TasksData,
-  quote?: QuoteSelection | null,
 ): boolean {
   const ui = useUI.getState();
   if (command === "palette") {
-    ui.openPalette(true, readQuoteSelection());
+    ui.openPalette(true);
     return true;
   }
-  if (command === "find" && ui.module === "mail") {
-    // Ctrl+F finds in the message shown while one shows; the reader says
-    // whether it acted (ADR-0052). Without one, Ctrl+F has the search
-    // field's meaning, below.
-    if (handles.reader.current?.find()) return true;
-    // In lodge's web build the browser's own find reaches the reader's
-    // content-origin frame, which the app cannot; leave Ctrl+F to it.
-    if (IN_LODGE && ui.selected.length === 1) return false;
-  }
+  // While one message shows, Ctrl+F belongs to the browser, whose find
+  // reaches the reader's content-origin frame, which the app cannot
+  // (ADR-0052). Without one, Ctrl+F has the search field's meaning, below.
+  if (command === "find" && ui.module === "mail" && ui.selected.length === 1) return false;
   if (command === "focusSearch" || command === "find") {
     // Calendar and Tasks have no search field: the key does nothing there.
     if (ui.module === "calendar" || ui.module === "tasks") return false;
@@ -314,7 +298,7 @@ function runCommand(
     return moduleCommand(command, client, people);
   if (ui.module === "tasks") return tasksCommand(command, tasks, handles.tasks.current);
   if (ui.module === "calendar") return calendarCommand(command, client, calendar, handles);
-  return mailCommand(command, client, model, handles, quote);
+  return mailCommand(command, client, model, handles);
 }
 
 function useWindowEvents(
@@ -328,7 +312,6 @@ function useWindowEvents(
   useEffect(() => watchAnnouncements(client), [client]);
   useEffect(() => watchPermalinks(client), [client]);
   useEffect(() => watchReminders(client), [client]);
-  useEffect(() => watchRestores(), []);
   useLayoutEffect(() => watchOccurrenceRequests(), []);
   // Install input handlers at commit: the visible window must already be
   // ready for keys and occurrence requests before passive data effects run.
@@ -544,7 +527,7 @@ function NarrowMailPanes(props: {
 
 /** closeMessage takes a narrow window from the message back to its list. */
 function closeMessage() {
-  if (IN_LODGE && backToList()) return;
+  if (backToList()) return;
   useUI.getState().select([], null);
 }
 
@@ -685,8 +668,8 @@ export function MainWindow() {
       <RefusedNotices />
       <SmartSheetContainer />
       <PaletteContainer
-        run={(command, quote) => {
-          runCommand(command, client, handles, model, people, calendar, tasks, quote);
+        run={(command) => {
+          runCommand(command, client, handles, model, people, calendar, tasks);
         }}
       />
       {sheet}

@@ -10,6 +10,7 @@ import { type Draft, ErrorCode, type Mailbox } from "../rpc/gen/api";
 import { FIXTURE, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { RPCError } from "../rpc/transport";
+import { frameRoute } from "../testing/frame";
 import { MainWindow } from "./MainWindow";
 import { draftsScope } from "./useUnsavedDrafts";
 
@@ -88,12 +89,11 @@ describe("a Drafts list", () => {
     await waitFor(() => expect(subtitle()).toContain("1 draft not yet saved"));
     expect(subtitle()).not.toContain("0 messages");
 
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
     fireEvent.click(row);
-    await waitFor(() => expect(open).toHaveBeenCalledOnce());
-    expect(String(open.mock.calls[0]?.[0])).toMatch(new RegExp(`#/compose/${id}$`));
+    await waitFor(() => expect(frameRoute()).toBe(`/compose/${id}`));
+    // A second open of the same draft shows its window again, at the same route.
     fireEvent.keyDown(row, { key: "Enter" });
-    await waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(frameRoute()).toBe(`/compose/${id}`));
   });
 
   it("shows every account's in All Drafts, newest first, and none in the inbox", async () => {

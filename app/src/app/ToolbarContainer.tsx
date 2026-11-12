@@ -1,10 +1,9 @@
 // The toolbar, fed by the stores and the list (docs/specs/ui.md, Toolbar).
-import { type Ref, type RefObject, useCallback, useMemo, useRef } from "react";
+import { type Ref, useCallback, useMemo } from "react";
 
 import { useClient } from "../data/session";
 import { listQuery, sourceTitle, useMail, useUI } from "../data/stores";
 import type { ViewModel } from "../data/view";
-import { readQuoteSelection } from "../features/reader/quoteSelection";
 import { SearchField } from "../features/search/SearchField";
 import {
   MessageBar,
@@ -16,7 +15,6 @@ import {
 import { step, viewTitle } from "../lib/calendarDates";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
-import { IN_LODGE } from "../lodge/lodge";
 import {
   archiveMailbox,
   compose,
@@ -114,7 +112,7 @@ function useToolbarData(model: ViewModel | null, people?: PeopleData) {
   return { title, subtitle, selection, archive, moveTargets, syncing };
 }
 
-function windowCommand(command: ToolbarCommand, active: Element | null | undefined): boolean {
+function windowCommand(command: ToolbarCommand): boolean {
   const ui = useUI.getState();
   switch (command.kind) {
     case "toggleSidebar":
@@ -122,7 +120,7 @@ function windowCommand(command: ToolbarCommand, active: Element | null | undefin
       break;
     case "palette":
       // A contact being edited keeps the window's keys: it has no palette.
-      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true, readQuoteSelection({ active }));
+      if (ui.module !== "people" || ui.peopleEditing === null) ui.openPalette(true);
       break;
     case "settings":
       void openSettings().catch((err: unknown) => console.warn("settings", err));
@@ -133,14 +131,12 @@ function windowCommand(command: ToolbarCommand, active: Element | null | undefin
   return true;
 }
 
-function useToolbarCommand(props: ToolbarContainerProps, pressedActive: RefObject<Element | null | undefined>) {
+function useToolbarCommand(props: ToolbarContainerProps) {
   const client = useClient();
   const frame = useCalendarFrame();
   return useCallback(
     (command: ToolbarCommand) => {
-      const active = pressedActive.current;
-      pressedActive.current = undefined;
-      if (windowCommand(command, active)) return;
+      if (windowCommand(command)) return;
       const ui = useUI.getState();
       if (command.kind === "toggleTodoBar") {
         ui.toggleTodoBar();
@@ -201,13 +197,11 @@ function useToolbarCommand(props: ToolbarContainerProps, pressedActive: RefObjec
         case "reply":
         case "replyAll":
         case "forward":
-          void compose(client, command.kind, ids, readQuoteSelection({ active })).catch((err: unknown) =>
-            console.warn("compose", err),
-          );
+          void compose(client, command.kind, ids).catch((err: unknown) => console.warn("compose", err));
           break;
       }
     },
-    [client, props, frame.today, pressedActive],
+    [client, props, frame.today],
   );
 }
 
@@ -242,21 +236,10 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
   const flagNames = useMail((s) => s.settings?.flagNames);
   const data = useToolbarData(props.model, props.people);
   const frame = useCalendarFrame();
-  const pressedActive = useRef<Element | null | undefined>(undefined);
-  const onCommand = useToolbarCommand(props, pressedActive);
-  const capture: Pick<Parameters<typeof Toolbar>[0], "onPointerDownCapture" | "onKeyDownCapture"> = {
-    onPointerDownCapture: (event) => {
-      // A portalled menu must keep the focus captured when its opener was pressed.
-      if (event.currentTarget.contains(event.target as Node)) pressedActive.current = document.activeElement;
-    },
-    onKeyDownCapture: () => {
-      pressedActive.current = undefined;
-    },
-  };
+  const onCommand = useToolbarCommand(props);
   if (props.part === "bar")
     return (
       <MessageBar
-        {...capture}
         selection={data.selection}
         flagNames={flagNames}
         canArchive={data.archive !== undefined}
@@ -266,10 +249,9 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
     );
   return (
     <Toolbar
-      {...capture}
       narrow={props.narrow}
       windowControls={false}
-      palette={IN_LODGE}
+      palette
       mode={ui.module}
       people={{ canCreate: Boolean(props.people?.writableBooks.length) && ui.peopleEditing === null }}
       tasks={

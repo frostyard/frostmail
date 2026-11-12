@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0084 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: the store's key carries lodge's "mail:"
+// prefix, as lodge's apps share one origin (lodge/lodge.ts, STORAGE_PREFIX).
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useUI } from "./stores";
@@ -47,7 +49,7 @@ describe("tasks UI state", () => {
     ui.setTasksSource(301);
     ui.toggleShowCompleted();
     expect(useUI.getState().todoBar).toBe(true);
-    const saved = JSON.parse(localStorage.getItem("frostmail.ui") ?? "{}") as { state?: Record<string, unknown> };
+    const saved = JSON.parse(localStorage.getItem("mail:frostmail.ui") ?? "{}") as { state?: Record<string, unknown> };
     expect(saved.state?.todoBar).toBe(true);
     expect(saved.state?.tasksSource).toBeUndefined();
     expect(saved.state?.tasksShowCompleted).toBeUndefined();

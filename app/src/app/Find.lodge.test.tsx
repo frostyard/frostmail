@@ -2,7 +2,7 @@
 // reader's content-origin frame (ADR-0052; docs/specs/ui.md, Find in the
 // message).
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
@@ -10,11 +10,6 @@ import { useFrameWindow } from "../lodge/frameWindow";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { MainWindow } from "./MainWindow";
-
-vi.mock("../lodge/lodge", async (original) => ({
-  ...(await original<typeof import("../lodge/lodge")>()),
-  IN_LODGE: true,
-}));
 
 beforeEach(() => {
   localStorage.clear();
