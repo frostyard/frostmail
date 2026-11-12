@@ -500,55 +500,160 @@ func (d *DB) ThreadMessageIDs(ctx context.Context, threadID int64) ([]int64, err
 	return ids, rows.Err()
 }
 
-// GetMessage returns one message's details: its summary plus its address
-// lists (nil when empty), header identifiers, list headers, blob ID (""
-// when NULL) and parts ordered by path (nil when none). A missing row is
-// ErrNotFound.
-func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
+// messageDetailCols are the columns scanMessageDetail reads: a message's
+// summary columns, then the rest of its headers. As summaryCols, they are
+// written against the unaliased messages table.
+const messageDetailCols = summaryCols + `,
+	to_json, cc_json, reply_to_json, msgid_hdr, in_reply_to, refs_json,
+	list_id, list_unsubscribe, auth_results, blob_sha, display_sha`
+
+// scanMessageDetail reads one row of messageDetailCols: the message's
+// summary plus its address lists (nil when empty), header identifiers,
+// list headers and blob ID ("" when NULL). Its mailbox IDs and parts come
+// from other queries (mailboxIDsOf, messageParts).
+func scanMessageDetail(row rowScanner) (MessageDetail, error) {
 	var (
 		m                   MessageDetail
 		toJSON, ccJSON      string
 		replyJSON, refsJSON string
 		blobSHA, displaySHA sql.NullString
 	)
-	r := d.db.QueryRowContext(ctx, `SELECT `+summaryCols+`,
-		to_json, cc_json, reply_to_json, msgid_hdr, in_reply_to, refs_json,
-		list_id, list_unsubscribe, auth_results, blob_sha, display_sha
-		FROM messages WHERE id = ?`, id)
-	s, err := scanSummary(r, &toJSON, &ccJSON, &replyJSON, &m.MessageID, &m.InReplyTo,
+	s, err := scanSummary(row, &toJSON, &ccJSON, &replyJSON, &m.MessageID, &m.InReplyTo,
 		&refsJSON, &m.ListID, &m.ListUnsubscribe, &m.AuthResults, &blobSHA, &displaySHA)
+	if err != nil {
+		return MessageDetail{}, err
+	}
+	m.Summary = s
+	m.BlobID = blobSHA.String
+	m.DisplayBlobID = displaySHA.String
+	if m.To, err = decodeAddresses(toJSON); err != nil {
+		return MessageDetail{}, fmt.Errorf("to of message %d: %w", m.ID, err)
+	}
+	if m.Cc, err = decodeAddresses(ccJSON); err != nil {
+		return MessageDetail{}, fmt.Errorf("cc of message %d: %w", m.ID, err)
+	}
+	if m.ReplyTo, err = decodeAddresses(replyJSON); err != nil {
+		return MessageDetail{}, fmt.Errorf("reply-to of message %d: %w", m.ID, err)
+	}
+	if m.References, err = decodeStrings(refsJSON); err != nil {
+		return MessageDetail{}, fmt.Errorf("refs of message %d: %w", m.ID, err)
+	}
+	return m, nil
+}
+
+// completeMessage adds what messageDetailCols does not hold: the message's
+// mailbox IDs and its parts ordered by path (nil when none).
+func (d *DB) completeMessage(ctx context.Context, m MessageDetail) (MessageDetail, error) {
+	mbs, err := d.mailboxIDsOf(ctx, m.ID)
+	if err != nil {
+		return MessageDetail{}, err
+	}
+	m.MailboxIDs = mbs
+	parts, err := d.messageParts(ctx, m.ID)
+	if err != nil {
+		return MessageDetail{}, err
+	}
+	m.Parts = parts
+	return m, nil
+}
+
+// GetMessage returns one message's details: its summary plus its address
+// lists (nil when empty), header identifiers, list headers, blob ID (""
+// when NULL) and parts ordered by path (nil when none). A missing row is
+// ErrNotFound.
+func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
+	m, err := scanMessageDetail(d.db.QueryRowContext(ctx,
+		`SELECT `+messageDetailCols+` FROM messages WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return MessageDetail{}, ErrNotFound
 	}
 	if err != nil {
 		return MessageDetail{}, fmt.Errorf("get message %d: %w", id, err)
 	}
-	m.Summary = s
-	m.BlobID = blobSHA.String
-	m.DisplayBlobID = displaySHA.String
-	mbs, err := d.mailboxIDsOf(ctx, id)
+	return d.completeMessage(ctx, m)
+}
+
+// GetMessages returns the details of ids in the order given, as GetMessage
+// gives them, skipping IDs that do not exist. It runs 3 queries whatever
+// the number of IDs: the messages' rows, their mailbox IDs and their
+// parts. The IDs go in as 1 JSON array (json_each), so their number never
+// meets SQLite's limit on bound variables. No IDs returns an empty slice
+// without querying.
+func (d *DB) GetMessages(ctx context.Context, ids []int64) ([]MessageDetail, error) {
+	if len(ids) == 0 {
+		return []MessageDetail{}, nil
+	}
+	in, err := json.Marshal(ids)
 	if err != nil {
-		return MessageDetail{}, err
+		return nil, fmt.Errorf("get messages: %w", err)
 	}
-	m.MailboxIDs = mbs
-	if m.To, err = decodeAddresses(toJSON); err != nil {
-		return MessageDetail{}, fmt.Errorf("to of message %d: %w", id, err)
-	}
-	if m.Cc, err = decodeAddresses(ccJSON); err != nil {
-		return MessageDetail{}, fmt.Errorf("cc of message %d: %w", id, err)
-	}
-	if m.ReplyTo, err = decodeAddresses(replyJSON); err != nil {
-		return MessageDetail{}, fmt.Errorf("reply-to of message %d: %w", id, err)
-	}
-	if m.References, err = decodeStrings(refsJSON); err != nil {
-		return MessageDetail{}, fmt.Errorf("refs of message %d: %w", id, err)
-	}
-	parts, err := d.messageParts(ctx, id)
+	const inIDs = `(SELECT value FROM json_each(?))`
+	rows, err := d.db.QueryContext(ctx, `SELECT `+messageDetailCols+` FROM messages WHERE id IN `+inIDs, string(in))
 	if err != nil {
-		return MessageDetail{}, err
+		return nil, fmt.Errorf("get messages: %w", err)
 	}
-	m.Parts = parts
-	return m, nil
+	defer rows.Close()
+	byID := make(map[int64]MessageDetail, len(ids))
+	for rows.Next() {
+		m, err := scanMessageDetail(rows)
+		if err != nil {
+			return nil, fmt.Errorf("get messages: %w", err)
+		}
+		byID[m.ID] = m
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get messages: %w", err)
+	}
+	mrows, err := d.db.QueryContext(ctx, `SELECT message_id, mailbox_id FROM message_mailbox
+		WHERE message_id IN `+inIDs+` ORDER BY message_id, mailbox_id`, string(in))
+	if err != nil {
+		return nil, fmt.Errorf("messages' mailboxes: %w", err)
+	}
+	defer mrows.Close()
+	for mrows.Next() {
+		var msgID, mailboxID int64
+		if err := mrows.Scan(&msgID, &mailboxID); err != nil {
+			return nil, fmt.Errorf("messages' mailboxes: %w", err)
+		}
+		// A row of a message the first query did not see (stored since) is
+		// left out, so no message comes back with only its mailboxes.
+		if m, ok := byID[msgID]; ok {
+			m.MailboxIDs = append(m.MailboxIDs, mailboxID)
+			byID[msgID] = m
+		}
+	}
+	if err := mrows.Err(); err != nil {
+		return nil, fmt.Errorf("messages' mailboxes: %w", err)
+	}
+	prows, err := d.db.QueryContext(ctx, `SELECT message_id, path, content_type, charset, encoding,
+		disposition, filename, content_id, size FROM parts WHERE message_id IN `+inIDs+`
+		ORDER BY message_id, path`, string(in))
+	if err != nil {
+		return nil, fmt.Errorf("messages' parts: %w", err)
+	}
+	defer prows.Close()
+	for prows.Next() {
+		var msgID int64
+		var p Part
+		if err := prows.Scan(&msgID, &p.Path, &p.ContentType, &p.Charset, &p.Encoding,
+			&p.Disposition, &p.Filename, &p.ContentID, &p.Size); err != nil {
+			return nil, fmt.Errorf("messages' parts: %w", err)
+		}
+		if m, ok := byID[msgID]; ok {
+			m.Parts = append(m.Parts, p)
+			byID[msgID] = m
+		}
+	}
+	if err := prows.Err(); err != nil {
+		return nil, fmt.Errorf("messages' parts: %w", err)
+	}
+	out := make([]MessageDetail, 0, len(ids))
+	for _, id := range ids {
+		if m, ok := byID[id]; ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 // MessageCopy is a stored message with a given Message-ID, and the roles
