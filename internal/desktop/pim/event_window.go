@@ -303,7 +303,7 @@ func (w *eventWindow) dirty() bool {
 
 // takesInvitees reports whether the Add Invitee field shows.
 func (w *eventWindow) takesInvitees() bool {
-	return !w.readOnly && !w.invited() && w.calendarInvites() && !w.draft.fixedRoles
+	return !w.readOnly && !w.invited() && w.calendarInvites()
 }
 
 // typedInvitees reports text in the Add Invitee field not yet committed.
@@ -773,7 +773,7 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 	t := c.Theme()
 	d := &w.draft
 	invites := w.calendarInvites()
-	frozen := disabled || !invites || d.fixedRoles
+	frozen := disabled || !invites
 	editorRow(c, "Invitees", func() {
 		removed := -1
 		for i := range d.invitees {
@@ -791,12 +791,22 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 			ui.Row(c.Key(inv.email)).Height(28).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				frostui.Body(c, name).TextColor(color).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(tip)
 				answerIcon(c, inv.answer)
+				if inv.role == api.AttendeeRoleChair {
+					ui.Text(c, "Chair").FontSize(frostui.TextSize(c, 12)).TextColor(t.TextMuted)
+				}
+				if inv.role == api.AttendeeRoleNone {
+					ui.Text(c, "For information").FontSize(frostui.TextSize(c, 12)).TextColor(t.TextMuted)
+				}
 				optional := t.TextMuted
-				if inv.optional {
+				if inv.role == api.AttendeeRoleOptional {
 					optional = t.Accent
 				}
-				if textButton(c.Key("optional"), "Optional", optional, 12).Checked(inv.optional).Disabled(frozen).Clicked() {
-					inv.optional = !inv.optional
+				if textButton(c.Key("optional"), "Optional", optional, 12).Checked(inv.role == api.AttendeeRoleOptional).Disabled(frozen).Clicked() {
+					if inv.role == api.AttendeeRoleOptional {
+						inv.role = api.AttendeeRoleRequired
+					} else {
+						inv.role = api.AttendeeRoleOptional
+					}
 				}
 				if frostui.IconButton(c.Key("remove"), "window-close", "Remove "+name).Disabled(frozen).Clicked() {
 					removed = i
@@ -812,10 +822,6 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 			return
 		}
 		if disabled {
-			return
-		}
-		if d.fixedRoles {
-			ui.Text(c, "These invitees can't be changed here: one has a role Frostmail can't keep.").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t)).Wrap()
 			return
 		}
 		in := ui.TextInput(c.Key("add-invitee"), &w.inviteeText).Label("Add Invitee").FontSize(frostui.TextSize(c, 13))

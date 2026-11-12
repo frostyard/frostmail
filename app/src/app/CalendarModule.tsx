@@ -87,9 +87,17 @@ function useCalendarDrag(data: CalendarData) {
   return {
     notifySheet: sheet,
     canMove: (occurrence: Occurrence) => canMove(occurrence, writable),
-    onMove: (occurrence: Occurrence, range: Range) => drop(occurrence, (zone) => dropFields(range, zone)),
-    onMoveDays: (occurrence: Occurrence, days: number) =>
-      drop(occurrence, (zone) => shiftedDays(occurrence, days, data.timeZone, zone)),
+    onMove: (occurrence: Occurrence, range: Range) => {
+      if (
+        new Date(range.start).getTime() === new Date(occurrence.start).getTime() &&
+        new Date(range.end).getTime() === new Date(occurrence.end).getTime()
+      )
+        return;
+      drop(occurrence, (zone) => dropFields(range, zone));
+    },
+    onMoveDays: (occurrence: Occurrence, days: number) => {
+      if (days !== 0) drop(occurrence, (zone) => shiftedDays(occurrence, days, data.timeZone, zone));
+    },
     onDraw: (range: Range) => {
       void openEvent({
         kind: "new",

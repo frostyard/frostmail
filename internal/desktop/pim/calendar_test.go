@@ -1216,33 +1216,30 @@ func TestSavingCommitsATypedInvitee(t *testing.T) {
 	}
 }
 
-func TestInviteesWithRolesThatCannotBeWrittenStayAsTheyAre(t *testing.T) {
+func TestInviteesKeepChairAndInformationRolesWhileEditing(t *testing.T) {
 	f := newFixture(t, commands.Calendar)
 	f.text("Standup")
 	event := &api.CalendarEvent{ID: 1, CalendarID: f.work, Start: testNow, End: testNow.Add(time.Hour),
-		Attendees: []api.Attendee{{Email: "chair@a.test", Name: "Chair", Role: api.AttendeeRoleChair}, {Email: "ann@a.test", Name: "Ann", Role: api.AttendeeRoleRequired}}}
+		Attendees: []api.Attendee{{Email: "chair@a.test", Name: "Leader", Role: api.AttendeeRoleChair}, {Email: "info@a.test", Role: api.AttendeeRoleNone}, {Email: "ann@a.test", Name: "Ann", Role: api.AttendeeRoleRequired}}}
 	w := &eventWindow{m: f.m, key: "event-x", target: editTarget{id: 1}}
 	f.m.openWindow(w, "Roles")
 	w.loadedWith([]api.Account{{ID: f.acct, Email: "me@a.test"}}, []api.Collection{{ID: f.work, AccountID: f.acct, Name: "Work", Invites: true}}, event, nil, "UTC", time.UTC)
 	win := f.windows["event-x"]
 	win.tt.Frame()
-	if !win.tt.HasText("These invitees can't be changed here: one has a role Frostmail can't keep.") {
-		t.Errorf("no note: %s", dump(win.tt))
+	if !win.tt.HasText("Chair") || !win.tt.HasText("For information") || !win.tt.HasText("Add Invitee") {
+		t.Errorf("missing roles or input: %s", dump(win.tt))
 	}
-	if win.tt.HasText("Add Invitee") {
-		t.Error("the input shows")
-	}
-	if a, _ := win.tt.AccessByRole(ui.RoleButton, "Remove Ann"); !a.Disabled {
-		t.Errorf("the row can change: %+v", a)
+	if a, _ := win.tt.AccessByRole(ui.RoleButton, "Remove Ann"); a.Disabled {
+		t.Errorf("the row cannot change: %+v", a)
 	}
 	w.inviteeText = "bo@a.test"
-	if w.dirty() {
-		t.Error("text in a field that does not show counts as a change")
+	if !w.dirty() {
+		t.Error("new invitee text is not an edit")
 	}
-	w.draft.summary = "Renamed"
-	w.draft.invitees = w.draft.invitees[:1]
-	if got := changedFields(w.original(), w.draft); got.Attendees != nil || got.Summary == nil {
-		t.Errorf("a write would rewrite the roles: %+v", got)
+	w.commitInvitees()
+	got := changedFields(w.original(), w.draft)
+	if len(got.Attendees) != 4 || *got.Attendees[0].Role != api.AttendeeRoleChair || *got.Attendees[1].Role != api.AttendeeRoleNone || *got.Attendees[3].Role != api.AttendeeRoleRequired {
+		t.Errorf("invitees after adding: %+v", got.Attendees)
 	}
 }
 

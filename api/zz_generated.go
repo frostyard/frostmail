@@ -1505,7 +1505,7 @@ type Invitation struct {
 type Invitee struct {
 	Email string  `json:"email"`
 	Name  *string `json:"name,omitzero"`
-	// required (the default) or optional.
+	// required (the default), optional, chair or none (copied for information).
 	Role *AttendeeRole `json:"role,omitzero"`
 }
 

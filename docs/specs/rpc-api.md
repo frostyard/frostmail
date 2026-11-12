@@ -887,7 +887,7 @@ An invitee to set on an event the user organizes (ADR-0035).
 | --- | --- | --- |
 | `email` | `string` |  |
 | `name` | `string` (optional) |  |
-| `role` | `AttendeeRole` (optional) | required (the default) or optional. |
+| `role` | `AttendeeRole` (optional) | required (the default), optional, chair or none (copied for information). |
 
 ### Type `InviteNotice`
 

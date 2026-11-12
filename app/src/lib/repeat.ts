@@ -20,10 +20,17 @@ export interface Repeat {
   weekdays: Weekday[];
   /** Monthly: on the start's n-th (or last) weekday, not its day of the month. */
   byWeekday: boolean;
+  /** Preserve an explicit last-weekday rule even in a four-weekday month. */
+  last?: boolean;
+  /** The rule's explicit week start, independent of display locale. */
+  weekStart?: Weekday;
 }
 
 /** RepeatEnd is when a rule stops. */
-export type RepeatEnd = { kind: "never" } | { kind: "date"; date: string } | { kind: "count"; count: number };
+export type RepeatEnd =
+  | { kind: "never" }
+  | { kind: "date"; date: string; until?: string }
+  | { kind: "count"; count: number };
 
 function ruleParts(rule: string): Map<string, string> | undefined {
   const parts = new Map<string, string>();
@@ -87,6 +94,7 @@ export function repeatOf(rule: string, start: string): Repeat | undefined {
   if (frequency === "YEARLY") allowed.push("BYMONTH");
   if (Array.from(parts.keys()).some((name) => !allowed.includes(name))) return undefined;
   const repeat: Repeat = { frequency, interval: Number(interval), weekdays: [], byWeekday: false };
+  if (weekStart !== undefined) repeat.weekStart = weekStart as Weekday;
   const byDay = parts.get("BYDAY");
   const monthDay = parts.get("BYMONTHDAY");
   const month = parts.get("BYMONTH");
@@ -97,6 +105,7 @@ export function repeatOf(rule: string, start: string): Repeat | undefined {
   } else if (byDay !== undefined) {
     if (monthDay !== undefined || !matchesWeekday(byDay, start)) return undefined;
     repeat.byWeekday = true;
+    if (byDay.startsWith("-1")) repeat.last = true;
   }
   if (monthDay !== undefined && !matchesNumber(monthDay, Number(start.slice(8, 10)))) return undefined;
   if (month !== undefined && !matchesNumber(month, Number(start.slice(5, 7)))) return undefined;
@@ -118,8 +127,9 @@ export function ruleOf(r: Repeat, start: string): string {
       rule += `;BYDAY=${days.join(",")}`;
     }
   } else if (r.frequency === "MONTHLY" && r.byWeekday) {
-    rule += `;BYDAY=${nthWeekday(start)}`;
+    rule += `;BYDAY=${r.last ? `-1${startDay(start)}` : nthWeekday(start)}`;
   }
+  if (r.weekStart !== undefined) rule += `;WKST=${r.weekStart}`;
   return rule;
 }
 
@@ -181,7 +191,7 @@ export function endOf(rule: string, timeZone: string): RepeatEnd {
   if (count !== undefined && positiveInteger(count)) return { kind: "count", count: Number(count) };
   const until = parts.get("UNTIL");
   const date = until === undefined ? undefined : untilDate(until, timeZone);
-  return date === undefined ? { kind: "never" } : { kind: "date", date };
+  return date === undefined ? { kind: "never" } : { kind: "date", date, until };
 }
 
 /** withEnd is rule ending as end says: on a date (its last day, in timeZone for a timed event) or after a count. */
@@ -194,13 +204,17 @@ export function withEnd(rule: string, end: RepeatEnd, allDay: boolean, timeZone:
     const count = Number.isFinite(end.count) ? Math.max(1, Math.trunc(end.count)) : 1;
     parts.set("COUNT", String(count));
   } else if (end.kind === "date") {
-    const until = allDay
-      ? end.date.replaceAll("-", "")
-      : new Date(dayStart(addDays(end.date, 1), timeZone).getTime() - 1000)
-          .toISOString()
-          .replaceAll(/[-:]/g, "")
-          .replace(".000", "");
-    parts.set("UNTIL", until);
+    const keep =
+      end.until !== undefined && (end.until.length === 8) === allDay && untilDate(end.until, timeZone) === end.date;
+    const until = keep
+      ? end.until
+      : allDay
+        ? end.date.replaceAll("-", "")
+        : new Date(dayStart(addDays(end.date, 1), timeZone).getTime() - 1000)
+            .toISOString()
+            .replaceAll(/[-:]/g, "")
+            .replace(".000", "");
+    if (until !== undefined) parts.set("UNTIL", until);
   }
   return writeParts(parts);
 }

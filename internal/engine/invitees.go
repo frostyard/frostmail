@@ -32,10 +32,10 @@ func (c calendarService) inviteesOf(ctx context.Context, col store.Collection, l
 		role := "required"
 		if in.Role != nil {
 			switch *in.Role {
-			case api.AttendeeRoleRequired, api.AttendeeRoleOptional:
+			case api.AttendeeRoleRequired, api.AttendeeRoleOptional, api.AttendeeRoleChair, api.AttendeeRoleNone:
 				role = string(*in.Role)
 			default:
-				return calendar.EventChange{}, api.InvalidParams("an invitee is required or optional")
+				return calendar.EventChange{}, api.InvalidParams("an invitee is required, optional, chair or none")
 			}
 		}
 		if seen[email] || slices.Contains(emails, email) {

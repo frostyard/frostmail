@@ -144,8 +144,7 @@ function LoadedEditor({ client, loaded, appZone }: { client: Client; loaded: Loa
   const cannotInvite = sendsInvitees(original, draft) && !calendars.find((c) => c.id === draft.calendarId)?.invites;
   const cannotSave = invalid || cannotInvite;
   // An incomplete date still counts as an edit, but cannot be converted to RPC fields yet.
-  const dirty =
-    !readOnly && (original ? invalid || Object.keys(changedFields(original, draft)).length > 0 : draft.summary !== "");
+  const dirty = !readOnly && (invalid || Object.keys(changedFields(initial, draft)).length > 0);
   const zones = useMemo(
     () => [...new Set([appZone, ...(event?.timeZone ? [event.timeZone] : []), ...Intl.supportedValuesOf("timeZone")])],
     [appZone, event?.timeZone],

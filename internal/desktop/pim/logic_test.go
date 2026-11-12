@@ -439,7 +439,7 @@ func TestEventDraft(t *testing.T) {
 		t.Errorf("%+v", f)
 	}
 	withPeople := d
-	withPeople.invitees = []draftInvitee{{email: "a@b.test", optional: true}}
+	withPeople.invitees = []draftInvitee{{email: "a@b.test", role: api.AttendeeRoleOptional}}
 	f = changedFields(&d, withPeople)
 	if len(f.Attendees) != 1 || *f.Attendees[0].Role != api.AttendeeRoleOptional {
 		t.Errorf("%+v", f)
@@ -461,7 +461,7 @@ func TestEventDraft(t *testing.T) {
 	event := &api.CalendarEvent{CalendarID: 3, Start: start, End: start.Add(time.Hour), Recurrence: "RRULE:FREQ=DAILY\nEXDATE:20261008T090000Z",
 		Attendees: []api.Attendee{{Email: "me@a.test", IsUser: true}, {Email: "ann@a.test", Name: "Ann", Role: api.AttendeeRoleOptional, Answer: api.PartStatAccepted}}, Alarms: []int64{15}}
 	dd := draftOf(event, "UTC", loc)
-	if dd.rrule != "FREQ=DAILY" || len(dd.invitees) != 1 || !dd.invitees[0].optional || dd.alarms[0] != 15 {
+	if dd.rrule != "FREQ=DAILY" || len(dd.invitees) != 1 || dd.invitees[0].role != api.AttendeeRoleOptional || dd.alarms[0] != 15 {
 		t.Errorf("%+v", dd)
 	}
 }

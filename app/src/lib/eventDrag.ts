@@ -36,6 +36,7 @@ export function minuteAt(y: number): number {
 
 /** moved is a timed range moved by days and minutes of the app's wall time, keeping its length. */
 export function moved(range: Range, days: number, minutes: number, timeZone: string): Range {
+  if (days === 0 && minutes === 0) return range;
   const wall = zoned(range.start, timeZone);
   const start = instantAt(addDays(wall.date, days), wall.minutes + minutes, timeZone);
   const duration = new Date(range.end).getTime() - new Date(range.start).getTime();
@@ -44,6 +45,7 @@ export function moved(range: Range, days: number, minutes: number, timeZone: str
 
 /** resized is a timed range whose end moved by minutes of wall time, ending at least a step after its start. */
 export function resized(range: Range, minutes: number, timeZone: string): Range {
+  if (minutes === 0) return range;
   const wall = zoned(range.end, timeZone);
   const end = instantAt(wall.date, wall.minutes + minutes, timeZone);
   const minimum = new Date(range.start).getTime() + STEP * 60_000;
