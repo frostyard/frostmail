@@ -30,6 +30,30 @@ func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Messag
 	if err != nil {
 		return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
 	}
+	out := toAPIMessage(d)
+	return &out, nil
+}
+
+// GetMany implements message.getMany: the details of messages in the order
+// given, skipping a message that no longer exists and one the caller may
+// not read.
+func (m messages) GetMany(ctx context.Context, p *api.MessageGetManyParams) ([]api.Message, error) {
+	ds, err := m.DB.GetMessages(ctx, p.IDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.Message, 0, len(ds))
+	for _, d := range ds {
+		if !admits(ctx, d.AccountID) {
+			continue
+		}
+		out = append(out, toAPIMessage(d))
+	}
+	return out, nil
+}
+
+// toAPIMessage converts a stored message to the API's Message.
+func toAPIMessage(d store.MessageDetail) api.Message {
 	out := api.Message{
 		Summary: toAPISummary(d.Summary), To: toAPIAddresses(d.To), Cc: toAPIAddresses(d.Cc),
 		ReplyTo: toAPIAddresses(d.ReplyTo), MessageID: d.MessageID, InReplyTo: d.InReplyTo,
@@ -46,7 +70,7 @@ func (m messages) Get(ctx context.Context, p *api.MessageGetParams) (*api.Messag
 			Disposition: pt.Disposition, ContentID: pt.ContentID, Size: pt.Size,
 		})
 	}
-	return &out, nil
+	return out
 }
 
 func (m messages) Body(ctx context.Context, p *api.MessageBodyParams) (*api.Body, error) {

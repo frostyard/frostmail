@@ -133,6 +133,10 @@ func TestTheEngineEnforcesAnAgentsScope(t *testing.T) {
 	if err != nil || len(sums) != 1 || sums[0].ID != n.msgA {
 		t.Errorf("message.summaries = %v, %v; want %d alone", sums, err, n.msgA)
 	}
+	msgs, err := c.Message().GetMany(ctx, &api.MessageGetManyParams{IDs: []int64{n.msgA, n.msgB}})
+	if err != nil || len(msgs) != 1 || msgs[0].Summary.ID != n.msgA {
+		t.Errorf("message.getMany = %v, %v; want %d alone", msgs, err, n.msgA)
+	}
 	local := n.srv.Dial(t)
 	all, err := local.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: []int64{n.msgB}})
 	if err != nil || len(all) != 1 {

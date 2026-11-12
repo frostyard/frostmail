@@ -1771,6 +1771,11 @@ export interface MessageSummariesParams {
   ids: number[];
 }
 
+/** Params of message.getMany. */
+export interface MessageGetManyParams {
+  ids: number[];
+}
+
 /** Params of message.byMessageId. */
 export interface MessageByMessageIDParams {
   /** The Message-ID, with or without its angle brackets. */
@@ -1914,6 +1919,12 @@ export interface MessageClient {
    */
   summaries(params: MessageSummariesParams): Promise<MessageSummary[]>;
   /**
+   * The headers and structure of messages, as message.get gives them, in the
+   * order given; IDs that no longer exist, or that the caller may not read,
+   * are skipped.
+   */
+  getMany(params: MessageGetManyParams): Promise<Message[]>;
+  /**
    * The message a Message-ID names, for lodge's permanent route
    * /message/<Message-ID> (docs/specs/lodge-app.md): among the stored
    * messages with that Message-ID, one in an inbox, else one in neither Trash
@@ -1996,6 +2007,7 @@ function messageClient(t: Transport): MessageClient {
     get: (params) => t.call<Message>("message.get", params),
     body: (params) => t.call<Body>("message.body", params),
     summaries: (params) => t.call<MessageSummary[]>("message.summaries", params),
+    getMany: (params) => t.call<Message[]>("message.getMany", params),
     byMessageId: (params) => t.call<MessageSummary>("message.byMessageId", params),
     render: (params) => t.call<Rendering>("message.render", params),
     part: (params) => t.call<PartFile>("message.part", params),
@@ -3453,6 +3465,7 @@ export const METHODS = [
   "message.get",
   "message.body",
   "message.summaries",
+  "message.getMany",
   "message.byMessageId",
   "message.render",
   "message.part",

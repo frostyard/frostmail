@@ -18,7 +18,13 @@ import (
 // messages, a day apart, and one message whose text is past 32 KiB.
 func seedThread(t *testing.T) (srv *rpctest.Server, acct int64, thread []int64, long int64) {
 	t.Helper()
-	srv = rpctest.Start(t)
+	return seedThreadWith(t, rpctest.Options{})
+}
+
+// seedThreadWith seeds seedThread's messages on a server started with o.
+func seedThreadWith(t *testing.T, o rpctest.Options) (srv *rpctest.Server, acct int64, thread []int64, long int64) {
+	t.Helper()
+	srv = rpctest.StartWith(t, o)
 	ctx := t.Context()
 	var hdrs []store.MessageHeader
 	var raws [][]byte
@@ -31,6 +37,7 @@ func seedThread(t *testing.T) (srv *rpctest.Server, acct int64, thread []int64, 
 		}
 		raw += "\r\n" + body + "\r\n"
 		h := store.MessageHeader{UID: uid, Size: int64(len(raw)), Subject: subject, From: store.Address{Name: "Ann", Addr: "ann@a.test"},
+			To:   []store.Address{{Addr: "me@a.test"}},
 			Date: date, InternalDate: date, MessageID: msgid, References: refs, Preview: string([]rune(body)[:min(len([]rune(body)), 40)])}
 		if len(refs) > 0 {
 			h.InReplyTo = refs[0]
