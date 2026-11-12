@@ -518,8 +518,8 @@ compose is: in the app, a window keyed `event-<id>`
 (`event-<id>-<occurrence>` for one occurrence of a series, the
 recurrence ID's letters and digits joined by hyphens; `event-new-<n>`
 for a new event), opened by the `open_event` command, which focuses the
-window already showing it; in a browser, a tab at
-`#/event/<id>?recurrenceId=…` or `#/event/new?…`. It is 480 × 600
+window already showing it; in lodge's web app, the route
+`/event/<id>?recurrenceId=…` or `/event/new?…` ([specs/lodge-app.md](lodge-app.md)). It is 480 × 600
 (minimum 420 × 480), titled with the event's summary, else "New Event",
 and draws its own 32-high title strip with a Close button.
 
@@ -904,8 +904,8 @@ whatever the app shows.
 └──────────────────────────────────────┘
 ```
 
-- **Window:** the window keyed `reminders` (a
-  new tab at `#/reminders` in a browser), 380 × 300, always on top, no
+- **Window:** the window keyed `reminders` (lodge's
+  route `/reminders` in the web app), 380 × 300, always on top, no
   system title bar. `--bg-window`.
 - **Title strip** (36 high, 1px `--separator` bottom, draggable): "Reminders"
   13/16 600 at 12px, and Close (`X`, 28 × 28) at the right. Escape closes

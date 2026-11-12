@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0117 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: compose is a route the frame shows
+// (lodge/frameWindow.ts), not a browser tab.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +11,7 @@ import { atLocal } from "../lib/later";
 import { Client } from "../rpc/gen/api";
 import { FIXTURE, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { frameRoute } from "../testing/frame";
 import { MainWindow } from "./MainWindow";
 
 beforeEach(() => {
@@ -86,12 +89,9 @@ describe("Send Later in the main window", () => {
 
   it("edits: the message comes back as its draft", async () => {
     const user = userEvent.setup();
-    const open = vi.fn();
-    vi.stubGlobal("open", open);
     const { section, item, draft, calls } = await setup();
     await user.click(within(section).getByRole("button", { name: "Edit" }));
     await waitFor(() => expect(calls("outbox.cancel")).toEqual([{ id: item.id }]));
-    await waitFor(() => expect(open).toHaveBeenCalled());
-    expect(String(open.mock.calls[0]?.[0])).toContain(`#/compose/${draft.id}`);
+    await waitFor(() => expect(frameRoute()).toBe(`/compose/${draft.id}`));
   });
 });

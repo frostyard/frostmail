@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0146 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: the event editor is a route the frame
+// shows (lodge/frameWindow.ts), not a browser tab.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +9,7 @@ import { useUI } from "../data/stores";
 import { Client } from "../rpc/gen/api";
 import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { frameRoute } from "../testing/frame";
 import { MainWindow } from "./MainWindow";
 
 // The fixture's week is October 4–10, 2026 (UTC); the user organizes 302
@@ -58,12 +61,9 @@ afterEach(() => {
 describe("Calendar edits from the event pane", () => {
   it("edits and deletes an event the user organizes", async () => {
     const { calls } = await setup();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
     await select("Thursday, October 8, 2026", /^Design review/);
     fireEvent.click(pane().getByRole("button", { name: "Edit Event" }));
-    await waitFor(() => expect(open).toHaveBeenCalled());
-    expect(String(open.mock.calls[0]?.[0])).toMatch(/#\/event\/302$/);
-    expect(open.mock.calls[0]?.[1]).toBe("event-302");
+    await waitFor(() => expect(frameRoute()).toMatch(/^\/event\/302$/));
 
     fireEvent.click(pane().getByRole("button", { name: "Delete Event" }));
     await waitFor(() => expect(calls("calendar.delete").at(-1)?.params).toEqual({ id: 302 }));

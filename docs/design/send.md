@@ -193,7 +193,8 @@ case-insensitively, ranked by `count` and then `last_seen`.
 ## Compose windows
 
 - The main window opens a compose window for the draft (an existing window
-  for that draft is focused instead); on the web, `#/compose/<draftId>`.
+  for that draft is focused instead); in lodge's web app, the route
+  `/compose/<draftId>` ([specs/lodge-app.md](../specs/lodge-app.md)).
 - The compose UI: identity menu (when the account has several), To, Cc and
   Bcc fields with address tokens and suggestions, subject, a TipTap editor
   with a formatting bar, an attachment strip, Send, and close (which keeps the

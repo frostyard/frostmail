@@ -1,8 +1,6 @@
 // Opening events in the event editor window (docs/specs/pim-ui.md, Event
-// editor window). In lodge each is a route the frame shows; outside lodge's
-// frame it opens in a new tab at #/event/<id>?recurrenceId=… or
-// #/event/new?…, named event-<id> (event-<id>-<occurrence> for one occurrence
-// of a series, event-new-<n> for a new event).
+// editor window): a route the frame shows, /event/<id>?recurrenceId=… or
+// /event/new?….
 import { addDays, instantAt, zoned } from "../lib/calendarDates";
 import { openFrameWindow } from "../lodge/frameWindow";
 
@@ -24,8 +22,8 @@ export type EditorTarget =
       endDate: string;
     };
 
-function fromHash(hash: string): EditorTarget | null {
-  const m = /^#\/event\/(new|\d+)(?:\?(.*))?$/.exec(hash);
+function parseRoute(route: string): EditorTarget | null {
+  const m = /^\/event\/(new|\d+)(?:\?(.*))?$/.exec(route);
   if (!m?.[1]) return null;
   const q = new URLSearchParams(m[2] ?? "");
   if (m[1] !== "new") return { kind: "edit", id: Number(m[1]), recurrenceId: q.get("recurrenceId") ?? "" };
@@ -41,42 +39,25 @@ function fromHash(hash: string): EditorTarget | null {
   };
 }
 
-function toHash(target: EditorTarget): string {
+/** eventRoute is a target's route: /event/<id>?… or /event/new?…. */
+export function eventRoute(target: EditorTarget): string {
   if (target.kind === "edit") {
-    return `#/event/${target.id}${target.recurrenceId ? `?${new URLSearchParams({ recurrenceId: target.recurrenceId })}` : ""}`;
+    return `/event/${target.id}${target.recurrenceId ? `?${new URLSearchParams({ recurrenceId: target.recurrenceId })}` : ""}`;
   }
   const q = new URLSearchParams({ allDay: target.allDay ? "1" : "0" });
   for (const key of ["start", "end", "startDate", "endDate"] as const) if (target[key]) q.set(key, target[key]);
   if (target.calendarId !== undefined) q.set("calendarId", String(target.calendarId));
-  return `#/event/new?${q}`;
+  return `/event/new?${q}`;
 }
 
-/** eventRoute is a target's route in lodge: /event/<id>?… or /event/new?…. */
-export function eventRoute(target: EditorTarget): string {
-  return toHash(target).slice(1);
-}
-
-/** eventFromRoute is the target a lodge route names, or null. */
+/** eventFromRoute is the target a route names, or null. */
 export function eventFromRoute(route: string): EditorTarget | null {
-  return fromHash(`#${route}`);
+  return parseRoute(route);
 }
 
-/** editorTarget returns what this window edits, or null when it is not an event editor. */
-export function editorTarget(): EditorTarget | null {
-  return fromHash(window.location.hash);
-}
-
-/** windowLabel is the editor tab's name for a target. */
-export function windowLabel(target: EditorTarget, now = Date.now()): string {
-  if (target.kind === "new") return `event-new-${now}`;
-  const occurrence = target.recurrenceId.replace(/[^A-Za-z0-9]+/g, "-").replace(/-+$/, "");
-  return occurrence ? `event-${target.id}-${occurrence}` : `event-${target.id}`;
-}
-
-/** openEvent shows an event (or a new one) in its editor window, focusing the window that already shows it. */
+/** openEvent shows an event (or a new one) in the editor window, in place of the main window. */
 export async function openEvent(target: EditorTarget): Promise<void> {
-  if (openFrameWindow({ kind: "event", target })) return;
-  window.open(`${window.location.pathname}${toHash(target)}`, windowLabel(target));
+  openFrameWindow({ kind: "event", target });
 }
 
 /** newEventAt is a new event's first times on a date: an hour from the next whole hour today, else from 9:00 AM. */

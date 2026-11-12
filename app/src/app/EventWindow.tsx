@@ -67,8 +67,7 @@ function message(error: unknown): string {
 }
 
 function closeWindow(): void {
-  if (closeFrameWindow()) return;
-  window.close();
+  closeFrameWindow();
 }
 
 /** EventWindow loads and edits its target's event. */

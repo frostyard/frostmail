@@ -41,15 +41,7 @@ import {
   Trash2,
   UserPlus,
 } from "lucide-react";
-import {
-  type DOMAttributes,
-  type MouseEvent,
-  type ReactNode,
-  type RefObject,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { type MouseEvent, type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
 import type { CalendarPane, NarrowPane, PeoplePane, TasksPane } from "../../app/narrow";
 import type { CalendarView } from "../../lib/calendarDates";
 import { FLAG_NAMES, flagLabel } from "../../lib/flags";
@@ -162,9 +154,6 @@ export interface ToolbarProps {
   /** The search field, placed before the window controls. */
   search: ReactNode;
   onCommand: (cmd: ToolbarCommand) => void;
-  /** Capture input before a control moves focus out of the reader. */
-  onPointerDownCapture?: DOMAttributes<HTMLDivElement>["onPointerDownCapture"];
-  onKeyDownCapture?: DOMAttributes<HTMLDivElement>["onKeyDownCapture"];
 }
 
 type MenuKind = "flag" | "move";
@@ -970,8 +959,6 @@ function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: Toolbar
     <>
       <div
         role="toolbar"
-        onPointerDownCapture={props.onPointerDownCapture}
-        onKeyDownCapture={props.onKeyDownCapture}
         aria-label="Toolbar"
         className="flex h-[52px] shrink-0 items-center gap-1 border-b border-separator bg-toolbar px-1"
       >
@@ -1051,7 +1038,7 @@ function NarrowToolbar({ props, narrow }: { props: ToolbarProps; narrow: Toolbar
 /** MessageBarProps are the narrow window's message bar's inputs. */
 export type MessageBarProps = Pick<
   ToolbarProps,
-  "selection" | "canArchive" | "moveTargets" | "flagNames" | "onCommand" | "onPointerDownCapture" | "onKeyDownCapture"
+  "selection" | "canArchive" | "moveTargets" | "flagNames" | "onCommand"
 >;
 
 // BAR_WIDTHS are the bar's buttons at their minimum: each is a touch target.
@@ -1107,8 +1094,6 @@ export function MessageBar(props: MessageBarProps) {
     <div
       ref={bar}
       role="toolbar"
-      onPointerDownCapture={props.onPointerDownCapture}
-      onKeyDownCapture={props.onKeyDownCapture}
       aria-label="Message Actions"
       className="flex shrink-0 items-center gap-1 border-t border-separator bg-toolbar px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]"
     >
@@ -1145,8 +1130,6 @@ export function Toolbar(props: ToolbarProps) {
   return (
     <div
       role="toolbar"
-      onPointerDownCapture={props.onPointerDownCapture}
-      onKeyDownCapture={props.onKeyDownCapture}
       aria-label="Toolbar"
       className="flex h-[52px] shrink-0 items-center border-b border-separator bg-toolbar"
     >

@@ -1,8 +1,8 @@
 // The reminder window: raising it from the main window, and asking the main
-// window to open an occurrence (docs/specs/pim-ui.md, Reminder window).
+// window to open an occurrence (docs/specs/pim-ui.md, Reminder window). In
+// lodge every window is a route the frame shows, in the same document.
 import { useUI } from "../data/stores";
 import { closeFrameWindow, frameWindowOpen, openFrameWindow } from "../lodge/frameWindow";
-import { IN_LODGE } from "../lodge/lodge";
 import type { Client } from "../rpc/gen/api";
 
 /** OccurrenceRequest names an occurrence for the main window to open. */
@@ -13,30 +13,16 @@ export interface OccurrenceRequest {
   date: string;
 }
 
-/** isRemindersWindow reports whether this window shows the reminders. */
-export function isRemindersWindow(): boolean {
-  return window.location.hash === "#/reminders";
-}
-
 /** openReminders shows the reminder window, raising it when it is open. */
 export async function openReminders(): Promise<void> {
-  if (IN_LODGE) {
-    // In lodge's frame the reminders never cover a window the user is in.
-    if (!frameWindowOpen()) openFrameWindow({ kind: "reminders" });
-    return;
-  }
-  window.open(`${window.location.pathname}#/reminders`, "reminders");
+  // The reminders never cover a window the user is in.
+  if (!frameWindowOpen()) openFrameWindow({ kind: "reminders" });
 }
 
 /** openOccurrenceInMain asks the main window to open an occurrence in Calendar. */
 export async function openOccurrenceInMain(request: OccurrenceRequest): Promise<void> {
-  closeFrameWindow(); // in lodge, back to the main window to show it
-  // BroadcastChannel crosses documents; also deliver requests made in this
-  // document directly, without waiting for the broadcast round trip.
+  closeFrameWindow(); // back to the main window to show it
   window.dispatchEvent(new CustomEvent<OccurrenceRequest>("open-occurrence", { detail: request }));
-  const channel = new BroadcastChannel("frostmail");
-  channel.postMessage({ kind: "open-occurrence", ...request });
-  channel.close();
 }
 
 /** watchReminders raises the reminder window from the main window; it returns the cleanup. */
@@ -73,22 +59,8 @@ export function watchOccurrenceRequests(): () => void {
     if (event instanceof CustomEvent) reveal(event.detail as OccurrenceRequest);
   };
   window.addEventListener("open-occurrence", onLocalRequest);
-  const channel = new BroadcastChannel("frostmail");
-  channel.onmessage = (event: MessageEvent<unknown>) => {
-    // Browser broadcasts name the sender's origin. Do not accept messages
-    // from a different document origin (including non-browser channels).
-    if (event.origin !== window.location.origin) return;
-    const data = event.data;
-    if (typeof data !== "object" || data === null) return;
-    if (!("kind" in data) || data.kind !== "open-occurrence") return;
-    if (!("eventId" in data) || typeof data.eventId !== "number") return;
-    if (!("recurrenceId" in data) || typeof data.recurrenceId !== "string") return;
-    if (!("date" in data) || typeof data.date !== "string") return;
-    reveal({ eventId: data.eventId, recurrenceId: data.recurrenceId, date: data.date });
-  };
   return () => {
     stopped = true;
     window.removeEventListener("open-occurrence", onLocalRequest);
-    channel.close();
   };
 }

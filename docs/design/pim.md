@@ -511,7 +511,8 @@ contacts and events writable through `people.create`, `update`, `delete`,
   the delete is dropped, the old calendar is listed in full again, which
   brings the event back, and `calendar.refused` says so.
 - **The app** (docs/specs/pim-ui.md): the event pane's Edit opens the
-  event editor window (`open_event`; `#/event/<id>` in a browser), and
+  event editor window (`open_event`; lodge's route `/event/<id>` in the web
+  app), and
   its Delete deletes through the scope sheet for an occurrence of a
   series. The editor edits a draft (`lib/eventDraft.ts`), sends
   `calendar.create`, or `calendar.update` with the changed fields after

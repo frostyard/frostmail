@@ -9,8 +9,6 @@ import { mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
 import { closeFrameWindow, openFrameWindow, useFrameWindow, windowFromRoute, windowRoute } from "./frameWindow";
 
-vi.mock("./lodge", async (original) => ({ ...(await original<typeof import("./lodge")>()), IN_LODGE: true }));
-
 beforeEach(() => {
   localStorage.clear();
   useUI.setState(useUI.getInitialState());
@@ -43,9 +41,9 @@ describe("frame window routes", () => {
   });
 
   it("open and close in the frame", () => {
-    expect(openFrameWindow({ kind: "settings" })).toBe(true);
+    openFrameWindow({ kind: "settings" });
     expect(useFrameWindow.getState().open).toEqual({ kind: "settings" });
-    expect(closeFrameWindow()).toBe(true);
+    closeFrameWindow();
     expect(useFrameWindow.getState().open).toBeNull();
   });
 });

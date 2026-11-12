@@ -8,8 +8,9 @@
 // field too. PALETTE names each command in the modules where it acts, with
 // what it needs, and shortcutText writes its keys for the palette's rows.
 //
-// Ctrl+F finds in the message shown while one shows, and focuses the search
-// field otherwise (ADR-0052); Ctrl+Alt+F always focuses the search field.
+// Ctrl+F with one message shown in Mail is the browser's: its find reaches
+// the reader's frame, so the palette lists no find (ADR-0052). Elsewhere
+// Ctrl+F focuses the search field, as Ctrl+Alt+F always does.
 
 import type { Module } from "./modules";
 
@@ -201,7 +202,8 @@ const mailPeople = (name: string) => ({ mail: name, people: name });
 
 /**
  * PALETTE is the palette's commands, in the order it lists them, and null
- * for a move: one with no name of its own to find. Every command has an
+ * for a move (one with no name of its own to find) or a key the palette
+ * leaves to the browser (find). Every command has an
  * entry, so a new one fails tsc until it has its place here.
  */
 export const PALETTE: Readonly<Record<Command, PaletteEntry | null>> = {
@@ -219,7 +221,8 @@ export const PALETTE: Readonly<Record<Command, PaletteEntry | null>> = {
   selectAll: { name: mail("Select All") },
   getMail: { name: mail("Get Mail") },
   focusSearch: { name: mailPeople("Search") },
-  find: { name: mail("Find in Message"), needs: "message" },
+  // Ctrl+F is the browser's find when one message shows (ADR-0052).
+  find: null,
   print: { name: mail("Print…"), needs: "message" },
   rawSource: { name: mail("Raw Source…"), needs: "message" },
   allHeaders: { name: mail("Show/Hide All Headers"), needs: "message" },
@@ -274,19 +277,11 @@ export interface PaletteItem {
   reason?: string;
 }
 
-/** PaletteOptions says what the build lacks: the web build leaves Ctrl+F
- *  to the browser, whose find reaches the reader's frame, so its palette
- *  lists no Find in Message (ADR-0052). */
-export interface PaletteOptions {
-  web?: boolean;
-}
-
 /** paletteItems lists a module's commands in PALETTE's order, with the
  *  reason of each one that the selection (the count) cannot run. */
-export function paletteItems(module: Module, selected: number, options: PaletteOptions = {}): PaletteItem[] {
+export function paletteItems(module: Module, selected: number): PaletteItem[] {
   const items: PaletteItem[] = [];
   for (const [command, entry] of Object.entries(PALETTE) as [Command, PaletteEntry | null][]) {
-    if (options.web === true && command === "find") continue;
     const name = entry?.name[module];
     if (!entry || name === undefined) continue;
     const shortcut = shortcutText(command);

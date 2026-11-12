@@ -19,7 +19,6 @@ async function setup() {
     id: draft.id,
     content: { ...draft.content, subject: "Lunch", bcc: [{ name: "Carol", address: "carol@x.test" }] },
   });
-  vi.spyOn(window, "close").mockImplementation(() => {});
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <ComposeWindow draftId={draft.id} fresh={false} />

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
+import { useFrameWindow } from "../lodge/frameWindow";
 import { mockData } from "../rpc/mock/fixture";
 import { type MockData, MockTransport } from "../rpc/mock/mock";
 import { MainWindow } from "./MainWindow";
@@ -26,12 +27,12 @@ async function setup(data: MockData = EMPTY) {
   return { mock };
 }
 
-const opens = () => vi.mocked(window.open).mock.calls.filter((call) => String(call[0]).endsWith("#/settings"));
+/** opens is the windows the frame shows, which first run opens only on its action. */
+const opens = () => (useFrameWindow.getState().open === null ? [] : [useFrameWindow.getState().open]);
 
 beforeEach(() => {
   localStorage.clear();
   useUI.setState(useUI.getInitialState());
-  vi.spyOn(window, "open").mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -55,7 +56,7 @@ describe("first run", () => {
     const section = await screen.findByRole("region", { name: "Welcome" });
     useSettingsPane.setState({ pane: "general" });
     await user.click(within(section).getByRole("button", { name: "Add Account…" }));
-    expect(opens()).toHaveLength(1);
+    expect(opens()).toEqual([{ kind: "settings" }]);
     expect(useSettingsPane.getState().pane).toBe("accounts");
   });
 

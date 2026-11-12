@@ -1,13 +1,9 @@
 // The web build inside lodge's shell (docs/specs/lodge-app.md, The web
-// build). The build's lodge mode connects through @frostyard/lodge-client;
-// everything else in the app asks this module whether it runs in lodge and
-// reaches the shell through the Lodge it holds.
-
-/** IN_LODGE is whether this is the web build for lodge's /app/mail/. */
-export const IN_LODGE = import.meta.env.MODE === "lodge";
+// build): app/ runs only as lodge's mail app, so it connects through
+// @frostyard/lodge-client and reaches the shell through the Lodge it holds.
 
 /** STORAGE_PREFIX goes before every local-storage key: lodge's apps share one origin. */
-export const STORAGE_PREFIX = IN_LODGE ? "mail:" : "";
+export const STORAGE_PREFIX = "mail:";
 
 export type { Lodge } from "@frostyard/lodge-client";
 
@@ -20,7 +16,7 @@ export function setLodge(l: Lodge | null): void {
   current = l;
 }
 
-/** lodge is the shell connection, or null outside lodge. */
+/** lodge is the shell connection, or null before the connection is made. */
 export function lodge(): Lodge | null {
   return current;
 }

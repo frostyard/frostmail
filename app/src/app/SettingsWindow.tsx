@@ -59,8 +59,7 @@ export function SettingsWindow() {
     document.title = "Settings";
   }, []);
   const close = () => {
-    if (closeFrameWindow()) return;
-    window.close();
+    closeFrameWindow();
   };
   return (
     <div className="flex h-full flex-col bg-window text-primary">

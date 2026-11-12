@@ -1,11 +1,15 @@
 // CONTRACT TEST for task card T-0149 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: closing the editor goes back to the main
+// window in the frame (lodge/frameWindow.ts), not window.close.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
+import { openFrameWindow } from "../lodge/frameWindow";
 import { Client } from "../rpc/gen/api";
 import { CALENDARS, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { closeWatch } from "../testing/frame";
 import { EventWindow } from "./EventWindow";
 import type { EditorTarget } from "./openEvent";
 
@@ -27,7 +31,8 @@ async function setup(target: EditorTarget, withSeries = false) {
       },
     });
   }
-  const close = vi.spyOn(window, "close").mockImplementation(() => {});
+  openFrameWindow({ kind: "event", target });
+  const close = closeWatch();
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <EventWindow target={target} />
@@ -122,6 +127,8 @@ describe("EventWindow", () => {
     const { calls, close } = await setup({ kind: "edit", id: 302, recurrenceId: "" });
     click("Cancel");
     expect(close).toHaveBeenCalledTimes(1); // nothing changed
+    // A window in the frame again, as the app shows it.
+    openFrameWindow({ kind: "event", target: { kind: "edit", id: 302, recurrenceId: "" } });
     fireEvent.change(field("Title"), { target: { value: "Review" } });
     click("Cancel");
     const sheet = within(screen.getByRole("dialog", { name: 'Save changes to "Review"?' }));

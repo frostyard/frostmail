@@ -4,6 +4,7 @@ import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
 
 import { useSettingsPane } from "../app/settingsPane";
+import { useFrameWindow } from "../lodge/frameWindow";
 
 // Testing Library prints the DOM with a failed query; keep it short enough
 // that the failure itself stays in view.
@@ -19,3 +20,8 @@ afterEach(cleanup);
 // The settings window's pane outlives a window's remount by design
 // (app/settingsPane.ts), so each test starts afresh.
 afterEach(() => useSettingsPane.setState(useSettingsPane.getInitialState()));
+
+// The frame shows one window at a time (lodge/frameWindow.ts), and a window
+// covers the main window, which then takes no keys: each test starts on the
+// main window.
+afterEach(() => useFrameWindow.setState({ open: null }));

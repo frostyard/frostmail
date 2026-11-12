@@ -1,11 +1,15 @@
 // CONTRACT TEST for task card T-0159 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: closing the editor goes back to the main
+// window in the frame (lodge/frameWindow.ts), not window.close.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Session } from "../data/session";
+import { openFrameWindow } from "../lodge/frameWindow";
 import { CALENDARS, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
+import { closeWatch } from "../testing/frame";
 import { EventWindow } from "./EventWindow";
 import type { EditorTarget } from "./openEvent";
 
@@ -16,7 +20,8 @@ async function setup(target: EditorTarget, invites: boolean) {
   const data = mockData({ inbox: 5, now: new Date("2026-10-08T12:00:00Z") });
   for (const col of data.pim?.collections ?? []) col.invites = invites && col.kind === "calendar" && !col.readOnly;
   const mock = new MockTransport(data);
-  const close = vi.spyOn(window, "close").mockImplementation(() => {});
+  openFrameWindow({ kind: "event", target });
+  const close = closeWatch();
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
       <EventWindow target={target} />

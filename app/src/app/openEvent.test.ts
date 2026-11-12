@@ -1,19 +1,17 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { instantAt } from "../lib/calendarDates";
-import { editorTarget, newEventAt, openEvent, windowLabel } from "./openEvent";
-
-afterEach(() => {
-  window.location.hash = "";
-  vi.restoreAllMocks();
-});
+import { useFrameWindow } from "../lodge/frameWindow";
+import { eventFromRoute, eventRoute, newEventAt, openEvent } from "./openEvent";
 
 describe("openEvent", () => {
-  it("reads its target from the hash a browser tab opens", () => {
-    window.location.hash = "#/event/302?recurrenceId=2026-10-08T09%3A00%3A00.000Z";
-    expect(editorTarget()).toEqual({ kind: "edit", id: 302, recurrenceId: "2026-10-08T09:00:00.000Z" });
-    window.location.hash = "#/event/new?allDay=1&startDate=2026-10-12&endDate=2026-10-13&calendarId=202";
-    expect(editorTarget()).toEqual({
+  it("reads its target from its route", () => {
+    expect(eventFromRoute("/event/302?recurrenceId=2026-10-08T09%3A00%3A00.000Z")).toEqual({
+      kind: "edit",
+      id: 302,
+      recurrenceId: "2026-10-08T09:00:00.000Z",
+    });
+    expect(eventFromRoute("/event/new?allDay=1&startDate=2026-10-12&endDate=2026-10-13&calendarId=202")).toEqual({
       kind: "new",
       calendarId: 202,
       allDay: true,
@@ -22,12 +20,11 @@ describe("openEvent", () => {
       startDate: "2026-10-12",
       endDate: "2026-10-13",
     });
-    window.location.hash = "#/settings";
-    expect(editorTarget()).toBeNull();
+    expect(eventFromRoute("/settings")).toBeNull();
+    expect(eventFromRoute("/event/x")).toBeNull();
   });
 
-  it("opens a browser tab whose hash reads back as the target", async () => {
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+  it("shows the editor in the frame, at a route that reads back as the target", async () => {
     const target = {
       kind: "new" as const,
       allDay: false,
@@ -37,18 +34,8 @@ describe("openEvent", () => {
       endDate: "",
     };
     await openEvent(target);
-    const url = String(open.mock.calls[0]?.[0]);
-    window.location.hash = url.slice(url.indexOf("#"));
-    expect(editorTarget()).toEqual(target);
-    expect(String(open.mock.calls[0]?.[1])).toMatch(/^event-new-\d+$/);
-  });
-
-  it("labels a window by its event and occurrence", () => {
-    expect(windowLabel({ kind: "edit", id: 302, recurrenceId: "" })).toBe("event-302");
-    expect(windowLabel({ kind: "edit", id: 301, recurrenceId: "2026-10-08T09:00:00.000Z" })).toBe(
-      "event-301-2026-10-08T09-00-00-000Z",
-    );
-    expect(windowLabel({ kind: "edit", id: 305, recurrenceId: "2026-10-12" })).toBe("event-305-2026-10-12");
+    expect(useFrameWindow.getState().open).toEqual({ kind: "event", target });
+    expect(eventFromRoute(eventRoute(target))).toEqual(target);
   });
 
   it("starts a new event at the next whole hour today, else at 9:00 AM", () => {

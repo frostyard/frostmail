@@ -9,8 +9,7 @@ import { openOccurrenceInMain } from "./reminders";
 import { useCalendarColors, useCalendarFrame } from "./useCalendar";
 
 function closeWindow() {
-  if (closeFrameWindow()) return;
-  window.close();
+  closeFrameWindow();
 }
 
 function useReminders() {

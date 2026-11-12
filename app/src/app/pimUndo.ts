@@ -1,12 +1,10 @@
 // Undo in Calendar and People (docs/specs/pim-ui.md, Undo in Calendar and
 // People; ADR-0032): each module keeps its own list of the restores its
-// writes returned, newest last, and Ctrl+Z restores the newest. Writes in
-// another window (the event editor) announce their restores to the main
-// window with a BroadcastChannel message.
+// writes returned, newest last, and Ctrl+Z restores the newest. The event
+// editor shares the main window's document, so its writes join the same list.
 import { create } from "zustand";
 
 import { withNotify } from "../lib/notify";
-import { IN_LODGE } from "../lodge/lodge";
 import type { Client, InviteNotice } from "../rpc/gen/api";
 import { UNDO_LIMIT } from "./undo";
 
@@ -21,8 +19,6 @@ export interface PimRestore {
 
 /** usePimUndo keeps each module's restores, oldest first. */
 export const usePimUndo = create<Record<PimModule, string[]>>(() => ({ calendar: [], people: [] }));
-
-const EVENT = "pim-restore";
 
 /** rememberRestore keeps a write's restore in its module's list, at most UNDO_LIMIT of them. */
 export function rememberRestore({ module, restoreId }: PimRestore): void {
@@ -56,33 +52,7 @@ export async function undoPim(
   return restored === true;
 }
 
-/** announceRestore hands a write made in another window to the main window's undo list. */
+/** announceRestore keeps a write in the undo list of the module it changed. */
 export async function announceRestore(restore: PimRestore): Promise<void> {
-  if (IN_LODGE) {
-    // lodge's event editor shares the main window's document.
-    rememberRestore(restore);
-    return;
-  }
-  const channel = new BroadcastChannel("frostmail");
-  channel.postMessage({ kind: EVENT, ...restore });
-  channel.close();
-}
-
-function isRestore(data: unknown): data is PimRestore {
-  if (typeof data !== "object" || data === null) return false;
-  const d = data as Record<string, unknown>;
-  return (d.module === "calendar" || d.module === "people") && typeof d.restoreId === "string";
-}
-
-/** watchRestores keeps the restores other windows announce, in the main window; it returns the cleanup. */
-export function watchRestores(): () => void {
-  const channel = new BroadcastChannel("frostmail");
-  channel.onmessage = (event: MessageEvent<unknown>) => {
-    if (event.origin !== "" && event.origin !== window.location.origin) return;
-    const data = event.data;
-    if (typeof data === "object" && data !== null && "kind" in data && data.kind === EVENT && isRestore(data)) {
-      rememberRestore({ module: data.module, restoreId: data.restoreId });
-    }
-  };
-  return () => channel.close();
+  rememberRestore(restore);
 }

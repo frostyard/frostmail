@@ -17,7 +17,6 @@ import { useMail, useUI } from "../data/stores";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { CollapsedMessage } from "../features/reader/CollapsedMessage";
 import { ContentFrame } from "../features/reader/ContentFrame";
-import { FindBar } from "../features/reader/FindBar";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
 import {
   AttachmentStrip,
@@ -35,7 +34,7 @@ import { zoned } from "../lib/calendarDates";
 import { whenText } from "../lib/later";
 import { filterMailto } from "../lib/mailto";
 import { isVip, vipSet } from "../lib/vips";
-import { IN_LODGE, lodge, openOutside } from "../lodge/lodge";
+import { lodge, openOutside } from "../lodge/lodge";
 import { permalink } from "../lodge/routes";
 import type {
   Address,
@@ -63,16 +62,11 @@ interface MoreRequest {
   count: number;
 }
 
-/** ReaderHandle lets the window page the reader, run More Actions and find
- *  in the message shown. */
+/** ReaderHandle lets the window page the reader and run More Actions. */
 export interface ReaderHandle {
   page: (direction: 1 | -1) => void;
   focus: () => void;
   more: (action: "headers" | "source") => void;
-  /** find opens the find bar, or focuses its field and selects its text when
-   *  it is open; false when no message shows, or in lodge's web build, whose
-   *  browser finds in the reader's frame itself (ADR-0052). */
-  find: () => boolean;
 }
 
 /**
@@ -99,12 +93,12 @@ async function reportContext(client: Client, id: number, title: string, stale: (
   l.context({ kind: "message", ref: `mail${route}`, title });
 }
 
-/** useReaderHeight sets --reader-height on el to its height: in lodge the
- * message frame fills the reader (ContentFrame). */
+/** useReaderHeight sets --reader-height on el to its height: the message
+ * frame fills the reader (ContentFrame). */
 function useReaderHeight(el: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const node = el.current;
-    if (!IN_LODGE || !node) return;
+    if (!node) return;
     const set = () => node.style.setProperty("--reader-height", `${node.clientHeight}px`);
     set();
     const observer = new ResizeObserver(set);
@@ -116,40 +110,17 @@ function useReaderHeight(el: RefObject<HTMLElement | null>): void {
 /** ReaderContainer shows the selection in the reader pane. */
 export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer(_props, ref) {
   const { selected, setFocus } = useUI();
-  const module = useUI((state) => state.module);
   const [contact, setContact] = useState<{ address: Address; at: { x: number; y: number } } | null>(null);
   const openContact = useCallback((address: Address, at: { x: number; y: number }) => setContact({ address, at }), []);
   const closeContact = useCallback(() => setContact(null), []);
   const scroller = useRef<HTMLElement>(null);
-  // The find bar lives outside the scroller, so it stays in view. It belongs
-  // to the selection and the module it opened on, so it closes when the
-  // reader shows another selection or another module (docs/specs/ui.md, Find
-  // in the message).
-  const [finding, setFinding] = useState(false);
-  const findInput = useRef<HTMLInputElement>(null);
   useReaderHeight(scroller);
   const [moreRequest, setMoreRequest] = useState<MoreRequest | null>(null);
   const id = selected.length === 1 ? selected[0] : undefined;
-  const findKey = `${module}:${id ?? ""}`;
-  const [findShownFor, setFindShownFor] = useState(findKey);
-  if (findShownFor !== findKey) {
-    setFindShownFor(findKey);
-    setFinding(false);
-  }
   useEffect(() => {
     // lodge's companion learns what is on screen; Conversation names a message.
     if (id === undefined) lodge()?.context({ kind: null, ref: "", title: "" });
   }, [id]);
-  useEffect(() => {
-    if (!finding) return;
-    findInput.current?.focus();
-    findInput.current?.select();
-  }, [finding]);
-  const closeFind = useCallback(() => {
-    setFinding(false);
-    // The reader has the keys again once the bar goes.
-    scroller.current?.focus();
-  }, []);
   useImperativeHandle(ref, () => ({
     page: (direction) => {
       const el = scroller.current;
@@ -159,20 +130,9 @@ export const ReaderContainer = forwardRef<ReaderHandle>(function ReaderContainer
     more: (action) => {
       if (id !== undefined) setMoreRequest((previous) => ({ id, action, count: (previous?.count ?? 0) + 1 }));
     },
-    find: () => {
-      if (IN_LODGE || id === undefined) return false;
-      if (finding) {
-        findInput.current?.focus();
-        findInput.current?.select();
-        return true;
-      }
-      setFinding(true);
-      return true;
-    },
   }));
   return (
     <div className="flex h-full flex-col">
-      {finding && id !== undefined && <FindBar scroller={scroller.current} onClose={closeFind} inputRef={findInput} />}
       <section
         ref={scroller}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: the reader is a focusable, scrollable pane.
@@ -609,15 +569,13 @@ function ConversationMessage({
             </p>
           )
         ) : (
-          <div data-quote-source={summary.id}>
-            <PlainText text={rendering.text} onOpenLink={openLink} />
-          </div>
+          <PlainText text={rendering.text} onOpenLink={openLink} />
         ))}
       {message && (
         <AttachmentStrip
           parts={invitation ? message.parts.filter((p) => p !== part) : message.parts}
           onOpen={openPart}
-          {...(IN_LODGE ? { onSave: savePart } : {})}
+          onSave={savePart}
         />
       )}
     </article>

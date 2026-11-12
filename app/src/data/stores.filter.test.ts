@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0101 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: the store's key carries lodge's "mail:"
+// prefix, as lodge's apps share one origin (lodge/lodge.ts, STORAGE_PREFIX).
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { listQuery, useUI } from "./stores";
@@ -49,7 +51,7 @@ describe("setListFilter", () => {
     expect(s.listFilter).toBe("unread");
     expect(s.selected).toEqual([]);
     expect(s.anchor).toBeNull();
-    expect(localStorage.getItem("frostmail.ui") ?? "").not.toContain("listFilter");
+    expect(localStorage.getItem("mail:frostmail.ui") ?? "").not.toContain("listFilter");
   });
 
   it("keeps the filter when the source changes", () => {
