@@ -36,13 +36,34 @@ func calColor(t *ui.Theme, hex string) ui.Color {
 	return ui.Hex(hex)
 }
 
-// nameAndAccount is a pane row's name and the account it belongs to. The
-// name keeps its whole width, and the account's address shrinks to nothing
-// first; a name wider than the row alone still shrinks
+// paneDot is the color dot before a pane row's name, and paneDotRoom the
+// room it and its gap take, which the row's account starts after.
+const (
+	paneDot     = 8
+	paneDotRoom = paneDot + 6
+)
+
+// nameAndAccount is a pane row's name and the account it belongs to, on 2
+// lines: the name, and the account's address under it. lead draws what
+// comes before the name, as a calendar's color dot, and room is the width
+// it and its gap take, so the address starts under the name
 // (frostyard/frostmail#282).
-func nameAndAccount(c *ui.Context, t *ui.Theme, name, account string) {
-	frostui.Body(c, name).Shrink(1).MinWidth(0).SingleLine()
-	frostui.Body(c, " · "+account).TextColor(tertiary(t)).Shrink(1000).MinWidth(0).SingleLine()
+//
+// The address has the line to itself: beside the name it took the name's
+// width, and no flex shrink factor keeps a text whole while the row is
+// narrower than its texts.
+func nameAndAccount(c *ui.Context, t *ui.Theme, name, account string, lead func(), room float32) {
+	ui.Column(c).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Tooltip(name + " · " + account).Children(func() {
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+			if lead != nil {
+				lead()
+			}
+			frostui.Body(c, name).Shrink(1).MinWidth(0).SingleLine()
+		})
+		ui.Column(c).Padding(0, 0, 0, room).Children(func() {
+			ui.Text(c, account).FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
+		})
+	})
 }
 
 // sectionHeading is a block's heading: the brand's uppercase label, named

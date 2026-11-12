@@ -949,9 +949,7 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 	if l := m.taskList(task.ListID); l != nil {
 		account := m.accountEmail(l.AccountID)
 		labeled(c, "List", 80, func() {
-			ui.Row(c).Tooltip(l.Name + " · " + account).Children(func() {
-				nameAndAccount(c, t, l.Name, account)
-			})
+			nameAndAccount(c, t, l.Name, account, nil, 0)
 		})
 	}
 	if task.Completed && task.CompletedAt != nil {

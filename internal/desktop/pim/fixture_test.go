@@ -68,6 +68,7 @@ type fixture struct {
 	opened  []int64
 
 	email                                                   string
+	calName                                                 string
 	acct, book, work, home, side, tasks, errands, readTasks int64
 	ada, report, charts, done, milk                         int64
 }
@@ -83,7 +84,10 @@ type options struct {
 	empty bool
 	// email is the account's address, for a long one's test; "me@a.test"
 	// when empty.
-	email   string
+	email string
+	// calName renames the Work calendar, for a name wider than its pane;
+	// "Work" when empty.
+	calName string
 	onStart func(*rpctest.Server)
 }
 
@@ -99,6 +103,10 @@ func newFixture(t *testing.T, module commands.Module, o ...options) *fixture {
 	f.email = opt.email
 	if f.email == "" {
 		f.email = "me@a.test"
+	}
+	f.calName = opt.calName
+	if f.calName == "" {
+		f.calName = "Work"
 	}
 	if opt.Now == nil {
 		opt.Now = func() time.Time { return testNow }
@@ -282,7 +290,7 @@ func (f *fixture) seed() {
 			return err
 		}
 		cals, err := tx.ReplaceCollections(ctx, a.ID, api.CollectionKindCalendar, []store.RemoteCollection{
-			{Href: "/work/", Name: "Work", Color: "#3478f6"}, {Href: "/home/", Name: "Home", ReadOnly: true}, {Href: "/side/", Name: "Side"}})
+			{Href: "/work/", Name: f.calName, Color: "#3478f6"}, {Href: "/home/", Name: "Home", ReadOnly: true}, {Href: "/side/", Name: "Side"}})
 		if err != nil {
 			return err
 		}

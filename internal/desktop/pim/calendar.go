@@ -634,10 +634,7 @@ func (m *Module) eventDetails(c *ui.Context, e *api.CalendarEvent) {
 		if col := m.collection(e.CalendarID); col != nil {
 			account := m.accountEmail(col.AccountID)
 			labeled(c, "Calendar", 80, func() {
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Tooltip(col.Name + " · " + account).Children(func() {
-					uikit.Dot(c, 8, calColor(t, col.Color))
-					nameAndAccount(c, t, col.Name, account)
-				})
+				nameAndAccount(c, t, col.Name, account, func() { uikit.Dot(c, paneDot, calColor(t, col.Color)) }, paneDotRoom)
 			})
 		}
 		if len(e.Alarms) > 0 {

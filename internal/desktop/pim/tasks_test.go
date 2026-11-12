@@ -174,23 +174,27 @@ func TestTaskPaneEditsDueNotesAndDeletes(t *testing.T) {
 	}
 }
 
-// TestTaskPaneKeepsTheListName is the guard for frostyard/frostmail#282: a
-// long account address gives way before the list's name, which keeps its
-// whole width.
+// TestTaskPaneKeepsTheListName is the guard for frostyard/frostmail#282: the
+// list's name keeps its whole width, and a long account address takes the
+// line under it.
 func TestTaskPaneKeepsTheListName(t *testing.T) {
 	f := newFixture(t, commands.Tasks, options{email: longAddress})
 	f.text("Report")
 	f.click("Q3 numbers")
 	f.until("the pane", func() bool { return f.tt.HasText("Delete Task") })
-	if !f.tt.HasText(longAddress) {
-		t.Fatalf("the List row shows no account: %s", dump(f.tt))
-	}
-	got, ok := f.detailText("Task details", "Work Tasks")
+	name, ok := f.detailText("Task details", "Work Tasks")
 	if !ok {
 		t.Fatalf("the task pane shows no list named Work Tasks: %s", dump(f.tt))
 	}
-	if want := textWidth(t, "Work Tasks"); got.W < want-0.5 {
-		t.Errorf("the list's name is %v wide, and %v drawn alone: the account's address cut it", got.W, want)
+	if want := textWidth(t, "Work Tasks"); name.W < want {
+		t.Errorf("the list's name is %v wide, and %v drawn alone", name.W, want)
+	}
+	account, ok := f.detailText("Task details", longAddress)
+	if !ok {
+		t.Fatalf("the List row shows no account line: %s", dump(f.tt))
+	}
+	if account.Y < name.Y+name.H {
+		t.Errorf("the account is at y %v, not under the name at y %v and %v high", account.Y, name.Y, name.H)
 	}
 }
 

@@ -1382,21 +1382,54 @@ func TestWantHoldsOneCallAtATime(t *testing.T) {
 }
 
 // TestEventPaneKeepsTheCalendarName is the guard for
-// frostyard/frostmail#282: a long account address gives way before the
-// calendar's name, which keeps its whole width.
+// frostyard/frostmail#282: the calendar's name keeps its whole width, and a
+// long account address takes the line under it.
 func TestEventPaneKeepsTheCalendarName(t *testing.T) {
 	f := newFixture(t, commands.Calendar, options{email: longAddress})
 	f.text("Standup")
 	f.click("Standup, 9:00 – 9:15 AM, Room 4")
-	f.until("the event pane", func() bool { return f.tt.HasText("Room 4") })
-	if !f.tt.HasText(longAddress) {
-		t.Fatalf("the Calendar row shows no account: %s", dump(f.tt))
-	}
-	got, ok := f.detailText("Event details", "Work")
+	f.until("the event pane", func() bool { return !f.tt.HasText("No Event Selected") && f.tt.HasText("Room 4") })
+	name, ok := f.detailText("Event details", "Work")
 	if !ok {
 		t.Fatalf("the event pane shows no calendar named Work: %s", dump(f.tt))
 	}
-	if want := textWidth(t, "Work"); got.W < want-0.5 {
-		t.Errorf("the calendar's name is %v wide, and %v drawn alone: the account's address cut it", got.W, want)
+	if want := textWidth(t, "Work"); name.W < want {
+		t.Errorf("the calendar's name is %v wide, and %v drawn alone", name.W, want)
+	}
+	account, ok := f.detailText("Event details", longAddress)
+	if !ok {
+		t.Fatalf("the Calendar row shows no account line: %s", dump(f.tt))
+	}
+	if account.Y < name.Y+name.H {
+		t.Errorf("the account is at y %v, not under the name at y %v and %v high", account.Y, name.Y, name.H)
+	}
+}
+
+// TestEventPaneKeepsAWideCalendarNameInsideThePane is the guard for
+// frostyard/frostmail#282: a calendar's name wider than the pane shrinks to
+// the pane, and draws no further.
+func TestEventPaneKeepsAWideCalendarNameInsideThePane(t *testing.T) {
+	const wide = "Northwind Traders Engineering Standups and Retrospectives"
+	f := newFixture(t, commands.Calendar, options{email: longAddress, calName: wide})
+	pane, ok := f.tt.AccessByRole(ui.RoleGroup, "Event details")
+	if !ok {
+		t.Fatalf("no event pane: %s", dump(f.tt))
+	}
+	f.text("Standup")
+	f.click("Standup, 9:00 – 9:15 AM, Room 4")
+	f.until("the event pane", func() bool { return !f.tt.HasText("No Event Selected") && f.tt.HasText("Room 4") })
+	name, ok := f.detailText("Event details", wide)
+	if !ok {
+		t.Fatalf("the event pane shows no calendar named %q: %s", wide, dump(f.tt))
+	}
+	if end, edge := name.X+name.W, pane.Bounds.X+pane.Bounds.W; end > edge {
+		t.Errorf("the name ends at %v, past the pane's edge at %v", end, edge)
+	}
+	account, ok := f.detailText("Event details", longAddress)
+	if !ok {
+		t.Fatalf("the Calendar row shows no account line: %s", dump(f.tt))
+	}
+	if account.Y < name.Y+name.H {
+		t.Errorf("the account is at y %v, not under the name at y %v and %v high", account.Y, name.Y, name.H)
 	}
 }
