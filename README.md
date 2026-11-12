@@ -19,18 +19,20 @@ rules, smart mailboxes, VIPs, Send Later and Remind Me
 ([M5](docs/plans/0008-m5-mail-app-parity.md)). See the
 [roadmap](docs/plans/0002-roadmap.md).
 
-![The main window: unified inboxes for two accounts, flags, threads and an
-HTML itinerary in the reader](docs/images/main.png)
+![The main window in the Frostyard theme: unified inboxes for two accounts,
+flags, threads and an HTML itinerary in the reader](docs/images/main.png)
 
 | | |
 | --- | --- |
-| ![Dark mode, reading a conversation](docs/images/main-dark.png) | ![Searching for “aurora”](docs/images/search.png) |
+| ![Frostyard light, reading a conversation](docs/images/main-light.png) | ![Searching every mailbox for “aurora”](docs/images/search.png) |
 | ![Replying in a compose window](docs/images/compose.png) | ![Account settings](docs/images/settings.png) |
 | ![People: a contact with recent mail and upcoming events](docs/images/people.png) | ![The Calendar's week with an event's details](docs/images/calendar.png) |
 | ![Tasks: lists, a subtask, due dates and the task pane](docs/images/tasks.png) | ![Mail with the To-Do bar: the month, what is next and what is due](docs/images/todo-bar.png) |
-| ![An invitation answered from the reader](docs/images/invitation.png) | ![The Calendar's month](docs/images/calendar-month.png) |
+| ![An invitation answered from the reader](docs/images/invitation.png) | ![The Calendar's month with the accepted invitation's details](docs/images/calendar-month.png) |
 
-<sub>The screenshots show made-up mail (`tools/uifixture/showcase`).</sub>
+<sub>The screenshots show the native desktop app on Linux, in its Frostyard
+theme and once in Frostyard light, on made-up mail
+(`tools/uifixture/showcase`).</sub>
 
 - **maild** is a per-user Go daemon that owns sync, a SQLite cache with
   full-text search, and a JSON-RPC socket.

@@ -304,8 +304,8 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	go views.Run(ctx)
 	go sched.Run(ctx)
 	// FROSTMAIL_SYNC=off serves the store without connecting to any server,
-	// for the README's screenshots, whose accounts have none (make
-	// screenshots). Mail already stored still reads.
+	// for the README's screenshots, whose accounts have none
+	// (docs/design/testing.md). Mail already stored still reads.
 	if os.Getenv("FROSTMAIL_SYNC") == "off" {
 		logger.Warn("sync is off (FROSTMAIL_SYNC=off)")
 	} else {

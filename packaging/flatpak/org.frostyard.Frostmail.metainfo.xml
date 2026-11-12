@@ -20,9 +20,10 @@
     </p>
   </description>
   <launchable type="desktop-id">org.frostyard.Frostmail.desktop</launchable>
-  <!-- The README's screenshots in docs/images, which make screenshots
-       takes of the app on made-up mail, served from main of the public
-       repository. scripts/flatpak_metainfo_test.go checks them. -->
+  <!-- The README's screenshots in docs/images, of the native app on
+       made-up mail (docs/design/testing.md, README screenshots), served
+       from main of the public repository.
+       scripts/flatpak_metainfo_test.go checks them. -->
   <screenshots>
     <screenshot type="default">
       <caption>Mail in three panes: mailboxes, messages and the reader</caption>

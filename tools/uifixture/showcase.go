@@ -21,8 +21,8 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
-// The showcase (docs/images, make screenshots) is hand-written mail for the
-// README's screenshots: everything in it is made up. Its directory holds
+// The showcase (docs/images; docs/design/testing.md) is hand-written mail for
+// the README's screenshots: everything in it is made up. Its directory holds
 // one directory per account, named by the account's address, with a
 // "name" file for the display name and a directory per mailbox (nested
 // for a hierarchy, Projects/Aurora) of NN[-FLAGS].eml files: NN is the
