@@ -343,6 +343,11 @@ func (w *Window) repairSelection() {
 	}
 	lost := false
 	for _, id := range w.view.TakeDeparted() {
+		// A real delta removed this loaded row. Unlike an unchanged read
+		// after reconnect, that proves the old row can no longer be acted on.
+		if h := w.deleting[id]; h != nil && (h.unread || h.done) {
+			delete(w.deleting, id)
+		}
 		if w.chosen.Has(id) {
 			w.chosen.Remove(id)
 			lost = true
