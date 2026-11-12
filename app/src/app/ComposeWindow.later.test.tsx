@@ -1,4 +1,6 @@
 // CONTRACT TEST for task card T-0116 (docs/tasks). Do not edit.
+// Amended by the lodge-only change: Close goes back to the main window in
+// the frame (lodge/frameWindow.ts), not window.close().
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
