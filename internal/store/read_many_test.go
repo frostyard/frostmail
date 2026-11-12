@@ -36,3 +36,23 @@ func TestGetMessages(t *testing.T) {
 		t.Fatalf("GetMessages(99) = %v, %v; want none", got, err)
 	}
 }
+
+// TestGetMessagesTakesMoreIDsThanSQLiteBinds: message.getMany sets no limit
+// on its IDs, so GetMessages must answer a batch longer than SQLite's
+// 32,766 bound variables, with the missing IDs skipped.
+func TestGetMessagesTakesMoreIDsThanSQLiteBinds(t *testing.T) {
+	d := readFixture(t)
+	ctx := t.Context()
+	ids := []int64{2}
+	for id := range int64(40_000) {
+		ids = append(ids, 1_000_000+id)
+	}
+	ids = append(ids, 1)
+	got, err := d.GetMessages(ctx, ids)
+	if err != nil {
+		t.Fatalf("GetMessages of %d IDs: %v", len(ids), err)
+	}
+	if len(got) != 2 || got[0].ID != 2 || got[1].ID != 1 {
+		t.Fatalf("GetMessages of %d IDs = %d messages, want 2 then 1", len(ids), len(got))
+	}
+}

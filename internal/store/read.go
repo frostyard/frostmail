@@ -576,17 +576,19 @@ func (d *DB) GetMessage(ctx context.Context, id int64) (MessageDetail, error) {
 // GetMessages returns the details of ids in the order given, as GetMessage
 // gives them, skipping IDs that do not exist. It runs 3 queries whatever
 // the number of IDs: the messages' rows, their mailbox IDs and their
-// parts. No IDs returns an empty slice without querying.
+// parts. The IDs go in as 1 JSON array (json_each), so their number never
+// meets SQLite's limit on bound variables. No IDs returns an empty slice
+// without querying.
 func (d *DB) GetMessages(ctx context.Context, ids []int64) ([]MessageDetail, error) {
 	if len(ids) == 0 {
 		return []MessageDetail{}, nil
 	}
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
+	in, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("get messages: %w", err)
 	}
-	placeholders := inPlace(len(ids))
-	rows, err := d.db.QueryContext(ctx, `SELECT `+messageDetailCols+` FROM messages WHERE id IN (`+placeholders+`)`, args...)
+	const inIDs = `(SELECT value FROM json_each(?))`
+	rows, err := d.db.QueryContext(ctx, `SELECT `+messageDetailCols+` FROM messages WHERE id IN `+inIDs, string(in))
 	if err != nil {
 		return nil, fmt.Errorf("get messages: %w", err)
 	}
@@ -603,7 +605,7 @@ func (d *DB) GetMessages(ctx context.Context, ids []int64) ([]MessageDetail, err
 		return nil, fmt.Errorf("get messages: %w", err)
 	}
 	mrows, err := d.db.QueryContext(ctx, `SELECT message_id, mailbox_id FROM message_mailbox
-		WHERE message_id IN (`+placeholders+`) ORDER BY message_id, mailbox_id`, args...)
+		WHERE message_id IN `+inIDs+` ORDER BY message_id, mailbox_id`, string(in))
 	if err != nil {
 		return nil, fmt.Errorf("messages' mailboxes: %w", err)
 	}
@@ -624,8 +626,8 @@ func (d *DB) GetMessages(ctx context.Context, ids []int64) ([]MessageDetail, err
 		return nil, fmt.Errorf("messages' mailboxes: %w", err)
 	}
 	prows, err := d.db.QueryContext(ctx, `SELECT message_id, path, content_type, charset, encoding,
-		disposition, filename, content_id, size FROM parts WHERE message_id IN (`+placeholders+`)
-		ORDER BY message_id, path`, args...)
+		disposition, filename, content_id, size FROM parts WHERE message_id IN `+inIDs+`
+		ORDER BY message_id, path`, string(in))
 	if err != nil {
 		return nil, fmt.Errorf("messages' parts: %w", err)
 	}

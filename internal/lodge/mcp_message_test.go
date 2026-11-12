@@ -1,13 +1,18 @@
 package lodge_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/lodge"
+	"github.com/frostyard/frostmail/internal/rpctest"
 )
 
 // TestAgentsDraftNewMessagesThroughLodge: draft_message under ;write
@@ -145,5 +150,62 @@ func TestAFailedDraftLeavesNoDraftBehind(t *testing.T) {
 	}
 	if drafts, err = local.Draft().List(ctx, &api.DraftListParams{}); err != nil || len(drafts) != 1 || drafts[0].ID != draft.DraftID {
 		t.Errorf("after the second draft_message the drafts = %+v, %v; want draft %d alone", drafts, err, draft.DraftID)
+	}
+}
+
+// failingDrafts refuses every draft.update and every draft.delete, so a
+// draft tool can neither fill its draft nor discard it.
+type failingDrafts struct{ api.DraftService }
+
+func (failingDrafts) Update(context.Context, *api.DraftUpdateParams) (*api.Draft, error) {
+	return nil, errors.New("the store is full")
+}
+
+func (failingDrafts) Delete(context.Context, *api.DraftDeleteParams) error {
+	return errors.New("the store is gone")
+}
+
+// TestADraftThatCannotBeDiscardedIsNamed: when a draft tool can neither
+// fill nor discard its draft, its error names the draft and says it waits
+// in the user's Drafts, so the agent does not make a second one unaware
+// (issue #292).
+func TestADraftThatCannotBeDiscardedIsNamed(t *testing.T) {
+	n := seedTwoAccountsWith(t, rpctest.Options{Services: func(s *api.Services) {
+		s.Draft = failingDrafts{s.Draft}
+	}})
+	l := startLodge(t, lodge.NewServer(lodge.Options{Ctx: t.Context(), Version: "test",
+		RPC: n.srv.RPC, Router: n.srv.Router, Log: discard()}))
+	cs, err := mcpClient(t, l, "claude", "account="+itoa(n.a)+";write")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for tool, args := range map[string]map[string]any{
+		"draft_message": {"to": []string{"omar@x.test"}, "subject": "Lisbon", "text": "Here is my itinerary."},
+		"draft_reply":   {"message_id": n.msgA, "text": "Thanks, Ann."},
+	} {
+		res, err := cs.CallTool(t.Context(), &sdk.CallToolParams{Name: tool, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v", tool, err)
+		}
+		drafts, err := n.srv.Dial(t).Draft().List(t.Context(), &api.DraftListParams{})
+		if err != nil || len(drafts) == 0 {
+			t.Fatalf("%s: drafts = %v, %v; want the draft it could not discard", tool, drafts, err)
+		}
+		var id int64 // the newest draft: this tool's
+		for _, dr := range drafts {
+			id = max(id, dr.ID)
+		}
+		var text string
+		if len(res.Content) > 0 {
+			if c, ok := res.Content[0].(*sdk.TextContent); ok {
+				text = c.Text
+			}
+		}
+		if !res.IsError || !strings.Contains(text, fmt.Sprintf("draft %d", id)) ||
+			!strings.Contains(text, "the store is full") || !strings.Contains(text, "the store is gone") ||
+			!strings.Contains(text, "waits in the user's Drafts") {
+			t.Errorf("%s answered %q (error %v), want draft %d named, both failures, and that it waits in Drafts",
+				tool, text, res.IsError, id)
+		}
 	}
 }
