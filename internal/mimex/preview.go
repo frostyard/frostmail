@@ -1,6 +1,7 @@
 package mimex
 
 import (
+	"html"
 	"regexp"
 	"strings"
 	"unicode"
@@ -13,7 +14,9 @@ var attributionRE = regexp.MustCompile(`wrote|schrieb|écrit|escribió`)
 // Preview returns a one-line preview of a message body: the first words
 // the sender actually wrote, with quoted replies, attribution lines such
 // as "On Tue ... wrote:" and signatures dropped. Whitespace collapses to
-// single spaces. The result is at most max runes; when it must be cut,
+// single spaces. One remaining layer of HTML entities is decoded and
+// invisible format characters and the combining grapheme joiner are dropped.
+// The result is at most max runes; when it must be cut,
 // the cut lands on the last space past the halfway point if there is
 // one, and the preview ends with an ellipsis (U+2026). max <= 0 returns
 // an empty string.
@@ -21,6 +24,12 @@ func Preview(text string, max int) string {
 	if max <= 0 {
 		return ""
 	}
+	text = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) || r == '\u034f' {
+			return -1
+		}
+		return r
+	}, html.UnescapeString(text))
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	kept := make([]string, 0, len(lines))
 	for i, line := range lines {
