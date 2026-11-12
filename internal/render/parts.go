@@ -38,6 +38,19 @@ func (c *PartsCache) Has(rel string) bool {
 	return err == nil
 }
 
+// Size reports the size of the cached file at rel, and whether it is there.
+func (c *PartsCache) Size(rel string) (int64, bool) {
+	p, err := c.abs(rel)
+	if err != nil {
+		return 0, false
+	}
+	fi, err := os.Stat(p)
+	if err != nil || !fi.Mode().IsRegular() {
+		return 0, false
+	}
+	return fi.Size(), true
+}
+
 // Open opens the cached file at rel.
 func (c *PartsCache) Open(rel string) (io.ReadCloser, error) {
 	p, err := c.abs(rel)

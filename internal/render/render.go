@@ -116,11 +116,7 @@ var dataImage = regexp.MustCompile(`^data:image/(png|gif|jpeg|webp);base64,[A-Za
 // Render prepares a raw message. With remote, remote images (not trackers)
 // are fetched into the cache; otherwise they are left out and counted.
 func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remote bool) (Rendering, error) {
-	text, _, err := mimex.BodyText(raw)
-	if err != nil {
-		return Rendering{}, r.parseFailed(err)
-	}
-	src, err := mimex.BodyHTML(raw)
+	text, src, _, err := mimex.Body(raw)
 	if err != nil {
 		return Rendering{}, r.parseFailed(err)
 	}
@@ -128,9 +124,12 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	if strings.TrimSpace(src) == "" {
 		return out, nil
 	}
-	inline, err := inlineParts(raw)
-	if err != nil {
-		return Rendering{}, r.parseFailed(err)
+	// A message that names no cid: URL never reads its image parts.
+	var inline map[string]inlinePart
+	if hasCID(src) {
+		if inline, err = inlineParts(raw); err != nil {
+			return Rendering{}, r.parseFailed(err)
+		}
 	}
 	nonce, err := randomHex(16)
 	if err != nil {
@@ -271,8 +270,21 @@ func (r *Renderer) inlinePart(messageID int64, parts map[string]inlinePart, cid 
 	return rel
 }
 
+// hasCID reports whether src may hold a cid: URL, in any case, so that the
+// image parts are read only for a message that can name one.
+func hasCID(src string) bool {
+	const cid = "cid:"
+	for i := 0; i+len(cid) <= len(src); i++ {
+		if strings.EqualFold(src[i:i+len(cid)], cid) {
+			return true
+		}
+	}
+	return false
+}
+
 // Part decodes the part at path (an IMAP part specifier) into
-// m/<messageID>/<path>/<safe file name>.
+// m/<messageID>/<path>/<safe file name>. A part already in the cache is not
+// read or written again: its file's size is what it reports.
 func (r *Renderer) Part(messageID int64, raw []byte, path string) (PartFile, error) {
 	var out PartFile
 	found := false
@@ -283,17 +295,23 @@ func (r *Renderer) Part(messageID int64, raw []byte, path string) (PartFile, err
 		if p.Omitted {
 			return fmt.Errorf("%w: %q", ErrOmitted, path)
 		}
+		name := SafeFilename(p.Filename, p.Path, p.ContentType)
+		rel := fmt.Sprintf("m/%d/%s/%s", messageID, p.Path, name)
+		out = PartFile{Path: rel, ContentType: p.ContentType, Filename: name}
+		found = true
+		size, cached := r.Parts.Size(rel)
+		if cached {
+			out.Size = size
+			return errStop
+		}
 		data, err := io.ReadAll(body)
 		if err != nil {
 			return fmt.Errorf("render: read part %s: %w", path, err)
 		}
-		name := SafeFilename(p.Filename, p.Path, p.ContentType)
-		rel := fmt.Sprintf("m/%d/%s/%s", messageID, p.Path, name)
 		if err := r.Parts.Write(rel, data); err != nil {
 			return err
 		}
-		out = PartFile{Path: rel, ContentType: p.ContentType, Filename: name, Size: int64(len(data))}
-		found = true
+		out.Size = int64(len(data))
 		return errStop
 	})
 	if err != nil && !errors.Is(err, errStop) {

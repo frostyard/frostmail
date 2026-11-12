@@ -70,10 +70,11 @@ const maxSource = 2 << 20
 // Source implements message.source: the raw message, for Raw Source and
 // All Headers.
 func (m messages) Source(ctx context.Context, p *api.MessageSourceParams) (*api.MessageSource, error) {
-	raw, err := m.raw(ctx, p.ID)
+	body, err := m.readBody(ctx, p.ID, true)
 	if err != nil {
 		return nil, err
 	}
+	raw := body.raw
 	head := raw
 	if i := bytes.Index(raw, []byte("\r\n\r\n")); i >= 0 {
 		head = raw[:i]
@@ -86,18 +87,8 @@ func (m messages) Source(ctx context.Context, p *api.MessageSourceParams) (*api.
 	}
 	out.Text = strings.ToValidUTF8(string(raw), "\uFFFD")
 	if p.Content != nil && *p.Content && m.Content != nil {
-		blobID, err := m.storedBody(ctx, p.ID, true)
-		if err != nil {
-			return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
-		}
-		detail, err := m.DB.GetMessage(ctx, p.ID)
-		if err != nil {
-			return nil, apiError(err, fmt.Sprintf("message %d", p.ID))
-		}
-		if blobID != "" {
-			path := m.Content.SourcePath(blobID, emlName(detail.Subject))
-			out.ContentPath = &path
-		}
+		path := m.Content.SourcePath(body.blobID, emlName(body.subject))
+		out.ContentPath = &path
 	}
 	return out, nil
 }
@@ -138,20 +129,21 @@ func (m messages) Save(ctx context.Context, p *api.MessageSaveParams) error {
 
 // storedBody is the blob of a message's stored body, the whole message or
 // unless whole is asked for its display copy, or "" when there is none yet.
-func (m messages) storedBody(ctx context.Context, id int64, whole bool) (string, error) {
-	detail, err := m.DB.GetMessage(ctx, id)
-	if err != nil {
-		return "", err
-	}
-	ids := []string{detail.BlobID}
+// A blob store fault is returned, never read as "no body".
+func (m messages) storedBody(info store.MessageBody, whole bool) (string, error) {
+	ids := []string{info.Blob}
 	if !whole {
-		ids = append(ids, detail.DisplayBlobID)
+		ids = append(ids, info.Display)
 	}
 	for _, blobID := range ids {
 		if blobID == "" {
 			continue
 		}
-		if ok, _ := m.Blobs.Has(blobID); ok {
+		ok, err := m.Blobs.Has(blobID)
+		if err != nil {
+			return "", err
+		}
+		if ok {
 			return blobID, nil
 		}
 	}
@@ -172,33 +164,63 @@ func (m messages) display(ctx context.Context, id int64) ([]byte, error) {
 	return m.read(ctx, id, false)
 }
 
+// body is a message's body as read: its bytes, the blob they came from, and
+// its subject.
+type body struct {
+	raw     []byte
+	blobID  string
+	subject string
+}
+
 func (m messages) read(ctx context.Context, id int64, whole bool) ([]byte, error) {
+	b, err := m.readBody(ctx, id, whole)
+	return b.raw, err
+}
+
+// readBody reads a message's whole body or its display copy, stored or
+// fetched, and names what it used. A fault of the blob store is a storage
+// error: it does not become a fetch.
+func (m messages) readBody(ctx context.Context, id int64, whole bool) (body, error) {
 	if m.Blobs == nil {
-		return nil, api.Unavailable("sync is not running")
+		return body{}, api.Unavailable("sync is not running")
 	}
-	blobID, err := m.storedBody(ctx, id, whole)
-	if err == nil && blobID == "" {
+	info, err := m.DB.MessageBody(ctx, id)
+	if errors.Is(err, store.ErrNotFound) {
+		return body{}, api.NotFound("message %d does not exist", id)
+	}
+	if err != nil {
+		return body{}, err
+	}
+	blobID, err := m.storedBody(info, whole)
+	if err != nil {
+		return body{}, err
+	}
+	if blobID == "" {
 		if m.Sync == nil {
-			return nil, api.Unavailable("message %d is not stored locally and sync is not running", id)
+			return body{}, api.Unavailable("message %d is not stored locally and sync is not running", id)
 		}
 		if whole {
 			blobID, err = m.Sync.FetchBody(ctx, id)
 		} else {
 			blobID, err = m.Sync.FetchDisplay(ctx, id)
 		}
-	}
-	if errors.Is(err, store.ErrNotFound) {
-		return nil, api.NotFound("message %d does not exist", id)
-	}
-	if err != nil {
-		return nil, api.Unavailable("message %d is not stored locally and cannot be fetched now: %v", id, err)
+		if errors.Is(err, store.ErrNotFound) {
+			return body{}, api.NotFound("message %d does not exist", id)
+		}
+		if err != nil {
+			return body{}, api.Unavailable("message %d is not stored locally and cannot be fetched now: %v", id, err)
+		}
 	}
 	rc, err := m.Blobs.Open(blobID)
 	if err != nil {
-		return nil, err
+		return body{}, err
 	}
 	defer rc.Close()
-	return io.ReadAll(rc)
+	raw, err := io.ReadAll(rc)
+	if err != nil {
+		return body{}, err
+	}
+	return body{raw: raw, blobID: blobID, subject: info.Subject}, nil
 }
 
 // Summaries implements message.summaries: the summaries of the given IDs,
