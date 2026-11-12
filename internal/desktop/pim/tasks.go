@@ -950,8 +950,7 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 		account := m.accountEmail(l.AccountID)
 		labeled(c, "List", 80, func() {
 			ui.Row(c).Tooltip(l.Name + " · " + account).Children(func() {
-				frostui.Body(c, l.Name).Shrink(1).MinWidth(0).SingleLine()
-				frostui.Body(c, " · "+account).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
+				nameAndAccount(c, t, l.Name, account)
 			})
 		})
 	}

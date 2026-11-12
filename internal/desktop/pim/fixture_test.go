@@ -32,6 +32,10 @@ func ics(lines ...string) []byte {
 		strings.Join(lines, "\r\n") + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
 }
 
+// longAddress is an account's address long enough to cut a pane's name
+// (frostyard/frostmail#282).
+const longAddress = "ann.lee.calendars@northwind-traders.example"
+
 const (
 	adaCard = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ada\r\nFN:Ada Lovelace\r\nN:Lovelace;Ada;;;\r\nORG:Engines\r\nTITLE:Countess\r\n" +
 		"EMAIL;TYPE=HOME:ada@a.test\r\nTEL;TYPE=CELL:+44 20 7946 0000\r\nBDAY:1815-12-10\r\nNOTE:Notes on engines\r\nEND:VCARD\r\n"
@@ -63,6 +67,7 @@ type fixture struct {
 	compose []string
 	opened  []int64
 
+	email                                                   string
 	acct, book, work, home, side, tasks, errands, readTasks int64
 	ada, report, charts, done, milk                         int64
 }
@@ -75,7 +80,10 @@ type window struct {
 
 type options struct {
 	rpctest.Options
-	empty   bool
+	empty bool
+	// email is the account's address, for a long one's test; "me@a.test"
+	// when empty.
+	email   string
 	onStart func(*rpctest.Server)
 }
 
@@ -88,6 +96,10 @@ func newFixture(t *testing.T, module commands.Module, o ...options) *fixture {
 		opt = o[0]
 	}
 	f := &fixture{t: t, loop: frostuitest.NewLoop(), module: module, now: testNow, table: frostui.NewCommandTable(), windows: map[string]*window{}}
+	f.email = opt.email
+	if f.email == "" {
+		f.email = "me@a.test"
+	}
 	if opt.Now == nil {
 		opt.Now = func() time.Time { return testNow }
 	}
@@ -235,7 +247,7 @@ func (f *fixture) seed() {
 	ctx := f.t.Context()
 	err := f.srv.DB.Tx(ctx, func(tx *store.Tx) error {
 		server := store.ServerConfig{Host: "imap.a.test", Port: 993, TLS: api.TLSModeTLS, Username: "u"}
-		a, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindGmail, Email: "me@a.test", Auth: api.AuthKindOAuth2, IMAP: server, SMTP: server})
+		a, err := tx.InsertAccount(ctx, store.Account{Kind: api.AccountKindGmail, Email: f.email, Auth: api.AuthKindOAuth2, IMAP: server, SMTP: server})
 		if err != nil {
 			return err
 		}
@@ -291,7 +303,7 @@ func (f *fixture) seed() {
 				"ORGANIZER;CN=Bo:mailto:bo@a.test", "ATTENDEE;CN=Ada;PARTSTAT=ACCEPTED:mailto:ada@a.test", "ATTENDEE;CN=Me;PARTSTAT=NEEDS-ACTION:mailto:me@a.test")},
 		} {
 			if _, err := pimsync.StoreCalendarObject(ctx, tx, store.Object{CollectionID: o.col, Href: o.href, ETag: `"1"`, Kind: store.ObjectVEvent, Raw: o.raw},
-				calendar.Options{Local: time.UTC, UserEmails: []string{"me@a.test"}}, from, to); err != nil {
+				calendar.Options{Local: time.UTC, UserEmails: []string{f.email}}, from, to); err != nil {
 				return err
 			}
 		}
@@ -341,3 +353,36 @@ func (f *fixture) seed() {
 }
 
 func dump(tt *ui.Tester) string { return fmt.Sprintf("%q", tt.Texts()) }
+
+// textWidth is the width a text takes drawn alone, with no limit, in a
+// window of its own (frostyard/frostmail#282).
+func textWidth(t *testing.T, text string) float32 {
+	t.Helper()
+	tt := ui.NewTester(func(c *ui.Context) {
+		frostui.Adapt(c)
+		ui.Row(c).Children(func() { frostui.Body(c, text) })
+	}, 1200, 100)
+	tt.Frame()
+	r, ok := tt.Find(text)
+	if !ok {
+		t.Fatalf("a window of its own shows no %q", text)
+	}
+	return r.W
+}
+
+// detailText is the box of text drawn in the pane named pane, as
+// assistive technology sees it: Find gives the first element showing a
+// text, and the sidebar shows a name as the pane does
+// (frostyard/frostmail#282).
+func (f *fixture) detailText(pane, text string) (ui.Rect, bool) {
+	p, ok := f.tt.AccessByRole(ui.RoleGroup, pane)
+	if !ok {
+		return ui.Rect{}, false
+	}
+	for _, a := range f.tt.AccessAll() {
+		if a.Role == ui.RoleText && a.Name == text && a.Bounds.X >= p.Bounds.X && a.Bounds.X < p.Bounds.X+p.Bounds.W {
+			return a.Bounds, true
+		}
+	}
+	return ui.Rect{}, false
+}

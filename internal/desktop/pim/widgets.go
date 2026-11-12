@@ -36,6 +36,15 @@ func calColor(t *ui.Theme, hex string) ui.Color {
 	return ui.Hex(hex)
 }
 
+// nameAndAccount is a pane row's name and the account it belongs to. The
+// name keeps its whole width, and the account's address shrinks to nothing
+// first; a name wider than the row alone still shrinks
+// (frostyard/frostmail#282).
+func nameAndAccount(c *ui.Context, t *ui.Theme, name, account string) {
+	frostui.Body(c, name).Shrink(1).MinWidth(0).SingleLine()
+	frostui.Body(c, " · "+account).TextColor(tertiary(t)).Shrink(1000).MinWidth(0).SingleLine()
+}
+
 // sectionHeading is a block's heading: the brand's uppercase label, named
 // as written.
 func sectionHeading(c *ui.Context, text string) ui.Element {

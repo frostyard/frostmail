@@ -632,11 +632,11 @@ func (m *Module) eventDetails(c *ui.Context, e *api.CalendarEvent) {
 			labeled(c, "Repeats", 80, func() { frostui.Body(c, text).Wrap() })
 		}
 		if col := m.collection(e.CalendarID); col != nil {
+			account := m.accountEmail(col.AccountID)
 			labeled(c, "Calendar", 80, func() {
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Tooltip(col.Name + " · " + account).Children(func() {
 					uikit.Dot(c, 8, calColor(t, col.Color))
-					frostui.Body(c, col.Name).Shrink(1).MinWidth(0).SingleLine()
-					frostui.Body(c, " · "+m.accountEmail(col.AccountID)).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
+					nameAndAccount(c, t, col.Name, account)
 				})
 			})
 		}

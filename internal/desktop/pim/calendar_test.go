@@ -1380,3 +1380,23 @@ func TestWantHoldsOneCallAtATime(t *testing.T) {
 		t.Errorf("%+v", f)
 	}
 }
+
+// TestEventPaneKeepsTheCalendarName is the guard for
+// frostyard/frostmail#282: a long account address gives way before the
+// calendar's name, which keeps its whole width.
+func TestEventPaneKeepsTheCalendarName(t *testing.T) {
+	f := newFixture(t, commands.Calendar, options{email: longAddress})
+	f.text("Standup")
+	f.click("Standup, 9:00 – 9:15 AM, Room 4")
+	f.until("the event pane", func() bool { return f.tt.HasText("Room 4") })
+	if !f.tt.HasText(longAddress) {
+		t.Fatalf("the Calendar row shows no account: %s", dump(f.tt))
+	}
+	got, ok := f.detailText("Event details", "Work")
+	if !ok {
+		t.Fatalf("the event pane shows no calendar named Work: %s", dump(f.tt))
+	}
+	if want := textWidth(t, "Work"); got.W < want-0.5 {
+		t.Errorf("the calendar's name is %v wide, and %v drawn alone: the account's address cut it", got.W, want)
+	}
+}
