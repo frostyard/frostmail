@@ -715,7 +715,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 ## Rules
 
 - maild serves its API and the web app on no network address: only on
-  its private socket and the app socket. Its one TCP listener is the
+  its private socket and the app socket. Its only TCP listeners are the
   OAuth sign-in's redirect, on loopback, while a sign-in runs.
 - maild reads `Lodge-*` headers only on the app socket, and only after the
   peer check.
