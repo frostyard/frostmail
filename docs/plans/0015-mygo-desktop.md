@@ -494,8 +494,10 @@ unless that pipe listed only fixture accounts.
   after maild restarts; the Windows build starts and connects on
   `frostmail-win11`.
 - **Status (2026-11-10): built, with its Linux and Windows checks run.**
-  `conn`, `live`, `commands`, `mainwin`, `frame`, `uikit.SummaryRow` and
-  `cmd/frostmail`. The check, driven with `mygo-automation` on this
+  `conn`, `live`, `commands`, `mainwin`, `uikit.SummaryRow` and
+  `cmd/frostmail`; the window uses frostui's `PaneShell`. There is no
+  `internal/desktop/frame` package. The check, driven with
+  `mygo-automation` on this
   desktop against a maild with `FROSTMAIL_SYNC=off`: the window showed
   `100000 messages`; after 8 wheel events of 50,000 DIPs, the 14 rows
   built around row 4,762 all held their text; killing maild showed
@@ -558,9 +560,14 @@ unless that pipe listed only fixture accounts.
   and warnings and errors are never limited (a burst of mailbox passes
   had hidden a failed send in the first canary run); a PIM pass counts
   the collections it changed, not the items.
-- The desktop, once frostui's frame lands: frostui's `Console` fed from
-  `activity.recent` at connect and `activity.added` after, Ctrl J, the
-  button, the palette command, the status bar's newest entry.
+- **Desktop console status (2026-11-11): built.** `mainwin` owns frostui's
+  `Console`, shown by `PaneShell`; `live.Activity` loads `activity.recent`
+  at connect and merges `activity.added` with the history by entry ID.
+  Ctrl J, the button, the palette command and a click on the status bar's
+  newest entry open it. `activity.Line` supplies the same wording as
+  `mailctl activity`; frostui supplies the level and source filters.
+  `TestConsoleShowsMailActivity` checks the recorded line in both the
+  status bar and the opened console, with its account name.
 - **Done when (console):** the native app's console shows the same lines
   as `mailctl activity`, filtered by level and by account.
 
@@ -944,17 +951,19 @@ Windows notifications keep `frostmail-notify.exe` (decided the same day).
 | Path | What | Imports MyGo |
 | --- | --- | --- |
 | `internal/activity` (maild) | the activity ring, limits, constructors and `Classify` (ADR-0055) | no |
-| `cmd/frostmail` | main: flags, the single instance, the windows | yes |
+| `cmd/frostmail` | main: flags, the single instance, windows, notifications and platform hooks | yes |
 | `internal/desktop/conn` | the maild connection: local, lodge, reconnect, ping, downloads | no |
 | `internal/desktop/live` | view models, stores, events, the waker's input | no |
-| `internal/desktop/commands` | the command table and keymap | no |
+| `internal/desktop/commands` | the command table and keymap | yes |
 | `internal/desktop/mail` | sources and queries, the mailbox tree, the actions' rules, undo, date formats | no |
 | `internal/desktop/compose` | the compose window | yes |
-| `internal/desktop/calendar`, `people`, `tasks` | the modules and their windows | yes |
+| `internal/desktop/pim` | Calendar, People and Tasks, their editors, reminders and the To-Do Bar | yes |
+| `internal/desktop/organize` | mail actions' sheets and editors: rules, smart mailboxes, labels, reminders and redirects | yes |
 | `internal/desktop/settings` | the settings window, first run, modes | yes |
-| `internal/desktop/platform` | notifications, the portal, Windows' pieces | some |
-| `internal/desktop/uikit` | SafeHTMLView, SummaryRow, TokenSuggest | yes (only std, MyGo, purego, frostui) |
-| `internal/desktop/mainwin` | the main window: frame, panes, sidebar, list, search, commands | yes |
+| `internal/desktop/icons` | Frostmail's embedded SVG icons | no |
+| `internal/desktop/uikit` | SafeHTMLView, SummaryRow and DecodeBitmap | yes (only std, MyGo, purego, frostui) |
+| `internal/desktop/mainwin` | the main window: PaneShell, modules, panes, sidebar, list, search, activity and commands | yes |
+| `internal/desktop/e2e` | real-window tests through the built app's automation socket | no (drives the app) |
 
 Pure packages hold the decisions and are tested with `go test` alone; view
 packages are tested with `ui.NewTester` against `rpctest`, and write PNGs
@@ -1000,8 +1009,15 @@ library, MyGo, purego and frostui, so they can move by changing a path:
    `Eval` and `FindInPage`. frostread needs it as much as mail does.
 2. **SummaryRow:** a list row of title, date, subtitle, two lines of
    preview and badges, at a fixed height.
-3. **TokenSuggest:** `TokenField` with an autocomplete popover (recipients,
-   attendees, tags).
+3. **DecodeBitmap:** checks an untrusted picture's dimensions before
+   asking MyGo to decode its pixels.
+
+**Not built:** `TokenSuggest`. MyGo's `TokenField` does not expose the
+text being typed, so compose uses `TokenField` with suggestions loaded
+when the window opens, querying `address.suggest` for a to z and 0 to 9.
+The event editor uses a text input and suggestion buttons for invitees;
+Redirect uses a plain text field. There is no shared autocomplete wrapper
+in `uikit` (see Phases 5 and 6 for the remaining differences).
 
 ## Open questions
 

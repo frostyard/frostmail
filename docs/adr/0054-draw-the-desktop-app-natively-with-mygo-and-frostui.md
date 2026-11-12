@@ -120,9 +120,14 @@ the React app's structure. Since then:
   frostyard apps could use go in `internal/desktop/uikit`, which imports
   only the standard library, MyGo, purego and frostui (a test enforces
   it), so they can move into frostui by changing an import path. They
-  are SafeHTMLView, SummaryRow and TokenSuggest. The frame without the
-  page rail is frostui's `PaneShell`, with its `Panes`, `CommandTable`
-  and `Waker`. Frostmail never edits frostui from this repository.
+  are SafeHTMLView, SummaryRow and DecodeBitmap. TokenSuggest was not
+  built: MyGo's `TokenField` does not expose the text being typed. Compose
+  uses `TokenField` with suggestions loaded when its window opens; the
+  event editor uses a text input and suggestion buttons, and Redirect a
+  plain text field ([plan 0015, Patterns for frostui](../plans/0015-mygo-desktop.md#patterns-for-frostui)).
+  The frame without the page rail is frostui's `PaneShell`, with its
+  `Panes`, `CommandTable` and `Waker`. Frostmail never edits frostui from
+  this repository.
 - **Accessibility is tested in Go.** Views name every control, and
   `ui.NewTester` tests check roles, names and states with `AccessByRole`
   and `Access`, as the axe audit of [#222](https://github.com/frostyard/frostmail/pull/222)
