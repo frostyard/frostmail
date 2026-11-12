@@ -8,6 +8,7 @@ import (
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // The time grid's sizes (docs/specs/pim-ui.md, Day and week views).
@@ -146,14 +147,16 @@ func (m *Module) dayHeaders(c *ui.Context, days []string) {
 				m.showDay(date)
 			}
 			b.Children(func() {
-				ui.Text(c, dateOf(date).Format("Mon")).FontSize(11).TextColor(t.TextMuted).SingleLine()
-				n := ui.Box(c).Size(24, 24).Radius(12).Center()
+				ui.Text(c, dateOf(date).Format("Mon")).FontSize(frostui.TextSize(c, 11)).TextColor(t.TextMuted).SingleLine()
+				n := ui.Box(c).Size(24, 24).Radius(t.Radius).Center()
 				color := t.Text
 				if date == today {
 					n.Background(t.Accent)
 					color = t.AccentText
 				}
-				n.Children(func() { ui.Text(c, strconv.Itoa(dateOf(date).Day())).FontSize(15).TextColor(color).SingleLine() })
+				n.Children(func() {
+					ui.Text(c, strconv.Itoa(dateOf(date).Day())).FontSize(frostui.TextSize(c, 15)).TextColor(color).SingleLine()
+				})
 			})
 		}
 	})
@@ -180,7 +183,7 @@ func (m *Module) allDayStrip(c *ui.Context, days []string) {
 	ui.Row(c).Height(height).Shrink(0).AlignItems(ui.Stretch).Children(func() {
 		ui.Box(c).Width(gutterWidth).Shrink(0).Padding(4, 8, 0, 0).Children(func() {
 			if lanes > 0 {
-				ui.Text(c, "all-day").FontSize(11).TextColor(tertiary(t)).TextAlign(ui.End).SingleLine()
+				ui.Text(c, "all-day").FontSize(frostui.TextSize(c, 11)).TextColor(tertiary(t)).TextAlign(ui.End).SingleLine()
 			}
 		})
 		strip := ui.Box(c).Grow(1).Basis(0).MinWidth(0)
@@ -240,7 +243,7 @@ func (m *Module) allDayBar(c *ui.Context, bar *allDayBar, days []string, cw floa
 	fill, text, dashed := eventLook(t, color, o, active)
 	span := bar.last - bar.first + 1
 	b := ui.ButtonBase(c).Row().Absolute().Top(4+float32(bar.lane)*(laneHeight+laneGap)).Left(float32(bar.first)*cw+barInset).
-		Width(float32(span)*cw-2*barInset).Height(laneHeight).Radius(4).Padding(0, 4).AlignItems(ui.Center).Background(fill).KeepFocus().Clip().
+		Width(float32(span)*cw-2*barInset).Height(laneHeight).Radius(frostui.RadiusChip).Padding(0, 4).AlignItems(ui.Center).Background(fill).KeepFocus().Clip().
 		Cursor(ui.CursorPointer).Label(title(o) + ", all day").Checked(active)
 	if dashed {
 		b.Border(1, color).BorderStyle(ui.BorderDashed)
@@ -260,7 +263,7 @@ func (m *Module) allDayBar(c *ui.Context, bar *allDayBar, days []string, cw floa
 		m.editSelected()
 	}
 	b.Children(func() {
-		name := ui.Text(c, title(o)).FontSize(12).FontWeight(600).TextColor(text).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+		name := ui.Text(c, title(o)).FontSize(frostui.TextSize(c, 12)).FontWeight(600).TextColor(text).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 		if o.Status == api.EventStatusCancelled {
 			name.Strikethrough()
 		}
@@ -311,7 +314,9 @@ func (m *Module) allDayMore(c *ui.Context, bars []allDayBar, days []string, cw f
 		if b.Clicked() {
 			m.showDay(date)
 		}
-		b.Children(func() { ui.Text(c, fmt.Sprintf("%d more", n)).FontSize(11).TextColor(t.TextMuted).SingleLine() })
+		b.Children(func() {
+			ui.Text(c, fmt.Sprintf("%d more", n)).FontSize(frostui.TextSize(c, 11)).TextColor(t.TextMuted).SingleLine()
+		})
 	}
 }
 
@@ -326,11 +331,13 @@ func (m *Module) gutter(c *ui.Context, days []string) {
 	}
 	ui.Box(c).Width(gutterWidth).Shrink(0).Children(func() {
 		for hour := 1; hour < 24; hour++ {
-			ui.Text(c.Key(hour), hourLabel(hour, k.h24)).FontSize(11).TextColor(tertiary(t)).Absolute().Top(float32(hour*hourHeight) - 7).Right(8).SingleLine()
+			ui.Text(c.Key(hour), hourLabel(hour, k.h24)).FontSize(frostui.TextSize(c, 11)).TextColor(tertiary(t)).Absolute().Top(float32(hour*hourHeight) - 7).Right(8).SingleLine()
 		}
 		if shown {
 			_, minutes := zoned(now, k.loc)
-			ui.Text(c.Key("now"), k.clockTime(now)).FontSize(11).FontWeight(600).TextColor(flagColor(t, 1)).Background(t.Background).Absolute().Top(float32(minutes)*pxPerMinute - 7).Right(8).SingleLine()
+			// Closer to the grid than the hours' labels: in Inter, bold, a
+			// time such as "10:30 AM" is wider than the gutter leaves them.
+			ui.Text(c.Key("now"), k.clockTime(now)).FontSize(frostui.TextSize(c, 11)).FontWeight(600).TextColor(flagColor(t, 1)).Background(t.Background).Absolute().Top(float32(minutes)*pxPerMinute - 7).Right(3).SingleLine()
 		}
 	})
 }
@@ -378,7 +385,7 @@ func (m *Module) dayColumn(c *ui.Context, day int, date string, days []string) {
 			now := flagColor(t, 1)
 			top := float32(minutes) * pxPerMinute
 			ui.Box(c.Key("now")).Absolute().Top(top).Left(0).Right(0).Height(2).Background(now).IgnoreInput(true).Label("Now")
-			ui.Box(c.Key("now-dot")).Absolute().Top(top-3).Left(-4).Size(8, 8).Radius(4).Background(now).IgnoreInput(true)
+			uikit.Dot(c.Key("now-dot"), 8, now).Absolute().Top(top - 3).Left(-4).IgnoreInput(true)
 		}
 	})
 }
@@ -466,7 +473,7 @@ func (m *Module) eventBlock(c *ui.Context, block *timedBlock, day int, width flo
 	}
 	columnW := width / float32(block.columns)
 	b := ui.ButtonBase(c).Column().Absolute().Top(float32(block.startMin)*pxPerMinute).Left(float32(block.column)*columnW).
-		Width(max(columnW-blockGap, 8)).Height(height).Radius(4).Padding(4, 4, 4, 7).Background(fill).AlignItems(ui.Stretch).KeepFocus().Clip().
+		Width(max(columnW-blockGap, 8)).Height(height).Radius(frostui.RadiusChip).Padding(4, 4, 4, 7).Background(fill).AlignItems(ui.Stretch).KeepFocus().Clip().
 		Label(label).Checked(active)
 	if dashed {
 		b.Border(1, color).BorderStyle(ui.BorderDashed)
@@ -494,7 +501,7 @@ func (m *Module) eventBlock(c *ui.Context, block *timedBlock, day int, width flo
 		m.editSelected()
 	}
 	b.Children(func() {
-		name := ui.Text(c, title(o)).FontSize(12).FontWeight(600).TextColor(text).SingleLine()
+		name := ui.Text(c, title(o)).FontSize(frostui.TextSize(c, 12)).FontWeight(600).TextColor(text).SingleLine()
 		if o.Status == api.EventStatusCancelled {
 			name.Strikethrough()
 		}
@@ -503,9 +510,9 @@ func (m *Module) eventBlock(c *ui.Context, block *timedBlock, day int, width flo
 			if active {
 				sub = t.AccentText
 			}
-			ui.Text(c, rng).FontSize(11).TextColor(sub).SingleLine()
+			ui.Text(c, rng).FontSize(frostui.TextSize(c, 11)).TextColor(sub).SingleLine()
 			if o.Location != "" {
-				ui.Text(c, o.Location).FontSize(11).TextColor(sub).SingleLine()
+				ui.Text(c, o.Location).FontSize(frostui.TextSize(c, 11)).TextColor(sub).SingleLine()
 			}
 		}
 	})
@@ -566,8 +573,8 @@ func (m *Module) dragPreview(c *ui.Context, p *gridPress, width float32) {
 	}
 	ui.Column(c.Key("preview")).Absolute().Top(float32(start) * pxPerMinute).Left(0).Width(max(width-blockGap, 8)).Height(max(minutes*pxPerMinute, minBlock)).
 		Radius(4).Padding(4).Background(fill).Opacity(0.6).IgnoreInput(true).AlignItems(ui.Stretch).Clip().Children(func() {
-		ui.Text(c, name).FontSize(12).FontWeight(600).TextColor(text).SingleLine()
-		ui.Text(c, m.clock.timeRange(p.preview.start, p.preview.end)).FontSize(11).TextColor(text).SingleLine()
+		ui.Text(c, name).FontSize(frostui.TextSize(c, 12)).FontWeight(600).TextColor(text).SingleLine()
+		ui.Text(c, m.clock.timeRange(p.preview.start, p.preview.end)).FontSize(frostui.TextSize(c, 11)).TextColor(text).SingleLine()
 	})
 }
 
@@ -580,7 +587,7 @@ func (m *Module) monthGrid(c *ui.Context, days []string) {
 	}
 	ui.Row(c).Height(24).Shrink(0).AlignItems(ui.Center).Children(func() {
 		for _, d := range days[:7] {
-			ui.Text(c.Key(d), dateOf(d).Format("Mon")).FontSize(11).TextColor(t.TextMuted).Grow(1).Basis(0).TextAlign(ui.Center).SingleLine()
+			ui.Text(c.Key(d), dateOf(d).Format("Mon")).FontSize(frostui.TextSize(c, 11)).TextColor(t.TextMuted).Grow(1).Basis(0).TextAlign(ui.Center).SingleLine()
 		}
 	})
 	ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Role(ui.RoleGrid).Label(viewTitle(viewMonth, cal.date, m.clock.weekStart)).Children(func() {
@@ -644,7 +651,7 @@ func (m *Module) monthCell(c *ui.Context, date string, lines int) {
 			if date[8:] == "01" {
 				label = dateOf(date).Format("Jan 2")
 			}
-			n := ui.Box(c).Height(20).MinWidth(20).Radius(10).Center().Padding(0, 4)
+			n := ui.Box(c).Height(20).MinWidth(20).Radius(t.Radius).Center().Padding(0, 4)
 			color := t.Text
 			switch {
 			case date == today:
@@ -653,7 +660,7 @@ func (m *Module) monthCell(c *ui.Context, date string, lines int) {
 			case date[:7] != cal.date[:7]:
 				color = tertiary(t)
 			}
-			n.Children(func() { ui.Text(c, label).FontSize(12).TextColor(color).SingleLine() })
+			n.Children(func() { ui.Text(c, label).FontSize(frostui.TextSize(c, 12)).TextColor(color).SingleLine() })
 		})
 		for _, o := range items[:visible] {
 			m.monthItem(c.Key(keyOf(o)), o, date, width)
@@ -663,7 +670,9 @@ func (m *Module) monthCell(c *ui.Context, date string, lines int) {
 			if b.Clicked() {
 				m.showDay(date)
 			}
-			b.Children(func() { ui.Text(c, fmt.Sprintf("%d more", more)).FontSize(11).TextColor(t.TextMuted).SingleLine() })
+			b.Children(func() {
+				ui.Text(c, fmt.Sprintf("%d more", more)).FontSize(frostui.TextSize(c, 11)).TextColor(t.TextMuted).SingleLine()
+			})
 		}
 	})
 }
@@ -680,7 +689,7 @@ func (m *Module) monthItem(c *ui.Context, o *api.Occurrence, date string, cellWi
 	if start != "" {
 		name = start
 	}
-	b := ui.ButtonBase(c).Row().Height(monthLineH).Gap(4).Padding(0, 4).Radius(4).AlignItems(ui.Center).KeepFocus().Cursor(ui.CursorPointer).
+	b := ui.ButtonBase(c).Row().Height(monthLineH).Gap(4).Padding(0, 4).Radius(frostui.RadiusChip).AlignItems(ui.Center).KeepFocus().Cursor(ui.CursorPointer).
 		Label(title(o) + ", " + name).Checked(active)
 	fill, text, dashed := eventLook(t, color, o, active)
 	if o.AllDay || active {
@@ -705,9 +714,9 @@ func (m *Module) monthItem(c *ui.Context, o *api.Occurrence, date string, cellWi
 	}
 	b.Children(func() {
 		if !o.AllDay {
-			ui.Box(c).Size(6, 6).Radius(3).Background(color).Shrink(0)
+			uikit.Dot(c, 6, color)
 		}
-		label := ui.Text(c, title(o)).FontSize(11).TextColor(text).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+		label := ui.Text(c, title(o)).FontSize(frostui.TextSize(c, 11)).TextColor(text).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 		if o.AllDay {
 			label.FontWeight(600)
 		}
@@ -715,7 +724,7 @@ func (m *Module) monthItem(c *ui.Context, o *api.Occurrence, date string, cellWi
 			label.Strikethrough()
 		}
 		if !o.AllDay && cellWidth >= 144 {
-			ui.Text(c, start).FontSize(11).TextColor(t.TextMuted).SingleLine()
+			ui.Text(c, start).FontSize(frostui.TextSize(c, 11)).TextColor(t.TextMuted).SingleLine()
 		}
 	})
 }

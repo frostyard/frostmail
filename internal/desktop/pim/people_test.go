@@ -31,7 +31,7 @@ func TestPeopleListLetteredAndSelection(t *testing.T) {
 	}
 	f.click("Ada Lovelace")
 	f.until("the pane", func() bool { return f.tt.HasText("Countess · Engines") })
-	for _, want := range []string{"Message", "ada@a.test", "+44 20 7946 0000", "December 10, 1815", "Notes on engines", "CONTACTS — ME@A.TEST", "Edit Contact"} {
+	for _, want := range []string{"Message", "ada@a.test", "+44 20 7946 0000", "December 10, 1815", "Notes on engines", "Contacts — me@a.test", "Edit Contact"} {
 		f.until(want, func() bool { return f.tt.HasText(want) })
 	}
 	if f.m.Selected(commands.People) != 1 {
@@ -148,7 +148,7 @@ func TestNewContactAndDelete(t *testing.T) {
 	f.until("the books", func() bool { return len(f.m.writableBooks()) > 0 })
 	f.tt.Key(ui.Cmd, ui.KeyN)
 	f.tt.SetSize(1200, 1600)
-	f.until("the editor", func() bool { return f.tt.HasText("NEW CONTACT") })
+	f.until("the editor", func() bool { return f.tt.HasText("New Contact") })
 	e := f.m.people.editing
 	if f.m.people.selected != 0 || !e.isNew {
 		t.Error("the selection stayed")
@@ -257,8 +257,8 @@ func TestPersonPaneRecentMailAndUpcoming(t *testing.T) {
 	}
 	f.text("Ada Lovelace")
 	f.click("Ada Lovelace")
-	f.until("Recent Mail", func() bool { return f.tt.HasText("RECENT MAIL") && f.tt.HasText("Mail from Ada") })
-	if !f.tt.HasText("UPCOMING") {
+	f.until("Recent Mail", func() bool { return f.tt.HasText("Recent Mail") && f.tt.HasText("Mail from Ada") })
+	if !f.tt.HasText("Upcoming") {
 		t.Errorf("no Upcoming: %s", dump(f.tt))
 	}
 	f.click("Mail from Ada")

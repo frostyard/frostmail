@@ -237,7 +237,7 @@ func (e *contactEditor) view(c *ui.Context) {
 		}
 		e.photoWell(c)
 		field := func(key string, value *string) {
-			editLabel(c.Key(key), key, func() { ui.TextInput(c.Key(key), value).Label(key).FontSize(13).Height(28) })
+			editLabel(c.Key(key), key, func() { ui.TextInput(c.Key(key), value).Label(key).FontSize(frostui.TextSize(c, 13)).Height(28) })
 		}
 		field("first", &d.givenName)
 		field("last", &d.familyName)
@@ -250,7 +250,9 @@ func (e *contactEditor) view(c *ui.Context) {
 		e.addressList(c)
 		e.valueList(c, kindURL, "URL", &d.urls, errs)
 		e.birthday(c, errs["birthday"])
-		editLabel(c.Key("note"), "note", func() { ui.TextArea(c.Key("note"), &d.note).Label("note").FontSize(13).MinHeight(80) })
+		editLabel(c.Key("note"), "note", func() {
+			ui.TextArea(c.Key("note"), &d.note).Label("note").FontSize(frostui.TextSize(c, 13)).MinHeight(80)
+		})
 		ui.Row(c).Padding(frostui.SpaceL, 0, 0, 0).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 			if !e.isNew && textButton(c.Key("delete"), "Delete Contact", flagColor(t, 1), 13).Disabled(e.busy).Clicked() {
 				e.delete()
@@ -312,7 +314,7 @@ func (e *contactEditor) photoWell(c *ui.Context) {
 		}
 	}
 	editLabel(c.Key("photo row"), "photo", func() {
-		b := ui.ButtonBase(c.Key("photo")).Size(64, 64).Radius(32).Label("Change Photo").Cursor(ui.CursorPointer).Disabled(e.busy || e.picking)
+		b := ui.ButtonBase(c.Key("photo")).Size(64, 64).Radius(c.Theme().Radius).Label("Change Photo").Cursor(ui.CursorPointer).Disabled(e.busy || e.picking)
 		if b.Clicked() {
 			e.pickPhoto()
 		}
@@ -327,7 +329,7 @@ func (e *contactEditor) photoWell(c *ui.Context) {
 func (e *contactEditor) labelSelect(c *ui.Context, kind listKind, name string, i int, label *string) {
 	key := fmt.Sprint(kind, i)
 	if e.custom[key] {
-		ui.TextInput(c.Key("custom"), label).Label(fmt.Sprintf("Custom label for %s %d", name, i+1)).Width(80).FontSize(13).Height(28)
+		ui.TextInput(c.Key("custom"), label).Label(fmt.Sprintf("Custom label for %s %d", name, i+1)).Width(80).FontSize(frostui.TextSize(c, 13)).Height(28)
 		return
 	}
 	options := slices.Clone(contactLabels[kind])
@@ -361,7 +363,7 @@ func (e *contactEditor) valueList(c *ui.Context, kind listKind, name string, row
 		editLabel(c.Key([2]any{kind, i}), name, func() {
 			ui.Row(c).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
 				e.labelSelect(c, kind, name, i, &v.Label)
-				in := ui.TextInput(c.Key("value"), &v.Value).Label(fmt.Sprintf("%s %d", title, i+1)).FontSize(13).Height(28).Grow(1).Shrink(1).MinWidth(0)
+				in := ui.TextInput(c.Key("value"), &v.Value).Label(fmt.Sprintf("%s %d", title, i+1)).FontSize(frostui.TextSize(c, 13)).Height(28).Grow(1).Shrink(1).MinWidth(0)
 				if errs["emails."+strconv.Itoa(i)] != "" && kind == kindEmail {
 					in.Border(1, flagColor(t, 1)).Invalid(true)
 				}
@@ -398,11 +400,11 @@ func (e *contactEditor) addressList(c *ui.Context) {
 			ui.Row(c).Gap(frostui.SpaceXS).AlignItems(ui.Start).Children(func() {
 				e.labelSelect(c, kindAddress, "address", i, &a.Label)
 				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(4).AlignItems(ui.Stretch).Children(func() {
-					ui.TextArea(c.Key("street"), &a.Street).Label(fmt.Sprintf("Street %d", i+1)).FontSize(13).Lines(2, 2)
-					ui.TextInput(c.Key("city"), &a.Locality).Label(fmt.Sprintf("City %d", i+1)).FontSize(13).Height(28)
-					ui.TextInput(c.Key("state"), &a.Region).Label(fmt.Sprintf("State %d", i+1)).FontSize(13).Height(28)
-					ui.TextInput(c.Key("zip"), &a.Postcode).Label(fmt.Sprintf("ZIP %d", i+1)).FontSize(13).Height(28)
-					ui.TextInput(c.Key("country"), &a.Country).Label(fmt.Sprintf("Country %d", i+1)).FontSize(13).Height(28)
+					ui.TextArea(c.Key("street"), &a.Street).Label(fmt.Sprintf("Street %d", i+1)).FontSize(frostui.TextSize(c, 13)).Lines(2, 2)
+					ui.TextInput(c.Key("city"), &a.Locality).Label(fmt.Sprintf("City %d", i+1)).FontSize(frostui.TextSize(c, 13)).Height(28)
+					ui.TextInput(c.Key("state"), &a.Region).Label(fmt.Sprintf("State %d", i+1)).FontSize(frostui.TextSize(c, 13)).Height(28)
+					ui.TextInput(c.Key("zip"), &a.Postcode).Label(fmt.Sprintf("ZIP %d", i+1)).FontSize(frostui.TextSize(c, 13)).Height(28)
+					ui.TextInput(c.Key("country"), &a.Country).Label(fmt.Sprintf("Country %d", i+1)).FontSize(frostui.TextSize(c, 13)).Height(28)
 				})
 				if frostui.IconButton(c.Key("remove"), "list-remove", fmt.Sprintf("Remove address %d", i+1)).Clicked() {
 					removed = i
@@ -442,7 +444,7 @@ func (e *contactEditor) birthday(c *ui.Context, problem string) {
 			if ui.Select(c.Key("day"), &dayText, days).Label("Birthday day").Changed() {
 				b.day = twoDigit(slices.Index(days, dayText))
 			}
-			ui.TextInput(c.Key("year"), &b.year).Label("Birthday year").Width(64).FontSize(13).Height(28)
+			ui.TextInput(c.Key("year"), &b.year).Label("Birthday year").Width(64).FontSize(frostui.TextSize(c, 13)).Height(28)
 		})
 		errorLine(c, problem)
 	})

@@ -123,7 +123,7 @@ func (w *Window) filterRow(c *ui.Context) {
 					w.setFilter(f.Filter)
 				}
 			}
-		}).FontSize(12).Height(22).Label("More filters")
+		}).FontSize(frostui.TextSize(c, 12)).Height(22).Label("More filters")
 		ui.Spacer(c)
 		sort := "Sort"
 		for _, s := range mail.Sorts {
@@ -140,7 +140,7 @@ func (w *Window) filterRow(c *ui.Context) {
 // tab draws a compact filter tab.
 func (w *Window) tab(c *ui.Context, label string, active bool) ui.Element {
 	t := c.Theme()
-	b := ui.Row(c).Height(22).Padding(0, frostui.SpaceS).Radius(6).AlignItems(ui.Center).Role(ui.RoleTab).Selected(active).Focusable().
+	b := ui.Row(c).Height(22).Padding(0, frostui.SpaceS).Radius(frostui.RadiusChip).AlignItems(ui.Center).Role(ui.RoleTab).Selected(active).Focusable().
 		Cursor(ui.CursorPointer).Label(label)
 	color := t.TextMuted
 	if active {
@@ -149,7 +149,7 @@ func (w *Window) tab(c *ui.Context, label string, active bool) ui.Element {
 	} else if b.Hovered() {
 		color = t.Text
 	}
-	b.Children(func() { ui.Text(c, label).FontSize(12).TextColor(color).SingleLine() })
+	b.Children(func() { ui.Text(c, label).FontSize(frostui.TextSize(c, 12)).TextColor(color).SingleLine() })
 	return b
 }
 
@@ -293,14 +293,14 @@ func (w *Window) listBody(c *ui.Context) {
 		return d
 	}
 	low, high := int64(-1), int64(-1)
-	list := ui.List(c, &w.list, int(snap.Count()), func(i int) {
+	list := uikit.SoftList(c, &w.list, int(snap.Count()), func(i int) {
 		n := int64(i)
 		if low < 0 || n < low {
 			low = n
 		}
 		high = max(high, n)
 		w.row(c, snap, n)
-	}).Grow(1).Label("Messages")
+	}).Label("Messages")
 	if w.focusPane == paneList {
 		w.focusPane = ""
 		list.Focus()
@@ -583,11 +583,14 @@ func (w *Window) sidebarBar(c *ui.Context) {
 	}
 }
 
-// listBar is the segment over the list.
+// listBar is the segment over the list: the source's title, and under
+// it what the status bar does not say (its end counts the messages).
 func (w *Window) listBar(c *ui.Context) {
 	ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 		frostui.Strong(c, w.title()).SingleLine()
-		frostui.Caption(c, w.subtitle()).SingleLine()
+		if sub := w.subtitle(); sub != "" {
+			frostui.Caption(c, sub).SingleLine()
+		}
 	})
 	if frostui.IconButton(c, "mail-message-new", w.table.Tooltip(string(commands.Compose))).Clicked() {
 		w.compose()
@@ -677,9 +680,17 @@ func (w *Window) title() string {
 	return "Mail"
 }
 
+// subtitle is the list header's second line: how many of the source's
+// messages are unread, "" for none and during a search, whose scope row
+// says where it looks. The status bar's end has the list's count
+// (frostyard/frostmail#270).
 func (w *Window) subtitle() string {
-	if w.view == nil {
+	if w.q.Search != "" {
 		return ""
 	}
-	return fmt.Sprintf("%d %s", w.view.Count(), map[bool]string{true: "message", false: "messages"}[w.view.Count() == 1])
+	st := w.mail.State()
+	if n := mail.SourceUnread(w.q.Source, st.Mailboxes, st.Counts, st.SmartCounts); n > 0 {
+		return fmt.Sprintf("%d unread", n)
+	}
+	return ""
 }

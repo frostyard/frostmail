@@ -1,7 +1,10 @@
 package uikit_test
 
 import (
+	"fmt"
 	"image"
+	"image/color"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -90,5 +93,90 @@ func TestSummaryRowActionsShowOnHoverOnly(t *testing.T) {
 	}
 	if clicks != 1 {
 		t.Errorf("the action ran %d times", clicks)
+	}
+}
+
+// pixel is the color the last frame drew at (x, y), in DIPs.
+func pixel(tt *ui.Tester, width int, x, y float32) color.RGBA {
+	img := tt.Image()
+	scale := float32(img.Bounds().Dx()) / float32(width)
+	return color.RGBAModel.Convert(img.At(int(x*scale), int(y*scale))).(color.RGBA)
+}
+
+// near reports whether a drawn pixel is c, give or take rounding.
+func near(p color.RGBA, c ui.Color) bool {
+	d := func(a, b uint8) bool { return max(a, b)-min(a, b) <= 2 }
+	return d(p.R, c.R) && d(p.G, c.G) && d(p.B, c.B)
+}
+
+// frostyard/frostmail#267: a preview of one token far wider than the list
+// wraps or ends inside the row, and nothing paints past the row.
+func TestSummaryRowKeepsALongTokenInside(t *testing.T) {
+	setIcons()
+	const width, listWidth = 600, 220
+	token := strings.Repeat("spacer", 50)
+	var bg ui.Color
+	tt := ui.NewTester(func(c *ui.Context) {
+		frostui.Adapt(c)
+		bg = c.Theme().Background
+		ui.Row(c).Fill().AlignItems(ui.Start).Background(bg).Children(func() {
+			ui.Column(c).Width(listWidth).Shrink(0).AlignItems(ui.Stretch).Children(func() {
+				uikit.SummaryRow(c, uikit.Summary{Title: "Spacer Weekly " + token, Date: "9:41", Subtitle: token, Preview: token, Count: "12"})
+			})
+		})
+	}, width, 120)
+	tt.Frame()
+	if r, ok := tt.Find("12"); !ok || r.X+r.W > listWidth {
+		t.Errorf("the count is at %+v (%v), outside the %d-wide list", r, ok, listWidth)
+	}
+	for y := float32(0); y < uikit.SummaryHeight; y++ {
+		for x := float32(listWidth + 1); x < width; x += 3 {
+			if p := pixel(tt, width, x, y); !near(p, bg) {
+				t.Fatalf("the row paints %v at (%v, %v), past its %d DIPs", p, x, y, listWidth)
+			}
+		}
+	}
+}
+
+// A chosen row in a SoftList takes the soft selection's tint and the
+// accent rule on its leading edge, and its unread dot keeps the accent.
+func TestSoftListSoftensTheChoice(t *testing.T) {
+	setIcons()
+	const width = 400
+	var st ui.ListState
+	chosen := 0
+	st.Selected = &chosen
+	var page *ui.Theme
+	tt := ui.NewTester(func(c *ui.Context) {
+		page = frostui.Adapt(c)
+		ui.Column(c).Fill().AlignItems(ui.Stretch).Background(page.Background).Children(func() {
+			uikit.SoftList(c, &st, 2, func(i int) {
+				uikit.SummaryRow(c, uikit.Summary{Title: fmt.Sprintf("Row %d", i), Subtitle: "Plans", Preview: "See you there",
+					Unread: true, UnreadLabel: fmt.Sprintf("Unread %d", i)})
+			}).Label("Messages")
+		})
+	}, width, 300)
+	for _, dark := range []bool{false, true} {
+		tt.SetDark(dark)
+		tt.Frame()
+		tt.Frame()
+		tint := frostui.SoftSelection(page).Accent
+		mid := float32(uikit.SummaryHeight / 2)
+		if p := pixel(tt, width, width-4, mid); !near(p, tint) {
+			t.Errorf("dark=%v: the chosen row's face is %v, want the tint %v", dark, p, tint)
+		}
+		if p := pixel(tt, width, 0, mid); !near(p, page.Accent) {
+			t.Errorf("dark=%v: the chosen row's leading edge is %v, want the accent %v", dark, p, page.Accent)
+		}
+		if p := pixel(tt, width, width-4, uikit.SummaryHeight+mid); !near(p, page.Background) {
+			t.Errorf("dark=%v: the other row's face is %v, want the background %v", dark, p, page.Background)
+		}
+		dot, ok := tt.Access("Unread 0")
+		if !ok {
+			t.Fatalf("no dot on the chosen row in %q", tt.Texts())
+		}
+		if p := pixel(tt, width, dot.Bounds.X+dot.Bounds.W/2, dot.Bounds.Y+dot.Bounds.H/2); !near(p, page.Accent) {
+			t.Errorf("dark=%v: the chosen row's dot is %v, want the accent %v", dark, p, page.Accent)
+		}
 	}
 }

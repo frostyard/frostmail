@@ -41,12 +41,34 @@ func (w *Window) setUpSources() {
 	l := &w.sources
 	l.Label = "Mailboxes"
 	l.Children = func(key string) []string { return w.kids[key] }
-	l.Row = func(key string) frostui.SourceRow { return w.sourceRow(w.tree[key]) }
-	l.Menu = func(m *ui.Menu, key, _ string) { w.sourceMenu(m, key) }
+	l.Row = func(key string) frostui.SourceRow {
+		if it, ok := w.waits[key]; ok {
+			return it.row
+		}
+		return w.sourceRow(w.tree[key])
+	}
+	l.Menu = func(m *ui.Menu, key, _ string) {
+		if it, ok := w.waits[key]; ok {
+			if it.outbox != nil {
+				w.outboxMenu(m, *it.outbox)
+			}
+			return
+		}
+		w.sourceMenu(m, key)
+	}
 	l.OnSelect = func(key string) {
+		if _, ok := w.waits[key]; ok {
+			w.waitFor = w.q.Source.Key()
+			return
+		}
 		st := w.mail.State()
 		if s, ok := mail.SourceFromKey(key, st.VIPs); ok && w.tree[key].Selectable {
 			w.setSource(s)
+		}
+	}
+	l.OnClick = func(key string, _ ui.Modifiers) {
+		if id := w.waits[key].message; id != 0 {
+			w.OpenMessage(id)
 		}
 	}
 	frostui.DropOn(l, func(key string, d DragMessages) bool {
@@ -96,7 +118,7 @@ func (w *Window) sidebar(c *ui.Context) {
 	}
 	built := mail.BuildSidebar(st.Accounts, st.Mailboxes, mail.Extras{Favorites: favorites, VIPs: st.VIPs, FlagNames: flagNames,
 		Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts})
-	sections := w.indexSidebar(built, st)
+	sections := append(w.indexSidebar(built, st), w.waitingSections(st)...)
 	w.syncSource(st)
 	column := ui.Column(c).Grow(1).AlignItems(ui.Stretch).Background(frostui.Chrome(c.Theme()))
 	height := column.LayoutBounds().H
@@ -114,17 +136,21 @@ func (w *Window) sidebar(c *ui.Context) {
 	})
 }
 
-// footer holds the sections under the tree, which scroll when they would
-// take the tree's room.
+// footer holds Send Later under the tree, which scrolls when it would
+// take the tree's room. Its rows hold their actions, which a source
+// list's rows cannot.
 func (w *Window) footer(c *ui.Context, st live.MailState, height float32) {
+	_, later := outboxGroups(st.Outbox)
+	if len(later) == 0 {
+		return
+	}
 	limit := height * footerShare
 	if limit <= 0 {
 		limit = footerStart
 	}
-	ui.Scroll(c).MaxHeight(limit).Shrink(0).Children(func() {
+	ui.Scroll(c).MaxHeight(limit).Shrink(0).BorderWidth(1, 0, 0, 0).BorderColor(c.Theme().Border).Children(func() {
 		ui.Column(c).AlignItems(ui.Stretch).Children(func() {
-			w.followUp(c, st)
-			w.outbox(c, st)
+			w.sendLater(c, later, w.o.Now())
 		})
 	})
 }
@@ -167,6 +193,9 @@ func (w *Window) syncSource(st live.MailState) {
 	if key, _, ok := w.sources.Selected(); ok {
 		if s, known := mail.SourceFromKey(key, st.VIPs); known && s.Key() == want {
 			return
+		}
+		if _, waiting := w.waits[key]; waiting && w.waitFor == want {
+			return // chosen in Follow Up or the Outbox while this source shows
 		}
 	}
 	if _, ok := w.tree[want]; ok {
@@ -371,27 +400,109 @@ func (w *Window) confirmMailbox(mb api.Mailbox, erase bool) {
 	}})
 }
 
-// followUp draws the conversations waiting on other people.
-func (w *Window) followUp(c *ui.Context, st live.MailState) {
-	if st.FollowUp == nil || len(st.FollowUp.Threads) == 0 {
-		return
-	}
-	ui.Column(c).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label("Follow Up").Children(func() {
-		frostui.Caption(c, fmt.Sprintf("Follow Up (%d)", st.FollowUp.Total)).Tooltip(fmt.Sprintf("Sent mail with no reply for %d days or more", live.FollowUpDays))
-		for _, t := range st.FollowUp.Threads {
-			if ui.ButtonBase(c.Key(t.ThreadID)).Row().Label(t.Message.Subject).Cursor(ui.CursorPointer).Children(func() {
-				frostui.Body(c, t.Message.Subject).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-			}).Clicked() {
-				w.OpenMessage(t.Message.ID)
-			}
-		}
-	})
+// The sections of the sidebar's list after the mailboxes, Follow Up and
+// the Outbox (docs/specs/ui.md, Sidebar; frostyard/frostmail#271), and the
+// keys of their rows.
+const (
+	followUpSection = "follow-up"
+	outboxSection   = "outbox"
+	followUpMore    = "follow-up:more"
+)
+
+// waiting is a row of Follow Up or the Outbox: how it shows, the message a
+// click opens, and the outbox item its menu acts on.
+type waiting struct {
+	row     frostui.SourceRow
+	message int64
+	outbox  *api.OutboxItem
 }
 
-// outbox draws the messages not yet sent, and those to send later.
-func (w *Window) outbox(c *ui.Context, st live.MailState) {
-	var pending, later []api.OutboxItem
-	for _, it := range st.Outbox {
+// waitingSections are Follow Up, the conversations waiting on other
+// people, and the Outbox, the messages on their way or refused, as
+// sections of the sidebar's list, with the mailboxes' rows, hover,
+// selection, keys and collapse. They show only while they hold a row.
+func (w *Window) waitingSections(st live.MailState) []frostui.SourceSection[string] {
+	w.waits = map[string]waiting{}
+	var out []frostui.SourceSection[string]
+	if fu := st.FollowUp; fu != nil && len(fu.Threads) > 0 {
+		sec := frostui.SourceSection[string]{ID: followUpSection, Title: "Follow Up"}
+		for _, t := range fu.Threads {
+			key := "follow-up:" + strconv.FormatInt(t.ThreadID, 10)
+			w.waits[key] = waiting{row: followUpRow(t), message: t.Message.ID}
+			sec.Items = append(sec.Items, key)
+		}
+		if shown := int64(len(fu.Threads)); fu.Total > shown {
+			w.waits[followUpMore] = waiting{row: frostui.SourceRow{Title: fmt.Sprintf("Showing %d of %d", shown, fu.Total), Dim: true}}
+			sec.Items = append(sec.Items, followUpMore)
+		}
+		out = append(out, sec)
+	}
+	if pending, _ := outboxGroups(st.Outbox); len(pending) > 0 {
+		sec := frostui.SourceSection[string]{ID: outboxSection, Title: "Outbox"}
+		now := w.o.Now()
+		for _, it := range pending {
+			key := "outbox:" + strconv.FormatInt(it.ID, 10)
+			w.waits[key] = waiting{row: outboxRow(it, now), outbox: &it}
+			sec.Items = append(sec.Items, key)
+		}
+		out = append(out, sec)
+	}
+	return out
+}
+
+// followUpRow is a conversation of Follow Up: its subject after an alarm,
+// or a star when a recipient is a VIP, and how many days it has waited.
+func followUpRow(t api.AwaitingThread) frostui.SourceRow {
+	subject := strings.TrimSpace(t.Message.Subject)
+	if subject == "" {
+		subject = "(No Subject)"
+	}
+	row := frostui.SourceRow{Title: subject, Icon: "alarm", Tag: plural(t.WaitingDays, "day", "days")}
+	spoken := []string{}
+	if t.Vip {
+		row.Icon = "starred"
+		spoken = append(spoken, "VIP")
+	}
+	if to := awaitingRecipients(t); to != "" {
+		spoken = append(spoken, "To: "+to)
+	}
+	row.Spoken = strings.Join(append(spoken, "waiting "+row.Tag), ", ")
+	return row
+}
+
+// awaitingRecipients names a conversation's first two recipients and
+// counts the rest.
+func awaitingRecipients(t api.AwaitingThread) string {
+	const shown = 2
+	names := make([]string, 0, shown)
+	for _, a := range t.Recipients[:min(shown, len(t.Recipients))] {
+		names = append(names, mail.DisplayName(a))
+	}
+	out := strings.Join(names, ", ")
+	if rest := t.RecipientCount - int64(len(names)); rest > 0 && out != "" {
+		out += fmt.Sprintf(" & %d more", rest)
+	}
+	return out
+}
+
+// outboxRow is a message of the Outbox: its subject, and a spinner while
+// it goes or a warning that says why it did not.
+func outboxRow(it api.OutboxItem, now time.Time) frostui.SourceRow {
+	status := mail.OutboxStatus(it, now)
+	row := frostui.SourceRow{Title: subjectShown(it.Subject), Icon: "mail-send", Spoken: status}
+	switch it.State {
+	case api.OutboxStateSending, api.OutboxStateAccepted:
+		row.Busy = true
+	default:
+		row.Alert = status
+	}
+	return row
+}
+
+// outboxGroups splits the outbox: the messages on their way or refused,
+// for the Outbox, and those waiting for their chosen time, for Send Later.
+func outboxGroups(items []api.OutboxItem) (pending, later []api.OutboxItem) {
+	for _, it := range items {
 		switch {
 		case it.Scheduled && it.State == api.OutboxStateQueued:
 			later = append(later, it)
@@ -399,19 +510,7 @@ func (w *Window) outbox(c *ui.Context, st live.MailState) {
 			pending = append(pending, it)
 		}
 	}
-	now := w.o.Now()
-	if len(pending) > 0 {
-		ui.Column(c.Key("Outbox")).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label("Outbox").Children(func() {
-			frostui.Caption(c, "Outbox")
-			for _, it := range pending {
-				ui.Column(c.Key(it.ID)).AlignItems(ui.Stretch).Children(func() {
-					frostui.Body(c, it.Subject).SingleLine()
-					frostui.Muted(c, mail.OutboxStatus(it, now)).SingleLine()
-				}).ContextMenu(func(m *ui.Menu) { w.outboxMenu(m, it) })
-			}
-		})
-	}
-	w.sendLater(c, later, now)
+	return pending, later
 }
 
 // sendLater draws the messages waiting for their chosen time, soonest
@@ -423,8 +522,9 @@ func (w *Window) sendLater(c *ui.Context, items []api.OutboxItem, now time.Time)
 	slices.SortStableFunc(items, func(a, b api.OutboxItem) int {
 		return cmp.Compare(sendTime(a, now).UnixNano(), sendTime(b, now).UnixNano())
 	})
-	ui.Column(c.Key("Send Later")).Padding(frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Label("Send Later").Children(func() {
-		frostui.Caption(c, "Send Later")
+	ui.Column(c.Key("Send Later")).Padding(0, frostui.SpaceS, frostui.SpaceS, frostui.SpaceS).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).
+		Label("Send Later").Children(func() {
+		ui.Row(c).Height(28).AlignItems(ui.Center).Children(func() { frostui.Label(c, "Send Later").Role(ui.RoleHeading) })
 		for _, it := range items {
 			ui.Column(c.Key(it.ID)).AlignItems(ui.Stretch).Children(func() {
 				frostui.Body(c, subjectShown(it.Subject)).SingleLine()
@@ -477,7 +577,7 @@ func recipients(to []api.Address) string {
 func textButton(c *ui.Context, label string) bool {
 	accent := c.Theme().Accent
 	return ui.ButtonBase(c).Row().Label(label).Cursor(ui.CursorPointer).Children(func() {
-		ui.Text(c, label).FontSize(12).TextColor(accent).SingleLine()
+		ui.Text(c, label).FontSize(frostui.TextSize(c, 12)).TextColor(accent).SingleLine()
 	}).Clicked()
 }
 

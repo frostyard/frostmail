@@ -444,7 +444,7 @@ func (w *Window) collapsed(c *ui.Context, cv *conv, r api.MessageSummary) {
 		w.setExpanded(cv, r.ID, true)
 	}
 	row.Children(func() {
-		ui.Avatar(c, mail.DisplayName(r.From), nil).Size(24, 24)
+		ui.Avatar(c, mail.DisplayName(r.From), nil).Size(24, 24).Radius(t.Radius)
 		frostui.Strong(c, mail.DisplayName(r.From)).SingleLine()
 		frostui.Muted(c, r.Preview).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 		frostui.Caption(c, mail.ListDate(r.Date, w.o.Now())).SingleLine()
@@ -468,8 +468,7 @@ func (w *Window) message(c *ui.Context, cv *conv, m *openMsg) {
 			frostui.Muted(c, m.err.Error()).Wrap().Padding(frostui.SpaceL)
 		}
 		if m.frame != nil {
-			h := max(m.frame.Height(), 40)
-			if m.frame.View(c).Height(h).AlignSelf(ui.Stretch).Label("Message body").FocusWithin() {
+			if uikit.PageFrame(c, m.frame, max(m.frame.Height(), 40)).Label("Message body").FocusWithin() {
 				cv.focused = m.summary.ID
 			}
 		}

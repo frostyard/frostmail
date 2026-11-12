@@ -87,7 +87,7 @@ func (m *Module) remindersView(c *ui.Context) {
 	c.OnWindowShortcut(0, ui.KeyEscape, m.closeReminders)
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Role(ui.RoleDialog).Label("Reminders").Children(func() {
 		ui.Row(c).Height(36).Shrink(0).Padding(0, frostui.SpaceM).AlignItems(ui.Center).DragWindow().Children(func() {
-			ui.Text(c, "Reminders").FontSize(13).FontWeight(600).Grow(1)
+			frostui.Strong(c, "Reminders").Grow(1)
 			if frostui.IconButton(c, "window-close", "Close").Clicked() {
 				m.closeReminders()
 			}
@@ -131,7 +131,7 @@ func (m *Module) reminderRow(c *ui.Context, r api.Reminder) {
 				if textButton(c, name, t.Text, 13).FontWeight(600).Clicked() {
 					m.openReminder(r)
 				}
-				ui.Text(c, when).FontSize(12).TextColor(t.TextMuted).SingleLine()
+				frostui.Muted(c, when).SingleLine()
 			})
 			ui.MenuButton(c, "Snooze", func(menu *ui.Menu) {
 				for _, ch := range snoozeChoices(m.now(), m.clock.loc) {

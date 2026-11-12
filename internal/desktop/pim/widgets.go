@@ -36,9 +36,10 @@ func calColor(t *ui.Theme, hex string) ui.Color {
 	return ui.Hex(hex)
 }
 
-// sectionHeading is a block's heading, 11/14 600 uppercase.
+// sectionHeading is a block's heading: the brand's uppercase label, named
+// as written.
 func sectionHeading(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, strings.ToUpper(text)).FontSize(11).FontWeight(600).TextColor(c.Theme().TextMuted).Role(ui.RoleHeading).SingleLine()
+	return frostui.Label(c, text).Role(ui.RoleHeading).SingleLine()
 }
 
 // avatarTones are the initials' fills, picked by an address.
@@ -50,37 +51,39 @@ func avatarTone(email string) ui.Color {
 	return ui.Hex(avatarTones[h.Sum32()%uint32(len(avatarTones))])
 }
 
-// avatar is a person's circle: a photo, else initials on the address's
-// tone.
+// avatar is a person's square, at the theme's Radius as the brand's
+// avatars are: a photo, else initials on the address's tone.
 func avatar(c *ui.Context, size float32, name, email string, photo *ui.Bitmap) ui.Element {
 	if photo != nil {
-		return ui.Image(c, photo).Size(size, size).Radius(size / 2).Shrink(0).Fit(ui.Cover).Label(name)
+		return ui.Image(c, photo).Size(size, size).Radius(c.Theme().Radius).Shrink(0).Fit(ui.Cover).Label(name)
 	}
 	label := name
 	if label == "" {
 		label = email
 	}
-	font := float32(13)
+	font := frostui.TextSize(c, 13)
 	if size >= 64 {
-		font = 20
+		font = frostui.TextSize(c, 20)
 	}
-	return ui.Box(c).Size(size, size).Radius(size / 2).Background(avatarTone(email)).Center().Shrink(0).AccessHidden(true).Children(func() {
+	return ui.Box(c).Size(size, size).Radius(c.Theme().Radius).Background(avatarTone(email)).Center().Shrink(0).AccessHidden(true).Children(func() {
 		ui.Text(c, frostui.Initials(label)).FontSize(font).FontWeight(600).TextColor(ui.RGB(255, 255, 255)).SingleLine()
 	})
 }
 
-// centered is an empty pane's line.
+// centered is an empty pane's line; size is at the platform's usual text
+// size (frostui.TextSize).
 func centered(c *ui.Context, text string, size float32) {
 	t := c.Theme()
 	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Background(t.Background).Children(func() {
-		ui.Text(c, text).FontSize(size).TextColor(t.TextMuted)
+		ui.Text(c, text).FontSize(frostui.TextSize(c, size)).TextColor(t.TextMuted)
 	})
 }
 
-// textButton is a link-styled button.
+// textButton is a link-styled button; size is at the platform's usual
+// text size (frostui.TextSize).
 func textButton(c *ui.Context, label string, color ui.Color, size float32) ui.Element {
 	return ui.ButtonBase(c).Justify(ui.Start).Cursor(ui.CursorPointer).Label(label).Children(func() {
-		ui.Text(c, label).FontSize(size).TextColor(color).Shrink(1).MinWidth(0).SingleLine()
+		ui.Text(c, label).FontSize(frostui.TextSize(c, size)).TextColor(color).Shrink(1).MinWidth(0).SingleLine()
 	})
 }
 
@@ -92,7 +95,7 @@ func addButton(c *ui.Context, label string, color ui.Color) ui.Element {
 // kvRow is a pane's label and value row.
 func kvRow(c *ui.Context, label string, width float32, value func()) {
 	ui.Row(c).Gap(frostui.SpaceM).AlignItems(ui.Start).Children(func() {
-		ui.Text(c, label).FontSize(12).TextColor(c.Theme().TextMuted).Width(width).Shrink(0).TextAlign(ui.End)
+		frostui.Muted(c, label).Width(width).Shrink(0).TextAlign(ui.End)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(value)
 	})
 }
@@ -108,7 +111,7 @@ func sheetFrame(c *ui.Context, title string, body func()) (dismissed bool) {
 	open := true
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(420).Gap(frostui.SpaceM).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label(title).Children(func() {
-			ui.Text(c, title).FontSize(13).FontWeight(600)
+			frostui.Strong(c, title)
 			body()
 		})
 	})

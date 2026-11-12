@@ -32,6 +32,10 @@ no ChairLift pattern where it does not fit.
   what it lacks today (a tray, an unread badge, a `mailto:` handler, `.eml`
   files, dragging attachments out, search tokens) stays out of this plan.
 
+Status (2026-11-11): the app moved to frostui v0.5.0 and its Frostyard
+look ([below](#the-frostyard-look); frostui's plan `frostyard-look.md`,
+phase 4).
+
 Status (2026-11-10, later): Phases 3 to 9 are built, each with its own
 status below, and Phase 10's removal of Tauri is the branch's last commit.
 The parity gate does not pass until the manual passes on real desktops are
@@ -190,9 +194,9 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 | --- | --- | --- |
 | Three panes with lodge-ui `Splitter` (220 [160–320], 360 [280–560], reader min 360; arrows move 16) | frostui's `Panes` over `ui.Split` | widths kept with MyGo's window state, not local storage |
 | Persisted UI (`frostmail.ui`): sidebar, widths, conversations, sort, ascending, contact photos, To-Do Bar | a small JSON file in the app's config | |
-| Sidebar `role=tree`: Favorites (All Inboxes, unified roles, VIPs, Flagged per color, favorites), Smart Mailboxes, accounts' trees with counts and sync state, Follow Up, Outbox, Send Later, the module bar | frostui's `SourceList` over `ui.Outline` | drop targets (move; Alt or Ctrl copies); PR #222's tree roles |
+| Sidebar `role=tree`: Favorites (All Inboxes, unified roles, VIPs, Flagged per color, favorites), Smart Mailboxes, accounts' trees with counts and sync state, Follow Up, Outbox, Send Later, the module bar | frostui's `SourceList` over `ui.Outline`, Follow Up and the Outbox as its last sections; Send Later under it | drop targets (move; Alt or Ctrl copies); PR #222's tree roles |
 | Filter row (All, Unread, Flagged, Attachments, More ▾), sort menu, scope bar, coverage line | `Segmented`, `MenuButton`, `Banner`-like rows | overflow into More as today |
-| Message list: virtual, 84 px rows, multi-select, unread dot, flag, VIP star, muted, paperclip, reminder, thread count, two preview lines, contact photo, hover actions, drag, Not Yet Saved drafts, empty states | `ui.List` with `ListState.Selection`, uikit `SummaryRow`, `Drag` | hover actions hidden from assistive technology (PR #222) |
+| Message list: virtual, 84 px rows, multi-select, unread dot, flag, VIP star, muted, paperclip, reminder, thread count, two preview lines, contact photo, hover actions, drag, Not Yet Saved drafts, empty states | uikit `SoftList` (a `ui.List` with `ListState.Selection`) and `SummaryRow`, `Drag` | hover actions hidden from assistive technology (PR #222) |
 | Reader: conversation, newest first, 20 then "Show N Earlier", collapsed rows, header, six banners, body, All Headers, attachment chips | native header and banners, a web view per expanded HTML body, native text for text bodies | [hard part 1](#hard-parts) |
 | To-Do Bar (280, Mail only): mini month, Upcoming, tasks and flagged mail | `ui.Calendar` (browse), lists | |
 | Calendar: Day, Week, Month; mini month and calendars' checkboxes; time grid, all-day strip, now line, month grid, event pane (320); drag in 15-minute steps to move, resize and draw; month and all-day drag; double click to create | drawn by the app with `Box`, `Draw` and pointer drags | [hard part 3](#hard-parts) |
@@ -946,6 +950,54 @@ the parity gate and does not block it. MyGo has none.
 
 Windows notifications keep `frostmail-notify.exe` (decided the same day).
 
+## The Frostyard look
+
+frostui v0.5.0 draws frostyard's brand (frostui's ADR-0011, its spec
+`docs/specs/frostyard-theme.md` and the API changes in its
+`docs/design/frostui.md`), and Frostmail's desktop app takes it with that
+version (frostui's plan `docs/plans/frostyard-look.md`, phase 4;
+2026-11-11):
+
+- **Themes.** `frostui.Adapt`, which `PaneShell.View` calls, sets
+  Frostyard on a dark desktop and Frostyard light otherwise, with the
+  desktop's high contrast and text size but not its accent. Colors that
+  `ui.Theme` has no field for (`Chrome`, `Panel`, the selected fill,
+  labels) come from `frostui.ColorsOf`.
+- **Text.** No literal `FontSize` is left under `internal/desktop`: text
+  takes a kit style (`Heading`, `Strong`, `Body`, `Muted`, `Caption`,
+  `Label`) or `frostui.TextSize(c, n)`, a size at the platform's usual
+  text size that follows the desktop's. Section headings in the PIM panes
+  are the brand's uppercase `Label`, named as written.
+- **Corners.** No literal `Radius` is left: cards, panels and popovers
+  take `RadiusCard` (0); chips, fields, event blocks and the filter tabs
+  `RadiusChip` (2); buttons, day markers and avatars the theme's `Radius`
+  (4). Avatars are squares at that radius; dots stay round (`uikit.Dot`).
+- **Lists.** `uikit.SoftList` draws the message, people, task and
+  flagged-mail lists: a chosen row takes `frostui.SoftSelection`'s tint
+  with square corners and a 1px accent rule on its leading edge, and keeps
+  its own text colors, so a row no longer switches to the accent's text
+  when chosen. `SummaryRow` sits over a hairline, shows a thread's count
+  as an outlined pill, and keeps everything inside it: its text column
+  can be narrower than its text, and the row clips (frostyard/frostmail#267).
+- **The list header** shows the source's unread count; the message count
+  is the status bar's end only (frostyard/frostmail#270).
+- **The sidebar.** Follow Up and the Outbox are sections of the source
+  list, with its rows, hover, selection, keys and collapse
+  (frostyard/frostmail#271); Send Later stays under the tree with its
+  rows' actions, under the brand's label.
+- **The reader's page** stays white (`uikit.Document`: its CSP, content
+  rules and printing depend on it). `uikit.PageFrame` sets it on the
+  panel, inside a hairline, with room around it, and paints white behind
+  the native view, so a part the view has not painted shows white, not
+  the reader's dark ground (one cause frostyard/frostmail#269 lists; the
+  issue is not reproduced, as the Tester has no native web view).
+- **Not changed:** MyGo's `PrimaryButton` keeps the accent's face (the
+  brand gradient is `frostui.LabeledButton`'s, which takes an icon), and
+  the README's pictures are still the Tauri app's (`make screenshots`).
+- **Done when:** `mainwin`'s `TestModulesInBothThemes` draws Mail,
+  Calendar, People and Tasks in both themes (`FROSTMAIL_SNAPSHOT_DIR`
+  writes them) and `make ci` passes.
+
 ## Code layout
 
 | Path | What | Imports MyGo |
@@ -961,7 +1013,7 @@ Windows notifications keep `frostmail-notify.exe` (decided the same day).
 | `internal/desktop/organize` | mail actions' sheets and editors: rules, smart mailboxes, labels, reminders and redirects | yes |
 | `internal/desktop/settings` | the settings window, first run, modes | yes |
 | `internal/desktop/icons` | Frostmail's embedded SVG icons | no |
-| `internal/desktop/uikit` | SafeHTMLView, SummaryRow and DecodeBitmap | yes (only std, MyGo, purego, frostui) |
+| `internal/desktop/uikit` | SafeHTMLView and PageFrame, SummaryRow, SoftList, Dot and DecodeBitmap | yes (only std, MyGo, purego, frostui) |
 | `internal/desktop/mainwin` | the main window: PaneShell, modules, panes, sidebar, list, search, activity and commands | yes |
 | `internal/desktop/e2e` | real-window tests through the built app's automation socket | no (drives the app) |
 
@@ -1007,8 +1059,12 @@ library, MyGo, purego and frostui, so they can move by changing a path:
    the CSP template, content rules that allow only `data:`, links to the
    system's handlers, no windows, its height, selection and find through
    `Eval` and `FindInPage`. frostread needs it as much as mail does.
+   **PageFrame** sets such a page in a window of either theme: white, on
+   the panel, inside a hairline.
 2. **SummaryRow:** a list row of title, date, subtitle, two lines of
-   preview and badges, at a fixed height.
+   preview and badges, at a fixed height. **SoftList** is the list it goes
+   in, and any list of rows: the brand's soft selection, with the accent
+   rule, over rows built in the page's theme. **Dot** is a round mark.
 3. **DecodeBitmap:** checks an untrusted picture's dimensions before
    asking MyGo to decode its pixels.
 

@@ -46,6 +46,18 @@ through the planner: the planner approved `@frostyard/lodge-ui` on
 The domain tokens (`--flag-*`, `--quote-*`, `--avatar-*`) come from the
 package's `accents.css`; an app that does not use them does not import it.
 
+**The desktop app** (`internal/desktop`, [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md))
+does not read these tokens. It draws in frostui's Frostyard look
+(frostui's ADR-0011, from frostui v0.5.0): the Frostyard theme in a dark
+desktop and Frostyard light otherwise, its colors from
+`frostui.FrostyardTheme` and `ColorsOf`, Inter at frostui's text sizes
+(which follow the desktop's text size), nearly square corners, hairlines
+and no shadows. Where this spec names a token, a size in CSS pixels or a
+rounded corner, the desktop app draws the Frostyard role that plays its
+part ([plan 0015, The Frostyard look](../plans/0015-mygo-desktop.md#the-frostyard-look));
+the layout, the order and the behavior bind both builds. The flag colors
+are the same in both.
+
 **Flags.** `flagColor` 1–7 (the API's numbering, `$MailFlagBit0-2` + 1):
 
 | Color | Name | Light | Dark |
@@ -110,6 +122,9 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     syncs).
   - Over the list: the source title (13/600) above a subtitle (11/400
     secondary): "1,234 messages, 12 unread", or "Searching…", or "N results".
+    The desktop app shows the list's count once, at the status bar's end,
+    and its subtitle is the source's unread count ("12 unread"), none
+    while it has none or during a search (frostyard/frostmail#270).
     A Drafts list counts its drafts not yet saved ([Message
     list](#message-list)): "3 drafts not yet saved" when it holds no
     message, else after the messages, "2 messages, 0 unread · 1 draft not
@@ -227,9 +242,18 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   message. From a pinned message that the list has not loaded, the arrow
   keys go to the first row. The selection goes back to the list's rules
   when the user selects, changes the source or the filter, or the message
-  is removed. In a narrow window the click closes Mailboxes. The section is
-  the same in the desktop app and in lodge's web build, whose caller is
-  `session` instead of `local`.
+  is removed. In a narrow window the click closes Mailboxes. The section
+  asks maild the same in the desktop app and in lodge's web build, whose
+  caller is `session` instead of `local`. In the desktop app it is a
+  section of the sidebar's source list, after the accounts, with the
+  mailboxes' rows, hover, selection, keys and collapse
+  (frostyard/frostmail#271): a row is the subject after an `alarm` icon
+  (the `star` for a VIP recipient) with its wait as a tag ("4 days"), and
+  its spoken name adds "VIP", the recipients and "waiting 4 days"; "Showing
+  N of TOTAL" is a dim row. A click, or Enter, opens the message; the
+  sidebar's choice stays on the row until the source shown changes. The
+  source list's header has no tooltip, so the desktop app's lacks the
+  rule's.
 - **Mailboxes** (M5, [organize.md](../design/organize.md#mailboxes)): an
   account's section header shows, on hover and while focused, a 14px `plus`
   named "New Mailbox" (not on a read-only account), which opens the

@@ -59,7 +59,7 @@ func (m *Module) todoUpcoming(c *ui.Context) {
 	ui.Column(c).Padding(frostui.SpaceL, frostui.SpaceM, 0, frostui.SpaceM).AlignItems(ui.Stretch).Children(func() {
 		sectionHeading(c, "Upcoming").Padding(0, 0, frostui.SpaceS, 0)
 		if len(occs) == 0 {
-			ui.Text(c, "No Upcoming Events").FontSize(12).TextColor(tertiary(t))
+			ui.Text(c, "No Upcoming Events").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t))
 			return
 		}
 		m.upcomingRows(c, occs)
@@ -78,8 +78,8 @@ func (m *Module) todoTasks(c *ui.Context) {
 	ui.Column(c).Padding(frostui.SpaceL, 0, frostui.SpaceM, 0).AlignItems(ui.Stretch).Children(func() {
 		sectionHeading(c, "Tasks").Padding(0, frostui.SpaceM)
 		ui.Row(c).Height(32).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Children(func() {
-			frostui.Icon(c, "list-add").FontSize(16).TextColor(tertiary(t))
-			in := ui.TextInputBase(c.Key("todo-new"), &st.newTitle).Grow(1).Shrink(1).MinWidth(0).Label("New Task").Placeholder("New Task").FontSize(13)
+			frostui.Icon(c, "list-add").FontSize(frostui.TextSize(c, 16)).TextColor(tertiary(t))
+			in := ui.TextInputBase(c.Key("todo-new"), &st.newTitle).Grow(1).Shrink(1).MinWidth(0).Label("New Task").Placeholder("New Task").FontSize(frostui.TextSize(c, 13))
 			if in.Submitted() {
 				m.submitNewTask(&st.newTitle, &st.creating, api.TasksCreateParams{})
 			}
@@ -93,7 +93,7 @@ func (m *Module) todoTasks(c *ui.Context) {
 			}
 		})
 		if len(tasks) == 0 && len(flagged) == 0 {
-			ui.Text(c, "Nothing Due").FontSize(12).TextColor(tertiary(t)).Padding(0, frostui.SpaceM)
+			ui.Text(c, "Nothing Due").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t)).Padding(0, frostui.SpaceM)
 		}
 	})
 }
@@ -101,13 +101,13 @@ func (m *Module) todoTasks(c *ui.Context) {
 func (m *Module) todoTask(c *ui.Context, task *api.Task, today string) {
 	t := c.Theme()
 	ui.Row(c).Height(32).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Role(ui.RoleListItem).Children(func() {
-		if circle(c, 16, task.Completed, false, "Complete "+task.Title, !m.taskWritable(task)) {
+		if circle(c, 16, task.Completed, "Complete "+task.Title, !m.taskWritable(task)) {
 			m.toggleTask(task.ID, !task.Completed)
 		}
 		if textButton(c.Key("title"), task.Title, t.Text, 13).Grow(1).Shrink(1).MinWidth(0).Clicked() {
 			m.showTask(task)
 		}
-		due := ui.Text(c, dueText(task.Due, today)).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		due := frostui.Muted(c, dueText(task.Due, today)).SingleLine()
 		if isOverdue(task, today) {
 			due.TextColor(flagColor(t, 1))
 		}
@@ -124,12 +124,12 @@ func (m *Module) showTask(task *api.Task) {
 func (m *Module) todoMessage(c *ui.Context, r api.MessageSummary) {
 	t := c.Theme()
 	ui.Row(c).Height(32).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Role(ui.RoleListItem).Children(func() {
-		if circle(c, 16, false, false, "Clear Flag "+subjectOf(r), false) {
+		if circle(c, 16, false, "Clear Flag "+subjectOf(r), false) {
 			m.clearFlag(r.ID)
 		}
 		if textButton(c.Key("subject"), subjectOf(r), t.Text, 13).Grow(1).Shrink(1).MinWidth(0).Clicked() && m.o.OpenMessage != nil {
 			m.o.OpenMessage(r.ID)
 		}
-		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, max(r.Flags.FlagColor, 1))).FontSize(12).Label("Flagged")
+		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, max(r.Flags.FlagColor, 1))).FontSize(frostui.TextSize(c, 12)).Label("Flagged")
 	})
 }

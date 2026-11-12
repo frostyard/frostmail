@@ -18,6 +18,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 const flaggedRows = 200
@@ -514,7 +515,7 @@ func (m *Module) tasksBar(c *ui.Context) {
 	if frostui.IconButton(c, "list-add", "New Task (Ctrl+N)").Disabled(!m.canCreateTask()).Clicked() {
 		st.focusNew = true
 	}
-	ui.Text(c, m.tasksTitle()).FontSize(15).FontWeight(600).TextColor(t.Text).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+	frostui.Heading(c, m.tasksTitle()).TextColor(t.Text).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 	if st.source == sourceAll || st.source >= 0 {
 		b := ui.Button(c, "Show Completed").Checked(st.showCompleted)
 		if st.showCompleted {
@@ -591,8 +592,8 @@ func (m *Module) newTaskField(c *ui.Context) {
 	t := c.Theme()
 	st := &m.tasks
 	ui.Row(c).Height(40).Shrink(0).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Children(func() {
-		frostui.Icon(c, "list-add").FontSize(16).TextColor(tertiary(t))
-		in := ui.TextInputBase(c.Key("new-task"), &st.newTitle).Grow(1).Shrink(1).MinWidth(0).Label("New Task").Placeholder("New Task").FontSize(13)
+		frostui.Icon(c, "list-add").FontSize(frostui.TextSize(c, 16)).TextColor(tertiary(t))
+		in := ui.TextInputBase(c.Key("new-task"), &st.newTitle).Grow(1).Shrink(1).MinWidth(0).Label("New Task").Placeholder("New Task").FontSize(frostui.TextSize(c, 13))
 		if st.focusNew {
 			st.focusNew = false
 			in.Focus()
@@ -626,7 +627,7 @@ func (m *Module) taskRows(c *ui.Context, shown []api.Task) {
 		return "header:" + strconv.FormatInt(st.lines[i].listID, 10)
 	}
 	st.listUI.Header = func(i int) bool { return i < len(st.lines) && st.lines[i].task == nil }
-	list := ui.List(c, &st.listUI, len(st.lines), func(i int) { m.taskLine(c, st.lines[i]) }).Grow(1).Label(m.tasksTitle())
+	list := uikit.SoftList(c, &st.listUI, len(st.lines), func(i int) { m.taskLine(c, st.lines[i]) }).Label(m.tasksTitle())
 	m.watchList(list)
 	if list.Changed() && st.row >= 0 && st.row < len(st.lines) && st.lines[st.row].task != nil {
 		st.selected = st.lines[st.row].task.ID
@@ -648,12 +649,9 @@ func (m *Module) watchList(list ui.Element) {
 }
 
 // circle draws a check circle; it reports a click.
-func circle(c *ui.Context, size float32, done, onAccent bool, label string, disabled bool) bool {
+func circle(c *ui.Context, size float32, done bool, label string, disabled bool) bool {
 	t := c.Theme()
 	ring := tertiary(t)
-	if onAccent {
-		ring = t.AccentText
-	}
 	b := ui.ButtonBase(c.Key("check")).Size(size, size).Radius(size/2).Center().Border(1.5, ring).Shrink(0).KeepFocus().Cursor(ui.CursorPointer).Label(label).Disabled(disabled).DimDisabled(false).AccessHidden(true)
 	if done {
 		b.Background(t.Accent).Border(1.5, t.Accent)
@@ -669,34 +667,29 @@ func circle(c *ui.Context, size float32, done, onAccent bool, label string, disa
 
 func (m *Module) taskLine(c *ui.Context, l taskLine) {
 	t := c.Theme()
-	st := &m.tasks
 	if l.task == nil {
 		ui.Row(c).Height(28).Padding(0, frostui.SpaceM).AlignItems(ui.Center).Background(t.Background).Children(func() {
-			ui.Text(c, l.header).FontSize(11).FontWeight(600).TextColor(t.TextMuted)
+			frostui.Label(c, l.header)
 		})
 		return
 	}
 	task := l.task
-	selected := st.selected == task.ID
 	today := m.today()
 	indent := float32(frostui.SpaceM)
 	if l.level == 1 {
 		indent += 28
 	}
 	muted := t.TextMuted
-	if selected {
-		muted = t.AccentText
-	}
 	sep := t.Border
 	ui.Row(c).MinHeight(36).Padding(frostui.SpaceS, frostui.SpaceM, frostui.SpaceS, indent).Gap(10).AlignItems(ui.Start).Label(task.Title).Checked(task.Completed).Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Fill(ui.Rect{X: r.X + 40, Y: r.Y + r.H - 1, W: r.W - 40, H: 1}, sep, 0)
 	}).Children(func() {
 		readOnly := !m.taskWritable(task)
-		if circle(c, 18, task.Completed, selected, "Complete "+task.Title, readOnly) {
+		if circle(c, 18, task.Completed, "Complete "+task.Title, readOnly) {
 			m.toggleTask(task.ID, !task.Completed)
 		}
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-			name := ui.Text(c, task.Title).FontSize(13).Wrap()
+			name := frostui.Body(c, task.Title).Wrap()
 			if task.Completed {
 				name.TextColor(tertiary(t))
 			}
@@ -705,22 +698,22 @@ func (m *Module) taskLine(c *ui.Context, l taskLine) {
 			if due != "" || note != "" {
 				ui.Row(c).Children(func() {
 					if due != "" {
-						line := ui.Text(c, due).FontSize(12).TextColor(muted).SingleLine()
-						if isOverdue(task, today) && !selected {
+						line := ui.Text(c, due).FontSize(frostui.TextSize(c, 12)).TextColor(muted).SingleLine()
+						if isOverdue(task, today) {
 							line.TextColor(flagColor(t, 1))
 						}
 					}
 					if due != "" && note != "" {
-						ui.Text(c, " · ").FontSize(12).TextColor(muted)
+						ui.Text(c, " · ").FontSize(frostui.TextSize(c, 12)).TextColor(muted)
 					}
 					if note != "" {
-						ui.Text(c, note).FontSize(12).TextColor(muted).Shrink(1).MinWidth(0).SingleLine()
+						ui.Text(c, note).FontSize(frostui.TextSize(c, 12)).TextColor(muted).Shrink(1).MinWidth(0).SingleLine()
 					}
 				})
 			}
 		})
 		if task.MessageID != nil {
-			frostui.Icon(c, "mail-unread").FontSize(14).TextColor(muted).Label("From mail")
+			frostui.Icon(c, "mail-unread").FontSize(frostui.TextSize(c, 14)).TextColor(muted).Label("From mail")
 		}
 	})
 }
@@ -741,7 +734,7 @@ func (m *Module) flaggedList(c *ui.Context) {
 		return i
 	}
 	st.listUI.Header = nil
-	list := ui.List(c, &st.listUI, len(rows), func(i int) { m.flaggedRow(c, rows[i]) }).Grow(1).Label("Flagged Mail")
+	list := uikit.SoftList(c, &st.listUI, len(rows), func(i int) { m.flaggedRow(c, rows[i]) }).Label("Flagged Mail")
 	m.watchList(list)
 	if list.Changed() && st.row >= 0 && st.row < len(rows) {
 		st.selected = rows[st.row].ID
@@ -759,21 +752,15 @@ func subjectOf(r api.MessageSummary) string {
 }
 
 func (m *Module) flaggedRow(c *ui.Context, r api.MessageSummary) {
-	t := c.Theme()
-	selected := m.tasks.selected == r.ID
-	muted := t.TextMuted
-	if selected {
-		muted = t.AccentText
-	}
 	ui.Row(c).MinHeight(36).Padding(frostui.SpaceS, frostui.SpaceM).Gap(10).AlignItems(ui.Start).Label(subjectOf(r)).Children(func() {
-		if circle(c, 18, false, selected, "Clear Flag "+subjectOf(r), false) {
+		if circle(c, 18, false, "Clear Flag "+subjectOf(r), false) {
 			m.clearFlag(r.ID)
 		}
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-			ui.Text(c, subjectOf(r)).FontSize(13).SingleLine()
-			ui.Text(c, mail.DisplayName(r.From)+" · "+mail.ListDate(r.Date, m.now())).FontSize(12).TextColor(muted).SingleLine()
+			frostui.Body(c, subjectOf(r)).SingleLine()
+			frostui.Muted(c, mail.DisplayName(r.From)+" · "+mail.ListDate(r.Date, m.now())).SingleLine()
 		})
-		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, max(r.Flags.FlagColor, 1))).FontSize(14).Label("Flagged")
+		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, max(r.Flags.FlagColor, 1))).FontSize(frostui.TextSize(c, 14)).Label("Flagged")
 	})
 }
 
@@ -839,8 +826,8 @@ func (m *Module) taskPane(c *ui.Context) {
 func (m *Module) flaggedPane(c *ui.Context, r api.MessageSummary) {
 	t := c.Theme()
 	ui.Column(c).Padding(20).Gap(frostui.SpaceS).AlignItems(ui.Start).Children(func() {
-		ui.Text(c, subjectOf(r)).FontSize(17).FontWeight(600).Wrap().Role(ui.RoleHeading)
-		ui.Text(c, mail.DisplayName(r.From)+" · "+mail.ListDate(r.Date, m.now())).FontSize(13).TextColor(t.TextMuted)
+		ui.Text(c, subjectOf(r)).FontSize(frostui.TextSize(c, 17)).FontWeight(600).Wrap().Role(ui.RoleHeading)
+		frostui.Body(c, mail.DisplayName(r.From)+" · "+mail.ListDate(r.Date, m.now())).TextColor(t.TextMuted)
 		if textButton(c.Key("open"), "Open in Mail", t.Accent, 13).Clicked() && m.o.OpenMessage != nil {
 			m.o.OpenMessage(r.ID)
 		}
@@ -922,7 +909,7 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 		st.paneID, st.paneTitle, st.paneNotes, st.dueOpen = task.ID, task.Title, task.Notes, false
 		st.paneTitleWas, st.paneNotesWas = task.Title, task.Notes
 	}
-	title := ui.TextInput(c.Key("title"), &st.paneTitle).Label("Title").FontSize(17).FontWeight(600).ReadOnly(readOnly)
+	title := ui.TextInput(c.Key("title"), &st.paneTitle).Label("Title").FontSize(frostui.TextSize(c, 17)).FontWeight(600).ReadOnly(readOnly)
 	if st.focusTitle {
 		st.focusTitle = false
 		title.Focus()
@@ -954,8 +941,8 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 	}
 	if readOnly {
 		ui.Row(c).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
-			frostui.Icon(c, "changes-prevent").FontSize(12).TextColor(tertiary(t))
-			ui.Text(c, "Read-only").FontSize(12).TextColor(tertiary(t))
+			frostui.Icon(c, "changes-prevent").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t))
+			ui.Text(c, "Read-only").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t))
 		})
 	}
 	labeled(c, "Due", 80, func() { m.dueRow(c, task, readOnly) })
@@ -963,14 +950,14 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 		account := m.accountEmail(l.AccountID)
 		labeled(c, "List", 80, func() {
 			ui.Row(c).Tooltip(l.Name + " · " + account).Children(func() {
-				ui.Text(c, l.Name).FontSize(13).Shrink(1).MinWidth(0).SingleLine()
-				ui.Text(c, " · "+account).FontSize(13).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
+				frostui.Body(c, l.Name).Shrink(1).MinWidth(0).SingleLine()
+				frostui.Body(c, " · "+account).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
 			})
 		})
 	}
 	if task.Completed && task.CompletedAt != nil {
 		at := task.CompletedAt.In(m.clock.loc)
-		labeled(c, "Completed", 80, func() { ui.Text(c, at.Format("Jan 2, 2006")+", "+m.clock.clockTime(at)).FontSize(13) })
+		labeled(c, "Completed", 80, func() { frostui.Body(c, at.Format("Jan 2, 2006")+", "+m.clock.clockTime(at)) })
 	}
 	if task.MessageID != nil {
 		id := *task.MessageID
@@ -980,8 +967,8 @@ func (m *Module) taskDetails(c *ui.Context, task *api.Task) {
 			}
 		})
 	}
-	ui.Text(c, "Notes").FontSize(12).TextColor(t.TextMuted)
-	notes := ui.TextArea(c.Key("notes"), &st.paneNotes).Label("Notes").FontSize(13).MinHeight(120).ReadOnly(readOnly)
+	frostui.Muted(c, "Notes")
+	notes := ui.TextArea(c.Key("notes"), &st.paneNotes).Label("Notes").FontSize(frostui.TextSize(c, 13)).MinHeight(120).ReadOnly(readOnly)
 	if notes.FocusLeft() && st.paneNotes != task.Notes {
 		v := st.paneNotes
 		st.paneNotesWas = v

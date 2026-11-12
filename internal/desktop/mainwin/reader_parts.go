@@ -35,12 +35,12 @@ func (w *Window) header(c *ui.Context, cv *conv, m *openMsg) {
 		w.setExpanded(cv, s.ID, false)
 	}
 	row.Children(func() {
-		ui.Avatar(c, mail.DisplayName(s.From), w.photo(s.From.Address)).Size(40, 40).AccessHidden(true)
+		ui.Avatar(c, mail.DisplayName(s.From), w.photo(s.From.Address)).Size(40, 40).Radius(c.Theme().Radius).AccessHidden(true)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).AlignItems(ui.Stretch).Children(func() {
 			ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				w.addressButton(c.Key("from"), m, s.From, true)
 				if mail.IsVIP(s.From.Address, st.VIPs) {
-					frostui.Icon(c, "starred").FontSize(12).Label("VIP")
+					frostui.Icon(c, "starred").FontSize(frostui.TextSize(c, 12)).Label("VIP")
 				}
 				ui.Spacer(c)
 				frostui.Caption(c, w.timeLabel(s.Date)).SingleLine()
@@ -52,7 +52,7 @@ func (w *Window) header(c *ui.Context, cv *conv, m *openMsg) {
 			if subject == "" {
 				subject = "(No Subject)"
 			}
-			ui.Text(c, subject).FontSize(15).Bold().Wrap()
+			ui.Text(c, subject).FontSize(frostui.TextSize(c, 15)).Bold().Wrap()
 			w.addressLine(c.Key("to"), m, "To", m.message.To)
 			w.addressLine(c.Key("cc"), m, "Cc", m.message.Cc)
 		})
@@ -76,7 +76,6 @@ func (w *Window) addressLine(c *ui.Context, m *openMsg, label string, addresses 
 
 // addressButton is a name that opens the contact popover.
 func (w *Window) addressButton(c *ui.Context, m *openMsg, a api.Address, strong bool) {
-	t := c.Theme()
 	name := mail.DisplayName(a)
 	label := name
 	if name != a.Address {
@@ -87,7 +86,7 @@ func (w *Window) addressButton(c *ui.Context, m *openMsg, a api.Address, strong 
 		if strong {
 			frostui.Strong(c, name).SingleLine()
 		} else {
-			ui.Text(c, name).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			frostui.Muted(c, name).SingleLine()
 		}
 	})
 	if b.Clicked() {
@@ -139,7 +138,7 @@ func (w *Window) contactBody(c *ui.Context, m *openMsg, card *contactCard) {
 	blocked := slicesHasBlocked(st.Blocked, a.Address)
 	ui.Column(c).Width(320).Gap(frostui.SpaceM).Padding(frostui.SpaceL).AlignItems(ui.Stretch).Role(ui.RoleDialog).Label(name).Children(func() {
 		ui.Row(c).Gap(frostui.SpaceM).Children(func() {
-			ui.Avatar(c, name, card.photo).Size(48, 48)
+			ui.Avatar(c, name, card.photo).Size(48, 48).Radius(c.Theme().Radius)
 			ui.Column(c).Shrink(1).MinWidth(0).Children(func() {
 				frostui.Strong(c, name).Wrap()
 				frostui.Caption(c, a.Address).Wrap()
@@ -473,7 +472,7 @@ func (w *Window) banner(c *ui.Context, text, action string, disabled bool, icon 
 		if icon != "" {
 			frostui.Icon(c, icon).TextColor(t.Warning)
 		}
-		ui.Text(c, text).FontSize(12).Wrap().Grow(1).Shrink(1).MinWidth(0)
+		ui.Text(c, text).FontSize(frostui.TextSize(c, 12)).Wrap().Grow(1).Shrink(1).MinWidth(0)
 		if action != "" {
 			clicked = ui.Button(c, action).Disabled(disabled).Clicked()
 		}
@@ -485,7 +484,7 @@ func (w *Window) reminderBanner(c *ui.Context, m *openMsg, readOnly bool) {
 	t := c.Theme()
 	when := mail.WhenText(*m.summary.RemindAt, w.o.Now())
 	ui.Row(c).Gap(frostui.SpaceS).Padding(frostui.SpaceS, frostui.SpaceXL).AlignItems(ui.Center).Background(frostui.Chrome(t)).Role(ui.RoleStatus).Children(func() {
-		ui.Text(c, "Remind Me: "+when).FontSize(12).Grow(1)
+		ui.Text(c, "Remind Me: "+when).FontSize(frostui.TextSize(c, 12)).Grow(1)
 		if ui.Button(c, "Change…").Disabled(readOnly).Clicked() {
 			w.askRemind([]int64{m.summary.ID}, *m.summary.RemindAt)
 		}
@@ -569,19 +568,19 @@ func (w *Window) invitationCard(c *ui.Context, cv *conv, m *openMsg) {
 	inv := m.invitation
 	e := inv.Event
 	lines := mail.InvitationLines(inv, w.o.Now().Location())
-	ui.Row(c).Gap(frostui.SpaceM).Margin(frostui.SpaceS, frostui.SpaceM).Padding(frostui.SpaceM).Radius(8).Border(1, t.Border).Background(frostui.Chrome(t)).Label("Invitation").Children(func() {
-		ui.Column(c).Width(40).Height(44).Radius(6).Background(t.Background).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			ui.Text(c, lines.Month).FontSize(10).Bold().TextColor(t.Danger)
-			ui.Text(c, lines.Day).FontSize(18).Bold()
+	ui.Row(c).Gap(frostui.SpaceM).Margin(frostui.SpaceS, frostui.SpaceM).Padding(frostui.SpaceM).Radius(frostui.RadiusCard).Border(1, t.Border).Background(frostui.Chrome(t)).Label("Invitation").Children(func() {
+		ui.Column(c).Width(40).Height(44).Radius(t.Radius).Background(t.Background).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+			ui.Text(c, lines.Month).FontSize(frostui.TextSize(c, 10)).Bold().TextColor(t.Danger)
+			ui.Text(c, lines.Day).FontSize(frostui.TextSize(c, 18)).Bold()
 		})
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).AlignItems(ui.Stretch).Children(func() {
 			ui.Row(c).Gap(frostui.SpaceM).Children(func() {
-				ui.Text(c, orNoTitle(e.Summary)).FontSize(15).Bold().Grow(1).Shrink(1).MinWidth(0).Wrap()
+				ui.Text(c, orNoTitle(e.Summary)).FontSize(frostui.TextSize(c, 15)).Bold().Grow(1).Shrink(1).MinWidth(0).Wrap()
 				tone := frostui.Neutral
 				if inv.Method == api.ITIPMethodCancel {
 					tone = frostui.Danger
 				}
-				frostui.Toned(c, lines.Badge, tone).FontSize(11).Bold()
+				frostui.Toned(c, lines.Badge, tone).FontSize(frostui.TextSize(c, 11)).Bold()
 			})
 			frostui.Body(c, lines.When).Wrap()
 			if lines.Who != "" {
@@ -646,7 +645,7 @@ func (w *Window) attachments(c *ui.Context, cv *conv, m *openMsg) {
 			if name == "" {
 				name = "Untitled"
 			}
-			chip := ui.ButtonBase(c.Key(p.Path)).Row().Height(32).Gap(frostui.SpaceS).Padding(0, frostui.SpaceS).Radius(6).AlignItems(ui.Center).
+			chip := ui.ButtonBase(c.Key(p.Path)).Row().Height(32).Gap(frostui.SpaceS).Padding(0, frostui.SpaceS).Radius(frostui.RadiusChip).AlignItems(ui.Center).
 				Background(frostui.Chrome(t)).Cursor(ui.CursorPointer).Label(name).Tooltip(name)
 			if chip.Clicked() {
 				w.openPart(cv, m.summary.ID, p)
@@ -661,8 +660,8 @@ func (w *Window) attachments(c *ui.Context, cv *conv, m *openMsg) {
 			})
 			chip.Children(func() {
 				frostui.Icon(c, "mail-attachment").TextColor(t.TextMuted)
-				ui.Text(c, name).FontSize(12).MaxWidth(200).SingleLine()
-				ui.Text(c, mail.FormatSize(p.Size)).FontSize(12).TextColor(t.TextMuted).SingleLine()
+				ui.Text(c, name).FontSize(frostui.TextSize(c, 12)).MaxWidth(200).SingleLine()
+				frostui.Muted(c, mail.FormatSize(p.Size)).SingleLine()
 			})
 		}
 	})

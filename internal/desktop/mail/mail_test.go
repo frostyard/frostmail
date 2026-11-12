@@ -89,6 +89,39 @@ func TestSourceKeysRoundTrip(t *testing.T) {
 	}
 }
 
+// The list's header says how many of its source's messages are unread
+// (frostyard/frostmail#270): the mailboxes' counts, else maild's.
+func TestSourceUnread(t *testing.T) {
+	mbs := []api.Mailbox{mb(1, 1, "INBOX", api.MailboxRoleInbox, 2), mb(2, 2, "INBOX", api.MailboxRoleInbox, 3),
+		mb(3, 1, "Sent", api.MailboxRoleSent, 1), mb(4, 2, "Sent", api.MailboxRoleSent, 4), mb(5, 1, "Lists", api.MailboxRoleNone, 7)}
+	counts := &mail.Counts{VIPs: api.ViewCount{Unread: 6}, VIP: map[string]api.ViewCount{"vip:ann@x.test": {Unread: 1}},
+		Flagged: api.ViewCount{Total: 9, Unread: 5}}
+	counts.Colors[2] = api.ViewCount{Total: 4, Unread: 2}
+	smart := map[int64]api.ViewCount{8: {Total: 20, Unread: 11}}
+	for _, c := range []struct {
+		s    mail.Source
+		want int64
+	}{
+		{mail.Source{Kind: mail.AllInboxes}, 5},
+		{mail.Source{Kind: mail.Role, Role: api.MailboxRoleSent}, 5},
+		{mail.Source{Kind: mail.Mailbox, ID: 5}, 7},
+		{mail.Source{Kind: mail.Flagged}, 5},
+		{mail.Source{Kind: mail.FlagColor, Color: 3}, 2},
+		{mail.Source{Kind: mail.FlagColor, Color: 9}, 0},
+		{mail.Source{Kind: mail.VIPs}, 6},
+		{mail.Source{Kind: mail.VIP, VIPKey: "vip:ann@x.test"}, 1},
+		{mail.Source{Kind: mail.Smart, ID: 8}, 11},
+		{mail.Source{Kind: mail.Smart, ID: 9}, 0},
+	} {
+		if got := mail.SourceUnread(c.s, mbs, counts, smart); got != c.want {
+			t.Errorf("%s: %d unread, want %d", c.s.Key(), got, c.want)
+		}
+	}
+	if got := mail.SourceUnread(mail.Source{Kind: mail.Flagged}, nil, nil, nil); got != 0 {
+		t.Errorf("no counts yet: %d", got)
+	}
+}
+
 // P-203, P-204, P-205: the list's query for a filter, a sort and a search.
 func TestListQuery(t *testing.T) {
 	inbox := mail.Source{Kind: mail.AllInboxes}
