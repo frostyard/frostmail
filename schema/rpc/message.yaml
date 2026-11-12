@@ -145,6 +145,15 @@ methods:
       - {name: ids, type: "[]int"}
     result: "[]MessageSummary"
     callers: [local, session, agent]
+  - name: getMany
+    doc: >-
+      The headers and structure of messages, as message.get gives them, in
+      the order given; IDs that no longer exist, or that the caller may not
+      read, are skipped.
+    params:
+      - {name: ids, type: "[]int"}
+    result: "[]Message"
+    callers: [local, session, agent]
   - name: byMessageId
     doc: >-
       The message a Message-ID names, for lodge's permanent route

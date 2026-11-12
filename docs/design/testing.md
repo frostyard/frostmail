@@ -48,11 +48,10 @@ too:
   in: `dev/windows/vm.sh setup` installs the pinned Go into it, `sync`
   copies the worktree, and `go test ./...` runs the suite there. Its work
   directory (`C:\fm`) is outside the Windows user's profile.
-- The app shell and the notifier (`app/notify`) are type-checked for
-  Windows by `make app-check-windows` in the nsl machine, without the
-  sidecars the bundle takes; the notifier's tests run with `make
-  app-test`, its toast XML, activation URIs and RPC calls being the same
-  on Linux.
+- The notifier (`app/notify`) is type-checked for Windows by `make
+  app-check-windows` in the nsl machine; its tests run with `make
+  app-test` in the nsl machine, its toast XML, activation URIs and RPC
+  calls being the same on Linux.
 - CI's **Windows app** job tests and builds the notifier, builds the
   installer (`scripts/windows-installer.sh`), which it uploads as the
   `frostmail-windows-installer` artifact (kept 14 days), installs and

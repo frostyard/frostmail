@@ -3037,6 +3037,11 @@ type MessageSummariesParams struct {
 	IDs []int64 `json:"ids"`
 }
 
+// MessageGetManyParams holds the params of message.getMany.
+type MessageGetManyParams struct {
+	IDs []int64 `json:"ids"`
+}
+
 // MessageByMessageIDParams holds the params of message.byMessageId.
 type MessageByMessageIDParams struct {
 	// The Message-ID, with or without its angle brackets.
@@ -3143,6 +3148,10 @@ type MessageService interface {
 	// Summaries implements message.summaries. Summaries of messages in the order
 	// given; IDs that no longer exist are skipped.
 	Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error)
+	// GetMany implements message.getMany. The headers and structure of messages,
+	// as message.get gives them, in the order given; IDs that no longer exist, or
+	// that the caller may not read, are skipped.
+	GetMany(ctx context.Context, p *MessageGetManyParams) ([]Message, error)
 	// ByMessageID implements message.byMessageId. The message a Message-ID names,
 	// for lodge's permanent route /message/<Message-ID>
 	// (docs/specs/lodge-app.md): among the stored messages with that Message-ID,
@@ -3227,6 +3236,13 @@ func registerMessage(r *Router, s MessageService) {
 			return nil, err
 		}
 		return s.Summaries(ctx, &p)
+	})
+	r.handle("message.getMany", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MessageGetManyParams
+		if err := decodeParams(raw, &p, []string{"ids"}); err != nil {
+			return nil, err
+		}
+		return s.GetMany(ctx, &p)
 	})
 	r.handle("message.byMessageId", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p MessageByMessageIDParams
@@ -3360,6 +3376,13 @@ func (x MessageClient) Body(ctx context.Context, p *MessageBodyParams) (*Body, e
 func (x MessageClient) Summaries(ctx context.Context, p *MessageSummariesParams) ([]MessageSummary, error) {
 	var r []MessageSummary
 	err := x.c.Call(ctx, "message.summaries", p, &r)
+	return r, err
+}
+
+// GetMany calls message.getMany.
+func (x MessageClient) GetMany(ctx context.Context, p *MessageGetManyParams) ([]Message, error) {
+	var r []Message
+	err := x.c.Call(ctx, "message.getMany", p, &r)
 	return r, err
 }
 
@@ -6152,6 +6175,7 @@ var methodCallers = map[string][]CallerKind{
 	"message.get":             {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.body":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.summaries":       {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"message.getMany":         {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.byMessageId":     {CallerKindLocal, CallerKindSession},
 	"message.render":          {CallerKindLocal, CallerKindSession},
 	"message.part":            {CallerKindLocal, CallerKindSession},
@@ -6300,6 +6324,7 @@ var Methods = []string{
 	"message.get",
 	"message.body",
 	"message.summaries",
+	"message.getMany",
 	"message.byMessageId",
 	"message.render",
 	"message.part",

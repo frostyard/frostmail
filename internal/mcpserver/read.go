@@ -191,23 +191,37 @@ func (t *tools) readThread(ctx context.Context, _ *sdk.CallToolRequest, in threa
 		}
 	}
 	out := threadOut{ThreadID: sums[0].ThreadID, Count: len(rows), Messages: []messageOut{}, Notice: Notice}
-	for _, r := range rows[max(0, len(rows)-maxThread):] {
-		m, err := t.message(ctx, r)
+	shown := rows[max(0, len(rows)-maxThread):]
+	ids := make([]int64, 0, len(shown))
+	for _, r := range shown {
+		ids = append(ids, r.ID)
+	}
+	ms, err := c.Message().GetMany(ctx, &api.MessageGetManyParams{IDs: ids})
+	if err != nil {
+		return nil, threadOut{}, err
+	}
+	byID := make(map[int64]api.Message, len(ms))
+	for _, m := range ms {
+		byID[m.Summary.ID] = m
+	}
+	for _, r := range shown {
+		m, ok := byID[r.ID]
+		if !ok {
+			return nil, threadOut{}, fmt.Errorf("message %d does not exist", r.ID)
+		}
+		one, err := t.message(ctx, r, m)
 		if err != nil {
 			return nil, threadOut{}, err
 		}
-		out.Messages = append(out.Messages, m)
+		out.Messages = append(out.Messages, one)
 	}
 	return nil, out, nil
 }
 
-// message reads one message of a thread: its headers, parts and text.
-func (t *tools) message(ctx context.Context, r api.MessageSummary) (messageOut, error) {
-	c := t.o.Client
-	m, err := c.Message().Get(ctx, &api.MessageGetParams{ID: r.ID})
-	if err != nil {
-		return messageOut{}, err
-	}
+// message reads one message of a thread: its headers, parts and text. The
+// body stays 1 call: it may fetch from the server, which can fail on its
+// own.
+func (t *tools) message(ctx context.Context, r api.MessageSummary, m api.Message) (messageOut, error) {
 	out := messageOut{ID: r.ID, Date: r.Date.UTC().Format(time.RFC3339), From: address(r.From), Subject: r.Subject,
 		To: addresses(m.To), Cc: addresses(m.Cc), Attachments: []attachmentOut{}}
 	out.MessageIDHeader, out.URL = messageLink(m.MessageID)
@@ -216,7 +230,7 @@ func (t *tools) message(ctx context.Context, r api.MessageSummary) (messageOut, 
 			out.Attachments = append(out.Attachments, attachmentOut{Filename: p.Filename, ContentType: p.ContentType, Size: p.Size})
 		}
 	}
-	body, err := c.Message().Body(ctx, &api.MessageBodyParams{ID: r.ID})
+	body, err := t.o.Client.Message().Body(ctx, &api.MessageBodyParams{ID: r.ID})
 	switch {
 	case errors.Is(err, api.ErrUnavailable):
 		out.Text = "(This message's text is not stored, and its server cannot be reached now.)"
