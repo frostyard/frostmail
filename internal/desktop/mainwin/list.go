@@ -578,11 +578,14 @@ func (w *Window) sidebarBar(c *ui.Context) {
 	}
 }
 
-// listBar is the segment over the list.
+// listBar is the segment over the list: the source's title, and under
+// it what the status bar does not say (its end counts the messages).
 func (w *Window) listBar(c *ui.Context) {
 	ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
 		frostui.Strong(c, w.title()).SingleLine()
-		frostui.Caption(c, w.subtitle()).SingleLine()
+		if sub := w.subtitle(); sub != "" {
+			frostui.Caption(c, sub).SingleLine()
+		}
 	})
 	if frostui.IconButton(c, "mail-message-new", w.table.Tooltip(string(commands.Compose))).Clicked() {
 		w.compose()
@@ -672,9 +675,17 @@ func (w *Window) title() string {
 	return "Mail"
 }
 
+// subtitle is the list header's second line: how many of the source's
+// messages are unread, "" for none and during a search, whose scope row
+// says where it looks. The status bar's end has the list's count
+// (frostyard/frostmail#270).
 func (w *Window) subtitle() string {
-	if w.view == nil {
+	if w.q.Search != "" {
 		return ""
 	}
-	return fmt.Sprintf("%d %s", w.view.Count(), map[bool]string{true: "message", false: "messages"}[w.view.Count() == 1])
+	st := w.mail.State()
+	if n := mail.SourceUnread(w.q.Source, st.Mailboxes, st.Counts, st.SmartCounts); n > 0 {
+		return fmt.Sprintf("%d unread", n)
+	}
+	return ""
 }

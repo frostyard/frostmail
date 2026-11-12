@@ -158,6 +158,41 @@ func SourceTitle(s Source, n Names) string {
 	return ""
 }
 
+// SourceUnread is how many unread messages a source holds: the
+// mailboxes' counts for a mailbox, All Inboxes and a unified role, and
+// maild's counts of the built-in sources and smart mailboxes for the rest
+// (counts and smart may be nil while they have not answered).
+func SourceUnread(s Source, mailboxes []api.Mailbox, counts *Counts, smart map[int64]api.ViewCount) int64 {
+	if counts == nil {
+		counts = &Counts{}
+	}
+	var n int64
+	switch s.Kind {
+	case AllInboxes, Role, Mailbox:
+		for _, m := range mailboxes {
+			switch {
+			case s.Kind == AllInboxes && m.Role == api.MailboxRoleInbox,
+				s.Kind == Role && m.Role == s.Role,
+				s.Kind == Mailbox && m.ID == s.ID:
+				n += m.Unread
+			}
+		}
+	case Flagged:
+		n = counts.Flagged.Unread
+	case FlagColor:
+		if s.Color >= 1 && s.Color <= len(counts.Colors) {
+			n = counts.Colors[s.Color-1].Unread
+		}
+	case VIPs:
+		n = counts.VIPs.Unread
+	case VIP:
+		n = counts.VIP[s.VIPKey].Unread
+	case Smart:
+		n = smart[s.ID].Unread
+	}
+	return n
+}
+
 func condition(field api.ConditionField, value string) api.Condition {
 	return api.Condition{Field: field, Op: api.ConditionOpIs, Value: value}
 }

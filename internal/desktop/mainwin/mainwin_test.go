@@ -324,3 +324,23 @@ func TestFindWithoutAMessageFocusesSearch(t *testing.T) {
 		t.Fatalf("Ctrl+F without a message: search = %+v, %v", search, ok)
 	}
 }
+
+// frostyard/frostmail#270: the list's count shows once, at the status
+// bar's end; the list's header says how many of its messages are unread.
+func TestListCountShowsOnceAndTheHeaderTheUnread(t *testing.T) {
+	f := newFixture(t, 3)
+	f.until(t, "the rows and the unread count", func() bool { return f.tt.HasText("Message 3") && f.tt.HasText("3 unread") })
+	unread, _ := f.tt.Find("3 unread")
+	if unread.Y > 52 {
+		t.Errorf("the unread count is at %+v, not in the list's header", unread)
+	}
+	count, ok := f.tt.Find("3 messages")
+	if !ok || count.Y < 700 {
+		t.Errorf("the count is at %+v (%v), not in the status bar", count, ok)
+	}
+	for _, info := range f.tt.AccessAll() {
+		if strings.Contains(info.Name, "3 messages") && info.Bounds.Y < 700 {
+			t.Errorf("the count shows again at %+v: %q", info.Bounds, info.Name)
+		}
+	}
+}
