@@ -101,7 +101,7 @@ func (m *Module) todoTasks(c *ui.Context) {
 func (m *Module) todoTask(c *ui.Context, task *api.Task, today string) {
 	t := c.Theme()
 	ui.Row(c).Height(32).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Role(ui.RoleListItem).Children(func() {
-		if circle(c, 16, task.Completed, false, "Complete "+task.Title, !m.taskWritable(task)) {
+		if circle(c, 16, task.Completed, "Complete "+task.Title, !m.taskWritable(task)) {
 			m.toggleTask(task.ID, !task.Completed)
 		}
 		if textButton(c.Key("title"), task.Title, t.Text, 13).Grow(1).Shrink(1).MinWidth(0).Clicked() {
@@ -124,7 +124,7 @@ func (m *Module) showTask(task *api.Task) {
 func (m *Module) todoMessage(c *ui.Context, r api.MessageSummary) {
 	t := c.Theme()
 	ui.Row(c).Height(32).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Role(ui.RoleListItem).Children(func() {
-		if circle(c, 16, false, false, "Clear Flag "+subjectOf(r), false) {
+		if circle(c, 16, false, "Clear Flag "+subjectOf(r), false) {
 			m.clearFlag(r.ID)
 		}
 		if textButton(c.Key("subject"), subjectOf(r), t.Text, 13).Grow(1).Shrink(1).MinWidth(0).Clicked() && m.o.OpenMessage != nil {

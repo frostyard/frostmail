@@ -18,6 +18,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 const flaggedRows = 200
@@ -626,7 +627,7 @@ func (m *Module) taskRows(c *ui.Context, shown []api.Task) {
 		return "header:" + strconv.FormatInt(st.lines[i].listID, 10)
 	}
 	st.listUI.Header = func(i int) bool { return i < len(st.lines) && st.lines[i].task == nil }
-	list := ui.List(c, &st.listUI, len(st.lines), func(i int) { m.taskLine(c, st.lines[i]) }).Grow(1).Label(m.tasksTitle())
+	list := uikit.SoftList(c, &st.listUI, len(st.lines), func(i int) { m.taskLine(c, st.lines[i]) }).Label(m.tasksTitle())
 	m.watchList(list)
 	if list.Changed() && st.row >= 0 && st.row < len(st.lines) && st.lines[st.row].task != nil {
 		st.selected = st.lines[st.row].task.ID
@@ -648,12 +649,9 @@ func (m *Module) watchList(list ui.Element) {
 }
 
 // circle draws a check circle; it reports a click.
-func circle(c *ui.Context, size float32, done, onAccent bool, label string, disabled bool) bool {
+func circle(c *ui.Context, size float32, done bool, label string, disabled bool) bool {
 	t := c.Theme()
 	ring := tertiary(t)
-	if onAccent {
-		ring = t.AccentText
-	}
 	b := ui.ButtonBase(c.Key("check")).Size(size, size).Radius(size/2).Center().Border(1.5, ring).Shrink(0).KeepFocus().Cursor(ui.CursorPointer).Label(label).Disabled(disabled).DimDisabled(false).AccessHidden(true)
 	if done {
 		b.Background(t.Accent).Border(1.5, t.Accent)
@@ -669,7 +667,6 @@ func circle(c *ui.Context, size float32, done, onAccent bool, label string, disa
 
 func (m *Module) taskLine(c *ui.Context, l taskLine) {
 	t := c.Theme()
-	st := &m.tasks
 	if l.task == nil {
 		ui.Row(c).Height(28).Padding(0, frostui.SpaceM).AlignItems(ui.Center).Background(t.Background).Children(func() {
 			frostui.Label(c, l.header)
@@ -677,22 +674,18 @@ func (m *Module) taskLine(c *ui.Context, l taskLine) {
 		return
 	}
 	task := l.task
-	selected := st.selected == task.ID
 	today := m.today()
 	indent := float32(frostui.SpaceM)
 	if l.level == 1 {
 		indent += 28
 	}
 	muted := t.TextMuted
-	if selected {
-		muted = t.AccentText
-	}
 	sep := t.Border
 	ui.Row(c).MinHeight(36).Padding(frostui.SpaceS, frostui.SpaceM, frostui.SpaceS, indent).Gap(10).AlignItems(ui.Start).Label(task.Title).Checked(task.Completed).Draw(func(p *ui.Painter, r ui.Rect) {
 		p.Fill(ui.Rect{X: r.X + 40, Y: r.Y + r.H - 1, W: r.W - 40, H: 1}, sep, 0)
 	}).Children(func() {
 		readOnly := !m.taskWritable(task)
-		if circle(c, 18, task.Completed, selected, "Complete "+task.Title, readOnly) {
+		if circle(c, 18, task.Completed, "Complete "+task.Title, readOnly) {
 			m.toggleTask(task.ID, !task.Completed)
 		}
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
@@ -706,7 +699,7 @@ func (m *Module) taskLine(c *ui.Context, l taskLine) {
 				ui.Row(c).Children(func() {
 					if due != "" {
 						line := ui.Text(c, due).FontSize(frostui.TextSize(c, 12)).TextColor(muted).SingleLine()
-						if isOverdue(task, today) && !selected {
+						if isOverdue(task, today) {
 							line.TextColor(flagColor(t, 1))
 						}
 					}
@@ -741,7 +734,7 @@ func (m *Module) flaggedList(c *ui.Context) {
 		return i
 	}
 	st.listUI.Header = nil
-	list := ui.List(c, &st.listUI, len(rows), func(i int) { m.flaggedRow(c, rows[i]) }).Grow(1).Label("Flagged Mail")
+	list := uikit.SoftList(c, &st.listUI, len(rows), func(i int) { m.flaggedRow(c, rows[i]) }).Label("Flagged Mail")
 	m.watchList(list)
 	if list.Changed() && st.row >= 0 && st.row < len(rows) {
 		st.selected = rows[st.row].ID
@@ -759,19 +752,13 @@ func subjectOf(r api.MessageSummary) string {
 }
 
 func (m *Module) flaggedRow(c *ui.Context, r api.MessageSummary) {
-	t := c.Theme()
-	selected := m.tasks.selected == r.ID
-	muted := t.TextMuted
-	if selected {
-		muted = t.AccentText
-	}
 	ui.Row(c).MinHeight(36).Padding(frostui.SpaceS, frostui.SpaceM).Gap(10).AlignItems(ui.Start).Label(subjectOf(r)).Children(func() {
-		if circle(c, 18, false, selected, "Clear Flag "+subjectOf(r), false) {
+		if circle(c, 18, false, "Clear Flag "+subjectOf(r), false) {
 			m.clearFlag(r.ID)
 		}
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 			frostui.Body(c, subjectOf(r)).SingleLine()
-			ui.Text(c, mail.DisplayName(r.From)+" · "+mail.ListDate(r.Date, m.now())).FontSize(frostui.TextSize(c, 12)).TextColor(muted).SingleLine()
+			frostui.Muted(c, mail.DisplayName(r.From)+" · "+mail.ListDate(r.Date, m.now())).SingleLine()
 		})
 		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, max(r.Flags.FlagColor, 1))).FontSize(frostui.TextSize(c, 14)).Label("Flagged")
 	})

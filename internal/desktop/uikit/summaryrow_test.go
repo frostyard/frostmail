@@ -138,9 +138,9 @@ func TestSummaryRowKeepsALongTokenInside(t *testing.T) {
 	}
 }
 
-// A chosen row in a SummaryList takes the soft selection's tint and the
+// A chosen row in a SoftList takes the soft selection's tint and the
 // accent rule on its leading edge, and its unread dot keeps the accent.
-func TestSummaryListSoftensTheChoice(t *testing.T) {
+func TestSoftListSoftensTheChoice(t *testing.T) {
 	setIcons()
 	const width = 400
 	var st ui.ListState
@@ -150,9 +150,9 @@ func TestSummaryListSoftensTheChoice(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {
 		page = frostui.Adapt(c)
 		ui.Column(c).Fill().AlignItems(ui.Stretch).Background(page.Background).Children(func() {
-			uikit.SummaryList(c, &st, 2, func(i int) {
+			uikit.SoftList(c, &st, 2, func(i int) {
 				uikit.SummaryRow(c, uikit.Summary{Title: fmt.Sprintf("Row %d", i), Subtitle: "Plans", Preview: "See you there",
-					Unread: true, UnreadLabel: fmt.Sprintf("Unread %d", i), Selected: i == chosen})
+					Unread: true, UnreadLabel: fmt.Sprintf("Unread %d", i)})
 			}).Label("Messages")
 		})
 	}, width, 300)

@@ -414,7 +414,7 @@ func (m *Module) peopleList(c *ui.Context) {
 		}
 		return ""
 	}
-	list := ui.List(c, &st.listUI, len(st.rows), func(i int) { m.personRow(c, st.rows[i], t) }).Grow(1).Label("Contacts").IgnoreInput(inert).Background(t.Background)
+	list := uikit.SoftList(c, &st.listUI, len(st.rows), func(i int) { m.personRow(c, st.rows[i], t) }).Label("Contacts").IgnoreInput(inert).Background(t.Background)
 	if st.focusAsk == panePeople {
 		st.focusAsk = ""
 		list.Focus()
@@ -450,10 +450,6 @@ func (m *Module) personRow(c *ui.Context, row peopleRow, t *ui.Theme) {
 	if second == name {
 		second = ""
 	}
-	muted := t.TextMuted
-	if p.ID == m.people.selected {
-		muted = t.AccentText
-	}
 	sep := t.Border
 	ui.Row(c).Height(44).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Draw(func(pt *ui.Painter, r ui.Rect) {
 		pt.Fill(ui.Rect{X: r.X + 50, Y: r.Y + r.H - 1, W: r.W - 50, H: 1}, sep, 0)
@@ -462,7 +458,7 @@ func (m *Module) personRow(c *ui.Context, row peopleRow, t *ui.Theme) {
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
 			frostui.Strong(c, name).SingleLine()
 			if second != "" {
-				ui.Text(c, second).FontSize(frostui.TextSize(c, 12)).TextColor(muted).SingleLine()
+				frostui.Muted(c, second).SingleLine()
 			}
 		})
 	})

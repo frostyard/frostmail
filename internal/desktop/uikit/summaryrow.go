@@ -30,36 +30,15 @@ type Summary struct {
 	Count string
 	// Photo, when set, is drawn in a square before the text.
 	Photo *ui.Bitmap
-	// Selected marks the row as chosen with a 1px accent rule on its
-	// leading edge, over the tint SummaryList gives chosen rows.
-	Selected bool
 	// Actions draws the row's buttons while the pointer is over it. They
 	// duplicate the row's commands, so assistive technology does not see
 	// them.
 	Actions func()
 }
 
-// SummaryList draws a ui.List of n summary rows, each drawn by row with
-// SummaryRow, and returns the list. Its chosen rows take the soft
-// selection (frostui.SoftSelection) with square corners, as the brand's
-// message list has them, and keep their own text colors; the rows build
-// in the theme around the list, so that their accent (the unread dot)
-// stays the accent rather than the selection's tint.
-func SummaryList(c *ui.Context, st *ui.ListState, n int, row func(i int)) ui.Element {
-	page := c.Theme()
-	soft := frostui.SoftSelection(page)
-	soft.Radius = 0
-	var list ui.Element
-	ui.Themed(c, soft).Background(ui.Transparent).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		list = ui.List(c, st, n, func(i int) {
-			ui.Themed(c, page).Background(ui.Transparent).AlignItems(ui.Stretch).Children(func() { row(i) })
-		}).Grow(1)
-	})
-	return list
-}
-
 // SummaryRow draws a list row of a fixed height: the title and the date,
-// the subtitle, and up to 2 lines of preview, over a hairline. A row with
+// the subtitle, and up to 2 lines of preview, over a hairline. Draw a list
+// of them with SoftList, which shows the choice. A row with
 // no title yet, as one still loading, keeps the height and shows nothing.
 // Nothing it holds draws outside it: its text column can be narrower than
 // its text, which then wraps or ends with an ellipsis, and the row clips
@@ -70,9 +49,6 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Clip()
 	hovered := row.Hovered()
 	row.Children(func() {
-		if s.Selected {
-			ui.Box(c).Absolute().Left(0).Top(0).Bottom(0).Width(1).Background(t.Accent).IgnoreInput(true)
-		}
 		ui.Column(c).Width(10).Shrink(0).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Height(18).Center().Children(func() {
 				if s.Unread {
