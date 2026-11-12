@@ -197,6 +197,15 @@ func TestSanitizeKeepsMailLayout(t *testing.T) {
 			`<table><tbody><tr><td style="padding:4px;background:none no-repeat">x</td></tr></tbody></table>`,
 		},
 		{
+			// A dark newsletter must not match its dark media rule on the
+			// reader's always-white page (frostyard/frostmail#269).
+			"a dark newsletter draws on a light page",
+			`<html><head><style>:root{color-scheme:light dark}` +
+				`@media (prefers-color-scheme: dark){body,.bg{background:#000!important;color:#fff!important}}</style></head>` +
+				`<body class="bg"><p>x</p></body></html>`,
+			`<div class="bg"><style>:root{x-blocked:light dark}@media (grid:1){body,.bg{background:#000!important;color:#fff!important}}</style><p>x</p></div>`,
+		},
+		{
 			"comments go",
 			`<p>a<!-- secret --></p>`,
 			`<p>a</p>`,

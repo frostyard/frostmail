@@ -53,6 +53,50 @@ func TestSanitizeCSS(t *testing.T) {
 	}
 }
 
+// A message's CSS must see a light page: the reader page is white in every
+// appearance (pageStyle), but the engine reports prefers-color-scheme: dark
+// when the desktop is dark, so a newsletter's dark @media rule would draw on
+// the white page (frostyard/frostmail#269). A prefers-color-scheme feature
+// answers light there, and a message cannot set the page's color-scheme.
+func TestSanitizeCSSShowsALightPage(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"dark media rule", `@media (prefers-color-scheme: dark){body{background:#000}}`, `@media (grid:1){body{background:#000}}`},
+		{"light media rule", `@media (prefers-color-scheme:light){p{color:#000}}`, `@media (grid:0){p{color:#000}}`},
+		{"media rule with screen", `@media screen and (prefers-color-scheme: dark){p{color:#fff}}`, `@media screen and (grid:1){p{color:#fff}}`},
+		{"negated media rule", `@media not all and (prefers-color-scheme: dark){p{color:#000}}`, `@media not all and (grid:1){p{color:#000}}`},
+		{"media rule list", `@media (prefers-color-scheme:dark),(prefers-color-scheme:light){p{color:#000}}`, `@media (grid:1),(grid:0){p{color:#000}}`},
+		{"escaped feature name", `@media (prefers-color-sch\65me: dark){p{color:#fff}}`, `@media (grid:1){p{color:#fff}}`},
+		{"uppercase feature name and value", `@media (PREFERS-COLOR-SCHEME: DARK){p{color:#fff}}`, `@media (grid:1){p{color:#fff}}`},
+		{"unknown value", `@media (prefers-color-scheme: no-preference){p{color:#fff}}`, `@media (grid:1){p{color:#fff}}`},
+		{"comment around the colon", `@media (prefers-color-scheme/**/:/**/dark){p{color:#fff}}`, `@media (grid:1){p{color:#fff}}`},
+		{"boolean form is kept", `@media (prefers-color-scheme){p{color:#fff}}`, `@media (prefers-color-scheme){p{color:#fff}}`},
+		{"class name outside a media prelude", `.prefers-color-scheme{color:red}`, `.prefers-color-scheme{color:red}`},
+		{"root color scheme", `:root{color-scheme:light dark}`, `:root{x-blocked:light dark}`},
+		{"escaped color scheme property", `p{color-sch\65me:dark}`, `p{x-blocked:dark}`},
+		{"uppercase color scheme property", `p{COLOR-SCHEME: DARK}`, `p{x-blocked: DARK}`},
+		{"style attribute color scheme", `color-scheme: dark; color: red`, `x-blocked: dark; color: red`},
+		{"color scheme selector", `.color-scheme{color:red}`, `.color-scheme{color:red}`},
+		{"color scheme in a compound selector", `div.color-scheme:hover{color:red}`, `div.color-scheme:hover{color:red}`},
+		{"light dark function is kept", `p{color:light-dark(#000,#fff)}`, `p{color:light-dark(#000,#fff)}`},
+		{"color scheme after another declaration", `p{margin:0;color-scheme:dark}`, `p{margin:0;x-blocked:dark}`},
+		{"color scheme after a nested rule", `div{span{color:red} color-scheme:dark}`, `div{span{color:red} x-blocked:dark}`},
+		{"color scheme value is kept", `p{background-color-scheme:dark}`, `p{background-color-scheme:dark}`},
+		// A removal writes only a space, so the declaration start before it
+		// must survive: else a later color-scheme escapes the guard.
+		{"color scheme after a removed at-rule", `:root{@page{}color-scheme:dark}`, `:root{ x-blocked:dark}`},
+		{"color scheme after an import", `p{margin:0;@import url(x);color-scheme:dark}`, `p{margin:0; x-blocked:dark}`},
+		{"color scheme after cdo", `:root{<!--color-scheme:dark}`, `:root{ x-blocked:dark}`},
+		{"cdo after cdc at the start", `-->color-scheme:dark`, ` x-blocked:dark`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sanitizeCSS(tc.in, func(string) string { return "" }); got != tc.want {
+				t.Errorf("sanitizeCSS(%q)\n got %q\nwant %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCSSUnescape(t *testing.T) {
 	cases := map[string]string{
 		`url`:        "url",
