@@ -701,9 +701,7 @@ func TestFollowUpRowOpensTheMessage(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	f.until(t, "the Follow Up section", func() bool {
-		return slices.ContainsFunc(f.tt.Texts(), func(s string) bool { return strings.HasPrefix(s, "Follow Up (") })
-	})
+	f.until(t, "the Follow Up section", func() bool { return f.tt.HasText("Follow Up") && f.tt.HasText("Any news") })
 	if err := f.tt.Click("Any news"); err != nil {
 		t.Fatal(err)
 	}

@@ -901,8 +901,8 @@ func outboxTester(w *Window, st live.MailState, loop *frostuitest.Loop, now time
 }
 
 // P-section Send Later: a scheduled message that is on its way or failed
-// belongs to the Outbox; those waiting come soonest first, with their
-// actions.
+// belongs to the Outbox, a section of the sidebar's list; those waiting
+// come under the tree, soonest first, with their actions.
 func TestSendLaterSection(t *testing.T) {
 	now := time.Date(2026, 11, 11, 9, 0, 0, 0, time.Local)
 	soon, later := now.Add(time.Hour), now.Add(3*time.Hour)
@@ -922,14 +922,25 @@ func TestSendLaterSection(t *testing.T) {
 	tt.Frame()
 	tt.Frame()
 	texts := tt.Texts()
-	outbox, sendLater := slices.Index(texts, "Outbox"), slices.Index(texts, "Send Later")
-	if outbox < 0 || sendLater < outbox {
-		t.Fatalf("sections in %q", texts)
+	sendLater := slices.Index(texts, "Send Later")
+	if sendLater < 0 {
+		t.Fatalf("no Send Later in %q", texts)
 	}
 	for _, subject := range []string{"Refused one", "Going one"} {
-		if i := slices.Index(texts, subject); i < outbox || i > sendLater {
-			t.Errorf("%q is at %d, outside the Outbox (%d to %d)", subject, i, outbox, sendLater)
+		if slices.Contains(texts, subject) {
+			t.Errorf("%q, in the Outbox, shows in Send Later: %q", subject, texts)
 		}
+	}
+	var outbox []string
+	for _, sec := range w.waitingSections(st) {
+		if sec.ID == outboxSection {
+			for _, key := range sec.Items {
+				outbox = append(outbox, w.waits[key].row.Title)
+			}
+		}
+	}
+	if !slices.Equal(outbox, []string{"Refused one", "Going one"}) {
+		t.Errorf("the Outbox holds %q", outbox)
 	}
 	if a, b := slices.Index(texts, "Soon one"), slices.Index(texts, "Later one"); a < sendLater || b < a {
 		t.Errorf("soonest first: %q", texts)

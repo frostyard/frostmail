@@ -112,6 +112,8 @@ type Window struct {
 	listWidth     float32
 	tree          map[string]mail.Item // the sidebar's rows, by key
 	kids          map[string][]string  // a row's children, for those with any
+	waits         map[string]waiting   // the rows of Follow Up and the Outbox, by key
+	waitFor       string               // the source shown when one of them was chosen
 	branches      map[string]bool      // the branches opened once
 	list          ui.ListState
 	chosen        ui.Selection[int64]
