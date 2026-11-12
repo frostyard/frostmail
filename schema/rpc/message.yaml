@@ -110,7 +110,7 @@ types:
       - {name: trackers, type: int, doc: "Tracking images removed; they are never loaded."}
       - {name: contentPath, type: string, optional: true, doc: "With render's content, on a maild serving lodge: the reader's whole page on maild's content route, as r/<token>.html (docs/specs/lodge-app.md). Absent for a message without HTML."}
   - name: PartFile
-    doc: A message part decoded into the parts cache.
+    doc: A message part or draft image in the parts cache.
     fields:
       - {name: path, type: string, doc: "Relative to the parts cache, as in a mailpart://localhost/ URL."}
       - {name: contentType, type: string, doc: "Lowercase type/subtype."}

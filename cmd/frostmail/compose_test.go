@@ -95,7 +95,7 @@ func TestLoadPartReadsLodgesContentRoute(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cache, "parts", "m", "12", "2.png"), []byte("not this"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	load := func(src string) ([]byte, error) { return loadPart(c, conn.Target{Lodge: &l}, cache, src) }
+	load := func(src string) ([]byte, error) { return loadPart(c, conn.Target{Lodge: &l}, cache, 42, src) }
 	got, err := load("mailpart://localhost/m/12/2.png")
 	if err != nil || !bytes.Equal(got, picture) {
 		t.Fatalf("read %q, %v", got, err)
@@ -126,6 +126,66 @@ func TestLoadPartReadsLodgesContentRoute(t *testing.T) {
 			t.Errorf("left %s", e.Name())
 		}
 	}
+}
+
+// Cached remote images use the saved draft's image lookup and the same content route.
+func TestLoadCachedDraftImageFromLodge(t *testing.T) {
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 3, 2))); err != nil {
+		t.Fatal(err)
+	}
+	var asked atomic.Pointer[api.DraftImageParams]
+	srv := rpctest.StartWith(t, rpctest.Options{Services: func(s *api.Services) { s.Draft = imageDrafts{s.Draft, &asked} }})
+	c := srv.Dial(t)
+	var lodge *httptest.Server
+	lodge = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/lodge/apps":
+			_, _ = w.Write([]byte(`{"contentOrigin":"` + lodge.URL + `"}`))
+		case "/mail/" + partContentPath:
+			_, _ = w.Write(b.Bytes())
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(lodge.Close)
+	l, err := conn.ParseLodge(lodge.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const rel = "r/0123456789abcdef0123456789abcdef.png"
+	cache := t.TempDir()
+	load := func(src string) ([]byte, error) { return loadPart(c, conn.Target{Lodge: &l}, cache, 42, src) }
+	text := compose.ToText(`<img src="mailpart://localhost/`+rel+`">`, load)
+	shown := false
+	for _, p := range text.Paragraphs() {
+		for _, r := range p.Runs {
+			if a := r.Attributes.Attachment; a != nil && a.Image != nil {
+				shown = true
+			}
+		}
+	}
+	if !shown {
+		t.Error("cached remote image is absent from the editor")
+	}
+	if p := asked.Load(); p == nil || p.ID != 42 || p.Path != rel {
+		t.Errorf("draft image request=%+v", p)
+	}
+	entries, err := os.ReadDir(cache)
+	if err != nil || len(entries) != 0 {
+		t.Errorf("download residue=%v, %v", entries, err)
+	}
+}
+
+type imageDrafts struct {
+	api.DraftService
+	asked *atomic.Pointer[api.DraftImageParams]
+}
+
+func (d imageDrafts) Image(_ context.Context, p *api.DraftImageParams) (*api.PartFile, error) {
+	d.asked.Store(p)
+	route := partContentPath
+	return &api.PartFile{Path: p.Path, ContentType: "image/png", Filename: "image.png", ContentPath: &route}, nil
 }
 
 // M7: a window's client ends with the target it opened on, and follows

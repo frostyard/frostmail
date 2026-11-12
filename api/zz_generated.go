@@ -2029,6 +2029,12 @@ type DraftGetParams struct {
 	ID int64 `json:"id"`
 }
 
+// DraftImageParams holds the params of draft.image.
+type DraftImageParams struct {
+	ID   int64  `json:"id"`
+	Path string `json:"path"`
+}
+
 // DraftListParams holds the params of draft.list.
 type DraftListParams struct {
 	AccountID *int64 `json:"accountId,omitzero"`
@@ -2099,6 +2105,12 @@ type DraftService interface {
 	Open(ctx context.Context, p *DraftOpenParams) (*Draft, error)
 	// Get implements draft.get. One draft.
 	Get(ctx context.Context, p *DraftGetParams) (*Draft, error)
+	// Image implements draft.image. Name an existing cached image referenced by
+	// an img src in the saved draft. Never fetches remote content. The path is
+	// relative to the parts cache; only regular image files within that cache and
+	// the renderer's size limit are admitted. On Lodge, contentPath names its
+	// signed route.
+	Image(ctx context.Context, p *DraftImageParams) (*PartFile, error)
 	// List implements draft.list. Drafts, most recently changed first.
 	List(ctx context.Context, p *DraftListParams) ([]Draft, error)
 	// Unsaved implements draft.unsaved. The drafts no stored message holds yet
@@ -2154,6 +2166,13 @@ func registerDraft(r *Router, s DraftService) {
 			return nil, err
 		}
 		return s.Get(ctx, &p)
+	})
+	r.handle("draft.image", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p DraftImageParams
+		if err := decodeParams(raw, &p, []string{"id", "path"}); err != nil {
+			return nil, err
+		}
+		return s.Image(ctx, &p)
 	})
 	r.handle("draft.list", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p DraftListParams
@@ -2245,6 +2264,16 @@ func (x DraftClient) Open(ctx context.Context, p *DraftOpenParams) (*Draft, erro
 func (x DraftClient) Get(ctx context.Context, p *DraftGetParams) (*Draft, error) {
 	var r Draft
 	err := x.c.Call(ctx, "draft.get", p, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// Image calls draft.image.
+func (x DraftClient) Image(ctx context.Context, p *DraftImageParams) (*PartFile, error) {
+	var r PartFile
+	err := x.c.Call(ctx, "draft.image", p, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -2970,7 +2999,7 @@ type Rendering struct {
 	ContentPath *string `json:"contentPath,omitzero"`
 }
 
-// PartFile: A message part decoded into the parts cache.
+// PartFile: A message part or draft image in the parts cache.
 type PartFile struct {
 	// Relative to the parts cache, as in a mailpart://localhost/ URL.
 	Path string `json:"path"`
@@ -6099,6 +6128,7 @@ var methodCallers = map[string][]CallerKind{
 	"draft.create":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.open":              {CallerKindLocal, CallerKindSession},
 	"draft.get":               {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"draft.image":             {CallerKindLocal, CallerKindSession},
 	"draft.list":              {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"draft.unsaved":           {CallerKindLocal, CallerKindSession},
 	"draft.update":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
@@ -6246,6 +6276,7 @@ var Methods = []string{
 	"draft.create",
 	"draft.open",
 	"draft.get",
+	"draft.image",
 	"draft.list",
 	"draft.unsaved",
 	"draft.update",

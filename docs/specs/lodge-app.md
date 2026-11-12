@@ -285,6 +285,15 @@ degraded. The `messages_unseen` index serves the count
     [Announcement]}`, an `Announcement` being `{title, body, messageId?}`,
     goes to every connected client when maild has no session bus.
 
+### Cached draft images
+
+`draft.image`, for callers local and session, returns a `PartFile` for a
+cached image whose `mailpart://localhost/` source occurs in an `img` element
+of the saved draft. It checks draft access, path containment (including
+symlinks), regular-file type, the renderer's image-size limit and sniffed
+image content type. It never fetches remote content. Its `contentPath`
+uses the existing signed parts route. See [ADR-0057](../adr/0057-name-cached-draft-images-on-lodges-content-route.md).
+
 ### Attaching by bytes
 
 `draft.attachData`, for callers local and session:
