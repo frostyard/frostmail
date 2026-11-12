@@ -9,7 +9,6 @@ package api
 import (
 	"context"
 	"encoding/json/jsontext"
-	"slices"
 
 	"github.com/frostyard/lodge/kit/jsonrpc"
 )
@@ -68,6 +67,3 @@ func (r *Router) handle(method string, h handlerFunc) {
 func decodeParams(raw jsontext.Value, p any, required []string) error {
 	return jsonrpc.DecodeParams[ErrorCode](raw, p, required)
 }
-
-// HasMethod reports whether the schema defines method.
-func HasMethod(method string) bool { return slices.Contains(Methods, method) }

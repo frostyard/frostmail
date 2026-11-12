@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"slices"
 
 	"github.com/frostyard/lodge/kit/jsonrpc"
 )
@@ -16,18 +15,8 @@ type Conn interface {
 	Done() <-chan struct{}
 }
 
-type connKey struct{}
-
-// WithConn returns ctx carrying c; the RPC server sets it for every request.
-func WithConn(ctx context.Context, c Conn) context.Context {
-	return context.WithValue(ctx, connKey{}, c)
-}
-
 // ConnFrom returns the connection a request arrived on, or nil.
 func ConnFrom(ctx context.Context) Conn {
-	if c, ok := ctx.Value(connKey{}).(Conn); ok {
-		return c
-	}
 	if c := jsonrpc.ConnFrom(ctx); c != nil {
 		return rpcConn{c}
 	}
@@ -74,10 +63,4 @@ func CallerFrom(ctx context.Context) Caller {
 		return c
 	}
 	return Caller{Kind: CallerKindLocal}
-}
-
-// Admits reports whether method admits callers of kind, by the schema's
-// callers. An unknown method admits none.
-func Admits(method string, kind CallerKind) bool {
-	return slices.Contains(methodCallers[method], kind)
 }
