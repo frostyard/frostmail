@@ -258,11 +258,12 @@ bump: ## Tag the candidate's commit as the release and push the tag (CANDIDATE=v
 	echo "Tagged $$version at $$commit (the candidate $$candidate); pushing it to origin..."; \
 	git push origin "refs/tags/$$version"
 
-# The shell's notifications test needs a session bus: dbus-run-session gives
-# it one where the machine has it, and it skips elsewhere.
+# The Go tests run on the host; the notifier's Rust tests run in the nsl
+# machine (docs/adr/0006-development-environment.md), as app-check-windows
+# does.
 app-test: ## Run the desktop app's Go tests and the Windows notifier's Rust tests
 	go test ./cmd/frostmail/ ./internal/desktop/...
-	cd app/notify && cargo test --release
+	$(IN_NSL) 'cd app/notify && cargo test --release'
 
 # Windows CI builds the notifier (ADR-0038); here it is only type-checked.
 app-check-windows: ## Type-check the notifier for Windows (nsl)
