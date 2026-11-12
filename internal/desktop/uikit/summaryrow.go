@@ -51,7 +51,7 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 				}
 			})
 			if s.MarkLabel != "" {
-				frostui.Icon(c, "mail-mark-important").FontSize(10).TextColor(s.Mark).Label(s.MarkLabel)
+				frostui.Icon(c, "mail-mark-important").FontSize(frostui.TextSize(c, 10)).TextColor(s.Mark).Label(s.MarkLabel)
 			}
 		})
 		if s.Photo != nil {
@@ -61,7 +61,7 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 			ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				frostui.Strong(c, s.Title).Grow(1).SingleLine()
 				for _, ic := range s.Icons {
-					frostui.Icon(c, ic.Name).FontSize(12).TextColor(t.TextMuted).Label(ic.Label)
+					frostui.Icon(c, ic.Name).FontSize(frostui.TextSize(c, 12)).TextColor(t.TextMuted).Label(ic.Label)
 				}
 				frostui.Caption(c, s.Date).SingleLine()
 			})

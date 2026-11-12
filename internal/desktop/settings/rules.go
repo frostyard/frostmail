@@ -154,7 +154,7 @@ func (w *Window) ruleRow(c *ui.Context, p *rulesPane, r api.Rule) {
 			w.editRule(&r)
 		}
 		if r.Problem != nil && *r.Problem != "" {
-			frostui.Icon(c, "dialog-warning").FontSize(14).TextColor(t.TextMuted).Role(ui.RoleImage).Label(*r.Problem).Tooltip(*r.Problem)
+			frostui.Icon(c, "dialog-warning").FontSize(frostui.TextSize(c, 14)).TextColor(t.TextMuted).Role(ui.RoleImage).Label(*r.Problem).Tooltip(*r.Problem)
 		}
 	})
 }
@@ -162,8 +162,8 @@ func (w *Window) ruleRow(c *ui.Context, p *rulesPane, r api.Rule) {
 // checkMark is a check box's face, for one with no text.
 func checkMark(c *ui.Context, on bool) {
 	t := c.Theme()
-	box := ui.Box(c).Size(16, 16).Radius(4).Border(1, t.Border).Justify(ui.Center).AlignItems(ui.Center)
+	box := ui.Box(c).Size(16, 16).Radius(frostui.RadiusChip).Border(1, t.Border).Justify(ui.Center).AlignItems(ui.Center)
 	if on {
-		box.Background(t.Accent).TextColor(t.AccentText).Children(func() { frostui.Icon(c, "object-select").FontSize(12) })
+		box.Background(t.Accent).TextColor(t.AccentText).Children(func() { frostui.Icon(c, "object-select").FontSize(frostui.TextSize(c, 12)) })
 	}
 }

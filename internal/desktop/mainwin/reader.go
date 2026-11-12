@@ -444,7 +444,7 @@ func (w *Window) collapsed(c *ui.Context, cv *conv, r api.MessageSummary) {
 		w.setExpanded(cv, r.ID, true)
 	}
 	row.Children(func() {
-		ui.Avatar(c, mail.DisplayName(r.From), nil).Size(24, 24)
+		ui.Avatar(c, mail.DisplayName(r.From), nil).Size(24, 24).Radius(t.Radius)
 		frostui.Strong(c, mail.DisplayName(r.From)).SingleLine()
 		frostui.Muted(c, r.Preview).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 		frostui.Caption(c, mail.ListDate(r.Date, w.o.Now())).SingleLine()

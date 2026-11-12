@@ -122,7 +122,7 @@ func flagColor(t *ui.Theme, i int) ui.Color {
 // flagField is one flag's name, saved on Enter and as the field is left.
 func (w *Window) flagField(c *ui.Context, g *generalPane, i int, off bool) {
 	ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Width(240).Shrink(0).Children(func() {
-		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, i+1)).FontSize(12).TextColor(flagColor(c.Theme(), i))
+		frostui.Icon(c, fmt.Sprintf("%s%d", icons.FlagPrefix, i+1)).FontSize(frostui.TextSize(c, 12)).TextColor(flagColor(c.Theme(), i))
 		in := ui.TextInput(c, &g.names[i]).Label(fmt.Sprintf("Flag %d name", i+1)).Placeholder(mail.FlagNames[i]).
 			MaxLength(40).Disabled(off).Grow(1).MinWidth(0)
 		if in.Submitted() {

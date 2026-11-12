@@ -1022,17 +1022,17 @@ func (w *Window) attachmentRow(c *ui.Context) {
 	}
 	ui.Row(c).Gap(frostui.SpaceS).Padding(frostui.SpaceS, frostui.SpaceM).Wrap().AlignItems(ui.Center).Background(frostui.Chrome(t)).Label("Attachments").Children(func() {
 		for _, a := range w.attached {
-			ui.Row(c.Key(a.ID)).Height(32).Gap(6).Padding(0, frostui.SpaceS).Radius(6).Border(1, t.Border).Background(t.Background).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(a.ID)).Height(32).Gap(6).Padding(0, frostui.SpaceS).Radius(frostui.RadiusChip).Border(1, t.Border).Background(t.Background).AlignItems(ui.Center).Children(func() {
 				frostui.Icon(c, "mail-attachment").TextColor(t.TextMuted)
 				ui.Text(c, a.Filename).MaxWidth(200).SingleLine()
-				ui.Text(c, mail.FormatSize(a.Size)).FontSize(12).TextColor(t.TextMuted).SingleLine()
+				frostui.Muted(c, mail.FormatSize(a.Size)).SingleLine()
 				if frostui.IconButton(c, "window-close", "Remove "+a.Filename).Clicked() {
 					w.detach(a)
 				}
 			})
 		}
 		for _, p := range w.files {
-			ui.Row(c.Key(p.key)).Height(32).Gap(6).Padding(0, frostui.SpaceS).Radius(6).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
+			ui.Row(c.Key(p.key)).Height(32).Gap(6).Padding(0, frostui.SpaceS).Radius(frostui.RadiusChip).Border(1, t.Border).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(c).Size(14, 14).Label("Attaching")
 				ui.Text(c, p.name).MaxWidth(200).SingleLine()
 			})
@@ -1048,7 +1048,7 @@ func (w *Window) attachmentRow(c *ui.Context) {
 				text += " — over the 25 MB limit"
 				color = t.Danger
 			}
-			ui.Text(c, text).FontSize(12).TextColor(color).SingleLine()
+			ui.Text(c, text).FontSize(frostui.TextSize(c, 12)).TextColor(color).SingleLine()
 		}
 	})
 }

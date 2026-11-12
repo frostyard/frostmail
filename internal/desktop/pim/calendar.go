@@ -13,6 +13,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // occKey names one occurrence.
@@ -408,7 +409,7 @@ func (m *Module) calendarBar(c *ui.Context) {
 	if frostui.IconButton(c, "go-next", "Next "+period).Clicked() {
 		m.page(1)
 	}
-	ui.Text(c, viewTitle(cal.view, cal.date, m.clock.weekStart)).FontSize(15).FontWeight(600).TextColor(t.Text).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+	frostui.Heading(c, viewTitle(cal.view, cal.date, m.clock.weekStart)).TextColor(t.Text).SingleLine().Grow(1).Shrink(1).MinWidth(0)
 	choice := slices.Index([]viewKind{viewDay, viewWeek, viewMonth}, cal.view)
 	if ui.Segmented(c, &choice, "Day", "Week", "Month").Label("View").Changed() {
 		cal.view = []viewKind{viewDay, viewWeek, viewMonth}[choice]
@@ -427,7 +428,7 @@ func (m *Module) miniMonth(c *ui.Context, st *miniMonthState, selected string, b
 			if frostui.IconButton(c, "go-previous", "Previous Month").Clicked() {
 				st.shown = stepDate(viewMonth, st.shown, -1)
 			}
-			ui.Text(c, title).FontSize(13).FontWeight(600).SingleLine()
+			frostui.Strong(c, title).SingleLine()
 			if frostui.IconButton(c, "go-next", "Next Month").Clicked() {
 				st.shown = stepDate(viewMonth, st.shown, 1)
 			}
@@ -435,7 +436,7 @@ func (m *Module) miniMonth(c *ui.Context, st *miniMonthState, selected string, b
 		ui.Column(c).Role(ui.RoleGrid).Label(title).AlignItems(ui.Stretch).Children(func() {
 			ui.Row(c).Children(func() {
 				for _, d := range days[:7] {
-					ui.Text(c.Key(d), dateOf(d).Format("Mon")[:1]).FontSize(11).TextColor(tertiary(t)).Grow(1).Basis(0).TextAlign(ui.Center)
+					ui.Text(c.Key(d), dateOf(d).Format("Mon")[:1]).FontSize(frostui.TextSize(c, 11)).TextColor(tertiary(t)).Grow(1).Basis(0).TextAlign(ui.Center)
 				}
 			})
 			for week := range 6 {
@@ -466,7 +467,7 @@ func (m *Module) miniDay(c *ui.Context, date, selected, today, shown string, bus
 		color = tertiary(t)
 	}
 	ui.Box(c).Grow(1).Basis(0).Center().Children(func() {
-		b := ui.ButtonBase(c).Size(24, 24).Radius(12).Center().Cursor(ui.CursorPointer).Label(longDate(date)).Checked(active)
+		b := ui.ButtonBase(c).Size(24, 24).Radius(t.Radius).Center().Cursor(ui.CursorPointer).Label(longDate(date)).Checked(active)
 		if current {
 			b.Current(ui.CurrentDate)
 		}
@@ -483,7 +484,7 @@ func (m *Module) miniDay(c *ui.Context, date, selected, today, shown string, bus
 			})
 		}
 		b.Children(func() {
-			ui.Text(c, strconv.Itoa(dateOf(date).Day())).FontSize(12).FontWeight(weight).TextColor(color).SingleLine()
+			ui.Text(c, strconv.Itoa(dateOf(date).Day())).FontSize(frostui.TextSize(c, 12)).FontWeight(weight).TextColor(color).SingleLine()
 		})
 	})
 }
@@ -514,7 +515,7 @@ func (m *Module) calendarSidebar(c *ui.Context) {
 					continue
 				}
 				ui.Column(c.Key(a.ID)).AlignItems(ui.Stretch).Role(ui.RoleGroup).Label(a.Email).Children(func() {
-					ui.Text(c, a.Email).FontSize(11).FontWeight(600).TextColor(t.TextMuted).Height(26).Padding(6, 0, 0, frostui.SpaceM).SingleLine()
+					frostui.Label(c, a.Email).Height(26).Padding(6, 0, 0, frostui.SpaceM).SingleLine()
 					for _, col := range mine {
 						m.calendarRow(c.Key(col.ID), col, a.ReadOnly)
 					}
@@ -547,13 +548,13 @@ func (m *Module) calendarRow(c *ui.Context, col api.Collection, accountReadOnly 
 		}
 	})
 	row.Children(func() {
-		box := ui.Box(c).Size(14, 14).Radius(3).Border(1.5, color).Shrink(0)
+		box := ui.Box(c).Size(14, 14).Radius(frostui.RadiusChip).Border(1.5, color).Shrink(0)
 		if col.Enabled {
 			box.Background(color)
 		}
-		ui.Text(c, col.Name).FontSize(13).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+		frostui.Body(c, col.Name).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 		if readOnly {
-			frostui.Icon(c, "changes-prevent").FontSize(12).TextColor(t.TextMuted).Label("Read-only")
+			frostui.Icon(c, "changes-prevent").FontSize(frostui.TextSize(c, 12)).TextColor(t.TextMuted).Label("Read-only")
 		}
 	})
 }
@@ -597,12 +598,12 @@ func (m *Module) eventDetails(c *ui.Context, e *api.CalendarEvent) {
 			if title == "" {
 				title = "No Title"
 			}
-			ui.Text(c, title).FontSize(17).FontWeight(600).Wrap().Role(ui.RoleHeading).Selectable()
+			ui.Text(c, title).FontSize(frostui.TextSize(c, 17)).FontWeight(600).Wrap().Role(ui.RoleHeading).Selectable()
 			if e.Location != "" {
-				ui.Text(c, e.Location).FontSize(13).TextColor(t.TextMuted).Wrap().Selectable()
+				frostui.Body(c, e.Location).TextColor(t.TextMuted).Wrap().Selectable()
 			}
 			if e.Status == api.EventStatusCancelled {
-				ui.Text(c, "Cancelled").FontSize(12).FontWeight(600).TextColor(flagColor(t, 1))
+				ui.Text(c, "Cancelled").FontSize(frostui.TextSize(c, 12)).FontWeight(600).TextColor(flagColor(t, 1))
 			}
 		})
 		if writable && frostui.IconButton(c, "document-edit", "Edit Event").Clicked() {
@@ -613,41 +614,41 @@ func (m *Module) eventDetails(c *ui.Context, e *api.CalendarEvent) {
 		}
 	})
 	ui.Column(c).AlignItems(ui.Stretch).Children(func() {
-		ui.Text(c, k.dateText(e.AllDay, e.Start, e.StartDate, e.EndDate)).FontSize(13).Selectable()
+		frostui.Body(c, k.dateText(e.AllDay, e.Start, e.StartDate, e.EndDate)).Selectable()
 		if e.AllDay {
-			ui.Text(c, "All day").FontSize(13)
+			frostui.Body(c, "All day")
 		} else {
-			ui.Text(c, k.timeRange(e.Start, e.End)).FontSize(13).Selectable()
+			frostui.Body(c, k.timeRange(e.Start, e.End)).Selectable()
 			if e.TimeZone != "" && e.TimeZone != m.zone {
 				if loc := loadZone(e.TimeZone); loc != nil {
 					there := clock{loc: loc, h24: k.h24}
-					ui.Text(c, e.TimeZone+": "+there.timeRange(e.Start, e.End)).FontSize(12).TextColor(tertiary(t)).Selectable()
+					ui.Text(c, e.TimeZone+": "+there.timeRange(e.Start, e.End)).FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t)).Selectable()
 				}
 			}
 		}
 	})
 	ui.Column(c).Gap(frostui.SpaceXS).AlignItems(ui.Stretch).Children(func() {
 		if text := describeRecurrence(e.Recurrence); text != "" {
-			labeled(c, "Repeats", 80, func() { ui.Text(c, text).FontSize(13).Wrap() })
+			labeled(c, "Repeats", 80, func() { frostui.Body(c, text).Wrap() })
 		}
 		if col := m.collection(e.CalendarID); col != nil {
 			labeled(c, "Calendar", 80, func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Box(c).Size(8, 8).Radius(4).Background(calColor(t, col.Color)).Shrink(0)
-					ui.Text(c, col.Name).FontSize(13).Shrink(1).MinWidth(0).SingleLine()
-					ui.Text(c, " · "+m.accountEmail(col.AccountID)).FontSize(13).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
+					uikit.Dot(c, 8, calColor(t, col.Color))
+					frostui.Body(c, col.Name).Shrink(1).MinWidth(0).SingleLine()
+					frostui.Body(c, " · "+m.accountEmail(col.AccountID)).TextColor(tertiary(t)).Shrink(1).MinWidth(0).SingleLine()
 				})
 			})
 		}
 		if len(e.Alarms) > 0 {
 			labeled(c, "Alerts", 80, func() {
 				for i, a := range e.Alarms {
-					ui.Text(c.Key(i), alarmText(a)).FontSize(13)
+					frostui.Body(c.Key(i), alarmText(a))
 				}
 			})
 		}
 		if e.Answer != nil {
-			labeled(c, "Your answer", 80, func() { ui.Text(c, answerText(*e.Answer)).FontSize(13) })
+			labeled(c, "Your answer", 80, func() { frostui.Body(c, answerText(*e.Answer)) })
 		}
 	})
 	if e.Organizer != nil {
@@ -655,7 +656,7 @@ func (m *Module) eventDetails(c *ui.Context, e *api.CalendarEvent) {
 	}
 	m.peopleBlock(c, "Invitees", e.Attendees)
 	if e.Description != "" {
-		ui.Text(c, e.Description).FontSize(13).Wrap().Selectable()
+		frostui.Body(c, e.Description).Wrap().Selectable()
 	}
 }
 
@@ -665,7 +666,7 @@ func (m *Module) peopleBlock(c *ui.Context, title string, people []api.Attendee)
 	}
 	t := c.Theme()
 	ui.Column(c.Key(title)).AlignItems(ui.Stretch).Role(ui.RoleList).Label(title).Children(func() {
-		ui.Text(c, title).FontSize(11).FontWeight(600).TextColor(t.TextMuted).Padding(0, 0, frostui.SpaceS, 0)
+		frostui.Label(c, title).Padding(0, 0, frostui.SpaceS, 0)
 		for _, p := range people {
 			ui.Row(c.Key(p.Email)).Height(36).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
 				avatar(c, 28, p.Name, p.Email, nil)
@@ -678,10 +679,10 @@ func (m *Module) peopleBlock(c *ui.Context, title string, people []api.Attendee)
 						m.showCard(p.Email, p.Name)
 					}
 					if p.IsUser {
-						ui.Text(c, " (you)").FontSize(13)
+						frostui.Body(c, " (you)")
 					}
 					if p.Role == api.AttendeeRoleOptional {
-						ui.Text(c, " (optional)").FontSize(13).TextColor(tertiary(t))
+						frostui.Body(c, " (optional)").TextColor(tertiary(t))
 					}
 				})
 				answerIcon(c, p.Answer)
@@ -695,11 +696,11 @@ func answerIcon(c *ui.Context, a api.PartStat) {
 	t := c.Theme()
 	switch a {
 	case api.PartStatAccepted:
-		frostui.Icon(c, "object-select").FontSize(14).TextColor(flagColor(t, 4)).Label("Accepted")
+		frostui.Icon(c, "object-select").FontSize(frostui.TextSize(c, 14)).TextColor(flagColor(t, 4)).Label("Accepted")
 	case api.PartStatDeclined:
-		frostui.Icon(c, "window-close").FontSize(14).TextColor(flagColor(t, 1)).Label("Declined")
+		frostui.Icon(c, "window-close").FontSize(frostui.TextSize(c, 14)).TextColor(flagColor(t, 1)).Label("Declined")
 	case api.PartStatTentative:
-		frostui.Icon(c, "dialog-question").FontSize(14).TextColor(flagColor(t, 2)).Label("Maybe")
+		frostui.Icon(c, "dialog-question").FontSize(frostui.TextSize(c, 14)).TextColor(flagColor(t, 2)).Label("Maybe")
 	}
 }
 

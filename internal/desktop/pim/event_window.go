@@ -18,6 +18,7 @@ import (
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // alertChoice is one of an event's alert presets.
@@ -447,7 +448,7 @@ func (w *eventWindow) view(c *ui.Context) {
 	c.OnWindowShortcut(0, ui.KeyEscape, w.requestClose)
 	ui.Column(c).Fill().AlignItems(ui.Stretch).Background(t.Background).Children(func() {
 		ui.Row(c).Height(32).Shrink(0).Padding(0, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Center).DragWindow().Children(func() {
-			ui.Text(c, w.title()).FontSize(13).FontWeight(600).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			frostui.Strong(c, w.title()).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 			if frostui.IconButton(c, "window-close", "Close").Disabled(w.busy).Clicked() {
 				w.requestClose()
 			}
@@ -458,7 +459,7 @@ func (w *eventWindow) view(c *ui.Context) {
 				if w.failure != "" {
 					frostui.Problem(c, w.failure)
 				} else {
-					ui.Text(c, "Loading…").FontSize(13)
+					frostui.Body(c, "Loading…")
 				}
 			})
 			return
@@ -539,7 +540,7 @@ func editorRow(c *ui.Context, label string, fn func()) { labeled(c, label, 80, f
 
 func errorLine(c *ui.Context, text string) {
 	if text != "" {
-		ui.Text(c, text).FontSize(12).TextColor(flagColor(c.Theme(), 1)).Wrap()
+		ui.Text(c, text).FontSize(frostui.TextSize(c, 12)).TextColor(flagColor(c.Theme(), 1)).Wrap()
 	}
 }
 
@@ -557,14 +558,14 @@ func (w *eventWindow) form(c *ui.Context) {
 	d := &w.draft
 	errs := d.validate()
 	disabled := w.readOnly || w.invited()
-	ui.TextInput(c.Key("title"), &d.summary).Label("Title").Placeholder("New Event").FontSize(17).FontWeight(600).Disabled(disabled).AutoFocus().OnSubmit(func() { w.request(false) })
+	ui.TextInput(c.Key("title"), &d.summary).Label("Title").Placeholder("New Event").FontSize(frostui.TextSize(c, 17)).FontWeight(600).Disabled(disabled).AutoFocus().OnSubmit(func() { w.request(false) })
 	if w.readOnly {
 		ui.Row(c).Gap(frostui.SpaceXS).AlignItems(ui.Center).Children(func() {
-			frostui.Icon(c, "changes-prevent").FontSize(12).TextColor(t.TextMuted)
-			ui.Text(c, "Read-only").FontSize(12).TextColor(t.TextMuted)
+			frostui.Icon(c, "changes-prevent").FontSize(frostui.TextSize(c, 12)).TextColor(t.TextMuted)
+			frostui.Muted(c, "Read-only")
 		})
 	}
-	ui.TextInput(c.Key("location"), &d.location).Label("Location").Placeholder("Add Location").FontSize(13).Disabled(disabled).OnSubmit(func() { w.request(false) })
+	ui.TextInput(c.Key("location"), &d.location).Label("Location").Placeholder("Add Location").FontSize(frostui.TextSize(c, 13)).Disabled(disabled).OnSubmit(func() { w.request(false) })
 	editorRow(c, "All-day", func() { ui.Checkbox(c, &d.allDay, "").Label("All-day").Disabled(disabled) })
 	w.startT, w.endT = composeTime(d.startDate, d.startTime), composeTime(d.endDate, d.endTime)
 	editorRow(c, "Starts", func() {
@@ -611,7 +612,7 @@ func (w *eventWindow) form(c *ui.Context) {
 			d.transparent = choice == "Free"
 		}
 	})
-	ui.TextArea(c.Key("notes"), &d.description).Label("Notes").FontSize(13).MinHeight(120).Disabled(disabled)
+	ui.TextArea(c.Key("notes"), &d.description).Label("Notes").FontSize(frostui.TextSize(c, 13)).MinHeight(120).Disabled(disabled)
 }
 
 func (w *eventWindow) repeatRow(c *ui.Context, disabled bool) {
@@ -684,7 +685,7 @@ func (w *eventWindow) endRepeatRow(c *ui.Context, disabled bool) {
 				if ui.NumberInput(c.Key("count"), &n, 1, 999, 1).Label("Repeat count").Width(80).Disabled(disabled).Changed() {
 					d.rrule = withEnd(d.rrule, repeatEnd{kind: "count", count: int(n)}, d.allDay, loc)
 				}
-				ui.Text(c, "times").FontSize(13)
+				frostui.Body(c, "times")
 			}
 		})
 	})
@@ -703,21 +704,21 @@ func (w *eventWindow) calendarRow(c *ui.Context, disabled bool) {
 	}
 	editorRow(c, "Calendar", func() {
 		sel := ui.SelectBase(c.Key("calendar"), &d.calendarID)
-		sel.Trigger.Gap(6).Padding(6, 10).Radius(6).Border(1, t.Border).AlignItems(ui.Center).Label("Calendar").Disabled(disabled).Children(func() {
+		sel.Trigger.Gap(6).Padding(6, 10).Radius(frostui.RadiusChip).Border(1, t.Border).AlignItems(ui.Center).Label("Calendar").Disabled(disabled).Children(func() {
 			label, color := name(d.calendarID)
-			ui.Box(c).Size(8, 8).Radius(4).Background(color).Shrink(0)
-			ui.Text(c, label).FontSize(13).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			uikit.Dot(c, 8, color)
+			frostui.Body(c, label).Grow(1).Shrink(1).MinWidth(0).SingleLine()
 		})
 		sel.Popup(func(panel ui.Element) {
-			panel.Padding(4).Radius(8).Background(t.Background).Border(1, t.Border)
+			panel.Padding(4).Radius(frostui.RadiusCard).Background(t.Background).Border(1, t.Border)
 			for _, ch := range w.calendars {
-				item := sel.Item(ch.id).Padding(6, 10).Radius(6).Gap(6).AlignItems(ui.Center).Label(ch.name)
+				item := sel.Item(ch.id).Padding(6, 10).Radius(frostui.RadiusChip).Gap(6).AlignItems(ui.Center).Label(ch.name)
 				if item.Highlighted() {
 					item.Background(t.Accent).TextColor(t.AccentText)
 				}
 				item.Children(func() {
-					ui.Box(c).Size(8, 8).Radius(4).Background(calColor(t, ch.color)).Shrink(0)
-					ui.Text(c, ch.name+" · "+ch.account).FontSize(13).SingleLine()
+					uikit.Dot(c, 8, calColor(t, ch.color))
+					frostui.Body(c, ch.name+" · "+ch.account).SingleLine()
 				})
 			}
 		})
@@ -788,7 +789,7 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 				color, tip = flagColor(t, 1), inv.email+" is not a valid address"
 			}
 			ui.Row(c.Key(inv.email)).Height(28).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, name).FontSize(13).TextColor(color).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(tip)
+				frostui.Body(c, name).TextColor(color).Grow(1).Shrink(1).MinWidth(0).SingleLine().Tooltip(tip)
 				answerIcon(c, inv.answer)
 				optional := t.TextMuted
 				if inv.optional {
@@ -807,17 +808,17 @@ func (w *eventWindow) inviteesRow(c *ui.Context, disabled bool, problem string) 
 		}
 		errorLine(c, problem)
 		if !invites {
-			ui.Text(c, "Invitations aren't available in this calendar.").FontSize(12).TextColor(tertiary(t)).Wrap()
+			ui.Text(c, "Invitations aren't available in this calendar.").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t)).Wrap()
 			return
 		}
 		if disabled {
 			return
 		}
 		if d.fixedRoles {
-			ui.Text(c, "These invitees can't be changed here: one has a role Frostmail can't keep.").FontSize(12).TextColor(tertiary(t)).Wrap()
+			ui.Text(c, "These invitees can't be changed here: one has a role Frostmail can't keep.").FontSize(frostui.TextSize(c, 12)).TextColor(tertiary(t)).Wrap()
 			return
 		}
-		in := ui.TextInput(c.Key("add-invitee"), &w.inviteeText).Label("Add Invitee").FontSize(13)
+		in := ui.TextInput(c.Key("add-invitee"), &w.inviteeText).Label("Add Invitee").FontSize(frostui.TextSize(c, 13))
 		if in.Changed() {
 			if strings.ContainsAny(w.inviteeText, ",;\n") {
 				w.commitInvitees()
@@ -910,7 +911,7 @@ func (w *eventWindow) repeatSheetView(c *ui.Context) {
 	done, cancel := false, false
 	dismissed := sheetFrame(c, "Custom Repeat", func() {
 		ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Frequency").FontSize(13)
+			frostui.Body(c, "Frequency")
 			choice := freqs[at]
 			if ui.Select(c.Key("frequency"), &choice, freqs).Label("Frequency").Changed() {
 				s.r.frequency = values[slices.Index(freqs, choice)]
@@ -920,16 +921,16 @@ func (w *eventWindow) repeatSheetView(c *ui.Context) {
 			}
 		})
 		ui.Row(c).Gap(frostui.SpaceS).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "Every").FontSize(13)
-			ui.TextInput(c.Key("every"), &s.interval).Label("Every").Width(60).FontSize(13)
-			ui.Text(c, units[at]).FontSize(13)
+			frostui.Body(c, "Every")
+			ui.TextInput(c.Key("every"), &s.interval).Label("Every").Width(60).FontSize(frostui.TextSize(c, 13))
+			frostui.Body(c, units[at])
 		})
 		if s.r.frequency == "WEEKLY" {
 			ui.Row(c).Gap(frostui.SpaceXS).Children(func() {
 				ordered := weekOrder(w.m.clock.weekStart)
 				for _, day := range ordered {
 					on := slices.Contains(s.r.weekdays, day)
-					b := ui.ButtonBase(c.Key(day)).Size(32, 28).Radius(6).Center().Border(1, t.Border).Label(dayNames[day]).Checked(on).Cursor(ui.CursorPointer)
+					b := ui.ButtonBase(c.Key(day)).Size(32, 28).Radius(t.Radius).Center().Border(1, t.Border).Label(dayNames[day]).Checked(on).Cursor(ui.CursorPointer)
 					color := t.Text
 					if on {
 						b.Background(t.Accent)
@@ -942,7 +943,7 @@ func (w *eventWindow) repeatSheetView(c *ui.Context) {
 							s.r.weekdays = append(s.r.weekdays, day)
 						}
 					}
-					b.Children(func() { ui.Text(c, dayNames[day][:1]).FontSize(12).TextColor(color) })
+					b.Children(func() { ui.Text(c, dayNames[day][:1]).FontSize(frostui.TextSize(c, 12)).TextColor(color) })
 				}
 			})
 		}

@@ -123,7 +123,7 @@ func (w *Window) filterRow(c *ui.Context) {
 					w.setFilter(f.Filter)
 				}
 			}
-		}).FontSize(12).Height(22).Label("More filters")
+		}).FontSize(frostui.TextSize(c, 12)).Height(22).Label("More filters")
 		ui.Spacer(c)
 		sort := "Sort"
 		for _, s := range mail.Sorts {
@@ -140,7 +140,7 @@ func (w *Window) filterRow(c *ui.Context) {
 // tab draws a compact filter tab.
 func (w *Window) tab(c *ui.Context, label string, active bool) ui.Element {
 	t := c.Theme()
-	b := ui.Row(c).Height(22).Padding(0, frostui.SpaceS).Radius(6).AlignItems(ui.Center).Role(ui.RoleTab).Selected(active).Focusable().
+	b := ui.Row(c).Height(22).Padding(0, frostui.SpaceS).Radius(frostui.RadiusChip).AlignItems(ui.Center).Role(ui.RoleTab).Selected(active).Focusable().
 		Cursor(ui.CursorPointer).Label(label)
 	color := t.TextMuted
 	if active {
@@ -149,7 +149,7 @@ func (w *Window) tab(c *ui.Context, label string, active bool) ui.Element {
 	} else if b.Hovered() {
 		color = t.Text
 	}
-	b.Children(func() { ui.Text(c, label).FontSize(12).TextColor(color).SingleLine() })
+	b.Children(func() { ui.Text(c, label).FontSize(frostui.TextSize(c, 12)).TextColor(color).SingleLine() })
 	return b
 }
 

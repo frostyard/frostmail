@@ -14,6 +14,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/commands"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // searchPause is how long the search field waits after the last key.
@@ -436,7 +437,7 @@ func personName(p *api.PersonSummary) string {
 func (m *Module) personRow(c *ui.Context, row peopleRow, t *ui.Theme) {
 	if row.person == nil {
 		ui.Row(c).Height(24).Padding(0, frostui.SpaceM).AlignItems(ui.Center).Background(frostui.Chrome(t)).Children(func() {
-			ui.Text(c, row.letter).FontSize(11).FontWeight(600).TextColor(t.TextMuted)
+			frostui.Label(c, row.letter)
 		})
 		return
 	}
@@ -459,9 +460,9 @@ func (m *Module) personRow(c *ui.Context, row peopleRow, t *ui.Theme) {
 	}).Children(func() {
 		avatar(c, 28, p.DisplayName, p.Email, nil)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).AlignItems(ui.Stretch).Children(func() {
-			ui.Text(c, name).FontSize(13).FontWeight(600).SingleLine()
+			frostui.Strong(c, name).SingleLine()
 			if second != "" {
-				ui.Text(c, second).FontSize(12).TextColor(muted).SingleLine()
+				ui.Text(c, second).FontSize(frostui.TextSize(c, 12)).TextColor(muted).SingleLine()
 			}
 		})
 	})
@@ -509,7 +510,7 @@ func (m *Module) personDetails(c *ui.Context, p *api.Person) {
 			if name == "" {
 				name = email
 			}
-			ui.Text(c, name).FontSize(20).FontWeight(600).Wrap().Role(ui.RoleHeading).Selectable()
+			ui.Text(c, name).FontSize(frostui.TextSize(c, 20)).FontWeight(600).Wrap().Role(ui.RoleHeading).Selectable()
 			var parts []string
 			if len(p.Contacts) > 0 && p.Contacts[0].Title != "" {
 				parts = append(parts, p.Contacts[0].Title)
@@ -518,7 +519,7 @@ func (m *Module) personDetails(c *ui.Context, p *api.Person) {
 				parts = append(parts, p.Organization)
 			}
 			if len(parts) > 0 {
-				ui.Text(c, strings.Join(parts, " · ")).FontSize(13).TextColor(t.TextMuted).Wrap().Selectable()
+				frostui.Body(c, strings.Join(parts, " · ")).TextColor(t.TextMuted).Wrap().Selectable()
 			}
 			if frostui.LabeledButton(c, "mail-unread", "Message", true).Disabled(email == "").Clicked() && m.o.Compose != nil {
 				m.o.Compose(email, p.DisplayName)
@@ -589,32 +590,32 @@ func (m *Module) contactRows(c *ui.Context, cc *api.Contact) {
 		})
 	}
 	for i, v := range cc.Phones {
-		row(c.Key([2]any{"phone", i}), labelOr(v.Label, "phone"), func() { ui.Text(c, v.Value).FontSize(13).Selectable() })
+		row(c.Key([2]any{"phone", i}), labelOr(v.Label, "phone"), func() { frostui.Body(c, v.Value).Selectable() })
 	}
 	for i, a := range cc.Addresses {
 		row(c.Key([2]any{"address", i}), labelOr(a.Label, "address"), func() {
 			for j, line := range addressLines(a) {
-				ui.Text(c.Key(j), line).FontSize(13).Selectable()
+				frostui.Body(c.Key(j), line).Selectable()
 			}
 		})
 	}
 	for i, v := range cc.URLs {
 		row(c.Key([2]any{"url", i}), labelOr(v.Label, "homepage"), func() {
 			if strings.HasPrefix(v.Value, "http://") || strings.HasPrefix(v.Value, "https://") {
-				ui.Link(c, v.Value, v.Value).FontSize(13)
+				ui.Link(c, v.Value, v.Value).FontSize(frostui.TextSize(c, 13))
 			} else {
-				ui.Text(c, v.Value).FontSize(13).Selectable()
+				frostui.Body(c, v.Value).Selectable()
 			}
 		})
 	}
 	if cc.Birthday != "" {
-		row(c.Key("birthday"), "birthday", func() { ui.Text(c, birthdayText(cc.Birthday)).FontSize(13) })
+		row(c.Key("birthday"), "birthday", func() { frostui.Body(c, birthdayText(cc.Birthday)) })
 	}
 	if cc.Nickname != "" {
-		row(c.Key("nickname"), "nickname", func() { ui.Text(c, cc.Nickname).FontSize(13) })
+		row(c.Key("nickname"), "nickname", func() { frostui.Body(c, cc.Nickname) })
 	}
 	if cc.Note != "" {
-		row(c.Key("note"), "note", func() { ui.Text(c, cc.Note).FontSize(13).Wrap().Selectable() })
+		row(c.Key("note"), "note", func() { frostui.Body(c, cc.Note).Wrap().Selectable() })
 	}
 }
 
@@ -674,8 +675,8 @@ func (m *Module) personRecent(c *ui.Context, card *api.ContactCard) {
 					m.o.OpenMessage(r.ID)
 				}
 				b.Children(func() {
-					ui.Text(c, subject).FontSize(13).TextColor(color).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-					ui.Text(c, mail.ListDate(r.Date, m.now())).FontSize(12).TextColor(t.TextMuted).SingleLine()
+					frostui.Body(c, subject).TextColor(color).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+					frostui.Muted(c, mail.ListDate(r.Date, m.now())).SingleLine()
 				})
 			}
 		})
@@ -701,9 +702,9 @@ func (m *Module) upcomingRows(c *ui.Context, occs []api.Occurrence) {
 			m.ShowOccurrence(o)
 		}
 		b.Children(func() {
-			ui.Box(c).Size(6, 6).Radius(3).Background(m.colorOf(t, o.CalendarID)).Shrink(0)
-			ui.Text(c, name).FontSize(13).Grow(1).Shrink(1).MinWidth(0).SingleLine()
-			ui.Text(c, when).FontSize(12).TextColor(t.TextMuted).SingleLine()
+			uikit.Dot(c, 6, m.colorOf(t, o.CalendarID))
+			frostui.Body(c, name).Grow(1).Shrink(1).MinWidth(0).SingleLine()
+			frostui.Muted(c, when).SingleLine()
 		})
 	}
 }

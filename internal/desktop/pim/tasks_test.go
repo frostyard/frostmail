@@ -271,7 +271,7 @@ func TestToDoBar(t *testing.T) {
 	f := newFixture(t, commands.Mail, withFakeMessages())
 	f.seedFlagged(7)
 	f.text("Report")
-	for _, want := range []string{"UPCOMING", "TASKS", "Review", "Sync", "Gym", "Buy oat milk", "Flagged G", "New Task"} {
+	for _, want := range []string{"Upcoming", "Tasks", "Review", "Sync", "Gym", "Buy oat milk", "Flagged G", "New Task"} {
 		f.until(want, func() bool { return f.tt.HasText(want) })
 	}
 	if f.tt.HasText("Flagged A") {

@@ -77,7 +77,7 @@ func (w *Window) FirstRun(c *ui.Context) {
 	}
 	ui.Column(c).Grow(1).Justify(ui.Center).AlignItems(ui.Center).Background(c.Theme().Background).Padding(frostui.SpaceXL).Role(ui.RoleRegion).Label("Welcome").Children(func() {
 		ui.Column(c).Width(420).Gap(frostui.SpaceS).AlignItems(ui.Stretch).Children(func() {
-			ui.Text(c, "Welcome to Frostmail").FontSize(17).Bold().Role(ui.RoleHeading).Level(1)
+			ui.Text(c, "Welcome to Frostmail").FontSize(frostui.TextSize(c, 17)).Bold().Role(ui.RoleHeading).Level(1)
 			frostui.Muted(c, text).Wrap()
 			ui.Row(c).Gap(frostui.SpaceS).Padding(frostui.SpaceM, 0, 0, 0).Children(func() {
 				if ui.PrimaryButton(c, "Add Account…").Clicked() {
@@ -98,16 +98,16 @@ func (w *Window) FirstRun(c *ui.Context) {
 // changes nothing: the move is the three commands, run by the user.
 func (w *Window) moveNote(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).Margin(frostui.SpaceXL, 0, 0, 0).Padding(frostui.SpaceM).Gap(frostui.SpaceS).Radius(6).Background(frostui.ToneFill(t, frostui.Neutral)).
+	ui.Column(c).Margin(frostui.SpaceXL, 0, 0, 0).Padding(frostui.SpaceM).Gap(frostui.SpaceS).Radius(frostui.RadiusChip).Background(frostui.ToneFill(t, frostui.Neutral)).
 		AlignItems(ui.Stretch).Role(ui.RoleGroup).Label("Mail from another install").Children(func() {
-		ui.Text(c, moveFound).FontSize(12).Wrap()
+		ui.Text(c, moveFound).FontSize(frostui.TextSize(c, 12)).Wrap()
 		for i, step := range moveSteps() {
 			ui.Row(c.Key(i)).Gap(frostui.SpaceXS).Children(func() {
-				ui.Text(c, string(rune('1'+i))+".").FontSize(12)
-				frostui.Mono(c, step).FontSize(12).Wrap().Selectable().Grow(1).Shrink(1).MinWidth(0)
+				ui.Text(c, string(rune('1'+i))+".").FontSize(frostui.TextSize(c, 12))
+				frostui.Mono(c, step).FontSize(frostui.TextSize(c, 12)).Wrap().Selectable().Grow(1).Shrink(1).MinWidth(0)
 			})
 		}
-		ui.Text(c, moveSecrets).FontSize(12).Wrap()
+		ui.Text(c, moveSecrets).FontSize(frostui.TextSize(c, 12)).Wrap()
 		ui.Row(c).Children(func() {
 			if ui.Button(c, "Dismiss").Clicked() {
 				w.dismissMoveNote()

@@ -477,7 +477,7 @@ func recipients(to []api.Address) string {
 func textButton(c *ui.Context, label string) bool {
 	accent := c.Theme().Accent
 	return ui.ButtonBase(c).Row().Label(label).Cursor(ui.CursorPointer).Children(func() {
-		ui.Text(c, label).FontSize(12).TextColor(accent).SingleLine()
+		ui.Text(c, label).FontSize(frostui.TextSize(c, 12)).TextColor(accent).SingleLine()
 	}).Clicked()
 }
 
