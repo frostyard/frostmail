@@ -702,12 +702,26 @@ func TestFollowUpRowOpensTheMessage(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	f.until(t, "the Follow Up section", func() bool { return f.tt.HasText("Follow Up") && f.tt.HasText("Any news") })
-	if err := f.tt.Click("Any news"); err != nil {
-		t.Fatal(err)
-	}
+	f.until(t, "the Follow Up section and the end of the sync", func() bool {
+		synced := slices.ContainsFunc(f.tt.Texts(), func(s string) bool { return strings.Contains(s, "synced") })
+		return synced && f.tt.HasText("Follow Up") && f.tt.HasText("Any news")
+	})
+	// The row is a source list's, which a sync may lay out again between the
+	// frame the click aims at and the one it lands in: under load (the race
+	// detector beside every other package's tests) a single click can miss.
+	// Click again, as a person would, until the message opens; opening it
+	// twice is harmless.
+	var clicked time.Time
 	f.until(t, "the message's page", func() bool {
-		_, ok := f.tt.Access("Message body")
-		return ok
+		if _, ok := f.tt.Access("Message body"); ok {
+			return true
+		}
+		if time.Since(clicked) > 500*time.Millisecond {
+			if err := f.tt.Click("Any news"); err != nil {
+				t.Fatal(err)
+			}
+			clicked = time.Now()
+		}
+		return false
 	})
 }
