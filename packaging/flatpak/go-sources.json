@@ -49,6 +49,18 @@
   },
   {
     "type": "file",
+    "url": "https://proxy.golang.org/github.com/bketelsen/mygo/@v/v0.8.4-0.20261112024007-29e10b72062f.mod",
+    "sha256": "c5f553e2f93ddcff569f7fd95902e334f7a972d6819db1d5ca075b7e7c79cc18",
+    "dest": "goproxy/github.com/bketelsen/mygo/@v"
+  },
+  {
+    "type": "file",
+    "url": "https://proxy.golang.org/github.com/bketelsen/mygo/@v/v0.8.4-0.20261112024007-29e10b72062f.zip",
+    "sha256": "760114c3e2fee3247eae14e31efe06a416225f4905c973ba59c12b0e1cc81567",
+    "dest": "goproxy/github.com/bketelsen/mygo/@v"
+  },
+  {
+    "type": "file",
     "url": "https://proxy.golang.org/github.com/charmbracelet/colorprofile/@v/v0.4.3.mod",
     "sha256": "4da50dc5179ea48dc7c55db78f05b4911047341ef749027b3969130edf1fd43b",
     "dest": "goproxy/github.com/charmbracelet/colorprofile/@v"
@@ -202,18 +214,6 @@
     "url": "https://proxy.golang.org/github.com/ebitengine/purego/@v/v0.11.3.zip",
     "sha256": "794b433246c662b29a0b48f2f07b1814bfe15ca61744de88f05d18d7795f77c2",
     "dest": "goproxy/github.com/ebitengine/purego/@v"
-  },
-  {
-    "type": "file",
-    "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.0.mod",
-    "sha256": "c5f553e2f93ddcff569f7fd95902e334f7a972d6819db1d5ca075b7e7c79cc18",
-    "dest": "goproxy/github.com/egoist/mygo/@v"
-  },
-  {
-    "type": "file",
-    "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.0.zip",
-    "sha256": "1b15caf37041da5eb620db82e99dd1e3139a196b4b2de4cabc35de6abd20b22e",
-    "dest": "goproxy/github.com/egoist/mygo/@v"
   },
   {
     "type": "file",

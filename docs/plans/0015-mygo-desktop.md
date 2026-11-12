@@ -660,6 +660,9 @@ unless that pipe listed only fixture accounts.
 
 ## Phase 5 — Compose (L)
 
+The quote-depth fix uses the owner's pinned MyGo fork until its upstream
+change lands ([ADR-0058](../adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md)).
+
 - The draft's HTML through a converter around `richtext`: a quotation's
   depth kept in `QuoteDepth`, independently of list `Indent`, and written back as nested
   `<blockquote type="cite">`, headings read as body paragraphs (TipTap's
