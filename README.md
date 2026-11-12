@@ -1,6 +1,7 @@
 # Frostmail
 
 [![CI](https://github.com/frostyard/frostmail/actions/workflows/ci.yml/badge.svg)](https://github.com/frostyard/frostmail/actions/workflows/ci.yml)
+[![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/frostmail)
 
 A mail client that works like Apple Mail.app, without looking like a GNOME
 or KDE app. It runs on Linux and on Windows, and its daemon can also serve a
