@@ -696,7 +696,7 @@ func (m *Module) taskLine(c *ui.Context, l taskLine) {
 			due := dueText(task.Due, today)
 			note, _, _ := strings.Cut(task.Notes, "\n")
 			if due != "" || note != "" {
-				ui.Row(c).Children(func() {
+				ui.Row(c).Gap(frostui.SpaceXS).Children(func() {
 					if due != "" {
 						line := ui.Text(c, due).FontSize(frostui.TextSize(c, 12)).TextColor(muted).SingleLine()
 						if isOverdue(task, today) {
@@ -704,7 +704,10 @@ func (m *Module) taskLine(c *ui.Context, l taskLine) {
 						}
 					}
 					if due != "" && note != "" {
-						ui.Text(c, " · ").FontSize(frostui.TextSize(c, 12)).TextColor(muted)
+						// The row's gap spaces the dot evenly: the trailing
+						// space of " · " did not show, so the note touched
+						// the dot (frostyard/frostmail#283).
+						ui.Text(c, "·").FontSize(frostui.TextSize(c, 12)).TextColor(muted)
 					}
 					if note != "" {
 						ui.Text(c, note).FontSize(frostui.TextSize(c, 12)).TextColor(muted).Shrink(1).MinWidth(0).SingleLine()

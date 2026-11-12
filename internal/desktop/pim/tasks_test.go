@@ -702,3 +702,68 @@ func TestAnEditInTheFrameOfASwitchStaysWithItsTask(t *testing.T) {
 		})
 	}
 }
+
+// TestATaskRowSpacesTheDotEvenly checks frostyard/frostmail#283: the dot
+// between a task row's due date and its note has a gap of its own on each
+// side, and both gaps are the same.
+func TestATaskRowSpacesTheDotEvenly(t *testing.T) {
+	f := newFixture(t, commands.Tasks)
+	// A due date whose text no other element shows, so that its box is
+	// this row's: the row leaves Today, so the test reads All Tasks.
+	if _, err := f.c.Tasks().Update(t.Context(), &api.TasksUpdateParams{ID: f.report, Due: ptr("2026-10-20")}); err != nil {
+		t.Fatal(err)
+	}
+	f.m.setTaskSource(sourceAll)
+	f.until("the row with a due date and a note", func() bool {
+		return f.tt.HasText("Tue, Oct 20") && f.tt.HasText("Q3 numbers")
+	})
+	// one returns the box of the only text that is exactly want.
+	one := func(want string) ui.Rect {
+		t.Helper()
+		var box ui.Rect
+		found := 0
+		for _, s := range f.tt.Texts() {
+			if s != want {
+				continue
+			}
+			r, ok := f.tt.Find(s)
+			if !ok {
+				t.Fatalf("no box for %q in %s", s, dump(f.tt))
+			}
+			box = r
+			found++
+		}
+		if found != 1 {
+			t.Fatalf("%d texts are %q, want 1: %s", found, want, dump(f.tt))
+		}
+		return box
+	}
+	due := one("Tue, Oct 20")
+	note := one("Q3 numbers")
+	// The separator is found by its trimmed text, so a dot drawn with
+	// spaces around it is measured too.
+	var dot ui.Rect
+	dots := 0
+	for _, s := range f.tt.Texts() {
+		if strings.TrimSpace(s) != "·" {
+			continue
+		}
+		r, ok := f.tt.Find(s)
+		if !ok {
+			t.Fatalf("no box for %q in %s", s, dump(f.tt))
+		}
+		dot = r
+		dots++
+	}
+	if dots != 1 {
+		t.Fatalf("%d dots, want 1: %s", dots, dump(f.tt))
+	}
+	before := dot.X - (due.X + due.W)
+	after := note.X - (dot.X + dot.W)
+	if before <= 0 || after <= 0 {
+		t.Errorf("the gaps around the dot are %v and %v, want both over 0: %s", before, after, dump(f.tt))
+	}
+	if d := max(before, after) - min(before, after); d > 1 {
+		t.Errorf("the gaps around the dot are %v and %v, a difference of %v, want at most 1: %s", before, after, d, dump(f.tt))
+	}
+}
