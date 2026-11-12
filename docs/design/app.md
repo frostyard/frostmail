@@ -8,6 +8,8 @@ Contracts: [specs/ui.md](../specs/ui.md), [specs/rpc-api.md](../specs/rpc-api.md
 
 The web app is a React UI that runs in lodge, in a browser; the desktop app
 is native ([ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)).
+`app/` builds only for lodge (ADR-0054): it reaches maild only through
+lodge, and outside lodge's frame it runs only in its tests.
 It holds no mail of its own: lists are views kept by maild, messages are fetched when shown, and
 every change goes back to maild as an API call.
 
@@ -15,16 +17,16 @@ every change goes back to maild as an API call.
 components ◄── containers ◄── stores, ViewModel ◄── Client (gen/api.ts)
                                                        │
                                      Transport: lodge (WebSocket to maild)
-                                                or mock (in-memory maild)
+                                                or mock (in-memory maild, tests)
 ```
 
 ## Source layout (`app/src`)
 
 | Path | What | Owner |
 | --- | --- | --- |
-| `main.tsx` | picks the transport (`VITE_MOCK=1` selects the mock), renders `App` | planner |
+| `main.tsx` | connects through lodge (the build's `lodge` mode), renders `App` | planner |
 | `rpc/` | `transport.ts` (JSON-RPC session), `transport/lodge.ts`, `gen/api.ts` (generated) | planner |
-| `rpc/mock/` | `MockTransport` and its fixture data | planner |
+| `rpc/mock/` | `MockTransport` and its fixture data, for the tests | planner |
 | `data/` | `ViewModel`, `useView`, the mailbox, sync and UI stores, `ClientContext` | planner |
 | `app/` | `App` (pane layout, splitters, focus), containers that connect features to data | planner |
 | `features/<area>/` | presentational components and their tests: `sidebar`, `list`, `reader`, `toolbar`, `menu`, `search` | cards |
@@ -103,43 +105,26 @@ client.
   newest first, at most 20 with "Show N earlier messages" for the rest.
   Each message gets `message.get` (headers, parts) and `message.render`.
   Selecting marks the message seen with `message.setFlags`.
-- **The frame** (`features/reader/MessageFrame.tsx`, planner): an `iframe`
-  with `sandbox="allow-same-origin allow-popups"` and `srcdoc` set to a
-  fixed template around `Rendering.html`: a charset meta, a light
-  `color-scheme`, `<base target="_blank">`, a white page with 20px padding,
-  `overflow-wrap: anywhere`, and images limited to the frame's width. In
-  dev builds the template rewrites `mailpart://localhost/` to `/mailpart/`,
-  and on WebView2 to `http://mailpart.localhost/` (`lib/partURL.ts`; the
-  compose editor does the same and undoes it when saving).
-  - After load, a `ResizeObserver` on the frame document's root (reachable
-    because the frame is same-origin) sets the frame's height to its content,
-    so the reader scrolls as one page. A frame that loaded before the
-    component attached its listener is measured at once.
-  - A click on a link asks for a new window, since every link targets
-    `_blank`. The main window's `on_new_window` handler
-    (`commands::open_new_window`) opens `http`, `https` and `mailto` URLs
-    with the system's default handler, logs the rest, and never creates a
-    window ([ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)).
-    WebKitGTK runs no listener inside the frame, the parent's included.
-  - Browsers on the dev gateway do run listeners there: a capturing click
-    listener on the frame document cancels every navigation and opens
-    `http`, `https` and `mailto` links in a browser tab. The shared
-    `openLink` filters mailto fields before handing a link to the browser
-    or Lodge; maild applies the same rule to HTML links that open directly
+- **The frame** (`features/reader/ContentFrame.tsx`, planner): the reader
+  calls `message.render {id, content: true}` and shows the page maild keeps
+  for the message from lodge's content node, in an `iframe` that fills the
+  pane and scrolls itself; its links open browser tabs
+  ([design/rendering.md](rendering.md#behind-lodge),
+  [specs/lodge-app.md](../specs/lodge-app.md#the-web-build)). A message
+  whose page maild did not keep (no `contentPath`) says it is too large to
+  show here; its HTML is never framed on lodge's own origin.
+  - The shared `openLink` filters mailto fields before handing a link to
+    lodge; maild applies the same rule to HTML links that open directly
     from the content-origin frame
     ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
   - Text-only messages render as React elements (`PlainText`), not in a
     frame.
-  - **In lodge** the frame shows the reader page from lodge's content node
-    instead, fills the pane and scrolls itself, and its links open browser
-    tabs ([design/rendering.md](rendering.md#behind-lodge),
-    [specs/lodge-app.md](../specs/lodge-app.md#the-web-build)).
 - **Remote content:** the banner's button calls `message.render` again with
-  `remote: true`; the frame is replaced with the new HTML.
-- **Attachments:** a chip calls `message.part`, then the `open_part`
-  command with the returned path; Rust resolves it under the parts cache
-  with the same checks as the `mailpart` protocol and opens it with the
-  system's default application.
+  `remote: true`; the frame is replaced with the new page.
+- **Attachments:** a chip calls `message.part` and opens the part's
+  `contentPath` on lodge's content node in a new tab, through the shell;
+  its Save button opens the same URL with `?download=1`
+  ([specs/lodge-app.md](../specs/lodge-app.md#the-web-build)).
 - **Raw Source, All Headers, Save As, Print** (M5): `message.source` gives
   the message as the server holds it (its header section apart) from the
   blob store, fetching the body first when it is not stored; `message.save
@@ -163,27 +148,30 @@ client.
 
 ## Dev and test
 
-- `VITE_MOCK=1 pnpm dev` runs the UI against `MockTransport` and its fixture
-  data in any browser; `VITE_MOCK_ROWS=100000` sizes the fixture's Inbox for
-  scrolling checks.
-- **Against a real maild in a browser:** `maild -devgw 127.0.0.1:7878` with
-  `FROSTMAIL_DEVGW_TOKEN` serves the API over a WebSocket
-  (`internal/devgw`); `VITE_MAILD_WS='ws://127.0.0.1:7878/?token=…' pnpm dev`
-  connects the UI to it (`rpc/transport/ws.ts`), and `FROSTMAIL_CACHE_DIR`
-  points Vite's `/mailpart/` at that maild's cache. The gateway listens only
-  on loopback, needs the token and the dev server's Origin (browsers do not
-  apply CORS to WebSockets), and is off unless asked for. Links and
-  attachments open in browser tabs there.
-  `dev/incus/mailtest.sh demo USER` delivers realistic demo mail. Run a
-  development maild with `FROSTMAIL_SECRETS=file`, or its test passwords
-  move into the desktop's keyring (docs/design/accounts.md, Secrets).
-- **Inside lodge:** `make web-build` builds the app for lodge's
-  `/app/mail/` (Vite's `lodge` mode, `src/lodge/`), and
-  `dev/lodge/run.sh ROOT` runs `maild --lodge` on generated mail under a
-  lodge root for lodge's development build (`lodge-e2e --root ROOT`).
-  `tools/lodgeprobe -socket ROOT/run/lodge/apps/mail.sock` checks that
-  maild as lodge reaches it: health, a session, and a reader page from
-  the content route ([specs/lodge-app.md](../specs/lodge-app.md)).
+The app runs only in lodge, so it is developed in lodge's development build
+([lodge's specs/lodge-http.md](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-http.md),
+The development build), with the sibling checkout `../lodge`:
+
+1. In `../lodge`: `make e2e-build`, `make shell-build` (nsl), then
+   `FAKE_APPS=0 dev/e2e.sh ROOT`. Keep ROOT short: a socket's path is at
+   most 108 bytes.
+2. In this repository: `make web-build` (nsl) builds the app for lodge's `/app/mail/`
+   (Vite's `lodge` mode, `src/lodge/`), and `dev/lodge/run.sh ROOT` stages
+   it with maild, then runs `maild --lodge` on generated mail under ROOT.
+3. `LODGE_ROOT=ROOT ../lodge/build/lodgectl reload` picks the app up; open
+   `http://127.0.0.1:8480/mail`. After a change, stop `dev/lodge/run.sh`,
+   run `make web-build` and start it again: it stages the new build, and
+   lodge serves it at the next page load.
+
+`tools/lodgeprobe -socket ROOT/run/lodge/apps/mail.sock` checks that
+maild as lodge's app answers: health, a session, and a reader page from
+the content route ([specs/lodge-app.md](../specs/lodge-app.md)).
+`dev/lodge/run.sh` shows the environment `maild --lodge` runs with under a
+lodge root; a development maild with other data runs the same way. Run it
+with `FROSTMAIL_SECRETS=file`, or its test passwords move into the
+desktop's keyring (docs/design/accounts.md, Secrets);
+`dev/incus/mailtest.sh demo USER` delivers realistic demo mail.
+
 - `make ui-check` runs Biome, the TypeScript check and Vitest (happy-dom,
   Testing Library) in the nsl machine. Task cards that touch `app/` are
   verified with it.

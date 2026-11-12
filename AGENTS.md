@@ -135,7 +135,10 @@ waits on the owner's checks on real desktops.
   `internal/smtpx`: the only package that imports go-smtp.
 - `cmd/frostmail` and `internal/desktop/`: the desktop app, native on MyGo
   and frostui. `internal/desktop/e2e` drives it in real windows.
-- `app/`: the React web app that lodge serves. `app/src/rpc/gen/api.ts` is
+- `app/`: the React web app that lodge serves. It builds only for lodge
+  (`make web-build`) and runs in lodge's development build
+  ([docs/design/app.md](docs/design/app.md#dev-and-test), Dev and test);
+  maild has no other gateway for it. `app/src/rpc/gen/api.ts` is
   generated; `app/src/lodge/` runs the UI in lodge's frame (routes, windows as
   routes), over `app/src/rpc/transport/lodge.ts`. `app/notify` is the Windows
   toast notifier (Rust).

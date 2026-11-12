@@ -107,10 +107,7 @@ In the app, `mailpart://localhost/<path>` serves
 and normal components; anything else is 400. A path that resolves outside
 `parts/` (through a symlink) is 403. Responses carry `nosniff` and
 `Content-Security-Policy: default-src 'none'; img-src data:; style-src
-'unsafe-inline'; sandbox`. A browser on Windows gets it as `http://mailpart.localhost/<path>` instead: maild still
-writes `mailpart://localhost/`, and the app rewrites the one form to the
-other in the HTML it shows and back in the HTML it saves
-(`app/src/lib/partURL.ts`).
+'unsafe-inline'; sandbox`.
 
 ## Clients
 

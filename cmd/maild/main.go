@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -31,7 +30,6 @@ import (
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/datalock"
-	"github.com/frostyard/frostmail/internal/devgw"
 	"github.com/frostyard/frostmail/internal/engine"
 	"github.com/frostyard/frostmail/internal/events"
 	"github.com/frostyard/frostmail/internal/httprec"
@@ -95,8 +93,6 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	debug := fs.Bool("debug", false, "log at debug level")
 	lodgeApp := fs.Bool("lodge", false, "also serve lodge's mail app socket: one systemd passes, else /run/lodge/apps/mail.sock "+
 		"or the same under LODGE_ROOT (docs/specs/lodge-app.md)")
-	devgwAddr := fs.String("devgw", "", "also serve the API over a WebSocket on this loopback address, for UI development "+
-		"(needs FROSTMAIL_DEVGW_TOKEN; docs/design/app.md)")
 	showMode := fs.Bool("mode", false, "print local or lodge, which maild the desktop uses (app.json), and exit")
 	showBuild := fs.Bool("build", false, "print the Flatpak build of this instance (app-commit in /.flatpak-info) and exit")
 	logPath := fs.String("log", "", "Linux: after maild takes the data directory's lock, move FILE to FILE.1 when it is larger "+
@@ -318,14 +314,6 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	}
 	defer syncer.Wait()
 	defer pim.Wait()
-	if *devgwAddr != "" {
-		serve := func(nc net.Conn) { srv.ServeConn(ctx, nc, router, api.Caller{Kind: api.CallerKindLocal}) }
-		go func() {
-			if err := devgw.ListenAndServe(ctx, *devgwAddr, os.Getenv("FROSTMAIL_DEVGW_TOKEN"), serve, logger); err != nil {
-				logger.Error("dev gateway stopped", "err", err)
-			}
-		}()
-	}
 	if lodgeLn != nil {
 		lsrv := lodge.NewServer(lodge.Options{Ctx: ctx, Version: version, RPC: srv, Router: router, Content: content, Log: logger,
 			// lodge's rail badge: the sidebar's Inboxes count (lodge ADR-0020).

@@ -19,7 +19,6 @@ import { CollapsedMessage } from "../features/reader/CollapsedMessage";
 import { ContentFrame } from "../features/reader/ContentFrame";
 import { FindBar } from "../features/reader/FindBar";
 import { type Answer, InvitationCard, invitationPart } from "../features/reader/InvitationCard";
-import { MessageFrame } from "../features/reader/MessageFrame";
 import {
   AttachmentStrip,
   BlockedBanner,
@@ -395,7 +394,7 @@ function ConversationMessage({
       if (!cancelled) setError(err instanceof Error ? err.message : String(err));
     };
     client.message.get({ id }).then((m) => !cancelled && setMessage(m), fail);
-    client.message.render({ id, content: IN_LODGE || undefined }).then((r) => !cancelled && setRendering(r), fail);
+    client.message.render({ id, content: true }).then((r) => !cancelled && setRendering(r), fail);
     return () => {
       cancelled = true;
     };
@@ -404,7 +403,7 @@ function ConversationMessage({
   const loadRemote = useCallback(() => {
     setLoadingRemote(true);
     client.message
-      .render({ id, remote: true, content: IN_LODGE || undefined })
+      .render({ id, remote: true, content: true })
       .then(setRendering, () => {})
       .finally(() => setLoadingRemote(false));
   }, [client, id]);
@@ -414,7 +413,7 @@ function ConversationMessage({
       void client.message.part({ id, path: part.path }).then((f) => {
         const l = lodge();
         if (l && f.contentPath) l.open(l.contentURL(f.contentPath));
-        else window.open(`/mailpart/${f.path}`, "_blank", "noopener,noreferrer");
+        else console.warn("open part", "no content path");
       });
     },
     [client, id],
@@ -599,19 +598,15 @@ function ConversationMessage({
       {error && <p className="px-5 py-4 text-reader-meta text-secondary">{error}</p>}
       {rendering &&
         (rendering.html !== "" ? (
-          shell ? (
-            // In lodge, HTML shows only from lodge-content: a page too
-            // large for maild to keep (contentPath absent) is never put in
-            // a frame on lodge's own origin (docs/specs/lodge-app.md).
-            rendering.contentPath ? (
-              <ContentFrame src={shell.contentURL(rendering.contentPath)} />
-            ) : (
-              <p role="status" className="px-5 py-4 text-reader-meta text-secondary">
-                This message is too large to show here. Save As… in More Actions downloads it.
-              </p>
-            )
+          // HTML shows only from lodge-content: a page too large for maild
+          // to keep (contentPath absent) is never put in a frame on lodge's
+          // own origin (docs/specs/lodge-app.md).
+          shell && rendering.contentPath ? (
+            <ContentFrame src={shell.contentURL(rendering.contentPath)} />
           ) : (
-            <MessageFrame html={rendering.html} onOpenLink={openLink} quoteSource={summary.id} />
+            <p role="status" className="px-5 py-4 text-reader-meta text-secondary">
+              This message is too large to show here. Save As… in More Actions downloads it.
+            </p>
           )
         ) : (
           <div data-quote-source={summary.id}>

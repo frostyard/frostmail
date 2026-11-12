@@ -3,8 +3,7 @@ package render
 import "strings"
 
 // pageStyle is the reader page's style: white paper in both color schemes
-// (docs/specs/ui.md, Reader: Body), as the app's frame template has it
-// (app/src/features/reader/MessageFrame.tsx).
+// (docs/specs/ui.md, Reader: Body).
 const pageStyle = `html{color-scheme:light}` +
 	`body{margin:0;padding:20px;background:#fff;color:#000;font:14px/1.45 "Inter Variable",system-ui,sans-serif;overflow-wrap:anywhere}` +
 	`img{max-width:100%;height:auto}`

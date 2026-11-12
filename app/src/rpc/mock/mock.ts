@@ -1,8 +1,8 @@
-// MockTransport: an in-memory maild for component tests and for running the
-// UI in a browser (VITE_MOCK=1). It implements the methods the app uses with
-// maild's semantics: views keep ID snapshots and send view.delta after
-// changes (an unread view keeps rows that are read), flag, move and copy
-// calls emit message.changed and mailbox.changed.
+// MockTransport: an in-memory maild for the component tests. It implements
+// the methods the app uses with maild's semantics: views keep ID snapshots
+// and send view.delta after changes (an unread view keeps rows that are
+// read), flag, move and copy calls emit message.changed and
+// mailbox.changed.
 import {
   type Account,
   type AccountCreateParams,

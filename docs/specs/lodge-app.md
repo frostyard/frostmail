@@ -167,7 +167,6 @@ LoadCredentialEncrypted=
 | --- | --- | --- | --- |
 | the app socket (`maild --lodge`) | `/run/lodge/apps/mail.sock`, passed by `frostmail.socket` or made by maild; under `LODGE_ROOT` in development | lodge's user only, by the socket peer's uid (the kit) | from `Lodge-Caller` |
 | the private socket | `$FROSTMAIL_SOCKET` ([rpc-protocol](rpc-protocol.md#transport)) | maild's own user | `local` |
-| `maild -devgw ADDR` | a loopback address only | the development UI, with its token | `local` |
 
 - maild creates the app socket with the contract's owners and mode when
   none is passed, and closes a connection from any other uid before it
@@ -526,7 +525,7 @@ path>`; the web app builds them with lodge-client's `contentURL`.
   404. A page larger than 64 MiB is not kept, so `message.render` answers
   no `contentPath`; the web build then says the message is too large to
   show and points to Save As, and never frames its HTML on lodge's own
-  origin (the desktop's `srcdoc` frame).
+  origin.
 - Headers:
   - `Content-Type: text/html; charset=utf-8`;
   - `Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; sandbox allow-popups allow-popups-to-escape-sandbox`;
@@ -715,8 +714,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 
 ## Rules
 
-- maild listens on no network address. `-devgw` refuses an address that
-  is not loopback.
+- maild listens on no network address.
 - maild reads `Lodge-*` headers only on the app socket, and only after the
   peer check.
 - Each path on the app socket admits one caller kind. A test sends each
