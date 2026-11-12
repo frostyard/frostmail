@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -133,4 +134,30 @@ func TestDevAppKeepsAwayFromTheUsersMaild(t *testing.T) {
 	if devConfig == userConfig || strings.HasPrefix(devConfig, home) {
 		t.Errorf("the app's app.json = %q, the user's is %q", devConfig, userConfig)
 	}
+}
+
+// TestMakefileRunsTheAppToolchainInNsl: the app toolchain runs in the nsl
+// machine (docs/adr/0006-development-environment.md), and CI, whose runner
+// has the toolchain, runs the same targets with IN_NSL='sh -c'. A recipe
+// that ran cargo on the host (app-test) got past review.
+func TestMakefileRunsTheAppToolchainInNsl(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool := regexp.MustCompile(`\b(cargo|pnpm)\b`)
+	checked := 0
+	for i, line := range strings.Split(string(data), "\n") {
+		if !strings.HasPrefix(line, "\t") || !tool.MatchString(line) {
+			continue
+		}
+		checked++
+		if !strings.Contains(line, "$(IN_NSL)") {
+			t.Errorf("Makefile:%d runs the app toolchain on the host, not in the nsl machine: %s", i+1, line)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no recipe line runs cargo or pnpm: the check has no input")
+	}
+	t.Logf("checked %d recipe lines that run cargo or pnpm", checked)
 }

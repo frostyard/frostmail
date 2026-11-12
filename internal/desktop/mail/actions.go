@@ -15,21 +15,6 @@ import (
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
-// SourceHolds reports whether a source still lists a message: its mailbox
-// for a mailbox source, an inbox for All Inboxes, and anything else for a
-// source that is not one mailbox (docs/specs/ui.md, Follow Up).
-func SourceHolds(s Source, m api.MessageSummary, mailboxes []api.Mailbox) bool {
-	switch s.Kind {
-	case Mailbox:
-		return slices.Contains(m.MailboxIDs, s.ID)
-	case AllInboxes:
-		return slices.ContainsFunc(m.MailboxIDs, func(id int64) bool {
-			return slices.ContainsFunc(mailboxes, func(mb api.Mailbox) bool { return mb.ID == id && mb.Role == api.MailboxRoleInbox })
-		})
-	}
-	return true
-}
-
 // ArchiveOf is where Archive moves an account's messages: its archive
 // mailbox, or All Mail on an account whose mailboxes are Gmail labels.
 func ArchiveOf(account int64, mailboxes []api.Mailbox) *api.Mailbox {

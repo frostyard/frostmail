@@ -29,7 +29,7 @@ Risk tier: 1 — <!-- justification -->
 <!-- Paste evidence for every applicable gate. Delete rows that do not apply. -->
 
 - [ ] `make check` green (host)
-- [ ] `make ui-check`, `make app-test` or `make app-build` green (nsl), for a change under `app/`
+- [ ] `make ui-check` green (nsl), for a change under `app/`; also `make app-test`, for a change under `app/notify`
 - [ ] `make engine-it` green, for a change to sync, send or the IMAP fork
 - [ ] `make flatpak-sources` run, for a change to `go.mod` or `go.sum`
 - [ ] Revert test for a fix: the new test fails with the fix reverted; command: <!-- name it -->
