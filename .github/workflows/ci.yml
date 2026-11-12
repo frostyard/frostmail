@@ -5,8 +5,8 @@
 # the app's manifests (ADR-0043). The web app's targets normally run in the
 # nsl machine; here IN_NSL runs them on the runner. The Windows jobs run the
 # Go suite on Windows, which `make verify` only vets, and build the Windows
-# app and its installer (ADR-0038, ADR-0054). The App shell and Windows app
-# jobs keep their names: the branch's required checks match on them.
+# app and its installer (ADR-0038, ADR-0054). Job display names also name
+# required checks; coordinate renames with the main branch rulesets.
 name: CI
 
 on:
@@ -165,7 +165,7 @@ jobs:
         run: make deb
 
   app:
-    name: App shell (make app-build, app-test)
+    name: Desktop app (Linux e2e, cross-builds)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -191,7 +191,7 @@ jobs:
             xvfb-run -a -s "-screen 0 1400x900x24" make desktop-e2e
 
   windows-app:
-    name: Windows app (installer, WebView2 e2e)
+    name: Windows app (installer, native e2e)
     runs-on: windows-2025
     timeout-minutes: 60
     permissions:

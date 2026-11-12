@@ -21,9 +21,10 @@
 `main`, every pull request and merge-queue entry, and nightly (so upstream
 drift shows within a day): **Verify** (`make verify`, with golangci-lint
 from `mise.lock`), **Race detector** (`go test -race ./...`), **App UI**
-(`make ui-check`) and **App shell** (`make app-build`, `make app-test`),
+(`make ui-check`) and **Desktop app** (Linux and Windows release builds,
+then `make desktop-e2e` on Linux),
 **Windows** (`go test ./...` on Windows) and **Windows app** (the
-installer; see below).
+installer and native app real-window checks; see below).
 The app targets normally run in the nsl machine; CI installs the same
 Node, pnpm (corepack, from `app/package.json`), Rust and system libraries
 as `dev/nsl/provision.sh` and runs them with `IN_NSL='sh -c'`. CI sets
