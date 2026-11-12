@@ -28,7 +28,8 @@ import (
 
 var tags = regexp.MustCompile(`<style>.*?</style>|<div class="print-only">.*?</div></div>|<[^>]*>`)
 
-// fakeFrame stands in for a web view: it draws the page's text.
+// fakeFrame stands in for a web view: it draws the page's text, black on
+// the page's white as uikit.Document has it.
 type fakeFrame struct {
 	mu        sync.Mutex
 	doc       string
@@ -52,7 +53,7 @@ func (f *fakeFrame) text() string {
 }
 
 func (f *fakeFrame) View(c *ui.Context) ui.Element {
-	return ui.Column(c).Focusable().Children(func() { ui.Text(c, f.text()) })
+	return ui.Column(c).Focusable().Padding(20).Children(func() { ui.Text(c, f.text()).TextColor(ui.RGB(0, 0, 0)) })
 }
 func (f *fakeFrame) Height() float32 { return 60 }
 func (f *fakeFrame) Selection() string {

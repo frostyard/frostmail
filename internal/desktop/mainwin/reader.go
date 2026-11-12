@@ -468,8 +468,7 @@ func (w *Window) message(c *ui.Context, cv *conv, m *openMsg) {
 			frostui.Muted(c, m.err.Error()).Wrap().Padding(frostui.SpaceL)
 		}
 		if m.frame != nil {
-			h := max(m.frame.Height(), 40)
-			if m.frame.View(c).Height(h).AlignSelf(ui.Stretch).Label("Message body").FocusWithin() {
+			if uikit.PageFrame(c, m.frame, max(m.frame.Height(), 40)).Label("Message body").FocusWithin() {
 				cv.focused = m.summary.ID
 			}
 		}
