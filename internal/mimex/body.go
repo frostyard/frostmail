@@ -12,47 +12,48 @@ import (
 	_ "github.com/emersion/go-message/charset"
 )
 
+// Body returns a raw RFC 5322 message's readable body in one parse of its
+// MIME tree: its text, the HTML part that text may come from, and whether the
+// message carries HTML. BodyText and BodyHTML are its halves.
+func Body(raw []byte) (text, html string, hasHTML bool, err error) {
+	root, err := message.Read(bytes.NewReader(raw))
+	if err != nil && !isDecodingError(err) {
+		return "", "", false, parseFailed(fmt.Errorf("mimex: read message: %w", err))
+	}
+	if root == nil {
+		return "", "", false, parseFailed(errors.New("mimex: read message: no entity"))
+	}
+
+	var parts bodyParts
+	if err := root.Walk(parts.visit); err != nil && !parts.visited {
+		return "", "", false, parseFailed(err)
+	}
+
+	text = parts.plain
+	if strings.TrimSpace(text) == "" {
+		text = HTMLToText(parts.html)
+	}
+	return tidyLines(text), parts.html, parts.hasHTML, nil
+}
+
 // BodyText returns the readable text of a raw RFC 5322 message and whether
 // the message carries an HTML part. The text is the first text/plain part
 // when it is not blank, and otherwise text made from the first text/html
 // part. Attachments and forwarded messages are never the body.
 func BodyText(raw []byte) (string, bool, error) {
-	root, err := message.Read(bytes.NewReader(raw))
-	if err != nil && !isDecodingError(err) {
-		return "", false, parseFailed(fmt.Errorf("mimex: read message: %w", err))
+	text, _, hasHTML, err := Body(raw)
+	if err != nil {
+		return "", false, err
 	}
-	if root == nil {
-		return "", false, parseFailed(errors.New("mimex: read message: no entity"))
-	}
-
-	var body bodyParts
-	if err := root.Walk(body.visit); err != nil && !body.visited {
-		return "", false, parseFailed(err)
-	}
-
-	text := body.plain
-	if strings.TrimSpace(text) == "" {
-		text = HTMLToText(body.html)
-	}
-	return tidyLines(text), body.hasHTML, nil
+	return text, hasHTML, nil
 }
 
 // BodyHTML returns the HTML part BodyText would derive text from: the first
 // text/html part that is not an attachment or a forwarded message, decoded
 // to UTF-8, or "" when the message has none.
 func BodyHTML(raw []byte) (string, error) {
-	root, err := message.Read(bytes.NewReader(raw))
-	if err != nil && !isDecodingError(err) {
-		return "", parseFailed(fmt.Errorf("mimex: read message: %w", err))
-	}
-	if root == nil {
-		return "", parseFailed(errors.New("mimex: read message: no entity"))
-	}
-	var body bodyParts
-	if err := root.Walk(body.visit); err != nil && !body.visited {
-		return "", parseFailed(err)
-	}
-	return body.html, nil
+	_, html, _, err := Body(raw)
+	return html, err
 }
 
 // bodyParts accumulates the first text/plain and the first text/html part

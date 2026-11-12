@@ -116,11 +116,7 @@ var dataImage = regexp.MustCompile(`^data:image/(png|gif|jpeg|webp);base64,[A-Za
 // Render prepares a raw message. With remote, remote images (not trackers)
 // are fetched into the cache; otherwise they are left out and counted.
 func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remote bool) (Rendering, error) {
-	text, _, err := mimex.BodyText(raw)
-	if err != nil {
-		return Rendering{}, r.parseFailed(err)
-	}
-	src, err := mimex.BodyHTML(raw)
+	text, src, _, err := mimex.Body(raw)
 	if err != nil {
 		return Rendering{}, r.parseFailed(err)
 	}
@@ -128,10 +124,12 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	if strings.TrimSpace(src) == "" {
 		return out, nil
 	}
-	inline, err := inlineParts(raw)
-	if err != nil {
-		return Rendering{}, r.parseFailed(err)
-	}
+	// The image parts are read only for a message that names a cid: URL.
+	// Only the resolver can tell: the sanitizer decodes an entity or a CSS
+	// escape first, so the URL is not in the source as written.
+	var inline map[string]inlinePart
+	var inlineErr error
+	inlineLoaded := false
 	nonce, err := randomHex(16)
 	if err != nil {
 		return Rendering{}, err
@@ -139,23 +137,27 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	var pending []string
 	index := map[string]int{}
 	embed := &embedder{parts: r.Parts}
-	resolve := func(raw string, tracker bool) string {
-		raw = strings.TrimSpace(raw)
-		lower := strings.ToLower(raw)
+	resolve := func(ref string, tracker bool) string {
+		ref = strings.TrimSpace(ref)
+		lower := strings.ToLower(ref)
 		switch {
 		case strings.HasPrefix(lower, "cid:"):
-			rel := r.inlinePart(messageID, inline, raw[4:])
+			if !inlineLoaded {
+				inline, inlineErr = inlineParts(raw)
+				inlineLoaded = true
+			}
+			rel := r.inlinePart(messageID, inline, ref[4:])
 			if rel == "" {
 				return ""
 			}
 			return embed.url(rel)
 		case strings.HasPrefix(lower, "data:"):
-			if dataImage.MatchString(raw) {
-				return raw
+			if dataImage.MatchString(ref) {
+				return ref
 			}
 			return ""
 		case strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://"):
-			u, err := url.Parse(raw)
+			u, err := url.Parse(ref)
 			if err != nil {
 				return ""
 			}
@@ -180,6 +182,9 @@ func (r *Renderer) Render(ctx context.Context, messageID int64, raw []byte, remo
 	html, err := sanitizeHTML(src, resolve)
 	if err != nil {
 		return Rendering{}, err
+	}
+	if inlineErr != nil {
+		return Rendering{}, r.parseFailed(inlineErr)
 	}
 	if len(pending) > 0 {
 		paths := r.fetchAll(ctx, pending)
@@ -272,7 +277,8 @@ func (r *Renderer) inlinePart(messageID int64, parts map[string]inlinePart, cid 
 }
 
 // Part decodes the part at path (an IMAP part specifier) into
-// m/<messageID>/<path>/<safe file name>.
+// m/<messageID>/<path>/<safe file name>. A part already in the cache is not
+// read or written again: its file's size is what it reports.
 func (r *Renderer) Part(messageID int64, raw []byte, path string) (PartFile, error) {
 	var out PartFile
 	found := false
@@ -283,17 +289,23 @@ func (r *Renderer) Part(messageID int64, raw []byte, path string) (PartFile, err
 		if p.Omitted {
 			return fmt.Errorf("%w: %q", ErrOmitted, path)
 		}
+		name := SafeFilename(p.Filename, p.Path, p.ContentType)
+		rel := fmt.Sprintf("m/%d/%s/%s", messageID, p.Path, name)
+		out = PartFile{Path: rel, ContentType: p.ContentType, Filename: name}
+		found = true
+		size, cached := r.Parts.Size(rel)
+		if cached {
+			out.Size = size
+			return errStop
+		}
 		data, err := io.ReadAll(body)
 		if err != nil {
 			return fmt.Errorf("render: read part %s: %w", path, err)
 		}
-		name := SafeFilename(p.Filename, p.Path, p.ContentType)
-		rel := fmt.Sprintf("m/%d/%s/%s", messageID, p.Path, name)
 		if err := r.Parts.Write(rel, data); err != nil {
 			return err
 		}
-		out = PartFile{Path: rel, ContentType: p.ContentType, Filename: name, Size: int64(len(data))}
-		found = true
+		out.Size = int64(len(data))
 		return errStop
 	})
 	if err != nil && !errors.Is(err, errStop) {
