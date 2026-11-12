@@ -34,7 +34,11 @@ chunks of 500:
 `UID FLAGS INTERNALDATE RFC822.SIZE ENVELOPE BODYSTRUCTURE MODSEQ
 BODY.PEEK[HEADER.FIELDS (References In-Reply-To List-Id List-Unsubscribe
 Authentication-Results)]`, plus `X-GM-MSGID X-GM-THRID X-GM-LABELS` on
-Gmail. The preview comes from a partial fetch of the first text part chosen
+Gmail. Preview text decodes one remaining layer of HTML entities, removes
+Unicode format characters and the combining grapheme joiner, then collapses
+whitespace. This removes newsletter preheader padding from newly computed
+previews; stored previews are not rewritten by this formatting change.
+The preview comes from a partial fetch of the first text part chosen
 from BODYSTRUCTURE: `BINARY.PEEK[part]<0.2048>` with BINARY, else
 `BODY.PEEK[part]<0.2048>` decoded locally (`mimex.DecodePart`).
 
