@@ -60,7 +60,12 @@ blob (raw .eml) ─► mimex: pick the HTML part ─► sanitize ─► rewrite 
     `behavior`, `-moz-binding` and `javascript:` are removed; every `@layer`
     name gets a `message-` prefix, so a message cannot join the app's print
     guard; `url()` follows the image rules; everything else is kept, so
-    layout survives.
+    layout survives. A message's CSS always sees a light page: a
+    `prefers-color-scheme` feature in an `@media` query answers light
+    (`light` becomes `grid:0`, any other value `grid:1`), and the
+    `color-scheme` property is removed. So a message's dark design never
+    draws on the white page, in any appearance of the desktop
+    ([#269](https://github.com/frostyard/frostmail/issues/269)).
 - **Image URLs:**
   - `cid:X` → the part with Content-ID X is decoded into
     `parts/m/<messageID>/<part>.<ext>` and embedded as a `data:` URL.
