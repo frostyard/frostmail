@@ -115,7 +115,13 @@ window.
   padding): the subject (13/18 600, truncated; "(no subject)" when
   empty), "To: " and the recipients (12/16 `--text-secondary`, at most 2
   names then "& N more"), the state line (12/16), and the row's buttons
-  (12/16 `--accent`, 12px gaps).
+  (12/16 `--accent`, 12px gaps). In the desktop app the Outbox is a
+  section of the sidebar's source list after Follow Up
+  (frostyard/frostmail#271): a row per message on its way or refused, the
+  subject after a `send` icon, with a spinner while it goes or a warning
+  whose tooltip is the state line; the state line is its spoken name, and
+  its menu holds Try Again and Cancel Sending. Send Later stays under the
+  tree, with its rows' actions.
 
 ## Behavior
 
