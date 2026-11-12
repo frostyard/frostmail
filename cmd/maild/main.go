@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 	_ "time/tzdata" // calendars need every zone, whatever the sandbox ships (ADR-0018)
@@ -82,6 +84,16 @@ type runOptions struct {
 	// problems records maild's problems in the local journal; nil records
 	// nothing.
 	problems *problems.Recorder
+	// bgStart and bgEnd, when set, are called with a background goroutine's
+	// name when it starts and when it returns, for tests.
+	bgStart func(name string)
+	bgEnd   func(name string)
+	// closing, when set, is called just before maild closes the database,
+	// for tests.
+	closing func()
+	// listener, when set, is called with the RPC socket's listener once it
+	// is open, for tests.
+	listener func(net.Listener)
 }
 
 // runWith runs maild with args: main gives opts its problem recorder, and
@@ -174,7 +186,15 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		}
 		return err
 	}
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if opts.closing != nil {
+			opts.closing()
+		}
+		_ = db.Close()
+	}()
+	// The gate keeps work that outlives its caller (lodge's unread badge
+	// runs in a goroutine of its own) from reading the store once it closes.
+	gate := newStoreGate()
 	broker := events.NewBroker(db)
 	views := view.NewManager(db, logger)
 	db.OnCommit = func(evs []api.EventEnvelope) {
@@ -266,6 +286,9 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	if err != nil {
 		return err
 	}
+	if opts.listener != nil {
+		opts.listener(ln)
+	}
 	// lodge's app socket opens once the store is, so a maild that answers
 	// lodge is serving.
 	var lodgeLn *lodgeapp.Listener
@@ -297,8 +320,35 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	if err != nil {
 		return err
 	}
-	go views.Run(ctx)
-	go sched.Run(ctx)
+	// Background work: a view recompute, a reminder pass and lodge's socket
+	// read the store, and the shutdown defer below joins them.
+	var bg sync.WaitGroup
+	background := func(name string, run func()) {
+		bg.Go(func() {
+			if opts.bgStart != nil {
+				opts.bgStart(name)
+			}
+			defer func() {
+				if opts.bgEnd != nil {
+					opts.bgEnd(name)
+				}
+			}()
+			run()
+		})
+	}
+	// Stop the workers, then wait for every one of them, before the store
+	// closes: a view recompute, a reminder pass, a sync actor, a PIM pass and
+	// lodge's badge all read it. An error return can come while ctx is live,
+	// so cancel it here, before any Wait.
+	defer func() {
+		shutdown()
+		syncer.Wait()
+		pim.Wait()
+		bg.Wait()
+		gate.close()
+	}()
+	background("views", func() { views.Run(ctx) })
+	background("reminders", func() { sched.Run(ctx) })
 	// FROSTMAIL_SYNC=off serves the store without connecting to any server,
 	// for the README's screenshots, whose accounts have none
 	// (docs/design/testing.md). Mail already stored still reads.
@@ -312,17 +362,15 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 			return err
 		}
 	}
-	defer syncer.Wait()
-	defer pim.Wait()
 	if lodgeLn != nil {
 		lsrv := lodge.NewServer(lodge.Options{Ctx: ctx, Version: version, RPC: srv, Router: router, Content: content, Log: logger,
 			// lodge's rail badge: the sidebar's Inboxes count (lodge ADR-0020).
-			Unread: db.InboxUnread})
-		go func() {
+			Unread: unreadGated(gate, db.InboxUnread)})
+		background("lodge", func() {
 			if err := lsrv.Serve(ctx, lodgeLn); err != nil {
 				logger.Error("lodge socket stopped", "err", err)
 			}
-		}()
+		})
 		logger.Info("serving lodge's mail app", "socket", lodgeLn.Addr().String())
 	}
 	logger.Info("maild started", "version", version, "socket", paths.Socket, "db", paths.DB)
