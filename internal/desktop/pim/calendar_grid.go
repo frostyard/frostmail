@@ -335,7 +335,9 @@ func (m *Module) gutter(c *ui.Context, days []string) {
 		}
 		if shown {
 			_, minutes := zoned(now, k.loc)
-			ui.Text(c.Key("now"), k.clockTime(now)).FontSize(frostui.TextSize(c, 11)).FontWeight(600).TextColor(flagColor(t, 1)).Background(t.Background).Absolute().Top(float32(minutes)*pxPerMinute - 7).Right(8).SingleLine()
+			// Closer to the grid than the hours' labels: in Inter, bold, a
+			// time such as "10:30 AM" is wider than the gutter leaves them.
+			ui.Text(c.Key("now"), k.clockTime(now)).FontSize(frostui.TextSize(c, 11)).FontWeight(600).TextColor(flagColor(t, 1)).Background(t.Background).Absolute().Top(float32(minutes)*pxPerMinute - 7).Right(3).SingleLine()
 		}
 	})
 }
