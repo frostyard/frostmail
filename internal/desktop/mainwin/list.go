@@ -293,14 +293,14 @@ func (w *Window) listBody(c *ui.Context) {
 		return d
 	}
 	low, high := int64(-1), int64(-1)
-	list := ui.List(c, &w.list, int(snap.Count()), func(i int) {
+	list := uikit.SummaryList(c, &w.list, int(snap.Count()), func(i int) {
 		n := int64(i)
 		if low < 0 || n < low {
 			low = n
 		}
 		high = max(high, n)
 		w.row(c, snap, n)
-	}).Grow(1).Label("Messages")
+	}).Label("Messages")
 	if w.focusPane == paneList {
 		w.focusPane = ""
 		list.Focus()
@@ -398,7 +398,7 @@ func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 	}
 	st := w.mail.State()
 	s := uikit.Summary{Title: mail.DisplayName(r.From), Date: mail.ListDate(r.Date, w.o.Now()), Subtitle: r.Subject, Preview: r.Preview,
-		Unread: !r.Flags.Seen, UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
+		Unread: !r.Flags.Seen, UnreadLabel: "Unread", Photo: w.photo(r.From.Address), Selected: w.chosen.Has(r.ID)}
 	if r.Flags.Flagged {
 		s.Mark = flagColor(c.Theme(), r.Flags.FlagColor)
 		names := []string(nil)
