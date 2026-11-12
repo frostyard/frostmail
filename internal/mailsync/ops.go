@@ -260,11 +260,21 @@ func (m *Manager) moveTx(ctx context.Context, tx *store.Tx, ids []int64, from, t
 		if err := refuseReadOnly(ctx, tx, acct); err != nil {
 			return err
 		}
-		if !ownsMailbox(ctx, tx, acct, to) {
+		owns, err := ownsMailbox(ctx, tx, acct, to)
+		if err != nil {
+			return err
+		}
+		if !owns {
 			return fmt.Errorf("mailbox %d is not in account %d: %w", to, acct, ErrInvalid)
 		}
-		if from != 0 && !ownsMailbox(ctx, tx, acct, from) {
-			return fmt.Errorf("mailbox %d is not in account %d: %w", from, acct, ErrInvalid)
+		if from != 0 {
+			owns, err := ownsMailbox(ctx, tx, acct, from)
+			if err != nil {
+				return err
+			}
+			if !owns {
+				return fmt.Errorf("mailbox %d is not in account %d: %w", from, acct, ErrInvalid)
+			}
 		}
 		gmail, err := tx.GmailAccount(ctx, acct)
 		if err != nil {
@@ -353,7 +363,11 @@ func (m *Manager) copyTx(ctx context.Context, tx *store.Tx, ids []int64, to int6
 		if err := refuseReadOnly(ctx, tx, acct); err != nil {
 			return err
 		}
-		if !ownsMailbox(ctx, tx, acct, to) {
+		owns, err := ownsMailbox(ctx, tx, acct, to)
+		if err != nil {
+			return err
+		}
+		if !owns {
 			return fmt.Errorf("mailbox %d is not in account %d: %w", to, acct, ErrInvalid)
 		}
 		gmail, err := tx.GmailAccount(ctx, acct)
@@ -536,10 +550,14 @@ func (m *Manager) kick(accountID int64) {
 	}
 }
 
-func ownsMailbox(ctx context.Context, tx *store.Tx, accountID, mailboxID int64) bool {
+// ownsMailbox reports whether mailboxID is a mailbox of accountID.
+func ownsMailbox(ctx context.Context, tx *store.Tx, accountID, mailboxID int64) (bool, error) {
 	var n int
-	_ = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM mailboxes WHERE id = ? AND account_id = ?`, mailboxID, accountID).Scan(&n)
-	return n == 1
+	err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM mailboxes WHERE id = ? AND account_id = ?`, mailboxID, accountID).Scan(&n)
+	if err != nil {
+		return false, fmt.Errorf("mailbox %d: %w", mailboxID, err)
+	}
+	return n == 1, nil
 }
 
 func trashOf(ctx context.Context, tx *store.Tx, accountID int64) (int64, error) {

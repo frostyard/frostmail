@@ -174,7 +174,12 @@ func (t *Tx) SetMailboxRole(ctx context.Context, id int64, role api.MailboxRole)
 		}
 		changed = append(changed, other)
 	}
+	// An error partway leaves the mailboxes after that row with the role.
+	err = rows.Err()
 	rows.Close()
+	if err != nil {
+		return fmt.Errorf("set mailbox role: %w", err)
+	}
 	if _, err := t.ExecContext(ctx, `UPDATE mailboxes SET role = ? WHERE id = ?`, role, id); err != nil {
 		return fmt.Errorf("set mailbox role: %w", err)
 	}
@@ -203,7 +208,12 @@ func (t *Tx) applyRoleChoices(ctx context.Context, accountID int64, list []Serve
 		}
 		chosen[api.MailboxRole(role)] = path
 	}
+	// An error partway leaves the roles after that row as the server has them.
+	err = rows.Err()
 	rows.Close()
+	if err != nil {
+		return fmt.Errorf("mailbox roles: %w", err)
+	}
 	for role, path := range chosen {
 		if !slices.ContainsFunc(list, func(sm ServerMailbox) bool { return sm.Path == path }) {
 			continue

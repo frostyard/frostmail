@@ -163,7 +163,10 @@ func (m *Manager) CreateMailbox(ctx context.Context, accountID int64, name strin
 	if taken(mbs, path) {
 		return store.Mailbox{}, fmt.Errorf("a mailbox %q already exists: %w", path, ErrConflict)
 	}
-	gmail := m.isGmail(ctx, acct)
+	gmail, err := m.isGmail(ctx, acct)
+	if err != nil {
+		return store.Mailbox{}, err
+	}
 	var out store.Mailbox
 	err = m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error
@@ -181,14 +184,14 @@ func (m *Manager) CreateMailbox(ctx context.Context, accountID int64, name strin
 }
 
 // isGmail reports whether an account's mailboxes are Gmail labels.
-func (m *Manager) isGmail(ctx context.Context, acct store.Account) bool {
+func (m *Manager) isGmail(ctx context.Context, acct store.Account) (bool, error) {
 	var gmail bool
-	_ = m.db.Tx(ctx, func(tx *store.Tx) error {
+	err := m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		gmail, err = tx.GmailAccount(ctx, acct.ID)
 		return err
 	})
-	return gmail
+	return gmail, err
 }
 
 // RenameMailbox gives a mailbox a new name in the same place.
@@ -325,7 +328,11 @@ func (m *Manager) SetMailboxRole(ctx context.Context, id int64, role api.Mailbox
 	if err != nil {
 		return store.Mailbox{}, err
 	}
-	if m.isGmail(ctx, acct) {
+	gmail, err := m.isGmail(ctx, acct)
+	if err != nil {
+		return store.Mailbox{}, err
+	}
+	if gmail {
 		return store.Mailbox{}, fmt.Errorf("account %d is Gmail, whose mailboxes keep their roles: %w", acct.ID, ErrConflict)
 	}
 	if mb.Role == api.MailboxRoleInbox {
