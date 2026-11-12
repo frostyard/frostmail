@@ -15,7 +15,7 @@ import { usePimUndo } from "./pimUndo";
 // invitation. Each test adds Team sync, a daily series of the user's at
 // 10:00 from Tuesday. The test DOM has no layout: every element is 100
 // wide from the page's top-left, so a day column is 100 pixels.
-async function setup() {
+async function setup(exactSeconds = false) {
   const mock = new MockTransport(mockData({ inbox: 5, now: new Date("2026-10-08T12:00:00Z") }));
   await new Client(mock).calendar.create({
     fields: {
@@ -27,6 +27,18 @@ async function setup() {
       rrule: "FREQ=DAILY;COUNT=5",
     },
   });
+  if (exactSeconds) {
+    await new Client(mock).calendar.update({
+      id: 302,
+      fields: {
+        start: "2026-10-08T14:00:12.345Z",
+        end: "2026-10-08T15:30:56.789Z",
+        timeZone: "UTC",
+        allDay: false,
+      },
+    });
+    mock.calls.length = 0;
+  }
   const open = vi.spyOn(window, "open").mockReturnValue(null);
   render(
     <Session connect={() => Promise.resolve(mock)} fallback={<div>connecting</div>}>
@@ -162,4 +174,15 @@ describe("dragging events in Calendar", () => {
       }),
     );
   });
+});
+
+it("writes nothing when a drag crosses the threshold then returns to its original step", async () => {
+  const { calls } = await setup(true);
+  down(block("Thursday, October 8, 2026", /^Design review/), 500, 700);
+  move(500, 748);
+  move(500, 700);
+  up(500, 700);
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(calls("calendar.event")).toHaveLength(0);
+  expect(calls("calendar.update")).toHaveLength(0);
 });

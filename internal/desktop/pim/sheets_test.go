@@ -269,7 +269,7 @@ func TestInviteesEditing(t *testing.T) {
 		t.Errorf("an address already invited was added: %+v", w.draft.invitees)
 	}
 	f.clickIn(win, "Optional")
-	if !w.draft.invitees[0].optional {
+	if w.draft.invitees[0].role != api.AttendeeRoleOptional {
 		t.Error("Optional did not toggle")
 	}
 	f.clickIn(win, "Add Invitee")

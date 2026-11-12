@@ -13,8 +13,16 @@ import (
 // current answer.
 type draftInvitee struct {
 	email, name string
-	optional    bool
+	role        api.AttendeeRole
 	answer      api.PartStat
+}
+
+// inviteeRole supplies the default for a newly typed invitee.
+func (i draftInvitee) inviteeRole() api.AttendeeRole {
+	if i.role == "" {
+		return api.AttendeeRoleRequired
+	}
+	return i.role
 }
 
 // eventDraft is an event as the editor shows it. Dates are YYYY-MM-DD and
@@ -32,9 +40,6 @@ type eventDraft struct {
 
 	// startRead and endRead are the instants the times were read from.
 	startRead, endRead readTime
-	// fixedRoles says an invitee has a role calendar.update cannot write
-	// (chair or none), so the invitees are left as they are.
-	fixedRoles bool
 }
 
 // readTime is a wall time with the instant it was read from: in a repeated
@@ -120,8 +125,7 @@ func draftOf(e *api.CalendarEvent, appZone string, appLoc *time.Location) eventD
 	d.transparent = e.Transparent
 	for _, a := range e.Attendees {
 		if !a.IsUser {
-			d.invitees = append(d.invitees, draftInvitee{a.Email, a.Name, a.Role == api.AttendeeRoleOptional, a.Answer})
-			d.fixedRoles = d.fixedRoles || a.Role == api.AttendeeRoleChair || a.Role == api.AttendeeRoleNone
+			d.invitees = append(d.invitees, draftInvitee{a.Email, a.Name, a.Role, a.Answer})
 		}
 	}
 	return d
@@ -231,11 +235,7 @@ func inviteesChanged(original *eventDraft, d eventDraft) bool {
 	keys := func(list []draftInvitee) []string {
 		out := make([]string, len(list))
 		for i, v := range list {
-			role := "required"
-			if v.optional {
-				role = "optional"
-			}
-			out[i] = strings.ToLower(v.email) + ":" + role
+			out[i] = strings.ToLower(v.email) + ":" + string(v.inviteeRole())
 		}
 		slices.Sort(out)
 		return out
@@ -276,13 +276,10 @@ func changedFields(original *eventDraft, d eventDraft) api.EventFields {
 	if (original != nil && !slices.Equal(original.alarms, d.alarms)) || (original == nil && len(d.alarms) > 0) {
 		f.Alarms = append([]int64{}, d.alarms...)
 	}
-	if !d.fixedRoles && inviteesChanged(original, d) {
+	if inviteesChanged(original, d) {
 		f.Attendees = make([]api.Invitee, 0, len(d.invitees))
 		for _, i := range d.invitees {
-			role := api.AttendeeRoleRequired
-			if i.optional {
-				role = api.AttendeeRoleOptional
-			}
+			role := i.inviteeRole()
 			v := api.Invitee{Email: i.email, Role: &role}
 			if i.name != "" {
 				v.Name = ptr(i.name)

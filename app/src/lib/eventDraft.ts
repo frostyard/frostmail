@@ -1,7 +1,7 @@
 // The event editor's draft (docs/specs/pim-ui.md, Event editor window): an
 // event's editable fields as the form shows them, and the EventFields a
 // save sends (ADR-0030, ADR-0033).
-import type { CalendarEvent, EventFields, PartStat } from "../rpc/gen/api";
+import type { AttendeeRole, CalendarEvent, EventFields, PartStat } from "../rpc/gen/api";
 import { isValidAddress } from "./addressParse";
 import { addDays, instantAt, zoned } from "./calendarDates";
 import { followStart } from "./repeat";
@@ -10,7 +10,7 @@ import { followStart } from "./repeat";
 export interface DraftInvitee {
   email: string;
   name: string;
-  role: "required" | "optional";
+  role: AttendeeRole;
   answer?: PartStat;
 }
 
@@ -66,7 +66,7 @@ export function draftOf(event: CalendarEvent, appZone: string): EventDraft {
     .map(({ email, name, role, answer }) => ({
       email,
       name,
-      role: role === "optional" ? "optional" : "required",
+      role,
       answer,
     }));
   return {

@@ -35,6 +35,9 @@ function InviteeRow({
       {answer === "accepted" && <Check size={14} aria-label="Accepted" className="shrink-0 text-flag-4" />}
       {answer === "declined" && <X size={14} aria-label="Declined" className="shrink-0 text-flag-1" />}
       {answer === "tentative" && <CircleHelp size={14} aria-label="Maybe" className="shrink-0 text-flag-2" />}
+      {(role === "chair" || role === "none") && (
+        <span className="text-[12px] text-secondary">{role === "chair" ? "Chair" : "For information"}</span>
+      )}
       <button
         type="button"
         aria-pressed={role === "optional"}

@@ -116,7 +116,7 @@ types:
     fields:
       - {name: email, type: string}
       - {name: name, type: string, optional: true}
-      - {name: role, type: AttendeeRole, optional: true, doc: "required (the default) or optional."}
+      - {name: role, type: AttendeeRole, optional: true, doc: "required (the default), optional, chair or none (copied for information)."}
   - name: InviteNotice
     doc: What a change would tell invitees; notifyRequired's data (ADR-0035).
     fields:

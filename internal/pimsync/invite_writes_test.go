@@ -249,3 +249,43 @@ func TestInvitationsTellNobody(t *testing.T) {
 		t.Errorf("an invitation took invitees: %v", err)
 	}
 }
+
+func TestInviteeChairAndInformationRolesCanBeWritten(t *testing.T) {
+	e := newEventEnv(t)
+	e.asGmail()
+	ctx := t.Context()
+	start := utcAt("2026-10-10T14:00Z")
+	attendees := []api.Invitee{
+		{Email: "chair@example.com", Role: ptr2(api.AttendeeRoleChair)},
+		{Email: "info@example.com", Role: ptr2(api.AttendeeRoleNone)},
+	}
+	created, err := e.cal.Create(ctx, &api.CalendarCreateParams{CalendarID: ptr2(e.calendarID(e.work)), Notify: yes(),
+		Fields: api.EventFields{Summary: ptr2("Review"), AllDay: ptr2(false), Start: &start, End: ptr2(start.Add(time.Hour)), TimeZone: ptr2("UTC"), Attendees: attendees}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attendees = append(attendees, api.Invitee{Email: "new@example.com"})
+	updated, err := e.cal.Update(ctx, &api.CalendarUpdateParams{ID: created.Event.ID, Notify: yes(), Fields: api.EventFields{Attendees: attendees}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	roles := map[string]api.AttendeeRole{}
+	for _, a := range updated.Event.Attendees {
+		roles[a.Email] = a.Role
+	}
+	if roles["chair@example.com"] != api.AttendeeRoleChair || roles["info@example.com"] != api.AttendeeRoleNone || roles["new@example.com"] != api.AttendeeRoleRequired {
+		t.Fatalf("stored roles: %v", roles)
+	}
+	e.pass()
+	obj, err := e.db.GetObject(ctx, updated.Event.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(obj.Raw), "ROLE=CHAIR") || !strings.Contains(string(obj.Raw), "ROLE=NON-PARTICIPANT") {
+		t.Fatalf("calendar object lost the roles: %s", obj.Raw)
+	}
+	_, err = e.cal.Update(ctx, &api.CalendarUpdateParams{ID: created.Event.ID, Notify: yes(), Fields: api.EventFields{Attendees: []api.Invitee{{Email: "bad@example.com", Role: ptr2(api.AttendeeRole("unknown"))}}}})
+	if !invalid(err) {
+		t.Errorf("unknown role: %v", err)
+	}
+}

@@ -115,3 +115,25 @@ describe("an event draft's invitees", () => {
     ).toEqual({ end: "The end is before the start", invitees: "Check the invitees' addresses" });
   });
 });
+
+it("keeps chair and information roles when another invitee is added", () => {
+  const original = draftOf(
+    {
+      ...meeting,
+      attendees: [
+        { email: "chair@example.com", name: "Leader", role: "chair", answer: "accepted", isUser: false },
+        { email: "info@example.com", name: "Observer", role: "none", answer: "needsaction", isUser: false },
+      ],
+    },
+    "UTC",
+  );
+  const fields = changedFields(original, {
+    ...original,
+    invitees: [...(original.invitees ?? []), { email: "new@example.com", name: "", role: "required" }],
+  });
+  expect(fields.attendees).toEqual([
+    { email: "chair@example.com", name: "Leader", role: "chair" },
+    { email: "info@example.com", name: "Observer", role: "none" },
+    { email: "new@example.com", role: "required" },
+  ]);
+});

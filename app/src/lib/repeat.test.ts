@@ -115,14 +115,14 @@ describe("repeatOf and ruleOf", () => {
     [
       "FREQ=MONTHLY;BYDAY=-1TH",
       "2026-10-29",
-      { frequency: "MONTHLY", interval: 1, weekdays: [], byWeekday: true },
+      { frequency: "MONTHLY", interval: 1, weekdays: [], byWeekday: true, last: true },
       "FREQ=MONTHLY;BYDAY=-1TH",
     ],
     [
       "FREQ=MONTHLY;BYDAY=-1TH",
       "2026-02-26",
-      { frequency: "MONTHLY", interval: 1, weekdays: [], byWeekday: true },
-      "FREQ=MONTHLY;BYDAY=4TH",
+      { frequency: "MONTHLY", interval: 1, weekdays: [], byWeekday: true, last: true },
+      "FREQ=MONTHLY;BYDAY=-1TH",
     ],
     [
       "FREQ=YEARLY;BYMONTH=10;BYMONTHDAY=15;COUNT=3",
@@ -199,8 +199,8 @@ describe("endOf and withEnd", () => {
       { kind: "date", date: "2027-03-28" },
       { kind: "never" },
     ] as const) {
-      expect(endOf(withEnd("FREQ=DAILY", end, false, zone), zone)).toEqual(end);
-      expect(endOf(withEnd("FREQ=DAILY", end, true, zone), zone)).toEqual(end);
+      expect(endOf(withEnd("FREQ=DAILY", end, false, zone), zone)).toMatchObject(end);
+      expect(endOf(withEnd("FREQ=DAILY", end, true, zone), zone)).toMatchObject(end);
     }
   });
 });
@@ -221,5 +221,24 @@ describe("followStart", () => {
     ["", thursday, "2026-10-17", ""],
   ])("%s from %s to %s", (rule, from, to, want) => {
     expect(followStart(rule, from, to)).toBe(want);
+  });
+});
+
+describe("preserving recurrence details", () => {
+  it("keeps WKST while changing the repeat interval", () => {
+    const repeat = repeatOf("FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,SU;WKST=SU", "2026-10-06");
+    if (!repeat) throw new Error("rule not editable");
+    expect(ruleOf({ ...repeat, interval: 3 }, "2026-10-06")).toBe("FREQ=WEEKLY;INTERVAL=3;BYDAY=TU,SU;WKST=SU");
+  });
+  it.each(["20261217T153042Z", "20261217T153042"])("keeps UNTIL=%s while changing the repeat", (until) => {
+    const end = endOf(`FREQ=DAILY;UNTIL=${until}`, "America/New_York");
+    expect(withEnd("FREQ=WEEKLY;INTERVAL=2", end, false, "America/New_York")).toBe(
+      `FREQ=WEEKLY;INTERVAL=2;UNTIL=${until}`,
+    );
+    if (end.kind !== "date") throw new Error("missing end date");
+    expect(withEnd("FREQ=DAILY", { ...end, date: "2026-12-20" }, false, "UTC")).toBe(
+      "FREQ=DAILY;UNTIL=20261220T235959Z",
+    );
+    expect(withEnd("FREQ=DAILY", end, true, "America/New_York")).toBe("FREQ=DAILY;UNTIL=20261217");
   });
 });
