@@ -81,6 +81,12 @@ func TestSanitizeCSSShowsALightPage(t *testing.T) {
 		{"color scheme after another declaration", `p{margin:0;color-scheme:dark}`, `p{margin:0;x-blocked:dark}`},
 		{"color scheme after a nested rule", `div{span{color:red} color-scheme:dark}`, `div{span{color:red} x-blocked:dark}`},
 		{"color scheme value is kept", `p{background-color-scheme:dark}`, `p{background-color-scheme:dark}`},
+		// A removal writes only a space, so the declaration start before it
+		// must survive: else a later color-scheme escapes the guard.
+		{"color scheme after a removed at-rule", `:root{@page{}color-scheme:dark}`, `:root{ x-blocked:dark}`},
+		{"color scheme after an import", `p{margin:0;@import url(x);color-scheme:dark}`, `p{margin:0; x-blocked:dark}`},
+		{"color scheme after cdo", `:root{<!--color-scheme:dark}`, `:root{ x-blocked:dark}`},
+		{"cdo after cdc at the start", `-->color-scheme:dark`, ` x-blocked:dark`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

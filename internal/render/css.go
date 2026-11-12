@@ -64,8 +64,9 @@ func sanitizeCSS(src string, resolve func(raw string) string) string {
 		tt, data := r.Next()
 		decl := property
 		switch tt {
-		case css.WhitespaceToken, css.CommentToken:
-			// These alone may stand before a property name.
+		case css.WhitespaceToken, css.CommentToken, css.CDOToken, css.CDCToken:
+			// These alone may stand before a property name, and each leaves
+			// no code of its own in the output.
 		default:
 			property = false
 		}
@@ -81,6 +82,10 @@ func sanitizeCSS(src string, resolve func(raw string) string) string {
 			case "import", "namespace", "charset", "font-face", "page":
 				skipStatement(r)
 				b.WriteByte(' ')
+				// The removal leaves only a space, so a declaration may
+				// still start here: else a color-scheme after it would
+				// escape the guard.
+				property = decl
 			case "layer":
 				b.Write(data)
 				layer = true
