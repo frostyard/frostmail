@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -12,32 +13,41 @@ import (
 func TestStoreGateCloseWaitsForCallsUnderWay(t *testing.T) {
 	gate := newStoreGate()
 	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	letGo := func() { once.Do(func() { close(release) }) }
 	unread := unreadGated(gate, func(context.Context) (int, error) {
 		close(entered)
 		<-release
 		return 3, nil
 	})
 	done := make(chan int, 1)
-	go func() {
+	closed := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
 		n, err := unread(t.Context())
 		if err != nil {
 			t.Errorf("unread = %v", err)
 		}
 		done <- n
-	}()
+	})
+	// A test that fails before the read ends still lets both goroutines end.
+	t.Cleanup(func() {
+		letGo()
+		wg.Wait()
+		<-closed
+	})
 	<-entered
-	closed := make(chan struct{})
-	go func() {
+	wg.Go(func() {
 		gate.close()
 		close(closed)
-	}()
+	})
 	// The gate must not close while the read runs: it is held.
 	select {
 	case <-closed:
 		t.Fatal("the gate closed while a gated read ran")
 	case <-time.After(20 * time.Millisecond):
 	}
-	close(release)
+	letGo()
 	if n := <-done; n != 3 {
 		t.Errorf("unread = %d, want 3", n)
 	}
