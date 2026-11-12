@@ -76,7 +76,7 @@ and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Proposed) adds maild's activity stream for the app's console; its maild
 side is built (`mailctl activity`). `cmd/frostmail` draws every window on
-Linux on frostui v0.5.0, in its Frostyard look (frostui's ADR-0011: the
+Linux on frostui v0.5.1, in its Frostyard look (frostui's ADR-0011: the
 Frostyard and Frostyard light themes, Inter, nearly square corners;
 plan 0015, [The Frostyard look](docs/plans/0015-mygo-desktop.md#the-frostyard-look))
 (`internal/desktop/`: `mainwin`, `compose`, `organize`, `pim`, `settings`),
@@ -197,7 +197,7 @@ waits on the owner's checks on real desktops.
   `make bump CANDIDATE=vX.Y.Z-rc.N` runs `make verify` on the candidate's commit, tags
   that commit `vX.Y.Z` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
-  `github.com/frostyard/frostui` v0.5.0 (the desktop app's kit, on MyGo;
+  `github.com/frostyard/frostui` v0.5.1 (the desktop app's kit, on MyGo;
   read its `docs/design/frostui.md` API changes after a bump),
   `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
