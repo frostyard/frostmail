@@ -7,11 +7,9 @@ import { App } from "./app/App";
 import type { Connect } from "./data/session";
 import { IN_LODGE } from "./lodge/lodge";
 
-// The lodge build reaches maild through lodge's shell (docs/specs/lodge-app.md).
-// For development, VITE_MAILD_WS connects to maild's dev gateway and VITE_MOCK=1
-// serves the UI from MockTransport (docs/design/app.md, Dev and test).
-const gateway = import.meta.env.VITE_MAILD_WS as string | undefined;
-
+// The build reaches maild only through lodge's shell: main.tsx connects
+// through @frostyard/lodge-client and never to maild's socket itself
+// (docs/specs/lodge-app.md, The web build).
 async function connector(): Promise<Connect> {
   if (IN_LODGE) {
     const [{ connectLodge }, { startInLodge }] = await Promise.all([
@@ -22,19 +20,8 @@ async function connector(): Promise<Connect> {
     // URL in the shell and never resolves.
     return startInLodge(() => connectLodge({ app: "mail" }));
   }
-  if (gateway) return async () => (await import("./rpc/transport/ws")).connectWS(gateway);
-  if (import.meta.env.VITE_MOCK === "1") {
-    return async () => {
-      const [{ MockTransport }, { mockData }] = await Promise.all([
-        import("./rpc/mock/mock"),
-        import("./rpc/mock/fixture"),
-      ]);
-      const rows = Number(import.meta.env.VITE_MOCK_ROWS ?? 60);
-      return new MockTransport(mockData({ inbox: rows, invitation: true }), { latency: 15 });
-    };
-  }
   return async () => {
-    throw new Error("no maild: build with --mode lodge, or set VITE_MAILD_WS or VITE_MOCK");
+    throw new Error("app/ runs only in lodge: build it with `make web-build` (Vite's lodge mode)");
   };
 }
 

@@ -77,8 +77,7 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener, r *api.Router) erro
 }
 
 // ServeConn serves one connection the caller has already authenticated, as
-// caller, until it ends or ctx does: the dev gateway's as local, lodge's
-// /api as a session.
+// caller, until it ends or ctx does: lodge's /api as a session.
 func (s *Server) ServeConn(ctx context.Context, nc net.Conn, r *api.Router, caller api.Caller) {
 	if caller.Kind == "" {
 		caller.Kind = api.CallerKindLocal

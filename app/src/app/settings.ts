@@ -1,6 +1,6 @@
 // Opening the settings window (docs/specs/settings-ui.md, Window). In lodge
-// it is a route the frame shows; in a browser on the dev gateway it opens in
-// a new tab at #/settings.
+// it is a route the frame shows; outside lodge's frame it opens in a new tab
+// at #/settings.
 import { openFrameWindow } from "../lodge/frameWindow";
 import { openOutside } from "../lodge/lodge";
 import { type SettingsPane, useSettingsPane } from "./settingsPane";

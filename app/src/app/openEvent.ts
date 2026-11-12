@@ -1,6 +1,6 @@
 // Opening events in the event editor window (docs/specs/pim-ui.md, Event
-// editor window). In lodge each is a route the frame shows; in a browser on
-// the dev gateway it opens in a new tab at #/event/<id>?recurrenceId=… or
+// editor window). In lodge each is a route the frame shows; outside lodge's
+// frame it opens in a new tab at #/event/<id>?recurrenceId=… or
 // #/event/new?…, named event-<id> (event-<id>-<occurrence> for one occurrence
 // of a series, event-new-<n> for a new event).
 import { addDays, instantAt, zoned } from "../lib/calendarDates";
