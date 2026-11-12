@@ -149,3 +149,37 @@ func TestARemoteImageNeverReachesTheDraft(t *testing.T) {
 		t.Errorf("a part was dropped: %s", out)
 	}
 }
+
+// #241: quotation nesting and list indentation are independent dimensions.
+func TestListsInsideNestedQuotesKeepBothDepths(t *testing.T) {
+	const src = `<blockquote type="cite"><p>outer</p><blockquote type="cite"><ul><li>first<ul><li>second</li></ul></li></ul><blockquote type="cite"><ol><li>third</li></ol></blockquote></blockquote></blockquote>`
+	text := compose.ToText(src, nil)
+	if got := compose.ToHTML(text); got != src {
+		t.Fatalf("round trip:\n%s\nwant:\n%s", got, src)
+	}
+	d := richtext.NewDocument(text)
+	at := strings.Index(text.String(), "first") + 2
+	d.SetSelection(at, at)
+	d.InsertText("\n")
+	split := strings.Replace(src, "<li>first", "<li>fi</li><li>rst", 1)
+	if got := compose.ToHTML(d.Text()); got != split {
+		t.Fatalf("split:\n%s\nwant:\n%s", got, split)
+	}
+	d.Undo()
+	if got := compose.ToHTML(d.Text()); got != src {
+		t.Fatalf("undo:\n%s", got)
+	}
+	d.Redo()
+	d.SetSelection(at, at+1)
+	d.InsertText("")
+	if got := compose.ToHTML(d.Text()); got != src {
+		t.Fatalf("join:\n%s", got)
+	}
+	d.SetSelection(at, at)
+	d.ToggleList(richtext.Numbers)
+	for _, p := range d.Text().Paragraphs() {
+		if len(p.Runs) > 0 && p.Runs[0].Text == "first" && (p.Style.QuoteDepth != 2 || p.Style.Indent != 0 || p.Style.List != richtext.Numbers) {
+			t.Fatalf("formatting=%+v", p.Style)
+		}
+	}
+}

@@ -86,3 +86,5 @@ require (
 replace github.com/emersion/go-imap/v2 => ./third_party/go-imap
 
 tool github.com/egoist/mygo/cmd/mygo
+
+replace github.com/egoist/mygo => github.com/bketelsen/mygo v0.8.4-0.20261112024007-29e10b72062f

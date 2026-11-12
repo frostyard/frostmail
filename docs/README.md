@@ -73,6 +73,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0055 — maild streams its background activity as typed entries with no free text](adr/0055-maild-streams-its-activity-as-typed-entries.md) (Proposed)
 - [0056 — Filter mailto links before opening them](adr/0056-filter-mailto-links-before-opening-them.md)
 - [0057 — Name cached draft images on Lodge's content route](adr/0057-name-cached-draft-images-on-lodges-content-route.md)
+- [0058 — Pin MyGo's quote-depth fix from the owner's fork](adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md) (Accepted)
 
 ### Design
 
