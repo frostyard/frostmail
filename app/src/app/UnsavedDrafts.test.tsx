@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Session } from "../data/session";
 import { useUI } from "../data/stores";
 import { draftPreview } from "../features/list/UnsavedDraftRow";
+import { closeFrameWindow } from "../lodge/frameWindow";
 import { type Draft, ErrorCode, type Mailbox } from "../rpc/gen/api";
 import { FIXTURE, mockData } from "../rpc/mock/fixture";
 import { MockTransport } from "../rpc/mock/mock";
@@ -91,7 +92,9 @@ describe("a Drafts list", () => {
 
     fireEvent.click(row);
     await waitFor(() => expect(frameRoute()).toBe(`/compose/${id}`));
-    // A second open of the same draft shows its window again, at the same route.
+    // Back on the main window, Enter opens the same draft's window again.
+    closeFrameWindow();
+    expect(frameRoute()).toBe("");
     fireEvent.keyDown(row, { key: "Enter" });
     await waitFor(() => expect(frameRoute()).toBe(`/compose/${id}`));
   });
