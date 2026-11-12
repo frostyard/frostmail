@@ -44,16 +44,16 @@ func showcaseCalendars(now time.Time) map[string][]showcaseCalendar {
 			{name: "Work", color: "#3366cc", events: []showcaseEvent{
 				{uid: "standup", summary: "Standup", location: "Zoom", days: monday, start: "09:30", length: 15, alarm: 10, lines: []string{
 					"RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", "ORGANIZER;CN=Maria Lopez:mailto:" + maria,
-					who("ATTENDEE", ann, "Ann Patel", "ACCEPTED"), who("ATTENDEE", "victor.walker@northwind.example", "Victor Walker", "ACCEPTED"),
+					who("ATTENDEE", ann, "Ann Lee", "ACCEPTED"), who("ATTENDEE", "victor.walker@northwind.example", "Victor Walker", "ACCEPTED"),
 					who("ATTENDEE", "omar.ward@northwind.example", "Omar Ward", "TENTATIVE")}},
 				{uid: "review", summary: "Design review", location: "Studio B", start: "14:00", length: 90, alarm: 15, lines: []string{
-					"ORGANIZER;CN=Ann Patel:mailto:" + ann, who("ATTENDEE", "lena.price@northwind.example", "Lena Price", "ACCEPTED"),
+					"ORGANIZER;CN=Ann Lee:mailto:" + ann, who("ATTENDEE", "lena.price@northwind.example", "Lena Price", "ACCEPTED"),
 					who("ATTENDEE", "grace.chen@northwind.example", "Grace Chen", "TENTATIVE"),
 					`DESCRIPTION:Walk through the new calendar views.\nBring the latest screenshots.`}},
 				{uid: "interview", summary: "Interview: Backend", location: "Room 2", start: "14:30", length: 45},
 				{uid: "one-on-one", summary: "1:1 with Maria", days: monday + 1, start: "11:00", length: 30, lines: []string{"RRULE:FREQ=WEEKLY"}},
 				{uid: "planning", summary: "Release planning", location: "Big room", days: 1, start: "10:00", length: 90, lines: []string{
-					"ORGANIZER;CN=David King:mailto:david.king@northwind.example", who("ATTENDEE", ann, "Ann Patel", "NEEDS-ACTION")}},
+					"ORGANIZER;CN=David King:mailto:david.king@northwind.example", who("ATTENDEE", ann, "Ann Lee", "NEEDS-ACTION")}},
 				{uid: "retro", summary: "Incident retro", days: -1, start: "16:00", length: 60},
 				{uid: "roadmap", summary: "Q4 roadmap", days: 2, start: "13:00", length: 60},
 				{uid: "offsite", summary: "Company offsite", location: "Lisbon", days: 7 - (int(now.Weekday())+6)%7, length: 3},
