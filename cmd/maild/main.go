@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -90,6 +91,9 @@ type runOptions struct {
 	// closing, when set, is called just before maild closes the database,
 	// for tests.
 	closing func()
+	// listener, when set, is called with the RPC socket's listener once it
+	// is open, for tests.
+	listener func(net.Listener)
 }
 
 // runWith runs maild with args: main gives opts its problem recorder, and
@@ -188,6 +192,9 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		}
 		_ = db.Close()
 	}()
+	// The gate keeps work that outlives its caller (lodge's unread badge
+	// runs in a goroutine of its own) from reading the store once it closes.
+	gate := newStoreGate()
 	broker := events.NewBroker(db)
 	views := view.NewManager(db, logger)
 	db.OnCommit = func(evs []api.EventEnvelope) {
@@ -279,6 +286,9 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	if err != nil {
 		return err
 	}
+	if opts.listener != nil {
+		opts.listener(ln)
+	}
 	// lodge's app socket opens once the store is, so a maild that answers
 	// lodge is serving.
 	var lodgeLn *lodgeapp.Listener
@@ -310,8 +320,8 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	if err != nil {
 		return err
 	}
-	// Background work: a view recompute, a reminder pass and lodge's unread
-	// badge all read the store, so they end before the deferred db.Close.
+	// Background work: a view recompute, a reminder pass and lodge's socket
+	// read the store, and the shutdown defer below joins them.
 	var bg sync.WaitGroup
 	background := func(name string, run func()) {
 		bg.Go(func() {
@@ -326,11 +336,16 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 			run()
 		})
 	}
-	// Cancel ctx, then wait: these goroutines end only when ctx ends, and an
-	// error return can come before srv.Serve returns.
+	// Stop the workers, then wait for every one of them, before the store
+	// closes: a view recompute, a reminder pass, a sync actor, a PIM pass and
+	// lodge's badge all read it. An error return can come while ctx is live,
+	// so cancel it here, before any Wait.
 	defer func() {
 		shutdown()
+		syncer.Wait()
+		pim.Wait()
 		bg.Wait()
+		gate.close()
 	}()
 	background("views", func() { views.Run(ctx) })
 	background("reminders", func() { sched.Run(ctx) })
@@ -347,12 +362,10 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 			return err
 		}
 	}
-	defer syncer.Wait()
-	defer pim.Wait()
 	if lodgeLn != nil {
 		lsrv := lodge.NewServer(lodge.Options{Ctx: ctx, Version: version, RPC: srv, Router: router, Content: content, Log: logger,
 			// lodge's rail badge: the sidebar's Inboxes count (lodge ADR-0020).
-			Unread: db.InboxUnread})
+			Unread: unreadGated(gate, db.InboxUnread)})
 		background("lodge", func() {
 			if err := lsrv.Serve(ctx, lodgeLn); err != nil {
 				logger.Error("lodge socket stopped", "err", err)
