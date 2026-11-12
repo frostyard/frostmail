@@ -2,7 +2,6 @@ package mcpserver
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"github.com/frostyard/frostmail/api"
@@ -65,18 +64,18 @@ func messageLink(messageID string) (header, url string) {
 }
 
 // messageIDHeaders reads the Message-ID of each message; a message gone
-// since its ID was read is left out.
+// since its ID was read, or one the token may not read, is left out.
 func (t *tools) messageIDHeaders(ctx context.Context, ids []int64) (map[int64]string, error) {
 	out := make(map[int64]string, len(ids))
-	for _, id := range ids {
-		m, err := t.o.Client.Message().Get(ctx, &api.MessageGetParams{ID: id})
-		if errors.Is(err, api.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		out[id] = m.MessageID
+	if len(ids) == 0 {
+		return out, nil
+	}
+	ms, err := t.o.Client.Message().GetMany(ctx, &api.MessageGetManyParams{IDs: ids})
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range ms {
+		out[m.Summary.ID] = m.MessageID
 	}
 	return out, nil
 }

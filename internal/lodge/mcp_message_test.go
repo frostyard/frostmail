@@ -109,3 +109,41 @@ func TestAgentsDraftNewMessagesThroughLodge(t *testing.T) {
 		}
 	}
 }
+
+// TestAFailedDraftLeavesNoDraftBehind: a draft_message the engine refuses
+// after the draft is made leaves no draft in the user's Drafts, so a
+// later try makes one draft, not two (issue #292).
+func TestAFailedDraftLeavesNoDraftBehind(t *testing.T) {
+	n := seedTwoAccounts(t)
+	l := startLodge(t, lodge.NewServer(lodge.Options{Ctx: t.Context(), Version: "test",
+		RPC: n.srv.RPC, Router: n.srv.Router, Log: discard()}))
+	ctx := t.Context()
+	local := n.srv.Dial(t)
+	cs, err := mcpClient(t, l, "claude", "account="+itoa(n.a)+";write")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var draft struct {
+		DraftID int64 `json:"draft_id"`
+	}
+	// draft.create answers first, and the engine refuses the subject at
+	// draft.update: a line break would let it name another header.
+	if !call(t, cs, "draft_message", map[string]any{"to": []string{"omar@x.test"},
+		"subject": "Lisbon\nBcc: eve@x.test", "text": "Here is my itinerary."}, &draft) {
+		t.Fatal("draft_message with a line break in the subject answered no error")
+	}
+	drafts, err := local.Draft().List(ctx, &api.DraftListParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drafts) != 0 {
+		t.Fatalf("after the failed draft_message the drafts = %+v, want none: a later try would make a second draft", drafts)
+	}
+	if call(t, cs, "draft_message", map[string]any{"to": []string{"omar@x.test"},
+		"subject": "Lisbon", "text": "Here is my itinerary."}, &draft) {
+		t.Fatal("draft_message after the failed one answered an error")
+	}
+	if drafts, err = local.Draft().List(ctx, &api.DraftListParams{}); err != nil || len(drafts) != 1 || drafts[0].ID != draft.DraftID {
+		t.Errorf("after the second draft_message the drafts = %+v, %v; want draft %d alone", drafts, err, draft.DraftID)
+	}
+}

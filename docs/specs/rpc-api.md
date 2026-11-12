@@ -1507,6 +1507,17 @@ Summaries of messages in the order given; IDs that no longer exist are skipped.
 Result: `[]MessageSummary`.
 Callers of this method: `local`, `session`, `agent`.
 
+### `message.getMany`
+
+The headers and structure of messages, as message.get gives them, in the order given; IDs that no longer exist, or that the caller may not read, are skipped.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ids` | `[]int` |  |
+
+Result: `[]Message`.
+Callers of this method: `local`, `session`, `agent`.
+
 ### `message.byMessageId`
 
 The message a Message-ID names, for lodge's permanent route /message/<Message-ID> (docs/specs/lodge-app.md): among the stored messages with that Message-ID, one in an inbox, else one in neither Trash nor Junk, else any; the earliest stored of those. notFound when none is.

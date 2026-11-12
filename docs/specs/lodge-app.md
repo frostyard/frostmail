@@ -252,7 +252,7 @@ degraded. The `messages_unseen` index serves the count
 | Domain | Callers | Methods with their own callers |
 | --- | --- | --- |
 | `rpc` (`hello`, `ping`) | local, session, agent | |
-| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `account.collections`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `thread.messages`, `view.open`, `view.range`, `view.close`, `calendar.range`, `calendar.event`, `tasks.list`, `tasks.get`, `people.list`, `people.get`, `thread.awaitingReply`, `thread.awaitingOthers`: local, session and agent. `message.setFlags`, `message.move`, `message.remind`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`, `tasks.create`, `tasks.update`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
+| every other domain | local, session | `draft.attach`, `message.save`: local only. `account.list`, `account.collections`, `mailbox.list`, `message.get`, `message.body`, `message.summaries`, `message.getMany`, `thread.messages`, `view.open`, `view.range`, `view.close`, `calendar.range`, `calendar.event`, `tasks.list`, `tasks.get`, `people.list`, `people.get`, `thread.awaitingReply`, `thread.awaitingOthers`: local, session and agent. `message.setFlags`, `message.move`, `message.remind`, `draft.create`, `draft.get`, `draft.list`, `draft.update`, `draft.delete`, `tasks.create`, `tasks.update`: local, session, and agent with `;write`. `draft.send`: local, session, and agent with `;send` |
 
 - A method a caller may not use answers `methodNotFound`, as for a method
   that does not exist.
@@ -340,8 +340,8 @@ MCP Streamable HTTP, through lodge's `/mcp/mail`, for caller `agent`.
     callers](#methods-and-callers)); any other is `methodNotFound`;
   - `account.list` and `mailbox.list` list the scope's accounts only;
   - another account's message is `notFound` to `message.get` and
-    `message.body`, `message.summaries` skips it, and its thread is
-    `notFound` to `thread.messages`;
+    `message.body`, `message.summaries` and `message.getMany` skip it, and
+    its thread is `notFound` to `thread.messages`;
   - a view lists the scope's accounts' messages only, whatever its query;
   - under `;write`, another account's message is `notFound` to
     `message.setFlags`, `message.move` and `draft.create`, so is another

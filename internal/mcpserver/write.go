@@ -205,12 +205,28 @@ func (t *tools) draftReply(ctx context.Context, _ *sdk.CallToolRequest, in reply
 	}
 	content := dr.Content
 	content.HTML = replyHTML(in.Text, content.HTML)
-	if dr, err = c.Draft().Update(ctx, &api.DraftUpdateParams{ID: dr.ID, Content: content}); err != nil {
+	if dr, err = t.fillDraft(ctx, dr.ID, content); err != nil {
 		return nil, draftOut{}, err
 	}
 	return nil, draftOut{DraftID: dr.ID, URL: draftURL(dr.ID), AccountID: dr.AccountID, To: addresses(dr.Content.To),
 		Cc: addresses(dr.Content.Cc), Subject: dr.Content.Subject,
 		Note: "The draft is in the user's Drafts, and its url opens it in Compose; nothing was sent."}, nil
+}
+
+// fillDraft writes a new draft's content. A draft it cannot fill is
+// deleted again, so a tool that answers an error leaves no draft behind
+// that a later try would duplicate. The Delete runs even when ctx is done:
+// the draft is already on the server.
+func (t *tools) fillDraft(ctx context.Context, id int64, content api.DraftContent) (*api.Draft, error) {
+	dr, err := t.o.Client.Draft().Update(ctx, &api.DraftUpdateParams{ID: id, Content: content})
+	if err == nil {
+		return dr, nil
+	}
+	derr := t.o.Client.Draft().Delete(context.WithoutCancel(ctx), &api.DraftDeleteParams{ID: id})
+	if derr != nil {
+		return nil, fmt.Errorf("fill in draft %d: %w; discarding it failed too (%v), so it waits in the user's Drafts", id, err, derr)
+	}
+	return nil, fmt.Errorf("fill in draft %d: %w; the draft was discarded", id, err)
 }
 
 // recipients parses addresses for a new message: each an address, or a
@@ -254,7 +270,7 @@ func (t *tools) draftMessage(ctx context.Context, _ *sdk.CallToolRequest, in mes
 	content := dr.Content
 	content.To, content.Cc, content.Subject = to, cc, strings.TrimSpace(in.Subject)
 	content.HTML = replyHTML(in.Text, content.HTML)
-	if dr, err = c.Draft().Update(ctx, &api.DraftUpdateParams{ID: dr.ID, Content: content}); err != nil {
+	if dr, err = t.fillDraft(ctx, dr.ID, content); err != nil {
 		return nil, draftOut{}, err
 	}
 	return nil, draftOut{DraftID: dr.ID, URL: draftURL(dr.ID), AccountID: dr.AccountID, To: addresses(dr.Content.To),
