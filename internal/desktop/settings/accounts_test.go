@@ -896,11 +896,17 @@ func TestALateSaveLeavesAnotherAccountsForm(t *testing.T) {
 	s.mu.Lock()
 	s.holdUpdate = gate
 	s.mu.Unlock()
+	var once sync.Once
+	release := func() { once.Do(func() { close(gate) }) }
+	t.Cleanup(release)
 	f.click("Save")
 	f.until("the save", s.called("update"))
 	f.click("b@b.test")
 	f.formOf("b@b.test")
-	close(gate)
+	if got := f.value("IMAP Server"); got != "imap.b.test" {
+		t.Errorf("during a's save, b's accessible server = %q", got)
+	}
+	release()
 	f.until("the save's end", func() bool { return !f.disabled("Save") })
 	if got := f.value("IMAP Server"); got != "imap.b.test" {
 		t.Fatalf("b's form took %q from a's save", got)

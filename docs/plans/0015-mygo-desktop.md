@@ -773,6 +773,18 @@ unless that pipe listed only fixture accounts.
   maild:** Ctrl+, opened a window titled "Settings" with its 7 panes; the
   General and Accounts panes were read in a screenshot. The Server pane's
   change of mode is in Phase 9's check.
+- **Check of 2026-11-11, built Linux app, fixture maild (#243):**
+  `TestAccountFieldsDuringAnotherAccountsSave` held the first account's
+  `account.update` while opening the second account. Before the fix, the
+  real-window capture showed `imap.second.test` in its disabled IMAP
+  Server field, while automation's accessibility tree reported empty
+  values for both servers' host, port and user name. This sample does not
+  establish a blank painted form. The fields now name their values
+  explicitly for accessibility: the same real-window check reads
+  `imap.second.test`, `993`, `in-second`, `smtp.second.test`, `465` and
+  `out-second` during the held save, and `imap.second.test` after it ends.
+  The save remains disabled. This was a host run, not a Flatpak or Windows
+  check; it does not complete the manual desktop gate.
 - **Differences to confirm at the gate:** a sidebar of panes instead of
   the toolbar's tabs; lists capped at 196 high above their forms; smart
   mailboxes in the notify scope as "Smart Mailbox: name", as `Select` has

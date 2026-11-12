@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/rpctest"
 )
 
 // settle bounds a wait for the UI; the longest is a page or a window opening
@@ -82,7 +83,8 @@ func setup(m *testing.M) (int, error) {
 }
 
 type options struct {
-	fixture []string // uifixture's arguments, after -out
+	server  *rpctest.Options // an in-process maild for held/failing RPCs in real windows
+	fixture []string         // uifixture's arguments, after -out
 	env     []string
 	path    string // a directory put first on PATH
 }
@@ -180,7 +182,16 @@ func start(t *testing.T, o options) *session {
 	if out, err := fixture.CombinedOutput(); err != nil {
 		t.Fatalf("uifixture: %v\n%s", err, out)
 	}
-	s.startMaild()
+	if o.server == nil {
+		s.startMaild()
+	} else {
+		opts := *o.server
+		opts.DataDir = filepath.Join(root, "data")
+		srv := rpctest.StartWith(t, opts)
+		s.socket = srv.Socket
+		s.env = append(s.env, "FROSTMAIL_SOCKET="+s.socket)
+		s.client = srv.Dial(t)
+	}
 	s.app = s.spawn(exe("frostmail"), "app.log")
 	t.Cleanup(func() {
 		if s.conn != nil {

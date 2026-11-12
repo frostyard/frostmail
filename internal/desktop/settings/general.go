@@ -20,9 +20,10 @@ type generalPane struct {
 	names  [7]string // what the flag fields hold
 	synced []string  // the stored names they last took
 	// flagSave closes when the newest save of the names has ended.
-	flagSave chan struct{}
-	focused  int // the flag field with the focus, -1 for none
-	err      string
+	flagSave  chan struct{}
+	focused   int // the flag field focused in the previous frame, -1 for none
+	nextFocus int // the focus found while drawing this frame
+	err       string
 }
 
 // scope is a notification scope as the drop-down offers it.
@@ -60,6 +61,7 @@ var blockOptions = []option[api.BlockAction]{
 // generalGroups are the General pane's rows.
 func (w *Window) generalGroups() []frostui.SettingsGroup {
 	g := w.gen
+	g.nextFocus = -1
 	s := w.data.settings
 	off := s == nil
 	w.syncFlagNames(g)
@@ -126,12 +128,8 @@ func (w *Window) flagField(c *ui.Context, g *generalPane, i int, off bool) {
 		if in.Submitted() {
 			w.saveFlagNames(g)
 		}
-		switch {
-		case in.Focused():
-			g.focused = i
-		case g.focused == i:
-			g.focused = -1
-			w.saveFlagNames(g)
+		if in.Focused() {
+			g.nextFocus = i
 		}
 	})
 }
@@ -214,8 +212,14 @@ func (w *Window) blockedRows() []frostui.Setting {
 
 // generalBody is the error under the rows, until the next change succeeds.
 func (w *Window) generalBody(c *ui.Context) {
-	if w.gen != nil {
-		alert(c, w.gen.err)
+	if g := w.gen; g != nil {
+		// All fields have consumed their input now. Comparing here also
+		// catches moving backward, to a field drawn before the old one.
+		if g.focused >= 0 && g.nextFocus != g.focused {
+			w.saveFlagNames(g)
+		}
+		g.focused = g.nextFocus
+		alert(c, g.err)
 	}
 }
 
