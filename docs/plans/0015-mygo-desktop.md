@@ -848,7 +848,8 @@ unless that pipe listed only fixture accounts.
   socket goes in the app's shared runtime directory, since a
   notification's click starts the app in a new sandbox.
 - **Not done:** `make screenshots` and the axe audit have no Go or web
-  form yet; the README's and metainfo's images are still of the Tauri app.
+  form yet. The README's and metainfo's images are the native app's, taken
+  by hand on 2026-11-11 ([README screenshots](../design/testing.md#readme-screenshots)).
 - **Check of 2026-11-10 on Windows 11, fixture maild:** the build from
   `GOOS=windows` ran: the main window with Windows' caption buttons and
   frostui's embedded icons, the reader, compose, Settings, and Calendar
@@ -992,8 +993,9 @@ version (frostui's plan `docs/plans/frostyard-look.md`, phase 4;
   the reader's dark ground (one cause frostyard/frostmail#269 lists; the
   issue is not reproduced, as the Tester has no native web view).
 - **Not changed:** MyGo's `PrimaryButton` keeps the accent's face (the
-  brand gradient is `frostui.LabeledButton`'s, which takes an icon), and
-  the README's pictures are still the Tauri app's (`make screenshots`).
+  brand gradient is `frostui.LabeledButton`'s, which takes an icon). The
+  README's pictures were retaken in this look afterwards, on 2026-11-11
+  ([README screenshots](../design/testing.md#readme-screenshots)).
 - **Done when:** `mainwin`'s `TestModulesInBothThemes` draws Mail,
   Calendar, People and Tasks in both themes (`FROSTMAIL_SNAPSHOT_DIR`
   writes them) and `make ci` passes.

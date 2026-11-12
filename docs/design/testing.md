@@ -187,6 +187,39 @@ a temporary `$CREDENTIALS_DIRECTORY` (`internal/secrets/sealed_test.go`),
 and the scripts that seal and move it with a staged root and stub
 commands (`scripts/seal_test.go`, `scripts/move_test.go`).
 
+## README screenshots
+
+The README's pictures (`docs/images`, which the Flatpak's metainfo also
+names) are the native app in real windows on the showcase, made-up mail,
+contacts, calendars and tasks (`tools/uifixture/showcase`). No make target
+takes them yet: plan 0015 lists `make screenshots` as not done. Neither
+`ui.Tester` nor the automation plugin's `capture` draws the reader's web
+view, so the pictures come from the desktop's compositor. They were taken
+on 2026-11-11 like this:
+
+1. `go run ./tools/uifixture -out DATA -showcase tools/uifixture/showcase`,
+   then maild on `DATA` with `FROSTMAIL_SYNC=off` and
+   `FROSTMAIL_SECRETS=file`, and the automation build of the app
+   (`go build -tags automation ./cmd/frostmail`), each picture on a fresh
+   copy, with the e2e harness's private paths (`isolated` in
+   `internal/desktop/e2e/harness_test.go`).
+2. The app runs on a private headless GNOME Shell (`gnome-shell --headless
+   --wayland --no-x11 --virtual-monitor 1600x1100` under `dbus-run-session`,
+   with its own `HOME` and `XDG_RUNTIME_DIR`), out of the overview (the
+   Shell's `OverviewActive` property set to false). The Shell's
+   `org.gnome.desktop.interface` `color-scheme` picks the theme:
+   `prefer-dark` for Frostyard, `prefer-light` for Frostyard light, which
+   also takes `GTK_THEME=Adwaita` because Snow's GTK 3 theme is dark only
+   and would draw the window buttons white.
+3. `mygo-automation` (`github.com/egoist/mygo/plugins/automation/cmd/mygo-automation`,
+   at go.mod's MyGo) drives each scene, then moves the pointer off the
+   rows it clicked, so that none shows its hover actions.
+4. The Shell's `org.gnome.Shell.Screenshot.ScreenshotWindow` takes the
+   focused window. The Shell answers only known callers, so the caller
+   owns `org.gnome.Screenshot` on the private bus. The picture is cropped
+   to the window's opaque frame (1200 × 780 for the main window), without
+   its shadow, and recompressed losslessly.
+
 ## Planned layers
 
 - **Fault injection (M1):** a `faultconn` that drops, delays and truncates;
