@@ -2,10 +2,12 @@ package lodge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,6 +41,40 @@ type Options struct {
 	// Unread is the count for lodge's rail badge (lodge ADR-0020): the
 	// unread messages in every inbox. nil sends no badge.
 	Unread func(ctx context.Context) (int, error)
+	// Agents tracks the agents' connections to maild, so that maild can
+	// wait for them before it closes the store (Agents.Close). nil tracks
+	// them in an Agents that nobody closes.
+	Agents *Agents
+}
+
+// Agents are the agents' connections to maild, which outlive the request
+// that opened their MCP session and the lodge socket's own Serve. Close
+// refuses new connections and waits for the ones that run.
+type Agents struct {
+	mu     sync.Mutex
+	closed bool
+	wg     sync.WaitGroup
+}
+
+// start runs serve in a goroutine that Close waits for, and reports
+// whether it did: once Agents is closed, or ctx has ended, it refuses.
+func (a *Agents) start(ctx context.Context, serve func()) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed || ctx.Err() != nil {
+		return false
+	}
+	a.wg.Go(serve)
+	return true
+}
+
+// Close refuses new connections and waits for the ones that run: each ends
+// when maild's context does, after its calls under way return.
+func (a *Agents) Close() {
+	a.mu.Lock()
+	a.closed = true
+	a.mu.Unlock()
+	a.wg.Wait()
 }
 
 // NewServer is maild's side of lodge's app socket, through the kit: /health,
@@ -51,6 +87,9 @@ func NewServer(o Options) *lodgeapp.Server {
 	}
 	if o.Ctx == nil {
 		o.Ctx = context.Background()
+	}
+	if o.Agents == nil {
+		o.Agents = new(Agents)
 	}
 	mcp := mcpsession.New(mcpserver.Handler(mcpserver.HTTPOptions{Open: o.openAgent, Version: o.Version, Log: log, Now: o.Now}),
 		mcpsession.Options{CheckScope: checkScope, Logger: log})
@@ -133,10 +172,16 @@ func checkScope(scope string) error {
 }
 
 // openAgent connects an MCP session to maild in process, as caller agent
-// with the token's name and scope, which the engine enforces.
+// with the token's name and scope, which the engine enforces. o.Agents
+// tracks the connection; once maild stops, it refuses a new one.
 func (o Options) openAgent(ctx context.Context, token string, scope api.Scope) (*api.Client, error) {
 	server, client := net.Pipe()
-	go o.RPC.ServeConn(o.Ctx, server, o.Router, api.Caller{Kind: api.CallerKindAgent, Token: token, Scope: scope})
+	caller := api.Caller{Kind: api.CallerKindAgent, Token: token, Scope: scope}
+	if !o.Agents.start(o.Ctx, func() { o.RPC.ServeConn(o.Ctx, server, o.Router, caller) }) {
+		_ = server.Close()
+		_ = client.Close()
+		return nil, errors.New("maild is stopping")
+	}
 	c := api.NewClient(client)
 	if _, err := c.RPC().Hello(ctx, &api.RPCHelloParams{Protocol: api.Protocol, Client: "mcp " + token}); err != nil {
 		_ = c.Close()

@@ -94,6 +94,9 @@ type runOptions struct {
 	// listener, when set, is called with the RPC socket's listener once it
 	// is open, for tests.
 	listener func(net.Listener)
+	// services, when set, may replace the engine's domains with fakes just
+	// before the router is built, for tests.
+	services func(*api.Services)
 }
 
 // runWith runs maild with args: main gives opts its problem recorder, and
@@ -309,14 +312,18 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		OAuth: tokens, PIM: pim, Unsubscriber: unsubscribe.New(),
 	}, content))
 	sched = newReminders(ctx, db, eng.Calendar(), srv, desktop, open, syncer.FireReminders, syncer.EraseOld, logger)
-	router, err := api.NewRouter(api.Services{
+	services := api.Services{
 		RPC: srv, Events: srv, Account: eng.Accounts(), Mailbox: eng.Mailboxes(),
 		Message: eng.Messages(), Sync: eng.Sync(), Thread: eng.Threads(), View: eng.Views(),
 		Draft: eng.Drafts(), Outbox: eng.Outbox(), Address: eng.Addresses(), Identity: eng.Identities(),
 		Oauth: eng.Oauth(), People: eng.People(), Calendar: eng.Calendar(), Tasks: eng.Tasks(),
 		Settings: eng.Settings(), Vip: eng.Vips(), Block: eng.Blocks(), Smart: eng.Smart(), Rule: eng.Rules(), Snippet: eng.Snippets(),
 		Activity: srv.Activity(),
-	})
+	}
+	if opts.services != nil {
+		opts.services(&services)
+	}
+	router, err := api.NewRouter(services)
 	if err != nil {
 		return err
 	}
@@ -338,13 +345,16 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	}
 	// Stop the workers, then wait for every one of them, before the store
 	// closes: a view recompute, a reminder pass, a sync actor, a PIM pass and
-	// lodge's badge all read it. An error return can come while ctx is live,
-	// so cancel it here, before any Wait.
+	// lodge's badge all read it, and so do the agents' calls over /mcp, whose
+	// connections outlive lodge's socket. An error return can come while ctx
+	// is live, so cancel it here, before any Wait.
+	agents := new(lodge.Agents)
 	defer func() {
 		shutdown()
 		syncer.Wait()
 		pim.Wait()
 		bg.Wait()
+		agents.Close()
 		gate.close()
 	}()
 	background("views", func() { views.Run(ctx) })
@@ -365,7 +375,7 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 	if lodgeLn != nil {
 		lsrv := lodge.NewServer(lodge.Options{Ctx: ctx, Version: version, RPC: srv, Router: router, Content: content, Log: logger,
 			// lodge's rail badge: the sidebar's Inboxes count (lodge ADR-0020).
-			Unread: unreadGated(gate, db.InboxUnread)})
+			Unread: unreadGated(gate, db.InboxUnread), Agents: agents})
 		background("lodge", func() {
 			if err := lsrv.Serve(ctx, lodgeLn); err != nil {
 				logger.Error("lodge socket stopped", "err", err)
