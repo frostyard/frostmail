@@ -879,6 +879,21 @@ export interface CalendarRangeParams {
   calendarIds?: number[];
 }
 
+/** Params of calendar.search. */
+export interface CalendarSearchParams {
+  /** Words separated by spaces; at least one. */
+  query: string;
+  /**
+   * The IANA zone of today and of all-day occurrences. Default: maild's local
+   * zone.
+   */
+  timeZone?: string;
+  /** Only these calendars. */
+  calendarIds?: number[];
+  /** At most this many, 1 to 500. Default: 100. */
+  limit?: number;
+}
+
 /** Params of calendar.event. */
 export interface CalendarEventParams {
   id: number;
@@ -1012,6 +1027,17 @@ export interface CalendarClient {
    * enabled calendars of accounts with the calendar service on.
    */
   range(params: CalendarRangeParams): Promise<Occurrence[]>;
+  /**
+   * The occurrences of the events that hold every word of query, in start
+   * order, from enabled calendars of accounts with the calendar service on. A
+   * word matches inside an event's title, location, notes, organizer or
+   * invitees (names and addresses), whatever its case. An occurrence of a
+   * series matches by its own event: the series, or the override that
+   * replaced it. The search reads the days from 5 years before today to 2
+   * years after it; when more than limit occurrences match, the answer keeps
+   * those whose starts are nearest to now.
+   */
+  search(params: CalendarSearchParams): Promise<Occurrence[]>;
   /** An event, or one occurrence of a series. */
   event(params: CalendarEventParams): Promise<CalendarEvent>;
   /** The invitation in a message's text/calendar part. */
@@ -1056,6 +1082,7 @@ export interface CalendarClient {
 function calendarClient(t: Transport): CalendarClient {
   return {
     range: (params) => t.call<Occurrence[]>("calendar.range", params),
+    search: (params) => t.call<Occurrence[]>("calendar.search", params),
     event: (params) => t.call<CalendarEvent>("calendar.event", params),
     invitation: (params) => t.call<Invitation>("calendar.invitation", params),
     respond: (params) => t.call<CalendarEvent>("calendar.respond", params),
@@ -3428,6 +3455,7 @@ export const METHODS = [
   "block.add",
   "block.remove",
   "calendar.range",
+  "calendar.search",
   "calendar.event",
   "calendar.invitation",
   "calendar.respond",

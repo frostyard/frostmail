@@ -1588,6 +1588,19 @@ type CalendarRangeParams struct {
 	CalendarIDs []int64 `json:"calendarIds,omitzero"`
 }
 
+// CalendarSearchParams holds the params of calendar.search.
+type CalendarSearchParams struct {
+	// Words separated by spaces; at least one.
+	Query string `json:"query"`
+	// The IANA zone of today and of all-day occurrences. Default: maild's local
+	// zone.
+	TimeZone *string `json:"timeZone,omitzero"`
+	// Only these calendars.
+	CalendarIDs []int64 `json:"calendarIds,omitzero"`
+	// At most this many, 1 to 500. Default: 100.
+	Limit *int64 `json:"limit,omitzero"`
+}
+
 // CalendarEventParams holds the params of calendar.event.
 type CalendarEventParams struct {
 	ID           int64   `json:"id"`
@@ -1681,6 +1694,15 @@ type CalendarService interface {
 	// to to, in start order, from enabled calendars of accounts with the calendar
 	// service on.
 	Range(ctx context.Context, p *CalendarRangeParams) ([]Occurrence, error)
+	// Search implements calendar.search. The occurrences of the events that hold
+	// every word of query, in start order, from enabled calendars of accounts
+	// with the calendar service on. A word matches inside an event's title,
+	// location, notes, organizer or invitees (names and addresses), whatever its
+	// case. An occurrence of a series matches by its own event: the series, or
+	// the override that replaced it. The search reads the days from 5 years
+	// before today to 2 years after it; when more than limit occurrences match,
+	// the answer keeps those whose starts are nearest to now.
+	Search(ctx context.Context, p *CalendarSearchParams) ([]Occurrence, error)
 	// Event implements calendar.event. An event, or one occurrence of a series.
 	Event(ctx context.Context, p *CalendarEventParams) (*CalendarEvent, error)
 	// Invitation implements calendar.invitation. The invitation in a message's
@@ -1721,6 +1743,13 @@ func registerCalendar(r *Router, s CalendarService) {
 			return nil, err
 		}
 		return s.Range(ctx, &p)
+	})
+	r.handle("calendar.search", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p CalendarSearchParams
+		if err := decodeParams(raw, &p, []string{"query"}); err != nil {
+			return nil, err
+		}
+		return s.Search(ctx, &p)
 	})
 	r.handle("calendar.event", func(ctx context.Context, raw jsontext.Value) (any, error) {
 		var p CalendarEventParams
@@ -1806,6 +1835,13 @@ var _ CalendarService = CalendarClient{}
 func (x CalendarClient) Range(ctx context.Context, p *CalendarRangeParams) ([]Occurrence, error) {
 	var r []Occurrence
 	err := x.c.Call(ctx, "calendar.range", p, &r)
+	return r, err
+}
+
+// Search calls calendar.search.
+func (x CalendarClient) Search(ctx context.Context, p *CalendarSearchParams) ([]Occurrence, error) {
+	var r []Occurrence
+	err := x.c.Call(ctx, "calendar.search", p, &r)
 	return r, err
 }
 
@@ -6138,6 +6174,7 @@ var methodCallers = map[string][]CallerKind{
 	"block.add":               {CallerKindLocal, CallerKindSession},
 	"block.remove":            {CallerKindLocal, CallerKindSession},
 	"calendar.range":          {CallerKindLocal, CallerKindSession, CallerKindAgent},
+	"calendar.search":         {CallerKindLocal, CallerKindSession},
 	"calendar.event":          {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"calendar.invitation":     {CallerKindLocal, CallerKindSession},
 	"calendar.respond":        {CallerKindLocal, CallerKindSession},
@@ -6287,6 +6324,7 @@ var Methods = []string{
 	"block.add",
 	"block.remove",
 	"calendar.range",
+	"calendar.search",
 	"calendar.event",
 	"calendar.invitation",
 	"calendar.respond",

@@ -14,7 +14,7 @@ import (
 
 func newCalCmd(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{Use: "cal", Short: "Inspect and manage calendars and events"}
-	cmd.AddCommand(newCalLsCmd(opts), newCalAgendaCmd(opts))
+	cmd.AddCommand(newCalLsCmd(opts), newCalAgendaCmd(opts), newCalSearchCmd(opts))
 	cmd.AddCommand(newCalAddCmd(opts), newCalRmCmd(opts))
 	return cmd
 }
@@ -113,6 +113,47 @@ func newCalAgendaCmd(opts *rootOptions) *cobra.Command {
 	cmd.Flags().StringVar(&from, "from", "", "first day (YYYY-MM-DD; default: today)")
 	cmd.Flags().IntVar(&days, "days", 7, "number of days")
 	cmd.Flags().StringVar(&zone, "zone", "", "time zone (IANA; default: the local zone)")
+	cmd.Flags().BoolVar(&ids, "ids", false, "show event and occurrence IDs")
+	return cmd
+}
+
+func newCalSearchCmd(opts *rootOptions) *cobra.Command {
+	var zone string
+	var limit int64
+	var ids bool
+	cmd := &cobra.Command{
+		Use: "search <words>...", Short: "Find events by title, location, notes or people", Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			loc := time.Local
+			p := &api.CalendarSearchParams{Query: strings.Join(args, " ")}
+			if zone != "" && zone != "Local" { // else maild reads today in its own zone
+				var err error
+				if loc, err = time.LoadLocation(zone); err != nil {
+					return fmt.Errorf("invalid time zone %q: %w", zone, err)
+				}
+				p.TimeZone = &zone
+			}
+			if cmd.Flags().Changed("limit") {
+				p.Limit = &limit
+			}
+			ctx := cmd.Context()
+			c, _, err := opts.dial(ctx)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			rows, err := c.Calendar().Search(ctx, p)
+			if err != nil {
+				return err
+			}
+			if written, err := clix.OutputJSON(rows); err != nil || written {
+				return err
+			}
+			return printAgenda(cmd.OutOrStdout(), rows, loc, ids)
+		},
+	}
+	cmd.Flags().StringVar(&zone, "zone", "", "time zone (IANA; default: the local zone)")
+	cmd.Flags().Int64Var(&limit, "limit", 0, "at most this many, the nearest to now (default: maild's, 100)")
 	cmd.Flags().BoolVar(&ids, "ids", false, "show event and occurrence IDs")
 	return cmd
 }

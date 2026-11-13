@@ -9,6 +9,7 @@ import { EventPane } from "../features/calendar/EventPane";
 import { MonthGrid } from "../features/calendar/MonthGrid";
 import { useNotify } from "../features/calendar/NotifySheet";
 import { ScopeSheet } from "../features/calendar/ScopeSheet";
+import { SearchResults } from "../features/calendar/SearchResults";
 import { TimeGrid } from "../features/calendar/TimeGrid";
 import { WeekStrip } from "../features/calendar/WeekStrip";
 import { ModuleBar } from "../features/sidebar/ModuleBar";
@@ -126,11 +127,14 @@ function CalendarView({
   data,
   elementRef,
   narrow = false,
+  onOpen,
 }: {
   data: CalendarData;
   elementRef: RefObject<HTMLElement | null>;
   /** A narrow window shows the selected day alone, whatever the view. */
   narrow?: boolean;
+  /** Opens the selected occurrence in the event editor. */
+  onOpen?: () => void;
 }) {
   const ui = useUI();
   const { scopeSheet, notifySheet, onMove, onDraw, ...drag } = useCalendarDrag(data);
@@ -160,6 +164,25 @@ function CalendarView({
       ui.setCalendarView("day");
     },
   };
+  // A narrow window has no search field, so it never shows results.
+  if (!narrow && ui.calendarSearch !== "")
+    return (
+      <>
+        <SearchResults
+          occurrences={data.search.occurrences}
+          failed={data.search.failed}
+          colors={data.colors}
+          timeZone={data.timeZone}
+          locale={data.locale}
+          now={data.now}
+          selected={ui.calendarSelected}
+          onSelect={props.onSelect}
+          onOpen={() => onOpen?.()}
+        />
+        {scopeSheet}
+        {notifySheet}
+      </>
+    );
   return (
     <>
       {view === "month" ? (
@@ -378,7 +401,7 @@ export const CalendarModule = forwardRef<CalendarHandle, CalendarModuleProps>(fu
         onKeyDown={() => ui.setCalendarFocus("list")}
         className="h-full min-w-0 flex-1 outline-none"
       >
-        <CalendarView data={data} elementRef={view} />
+        <CalendarView data={data} elementRef={view} onOpen={edit} />
       </section>
       <section
         ref={reader}

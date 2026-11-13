@@ -154,6 +154,41 @@ function useEvent(client: Client, active: boolean) {
   return active && event?.id === selected?.eventId && event?.recurrenceId === selected?.recurrenceId ? event : null;
 }
 
+/** CalendarSearchData is the answer to Calendar's query: null while it is asked. */
+export interface CalendarSearchData {
+  query: string;
+  occurrences: Occurrence[] | null;
+  failed: boolean;
+}
+
+/** useCalendarSearch asks calendar.search for the query, and again on changes. */
+function useCalendarSearch(client: Client, active: boolean, timeZone: string): CalendarSearchData {
+  const query = useUI((state) => state.calendarSearch);
+  const [answer, setAnswer] = useState<{ query: string; occurrences: Occurrence[] | null }>({
+    query: "",
+    occurrences: [],
+  });
+  const load = useCallback(() => {
+    let stopped = false;
+    if (query !== "")
+      void client.calendar
+        .search({ query, timeZone })
+        .then((occurrences) => {
+          if (!stopped) setAnswer({ query, occurrences });
+        })
+        .catch((err: unknown) => {
+          console.warn("calendar search", err);
+          if (!stopped) setAnswer({ query, occurrences: null });
+        });
+    return () => {
+      stopped = true;
+    };
+  }, [client, query, timeZone]);
+  useRefresh(client, active, "calendar.changed", load);
+  const current = answer.query === query;
+  return { query, occurrences: current ? answer.occurrences : null, failed: current && answer.occurrences === null };
+}
+
 /** useCalendar loads the active view, small month's busy days and event details. */
 export function useCalendar() {
   const client = useClient();
@@ -173,7 +208,8 @@ export function useCalendar() {
   const busy = useMemo(() => busyDates(smallMonth, days, frame.timeZone), [smallMonth, days, frame.timeZone]);
   const event = useEvent(client, active);
   const calendars = useCalendars(client, active);
-  return { ...frame, ...calendars, occurrences, busy, event };
+  const search = useCalendarSearch(client, active, frame.timeZone);
+  return { ...frame, ...calendars, occurrences, busy, event, search };
 }
 
 /** CalendarData is the connected Calendar module's data. */
