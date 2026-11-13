@@ -66,7 +66,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` | `TestRowShowsCountAndVIPStar` |
 | P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` | `TestContactPhotosInTheList` |
 | P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |  |
-| P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |  |
+| P-211 | List preview lines (none to 5) | The General pane's List preview, kept by maild; the list's rows follow | Have | `TestSettingsPreviewLines`, `listPreview.test.ts`, `MessageRow.preview.test.tsx`, `GeneralPane.preview.test.tsx`, `ListPreviewLines.test.tsx` | `TestListPreviewLinesFollowTheSetting`, `TestGeneralListPreview`, `TestSummaryRowLinesSetTheHeightAndThePreview` |
 | P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |  |
 | P-213 | Highlight a selected conversation's other messages | | Later | Cosmetic |  |
 
@@ -87,6 +87,8 @@ tasks are not Mail's and are not listed; their parity is
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` | `TestInvitationCard` |
 | P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` | `TestContactPopover` |
 | P-313 | Data detectors: a date, an address or a flight in a message, offered as an event or a contact | | Later | Needs a detector over the message's text; invitations already make events (P-311) |  |
+| P-315 | Picture attachments shown in the message | A thumbnail in place of the attachment's chip, in the desktop app; the web build shows chips, and a PDF opens in the system's viewer ([#205](https://github.com/frostyard/frostmail/issues/205)) | Have | `TestThumbnailScalesDownToFitAndNeverUp`, `TestThumbnailIsUpright`, `TestThumbnailRefuses`, `TestPreviewable` | `TestPictureAttachmentsShowAsThumbnails` |
+| P-314 | Add an event that a message carries as a file (a ticket, a booking) to Calendar | Add to Calendar on the card of a published event: the user's own copy, without the sender's organizer, attendees and alarms ([ADR-0059](../adr/0059-add-a-published-event-from-mail-as-the-users-own.md)) | Have | `TestAddFromMessageStoresThePublishedEventAsTheUsersOwn`, `TestAddFromMessageRefuses`, `TestPublishedIsTheUsersOwnEvent`, `InvitationCard.add.test.tsx`, `Invitation.add.test.tsx` | `TestPublishedEventIsAddedFromTheCard` |
 
 ## Acting on messages
 

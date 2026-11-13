@@ -457,6 +457,18 @@ func (d *DB) Events(ctx context.Context, f EventsFilter) ([]EventRow, error) {
 	return out, rows.Err()
 }
 
+// HoldsEventUID reports whether a calendar of any account holds an event
+// with uid. It reads inside the transaction, so a write that depends on
+// the answer cannot race another that stores the same UID.
+func (t *Tx) HoldsEventUID(ctx context.Context, uid string) (bool, error) {
+	var held bool
+	err := t.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1"+eventJoins+" WHERE col.kind = 'calendar' AND e.uid = ?)", uid).Scan(&held)
+	if err != nil {
+		return false, fmt.Errorf("events with the uid: %w", err)
+	}
+	return held, nil
+}
+
 // EventTexts returns, by event ID, the text a search reads: the event's
 // summary, location, description, organizer and attendees (names and
 // addresses), one to a line.

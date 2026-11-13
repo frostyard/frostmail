@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -436,5 +437,97 @@ func TestDownloadsToOnePathDoNotCollide(t *testing.T) {
 	}
 	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 1 {
 		t.Errorf("the directory holds %v, %v: a temporary file was left", entries, err)
+	}
+}
+
+// partServer is a lodge whose content node answers every path with n
+// bytes, with or without saying how many, and counts the bytes it wrote.
+func partServer(t *testing.T, n int, sayLength bool) (*conn.Lodge, *atomic.Int64) {
+	t.Helper()
+	var wrote atomic.Int64
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/lodge/apps" {
+			_, _ = w.Write([]byte(`{"contentOrigin":"` + srv.URL + `"}`))
+			return
+		}
+		if sayLength {
+			w.Header().Set("Content-Length", strconv.Itoa(n))
+		}
+		chunk := bytes.Repeat([]byte("x"), 4096)
+		for left := n; left > 0; {
+			m := min(left, len(chunk))
+			if _, err := w.Write(chunk[:m]); err != nil {
+				return
+			}
+			wrote.Add(int64(m))
+			left -= m
+			if !sayLength {
+				w.(http.Flusher).Flush() // chunked: the answer names no length
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	l, err := conn.ParseLodge(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &l, &wrote
+}
+
+// A part read for a thumbnail is held to the thumbnail's limit over
+// lodge's content node, whatever size the message gave for it: an answer
+// that says it is longer is refused unread, and one that does not say is
+// read no further than the limit allows (frostyard/frostmail#312).
+func TestReadPartHoldsLodgeToTheLimit(t *testing.T) {
+	const limit = 64 << 10
+	part := &api.PartFile{Filename: "photo.png", ContentPath: new("p/mac/photo.png")}
+	for _, sayLength := range []bool{true, false} {
+		l, _ := partServer(t, limit, sayLength)
+		if data, err := conn.ReadPart(t.Context(), l, "", part, limit); err != nil || len(data) != limit {
+			t.Errorf("length said %v: a part of the limit read %d bytes, %v", sayLength, len(data), err)
+		}
+		l, _ = partServer(t, limit+1, sayLength)
+		if data, err := conn.ReadPart(t.Context(), l, "", part, limit); err == nil || !strings.Contains(err.Error(), "photo.png is over") {
+			t.Errorf("length said %v: a part one byte over read %d bytes, %v", sayLength, len(data), err)
+		}
+	}
+	// A far larger answer is not buffered: the client stops reading, so the
+	// server cannot write all of it.
+	const large = 64 << 20
+	l, wrote := partServer(t, large, false)
+	if _, err := conn.ReadPart(t.Context(), l, "", part, limit); err == nil {
+		t.Fatal("a large part was read")
+	}
+	if n := wrote.Load(); n >= large/2 {
+		t.Errorf("the server wrote %d of %d bytes to a reader with a limit of %d", n, large, limit)
+	}
+	if _, err := conn.ReadPart(t.Context(), l, "", &api.PartFile{Filename: "photo.png"}, limit); err == nil {
+		t.Error("a part with no content path was read from lodge")
+	}
+}
+
+// From maild's parts cache the same limit holds, and the path stays in it.
+func TestReadPartHoldsTheCacheToTheLimit(t *testing.T) {
+	const limit = 1000
+	cache := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(cache, "parts", "7"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, n := range map[string]int{"fits.png": limit, "over.png": limit + 1} {
+		if err := os.WriteFile(filepath.Join(cache, "parts", "7", name), bytes.Repeat([]byte("x"), n), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(cache, "outside.png"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := conn.ReadPart(t.Context(), nil, cache, &api.PartFile{Path: "7/fits.png", Filename: "fits.png"}, limit); err != nil || len(data) != limit {
+		t.Errorf("a part of the limit read %d bytes, %v", len(data), err)
+	}
+	for _, path := range []string{"7/over.png", "../outside.png", "/etc/hostname", "7/missing.png"} {
+		if data, err := conn.ReadPart(t.Context(), nil, cache, &api.PartFile{Path: path, Filename: "x.png"}, limit); err == nil {
+			t.Errorf("%s read %d bytes", path, len(data))
+		}
 	}
 }

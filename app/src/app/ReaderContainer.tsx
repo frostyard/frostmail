@@ -320,7 +320,7 @@ function ConversationMessage({
   const readOnly = useMail((s) => s.accounts.find((account) => account.id === summary.accountId)?.readOnly === true);
   const id = summary.id;
   const part = message ? invitationPart(message.parts) : undefined;
-  const { invitation, busy, onAnswer } = useInvitation(id, part !== undefined);
+  const { invitation, busy, onAnswer, onAdd } = useInvitation(id, part !== undefined);
   const unsubscribe = useUnsubscribe(id, !!message?.listUnsubscribe, readOnly);
   const { timeZone, locale, now } = useCalendarFrame();
   const shell = lodge();
@@ -536,6 +536,7 @@ function ConversationMessage({
           locale={locale}
           busy={busy}
           onAnswer={onAnswer}
+          onAdd={onAdd}
           onShowInCalendar={() => {
             const ui = useUI.getState();
             const e = invitation.event;
@@ -699,5 +700,18 @@ function useInvitation(messageId: number, active: boolean) {
         refresh.current();
       });
   };
-  return { invitation: active ? invitation : null, busy, onAnswer };
+  const onAdd = () => {
+    if (answering.current) return;
+    answering.current = true;
+    setBusy(true);
+    void client.calendar
+      .addFromMessage({ messageId })
+      .catch((err: unknown) => console.warn("add event to calendar", err))
+      .finally(() => {
+        answering.current = false;
+        setBusy(false);
+        refresh.current();
+      });
+  };
+  return { invitation: active ? invitation : null, busy, onAnswer, onAdd };
 }

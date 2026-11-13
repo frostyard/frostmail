@@ -1,9 +1,14 @@
 package mainwin_test
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,6 +29,7 @@ import (
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
 var tags = regexp.MustCompile(`<style>.*?</style>|<div class="print-only">.*?</div></div>|<[^>]*>`)
@@ -424,6 +430,53 @@ func TestAttachmentsOpenByAnAllowList(t *testing.T) {
 	}
 }
 
+// A picture attachment shows as a thumbnail, which opens and saves like
+// its chip; one that does not decode, and a file that is no picture, stay
+// chips (docs/specs/ui.md, Attachments).
+func TestPictureAttachmentsShowAsThumbnails(t *testing.T) {
+	photo := image.NewRGBA(image.Rect(0, 0, 600, 300))
+	for y := range 300 {
+		for x := range 600 {
+			photo.SetRGBA(x, y, color.RGBA{uint8(x * 255 / 600), uint8(y * 255 / 300), 160, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, photo); err != nil {
+		t.Fatal(err)
+	}
+	part := func(name, ctype string, data []byte) string {
+		return "--b\nContent-Type: " + ctype + "; name=\"" + name + "\"\nContent-Disposition: attachment; filename=\"" + name +
+			"\"\nContent-Transfer-Encoding: base64\n\n" + base64.StdEncoding.EncodeToString(data) + "\n"
+	}
+	body := "--b\nContent-Type: text/plain\n\nSee attached\n" + part("photo.png", "image/png", buf.Bytes()) +
+		part("broken.png", "image/png", []byte("not a picture")) + part("paper.pdf", "application/pdf", []byte("%PDF-1.4")) + "--b--"
+	f := oneMail(t, "MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=b\n", body)
+	f.open(t, "Alpha report")
+	f.has(t, "the thumbnail", "Preview of photo.png")
+	for _, chip := range []string{"photo.png", "broken.png", "paper.pdf"} {
+		f.has(t, "the name of "+chip, chip)
+	}
+	snapshot(t, f.tt, "attachment-thumbnails")
+	// The thumbnail is at most 220 × 120, and keeps the picture's shape.
+	box, ok := f.tt.Find("Preview of photo.png")
+	if !ok || box.W != 220 || box.H != 110 {
+		t.Errorf("the thumbnail's box = %+v, %v; want 220 × 110", box, ok)
+	}
+	if err := f.tt.Click("photo.png"); err != nil {
+		t.Fatal(err)
+	}
+	f.until(t, "the picture opened", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return len(f.launched) == 1 && strings.HasSuffix(f.launched[0], "photo.png")
+	})
+	for _, none := range []string{"Preview of broken.png", "Preview of paper.pdf"} {
+		if f.tt.HasText(none) {
+			t.Errorf("the reader shows %q", none)
+		}
+	}
+}
+
 // P-309: Ctrl+F finds across the pages, Enter moves.
 func TestFindCountsAcrossThePages(t *testing.T) {
 	f := oneMail(t, "", "needle needle")
@@ -641,6 +694,39 @@ func TestInvitationCard(t *testing.T) {
 	f.has(t, "the card", "Planning")
 	f.has(t, "the badge", "Invitation")
 	f.has(t, "the link to the calendar", "Show in Calendar")
+}
+
+// A published event (a ticket, a booking) is added from its card, which
+// then says the calendar has it (docs/specs/pim-ui.md, Invitation card).
+func TestPublishedEventIsAddedFromTheCard(t *testing.T) {
+	ics := "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//t//t//EN\nMETHOD:PUBLISH\nBEGIN:VEVENT\nUID:flight@x.test\nDTSTAMP:20261109T090000Z\nDTSTART:20261120T150000Z\nDTEND:20261120T160000Z\nSUMMARY:Flight LH 400\nORGANIZER;CN=Airline:mailto:noreply@x.test\nEND:VEVENT\nEND:VCALENDAR"
+	f := oneMail(t, "MIME-Version: 1.0\nContent-Type: text/calendar; method=PUBLISH; charset=utf-8\n", ics)
+	ctx := t.Context()
+	if err := f.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		if err := tx.SetService(ctx, f.acct, api.ServiceKindCalendar, true, "https://dav.x.test/"); err != nil {
+			return err
+		}
+		_, err := tx.ReplaceCollections(ctx, f.acct, api.CollectionKindCalendar, []store.RemoteCollection{{Href: "/work/", Name: "Work"}})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f.open(t, "Alpha report")
+	f.has(t, "the card", "Flight LH 400")
+	f.has(t, "the badge", "Event")
+	f.has(t, "the button", "Add to Calendar")
+	if f.tt.HasText("Accept") {
+		t.Error("a published event offers answers")
+	}
+	if err := f.tt.Click("Add to Calendar"); err != nil {
+		t.Fatal(err)
+	}
+	f.has(t, "the card afterwards", "This event is in your calendar.")
+	f.hasNot(t, "the button afterwards", "Add to Calendar")
+	rows, err := f.srv.DB.EventsByUID(ctx, f.acct, "flight@x.test")
+	if err != nil || len(rows) != 1 || rows[0].Summary != "Flight LH 400" || rows[0].Organizer != "" {
+		t.Errorf("stored = %+v, %v", rows, err)
+	}
 }
 
 // P-505: a sent message shows the undo toast, and Undo reopens its draft.

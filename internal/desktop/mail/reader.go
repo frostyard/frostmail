@@ -239,6 +239,8 @@ func InvitationLines(inv *api.Invitation, zone *time.Location) InvitationText {
 		out.Status = "This invitation is out of date."
 	case inv.Answer != nil && answerWords(*inv.Answer) != "":
 		out.Status = "You " + answerWords(*inv.Answer)
+	case inv.Method == api.ITIPMethodPublish && inv.EventID != nil:
+		out.Status = "This event is in your calendar."
 	}
 	return out
 }

@@ -326,7 +326,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 
 ### Message list
 
-- Rows are **84 high**, fixed: 8 padding top and bottom, a 24px gutter on the
+- Rows are **84 high** with the usual 2 lines of preview, and all the
+  same height (Preview lines, below): 8 padding top and bottom, a 24px gutter on the
   left and 12 on the right; a 1px `--separator` at the bottom inset 24 from
   the left.
 - **Sort and view options** (M5, P-202, P-203, P-209): at the right of
@@ -359,6 +360,16 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   a badge at the right: 16 high, 5px horizontal padding, 8px radius, 10/600
   `--badge-text` on `--badge-bg`, showing the count.
 - **Lines 3–4:** preview 12/16 `--text-secondary`, clamped to 2 lines.
+- **Preview lines** (P-211): the General pane's List preview
+  ([settings-ui.md](settings-ui.md), `settings.previewLines`) sets how
+  many lines the preview is clamped to, 0 to 5; 2 until the user chooses.
+  Every row is then 52 + 16 × lines high (52, 68, 84, 100, 116, 132),
+  whatever its text, and with 0 lines the row has no preview. In the
+  desktop app each line over 2 adds 17, not 16 (101, 118, 135): a preview
+  line is as high as the platform's font makes it, 16 on Linux and 16.63
+  on Windows, and the row must not cut more of 5 lines than it cuts of 2. The list
+  follows a change at once (`settings.changed`). A row not yet loaded
+  keeps the same height. Unsaved drafts' rows keep 2 lines.
 - **Gutter:** a 9px `--accent` dot centered on line 1 when unseen; a 12px
   filled flag in `--flag-N` centered on line 2 when flagged.
 - **Selection:** `--accent` background with every text, icon and dot in
@@ -577,6 +588,34 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   6 radius, 8px padding): a 16px `file` icon, the filename (truncated at
   200px) and the size ("12 KB", "1.4 MB"). Clicking opens the file with the
   system's default application.
+- **Picture attachments** (the desktop app;
+  [#205](https://github.com/frostyard/frostmail/issues/205)): a PNG, JPEG,
+  GIF, WebP or BMP attachment shows as a thumbnail in place of its chip,
+  as Mail.app shows a picture in the message.
+  - **Which:** by the part's content type (`image/png`, `image/jpeg`,
+    `image/gif`, `image/webp`, `image/bmp`), or by its file name's
+    extension when the type is `application/octet-stream` or empty. Never
+    SVG. The part's encoded size is at most 16 MiB, and a message gets at
+    most 12 thumbnails, its first; the rest stay chips. The size is the
+    message's word, so the app holds to it itself: it reads at most
+    16 MiB of a part, from maild's cache or from lodge's content node,
+    and refuses a longer answer without reading it through.
+  - **The thumbnail** fits 220 × 120, keeps the picture's shape, is never
+    larger than the picture, and has the theme's radius. A JPEG shows
+    upright, as its EXIF orientation says; a GIF shows its first frame. It
+    is named "Preview of <filename>". Under it, the filename (truncated)
+    and the size, 12px, no narrower than 96.
+  - **It acts as its chip:** a click opens the file, and its menu has Open
+    and Save As….
+  - **Making it:** when the message opens, the app asks `message.part`
+    for each such part, one after another, and scales the picture down to
+    at most 440 × 240 pixels off the UI thread, one picture at a time. A
+    picture whose header declares more than 40,000,000 pixels is not
+    decoded. Until its thumbnail is made, and when the part cannot be
+    read or decoded, the attachment is its chip. The bytes are the
+    message's own, from maild (over lodge's content node when the app is
+    a lodge client): nothing is fetched from anywhere else.
+  - The web build shows chips only.
 - **Links** open in the system browser; only `http`, `https` and `mailto`
   open. Others do nothing. `mailto` links keep only the address and the
   `to`, `cc`, `bcc`, `subject` and `body` fields, in any ASCII case, without

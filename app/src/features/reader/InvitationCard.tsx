@@ -23,6 +23,8 @@ export interface InvitationCardProps {
   /** An answer is on its way: the buttons are disabled. */
   busy: boolean;
   onAnswer: (answer: Answer) => void;
+  /** Add to Calendar, on a published event the calendars do not hold. */
+  onAdd?: () => void;
   onShowInCalendar: () => void;
 }
 
@@ -42,6 +44,7 @@ export function InvitationCard({
   locale,
   busy,
   onAnswer,
+  onAdd,
   onShowInCalendar,
 }: InvitationCardProps) {
   const e = inv.event;
@@ -70,7 +73,11 @@ export function InvitationCard({
     .join(" · ");
   const status = inv.outdated
     ? "This invitation is out of date."
-    : answerWords(inv.answer) && `You ${answerWords(inv.answer)}`;
+    : answerWords(inv.answer)
+      ? `You ${answerWords(inv.answer)}`
+      : inv.method === "publish" && inv.eventId !== undefined
+        ? "This event is in your calendar."
+        : "";
   return (
     <section
       aria-label="Invitation"
@@ -115,6 +122,15 @@ export function InvitationCard({
                 </button>
               ))}
             </div>
+          ) : inv.canAdd && onAdd ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onAdd}
+              className="h-[28px] rounded-[6px] border border-separator bg-window px-[10px] text-[12px]"
+            >
+              Add to Calendar
+            </button>
           ) : (
             <p className="text-[12px]/[16px] text-secondary">{status}</p>
           )}

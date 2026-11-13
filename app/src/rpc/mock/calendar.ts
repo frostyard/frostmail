@@ -62,6 +62,10 @@ export interface MockReminder {
 export interface MockInvitation {
   messageId: number;
   eventId: number;
+  /** The message publishes this event (a ticket, a booking) and invites
+   *  nobody: eventId is unused, and the calendars hold the event once
+   *  calendar.addFromMessage added it, by its UID. */
+  published?: CalendarEvent;
 }
 
 /** MockCalendarData is the events the mock serves; their calendars are
@@ -152,6 +156,8 @@ export class MockCalendar {
         return this.invitation(Number(params.messageId));
       case "calendar.respond":
         return this.respond(params);
+      case "calendar.addFromMessage":
+        return this.addFromMessage(Number(params.messageId));
       case "calendar.range":
         return this.range(params);
       case "calendar.search":
@@ -176,7 +182,48 @@ export class MockCalendar {
     return invitation.eventId;
   }
 
+  private published(messageId: number): { published: CalendarEvent; stored?: MockEvent } | undefined {
+    const published = this.data.invitations?.find((inv) => inv.messageId === messageId)?.published;
+    return published && { published, stored: this.data.events.find((mock) => mock.event.uid === published.uid) };
+  }
+
+  // As maild: the copy is the user's own, without the organizer, the
+  // attendees and the alarms.
+  private addFromMessage(messageId: number): CalendarEvent {
+    const found = this.published(messageId);
+    if (!found) throw new RPCError(ErrorCode.conflict, "message has no published event to add");
+    if (found.stored) throw new RPCError(ErrorCode.conflict, "the account's calendars hold this event already");
+    const calendar = this.collections.find((c) => c.kind === "calendar" && c.enabled && !c.readOnly);
+    if (!calendar) throw new RPCError(ErrorCode.conflict, "the account has no calendar that can be written");
+    const { organizer: _, answer: __, ...rest } = found.published;
+    const event: CalendarEvent = {
+      ...rest,
+      id: Math.max(0, ...this.data.events.map((mock) => mock.event.id)) + 1,
+      calendarId: calendar.id,
+      accountId: calendar.accountId,
+      attendees: [],
+      alarms: [],
+      readOnly: false,
+    };
+    this.data.events.push({ event });
+    this.emit({ event: "calendar.changed", data: { accountId: event.accountId } });
+    return this.event(event.id, "");
+  }
+
   private invitation(messageId: number): Invitation {
+    const found = this.published(messageId);
+    if (found)
+      return {
+        method: "publish",
+        event: { ...found.published, id: 0 },
+        ...(found.stored ? { eventId: found.stored.event.id } : {}),
+        ...(found.published.organizer ? { from: found.published.organizer } : {}),
+        canRespond: false,
+        canAdd: !found.stored,
+        outdated: false,
+        conflicts: [],
+        adjacent: [],
+      };
     const eventId = this.invitationEvent(messageId);
     const event = this.event(eventId, "");
     const day = event.allDay ? event.startDate : event.start.slice(0, 10);
@@ -199,6 +246,7 @@ export class MockCalendar {
       ...(event.organizer ? { from: event.organizer } : {}),
       ...(event.answer === undefined ? {} : { answer: event.answer }),
       canRespond: !event.readOnly,
+      canAdd: false,
       outdated: false,
       conflicts: others.filter(
         (o) => !o.transparent && o.answer !== "declined" && Date.parse(o.start) < end && Date.parse(o.end) > start,

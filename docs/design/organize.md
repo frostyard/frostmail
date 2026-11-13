@@ -146,6 +146,7 @@ by `settings.get` and `settings.set`; `settings.changed` after a change.
 | `flagNames` | seven strings | empty (Red … Gray) |
 | `favorites` | mailbox IDs, at most 50 | none |
 | `blockAction` | `mark`, `trash` | `mark` |
+| `previewLines` | 0 to 5 (lines of preview in the message list) | 2 |
 
 ## Notifications
 

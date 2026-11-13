@@ -26,6 +26,7 @@ types:
       - {name: flagNames, type: "[]string", doc: "Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray)."}
       - {name: favorites, type: "[]int", optional: true, doc: "Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none."}
       - {name: blockAction, type: BlockAction, optional: true, doc: "mark when absent."}
+      - {name: previewLines, type: int, optional: true, doc: "Lines of a message's preview in the list: 0 to 5. 2 when absent."}
 methods:
   - name: get
     doc: The current preferences.
@@ -39,6 +40,7 @@ methods:
       - {name: flagNames, type: "[]string", optional: true, doc: "Seven names, each at most 40 characters."}
       - {name: favorites, type: "[]int", optional: true, doc: "Mailbox IDs, at most 50, without repeats."}
       - {name: blockAction, type: BlockAction, optional: true}
+      - {name: previewLines, type: int, optional: true, doc: "0 to 5."}
     result: Settings
     errors: [invalidParams, notFound]
 events:
