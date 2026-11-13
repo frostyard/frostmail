@@ -1438,6 +1438,17 @@ Erase Deleted Items or Erase Junk Mail: delete every message in a trash or junk 
 Result: `int`.
 Errors: `invalidParams`, `notFound`, `conflict`.
 
+### `mailbox.markRead`
+
+Mark All Messages as Read: mark every unread message in a mailbox read, locally at once and on the server when it can be reached, as message.setFlags does for the messages it names. On Gmail a message under several labels is read under each. Returns how many it marked.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `int` |  |
+
+Result: `int`.
+Errors: `notFound`, `conflict`, `unavailable`.
+
 ### Event `mailbox.changed` (durable)
 
 A mailbox was created, renamed, deleted, or its counts changed.

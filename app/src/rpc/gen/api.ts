@@ -1515,6 +1515,11 @@ export interface MailboxEraseParams {
   id: number;
 }
 
+/** Params of mailbox.markRead. */
+export interface MailboxMarkReadParams {
+  id: number;
+}
+
 /** A mailbox was created, renamed, deleted, or its counts changed. */
 export interface MailboxChanged {
   id: number;
@@ -1560,6 +1565,13 @@ export interface MailboxClient {
    * or junk mailbox for good. Returns how many.
    */
   erase(params: MailboxEraseParams): Promise<number>;
+  /**
+   * Mark All Messages as Read: mark every unread message in a mailbox read,
+   * locally at once and on the server when it can be reached, as
+   * message.setFlags does for the messages it names. On Gmail a message under
+   * several labels is read under each. Returns how many it marked.
+   */
+  markRead(params: MailboxMarkReadParams): Promise<number>;
 }
 
 function mailboxClient(t: Transport): MailboxClient {
@@ -1571,6 +1583,7 @@ function mailboxClient(t: Transport): MailboxClient {
     delete: (params) => t.call<null>("mailbox.delete", params).then(() => undefined),
     setRole: (params) => t.call<Mailbox>("mailbox.setRole", params),
     erase: (params) => t.call<number>("mailbox.erase", params),
+    markRead: (params) => t.call<number>("mailbox.markRead", params),
   };
 }
 
@@ -3490,6 +3503,7 @@ export const METHODS = [
   "mailbox.delete",
   "mailbox.setRole",
   "mailbox.erase",
+  "mailbox.markRead",
   "message.get",
   "message.body",
   "message.summaries",

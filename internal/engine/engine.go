@@ -49,6 +49,7 @@ type Syncer interface {
 	DeleteMailbox(ctx context.Context, id int64) error
 	SetMailboxRole(ctx context.Context, id int64, role api.MailboxRole) (store.Mailbox, error)
 	EraseMailbox(ctx context.Context, id int64) (int, error)
+	MarkMailboxRead(ctx context.Context, id int64) (int, error)
 	// Verify compares an account's synced folders with the server.
 	Verify(ctx context.Context, accountID int64) ([]mailsync.Check, error)
 	// Kick, OutboxChanged and DraftsChanged wake an account's IMAP actor
@@ -509,6 +510,15 @@ func (m mailboxes) SetRole(ctx context.Context, p *api.MailboxSetRoleParams) (*a
 		return nil, api.Unavailable("sync is not running")
 	}
 	return mailboxResult(m.Sync.SetMailboxRole(ctx, p.ID, p.Role))
+}
+
+// MarkRead marks every unread message of a mailbox read.
+func (m mailboxes) MarkRead(ctx context.Context, p *api.MailboxMarkReadParams) (int64, error) {
+	if m.Sync == nil {
+		return 0, api.Unavailable("sync is not running")
+	}
+	n, err := m.Sync.MarkMailboxRead(ctx, p.ID)
+	return int64(n), opError(err)
 }
 
 func (m mailboxes) Erase(ctx context.Context, p *api.MailboxEraseParams) (int64, error) {

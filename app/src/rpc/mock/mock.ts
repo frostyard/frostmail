@@ -389,6 +389,8 @@ export class MockTransport implements Transport {
         return this.setRole(this.mailboxOr404(num(p.id)), p.role as MailboxRole);
       case "mailbox.erase":
         return this.erase(this.mailboxOr404(num(p.id)));
+      case "mailbox.markRead":
+        return this.markRead(this.mailboxOr404(num(p.id)));
       case "mailbox.list":
         return this.mailboxList(typeof p.accountId === "number" ? p.accountId : undefined);
       case "sync.status":
@@ -813,6 +815,17 @@ export class MockTransport implements Transport {
     mb.role = role;
     this.emit({ event: "mailbox.changed", data: { id: mb.id, accountId: mb.accountId, deleted: false } });
     return this.mailboxList(mb.accountId).find((m) => m.id === mb.id) as Mailbox;
+  }
+
+  /** markRead marks every unread message of a mailbox read, as maild's
+   *  mailbox.markRead, and returns how many. */
+  private markRead(mb: MockMailbox): number {
+    this.writableAccount(mb.accountId);
+    const unread = [...this.messages.values()]
+      .filter((m) => m.summary.mailboxIds.includes(mb.id) && !m.summary.flags.seen)
+      .map((m) => m.summary.id);
+    if (unread.length > 0) this.setFlags(unread, { seen: true });
+    return unread.length;
   }
 
   private erase(mb: MockMailbox): number {

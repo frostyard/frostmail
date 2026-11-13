@@ -1,4 +1,5 @@
 // CONTRACT TEST for task card T-0119 (docs/tasks). Do not edit.
+// Amended for Mark All Messages as Read, which now starts a mailbox's menu.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,6 +67,8 @@ describe("the sidebar's mailbox menu", () => {
   it("offers what an ordinary mailbox, the inbox and Trash take", async () => {
     await setup();
     expect(entries(await menuOf(FIXTURE.receipts))).toEqual([
+      "Mark All Messages as Read",
+      "—",
       "New Mailbox…",
       "Rename Mailbox…",
       "Move Mailbox…",
@@ -79,6 +82,8 @@ describe("the sidebar's mailbox menu", () => {
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     const inbox = await menuOf(FIXTURE.inbox);
     expect(entries(inbox)).toEqual([
+      "Mark All Messages as Read",
+      "—",
       "New Mailbox…",
       "Rename Mailbox…",
       "Move Mailbox…",

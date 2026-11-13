@@ -198,3 +198,33 @@ func TestMvAndRmCommands(t *testing.T) {
 		t.Fatal("rm without message IDs succeeded")
 	}
 }
+
+func TestMarkReadCommand(t *testing.T) {
+	e := opsFixture(t)
+	unread := 0
+	for _, id := range e.ids {
+		if !e.get(t, id).Summary.Flags.Seen {
+			unread++
+		}
+	}
+	if unread < 2 {
+		t.Fatalf("the fixture has %d unread messages", unread)
+	}
+	out, err := runMailctl(t, "--socket", e.srv.Socket, "mark-read", idArg(e.inbox))
+	if want := fmt.Sprintf("marked %d messages as read\n", unread); err != nil || out != want {
+		t.Fatalf("mark-read = %q, %v; want %q", out, err, want)
+	}
+	for _, id := range e.ids {
+		if !e.get(t, id).Summary.Flags.Seen {
+			t.Errorf("message %d is still unread", id)
+		}
+	}
+	if out, err := runMailctl(t, "--socket", e.srv.Socket, "mark-read", idArg(e.inbox)); err != nil || out != "marked 0 messages as read\n" {
+		t.Errorf("a second mark-read = %q, %v", out, err)
+	}
+	for _, bad := range [][]string{{"mark-read"}, {"mark-read", "x"}, {"mark-read", "99999"}, {"mark-read", idArg(e.inbox), idArg(e.archive)}} {
+		if _, err := runMailctl(t, append([]string{"--socket", e.srv.Socket}, bad...)...); err == nil {
+			t.Errorf("mailctl %s succeeded", strings.Join(bad, " "))
+		}
+	}
+}

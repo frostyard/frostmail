@@ -259,6 +259,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   named "New Mailbox" (not on a read-only account), which opens the
   mailbox sheet to make one at the top level. Right click (or the Menu
   key) on one of an account's mailbox rows opens, in this order:
+  - Mark All Messages as Read, then a separator: `mailbox.markRead` for
+    the mailbox, with no question first, as Mail.app. Disabled when the
+    mailbox has no unread message and in a read-only account. A
+    favorite's menu starts with it too. It has no undo.
   - New Mailbox… (the sheet, inside this mailbox), Rename Mailbox…, Move
     Mailbox… and Delete Mailbox…; the last three are disabled for a
     mailbox with a role. Delete asks first, as removing an account does

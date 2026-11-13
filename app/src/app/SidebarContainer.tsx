@@ -23,9 +23,21 @@ const ROLES: [MailboxRole, string][] = [
   ["archive", "Archive"],
 ];
 
+/** markReadItem is Mark All Messages as Read: off with no unread mail and in a read-only account. */
+function markReadItem(mailbox: Mailbox, readOnly: boolean): MenuItem {
+  return {
+    kind: "item",
+    id: "markRead",
+    label: "Mark All Messages as Read",
+    disabled: readOnly || mailbox.unread === 0,
+  };
+}
+
 function mailboxMenu(mailbox: Mailbox, readOnly: boolean, favorite: boolean): MenuItem[] {
   const locked = readOnly || mailbox.role !== "none";
   const items: MenuItem[] = [
+    markReadItem(mailbox, readOnly),
+    { kind: "separator" },
     { kind: "item", id: "new", label: "New Mailbox…", disabled: readOnly },
     { kind: "item", id: "rename", label: "Rename Mailbox…", disabled: locked },
     { kind: "item", id: "move", label: "Move Mailbox…", disabled: locked },
@@ -65,9 +77,11 @@ function mailboxMenu(mailbox: Mailbox, readOnly: boolean, favorite: boolean): Me
   return items;
 }
 
-function favoriteMenu(id: number, favorites: Mailbox[]): MenuItem[] {
+function favoriteMenu(id: number, favorites: Mailbox[], readOnly: boolean): MenuItem[] {
   const index = favorites.findIndex((mailbox) => mailbox.id === id);
+  const mailbox = favorites[index];
   return [
+    ...(mailbox ? [markReadItem(mailbox, readOnly), { kind: "separator" } as const] : []),
     { kind: "item", id: "remove", label: "Remove from Favorites" },
     { kind: "item", id: "up", label: "Move Up", disabled: index <= 0 },
     { kind: "item", id: "down", label: "Move Down", disabled: index < 0 || index === favorites.length - 1 },
@@ -149,6 +163,7 @@ export function SidebarContainer({ modules = true }: { modules?: boolean }) {
   };
   const mailboxAction = async (mailbox: Mailbox, action: string) => {
     if (action === "new" || action === "rename" || action === "move") editMailbox(mailbox, action);
+    else if (action === "markRead") await client.mailbox.markRead({ id: mailbox.id });
     else if (action === "favorite") {
       const favorites = useMail.getState().settings?.favorites ?? [];
       await client.settings.set({
@@ -173,7 +188,8 @@ export function SidebarContainer({ modules = true }: { modules?: boolean }) {
     const ids = (settings?.favorites ?? []).filter((id) => mailboxes.some((mailbox) => mailbox.id === id));
     const index = ids.indexOf(id);
     if (index < 0) return;
-    if (action === "remove") await client.settings.set({ favorites: ids.filter((favorite) => favorite !== id) });
+    if (action === "markRead") await client.mailbox.markRead({ id });
+    else if (action === "remove") await client.settings.set({ favorites: ids.filter((favorite) => favorite !== id) });
     else if (action === "up" || action === "down") {
       const next = index + (action === "up" ? -1 : 1);
       const neighbor = ids[next];
@@ -317,7 +333,11 @@ export function SidebarContainer({ modules = true }: { modules?: boolean }) {
           key={`favorite:${menu.id}`}
           x={menu.x}
           y={menu.y}
-          items={favoriteMenu(menu.id, favorites)}
+          items={favoriteMenu(
+            menu.id,
+            favorites,
+            accounts.find((a) => a.id === favorites.find((m) => m.id === menu.id)?.accountId)?.readOnly ?? true,
+          )}
           onClose={() => setMenu(null)}
           onSelect={(action) => {
             void favoriteAction(menu.id, action).catch((err: unknown) => console.warn("favorite action", err));

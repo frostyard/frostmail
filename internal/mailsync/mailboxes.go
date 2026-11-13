@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -372,6 +373,47 @@ func (m *Manager) EraseMailbox(ctx context.Context, id int64) (int, error) {
 		}
 		n, err = eraseMembers(ctx, tx, mb, members)
 		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	if n > 0 {
+		m.kick(mb.AccountID)
+	}
+	return n, nil
+}
+
+// markReadBatch is how many messages one flags op of MarkMailboxRead
+// names: a mailbox can hold more unread mail than one op should carry.
+const markReadBatch = 500
+
+// MarkMailboxRead marks every unread message of a mailbox read (Mail.app's
+// Mark All Messages as Read), as SetFlags does for the messages it is
+// given: at once in the store, with flags ops queued for the server. The
+// unread messages are read in the transaction that marks them. It returns
+// how many it marked.
+func (m *Manager) MarkMailboxRead(ctx context.Context, id int64) (int, error) {
+	mb, err := m.db.GetMailbox(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := m.writable(ctx, mb.AccountID); err != nil {
+		return 0, err
+	}
+	seen := true
+	n := 0
+	err = m.db.Tx(ctx, func(tx *store.Tx) error {
+		ids, err := tx.UnseenInMailbox(ctx, mb.ID)
+		if err != nil {
+			return err
+		}
+		n = len(ids)
+		for batch := range slices.Chunk(ids, markReadBatch) {
+			if _, err := m.setFlagsTx(ctx, tx, batch, store.FlagChange{Seen: &seen}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return 0, err
