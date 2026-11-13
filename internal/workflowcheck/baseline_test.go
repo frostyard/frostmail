@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
@@ -146,6 +147,12 @@ var correctionsMember = []string{"date", "scope", "correction", "evidence", "pro
 // datePattern is the form of a correction's date.
 var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
+// jsSpace reports whether r is white space for JavaScript's String.prototype.trim,
+// which core's check uses: Go's white space without U+0085, and with U+FEFF.
+func jsSpace(r rune) bool {
+	return r == 0xFEFF || (r != 0x85 && unicode.IsSpace(r))
+}
+
 // correctionProblems returns the content problems of 1 correction record, the
 // text of 1 file of .memory/corrections/, after frostyard/core
 // scripts/check-corrections.mjs (row B2); no problem means valid content.
@@ -193,12 +200,13 @@ func correctionProblems(line string) []string {
 	if s, ok := obj["date"].(string); ok {
 		if !datePattern.MatchString(s) {
 			problems = append(problems, "invalid date: "+s)
-		} else if _, err := time.Parse("2006-01-02", s); err != nil {
+		} else if _, err := time.Parse("2006-01-02", s); err != nil || s < "0100" {
+			// core's check reads a year below 100 as 19YY, so it refuses one.
 			problems = append(problems, "invalid date: "+s)
 		}
 	}
 	for _, name := range []string{"scope", "correction", "evidence"} {
-		if s, ok := obj[name].(string); ok && strings.TrimSpace(s) == "" {
+		if s, ok := obj[name].(string); ok && strings.TrimFunc(s, jsSpace) == "" {
 			problems = append(problems, name+" is empty")
 		}
 	}
@@ -225,6 +233,12 @@ func TestCorrectionProblems(t *testing.T) {
 		{"duplicate member", `{"date": "2026-11-05", "date": "2026-11-05", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
 		{"not an object", `["2026-11-05"]`, false},
 		{"blank line", "  ", false},
+		{"year 0000", `{"date": "0000-01-01", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"year 0099", `{"date": "0099-12-31", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"year 0100", `{"date": "0100-01-01", "scope": "s", "correction": "c", "evidence": "e", "promoted_to": ""}`, true},
+		{"scope of U+0085 only", `{"date": "2026-11-05", "scope": "\u0085", "correction": "c", "evidence": "e", "promoted_to": ""}`, true},
+		{"scope of U+FEFF only", `{"date": "2026-11-05", "scope": "\ufeff", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
+		{"scope of U+00A0 only", `{"date": "2026-11-05", "scope": "\u00a0", "correction": "c", "evidence": "e", "promoted_to": ""}`, false},
 	} {
 		problems := correctionProblems(tc.line)
 		switch {
