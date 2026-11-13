@@ -80,6 +80,7 @@ container calls maild.
  New message notifications:  [Inbox Only ▾]
           In this browser:   [Allow Notifications…]     (the web build)
           Undo send delay:   [10 Seconds ▾]
+             List preview:   [2 Lines ▾]
                Flag names:   ⚑ [Red          ]
                              ⚑ [Orange       ]
                              …  (seven rows)
@@ -101,6 +102,11 @@ container calls maild.
   `{notifyScope: "smart", notifySmartId}` for a smart mailbox.
 - **Undo send delay:** a `select`: Off (0), 10 Seconds, 20 Seconds, 30
   Seconds. Choosing one calls `settings.set {undoDelay}`.
+- **List preview** (P-211): a `select`: No Preview (0), 1 Line, 2 Lines,
+  3 Lines, 4 Lines, 5 Lines. Choosing one calls
+  `settings.set {previewLines}`; the message list follows
+  ([ui.md](ui.md), Message list). In the desktop app it is the last row
+  of the pane's first group.
 - **Flag names:** seven rows, each a 12px filled `flag` in `--flag-<n>`
   and a `FIELD` text input (named "Flag <n> name", placeholder the
   color's own name, at most 40 characters) holding the custom name, empty

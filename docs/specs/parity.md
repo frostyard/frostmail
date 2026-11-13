@@ -65,7 +65,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-208 | VIP star on the sender | Same | Have | `MessageRow.vip.test.tsx`, `VipStar.test.tsx` | `TestRowShowsCountAndVIPStar` |
 | P-209 | Contact photos in the list | People photos, never fetched | Have | `TestPeopleSenders`, `ContactPhotos.test.tsx`, `MessageRow.photo.test.tsx` | `TestContactPhotosInTheList` |
 | P-210 | Business logos in the list | | Out | Fetched from Apple; the app never fetches remote content |  |
-| P-211 | List preview lines (none to 5) | | Later | A setting over a fixed row height |  |
+| P-211 | List preview lines (none to 5) | The General pane's List preview, kept by maild; the list's rows follow | Have | `TestSettingsPreviewLines`, `listPreview.test.ts`, `MessageRow.preview.test.tsx`, `GeneralPane.preview.test.tsx`, `ListPreviewLines.test.tsx` | `TestListPreviewLinesFollowTheSetting`, `TestGeneralListPreview`, `TestSummaryRowLinesSetTheHeightAndThePreview` |
 | P-212 | Classic layout with columns | | Later | Deferred since M2 (plan 0004) |  |
 | P-213 | Highlight a selected conversation's other messages | | Later | Cosmetic |  |
 
