@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/frostyard/frostui"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
@@ -743,35 +743,15 @@ func (w *Window) thumbnail(cv *conv, id int64, p api.Part) (*image.RGBA, error) 
 	return uikit.Thumbnail(data, 2*thumbWidth, 2*thumbHeight)
 }
 
-// partBytes reads a part into memory: from maild's parts cache, or over
-// lodge's content node. It reads no more than a thumbnail's part may hold.
+// partBytes reads a part into memory, from maild's parts cache or over
+// lodge's content node, and no more of it than a thumbnail's part may
+// hold, whatever size the message gave for it.
 func (w *Window) partBytes(ctx context.Context, cv *conv, id int64, p api.Part) ([]byte, error) {
 	f, err := cv.client.Message().Part(ctx, &api.MessagePartParams{ID: id, Path: p.Path})
 	if err != nil {
 		return nil, err
 	}
-	if lodge := w.state.Target.Lodge; lodge != nil {
-		if f.ContentPath == nil {
-			return nil, errors.New("lodge gave no content path")
-		}
-		return lodge.Read(ctx, *f.ContentPath, f.Filename)
-	}
-	if !filepath.IsLocal(filepath.FromSlash(f.Path)) {
-		return nil, fmt.Errorf("not a path in the parts cache: %s", f.Path)
-	}
-	file, err := os.Open(filepath.Join(w.o.CacheDir, "parts", filepath.FromSlash(f.Path))) //nolint:gosec // a part of the cache
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = file.Close() }()
-	data, err := io.ReadAll(io.LimitReader(file, mail.MaxPreviewBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) > mail.MaxPreviewBytes {
-		return nil, fmt.Errorf("the part is over %d MiB", mail.MaxPreviewBytes>>20)
-	}
-	return data, nil
+	return conn.ReadPart(ctx, w.state.Target.Lodge, w.o.CacheDir, f, mail.MaxPreviewBytes)
 }
 
 // partFile fetches a part to a local file: from maild's parts cache, or

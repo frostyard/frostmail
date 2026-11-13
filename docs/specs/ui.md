@@ -581,7 +581,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
     `image/gif`, `image/webp`, `image/bmp`), or by its file name's
     extension when the type is `application/octet-stream` or empty. Never
     SVG. The part's encoded size is at most 16 MiB, and a message gets at
-    most 12 thumbnails, its first; the rest stay chips.
+    most 12 thumbnails, its first; the rest stay chips. The size is the
+    message's word, so the app holds to it itself: it reads at most
+    16 MiB of a part, from maild's cache or from lodge's content node,
+    and refuses a longer answer without reading it through.
   - **The thumbnail** fits 220 × 120, keeps the picture's shape, is never
     larger than the picture, and has the theme's radius. A JPEG shows
     upright, as its EXIF orientation says; a GIF shows its first frame. It

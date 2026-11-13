@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/frostyard/frostmail/api"
 )
 
 // MaxDownload is the most an attachment or a message downloaded from
@@ -71,6 +73,13 @@ var errNoContentOrigin = errors.New("lodge serves no content origin for mail")
 // fetch reads <contentOrigin>/mail/<contentPath>, at most MaxDownload
 // bytes of it.
 func (l Lodge) fetch(ctx context.Context, contentPath, what string) ([]byte, error) {
+	return l.fetchLimited(ctx, contentPath, what, MaxDownload)
+}
+
+// fetchLimited reads <contentOrigin>/mail/<contentPath>, at most limit
+// bytes of it. An answer that says it is longer is refused unread, and one
+// that does not say is read no further than a byte past the limit.
+func (l Lodge) fetchLimited(ctx context.Context, contentPath, what string, limit int64) ([]byte, error) {
 	if strings.HasPrefix(contentPath, "/") || strings.Contains(contentPath, "..") || strings.ContainsAny(contentPath, "?#") {
 		return nil, fmt.Errorf("not a content path: %s", contentPath)
 	}
@@ -91,20 +100,55 @@ func (l Lodge) fetch(ctx context.Context, contentPath, what string) ([]byte, err
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download %s: %s", url, resp.Status)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxDownload+1))
+	if resp.ContentLength > limit {
+		return nil, tooLarge(what, limit)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("download %s: %w", url, err)
 	}
-	if len(data) > MaxDownload {
-		return nil, fmt.Errorf("%s is over %d MiB", what, MaxDownload>>20)
+	if int64(len(data)) > limit {
+		return nil, tooLarge(what, limit)
 	}
 	return data, nil
 }
 
-// Read fetches a part from lodge's content node into memory, at most
-// MaxDownload bytes of it: what the app shows itself, as a thumbnail.
-func (l Lodge) Read(ctx context.Context, contentPath, what string) ([]byte, error) {
-	return l.fetch(ctx, contentPath, what)
+func tooLarge(what string, limit int64) error {
+	if limit >= 1<<20 {
+		return fmt.Errorf("%s is over %d MiB", what, limit>>20)
+	}
+	return fmt.Errorf("%s is over %d bytes", what, limit)
+}
+
+// ReadPart reads a part maild named (message.part) into memory, at most
+// limit bytes of it, for what the app shows itself, as a thumbnail: over
+// lodge's content node when lodge is set, else from maild's parts cache
+// under cacheDir. The limit holds whatever size the part's metadata gave:
+// no more than a byte past it is read from either.
+func ReadPart(ctx context.Context, lodge *Lodge, cacheDir string, f *api.PartFile, limit int64) ([]byte, error) {
+	if lodge != nil {
+		if f.ContentPath == nil {
+			return nil, errors.New("lodge gave no content path")
+		}
+		return lodge.fetchLimited(ctx, *f.ContentPath, f.Filename, limit)
+	}
+	rel := filepath.FromSlash(f.Path)
+	if !filepath.IsLocal(rel) {
+		return nil, fmt.Errorf("not a path in the parts cache: %s", f.Path)
+	}
+	file, err := os.Open(filepath.Join(cacheDir, "parts", rel)) //nolint:gosec // a part of the cache
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, tooLarge(f.Filename, limit)
+	}
+	return data, nil
 }
 
 // Download fetches a part from lodge's content node into dir, under a
