@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "list preview lines on Windows (#313)",
+  "correction": "A line of text is as high as the platform's font makes it, not the spec's number: the Linux build's 12.5 px preview lines are 16 high, Windows' 16.63, and FixedLineHeight does not make a line shorter than its font's glyphs. A row sized by a count of lines allows the tallest supported font's line for each line added, and its test measures a line instead of assuming 16.",
+  "evidence": "TestSummaryRowLinesSetTheHeightAndThePreview measures one preview line and what the usual 2-line row cuts in the same font, then holds 0 to 5 lines to cutting no more; the first version asserted 16 px a line and failed on Windows (job 131682668683: 16.625977 and 83.08789).",
+  "promoted_to": "internal/desktop/uikit/summaryrow.go (summaryLineMore, SummaryHeightFor)"
+}

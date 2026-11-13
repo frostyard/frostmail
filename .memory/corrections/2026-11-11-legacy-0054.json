@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose",
+  "correction": "Removing an attachment ran with no pending marker, so Send right after Remove could send the removed file. A removal now stays in w.detaching until maild answers, and canSend counts it.",
+  "evidence": "PR 223 cross-review M30; internal/desktop/compose/window.go",
+  "promoted_to": "internal/desktop/compose/window_test.go: TestSendWaitsForARemoval"
+}

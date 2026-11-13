@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-10",
+  "scope": "windows installer folder",
+  "correction": "The installer accepted the folder that holds the mail as its install folder, and MyGo's uninstaller removes that folder whole, so an uninstall could delete the mail whatever the user answered; .onInit and .onVerifyInstDir now refuse a folder that is, holds or sits in the mail's folder or the old install.",
+  "evidence": "PR 223 review finding 36; packaging/windows/installer.nsh",
+  "promoted_to": "ci.yml Windows app job: a silent install into the mail's folder must be refused, and a silent uninstall must keep a probe file"
+}

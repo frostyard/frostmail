@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "sender check (plan 0014 Phase 1, ADR-0050)",
+  "correction": "The parser rejected white space around \"/\" that RFC 8601 allows and accepted a bad version or result, so a malformed dmarc piece could hide a DKIM fail; it now parses method, numeric version and result as keywords.",
+  "evidence": "frostmail#169, cross-review (openai/gpt-6.1-sol) of head d0d21dc, findings 1 and 2",
+  "promoted_to": "internal/authres/authres_test.go TestSenderCheck"
+}

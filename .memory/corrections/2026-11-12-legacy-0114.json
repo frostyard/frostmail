@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "maild shutdown order (#293)",
+  "correction": "A worker whose Wait ends only when ctx ends hangs the shutdown that runs before the cancel. Cancel ctx first, and register the whole shutdown sequence, waits included, before any worker starts, so no start can be left unjoined.",
+  "evidence": "TestMaildJoinsItsWorkersWhenServingFails has an account whose sync actor runs and a socket that fails while ctx is live; with the old defer order maild never returns.",
+  "promoted_to": "cmd/maild/main.go"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "settings accounts",
+  "correction": "Keep disabled server fields' values in accessibility; distinguish an empty accessibility value from the painted text.",
+  "evidence": "#243: real Linux window showed imap.second.test before the fix but six empty accessibility values; TestAccountFieldsDuringAnotherAccountsSave checks the six values during a held save.",
+  "promoted_to": "docs/plans/0015-mygo-desktop.md"
+}

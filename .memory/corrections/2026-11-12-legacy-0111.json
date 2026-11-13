@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "message.getMany batch read (#292)",
+  "correction": "A store read that binds 1 SQL variable per ID fails past SQLite's 32,766 variables, so a batch RPC with no limit on its IDs passes them as 1 JSON array through json_each.",
+  "evidence": "TestGetMessagesTakesMoreIDsThanSQLiteBinds asks for 40,002 IDs; with 1 placeholder per ID it fails with too many SQL variables.",
+  "promoted_to": "internal/store/read.go"
+}

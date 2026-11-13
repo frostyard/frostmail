@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "calendar.addFromMessage duplicates (#311)",
+  "correction": "A write that must happen once checks its condition inside the store.DB.Tx that writes: a check before the transaction lets two calls at the same time both pass it.",
+  "evidence": "TestAddFromMessageAtOnceStoresOneCopy starts 8 adds of one message behind a barrier and wants 1 success and 1 stored event; with the check outside the transaction, or none, 8 succeed.",
+  "promoted_to": "internal/store/events.go (Tx.HoldsEventUID), internal/engine/add_from_message.go"
+}

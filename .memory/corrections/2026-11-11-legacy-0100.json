@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "settings flags",
+  "correction": "Detect flag-field focus changes after every field has consumed its input, including backward focus moves.",
+  "evidence": "#232: TestFlagNamesSaveWhenFocusMovesBackward covers Shift+Tab and clicking the earlier field.",
+  "promoted_to": "internal/desktop/settings/general.go"
+}

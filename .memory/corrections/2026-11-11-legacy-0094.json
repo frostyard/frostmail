@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop new event wall time",
+  "correction": "Find the next future local whole hour; truncating absolute time to an hour lands at :30 or :45 in fractional-offset zones. Preserve forward progress across daylight-saving transitions.",
+  "evidence": "Issue #234, PR #223 cross-review M76",
+  "promoted_to": "internal/desktop/pim/calendar_state_test.go TestNewEventStartsAtTheNextLocalWholeHour"
+}

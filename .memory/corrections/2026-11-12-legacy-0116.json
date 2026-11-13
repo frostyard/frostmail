@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "maild shutdown and MCP agent connections (#305)",
+  "correction": "Each MCP agent connection runs ServeConn in a goroutine that outlives lodge's socket, so maild must track it: start it in lodge.Agents, refuse new ones once maild stops, and close Agents after the background work and before the store gate and the store.",
+  "evidence": "TestMaildWaitsForAnAgentsCallBeforeClosingTheStore holds an agent's account.list call, cancels maild and sees the store close only after the call returns; without agents.Close() it fails.",
+  "promoted_to": "internal/lodge/serve.go"
+}

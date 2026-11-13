@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop calendar callbacks across maild changes",
+  "correction": "Calendar write answers, notification confirmations and pre-drag event reads must remain bound to the maild on which they started. Leave invalidates those callbacks before they can add undo entries or scope sheets to the next maild.",
+  "evidence": "Issue #244, PR #223 re-review follow-up",
+  "promoted_to": "internal/desktop/pim/calendar_state_test.go TestCalendarWorkCannotReachTheNextMaild"
+}

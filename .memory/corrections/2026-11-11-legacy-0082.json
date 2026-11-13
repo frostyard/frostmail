@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/uikit/safehtml.go",
+  "correction": "The keyboard watch of a focused page ended after 120 measures, so a keyboard See More later left the page clipped. The watch now measures every second while frames say the page has the keyboard; every 30 measures it asks for a frame and ends when no frame drew the page, so no undrawn or unfocused page is polled.",
+  "evidence": "PR 223 cross-review M1; internal/desktop/uikit/safehtml.go",
+  "promoted_to": "internal/desktop/uikit TestSafeFrameWatchesAsLongAsThePageHasTheKeyboard and TestSafeFrameWatchEndsWhenThePageIsNotDrawn"
+}

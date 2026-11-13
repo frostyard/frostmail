@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "attachment reminder (plan 0014 Phase 2)",
+  "correction": "Plain textContent joins blocks with no separator, so the spec now defines htmlText: blocks and br end a line, inline elements add nothing, white space collapses; the body and the signature use the same function.",
+  "evidence": "frostmail#167, cross-review (openai/gpt-6.1-sol) of head 16f986e, finding 3",
+  "promoted_to": "docs/specs/compose-ui.md (Attachment reminder); frostmail#160 attachmentReminder.test.ts"
+}

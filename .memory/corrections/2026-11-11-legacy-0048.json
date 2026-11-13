@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop contact editor labels",
+  "correction": "Drawing the contact editor stored the first label in each unlabeled email, phone, address and URL, so Done sent every list for an edit of the note alone; the editor now shows the first label for an empty one without storing it, and sends only the fields the user changed.",
+  "evidence": "PR 223 cross-review M70; internal/desktop/pim/contact_editor.go",
+  "promoted_to": "TestANoteOnlyEditLeavesTheLists"
+}

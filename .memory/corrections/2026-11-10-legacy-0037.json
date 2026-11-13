@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-10",
+  "scope": "desktop sign-in opener",
+  "correction": "The native app passed the URL account.authorize returned straight to the system, and behind lodge that URL comes from another machine; it now opens only an https URL.",
+  "evidence": "PR 223 review finding 24; cmd/frostmail/settings.go",
+  "promoted_to": "TestSignInOpensHTTPSOnly"
+}

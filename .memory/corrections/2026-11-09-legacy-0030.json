@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-09",
+  "scope": "app reader find",
+  "correction": "The rendered-text search still differed from what the page shows: a final sigma did not fold like a sigma, a query's whitespace did not meet preformatted or pre-line text, a pre tag beat its computed white-space, and a hidden br still broke a match; fold and whitespace rules are now 1 for the text and the query, and the computed style is read before any tag case.",
+  "evidence": "frostmail#219, cross-review (openai/gpt-6.1-sol) of head f40feda, findings 2 to 5",
+  "promoted_to": "app/src/features/reader/findInMessage.test.ts (final sigma, whitespace runs, pre-line, computed white-space, hidden br)"
+}

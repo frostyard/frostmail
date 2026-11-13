@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-08",
+  "scope": "app command palette",
+  "correction": "The web build's Commands button opened the palette while a contact was being edited; the palette does not render then, but the window's key handler ignored every key while it was open, so the window's keys went dead. The button now opens it only when no contact is being edited, as the key path already did.",
+  "evidence": "frostmail#210, cross-review (openai/gpt-6.1-sol) of head 7f9d3bd, finding 1",
+  "promoted_to": "app/src/app/Palette.lodge.test.tsx"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": ".gitignore",
+  "correction": "The old .gitignore had no final newline, so an added entry joined /.envrc into /.envrc/resources/ and .envrc, which holds local secrets, was no longer ignored. Each entry is on its own line again and the file ends with a newline.",
+  "evidence": "PR 223 cross-review M93; .gitignore",
+  "promoted_to": "internal/workflowcheck TestGitignoreEntriesStandAlone"
+}

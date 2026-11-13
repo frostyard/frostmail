@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "lodge unread badge after close (#293)",
+  "correction": "A store read that runs in a goroutine its caller does not join needs a gate: it refuses a read once closed, and the close waits for the reads under way, so the store closes after them.",
+  "evidence": "TestStoreGateCloseWaitsForCallsUnderWay holds a read and sees close wait for it; TestStoreGateRefusesReadsAfterClose sees the refusal and that the read does not run.",
+  "promoted_to": "cmd/maild/storegate.go"
+}

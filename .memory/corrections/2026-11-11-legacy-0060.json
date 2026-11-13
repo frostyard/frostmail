@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop delete keys",
+  "correction": "Delete and Backspace ran in any pane, so with the sidebar focused they deleted the selected mail; they now act only when the list holds the focus.",
+  "evidence": "PR 223 cross-review M44; internal/desktop/mainwin/mainwin.go",
+  "promoted_to": "TestDeleteKeysActOnlyInTheList in internal/desktop/mainwin"
+}

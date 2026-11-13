@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "reader DB error mapping (#289)",
+  "correction": "A narrower store read must keep the API error every caller already answers: only the new fault path (the blob store) may return a raw error, while a row read failure keeps its old code and text.",
+  "evidence": "TestReadKeepsTheAnswerForADBFault: with a closed store and a blob store present, message.body must be unavailable with the old words; it fails with the raw error mapping.",
+  "promoted_to": "internal/engine/messages.go"
+}

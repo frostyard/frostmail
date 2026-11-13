@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop collapsed reader commands",
+  "correction": "Expanding a collapsed message must retain the requested action. Source and headers can load from its summary immediately; printing waits for the rendering and first page load, and is discarded when the page closes.",
+  "evidence": "Issue #231, PR #223 cross-review M54",
+  "promoted_to": "internal/desktop/mainwin/reader_internal_test.go TestCollapsedReaderCommandsRunOnce; internal/desktop/uikit/safehtml_internal_test.go TestSafeFramePrintWaitsForTheFirstLoad and TestSafeFrameCloseCancelsAPendingPrint"
+}

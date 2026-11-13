@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose",
+  "correction": "A pasted picture, which richtext keeps only as a bitmap with an empty URL, was written as <img src=\"\"> and lost on save and reopen. The window now gives it the data:image/ URL it had in the clipboard's HTML (KeepPastedImages), tells the user when none is found, and writes no image without a source.",
+  "evidence": "PR 223 cross-review M28; internal/desktop/compose/convert.go",
+  "promoted_to": "internal/desktop/compose/window_test.go: TestPastedPictureIsSaved"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop documentation",
+  "correction": "Describe the built desktop packages and console, and distinguish the unbuilt TokenSuggest wrapper from the TokenField suggestion list actually used.",
+  "evidence": "#254: checked every code-layout path against internal/desktop and MyGo imports; compared console, bitmap and recipient descriptions against their implementations.",
+  "promoted_to": "docs/plans/0015-mygo-desktop.md"
+}

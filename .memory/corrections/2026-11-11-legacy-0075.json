@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose pasted pictures",
+  "correction": "The 8 MiB limit on a pasted picture was per picture, so several pasted pictures took a draft past maild's 16 MiB message and the save failed, and the close then discarded the editor anyway; a paste now keeps a picture only while the draft's HTML stays within 8 MiB, and a failed save on closing shows the window again with the error and a Close Anyway question.",
+  "evidence": "PR 223 cross-review M28; internal/desktop/compose/convert.go, internal/desktop/compose/window.go",
+  "promoted_to": "TestPastedPicturesStayWithinOneMessage, TestAFailedSaveOnClosingKeepsTheWindow and TestClosingWithNoClientKeepsTheWindow in internal/desktop/compose"
+}

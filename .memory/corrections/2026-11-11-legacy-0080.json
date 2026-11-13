@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/rpcserver/activity.go",
+  "correction": "activity.unsubscribe closed the subscription, but its channel still held buffered entries that the sender sent after the reply. The sender now passes a feed gate with each entry, and Unsubscribe closes the gate, after any entry on its way, before it answers.",
+  "evidence": "PR 223 cross-review M15; internal/rpcserver/activity.go",
+  "promoted_to": "internal/rpcserver TestNoEntryGoesOutAfterTheFeedStops"
+}

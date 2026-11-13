@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop undo across maild",
+  "correction": "The undo stack had no maild identity, so an Undo after a change between local and lodge moved or flagged other mail by ID; each maild now gets its own stack, and a worker still running keeps the stack it began with.",
+  "evidence": "PR 223 cross-review M35; internal/desktop/mainwin/mainwin.go",
+  "promoted_to": "TestAChangeOfMaildLeavesItsState in internal/desktop/mainwin"
+}

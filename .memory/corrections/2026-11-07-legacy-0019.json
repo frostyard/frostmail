@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-07",
+  "scope": "app event reloads",
+  "correction": "No test covered useSnippets' reload on snippet.changed: the tests seeded snippets before mounting; compose and Settings tests now change snippets after mounting and expect the menu and the pane to follow.",
+  "evidence": "frostmail#192, cross-review (openai/gpt-6.1-sol) of head 3c22c74, finding 4",
+  "promoted_to": "app/src/app/ComposeSnippets.test.tsx"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-06",
+  "scope": "workflowcheck dependabot",
+  "correction": "The ignore check accepted an ignore of another ecosystem at the same directory, or one limited by versions or update-types; only a full ignore in a cargo entry counts now, with TestCargoIgnores.",
+  "evidence": "frostmail#176, cross-review (openai/gpt-6.1-sol) of head c9085fa, finding 2",
+  "promoted_to": "internal/workflowcheck/baseline_test.go"
+}

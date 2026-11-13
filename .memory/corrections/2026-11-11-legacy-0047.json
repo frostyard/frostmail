@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop calendar and people undo",
+  "correction": "Undo removed the restore entry before the restore ran, and a restore sent while disconnected, or one that failed, lost it, which was the only way back to a deleted contact or event; the entry now leaves the list only when the restore succeeds or maild says it no longer holds it, and one restore runs at a time.",
+  "evidence": "PR 223 cross-review M80; internal/desktop/pim/notify.go and internal/desktop/pim/people.go",
+  "promoted_to": "TestUndoWhileDisconnectedKeepsTheEntry, TestAFailedUndoKeepsTheEntry and TestUndosRunOneAtATime"
+}

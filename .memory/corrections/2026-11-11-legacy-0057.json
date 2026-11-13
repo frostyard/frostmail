@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose",
+  "correction": "A compose window kept the client and the FilesAsBytes target it opened with, so after a reconnect it could not save. Options.Client and FilesAsBytes are now read when needed (mainwin.Window.Client and the session's target), a window's client is nil once the target changes, and a change of maild closes the compose windows, saving to the old maild, before the session moves (windowSet.closeCompose from the SetTarget line).",
+  "evidence": "PR 223 cross-review M7; cmd/frostmail/compose.go",
+  "promoted_to": "internal/desktop/compose/window_test.go: TestSavesGoThroughTheCurrentClient, TestASaveWaitsForTheConnection, TestClosingWithNoClientWritesNothing; cmd/frostmail/compose_test.go: TestBoundClientEndsWithItsTarget"
+}

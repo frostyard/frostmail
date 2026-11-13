@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin delete holds",
+  "correction": "confirmDeletes settled a delete whose end was unknown by time: after its bound it let go of a message still in its row's mailboxes, or marked the hold done when the reads failed, so a later Delete could erase from Trash a message maild moved after more than about 2 minutes. The Delete and its undo reads now run on a context that ends with the connection, not a deadline: maild's answer settles the hold; a read after an answer that failed is tried again on the current connection until one gets through; a delete cut off by the end of its connection is settled by one read on the next connection (takeClient). Nothing settles by time.",
+  "evidence": "PR 223 cross-review M40 (re-review 3); internal/desktop/mainwin/actions.go",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go TestASlowDeleteSettlesFromItsAnswer, TestADeleteCutOffSettlesOnTheNextConnection, TestADeleteNotReadBackStaysHeld"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-07",
+  "scope": "compose snippets menu",
+  "correction": "The Insert Snippet menu had no maximum height, so with many snippets its last rows and Edit Snippets… fell outside the window, and the arrow keys did not scroll to the highlighted row; app.css now bounds the labelled menu and the toolbar keeps the highlighted row in view.",
+  "evidence": "frostmail#192, cross-review (openai/gpt-6.1-sol) of head 3c22c74, finding 2",
+  "promoted_to": "app/src/features/compose/ComposeToolbar.snippets.test.tsx"
+}

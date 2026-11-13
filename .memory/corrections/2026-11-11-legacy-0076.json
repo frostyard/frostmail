@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose snippets",
+  "correction": "A snippet still being read could go in after Send took its snapshot, or after the save on closing (which deleted a fresh draft as untouched), and its text was lost; Send is now off while a snippet is read, and the save on closing starts once the snippets are in.",
+  "evidence": "PR 223 cross-review M31; internal/desktop/compose/window.go",
+  "promoted_to": "TestSendWaitsForASnippet and TestClosingWaitsForASnippet in internal/desktop/compose"
+}

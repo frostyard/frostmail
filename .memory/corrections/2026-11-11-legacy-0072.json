@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin redirect sheet",
+  "correction": "Redirect parsed the To field before the field took the input of its frame, so an edit and a click in one frame sent the message to the old address. The addresses are now read after the field is built.",
+  "evidence": "PR 223 cross-review M45; internal/desktop/mainwin/organize.go",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go TestRedirectSendsTheEditOfItsFrame"
+}

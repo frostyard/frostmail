@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-07",
+  "scope": "durable events tests",
+  "correction": "TestSnippets accepted any live snippet.changed, so it would still pass with the event made non-durable; it now requires a sequence on each event and replays the changes on a second connection with sinceSeq.",
+  "evidence": "frostmail#192, cross-review (openai/gpt-6.1-sol) of head 3c22c74, finding 3",
+  "promoted_to": "internal/engine/snippets_test.go"
+}

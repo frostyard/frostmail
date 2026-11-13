@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-13",
+  "scope": "TestMarkMailboxRead under the race detector (#314)",
+  "correction": "A test that needs a large fixture sets the fixture up for its size: the shared harness syncs 2 messages a round and waits 10 seconds for the first sync, which a mailbox of hundreds outruns under -race. Give such a test its own sync configuration and its own readiness wait, and keep the size its assertion needs.",
+  "evidence": "The race job of 59c6041e timed out in TestMarkMailboxRead waiting for the first sync at 554 of 605 messages. The test now syncs 200 a round and waits a minute; it still holds 519 unread messages, more than one flags op's 500, and passes under go test -race.",
+  "promoted_to": "internal/mailsync/markread_test.go"
+}

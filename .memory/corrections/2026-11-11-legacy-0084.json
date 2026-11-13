@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop downloads on Windows",
+  "correction": "Two saves of one file at once could fail on Windows, where a rename that replaces a file is refused with access denied while another replace of it runs; the final rename now tries again for up to half a second on access denied or a sharing violation.",
+  "evidence": "PR 223 review of 83684810 (Windows go test); internal/desktop/conn/content.go",
+  "promoted_to": "TestDownloadsToOnePathDoNotCollide on CI's Windows job"
+}

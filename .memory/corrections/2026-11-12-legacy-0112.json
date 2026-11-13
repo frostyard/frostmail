@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "reader cid: precheck (#289)",
+  "correction": "Do not search the message source for a URL scheme to decide whether to load its parts: the sanitizer decodes entities and CSS escapes, so the resolver must load them on the first cid: URL it is given.",
+  "evidence": "TestRenderEmbedsEveryCIDForm: the entity colon, entity letter and css escape cases fail with the source precheck restored (the image is dropped); TestRenderMessageWithoutACIDURL keeps the lazy load honest.",
+  "promoted_to": "internal/render/render.go"
+}

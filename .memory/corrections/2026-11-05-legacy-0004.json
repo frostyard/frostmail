@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "erase old Trash and Junk (ADR-0051)",
+  "correction": "A local move updates the message_mailbox row in place (MoveMembership), so added_at must reset whenever a row comes to name another mailbox, or a message 8 days in the Inbox would erase at once in Trash.",
+  "evidence": "frostmail#167, cross-review (openai/gpt-6.1-sol) of head 16f986e, finding 1",
+  "promoted_to": "docs/design/organize.md (Erase old mail); frostmail#162 TestAddedAtSetOnInsertAndKept"
+}

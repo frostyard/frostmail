@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-06",
+  "scope": "workflowcheck dependabot",
+  "correction": "The guard for internal cargo git crates matched only the inline form with a double-quoted URL, so a [dependencies.x] table, a quoted key or a single-quoted URL passed without an ignore entry; it now parses Cargo.toml with go-toml, with TestInternalGitCrates.",
+  "evidence": "frostmail#176, cross-review (openai/gpt-6.1-sol) of head c9085fa, finding 1",
+  "promoted_to": "internal/workflowcheck/baseline_test.go"
+}

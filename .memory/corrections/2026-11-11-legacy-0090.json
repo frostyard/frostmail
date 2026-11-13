@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop palette navigation",
+  "correction": "Mail results selected in another module must switch to Mail before showing the mailbox or message.",
+  "evidence": "Issue #230, PR #223 cross-review M49",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go TestPaletteMailResultsSwitchToMail"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "compose",
+  "correction": "Build outgoing base64 image sources as CID-related parts while preserving the reader and stored draft representation.",
+  "evidence": "#224: TestDraftMessageSendsEmbeddedImagesAsRelatedParts requires one Content-ID for repeated image sources and identical decoded bytes; TestForwardKeepsAnInlineImage requires a related CID image.",
+  "promoted_to": "docs/design/send.md"
+}

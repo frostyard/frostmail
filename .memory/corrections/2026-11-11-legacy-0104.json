@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "calendar web parity",
+  "correction": "Keep exact instants for zero-delta drags, compare untitled new events with their initial draft, and retain WKST, last-weekday and UNTIL details when editing repeat rules.",
+  "evidence": "#237: regression tests cover zero-delta repeated-hour and subminute instants, untitled location edits, a last Thursday in February, an explicit week start and timed UNTIL round trips.",
+  "promoted_to": "docs/specs/pim-ui.md"
+}

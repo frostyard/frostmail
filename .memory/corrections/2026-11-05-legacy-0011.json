@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "workflowcheck glob matcher",
+  "correction": "The regexp built for a glob that ends in /** took the slash into the literal part, so packaging/lodge/** matched only direct children; the matcher now ports core's segment matcher, and TestMatchGlob has nested and zero-segment cases.",
+  "evidence": "frostmail#170, cross-review (openai/gpt-6.1-sol) of head f712f30, finding 4",
+  "promoted_to": "internal/workflowcheck/baseline_test.go"
+}

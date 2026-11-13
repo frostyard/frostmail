@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "pane name beside a long account (#282)",
+  "correction": "A larger flex shrink factor still takes width from every shrinking item, so a text that must stay whole needs its own line or a fixed basis, and a test must not allow a fraction of loss.",
+  "evidence": "TestEventPaneKeepsTheCalendarName, TestEventPaneKeepsAWideCalendarNameInsideThePane and TestTaskPaneKeepsTheListName check the name's exact width and the account's line under it. They fail on the old side-by-side row.",
+  "promoted_to": "internal/desktop/pim/widgets.go"
+}

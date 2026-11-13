@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "scripts/dev-app.sh, cmd/frostmail/main.go",
+  "correction": "The development run used the installed app's MyGo name, which keys the single instance, so its arguments could go to the user's app. dev-app.sh sets FROSTMAIL_INSTANCE=dev and the app names itself org.frostyard.Frostmail.dev when it is set.",
+  "evidence": "PR 223 cross-review M10; scripts/dev-app.sh",
+  "promoted_to": "cmd/frostmail TestAppNameGivesTheDevelopmentRunItsOwnInstance; internal/workflowcheck TestDevAppKeepsAwayFromTheUsersMaild"
+}

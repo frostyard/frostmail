@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose",
+  "correction": "The save on closing started from OnClosed, after the window had gone, so with the last window MyGo quit before it ended. OnClose now asks Window.RequestClose, which hides the window, refuses the close and closes it again only when the save or deletion has ended; a quit turned down that way is asked again when the last compose window goes.",
+  "evidence": "PR 223 cross-review M6; cmd/frostmail/compose.go",
+  "promoted_to": "internal/desktop/compose/window_test.go: TestClosingWaitsForTheSave, TestClosingWaitsForTheDeletion"
+}

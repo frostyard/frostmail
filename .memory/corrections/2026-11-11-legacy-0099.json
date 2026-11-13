@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "slow-output activity regression test on Windows",
+  "correction": "A blocked-output test must synchronize notification delivery, not race an unlimited wire producer against the RPC decoder. Hold stdout explicitly, acknowledge drain delivery and await writes through channels.",
+  "evidence": "PR #272 Windows run 43105119326 overflowed the RPC event buffer at event 1520. The synchronized test still overfills the bounded activity queue, observes its dropped notice and a later entry, and checks the connection stays open.",
+  "promoted_to": "cmd/mailctl/activity_test.go"
+}

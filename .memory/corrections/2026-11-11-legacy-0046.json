@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop task pane edits",
+  "correction": "When the selection or the source changed, the task pane loaded the next task into its fields before the old field's blur commit ran, so the title or notes typed for the old task were lost; the pane now commits its fields' edits against the task they were editing as soon as that task leaves it, and only what the user typed, never a title or notes a refetch replaced.",
+  "evidence": "PR 223 cross-review M88; internal/desktop/pim/tasks.go",
+  "promoted_to": "TestLeavingATaskCommitsItsEdits and TestLeavingATaskWritesNoStaleTitle"
+}

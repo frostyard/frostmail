@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "bridge.socket_lost",
+  "correction": "An unbiased tokio::select! picks a random ready branch, so a replaced connection whose socket was also at EOF could end as MaildClosed and record bridge.socket_lost; read_lines is biased with stop.notified() first.",
+  "evidence": "frostmail#157, cross-review (openai/gpt-6.1-sol) of head a50dc75, finding 2",
+  "promoted_to": "app/src-tauri/src/bridge.rs"
+}
