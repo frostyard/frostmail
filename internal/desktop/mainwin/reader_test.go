@@ -1,9 +1,14 @@
 package mainwin_test
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -422,6 +427,53 @@ func TestAttachmentsOpenByAnAllowList(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.launched) != 1 {
 		t.Errorf("launched %q", f.launched)
+	}
+}
+
+// A picture attachment shows as a thumbnail, which opens and saves like
+// its chip; one that does not decode, and a file that is no picture, stay
+// chips (docs/specs/ui.md, Attachments).
+func TestPictureAttachmentsShowAsThumbnails(t *testing.T) {
+	photo := image.NewRGBA(image.Rect(0, 0, 600, 300))
+	for y := range 300 {
+		for x := range 600 {
+			photo.SetRGBA(x, y, color.RGBA{uint8(x * 255 / 600), uint8(y * 255 / 300), 160, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, photo); err != nil {
+		t.Fatal(err)
+	}
+	part := func(name, ctype string, data []byte) string {
+		return "--b\nContent-Type: " + ctype + "; name=\"" + name + "\"\nContent-Disposition: attachment; filename=\"" + name +
+			"\"\nContent-Transfer-Encoding: base64\n\n" + base64.StdEncoding.EncodeToString(data) + "\n"
+	}
+	body := "--b\nContent-Type: text/plain\n\nSee attached\n" + part("photo.png", "image/png", buf.Bytes()) +
+		part("broken.png", "image/png", []byte("not a picture")) + part("paper.pdf", "application/pdf", []byte("%PDF-1.4")) + "--b--"
+	f := oneMail(t, "MIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=b\n", body)
+	f.open(t, "Alpha report")
+	f.has(t, "the thumbnail", "Preview of photo.png")
+	for _, chip := range []string{"photo.png", "broken.png", "paper.pdf"} {
+		f.has(t, "the name of "+chip, chip)
+	}
+	snapshot(t, f.tt, "attachment-thumbnails")
+	// The thumbnail is at most 220 × 120, and keeps the picture's shape.
+	box, ok := f.tt.Find("Preview of photo.png")
+	if !ok || box.W != 220 || box.H != 110 {
+		t.Errorf("the thumbnail's box = %+v, %v; want 220 × 110", box, ok)
+	}
+	if err := f.tt.Click("photo.png"); err != nil {
+		t.Fatal(err)
+	}
+	f.until(t, "the picture opened", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return len(f.launched) == 1 && strings.HasSuffix(f.launched[0], "photo.png")
+	})
+	for _, none := range []string{"Preview of broken.png", "Preview of paper.pdf"} {
+		if f.tt.HasText(none) {
+			t.Errorf("the reader shows %q", none)
+		}
 	}
 }
 

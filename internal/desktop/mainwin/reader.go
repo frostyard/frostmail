@@ -50,6 +50,9 @@ type openMsg struct {
 	unsubBusy     bool
 	unsubFailed   bool
 	contact       *contactCard
+	// thumbs are the thumbnails of picture attachments, by part path, as
+	// they are made (docs/specs/ui.md, Attachments).
+	thumbs map[string]*ui.Bitmap
 }
 
 // syncReader follows the selection: exactly one message shows, its
@@ -274,6 +277,7 @@ func (w *Window) printHeader(m *openMsg) string {
 // loadExtras asks for what only some messages have: an invitation, and how
 // to leave a mailing list.
 func (w *Window) loadExtras(cv *conv, m *openMsg) {
+	w.loadThumbnails(cv, m)
 	if mail.InvitationPart(m.message.Parts) != nil {
 		w.loadInvitation(cv, m)
 	}
