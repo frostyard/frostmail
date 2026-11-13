@@ -68,3 +68,46 @@ func TestPublishedLeavesAPlainEventAlone(t *testing.T) {
 		t.Error("text that is no calendar was accepted")
 	}
 }
+
+// A file that publishes several events gives the one a card shows: the
+// first without a RECURRENCE-ID, with the overrides of its UID. The other
+// UIDs' events and what is no event go; the time zones stay
+// (frostyard/frostmail#311: a calendar resource holds one UID).
+func TestPublishedKeepsOneUID(t *testing.T) {
+	zone := "BEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\nBEGIN:STANDARD\r\nDTSTART:19701025T030000\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n"
+	override := "BEGIN:VEVENT\r\nUID:first@x.example\r\nRECURRENCE-ID:20261012T170000Z\r\nDTSTART:20261012T180000Z\r\nSUMMARY:First (late)\r\nEND:VEVENT\r\n"
+	first := "BEGIN:VEVENT\r\nUID:first@x.example\r\nDTSTART:20261005T170000Z\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nSUMMARY:First\r\nEND:VEVENT\r\n"
+	second := "BEGIN:VEVENT\r\nUID:second@x.example\r\nDTSTART:20261006T170000Z\r\nSUMMARY:Second\r\nORGANIZER:mailto:o@x.example\r\nEND:VEVENT\r\n"
+	todo := "BEGIN:VTODO\r\nUID:todo@x.example\r\nSUMMARY:A task\r\nEND:VTODO\r\n"
+	head, tail := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nMETHOD:PUBLISH\r\n", "END:VCALENDAR\r\n"
+	// The override comes before its master, with other components between
+	// and after.
+	src := head + zone + override + todo + first + second + tail
+	out, err := itip.Published([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n" + zone + override + first + tail
+	if string(out) != want {
+		t.Errorf("the copy =\n%q\nwant\n%q", out, want)
+	}
+	msg, err := itip.Parse([]byte(src), calendar.Options{Local: time.UTC})
+	if err != nil || msg.Main().UID != "first@x.example" {
+		t.Fatalf("the card's event = %q, %v", msg.Main().UID, err)
+	}
+
+	// With no master at all, the first event is the one, as on the card.
+	stray := "BEGIN:VEVENT\r\nUID:stray@x.example\r\nRECURRENCE-ID:20261013T170000Z\r\nDTSTART:20261013T180000Z\r\nSUMMARY:Stray\r\nEND:VEVENT\r\n"
+	out, err = itip.Published([]byte(head + override + stray + tail))
+	if err != nil || string(out) != "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"+override+tail {
+		t.Errorf("without a master = %q, %v", out, err)
+	}
+	for name, bad := range map[string]string{
+		"no event":             head + todo + tail,
+		"an event with no UID": head + "BEGIN:VEVENT\r\nDTSTART:20261005T170000Z\r\nEND:VEVENT\r\n" + tail,
+	} {
+		if out, err := itip.Published([]byte(bad)); err == nil {
+			t.Errorf("%s gave %q", name, out)
+		}
+	}
+}

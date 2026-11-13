@@ -702,7 +702,7 @@ Errors: `notFound`, `invalidParams`, `conflict`.
 
 ### `calendar.addFromMessage`
 
-Add the published event in a message's text/calendar part to a calendar: an event to add, with no answer expected (METHOD PUBLISH, or none), such as a ticket or a booking. maild stores the event with its UID, times, recurrence and text, and without its METHOD, its ORGANIZER and ATTENDEE lines and its alarms, so no server invites or answers anyone for it and nothing rings that the user did not set (ADR-0059). The copy is the user's own event, which calendar.update can change. An event that a calendar of any account holds already is refused (conflict), and calendar.invitation then names that copy as eventId.
+Add the published event in a message's text/calendar part to a calendar: an event to add, with no answer expected (METHOD PUBLISH, or none), such as a ticket or a booking. maild stores the event with its UID, times, recurrence and text (of a file that publishes several events, the one calendar.invitation shows), and without its METHOD, its ORGANIZER and ATTENDEE lines and its alarms, so no server invites or answers anyone for it and nothing rings that the user did not set (ADR-0059). The copy is the user's own event, which calendar.update can change. An event that a calendar of any account holds already is refused (conflict), and calendar.invitation then names that copy as eventId.
 
 | Field | Type | Meaning |
 | --- | --- | --- |

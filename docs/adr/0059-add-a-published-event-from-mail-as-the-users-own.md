@@ -43,6 +43,13 @@ from an invitation in what its lines mean once a server holds them:
   (`itip.Published`). Everything else stays as sent: the `UID`, the times
   and their zones, the recurrence and its overrides, the title, the
   location and the notes. The user sets alerts in the event editor.
+- **One event.** A file may publish several events. The copy holds the one
+  the card shows, the first `VEVENT` without a `RECURRENCE-ID` (else the
+  first), with the `VEVENT`s of its `UID` (a series' overrides) and the
+  file's time zones. The events of other `UID`s and any other component
+  (`VTODO`, `VJOURNAL`, `VFREEBUSY`) are left out: a calendar resource
+  holds one `UID` (RFC 4791 §4.1), and a server refuses one that holds
+  more. maild checks the copy holds that `UID` alone before it writes.
 - **Where it goes:** the calendar named, which must take writes, else the
   default calendar of the message's account, found as `calendar.respond`
   finds it. No calendar that takes writes is a `conflict`.
@@ -65,6 +72,9 @@ from an invitation in what its lines mean once a server holds them:
   event; the message still does. The user can change or delete the copy
   like any event they made.
 - A sender's reminder is lost: the user adds an alert if they want one.
+- From a file of several events the user gets the first. The card shows
+  no other, so the others cannot be added; splitting such a file into a
+  card for each event is not built.
 - An update the sender publishes later (the same `UID`, a higher
   `SEQUENCE`) does not change the copy. The card says the calendar has the
   event; applying a published update is not built.

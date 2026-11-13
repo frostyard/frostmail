@@ -5,8 +5,10 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/itip"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -50,6 +52,17 @@ func (c calendarService) AddFromMessage(ctx context.Context, p *api.CalendarAddF
 	raw, err := itip.Published(msg.Source)
 	if err != nil {
 		return nil, api.InvalidParams("the event cannot be read: %v", err)
+	}
+	// A calendar resource holds one UID (RFC 4791 §4.1), and the copy is
+	// found again by the UID the card showed: nothing else is written.
+	kept, err := calendar.Parse(raw, calendar.Options{Local: time.Local, UserEmails: r.emails})
+	if err != nil || len(kept) == 0 {
+		return nil, api.InvalidParams("the event cannot be read: %v", err)
+	}
+	for _, e := range kept {
+		if e.UID != main.UID {
+			return nil, api.InvalidParams("the message's calendar does not hold the event it shows alone")
+		}
 	}
 	uid, err := c.newUID()
 	if err != nil {

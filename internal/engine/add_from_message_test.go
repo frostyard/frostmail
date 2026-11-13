@@ -238,3 +238,45 @@ func TestAddFromMessageToAnotherAccountKeepsTheMessagesLink(t *testing.T) {
 		t.Errorf("the message's account holds %+v, %v", rows, err)
 	}
 }
+
+// A message that publishes two unrelated events adds the one its card
+// shows, alone: the object stored and put on the server holds one UID
+// (frostyard/frostmail#311; RFC 4791 §4.1).
+func TestAddFromMessageOfSeveralEventsAddsTheOneShown(t *testing.T) {
+	e := newInviteEnv(t)
+	ics := string(vcal("METHOD:PUBLISH",
+		"BEGIN:VEVENT", "UID:outbound@airline.example", "DTSTAMP:20261009T140000Z", "DTSTART:20261020T083000Z",
+		"DTEND:20261020T104500Z", "SUMMARY:Outbound flight", "ORGANIZER:mailto:noreply@airline.example", "END:VEVENT",
+		"BEGIN:VEVENT", "UID:return@airline.example", "DTSTAMP:20261009T140000Z", "DTSTART:20261027T160000Z",
+		"DTEND:20261027T181500Z", "SUMMARY:Return flight", "ORGANIZER:mailto:noreply@airline.example", "END:VEVENT"))
+	id := e.mail(t, ics)
+	inv := e.invitation(t, id)
+	if inv.Event.UID != "outbound@airline.example" || !inv.CanAdd {
+		t.Fatalf("the card shows %q, canAdd %v", inv.Event.UID, inv.CanAdd)
+	}
+	ev := e.add(t, &api.CalendarAddFromMessageParams{MessageID: id})
+	if ev.UID != "outbound@airline.example" || ev.Summary != "Outbound flight" {
+		t.Errorf("added = %+v", ev)
+	}
+	rows, err := e.srv.DB.EventsByUID(t.Context(), e.acct, "outbound@airline.example")
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("stored = %+v, %v", rows, err)
+	}
+	obj, err := e.srv.DB.GetObject(t.Context(), rows[0].ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw := string(obj.Raw); strings.Contains(raw, "return@airline.example") || strings.Count(raw, "BEGIN:VEVENT") != 1 {
+		t.Errorf("the object to put holds more than the event shown:\n%s", raw)
+	}
+	if other, err := e.srv.DB.EventsByUID(t.Context(), e.acct, "return@airline.example"); err != nil || len(other) != 0 {
+		t.Errorf("the other event is stored: %+v, %v", other, err)
+	}
+	e.pass(t)
+	if copy := e.serverCopy(t, "outbound@airline.example"); strings.Contains(copy, "return@airline.example") || strings.Contains(copy, "Return flight") {
+		t.Errorf("the server's copy holds the other event:\n%s", copy)
+	}
+	if after := e.invitation(t, id); after.EventID == nil || *after.EventID != ev.ID || after.CanAdd {
+		t.Errorf("the card afterwards: eventId %v, canAdd %v", after.EventID, after.CanAdd)
+	}
+}

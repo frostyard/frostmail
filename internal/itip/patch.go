@@ -1,6 +1,7 @@
 package itip
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -136,26 +137,54 @@ func withoutSchedule(p contentline.Prop) (contentline.Prop, bool) {
 }
 
 // Published returns a published event as a calendar object of the user's
-// own: src without its METHOD line and, in every event, without the
-// ORGANIZER and ATTENDEE lines and the alarms. Nothing else changes. With
-// no organizer and no attendee no server schedules the copy, and an alarm
-// a sender wrote, which a server may act on by mail, does not come along.
+// own: src without its METHOD line, holding one event. The event is the
+// one a card shows (Message.Main): the first VEVENT without a
+// RECURRENCE-ID, else the first, with the VEVENTs that share its UID (a
+// series' overrides). Every other component but the time zones goes: a
+// file may publish several events, and a calendar resource holds one UID
+// (RFC 4791 §4.1). In the events kept, the ORGANIZER and ATTENDEE lines and
+// the alarms go; nothing else changes. With no organizer and no attendee no
+// server schedules the copy, and an alarm a sender wrote, which a server
+// may act on by mail, does not come along.
 func Published(src []byte) ([]byte, error) {
 	cal, err := firstCalendar(src)
 	if err != nil {
 		return nil, err
 	}
+	events := cal.ChildrenNamed("VEVENT")
+	if len(events) == 0 {
+		return nil, errors.New("the calendar holds no event")
+	}
+	main := events[0]
+	for _, event := range events {
+		if event.Prop("RECURRENCE-ID") == nil {
+			main = event
+			break
+		}
+	}
+	// The UID as written: every line of one file writes it the same way.
+	uid := main.Prop("UID")
+	if uid == nil || uid.Value == "" {
+		return nil, errors.New("the event has no UID")
+	}
 	var edits []contentline.Edit
 	for _, p := range cal.PropsNamed("METHOD") {
 		edits = append(edits, contentline.Edit{Start: p.Start, End: p.End})
 	}
-	for _, event := range cal.ChildrenNamed("VEVENT") {
+	for _, child := range cal.Children {
+		if child.Name == "VTIMEZONE" {
+			continue
+		}
+		if p := child.Prop("UID"); child.Name != "VEVENT" || p == nil || p.Value != uid.Value {
+			edits = append(edits, contentline.Edit{Start: child.Start, End: child.End})
+			continue
+		}
 		for _, name := range []string{"ORGANIZER", "ATTENDEE"} {
-			for _, p := range event.PropsNamed(name) {
+			for _, p := range child.PropsNamed(name) {
 				edits = append(edits, contentline.Edit{Start: p.Start, End: p.End})
 			}
 		}
-		for _, alarm := range event.ChildrenNamed("VALARM") {
+		for _, alarm := range child.ChildrenNamed("VALARM") {
 			edits = append(edits, contentline.Edit{Start: alarm.Start, End: alarm.End})
 		}
 	}
