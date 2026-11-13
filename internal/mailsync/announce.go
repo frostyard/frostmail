@@ -56,6 +56,16 @@ func (a *actor) announceNew(ctx context.Context) {
 	if len(mail) == 0 {
 		return
 	}
+	// A note's Archive and Trash need the account's mailbox for each.
+	mailboxes, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
+	if err != nil {
+		a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
+		return
+	}
+	archive, trash := noteButtons(mailboxes)
+	for i := range mail {
+		mail[i].Archive, mail[i].Trash = archive, trash
+	}
 	if err := a.m.cfg.Announce(ctx, a.acct.ID, mail); err != nil {
 		a.m.log.Warn("announce", "account", a.acct.ID, "err", err)
 		return

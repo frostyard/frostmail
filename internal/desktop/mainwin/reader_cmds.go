@@ -3,7 +3,9 @@ package mainwin
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -97,6 +99,50 @@ func (w *Window) deliverOpen() {
 			if len(got) > 0 {
 				w.reveal(got[0], st)
 			}
+		})
+	}()
+}
+
+// ReplyTo starts a reply to a message in a compose window, from a
+// notification's Reply (parity P-805), once a connection can make its
+// draft. Like OpenMessage, a request that fails because the connection
+// broke waits for the next one; one that maild refuses (the message is
+// gone) is dropped.
+func (w *Window) ReplyTo(id int64) {
+	w.pendingReply = id
+	w.deliverReply()
+}
+
+func (w *Window) deliverReply() {
+	id, c := w.pendingReply, w.client
+	if id == 0 || c == nil || w.replying {
+		return
+	}
+	w.replying = true // one click makes one draft
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
+		defer cancel()
+		d, err := c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindReply, SourceID: &id})
+		var refused *api.Error
+		w.o.Post(func() {
+			w.replying = false
+			switch {
+			case err == nil:
+				if w.o.OpenCompose != nil {
+					w.o.OpenCompose(c, d.ID, true)
+				}
+			case errors.As(err, &refused):
+				slog.Warn("reply from a notification", "message", id, "err", err)
+			default:
+				if w.client != c {
+					w.deliverReply() // the next connection is here already
+				}
+				return // else takeClient delivers it
+			}
+			if w.pendingReply == id {
+				w.pendingReply = 0
+			}
+			w.deliverReply() // a click that came meanwhile
 		})
 	}()
 }

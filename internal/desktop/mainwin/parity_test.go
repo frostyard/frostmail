@@ -470,3 +470,26 @@ func TestMarkAllMessagesAsRead(t *testing.T) {
 		f.tt.Frame()
 	}
 }
+
+// P-805: a notification's Reply starts a reply to its message in a compose
+// window, whatever the list shows; a message that is gone starts nothing.
+func TestReplyToStartsAReply(t *testing.T) {
+	f := oneMail(t, "", "Body")
+	f.win.ReplyTo(1 << 40)
+	f.win.ReplyTo(1)
+	f.until(t, "the reply's draft", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return len(f.drafts) == 1
+	})
+	f.mu.Lock()
+	id := f.drafts[0]
+	f.mu.Unlock()
+	d, err := f.c.Draft().Get(t.Context(), &api.DraftGetParams{ID: id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if to := d.Content.To; d.Kind != api.DraftKindReply || d.SourceID == nil || *d.SourceID != 1 || len(to) != 1 || to[0].Address != "ann@x.test" {
+		t.Errorf("the draft = kind %s, source %v, to %+v; want a reply to message 1, to ann@x.test", d.Kind, d.SourceID, to)
+	}
+}

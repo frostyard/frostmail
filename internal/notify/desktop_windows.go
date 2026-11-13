@@ -107,6 +107,10 @@ func (d *Desktop) Show(ctx context.Context, accountID int64, notes []Note) error
 	return nil
 }
 
+// OnMail does nothing on Windows: a mail toast has no buttons (the
+// frostmail-toast: scheme, which any program may send, only opens).
+func (d *Desktop) OnMail(func(messageID int64, action string)) {}
+
 // OnReminder does nothing on Windows: the notifier calls maild's
 // calendar.snooze and calendar.dismiss itself.
 func (d *Desktop) OnReminder(func(id, action string)) {}

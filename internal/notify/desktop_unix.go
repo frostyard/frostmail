@@ -35,6 +35,7 @@ type Desktop struct {
 	mu     sync.Mutex
 	groups map[int64]uint32 // account → its last group note, which the next replaces
 	opens  map[uint32]int64 // notification → the message it opens
+	onMail func(messageID int64, action string)
 
 	reminders     map[uint32]string // notification → its reminder
 	reminderNotes map[string]uint32 // reminder → its notification
@@ -74,9 +75,25 @@ func OpenDesktop(ctx context.Context, log *slog.Logger, open func(messageID int6
 // Close disconnects from the bus.
 func (d *Desktop) Close() error { return d.conn.Close() }
 
+// OnMail sets what a button of a message's notification does: action is
+// ActionReply, ActionArchive or ActionTrash. Without it the notes have no
+// buttons.
+func (d *Desktop) OnMail(f func(messageID int64, action string)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.onMail = f
+}
+
+// mailLabels are the buttons' texts.
+var mailLabels = map[string]string{ActionReply: "Reply", ActionArchive: "Archive", ActionTrash: "Trash"}
+
 // Announce shows the notes of one account's new mail (Notes). A group note
 // replaces the account's previous group note.
 func (d *Desktop) Announce(ctx context.Context, accountID int64, mail []Mail) error {
+	buttons := map[int64][]string{}
+	for _, m := range mail {
+		buttons[m.ID] = Buttons(m)
+	}
 	for _, n := range Notes(mail) {
 		var replaces uint32
 		if n.MessageID == 0 {
@@ -84,7 +101,7 @@ func (d *Desktop) Announce(ctx context.Context, accountID int64, mail []Mail) er
 			replaces = d.groups[accountID]
 			d.mu.Unlock()
 		}
-		id, err := d.send(ctx, replaces, n)
+		id, err := d.send(ctx, replaces, n, buttons[n.MessageID])
 		if err != nil {
 			return err
 		}
@@ -98,16 +115,27 @@ func (d *Desktop) Announce(ctx context.Context, accountID int64, mail []Mail) er
 	return nil
 }
 
-func (d *Desktop) send(ctx context.Context, replaces uint32, n Note) (uint32, error) {
+func (d *Desktop) send(ctx context.Context, replaces uint32, n Note, buttons []string) (uint32, error) {
 	ctx, cancel := context.WithTimeout(ctx, callLimit)
 	defer cancel()
 	hints := map[string]dbus.Variant{
 		"desktop-entry": dbus.MakeVariant(appID),
 		"category":      dbus.MakeVariant("email.arrived"),
 	}
+	actions := []string{"default", "Open"}
+	d.mu.Lock()
+	offer := d.onMail != nil && n.MessageID != 0
+	d.mu.Unlock()
+	if offer {
+		for _, key := range buttons {
+			if label := mailLabels[key]; label != "" {
+				actions = append(actions, key, label)
+			}
+		}
+	}
 	var id uint32
 	err := d.conn.Object(busName, busPath).CallWithContext(ctx, busIface+".Notify", 0,
-		appName, replaces, appID, n.Summary, n.Body, []string{"default", "Open"}, hints, int32(-1)).Store(&id)
+		appName, replaces, appID, n.Summary, n.Body, actions, hints, int32(-1)).Store(&id)
 	if err != nil {
 		return 0, fmt.Errorf("notify: %w", err)
 	}
@@ -146,9 +174,18 @@ func (d *Desktop) handle(s *dbus.Signal) {
 	if s.Name == busIface+".NotificationClosed" {
 		delete(d.opens, id)
 	}
+	onMail := d.onMail
 	d.mu.Unlock()
-	if s.Name == busIface+".ActionInvoked" && action == "default" && known {
+	if s.Name != busIface+".ActionInvoked" || !known {
+		return
+	}
+	switch {
+	case action == "default":
 		d.log.Debug("notification clicked", "message", msg)
 		d.open(msg)
+	case mailLabels[action] != "" && msg != 0 && onMail != nil:
+		// A group note has no buttons, so msg is a message's.
+		d.log.Debug("notification button", "message", msg, "action", action)
+		onMail(msg, action)
 	}
 }

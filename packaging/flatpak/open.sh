@@ -6,7 +6,8 @@
 # a notification opens the window there.
 #
 #   frostmail-open [ARGS]    Run the app with ARGS, as a start does:
-#                            --open-message <id> for a clicked message, and no
+#                            --open-message <id> for a clicked message,
+#                            --reply-message <id> for its Reply button, and no
 #                            argument for a group's notification.
 #
 # A window that maild ran itself would be a child of maild, in maild's

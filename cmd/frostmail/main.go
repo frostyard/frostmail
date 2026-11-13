@@ -94,6 +94,9 @@ func run() error {
 		if id, ok := openMessageArg(args); ok {
 			post.post(func() { main.OpenMessage(id) })
 		}
+		if id, ok := replyMessageArg(args); ok {
+			post.post(func() { main.ReplyTo(id) })
+		}
 	})
 	mygo.App.WhenReady(func() {
 		var frames *uikit.SafeHTMLView
@@ -152,13 +155,21 @@ func run() error {
 		if id, ok := openMessageArg(os.Args[1:]); ok {
 			post.post(func() { main.OpenMessage(id) })
 		}
+		if id, ok := replyMessageArg(os.Args[1:]); ok {
+			post.post(func() { main.ReplyTo(id) })
+		}
 	})
 	return mygo.App.Run()
 }
 
 // openMessageArg finds --open-message <id> in a launch's arguments.
-func openMessageArg(args []string) (int64, bool) {
-	i := slices.Index(args, "--open-message")
+func openMessageArg(args []string) (int64, bool) { return messageArg(args, "--open-message") }
+
+// replyMessageArg finds --reply-message <id>, a notification's Reply.
+func replyMessageArg(args []string) (int64, bool) { return messageArg(args, "--reply-message") }
+
+func messageArg(args []string, flag string) (int64, bool) {
+	i := slices.Index(args, flag)
 	if i < 0 || i+1 >= len(args) {
 		return 0, false
 	}
