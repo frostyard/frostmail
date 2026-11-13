@@ -314,3 +314,24 @@ func (t *Tx) MailboxUIDValidity(ctx context.Context, mailboxID int64) (uint32, e
 	}
 	return uint32(v.Int64), nil
 }
+
+// UnseenInMailbox returns the unread messages in a mailbox, by ID. It reads
+// inside the transaction that marks them, so mail arriving meanwhile is
+// either marked with them or left for the next call, never half of it.
+func (t *Tx) UnseenInMailbox(ctx context.Context, mailboxID int64) ([]int64, error) {
+	rows, err := t.QueryContext(ctx, `SELECT m.id FROM messages m JOIN message_mailbox mm ON mm.message_id = m.id
+		WHERE mm.mailbox_id = ? AND m.seen = 0 AND m.deleted = 0 ORDER BY m.id`, mailboxID)
+	if err != nil {
+		return nil, fmt.Errorf("unseen in mailbox: %w", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("unseen in mailbox: %w", err)
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}

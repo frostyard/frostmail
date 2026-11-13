@@ -425,3 +425,48 @@ func TestListPreviewLinesFollowTheSetting(t *testing.T) {
 	apart(5)
 	snapshot(t, f.tt, "list-preview-five")
 }
+
+// Mark All Messages as Read, in a mailbox's menu: every unread message of
+// the mailbox is read, and the item is off while there is none.
+func TestMarkAllMessagesAsRead(t *testing.T) {
+	f := newSyncFixture(t)
+	appendMail(t, f.mem, "Delta memo", "Dee <dee@x.test>")
+	if err := f.c.Sync().Now(t.Context(), &api.SyncNowParams{AccountID: f.acct}); err != nil {
+		t.Fatal(err)
+	}
+	f.has(t, "the new unread message", "Delta memo")
+	inbox := func() api.Mailbox {
+		list, err := f.c.Mailbox().List(t.Context(), &api.MailboxListParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, mb := range list {
+			if mb.Role == api.MailboxRoleInbox {
+				return mb
+			}
+		}
+		t.Fatal("no inbox")
+		return api.Mailbox{}
+	}
+	f.until(t, "2 unread", func() bool { return inbox().Unread == 2 })
+	f.has(t, "the sidebar's count", "2 unread")
+	if err := f.tt.RightClick("Inbox"); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.tt.ChooseMenuItem("Mark All Messages as Read"); err != nil {
+		t.Fatalf("%v; menu %q", err, f.tt.Menu())
+	}
+	f.until(t, "no unread message", func() bool { return inbox().Unread == 0 })
+	f.hasNot(t, "the sidebar's count", "2 unread")
+	// With nothing unread, and in the Trash, which has none, the item is off.
+	for _, row := range []string{"Inbox", "Trash"} {
+		if err := f.tt.RightClick(row); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.tt.ChooseMenuItem("Mark All Messages as Read"); err == nil {
+			t.Errorf("%s with no unread mail still offers Mark All Messages as Read", row)
+		}
+		f.tt.Key(0, ui.KeyEscape)
+		f.tt.Frame()
+	}
+}

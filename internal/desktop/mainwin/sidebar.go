@@ -248,15 +248,30 @@ func (w *Window) sourceMenu(m *ui.Menu, key string) {
 		return
 	}
 	if strings.HasPrefix(key, "favorite:") {
+		w.markAllRead(m, *mb)
+		m.Separator()
 		w.favoriteMenu(m, mb.ID, favorites)
 		return
 	}
 	w.mailboxMenu(m, *mb, favorites)
 }
 
+// markAllRead is the menu's Mark All Messages as Read, for a mailbox with
+// unread mail in an account that takes writes.
+func (w *Window) markAllRead(m *ui.Menu, mb api.Mailbox) {
+	if m.Item("Mark All Messages as Read").Disabled(w.readOnly(mb.AccountID) || mb.Unread == 0).Chosen() {
+		w.run("mark the mailbox's messages as read", func(ctx context.Context, c *api.Client) error {
+			_, err := c.Mailbox().MarkRead(ctx, &api.MailboxMarkReadParams{ID: mb.ID})
+			return err
+		})
+	}
+}
+
 func (w *Window) mailboxMenu(m *ui.Menu, mb api.Mailbox, favorites []int64) {
 	readOnly := w.readOnly(mb.AccountID)
 	fixed := readOnly || mb.Role != api.MailboxRoleNone
+	w.markAllRead(m, mb)
+	m.Separator()
 	if m.Item("New Mailbox…").Disabled(readOnly).Chosen() {
 		parent := mb.ID
 		w.mailboxSheet.Show(organize.MailboxNew, mb.AccountID, nil, &parent, w.locations(mb.AccountID, 0))

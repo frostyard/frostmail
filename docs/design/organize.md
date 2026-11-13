@@ -263,6 +263,13 @@ changes at once, and the server follows when the op replays.
   junk, trash or archive): `mailbox_roles (account_id, role, path)`, which
   `ReplaceMailboxes` puts over the server's roles at every listing; the
   mailbox that had the role loses it. Gmail's mailboxes keep their roles.
+- **Mark All Messages as Read** (`mailbox.markRead {id}`): in one
+  transaction maild reads the mailbox's unread messages and marks them as
+  `message.setFlags` marks the ones it is given: seen in the store at
+  once, `message.changed` and `mailbox.changed`, and flags ops for the
+  server, at most 500 messages an op. Reading inside the transaction
+  keeps mail that arrives meanwhile whole: marked with the rest, or left.
+  It returns how many it marked; a read-only account is a `conflict`.
 - **Erase** (`mailbox.erase {id}`, a trash or junk mailbox): every message
   in it is hidden at once and expunged by one `expunge` op; it returns
   how many.

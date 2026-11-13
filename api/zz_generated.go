@@ -2711,6 +2711,11 @@ type MailboxEraseParams struct {
 	ID int64 `json:"id"`
 }
 
+// MailboxMarkReadParams holds the params of mailbox.markRead.
+type MailboxMarkReadParams struct {
+	ID int64 `json:"id"`
+}
+
 // MailboxService: Mailboxes (IMAP folders, and Gmail labels shown as
 // folders).
 type MailboxService interface {
@@ -2741,6 +2746,12 @@ type MailboxService interface {
 	// Erase implements mailbox.erase. Erase Deleted Items or Erase Junk Mail:
 	// delete every message in a trash or junk mailbox for good. Returns how many.
 	Erase(ctx context.Context, p *MailboxEraseParams) (int64, error)
+	// MarkRead implements mailbox.markRead. Mark All Messages as Read: mark every
+	// unread message in a mailbox read, locally at once and on the server when it
+	// can be reached, as message.setFlags does for the messages it names. On
+	// Gmail a message under several labels is read under each. Returns how many
+	// it marked.
+	MarkRead(ctx context.Context, p *MailboxMarkReadParams) (int64, error)
 }
 
 func registerMailbox(r *Router, s MailboxService) {
@@ -2792,6 +2803,13 @@ func registerMailbox(r *Router, s MailboxService) {
 			return nil, err
 		}
 		return s.Erase(ctx, &p)
+	})
+	r.handle("mailbox.markRead", func(ctx context.Context, raw jsontext.Value) (any, error) {
+		var p MailboxMarkReadParams
+		if err := decodeParams(raw, &p, []string{"id"}); err != nil {
+			return nil, err
+		}
+		return s.MarkRead(ctx, &p)
 	})
 }
 
@@ -2859,6 +2877,13 @@ func (x MailboxClient) SetRole(ctx context.Context, p *MailboxSetRoleParams) (*M
 func (x MailboxClient) Erase(ctx context.Context, p *MailboxEraseParams) (int64, error) {
 	var r int64
 	err := x.c.Call(ctx, "mailbox.erase", p, &r)
+	return r, err
+}
+
+// MarkRead calls mailbox.markRead.
+func (x MailboxClient) MarkRead(ctx context.Context, p *MailboxMarkReadParams) (int64, error) {
+	var r int64
+	err := x.c.Call(ctx, "mailbox.markRead", p, &r)
 	return r, err
 }
 
@@ -6254,6 +6279,7 @@ var methodCallers = map[string][]CallerKind{
 	"mailbox.delete":          {CallerKindLocal, CallerKindSession},
 	"mailbox.setRole":         {CallerKindLocal, CallerKindSession},
 	"mailbox.erase":           {CallerKindLocal, CallerKindSession},
+	"mailbox.markRead":        {CallerKindLocal, CallerKindSession},
 	"message.get":             {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.body":            {CallerKindLocal, CallerKindSession, CallerKindAgent},
 	"message.summaries":       {CallerKindLocal, CallerKindSession, CallerKindAgent},
@@ -6405,6 +6431,7 @@ var Methods = []string{
 	"mailbox.delete",
 	"mailbox.setRole",
 	"mailbox.erase",
+	"mailbox.markRead",
 	"message.get",
 	"message.body",
 	"message.summaries",

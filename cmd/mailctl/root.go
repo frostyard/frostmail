@@ -35,6 +35,7 @@ func newRootCmd() *cobra.Command {
 		newFlagCmd(opts),
 		newMvCmd(opts),
 		newRmCmd(opts),
+		newMarkReadCmd(opts),
 		newSendCmd(opts),
 		newOutboxCmd(opts),
 		newOAuthCmd(opts),

@@ -158,3 +158,31 @@ func newRmCmd(opts *rootOptions) *cobra.Command {
 		},
 	}
 }
+
+// newMarkReadCmd builds the mark-read command: Mark All Messages as Read
+// in a mailbox.
+func newMarkReadCmd(opts *rootOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "mark-read MAILBOX_ID",
+		Short: "Mark every message in a mailbox as read",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid mailbox id %q", args[0])
+			}
+			ctx := cmd.Context()
+			c, _, err := opts.dial(ctx)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			n, err := c.Mailbox().MarkRead(ctx, &api.MailboxMarkReadParams{ID: id})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "marked %d %s as read\n", n, messageWord(int(n)))
+			return nil
+		},
+	}
+}
