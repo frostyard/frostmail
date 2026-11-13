@@ -394,6 +394,20 @@ query flagged messages alongside tasks, and completing one clears the flag.
     VEVENT for it (an override); otherwise `invalidParams`.
   - Read-only accounts and calendars, cancellations and replies are
     refused with `conflict`.
+- `calendar.addFromMessage {messageId, calendarId?}`
+  ([ADR-0059](../adr/0059-add-a-published-event-from-mail-as-the-users-own.md))
+  keeps a published event (`METHOD:PUBLISH`, or none: a ticket, a
+  booking): the message's source without `METHOD` and, in every `VEVENT`,
+  without `ORGANIZER`, `ATTENDEE` and `VALARM` (`itip.Published`), holding
+  only the event the card shows (its `UID`'s `VEVENT`s and the time zones:
+  a calendar resource holds one `UID`), stored
+  under a new href in the calendar named, else the account's default, with
+  a `put` that creates it. The copy is the user's own event: no server
+  schedules it and no alarm of the sender's comes along. It keeps the
+  sender's `UID`, by which the card finds it in the calendars of every
+  account; an event some calendar holds gets no second copy, which maild
+  checks in the transaction that stores it. Every other method is refused with `conflict`.
+  The card's `canAdd` says when the method would succeed.
 - Whether a provider schedules is in its profile, else not.
 - An organizer's or attendee's address is its `mailto:` value, else its
   `EMAIL` parameter: iCloud writes the account's own addresses as its

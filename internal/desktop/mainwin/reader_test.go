@@ -29,6 +29,7 @@ import (
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpctest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
 var tags = regexp.MustCompile(`<style>.*?</style>|<div class="print-only">.*?</div></div>|<[^>]*>`)
@@ -693,6 +694,39 @@ func TestInvitationCard(t *testing.T) {
 	f.has(t, "the card", "Planning")
 	f.has(t, "the badge", "Invitation")
 	f.has(t, "the link to the calendar", "Show in Calendar")
+}
+
+// A published event (a ticket, a booking) is added from its card, which
+// then says the calendar has it (docs/specs/pim-ui.md, Invitation card).
+func TestPublishedEventIsAddedFromTheCard(t *testing.T) {
+	ics := "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//t//t//EN\nMETHOD:PUBLISH\nBEGIN:VEVENT\nUID:flight@x.test\nDTSTAMP:20261109T090000Z\nDTSTART:20261120T150000Z\nDTEND:20261120T160000Z\nSUMMARY:Flight LH 400\nORGANIZER;CN=Airline:mailto:noreply@x.test\nEND:VEVENT\nEND:VCALENDAR"
+	f := oneMail(t, "MIME-Version: 1.0\nContent-Type: text/calendar; method=PUBLISH; charset=utf-8\n", ics)
+	ctx := t.Context()
+	if err := f.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		if err := tx.SetService(ctx, f.acct, api.ServiceKindCalendar, true, "https://dav.x.test/"); err != nil {
+			return err
+		}
+		_, err := tx.ReplaceCollections(ctx, f.acct, api.CollectionKindCalendar, []store.RemoteCollection{{Href: "/work/", Name: "Work"}})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f.open(t, "Alpha report")
+	f.has(t, "the card", "Flight LH 400")
+	f.has(t, "the badge", "Event")
+	f.has(t, "the button", "Add to Calendar")
+	if f.tt.HasText("Accept") {
+		t.Error("a published event offers answers")
+	}
+	if err := f.tt.Click("Add to Calendar"); err != nil {
+		t.Fatal(err)
+	}
+	f.has(t, "the card afterwards", "This event is in your calendar.")
+	f.hasNot(t, "the button afterwards", "Add to Calendar")
+	rows, err := f.srv.DB.EventsByUID(ctx, f.acct, "flight@x.test")
+	if err != nil || len(rows) != 1 || rows[0].Summary != "Flight LH 400" || rows[0].Organizer != "" {
+		t.Errorf("stored = %+v, %v", rows, err)
+	}
 }
 
 // P-505: a sent message shows the undo toast, and Undo reopens its draft.

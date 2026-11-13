@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -15,7 +16,7 @@ import (
 func newCalCmd(opts *rootOptions) *cobra.Command {
 	cmd := &cobra.Command{Use: "cal", Short: "Inspect and manage calendars and events"}
 	cmd.AddCommand(newCalLsCmd(opts), newCalAgendaCmd(opts), newCalSearchCmd(opts))
-	cmd.AddCommand(newCalAddCmd(opts), newCalRmCmd(opts))
+	cmd.AddCommand(newCalAddCmd(opts), newCalRmCmd(opts), newCalAddFromMessageCmd(opts))
 	return cmd
 }
 
@@ -201,4 +202,45 @@ func printAgenda(w io.Writer, rows []api.Occurrence, loc *time.Location, ids boo
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+func newCalAddFromMessageCmd(opts *rootOptions) *cobra.Command {
+	var calendar int64
+	cmd := &cobra.Command{
+		Use: "add-from-message MESSAGE_ID", Short: "Add the published event in a message to a calendar", Args: cobra.ExactArgs(1),
+		Long: "Add the event of a message's text/calendar part that expects no answer (a ticket, a booking)\n" +
+			"to the default calendar of the message's account, as the user's own event: without its\n" +
+			"organizer, its attendees and its alarms.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil || id <= 0 {
+				return fmt.Errorf("invalid message ID %q", args[0])
+			}
+			p := &api.CalendarAddFromMessageParams{MessageID: id}
+			if cmd.Flags().Changed("calendar") {
+				p.CalendarID = &calendar
+			}
+			ctx := cmd.Context()
+			c, _, err := opts.dial(ctx)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			ev, err := c.Calendar().AddFromMessage(ctx, p)
+			if err != nil {
+				return err
+			}
+			if written, err := clix.OutputJSON(ev); err != nil || written {
+				return err
+			}
+			summary := ev.Summary
+			if summary == "" {
+				summary = "No Title"
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "added event %d to calendar %d: %s\n", ev.ID, ev.CalendarID, summary)
+			return err
+		},
+	}
+	cmd.Flags().Int64Var(&calendar, "calendar", 0, "calendar ID from cal ls (default: the account's default calendar)")
+	return cmd
 }

@@ -1,4 +1,5 @@
 // CONTRACT TEST for task card T-0089 (docs/tasks). Do not edit.
+// Amended for canAdd (ADR-0059): the request gains the field, false.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -66,6 +67,7 @@ const request: Invitation = {
   from: ann,
   answer: "needsaction",
   canRespond: true,
+  canAdd: false,
   outdated: false,
   conflicts: [occ("Design review")],
   adjacent: [occ("Standup"), occ("Weekly sync")],
