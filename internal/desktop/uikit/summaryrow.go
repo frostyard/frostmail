@@ -8,8 +8,35 @@ import (
 	"github.com/frostyard/frostui"
 )
 
-// SummaryHeight is a summary row's height.
+// SummaryHeight is the height of a summary row with the usual 2 lines of
+// preview.
 const SummaryHeight = 84
+
+// SummaryPreviewLines is how many lines of preview SummaryRow shows.
+const SummaryPreviewLines = 2
+
+// A row with fewer lines of preview than 2 is summaryLine lower for each,
+// and one with more is summaryLineMore higher for each. A preview line is
+// as high as its font makes it: 16 in the Linux build's font and 16.63 in
+// Windows', which no setting makes shorter. Taking 16 off keeps what is
+// left its room in either; adding 17 gives each line more its room in
+// either, so a row of 5 lines cuts no more of its last line than a row of
+// 2 does (frostyard/frostmail#313).
+const (
+	summaryLine     = 16
+	summaryLineMore = 17
+)
+
+// SummaryHeightFor is the height of a summary row with lines of preview:
+// SummaryHeight for 2; 68 and 52 for 1 and none; 101, 118 and 135 for 3,
+// 4 and 5.
+func SummaryHeightFor(lines int) float32 {
+	more := max(lines, 0) - SummaryPreviewLines
+	if more > 0 {
+		return SummaryHeight + float32(more)*summaryLineMore
+	}
+	return SummaryHeight + float32(more)*summaryLine
+}
 
 // SummaryIcon is a small mark after a row's title.
 type SummaryIcon struct{ Name, Label string }
@@ -44,8 +71,15 @@ type Summary struct {
 // its text, which then wraps or ends with an ellipsis, and the row clips
 // what still would (frostyard/frostmail#267).
 func SummaryRow(c *ui.Context, s Summary) ui.Element {
+	return SummaryRowLines(c, s, SummaryPreviewLines)
+}
+
+// SummaryRowLines is SummaryRow with lines of preview, none for 0: the
+// row's height follows (SummaryHeightFor), the same for every row of a
+// list whatever its text.
+func SummaryRowLines(c *ui.Context, s Summary, lines int) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).Height(SummaryHeight).Padding(frostui.SpaceS, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Start).
+	row := ui.Row(c).Height(SummaryHeightFor(lines)).Padding(frostui.SpaceS, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Start).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Clip()
 	hovered := row.Hovered()
 	row.Children(func() {
@@ -76,7 +110,9 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 					frostui.Pill(c, s.Count, frostui.Neutral)
 				}
 			})
-			frostui.Muted(c, s.Preview).Shrink(1).MinWidth(0).MaxLines(2)
+			if lines > 0 {
+				frostui.Muted(c, s.Preview).Shrink(1).MinWidth(0).MaxLines(lines)
+			}
 		})
 		if s.Actions != nil && hovered {
 			ui.Row(c).Absolute().Right(frostui.SpaceS).Bottom(frostui.SpaceS).Gap(frostui.SpaceXS).AccessHidden(true).Children(s.Actions)

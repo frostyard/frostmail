@@ -10,10 +10,11 @@ import { appLocale } from "../../lib/calendarDates";
 import { flagName } from "../../lib/flags";
 import { avatarTone, displayName, formatListDate, initials } from "../../lib/format";
 import { whenText } from "../../lib/later";
+import { PREVIEW_LINES, rowHeight } from "../../lib/listPreview";
 import type { MessageSummary } from "../../rpc/gen/api";
 import { AVATAR_CLASSES } from "../reader/MessageHeader";
 
-/** ROW_HEIGHT is the fixed height of a list row in pixels. */
+/** ROW_HEIGHT is the height of a list row with the usual 2 lines of preview, in pixels. */
 export const ROW_HEIGHT = 84;
 
 /** SelectMode says how a click changes the selection. */
@@ -39,6 +40,8 @@ export interface MessageRowProps {
   onAction?: (id: number, action: RowAction) => void;
   onDragStart?: (id: number, event: DragEvent<HTMLDivElement>) => void;
   canArchive?: boolean;
+  /** Lines of preview, 0 to 5; 2 when absent. The row's height follows (rowHeight). */
+  previewLines?: number;
 }
 
 // Tailwind only generates a class it finds whole in the source, so the seven
@@ -51,6 +54,15 @@ const FLAG_CLASSES: Record<number, string> = {
   5: "text-flag-5",
   6: "text-flag-6",
   7: "text-flag-7",
+};
+
+// As the flags: Tailwind needs each line-clamp class whole in the source.
+const CLAMP_CLASSES: Record<number, string> = {
+  1: "line-clamp-1",
+  2: "line-clamp-2",
+  3: "line-clamp-3",
+  4: "line-clamp-4",
+  5: "line-clamp-5",
 };
 
 /** joinClasses drops the empty parts and joins the rest with single spaces. */
@@ -75,6 +87,7 @@ export function MessageRow(props: MessageRowProps) {
   const contrast = selected && focused;
   const secondary = contrast ? "text-accent-contrast" : "text-secondary";
   const subject = message.subject.trim();
+  const lines = props.previewLines ?? PREVIEW_LINES;
   const reminder = message.remindAt
     ? `Reminder ${whenText(new Date(message.remindAt), now, Intl.DateTimeFormat().resolvedOptions().timeZone, appLocale(navigator.language))}`
     : undefined;
@@ -93,6 +106,7 @@ export function MessageRow(props: MessageRowProps) {
       data-message-id={message.id}
       draggable={props.onDragStart !== undefined}
       onDragStart={(event) => props.onDragStart?.(message.id, event)}
+      style={lines === PREVIEW_LINES ? undefined : { height: rowHeight(lines) }}
       className={joinClasses(
         "group relative h-[84px] pt-2 pb-2 pr-3",
         props.photo === undefined ? "pl-6" : "pl-16",
@@ -195,7 +209,13 @@ export function MessageRow(props: MessageRowProps) {
         )}
       </div>
 
-      <div className={joinClasses("text-list-preview line-clamp-2", secondary)}>{message.preview}</div>
+      {lines > 0 && (
+        <div
+          className={joinClasses("text-list-preview", CLAMP_CLASSES[lines] ?? CLAMP_CLASSES[PREVIEW_LINES], secondary)}
+        >
+          {message.preview}
+        </div>
+      )}
 
       {!message.flags.seen && (
         <span

@@ -3,6 +3,7 @@ import { Flag } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 import { flagName } from "../../lib/flags";
+import { previewLines } from "../../lib/listPreview";
 import type {
   BlockAction,
   BlockedSender,
@@ -121,6 +122,23 @@ export function GeneralPane({
           <option value="10">10 Seconds</option>
           <option value="20">20 Seconds</option>
           <option value="30">30 Seconds</option>
+        </select>
+        <label htmlFor={`${id}-preview`} className={LABEL}>
+          List preview:
+        </label>
+        <select
+          id={`${id}-preview`}
+          className={FIELD}
+          disabled={!settings}
+          value={previewLines(settings)}
+          onChange={(event) => onChange({ previewLines: Number(event.target.value) })}
+        >
+          <option value="0">No Preview</option>
+          <option value="1">1 Line</option>
+          <option value="2">2 Lines</option>
+          <option value="3">3 Lines</option>
+          <option value="4">4 Lines</option>
+          <option value="5">5 Lines</option>
         </select>
         <span className={`${LABEL} self-start pt-1`}>Flag names:</span>
         <div className="flex flex-col gap-2">

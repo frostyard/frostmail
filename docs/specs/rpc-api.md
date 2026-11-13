@@ -2565,6 +2565,7 @@ Change the preferences given; the others stay. Returns them all.
 | `flagNames` | `[]string` (optional) | Seven names, each at most 40 characters. |
 | `favorites` | `[]int` (optional) | Mailbox IDs, at most 50, without repeats. |
 | `blockAction` | `BlockAction` (optional) |  |
+| `previewLines` | `int` (optional) | 0 to 5. |
 
 Result: `Settings`.
 Errors: `invalidParams`, `notFound`.
@@ -2587,6 +2588,7 @@ Every preference, with its current value.
 | `flagNames` | `[]string` | Seven names, for flag colors 1-7; an empty name is the color's own (Red ... Gray). |
 | `favorites` | `[]int` (optional) | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none. |
 | `blockAction` | `BlockAction` (optional) | mark when absent. |
+| `previewLines` | `int` (optional) | Lines of a message's preview in the list: 0 to 5. 2 when absent. |
 
 ### Enum `NotifyScope`
 
