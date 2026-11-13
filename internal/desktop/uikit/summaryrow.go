@@ -8,8 +8,22 @@ import (
 	"github.com/frostyard/frostui"
 )
 
-// SummaryHeight is a summary row's height.
+// SummaryHeight is the height of a summary row with the usual 2 lines of
+// preview.
 const SummaryHeight = 84
+
+// SummaryPreviewLines is how many lines of preview SummaryRow shows, and
+// summaryLine the height of one.
+const (
+	SummaryPreviewLines = 2
+	summaryLine         = 16
+)
+
+// SummaryHeightFor is the height of a summary row with lines of preview:
+// SummaryHeight for 2, and a line's height more or less for each other.
+func SummaryHeightFor(lines int) float32 {
+	return SummaryHeight + float32(max(lines, 0)-SummaryPreviewLines)*summaryLine
+}
 
 // SummaryIcon is a small mark after a row's title.
 type SummaryIcon struct{ Name, Label string }
@@ -44,8 +58,15 @@ type Summary struct {
 // its text, which then wraps or ends with an ellipsis, and the row clips
 // what still would (frostyard/frostmail#267).
 func SummaryRow(c *ui.Context, s Summary) ui.Element {
+	return SummaryRowLines(c, s, SummaryPreviewLines)
+}
+
+// SummaryRowLines is SummaryRow with lines of preview, none for 0: the
+// row's height follows (SummaryHeightFor), the same for every row of a
+// list whatever its text.
+func SummaryRowLines(c *ui.Context, s Summary, lines int) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).Height(SummaryHeight).Padding(frostui.SpaceS, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Start).
+	row := ui.Row(c).Height(SummaryHeightFor(lines)).Padding(frostui.SpaceS, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Start).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Clip()
 	hovered := row.Hovered()
 	row.Children(func() {
@@ -76,7 +97,9 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 					frostui.Pill(c, s.Count, frostui.Neutral)
 				}
 			})
-			frostui.Muted(c, s.Preview).Shrink(1).MinWidth(0).MaxLines(2)
+			if lines > 0 {
+				frostui.Muted(c, s.Preview).Shrink(1).MinWidth(0).MaxLines(lines)
+			}
 		})
 		if s.Actions != nil && hovered {
 			ui.Row(c).Absolute().Right(frostui.SpaceS).Bottom(frostui.SpaceS).Gap(frostui.SpaceXS).AccessHidden(true).Children(s.Actions)

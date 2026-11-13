@@ -58,6 +58,10 @@ var blockOptions = []option[api.BlockAction]{
 	{api.BlockActionTrash, "Move it to the Trash"},
 }
 
+var previewOptions = []option[int64]{
+	{0, "No Preview"}, {1, "1 Line"}, {2, "2 Lines"}, {3, "3 Lines"}, {4, "4 Lines"}, {5, "5 Lines"},
+}
+
 // generalGroups are the General pane's rows.
 func (w *Window) generalGroups() []frostui.SettingsGroup {
 	g := w.gen
@@ -91,6 +95,12 @@ func (w *Window) generalGroups() []frostui.SettingsGroup {
 			w.setSettings(&api.SettingsSetParams{UndoDelay: &next})
 		}).Width(240).Shrink(0)
 	}}
+	lines := int64(mail.PreviewLines(s))
+	preview := frostui.Setting{Title: "List preview", Control: func(c *ui.Context) {
+		choose(c, "List preview", lines, previewOptions, off, func(next int64) {
+			w.setSettings(&api.SettingsSetParams{PreviewLines: &next})
+		}).Width(240).Shrink(0)
+	}}
 	blocked := frostui.Setting{Title: "Blocked mail", Control: func(c *ui.Context) {
 		choose(c, "Blocked mail", block, blockOptions, off, func(next api.BlockAction) {
 			w.setSettings(&api.SettingsSetParams{BlockAction: &next})
@@ -101,7 +111,7 @@ func (w *Window) generalGroups() []frostui.SettingsGroup {
 		flags[i] = frostui.Setting{Title: mail.FlagNames[i], Control: func(c *ui.Context) { w.flagField(c, g, i, off) }}
 	}
 	return []frostui.SettingsGroup{
-		{Settings: []frostui.Setting{notify, undo, blocked}},
+		{Settings: []frostui.Setting{notify, undo, blocked, preview}},
 		{Title: "Flag Names", Settings: flags},
 		{Title: "Blocked Senders", Settings: w.blockedRows()},
 	}

@@ -386,3 +386,36 @@ func TestContactPhotosInTheList(t *testing.T) {
 	}
 	f.until(t, "the sender's photo", func() bool { _, ok := f.tt.AccessByRole(ui.RoleImage, "Ann"); return ok })
 }
+
+// P-211: the list shows as many lines of preview as the preference says,
+// none for 0, and follows a change made in Settings without a restart.
+func TestListPreviewLinesFollowTheSetting(t *testing.T) {
+	f := newSyncFixture(t)
+	f.has(t, "the preview at 2 lines", "Body of Alpha report")
+	gap := func() float32 {
+		a, ok1 := f.tt.Find("Alpha report")
+		b, ok2 := f.tt.Find("Beta plan")
+		if !ok1 || !ok2 {
+			return 0
+		}
+		return max(a.Y-b.Y, b.Y-a.Y)
+	}
+	f.until(t, "rows 84 apart", func() bool { return gap() == 84 })
+	set := func(n int64) {
+		t.Helper()
+		if _, err := f.c.Settings().Set(t.Context(), &api.SettingsSetParams{PreviewLines: &n}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(0)
+	f.hasNot(t, "the preview at none", "Body of Alpha report")
+	f.until(t, "rows 52 apart", func() bool { return gap() == 52 })
+	if !f.tt.HasText("Alpha report") || !f.tt.HasText("Ann") {
+		t.Error("a row without a preview lost its sender or subject")
+	}
+	snapshot(t, f.tt, "list-preview-none")
+	set(5)
+	f.has(t, "the preview at 5 lines", "Body of Alpha report")
+	f.until(t, "rows 132 apart", func() bool { return gap() == 132 })
+	snapshot(t, f.tt, "list-preview-five")
+}

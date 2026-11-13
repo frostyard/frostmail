@@ -102,6 +102,12 @@ func (s settingsService) Set(ctx context.Context, p *api.SettingsSetParams) (*ap
 			}
 			st.Favorites = slices.Clone(p.Favorites)
 		}
+		if p.PreviewLines != nil {
+			if *p.PreviewLines < 0 || *p.PreviewLines > store.MaxPreviewLines {
+				return api.InvalidParams("previewLines must be 0 to %d", store.MaxPreviewLines)
+			}
+			st.PreviewLines = int(*p.PreviewLines)
+		}
 		if p.BlockAction != nil {
 			if !p.BlockAction.Valid() {
 				return api.InvalidParams("blockAction %q is unknown", *p.BlockAction)
@@ -144,6 +150,8 @@ func toAPISettings(s store.Settings) *api.Settings {
 	}
 	action := api.BlockAction(s.BlockAction)
 	out.BlockAction = &action
+	lines := int64(s.PreviewLines)
+	out.PreviewLines = &lines
 	return out
 }
 

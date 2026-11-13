@@ -180,3 +180,43 @@ func TestSoftListSoftensTheChoice(t *testing.T) {
 		}
 	}
 }
+
+// P-211: a row shows as many lines of preview as it is told, none for 0,
+// and its height follows, whatever its text.
+func TestSummaryRowLinesSetTheHeightAndThePreview(t *testing.T) {
+	setIcons()
+	long := strings.Repeat("several words of a preview ", 40)
+	for lines, height := range map[int]float32{0: 52, 1: 68, 2: 84, 3: 100, 5: 132} {
+		if got := uikit.SummaryHeightFor(lines); got != height {
+			t.Errorf("SummaryHeightFor(%d) = %v, want %v", lines, got, height)
+		}
+		for _, preview := range []string{long, "short", ""} {
+			tt := ui.NewTester(func(c *ui.Context) {
+				ui.Column(c).Width(320).AlignItems(ui.Stretch).Children(func() {
+					uikit.SummaryRowLines(c, uikit.Summary{Title: "Ann Lee", Date: "9:41", Subtitle: "Plans", Preview: preview}, lines).Label("the row")
+				})
+			}, 320, 200)
+			tt.Frame()
+			row, ok := tt.Find("the row")
+			if !ok || row.H != height {
+				t.Errorf("%d lines, preview %q…: the row is %v high, want %v", lines, firstWord(preview), row.H, height)
+			}
+			if box, shown := tt.Find(preview); preview != "" {
+				if (lines > 0) != shown {
+					t.Errorf("%d lines: the preview shows = %v", lines, shown)
+				}
+				if shown && (box.H > float32(lines)*16 || box.Y+box.H > row.Y+row.H) {
+					t.Errorf("%d lines, preview %q…: its box %+v is over %d lines or leaves the row %+v", lines, firstWord(preview), box, lines, row)
+				}
+			}
+		}
+	}
+	if uikit.SummaryHeightFor(2) != uikit.SummaryHeight || uikit.SummaryHeightFor(-3) != 52 {
+		t.Error("2 lines is the usual height, and fewer than none is none")
+	}
+}
+
+func firstWord(s string) string {
+	word, _, _ := strings.Cut(s, " ")
+	return word
+}

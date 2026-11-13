@@ -379,6 +379,11 @@ export class MockOrganize {
       if (!BLOCK_ACTIONS.includes(action)) throw invalid(`blockAction "${String(action)}" is unknown`);
       next.blockAction = action;
     }
+    if (p.previewLines !== undefined) {
+      const lines = Number(p.previewLines);
+      if (!Number.isInteger(lines) || lines < 0 || lines > 5) throw invalid("previewLines must be 0 to 5");
+      next.previewLines = lines;
+    }
     this.settings = next;
     this.emit({ event: "settings.changed", data: {} });
     return this.shown(next);

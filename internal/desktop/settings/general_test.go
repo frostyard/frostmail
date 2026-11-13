@@ -49,6 +49,23 @@ func TestGeneralChoicesReachMaild(t *testing.T) {
 	f.until("the shown delay", func() bool { return f.choice("Undo send delay") == "Off" })
 }
 
+// P-211: the list's preview lines, None to 5, 2 until chosen.
+func TestGeneralListPreview(t *testing.T) {
+	f := newFixture(t, setup{})
+	f.general()
+	f.until("the default", func() bool { return f.choice("List preview") == "2 Lines" })
+	f.choose("List preview", "No Preview")
+	f.until("none", func() bool { n := f.settings().PreviewLines; return n != nil && *n == 0 })
+	f.until("the shown choice", func() bool { return f.choice("List preview") == "No Preview" })
+	f.choose("List preview", "5 Lines")
+	f.until("five", func() bool { n := f.settings().PreviewLines; return n != nil && *n == 5 })
+	one := int64(1)
+	if _, err := f.c.Settings().Set(t.Context(), &api.SettingsSetParams{PreviewLines: &one}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("a change made elsewhere", func() bool { return f.choice("List preview") == "1 Line" })
+}
+
 func TestGeneralShowsAChangeMadeElsewhere(t *testing.T) {
 	f := newFixture(t, setup{})
 	f.general()

@@ -4708,6 +4708,8 @@ type Settings struct {
 	Favorites []int64 `json:"favorites,omitzero"`
 	// mark when absent.
 	BlockAction *BlockAction `json:"blockAction,omitzero"`
+	// Lines of a message's preview in the list: 0 to 5. 2 when absent.
+	PreviewLines *int64 `json:"previewLines,omitzero"`
 }
 
 // SettingsGetParams holds the params of settings.get.
@@ -4725,6 +4727,8 @@ type SettingsSetParams struct {
 	// Mailbox IDs, at most 50, without repeats.
 	Favorites   []int64      `json:"favorites,omitzero"`
 	BlockAction *BlockAction `json:"blockAction,omitzero"`
+	// 0 to 5.
+	PreviewLines *int64 `json:"previewLines,omitzero"`
 }
 
 // SettingsService: Preferences maild keeps for every account, so they hold

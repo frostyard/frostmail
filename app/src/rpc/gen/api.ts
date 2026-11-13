@@ -2709,6 +2709,8 @@ export interface Settings {
   favorites?: number[];
   /** mark when absent. */
   blockAction?: BlockAction;
+  /** Lines of a message's preview in the list: 0 to 5. 2 when absent. */
+  previewLines?: number;
 }
 
 /** Params of settings.get. */
@@ -2726,6 +2728,8 @@ export interface SettingsSetParams {
   /** Mailbox IDs, at most 50, without repeats. */
   favorites?: number[];
   blockAction?: BlockAction;
+  /** 0 to 5. */
+  previewLines?: number;
 }
 
 /** A preference changed. */

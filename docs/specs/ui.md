@@ -322,7 +322,8 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
 
 ### Message list
 
-- Rows are **84 high**, fixed: 8 padding top and bottom, a 24px gutter on the
+- Rows are **84 high** with the usual 2 lines of preview, and all the
+  same height (Preview lines, below): 8 padding top and bottom, a 24px gutter on the
   left and 12 on the right; a 1px `--separator` at the bottom inset 24 from
   the left.
 - **Sort and view options** (M5, P-202, P-203, P-209): at the right of
@@ -355,6 +356,13 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   a badge at the right: 16 high, 5px horizontal padding, 8px radius, 10/600
   `--badge-text` on `--badge-bg`, showing the count.
 - **Lines 3–4:** preview 12/16 `--text-secondary`, clamped to 2 lines.
+- **Preview lines** (P-211): the General pane's List preview
+  ([settings-ui.md](settings-ui.md), `settings.previewLines`) sets how
+  many lines the preview is clamped to, 0 to 5; 2 until the user chooses.
+  Every row is then 52 + 16 × lines high (52, 68, 84, 100, 116, 132),
+  whatever its text, and with 0 lines the row has no preview. The list
+  follows a change at once (`settings.changed`). A row not yet loaded
+  keeps the same height. Unsaved drafts' rows keep 2 lines.
 - **Gutter:** a 9px `--accent` dot centered on line 1 when unseen; a 12px
   filled flag in `--flag-N` centered on line 2 when flagged.
 - **Selection:** `--accent` background with every text, icon and dot in

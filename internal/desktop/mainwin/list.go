@@ -397,11 +397,12 @@ func (w *Window) emptyList(c *ui.Context) {
 
 func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 	r, ok := snap.Row(n)
+	st := w.mail.State()
+	lines := mail.PreviewLines(st.Settings)
 	if !ok {
-		uikit.SummaryRow(c, uikit.Summary{})
+		uikit.SummaryRowLines(c, uikit.Summary{}, lines)
 		return
 	}
-	st := w.mail.State()
 	s := uikit.Summary{Title: mail.DisplayName(r.From), Date: mail.ListDate(r.Date, w.o.Now()), Subtitle: r.Subject, Preview: r.Preview,
 		Unread: !r.Flags.Seen, UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
 	if r.Flags.Flagged {
@@ -430,7 +431,7 @@ func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 	if !w.readOnly(r.AccountID) {
 		s.Actions = func() { w.rowActions(c, r) }
 	}
-	uikit.SummaryRow(c, s).ContextMenu(w.rowMenu)
+	uikit.SummaryRowLines(c, s, lines).ContextMenu(w.rowMenu)
 }
 
 func (w *Window) readOnly(account int64) bool {

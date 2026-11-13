@@ -19,11 +19,12 @@ import type { ViewModel } from "../data/view";
 import { RedirectSheet } from "../features/compose/RedirectSheet";
 import { TimeSheet } from "../features/later/TimeSheet";
 import { emptyTextIn } from "../features/list/FilterBar";
-import { MessageRow, ROW_HEIGHT, type RowAction, type SelectMode } from "../features/list/MessageRow";
+import { MessageRow, type RowAction, type SelectMode } from "../features/list/MessageRow";
 import { UnsavedDraftsSection, unsavedHeight } from "../features/list/UnsavedDraftRow";
 import { FLAG_NAMES, flagLabel } from "../lib/flags";
 import type { Command } from "../lib/keymap";
 import { remindChoices } from "../lib/later";
+import { previewLines, rowHeight } from "../lib/listPreview";
 import { isVip, vipSet } from "../lib/vips";
 import type { Client } from "../rpc/gen/api";
 import {
@@ -205,14 +206,21 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
     useEffect(() => () => useUI.getState().setUnsavedDrafts(0), []);
     const unsavedTop = unsavedHeight(unsaved.drafts.length, unsaved.error !== null);
 
+    // Every row is as high as the preview lines the user chose (P-211).
+    const lines = previewLines(useMail((s) => s.settings));
     const virtualizer = useVirtualizer({
       count,
       getScrollElement: () => scroller.current,
-      estimateSize: () => ROW_HEIGHT,
+      estimateSize: () => rowHeight(lines),
       observeElementRect: observeListRect,
       overscan: 8,
       scrollMargin: unsavedTop,
     });
+    // The sizes the virtualizer measured are for the lines before a change.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: lines is the trigger; measure reads the new estimate.
+    useEffect(() => {
+      virtualizer.measure();
+    }, [virtualizer, lines]);
     const items = virtualizer.getVirtualItems();
     const first = items[0]?.index ?? 0;
     const last = items[items.length - 1]?.index ?? 0;
@@ -688,9 +696,10 @@ export const ListContainer = forwardRef<ListHandle, { model: ViewModel | null; o
                         accounts.find((account) => account.id === row.accountId)?.readOnly ? undefined : onRowAction
                       }
                       canArchive={archiveOf(row.accountId, mailboxes) !== undefined}
+                      previewLines={lines}
                     />
                   ) : (
-                    <div style={{ height: ROW_HEIGHT }} />
+                    <div style={{ height: rowHeight(lines) }} />
                   )}
                 </div>
               );

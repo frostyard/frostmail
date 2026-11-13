@@ -117,3 +117,12 @@ func OutboxStatus(it api.OutboxItem, now time.Time) string {
 	}
 	return fmt.Sprintf("Retrying in %d min", minutes)
 }
+
+// PreviewLines is how many lines of a message's preview the list shows:
+// the user's choice, 0 to 5, else 2 (docs/specs/ui.md, Message list).
+func PreviewLines(s *api.Settings) int {
+	if s == nil || s.PreviewLines == nil || *s.PreviewLines < 0 || *s.PreviewLines > 5 {
+		return 2
+	}
+	return int(*s.PreviewLines)
+}
