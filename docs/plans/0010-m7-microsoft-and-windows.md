@@ -11,6 +11,21 @@ packaging in the [roadmap](0002-roadmap.md). Microsoft comes first, on
 Linux, where it can be tested against the user's Outlook.com account with
 today's tools. Windows follows; Phase 4 can run alongside Phase 3.
 
+Status (2026-11-13): **open.** Phases 1 and 3 are done, and Phase 4 is
+built, each with its evidence under it; Phase 4's Gmail half waited for
+Phase 5's trial, and goes with Phase 5. Phase 2 is open: its 3 days on the
+user's own maild and its sign-out have no record. Phase 5 moved to
+[plan 0015](0015-mygo-desktop.md#phase-9--packaging-and-ci-m): it was
+written for the Tauri app, which
+[PR #300](https://github.com/frostyard/frostmail/pull/300) removed (merged
+2026-11-12), and plan 0015's Phase 9 built the native app's Windows
+installer (2026-11-10). Its clean install on one of the user's Windows
+machines waits there for the parity gate
+([#253](https://github.com/frostyard/frostmail/issues/253)). Phase 6, the
+friend's trial, never started; it moved to issue
+[#320](https://github.com/frostyard/frostmail/issues/320). The plan is done
+when Phase 2 has its record.
+
 ## Decisions for M7
 
 The user chose these on 2026-10-15:
@@ -298,24 +313,24 @@ records how Graph's events and contacts are stored.
   over SSH from another logon session. The Gmail half waits for Phase 5's
   trial, as the user chose; the Windows CI job proves itself on the PR.
 
-## Phase 5 — The app on Windows (large)
+## Phase 5 — The app on Windows — moved to plan 0015
 
-- The bridge over the named pipe, Windows paths in `paths.rs`, and the
-  WebKit workarounds behind `cfg(target_os = "linux")`.
-- `frostmail-notify.exe`: toasts under Frostmail's AppUserModelID, and a
-  click that opens the message (single instance, as on Linux).
-- The NSIS installer: per user, with maild, mailctl, the notifier, the
-  Start Menu shortcut, the `Run` key, and an upgrade that keeps the data.
-- The reader on WebView2: the zero-network hostile-mail suite, links
-  ([ADR-0036](../adr/0036-reader-links-open-as-new-window-requests.md)),
-  embedded images, and the window chrome and keyboard map, run by
-  msedgedriver in the Windows CI job.
-- **Done when:** a clean install from the installer on one of the user's
-  Windows machines reads, sends and edits all three of the user's test
-  accounts. The hostile-mail suite makes zero requests on WebView2, and a
-  reminder and a new-mail notification arrive with the app closed.
+Moved on 2026-11-13. This phase was written for the Tauri app, which
+[ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
+replaced with a native Go app and
+[PR #300](https://github.com/frostyard/frostmail/pull/300) removed. The
+native app's Windows build, its installer and `frostmail-notify.exe` are
+plan 0015's [Phase 9](0015-mygo-desktop.md#phase-9--packaging-and-ci-m),
+and its reader's hostile-mail suite on WebView2 is plan 0015's Phase 4.
+What this phase still asked for is in Phase 9 now: after the parity gate
+([#253](https://github.com/frostyard/frostmail/issues/253)), a clean
+install from the installer on one of the user's Windows machines reads,
+sends and edits all three of the user's test accounts, and a reminder and
+a new-mail notification arrive with the app closed.
 
-  Built so far ([desktop.md](../design/desktop.md#windows)): maild's data
+The record of the Tauri app on Windows, as it was kept until then:
+
+- Built ([desktop.md](../design/desktop.md#windows)): maild's data
   moved into `%LOCALAPPDATA%\Frostmail\Data`, out of the per-user install
   directory Tauri's installer uses; the notifier (`app/notify`), whose
   clicks are `frostmail-toast:` URIs it handles itself; the Windows
@@ -356,14 +371,13 @@ records how Graph's events and contacts are stored.
   Gmail's sign-in found that the account form showed its error out of
   sight. Left: the clean install on one of the user's machines.
 
-## Phase 6 — Trial and hand-off
+## Phase 6 — Trial and hand-off — moved to issue #320
 
-- The user runs the Windows build for a week with Outlook.com (and Gmail
-  or iCloud), with clean verifies.
-- Then the friend installs it on his Hotmail account, with a short guide:
-  the SmartScreen step, the Microsoft consent screen, and where logs are.
-- **Done when:** the friend has read, sent and edited his calendar and
-  contacts on Frostmail for a week without data loss.
+The trial never started. It moved on 2026-11-13 to issue
+[#320](https://github.com/frostyard/frostmail/issues/320), with its steps
+(a week of the user's own use, then the friend's Hotmail account with a
+short guide) and its "Done when": the friend has read, sent and edited his
+calendar and contacts on Frostmail for a week without data loss.
 
 ## Setup for the user (Phase 1, done 2026-10-15)
 

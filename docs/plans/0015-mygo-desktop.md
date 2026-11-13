@@ -904,6 +904,15 @@ change lands ([ADR-0058](../adr/0058-pin-mygo-quote-depth-from-the-owners-fork.m
   to lodge and brought it back. Snooze's menu is a native popup that
   automation cannot reach; `TestRemindersRaiseListSnoozeDismissAndClose`
   covers it headless.
+- **From plan 0010's Phase 5 (moved here on 2026-11-13):** after the
+  parity gate ([#253](https://github.com/frostyard/frostmail/issues/253)),
+  a clean install from the installer on one of the user's Windows
+  machines reads, sends and edits all three of the user's test accounts
+  (Outlook.com, Gmail and iCloud), and a reminder and a new-mail
+  notification arrive with the app closed. Plan 0010's Phase 4 left its
+  Gmail half to the same install. **Not run yet.** The friend's trial
+  that follows it is issue
+  [#320](https://github.com/frostyard/frostmail/issues/320).
 
 ## Phase 10 — The parity gate and removing Tauri (M)
 
