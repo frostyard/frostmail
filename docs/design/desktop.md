@@ -304,6 +304,27 @@ desktop icon.
 - Clicking one (`ActionInvoked`, action `default`) runs
   `frostmail --open-message <id>` (a group runs `frostmail`);
   `FROSTMAIL_APP` names another binary.
+- **Buttons** (parity P-805): a one-message notification also has Reply,
+  Archive and Trash (`Desktop.OnMail`; the D-Bus actions `reply`, `archive`
+  and `trash`). A group notification has none.
+  - Reply runs `frostmail --reply-message <id>` (through `FROSTMAIL_APP`,
+    as a click does): the app starts a reply to the message in a compose
+    window (`mainwin.ReplyTo`), once it is connected.
+  - Archive and Trash are maild's own (`mailsync.ActOnAnnounced`): the
+    message moves to its account's archive mailbox (All Mail on Gmail) or
+    its Trash, at once in the store and then on the server, as
+    `message.move` and `message.delete` do. The app need not run, and there
+    is no undo.
+  - A button only moves. The user clicks it without seeing where the
+    message is now, so in one transaction maild reads the message's
+    mailboxes and does nothing to one that is gone or already in Trash,
+    where `message.delete` would erase it. Each of Archive and Trash is
+    offered only when the account has its mailbox, and does nothing
+    without it.
+  - Only maild's D-Bus notifications have the buttons. A Windows toast has
+    none: its activation is a `frostmail-toast:` URI that any program the
+    user runs may send, so it only opens. The notes a client shows for a
+    maild behind lodge (`message.announced`) have none either.
 - In the Flatpak, `frostmail --background` names
   `/app/libexec/frostmail-open` in its maild's `FROSTMAIL_APP` (unless the
   user set one), so a click runs `flatpak-spawn --latest-version frostmail
@@ -494,7 +515,12 @@ second launch passes its arguments to the running app, which shows and
 focuses its main window, and exits. `--open-message
 <id>` shows the main window, selects the message's inbox (or All Inboxes)
 and the message, and focuses the window; with no running app it starts on
-that message.
+that message. `--reply-message <id>`, a notification's Reply, starts a
+reply to the message in a compose window instead. It waits for a
+connection too, but only until its `draft.create` is sent: that call makes
+a draft each time, and one that ends with the connection may have made it,
+so the app never sends it again. A Reply lost that way starts nothing; the
+user replies from the app.
 
 A request waits for the connection to maild. The window drops its
 client while maild is away, but its `open-message` listener stays, so the

@@ -157,7 +157,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-802 | Notify for Inbox only, VIPs, Contacts or All Mailboxes | A scope chosen in Settings | Have | `TestNotifyScope`, `GeneralPane.test.tsx` | `TestGeneralNotifyScope` |
 | P-803 | Notify for a smart mailbox | The scope may be one | Have | `TestNotifySmartScope`, `GeneralPane.smart.test.tsx`, `SettingsWindow.smart.test.tsx` | `TestGeneralNotifiesForASmartMailbox` |
 | P-804 | Per account on or off | Same | Have | `TestNotifyOffAnnouncesNothing`, `TestNewMailIsAnnounced` | maild only: no desktop code |
-| P-805 | Archive, Trash and Reply on the notification | | Later | Notification actions beyond Open |  |
+| P-805 | Archive, Trash and Reply on the notification | Reply, Archive and Trash on a one-message notification of maild's (Linux, D-Bus); the buttons only move a message, never erase one. A Windows toast and a lodge client's note only open ([desktop.md](../design/desktop.md#notifications)) | Have | `TestMailNoteButtons`, `TestNotificationButtonsMoveTheMessage`, `TestNotificationButtonsNeedTheirMailboxes`, `TestMailActions` | `TestReplyToStartsAReply`, `TestMessageArgs` |
 
 ## Categories
 

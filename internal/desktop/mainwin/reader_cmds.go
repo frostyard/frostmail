@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -98,6 +99,35 @@ func (w *Window) deliverOpen() {
 				w.reveal(got[0], st)
 			}
 		})
+	}()
+}
+
+// ReplyTo starts a reply to a message in a compose window, from a
+// notification's Reply (parity P-805). A request made before there is a
+// connection waits for one. Once draft.create is sent the request is
+// spent, whatever comes back: unlike OpenMessage's lookup, the call makes
+// a draft each time, and one that ends with the connection may have made
+// it, so it is never sent again.
+func (w *Window) ReplyTo(id int64) {
+	w.pendingReply = id
+	w.deliverReply()
+}
+
+func (w *Window) deliverReply() {
+	id, c := w.pendingReply, w.client
+	if id == 0 || c == nil {
+		return
+	}
+	w.pendingReply = 0 // one click sends one draft.create
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
+		defer cancel()
+		d, err := c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindReply, SourceID: &id})
+		if err != nil {
+			slog.Warn("reply from a notification", "message", id, "err", err)
+			return
+		}
+		w.showDraft(c, d.ID, true)
 	}()
 }
 

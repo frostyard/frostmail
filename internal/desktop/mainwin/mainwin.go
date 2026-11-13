@@ -137,6 +137,7 @@ type Window struct {
 	pane          string              // the pane holding the focus
 	revealing     *api.MessageSummary // shown and selected whether the list has it or not
 	pendingOpen   int64               // a message to show once connected
+	pendingReply  int64               // a message to reply to once connected
 	handlers      map[commands.Command]func()
 	toasts        []ui.Toast
 	onFrame       []func(c *ui.Context) // what needs the window's context
@@ -297,6 +298,7 @@ func (w *Window) takeClient(c *api.Client, events *live.Events) {
 	w.photos, w.bitmaps = live.NewPhotos(connContext(c), c, w.waker.Wake), map[string]*ui.Bitmap{}
 	w.openView()
 	w.deliverOpen()
+	w.deliverReply()
 	w.readBack() // the deletes the last connection ended before their end was known
 }
 
@@ -339,7 +341,7 @@ func (w *Window) leaveDaemon() {
 	w.q.Source, w.q.Search, w.searchDraft = mail.Source{Kind: mail.AllInboxes}, "", ""
 	w.searchToken++
 	w.clearSelection()
-	w.revealing, w.pendingOpen = nil, 0
+	w.revealing, w.pendingOpen, w.pendingReply = nil, 0, 0
 	w.branches = map[string]bool{}
 	w.onFrame = nil
 	w.rawSource, w.redirect = nil, nil

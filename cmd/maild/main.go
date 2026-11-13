@@ -266,6 +266,9 @@ func runWith(ctx context.Context, args []string, opts runOptions) (err error) {
 		syncCfg.Announce = desktop.Announce
 	}
 	syncer := mailsync.New(db, sec, blobs, logger, syncCfg, broker.Publish)
+	if desktop != nil {
+		desktop.OnMail(mailActions(ctx, syncer.ActOnAnnounced, replyInApp(logger), logger))
+	}
 	pimCfg := pimConfig(syncCfg.InsecureSkipVerify, tokens, davTrace, logger)
 	pimCfg.Activity = hub
 	pim := pimsync.New(db, sec, logger, pimCfg)
@@ -509,12 +512,45 @@ func openInApp(logger *slog.Logger) func(messageID int64) {
 		if messageID != 0 {
 			args = []string{"--open-message", strconv.FormatInt(messageID, 10)}
 		}
-		cmd := exec.Command(app, args...)
-		if err := cmd.Start(); err != nil {
-			logger.Warn("open the app", "app", app, "err", err)
+		runApp(logger, app, args)
+	}
+}
+
+// replyInApp returns what a notification's Reply does: it runs the app
+// with --reply-message, which starts a reply to the message in a compose
+// window (docs/design/desktop.md, Notifications).
+func replyInApp(logger *slog.Logger) func(messageID int64) {
+	app := os.Getenv("FROSTMAIL_APP")
+	if app == "" {
+		app = "frostmail"
+	}
+	return func(messageID int64) {
+		runApp(logger, app, []string{"--reply-message", strconv.FormatInt(messageID, 10)})
+	}
+}
+
+func runApp(logger *slog.Logger, app string, args []string) {
+	cmd := exec.Command(app, args...)
+	if err := cmd.Start(); err != nil {
+		logger.Warn("open the app", "app", app, "err", err)
+		return
+	}
+	go func() { _ = cmd.Wait() }()
+}
+
+// mailActions returns what the buttons of a new-mail notification do
+// (parity P-805): Reply runs the app, and Archive and Trash move the
+// message through act, mailsync's ActOnAnnounced.
+func mailActions(ctx context.Context, act func(context.Context, int64, string) error, reply func(int64),
+	logger *slog.Logger) func(messageID int64, action string) {
+	return func(messageID int64, action string) {
+		if action == notify.ActionReply {
+			reply(messageID)
 			return
 		}
-		go func() { _ = cmd.Wait() }()
+		if err := act(ctx, messageID, action); err != nil {
+			logger.Warn("notification action", "action", action, "message", messageID, "err", err)
+		}
 	}
 }
 

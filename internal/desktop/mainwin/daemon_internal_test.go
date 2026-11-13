@@ -1023,3 +1023,57 @@ func TestPaletteMailResultsSwitchToMail(t *testing.T) {
 		}
 	}
 }
+
+// A notification's Reply (P-805) sends one draft.create. The connection
+// ends after maild has the request and before its answer: maild may have
+// made the draft, so the next connection must not ask for another
+// (frostyard/frostmail#315).
+func TestALostReplyIsNotSentAgain(t *testing.T) {
+	release := make(chan struct{})
+	defer close(release)
+	s := &fakeMaild{hold: map[string]chan struct{}{"draft.create": release}}
+	loop := frostuitest.NewLoop()
+	opened := 0
+	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond,
+		OpenCompose: func(*api.Client, int64, bool) { opened++ }})
+	first := s.client(t)
+	w.client = first
+	w.ReplyTo(42)
+	poll(t, "the draft.create", func() bool { return s.count("draft.create") == 1 })
+	_ = first.Close() // the answer is lost
+	<-first.Done()
+	// The next connection, as takeClient delivers what waits.
+	w.client = s.client(t)
+	for start := time.Now(); time.Since(start) < 300*time.Millisecond; {
+		loop.Flush()
+		w.deliverReply()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := s.count("draft.create"); n != 1 {
+		t.Errorf("%d draft.create calls for one Reply: the second makes a duplicate draft", n)
+	}
+	if w.pendingReply != 0 || opened != 0 {
+		t.Errorf("after the lost answer: pending reply %d, %d compose windows; want none", w.pendingReply, opened)
+	}
+}
+
+// A Reply clicked before there is a connection waits for it, and is sent
+// once.
+func TestAReplyWaitsForAConnection(t *testing.T) {
+	s := &fakeMaild{result: map[string]any{"draft.create": api.Draft{ID: 9}}}
+	loop := frostuitest.NewLoop()
+	var opened []int64
+	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post, Wake: time.Millisecond,
+		OpenCompose: func(_ *api.Client, d int64, _ bool) { opened = append(opened, d) }})
+	w.ReplyTo(42)
+	if s.count("draft.create") != 0 || w.pendingReply != 42 {
+		t.Fatalf("with no connection: %d calls, pending %d", s.count("draft.create"), w.pendingReply)
+	}
+	w.client = s.client(t)
+	w.deliverReply()
+	w.deliverReply()
+	poll(t, "the compose window", func() bool { loop.Flush(); return len(opened) == 1 })
+	if n := s.count("draft.create"); n != 1 || opened[0] != 9 {
+		t.Errorf("%d draft.create calls, opened %v; want 1 and draft 9", n, opened)
+	}
+}

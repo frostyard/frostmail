@@ -14,7 +14,18 @@ type Mail struct {
 	FromAddr string
 	Subject  string
 	Preview  string
+	// Archive and Trash: the account has the mailbox each button moves to.
+	Archive bool
+	Trash   bool
 }
+
+// What a message's note offers besides "default" (open the message): the
+// keys of its buttons (parity P-805).
+const (
+	ActionReply   = "reply"
+	ActionArchive = "archive"
+	ActionTrash   = "trash"
+)
 
 // Note is one desktop notification.
 type Note struct {
@@ -41,6 +52,20 @@ func Notes(mail []Mail) []Note {
 			Body:    "From " + joinSenders(mail),
 		}}
 	}
+}
+
+// Buttons are the actions a message's note offers on a desktop that shows
+// buttons, in order: ActionReply, then ActionArchive and ActionTrash where
+// the account has the mailbox. A group note has none.
+func Buttons(m Mail) []string {
+	out := []string{ActionReply}
+	if m.Archive {
+		out = append(out, ActionArchive)
+	}
+	if m.Trash {
+		out = append(out, ActionTrash)
+	}
+	return out
 }
 
 func sender(m Mail) string {

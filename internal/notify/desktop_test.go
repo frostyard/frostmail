@@ -4,6 +4,7 @@ package notify
 
 import (
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -142,4 +143,80 @@ func TestDesktopAnnouncesAndOpens(t *testing.T) {
 		t.Fatal("the second click opened nothing")
 	}
 
+}
+
+// P-805: a message's note has Reply, and Archive and Trash where the
+// account has the mailbox; a button runs the mail handler with the note's
+// message. A group note has no buttons, and neither has any note of a
+// Desktop without a handler.
+func TestMailNoteButtons(t *testing.T) {
+	f, addr := startFake(t)
+	type act struct {
+		id     int64
+		action string
+	}
+	acted := make(chan act, 8)
+	opened := make(chan int64, 4)
+	d, err := NewDesktop(t.Context(), dbustest.Connect(t, addr), slog.New(slog.DiscardHandler), func(id int64) { opened <- id })
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	// Before a handler is set, a note has only Open.
+	if err := d.Announce(ctx, 1, []Mail{{ID: 40, FromName: "Zed", Archive: true, Trash: true}}); err != nil {
+		t.Fatal(err)
+	}
+	d.OnMail(func(id int64, action string) { acted <- act{id, action} })
+	if err := d.Announce(ctx, 1, []Mail{
+		{ID: 41, FromName: "Ann", Archive: true, Trash: true},
+		{ID: 42, FromName: "Bob"}, // an account with neither mailbox
+	}); err != nil {
+		t.Fatal(err)
+	}
+	many := []Mail{{ID: 1, Archive: true, Trash: true}, {ID: 2, Archive: true, Trash: true}, {ID: 3}, {ID: 4}}
+	if err := d.Announce(ctx, 1, many); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	calls := append([]fakeCall(nil), f.calls...)
+	f.mu.Unlock()
+	want := [][]string{
+		{"default", "Open"},
+		{"default", "Open", "reply", "Reply", "archive", "Archive", "trash", "Trash"},
+		{"default", "Open", "reply", "Reply"},
+		{"default", "Open"},
+	}
+	if len(calls) != len(want) {
+		t.Fatalf("calls = %+v", calls)
+	}
+	for i, w := range want {
+		if !slices.Equal(calls[i].actions, w) {
+			t.Errorf("note %d's actions = %q, want %q", i+1, calls[i].actions, w)
+		}
+	}
+
+	// Notes 2 and 3 are messages 41 and 42; note 4 is the group.
+	f.emit(t, "ActionInvoked", uint32(4), "trash")   // a group: nothing
+	f.emit(t, "ActionInvoked", uint32(99), "trash")  // unknown: nothing
+	f.emit(t, "ActionInvoked", uint32(2), "erase")   // not a button: nothing
+	f.emit(t, "ActionInvoked", uint32(2), "archive") // message 41
+	f.emit(t, "ActionInvoked", uint32(3), "reply")   // message 42
+	f.emit(t, "NotificationClosed", uint32(2), uint32(2))
+	f.emit(t, "ActionInvoked", uint32(2), "trash") // closed: nothing
+	f.emit(t, "ActionInvoked", uint32(3), "trash")
+	for _, w := range []act{{41, "archive"}, {42, "reply"}, {42, "trash"}} {
+		select {
+		case got := <-acted:
+			if got != w {
+				t.Fatalf("acted %+v, want %+v", got, w)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("no action %+v", w)
+		}
+	}
+	select {
+	case id := <-opened:
+		t.Errorf("a button opened message %d", id)
+	default:
+	}
 }
