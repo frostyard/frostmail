@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +17,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 )
 
 // contactCard is the popover for an address in a header.
@@ -639,18 +643,25 @@ func (w *Window) attachments(c *ui.Context, cv *conv, m *openMsg) {
 		return
 	}
 	t := c.Theme()
-	ui.Row(c).Gap(frostui.SpaceS).Padding(frostui.SpaceS, frostui.SpaceXL, frostui.SpaceL, frostui.SpaceXL).Wrap().Label("Attachments").Children(func() {
+	ui.Row(c).Gap(frostui.SpaceS).Padding(frostui.SpaceS, frostui.SpaceXL, frostui.SpaceL, frostui.SpaceXL).Wrap().AlignItems(ui.End).Label("Attachments").Children(func() {
 		for _, p := range parts {
 			name := p.Filename
 			if name == "" {
 				name = "Untitled"
 			}
-			chip := ui.ButtonBase(c.Key(p.Path)).Row().Height(32).Gap(frostui.SpaceS).Padding(0, frostui.SpaceS).Radius(frostui.RadiusChip).AlignItems(ui.Center).
-				Background(frostui.Chrome(t)).Cursor(ui.CursorPointer).Label(name).Tooltip(name)
-			if chip.Clicked() {
+			// A picture shows as its thumbnail once that is made, and as a
+			// chip until then and when it cannot be made.
+			thumb := m.thumbs[p.Path]
+			item := ui.ButtonBase(c.Key(p.Path)).Radius(frostui.RadiusChip).Background(frostui.Chrome(t)).Cursor(ui.CursorPointer).Label(name).Tooltip(name)
+			if thumb == nil {
+				item = item.Row().Height(32).Gap(frostui.SpaceS).Padding(0, frostui.SpaceS).AlignItems(ui.Center)
+			} else {
+				item = item.Column().Gap(frostui.SpaceXS).Padding(frostui.SpaceXS).AlignItems(ui.Start)
+			}
+			if item.Clicked() {
 				w.openPart(cv, m.summary.ID, p)
 			}
-			chip.ContextMenu(func(menu *ui.Menu) {
+			item.ContextMenu(func(menu *ui.Menu) {
 				if menu.Item("Open").Chosen() {
 					w.openPart(cv, m.summary.ID, p)
 				}
@@ -658,13 +669,109 @@ func (w *Window) attachments(c *ui.Context, cv *conv, m *openMsg) {
 					w.savePart(cv, m.summary.ID, p)
 				}
 			})
-			chip.Children(func() {
-				frostui.Icon(c, "mail-attachment").TextColor(t.TextMuted)
-				ui.Text(c, name).FontSize(frostui.TextSize(c, 12)).MaxWidth(200).SingleLine()
-				frostui.Muted(c, mail.FormatSize(p.Size)).SingleLine()
+			item.Children(func() {
+				if thumb == nil {
+					frostui.Icon(c, "mail-attachment").TextColor(t.TextMuted)
+					ui.Text(c, name).FontSize(frostui.TextSize(c, 12)).MaxWidth(200).SingleLine()
+					frostui.Muted(c, mail.FormatSize(p.Size)).SingleLine()
+					return
+				}
+				bw, bh := thumb.Size()
+				width, height := mail.PreviewSize(bw, bh, thumbWidth, thumbHeight)
+				ui.Image(c, thumb).Size(width, height).Radius(t.Radius).Shrink(0).Label("Preview of " + name)
+				ui.Row(c).Gap(frostui.SpaceS).MaxWidth(max(width, thumbCaption)).Children(func() {
+					ui.Text(c, name).FontSize(frostui.TextSize(c, 12)).Shrink(1).MinWidth(0).SingleLine()
+					frostui.Muted(c, mail.FormatSize(p.Size)).SingleLine()
+				})
 			})
 		}
 	})
+}
+
+// A thumbnail shows inside thumbWidth × thumbHeight DIPs, made at twice
+// that for dense screens; its caption is never narrower than thumbCaption.
+const (
+	thumbWidth   = 220
+	thumbHeight  = 120
+	thumbCaption = 96
+)
+
+// loadThumbnails makes the thumbnails of a message's picture attachments,
+// one after another, off the UI thread. The pictures are the message's own
+// parts, from maild: nothing is fetched from anywhere else. One that
+// cannot be read or decoded stays a chip, which still opens and saves it.
+func (w *Window) loadThumbnails(cv *conv, m *openMsg) {
+	parts := mail.Previews(mail.Attachments(m.message.Parts, false))
+	if len(parts) == 0 {
+		return
+	}
+	id := m.summary.ID
+	go func() {
+		for _, p := range parts {
+			if cv.ctx.Err() != nil {
+				return
+			}
+			img, err := w.thumbnail(cv, id, p)
+			if err != nil {
+				slog.Debug("no thumbnail of an attachment", "message", id, "part", p.Path, "err", err)
+				continue
+			}
+			w.o.Post(func() {
+				if w.conv != cv || cv.msgs[id] != m {
+					return
+				}
+				if m.thumbs == nil {
+					m.thumbs = map[string]*ui.Bitmap{}
+				}
+				m.thumbs[p.Path] = ui.NewBitmap(img)
+			})
+		}
+	}()
+}
+
+// thumbnail reads a part and scales it down. The window decodes one
+// picture at a time: a large one takes its full size in memory meanwhile.
+func (w *Window) thumbnail(cv *conv, id int64, p api.Part) (*image.RGBA, error) {
+	ctx, cancel := context.WithTimeout(cv.ctx, downloadTimeout)
+	defer cancel()
+	data, err := w.partBytes(ctx, cv, id, p)
+	if err != nil {
+		return nil, err
+	}
+	w.thumbGate.Lock()
+	defer w.thumbGate.Unlock()
+	return uikit.Thumbnail(data, 2*thumbWidth, 2*thumbHeight)
+}
+
+// partBytes reads a part into memory: from maild's parts cache, or over
+// lodge's content node. It reads no more than a thumbnail's part may hold.
+func (w *Window) partBytes(ctx context.Context, cv *conv, id int64, p api.Part) ([]byte, error) {
+	f, err := cv.client.Message().Part(ctx, &api.MessagePartParams{ID: id, Path: p.Path})
+	if err != nil {
+		return nil, err
+	}
+	if lodge := w.state.Target.Lodge; lodge != nil {
+		if f.ContentPath == nil {
+			return nil, errors.New("lodge gave no content path")
+		}
+		return lodge.Read(ctx, *f.ContentPath, f.Filename)
+	}
+	if !filepath.IsLocal(filepath.FromSlash(f.Path)) {
+		return nil, fmt.Errorf("not a path in the parts cache: %s", f.Path)
+	}
+	file, err := os.Open(filepath.Join(w.o.CacheDir, "parts", filepath.FromSlash(f.Path))) //nolint:gosec // a part of the cache
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(io.LimitReader(file, mail.MaxPreviewBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > mail.MaxPreviewBytes {
+		return nil, fmt.Errorf("the part is over %d MiB", mail.MaxPreviewBytes>>20)
+	}
+	return data, nil
 }
 
 // partFile fetches a part to a local file: from maild's parts cache, or

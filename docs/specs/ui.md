@@ -573,6 +573,31 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   6 radius, 8px padding): a 16px `file` icon, the filename (truncated at
   200px) and the size ("12 KB", "1.4 MB"). Clicking opens the file with the
   system's default application.
+- **Picture attachments** (the desktop app;
+  [#205](https://github.com/frostyard/frostmail/issues/205)): a PNG, JPEG,
+  GIF, WebP or BMP attachment shows as a thumbnail in place of its chip,
+  as Mail.app shows a picture in the message.
+  - **Which:** by the part's content type (`image/png`, `image/jpeg`,
+    `image/gif`, `image/webp`, `image/bmp`), or by its file name's
+    extension when the type is `application/octet-stream` or empty. Never
+    SVG. The part's encoded size is at most 16 MiB, and a message gets at
+    most 12 thumbnails, its first; the rest stay chips.
+  - **The thumbnail** fits 220 × 120, keeps the picture's shape, is never
+    larger than the picture, and has the theme's radius. A JPEG shows
+    upright, as its EXIF orientation says; a GIF shows its first frame. It
+    is named "Preview of <filename>". Under it, the filename (truncated)
+    and the size, 12px, no narrower than 96.
+  - **It acts as its chip:** a click opens the file, and its menu has Open
+    and Save As….
+  - **Making it:** when the message opens, the app asks `message.part`
+    for each such part, one after another, and scales the picture down to
+    at most 440 × 240 pixels off the UI thread, one picture at a time. A
+    picture whose header declares more than 40,000,000 pixels is not
+    decoded. Until its thumbnail is made, and when the part cannot be
+    read or decoded, the attachment is its chip. The bytes are the
+    message's own, from maild (over lodge's content node when the app is
+    a lodge client): nothing is fetched from anywhere else.
+  - The web build shows chips only.
 - **Links** open in the system browser; only `http`, `https` and `mailto`
   open. Others do nothing. `mailto` links keep only the address and the
   `to`, `cc`, `bcc`, `subject` and `body` fields, in any ASCII case, without

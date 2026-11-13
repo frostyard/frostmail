@@ -101,6 +101,12 @@ func (l Lodge) fetch(ctx context.Context, contentPath, what string) ([]byte, err
 	return data, nil
 }
 
+// Read fetches a part from lodge's content node into memory, at most
+// MaxDownload bytes of it: what the app shows itself, as a thumbnail.
+func (l Lodge) Read(ctx context.Context, contentPath, what string) ([]byte, error) {
+	return l.fetch(ctx, contentPath, what)
+}
+
 // Download fetches a part from lodge's content node into dir, under a
 // name that stays in it, and returns the file's path.
 func (l Lodge) Download(ctx context.Context, dir, contentPath, filename string) (string, error) {
