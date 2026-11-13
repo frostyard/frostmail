@@ -40,6 +40,13 @@ func (c calendarService) Invitation(ctx context.Context, p *api.CalendarInvitati
 	if err != nil {
 		return nil, err
 	}
+	if msg.Method == itip.MethodPublish && len(stored) == 0 {
+		// calendar.addFromMessage can put a published event in a calendar
+		// of another account: the card finds that copy too.
+		if stored, err = c.publishedCopies(ctx, main.UID); err != nil {
+			return nil, err
+		}
+	}
 	out := invitationAPI(msg.Method, main, emails, stored, account.ReadOnly)
 	if out.CanAdd, err = c.canAdd(ctx, msg.Method, account, stored); err != nil {
 		return nil, err
@@ -48,6 +55,24 @@ func (c calendarService) Invitation(ctx context.Context, p *api.CalendarInvitati
 		return nil, err
 	}
 	return &out, nil
+}
+
+// publishedCopies are the events with uid in the calendars of every
+// account, in the accounts' order.
+func (c calendarService) publishedCopies(ctx context.Context, uid string) ([]store.EventRow, error) {
+	accounts, err := c.DB.ListAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []store.EventRow
+	for _, account := range accounts {
+		events, err := c.DB.EventsByUID(ctx, account.ID, uid)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, events...)
+	}
+	return out, nil
 }
 
 func (c calendarService) readInvitation(ctx context.Context, id int64, emails []string) (*itip.Message, error) {

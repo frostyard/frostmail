@@ -108,7 +108,7 @@ types:
       - {name: from, type: Attendee, optional: true, doc: "Request and cancel: the organizer. Reply: the attendee who answered."}
       - {name: answer, type: PartStat, optional: true, doc: "The user's current answer to the stored event or, before it is stored, to the message."}
       - {name: canRespond, type: bool, doc: "A request the user is invited to, not outdated, in an account that can write."}
-      - {name: canAdd, type: bool, doc: "A published event that the account's calendars do not hold, in an account with a calendar that can be written: calendar.addFromMessage can add it."}
+      - {name: canAdd, type: bool, doc: "A published event that no calendar of any account holds, in an account with a calendar that can be written: calendar.addFromMessage can add it."}
       - {name: outdated, type: bool, doc: "The stored event has a later SEQUENCE than the message."}
       - {name: conflicts, type: "[]Occurrence", doc: "Busy occurrences overlapping the event's first occurrence."}
       - {name: adjacent, type: "[]Occurrence", doc: "The occurrences just before and after it on the same day."}
@@ -211,6 +211,8 @@ methods:
       and ATTENDEE lines and its alarms, so no server invites or answers
       anyone for it and nothing rings that the user did not set (ADR-0059).
       The copy is the user's own event, which calendar.update can change.
+      An event that a calendar of any account holds already is refused
+      (conflict), and calendar.invitation then names that copy as eventId.
     params:
       - {name: messageId, type: int}
       - {name: calendarId, type: int, optional: true, doc: "The calendar to add it to. Default: the default calendar of the message's account."}

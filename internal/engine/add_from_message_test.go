@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/davtest"
 )
 
 // ticket is a published event as a booking's mail carries it: an
@@ -161,5 +162,79 @@ func TestInvitationCannotBeAdded(t *testing.T) {
 	}
 	if inv := e.invitation(t, e.mail(t, request("REQUEST", 1, ""))); inv.CanAdd {
 		t.Error("a request that does not invite the user offers canAdd")
+	}
+}
+
+// Adds of one message at the same time store one copy: the check that no
+// calendar holds the event runs in the transaction that stores it.
+func TestAddFromMessageAtOnceStoresOneCopy(t *testing.T) {
+	e := newInviteEnv(t)
+	id := e.mail(t, ticket("PUBLISH"))
+	const callers = 8
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	for range callers {
+		c := e.srv.Dial(t)
+		go func() {
+			<-start
+			_, err := c.Calendar().AddFromMessage(t.Context(), &api.CalendarAddFromMessageParams{MessageID: id})
+			errs <- err
+		}()
+	}
+	close(start)
+	added := 0
+	for range callers {
+		switch err := <-errs; {
+		case err == nil:
+			added++
+		case code(err) != api.CodeConflict:
+			t.Errorf("an add at the same time: %v", err)
+		}
+	}
+	rows, err := e.srv.DB.EventsByUID(t.Context(), e.acct, "flight-400@airline.example")
+	if err != nil || added != 1 || len(rows) != 1 {
+		t.Errorf("%d adds succeeded and %d events are stored (%v), want 1 and 1", added, len(rows), err)
+	}
+}
+
+// An event added to a calendar of another account is still the message's:
+// the card names it and offers no second add.
+func TestAddFromMessageToAnotherAccountKeepsTheMessagesLink(t *testing.T) {
+	e := newInviteEnv(t)
+	ctx := t.Context()
+	p := createParams("other@dav.test")
+	p.IMAP.Username = davtest.User
+	other, err := e.c.Account().Create(ctx, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.c.Account().SetPassword(ctx, &api.AccountSetPasswordParams{ID: other.ID, Password: davtest.Password}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.c.Account().SetService(ctx, &api.AccountSetServiceParams{ID: other.ID, Service: api.ServiceKindCalendar,
+		Enabled: true, URL: ptr(e.dav.URL)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.srv.PIM.Pass(ctx, other.ID); err != nil {
+		t.Fatal(err)
+	}
+	cols, err := e.c.Account().Collections(ctx, &api.AccountCollectionsParams{AccountID: &other.ID})
+	if err != nil || len(cols) == 0 {
+		t.Fatalf("the other account's calendars = %+v, %v", cols, err)
+	}
+	id := e.mail(t, ticket("PUBLISH"))
+	ev := e.add(t, &api.CalendarAddFromMessageParams{MessageID: id, CalendarID: &cols[0].ID})
+	if ev.AccountID != other.ID || ev.AccountID == e.acct {
+		t.Fatalf("added to account %d, want the other account %d", ev.AccountID, other.ID)
+	}
+	inv := e.invitation(t, id)
+	if inv.EventID == nil || *inv.EventID != ev.ID || inv.CanAdd {
+		t.Errorf("the card afterwards: eventId %v (want %d), canAdd %v", inv.EventID, ev.ID, inv.CanAdd)
+	}
+	if _, err := e.c.Calendar().AddFromMessage(ctx, &api.CalendarAddFromMessageParams{MessageID: id}); code(err) != api.CodeConflict {
+		t.Errorf("a second add, to the message's own account: %v", err)
+	}
+	if rows, err := e.srv.DB.EventsByUID(ctx, e.acct, "flight-400@airline.example"); err != nil || len(rows) != 0 {
+		t.Errorf("the message's account holds %+v, %v", rows, err)
 	}
 }

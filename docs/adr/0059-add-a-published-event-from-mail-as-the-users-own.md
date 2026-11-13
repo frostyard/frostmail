@@ -46,10 +46,14 @@ from an invitation in what its lines mean once a server holds them:
 - **Where it goes:** the calendar named, which must take writes, else the
   default calendar of the message's account, found as `calendar.respond`
   finds it. No calendar that takes writes is a `conflict`.
-- **Once.** An account whose calendars hold an event with the `UID` gets no
-  second copy (`conflict`). `Invitation.canAdd` tells the card when the
-  method would succeed: a published event, not held, in an account that is
-  not read-only and has a calendar that takes writes.
+- **Once.** An event whose `UID` a calendar of any account holds gets no
+  second copy (`conflict`). maild checks this in the transaction that
+  stores the copy, so two adds at the same time store one. The calendar
+  named may belong to another account than the message's, so for a
+  published event `calendar.invitation` looks for the copy in every
+  account. `Invitation.canAdd` tells the card when the method would
+  succeed with no calendar named: a published event, not held, in an
+  account that is not read-only and has a calendar that takes writes.
 - **The card** shows **Add to Calendar** when `canAdd`, and afterwards the
   line "This event is in your calendar." with Show in Calendar selecting it.
 

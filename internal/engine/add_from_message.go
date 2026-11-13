@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 
@@ -10,10 +11,15 @@ import (
 	"github.com/frostyard/frostmail/internal/store"
 )
 
+// errHeld says a calendar holds the event already.
+var errHeld = errors.New("engine: a calendar holds the event")
+
 // AddFromMessage adds the published event of a message to a calendar as
 // the user's own event (ADR-0059): the message's source without its
 // METHOD, its organizer and attendees and its alarms, stored under a new
-// href with the event's UID and queued to be put on the server.
+// href with the event's UID and queued to be put on the server. An event
+// that a calendar of any account holds is not added again: the check runs
+// in the transaction that stores the copy, so two adds at once store one.
 func (c calendarService) AddFromMessage(ctx context.Context, p *api.CalendarAddFromMessageParams) (*api.CalendarEvent, error) {
 	sums, err := c.DB.Summaries(ctx, []int64{p.MessageID})
 	if err != nil {
@@ -41,13 +47,6 @@ func (c calendarService) AddFromMessage(ctx context.Context, p *api.CalendarAddF
 		return nil, api.Conflict("message %d has no published event to add", p.MessageID)
 	}
 	main := msg.Main()
-	stored, err := c.DB.EventsByUID(ctx, r.acct.ID, main.UID)
-	if err != nil {
-		return nil, err
-	}
-	if len(stored) > 0 {
-		return nil, api.Conflict("the account's calendars hold this event already")
-	}
 	raw, err := itip.Published(msg.Source)
 	if err != nil {
 		return nil, api.InvalidParams("the event cannot be read: %v", err)
@@ -58,13 +57,26 @@ func (c calendarService) AddFromMessage(ctx context.Context, p *api.CalendarAddF
 	}
 	obj := store.Object{CollectionID: cal.ID, Href: strings.TrimSuffix(cal.Href, "/") + "/" + uid + ".ics",
 		Kind: store.ObjectVEvent, UID: main.UID, Raw: raw}
-	if err := c.DB.Tx(ctx, func(tx *store.Tx) error { return c.storeAnswer(ctx, tx, &r, obj) }); err != nil {
+	err = c.DB.Tx(ctx, func(tx *store.Tx) error {
+		held, err := tx.HoldsEventUID(ctx, main.UID)
+		if err != nil {
+			return err
+		}
+		if held {
+			return errHeld
+		}
+		return c.storeAnswer(ctx, tx, &r, obj)
+	})
+	if errors.Is(err, errHeld) {
+		return nil, api.Conflict("a calendar holds this event already")
+	}
+	if err != nil {
 		return nil, err
 	}
 	if c.PIM != nil {
 		c.PIM.Kick(r.acct.ID)
 	}
-	stored, err = c.DB.EventsByUID(ctx, r.acct.ID, main.UID)
+	stored, err := c.DB.EventsByUID(ctx, r.acct.ID, main.UID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +112,8 @@ func (c calendarService) addTarget(ctx context.Context, account int64, id *int64
 }
 
 // canAdd reports whether the published event of a message of account can
-// be added: no calendar of the account holds it, and one takes writes.
+// be added: no calendar holds it (stored), and one of the account's takes
+// writes.
 func (c calendarService) canAdd(ctx context.Context, method string, account store.Account, stored []store.EventRow) (bool, error) {
 	if method != itip.MethodPublish || account.ReadOnly || len(stored) > 0 {
 		return false, nil

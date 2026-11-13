@@ -394,8 +394,9 @@ query flagged messages alongside tasks, and completing one clears the flag.
   under a new href in the calendar named, else the account's default, with
   a `put` that creates it. The copy is the user's own event: no server
   schedules it and no alarm of the sender's comes along. It keeps the
-  sender's `UID`, by which the card finds it; an account that holds the
-  `UID` gets no second copy. Every other method is refused with `conflict`.
+  sender's `UID`, by which the card finds it in the calendars of every
+  account; an event some calendar holds gets no second copy, which maild
+  checks in the transaction that stores it. Every other method is refused with `conflict`.
   The card's `canAdd` says when the method would succeed.
 - Whether a provider schedules is in its profile, else not.
 - An organizer's or attendee's address is its `mailto:` value, else its

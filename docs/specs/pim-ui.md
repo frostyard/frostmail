@@ -985,7 +985,7 @@ The reader shows an invitation as a card above the message's body
     is out of date." when outdated, else the user's answer ("You
     accepted", "You declined", "You said maybe"), else nothing.
   - **Add to Calendar** in the answers' place when `canAdd` (a published
-    event the account's calendars do not hold;
+    event no calendar holds;
     [ADR-0059](../adr/0059-add-a-published-event-from-mail-as-the-users-own.md)):
     one button, 28 high, `--bg-window` with a 1px `--separator` border.
     Once the calendar holds a published event, the line reads "This event

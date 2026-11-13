@@ -775,7 +775,7 @@ export interface Invitation {
    */
   canRespond: boolean;
   /**
-   * A published event that the account's calendars do not hold, in an account
+   * A published event that no calendar of any account holds, in an account
    * with a calendar that can be written: calendar.addFromMessage can add it.
    */
   canAdd: boolean;
@@ -1046,7 +1046,9 @@ export interface CalendarClient {
    * recurrence and text, and without its METHOD, its ORGANIZER and ATTENDEE
    * lines and its alarms, so no server invites or answers anyone for it and
    * nothing rings that the user did not set (ADR-0059). The copy is the
-   * user's own event, which calendar.update can change.
+   * user's own event, which calendar.update can change. An event that a
+   * calendar of any account holds already is refused (conflict), and
+   * calendar.invitation then names that copy as eventId.
    */
   addFromMessage(params: CalendarAddFromMessageParams): Promise<CalendarEvent>;
   /**

@@ -1493,8 +1493,8 @@ type Invitation struct {
 	// A request the user is invited to, not outdated, in an account that can
 	// write.
 	CanRespond bool `json:"canRespond"`
-	// A published event that the account's calendars do not hold, in an account
-	// with a calendar that can be written: calendar.addFromMessage can add it.
+	// A published event that no calendar of any account holds, in an account with
+	// a calendar that can be written: calendar.addFromMessage can add it.
 	CanAdd bool `json:"canAdd"`
 	// The stored event has a later SEQUENCE than the message.
 	Outdated bool `json:"outdated"`
@@ -1710,7 +1710,9 @@ type CalendarService interface {
 	// without its METHOD, its ORGANIZER and ATTENDEE lines and its alarms, so no
 	// server invites or answers anyone for it and nothing rings that the user did
 	// not set (ADR-0059). The copy is the user's own event, which calendar.update
-	// can change.
+	// can change. An event that a calendar of any account holds already is
+	// refused (conflict), and calendar.invitation then names that copy as
+	// eventId.
 	AddFromMessage(ctx context.Context, p *CalendarAddFromMessageParams) (*CalendarEvent, error)
 	// Reminders implements calendar.reminders. The reminders that are due now and
 	// neither dismissed nor snoozed, oldest first.
