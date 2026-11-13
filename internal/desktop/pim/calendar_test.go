@@ -127,9 +127,7 @@ func TestSelectingShowsTheEventPane(t *testing.T) {
 		return f.tt.HasText("Room 4") && f.tt.HasText("9:00 – 9:15 AM") && !f.tt.HasText("No Event Selected")
 	})
 	for _, want := range []string{"Edit Event", "Delete Event", "Calendar", "Work"} {
-		if !f.tt.HasText(want) {
-			t.Errorf("no %q in %s", want, dump(f.tt))
-		}
+		f.text(want) // these read the calendars, which can answer after the event (frostyard/frostmail#304)
 	}
 	if f.m.Selected(commands.Calendar) != 1 {
 		t.Error("Selected is not 1")
@@ -574,9 +572,7 @@ func TestInvitationShowsAnswerPeopleAndOnlyEdit(t *testing.T) {
 	f.m.selectOccurrence(&o)
 	f.until("the pane", func() bool { return f.m.shownEvent() != nil && f.tt.HasText("Invitees") })
 	for _, want := range []string{"Organizer", "Bo", "Your answer", "Not answered", "Ada", "Accepted", "Edit Event"} {
-		if !f.tt.HasText(want) {
-			t.Errorf("no %q in %s", want, dump(f.tt))
-		}
+		f.text(want) // Edit Event reads the calendars, which can answer after the event (frostyard/frostmail#304)
 	}
 	if f.tt.HasText("Delete Event") {
 		t.Error("an invitation offers Delete")
@@ -1389,16 +1385,12 @@ func TestEventPaneKeepsTheCalendarName(t *testing.T) {
 	f.text("Standup")
 	f.click("Standup, 9:00 – 9:15 AM, Room 4")
 	f.until("the event pane", func() bool { return !f.tt.HasText("No Event Selected") && f.tt.HasText("Room 4") })
-	name, ok := f.detailText("Event details", "Work")
-	if !ok {
-		t.Fatalf("the event pane shows no calendar named Work: %s", dump(f.tt))
-	}
+	// The Calendar row draws when the calendars and the accounts answer,
+	// which can be after the event (frostyard/frostmail#304).
+	boxes := f.detailTexts("Event details", "Work", longAddress)
+	name, account := boxes[0], boxes[1]
 	if want := textWidth(t, "Work"); name.W < want {
 		t.Errorf("the calendar's name is %v wide, and %v drawn alone", name.W, want)
-	}
-	account, ok := f.detailText("Event details", longAddress)
-	if !ok {
-		t.Fatalf("the Calendar row shows no account line: %s", dump(f.tt))
 	}
 	if account.Y < name.Y+name.H {
 		t.Errorf("the account is at y %v, not under the name at y %v and %v high", account.Y, name.Y, name.H)
@@ -1411,23 +1403,19 @@ func TestEventPaneKeepsTheCalendarName(t *testing.T) {
 func TestEventPaneKeepsAWideCalendarNameInsideThePane(t *testing.T) {
 	const wide = "Northwind Traders Engineering Standups and Retrospectives"
 	f := newFixture(t, commands.Calendar, options{email: longAddress, calName: wide})
+	f.text("Standup")
+	f.click("Standup, 9:00 – 9:15 AM, Room 4")
+	f.until("the event pane", func() bool { return !f.tt.HasText("No Event Selected") && f.tt.HasText("Room 4") })
+	// The Calendar row draws when the calendars and the accounts answer,
+	// which can be after the event (frostyard/frostmail#304).
+	boxes := f.detailTexts("Event details", wide, longAddress)
+	name, account := boxes[0], boxes[1]
 	pane, ok := f.tt.AccessByRole(ui.RoleGroup, "Event details")
 	if !ok {
 		t.Fatalf("no event pane: %s", dump(f.tt))
 	}
-	f.text("Standup")
-	f.click("Standup, 9:00 – 9:15 AM, Room 4")
-	f.until("the event pane", func() bool { return !f.tt.HasText("No Event Selected") && f.tt.HasText("Room 4") })
-	name, ok := f.detailText("Event details", wide)
-	if !ok {
-		t.Fatalf("the event pane shows no calendar named %q: %s", wide, dump(f.tt))
-	}
 	if end, edge := name.X+name.W, pane.Bounds.X+pane.Bounds.W; end > edge {
 		t.Errorf("the name ends at %v, past the pane's edge at %v", end, edge)
-	}
-	account, ok := f.detailText("Event details", longAddress)
-	if !ok {
-		t.Fatalf("the Calendar row shows no account line: %s", dump(f.tt))
 	}
 	if account.Y < name.Y+name.H {
 		t.Errorf("the account is at y %v, not under the name at y %v and %v high", account.Y, name.Y, name.H)
