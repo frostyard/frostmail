@@ -182,16 +182,12 @@ func TestTaskPaneKeepsTheListName(t *testing.T) {
 	f.text("Report")
 	f.click("Q3 numbers")
 	f.until("the pane", func() bool { return f.tt.HasText("Delete Task") })
-	name, ok := f.detailText("Task details", "Work Tasks")
-	if !ok {
-		t.Fatalf("the task pane shows no list named Work Tasks: %s", dump(f.tt))
-	}
+	// The List row draws when the task lists and the accounts answer, which
+	// can be after the pane (frostyard/frostmail#304).
+	boxes := f.detailTexts("Task details", "Work Tasks", longAddress)
+	name, account := boxes[0], boxes[1]
 	if want := textWidth(t, "Work Tasks"); name.W < want {
 		t.Errorf("the list's name is %v wide, and %v drawn alone", name.W, want)
-	}
-	account, ok := f.detailText("Task details", longAddress)
-	if !ok {
-		t.Fatalf("the List row shows no account line: %s", dump(f.tt))
 	}
 	if account.Y < name.Y+name.H {
 		t.Errorf("the account is at y %v, not under the name at y %v and %v high", account.Y, name.Y, name.H)

@@ -394,3 +394,23 @@ func (f *fixture) detailText(pane, text string) (ui.Rect, bool) {
 	}
 	return ui.Rect{}, false
 }
+
+// detailTexts waits until the pane named pane shows each text, and gives
+// their boxes, all from the same frame. A pane can draw before a row that
+// reads another call's answer: a row's list or calendar and its account
+// come from calls of their own (frostyard/frostmail#304).
+func (f *fixture) detailTexts(pane string, texts ...string) []ui.Rect {
+	f.t.Helper()
+	boxes := make([]ui.Rect, len(texts))
+	f.until(fmt.Sprintf("%q in %s", texts, pane), func() bool {
+		for i, text := range texts {
+			r, ok := f.detailText(pane, text)
+			if !ok {
+				return false
+			}
+			boxes[i] = r
+		}
+		return true
+	})
+	return boxes
+}
