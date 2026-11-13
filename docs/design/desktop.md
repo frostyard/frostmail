@@ -516,8 +516,11 @@ focuses its main window, and exits. `--open-message
 <id>` shows the main window, selects the message's inbox (or All Inboxes)
 and the message, and focuses the window; with no running app it starts on
 that message. `--reply-message <id>`, a notification's Reply, starts a
-reply to the message in a compose window instead, and waits for the
-connection in the same way.
+reply to the message in a compose window instead. It waits for a
+connection too, but only until its `draft.create` is sent: that call makes
+a draft each time, and one that ends with the connection may have made it,
+so the app never sends it again. A Reply lost that way starts nothing; the
+user replies from the app.
 
 A request waits for the connection to maild. The window drops its
 client while maild is away, but its `open-message` listener stays, so the

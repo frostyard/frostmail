@@ -138,7 +138,6 @@ type Window struct {
 	revealing     *api.MessageSummary // shown and selected whether the list has it or not
 	pendingOpen   int64               // a message to show once connected
 	pendingReply  int64               // a message to reply to once connected
-	replying      bool                // a reply's draft is being made
 	handlers      map[commands.Command]func()
 	toasts        []ui.Toast
 	onFrame       []func(c *ui.Context) // what needs the window's context

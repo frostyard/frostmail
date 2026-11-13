@@ -3,7 +3,6 @@ package mainwin
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -104,10 +103,11 @@ func (w *Window) deliverOpen() {
 }
 
 // ReplyTo starts a reply to a message in a compose window, from a
-// notification's Reply (parity P-805), once a connection can make its
-// draft. Like OpenMessage, a request that fails because the connection
-// broke waits for the next one; one that maild refuses (the message is
-// gone) is dropped.
+// notification's Reply (parity P-805). A request made before there is a
+// connection waits for one. Once draft.create is sent the request is
+// spent, whatever comes back: unlike OpenMessage's lookup, the call makes
+// a draft each time, and one that ends with the connection may have made
+// it, so it is never sent again.
 func (w *Window) ReplyTo(id int64) {
 	w.pendingReply = id
 	w.deliverReply()
@@ -115,35 +115,19 @@ func (w *Window) ReplyTo(id int64) {
 
 func (w *Window) deliverReply() {
 	id, c := w.pendingReply, w.client
-	if id == 0 || c == nil || w.replying {
+	if id == 0 || c == nil {
 		return
 	}
-	w.replying = true // one click makes one draft
+	w.pendingReply = 0 // one click sends one draft.create
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), actionTimeout)
 		defer cancel()
 		d, err := c.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindReply, SourceID: &id})
-		var refused *api.Error
-		w.o.Post(func() {
-			w.replying = false
-			switch {
-			case err == nil:
-				if w.o.OpenCompose != nil {
-					w.o.OpenCompose(c, d.ID, true)
-				}
-			case errors.As(err, &refused):
-				slog.Warn("reply from a notification", "message", id, "err", err)
-			default:
-				if w.client != c {
-					w.deliverReply() // the next connection is here already
-				}
-				return // else takeClient delivers it
-			}
-			if w.pendingReply == id {
-				w.pendingReply = 0
-			}
-			w.deliverReply() // a click that came meanwhile
-		})
+		if err != nil {
+			slog.Warn("reply from a notification", "message", id, "err", err)
+			return
+		}
+		w.showDraft(c, d.ID, true)
 	}()
 }
 
