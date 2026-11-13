@@ -81,7 +81,7 @@ var Entries = []Entry{
 	{Undo, map[Module]string{Mail: "Undo", Calendar: "Undo", People: "Undo"}, GroupEdit, NeedNothing},
 	{SelectAll, mail("Select All"), GroupEdit, NeedNothing},
 	{GetMail, mail("Get Mail"), GroupApp, NeedNothing},
-	{FocusSearch, map[Module]string{Mail: "Search", People: "Search"}, GroupApp, NeedNothing},
+	{FocusSearch, map[Module]string{Mail: "Search", Calendar: "Search", People: "Search"}, GroupApp, NeedNothing},
 	{Find, mail("Find in Message"), GroupMessage, NeedNothing},
 	{Print, mail("Print…"), GroupMessage, NeedMessage},
 	{RawSource, mail("Raw Source…"), GroupMessage, NeedMessage},

@@ -468,3 +468,32 @@ func (t *Tx) HoldsEventUID(ctx context.Context, uid string) (bool, error) {
 	}
 	return held, nil
 }
+
+// EventTexts returns, by event ID, the text a search reads: the event's
+// summary, location, description, organizer and attendees (names and
+// addresses), one to a line.
+func (d *DB) EventTexts(ctx context.Context, f EventsFilter) (map[int64]string, error) {
+	query := `SELECT e.id, e.summary || char(10) || e.location || char(10) || e.description || char(10)
+ || e.organizer_name || char(10) || e.organizer || char(10)
+ || COALESCE((SELECT group_concat(ea.name || char(10) || ea.email, char(10))
+ FROM event_attendees ea WHERE ea.event_id = e.id), '')` + eventJoins + " WHERE col.kind = 'calendar'"
+	if f.Visible {
+		query += visibleEvents
+	}
+	filter, args := calendarFilter(f.CalendarIDs)
+	rows, err := d.db.QueryContext(ctx, query+filter, args...)
+	if err != nil {
+		return nil, fmt.Errorf("event texts: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]string{}
+	for rows.Next() {
+		var id int64
+		var text string
+		if err := rows.Scan(&id, &text); err != nil {
+			return nil, fmt.Errorf("read event text: %w", err)
+		}
+		out[id] = text
+	}
+	return out, rows.Err()
+}

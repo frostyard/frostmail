@@ -57,6 +57,7 @@ type calendarState struct {
 	scope       *scopeSheet
 	undo        []string
 	cellHeight  float32
+	search      calendarSearch
 
 	layoutKey string
 	blocks    map[string][]timedBlock
@@ -73,6 +74,7 @@ func (m *Module) setUpCalendar() {
 
 func (m *Module) calendarChanged() {
 	m.cal.occ.dirty, m.cal.mini.dirty, m.cal.event.dirty, m.cal.series.dirty = true, true, true, true
+	m.cal.search.results.dirty = true
 	m.todo.mini.dirty, m.todo.upcoming.dirty = true, true
 	m.remindersChanged()
 }
@@ -138,6 +140,7 @@ func (m *Module) syncCalendar() {
 	days := monthGrid(cal.month.shown, m.clock.weekStart)
 	m.loadRange(&cal.mini, days[0], addDays(days[41], 1), "")
 	m.syncEvent()
+	m.syncSearch()
 	m.endRemovedOccurrence(from, to)
 	viewDaysNow := viewDays(cal.view, cal.date, m.clock.weekStart)
 	key := fmt.Sprint(cal.occ.version, "|", string(cal.view), "|", viewDaysNow[0], "|", m.zone)
@@ -323,7 +326,7 @@ func (m *Module) page(direction int) { m.cal.date = stepDate(m.cal.view, m.cal.d
 func (m *Module) calendarHandlers() map[commands.Command]func() {
 	view := func(f func()) func() {
 		return func() {
-			if m.cal.focus == paneCalView {
+			if m.cal.focus == paneCalView && !m.searching() { // the results are a list with its own keys
 				f()
 			}
 		}
@@ -350,6 +353,7 @@ func (m *Module) calendarHandlers() map[commands.Command]func() {
 		commands.Previous:       move(-1),
 		commands.Next:           move(1),
 		commands.Open:           view(m.openSelected),
+		commands.FocusSearch:    m.openSearch,
 		commands.Escape:         m.calendarEscape,
 		commands.Compose:        m.newEventDefault,
 		commands.Delete:         m.deleteSelected,
@@ -359,10 +363,15 @@ func (m *Module) calendarHandlers() map[commands.Command]func() {
 	}
 }
 
-// calendarEscape gives up a drag first, then the selection.
+// calendarEscape gives up a drag first, then the search, then the
+// selection.
 func (m *Module) calendarEscape() {
 	if p := m.cal.press; p != nil && p.dragging && !p.canceled {
 		p.canceled, p.preview = true, nil
+		return
+	}
+	if s := &m.cal.search; s.open || s.draft != "" || s.query != "" {
+		m.endSearch()
 		return
 	}
 	m.cal.selected = nil
@@ -399,6 +408,20 @@ func (m *Module) calendarBar(c *ui.Context) {
 	if frostui.IconButton(c, "list-add", "New Event (Ctrl+N)").Disabled(len(cal.writable) == 0).Clicked() {
 		m.newEventDefault()
 	}
+	// The search field takes the place of the paging and view controls:
+	// the bar has no room for both.
+	if cal.search.open || m.searching() {
+		if m.searching() {
+			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
+				frostui.Strong(c, "Search Results").SingleLine()
+				frostui.Caption(c, m.searchSubtitle()).SingleLine()
+			})
+		} else {
+			frostui.Heading(c, viewTitle(cal.view, cal.date, m.clock.weekStart)).TextColor(t.Text).SingleLine().Grow(1).Shrink(1).MinWidth(0)
+		}
+		m.searchField(c)
+		return
+	}
 	if ui.Button(c, "Today").Clicked() {
 		cal.date = m.today()
 	}
@@ -413,6 +436,9 @@ func (m *Module) calendarBar(c *ui.Context) {
 	choice := slices.Index([]viewKind{viewDay, viewWeek, viewMonth}, cal.view)
 	if ui.Segmented(c, &choice, "Day", "Week", "Month").Label("View").Changed() {
 		cal.view = []viewKind{viewDay, viewWeek, viewMonth}[choice]
+	}
+	if frostui.IconButton(c, "system-search", "Search Events (Ctrl+Alt+F)").Clicked() {
+		m.openSearch()
 	}
 }
 

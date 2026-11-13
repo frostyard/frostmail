@@ -15,6 +15,10 @@ export interface SearchFieldProps {
   /** Escape or the clear button. */
   onClear: () => void;
   inputRef?: Ref<HTMLInputElement>;
+  /** Takes the keyboard when it appears: a field opened by a command. */
+  autoFocus?: boolean;
+  /** The keyboard left the field. */
+  onBlur?: () => void;
 }
 
 function useSearchHandlers(props: SearchFieldProps) {
@@ -69,6 +73,9 @@ export function SearchField(props: SearchFieldProps) {
         className="min-w-0 flex-1 border-0 bg-transparent text-[13px] outline-none narrow:text-[16px]"
         value={props.value}
         ref={props.inputRef}
+        // biome-ignore lint/a11y/noAutofocus: only a field the user just opened asks for it.
+        autoFocus={props.autoFocus}
+        onBlur={props.onBlur}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
       />

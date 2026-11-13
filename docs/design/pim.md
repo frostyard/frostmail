@@ -311,6 +311,14 @@ query flagged messages alongside tasks, and completing one clears the flag.
 - **Views** ask maild for instances in a range (`calendar.range`), joined
   with their events and calendars; `calendar.changed` events name the
   ranges that moved.
+- **Search** (`calendar.search`) matches words in memory, not in SQL:
+  SQLite's `LIKE` folds only ASCII letters. maild reads each visible
+  event's text (title, location, notes, organizer, invitees) in one
+  query, keeps the events that hold every word, and expands only their
+  objects over a fixed range, 5 years back and 2 ahead, since a series
+  has no last occurrence to list. An occurrence is kept by its own event,
+  so a renamed override is found by its new title and not by the
+  series'. Of more than the limit, the nearest to now stay.
 - **Bounds.** A rule generates at most 200,000 starts, counted from
   `DTSTART`, and rules repeating more than hourly read as single events, so
   a hostile invitation cannot stall indexing. RDATE and EXDATE values with

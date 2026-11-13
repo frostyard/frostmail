@@ -160,6 +160,8 @@ export class MockCalendar {
         return this.addFromMessage(Number(params.messageId));
       case "calendar.range":
         return this.range(params);
+      case "calendar.search":
+        return this.search(params);
       case "calendar.event":
         return this.event(Number(params.id), params.recurrenceId);
       case "calendar.reminders":
@@ -324,6 +326,30 @@ export class MockCalendar {
       (a, b) =>
         Date.parse(a.start) - Date.parse(b.start) || Number(b.allDay) - Number(a.allDay) || a.eventId - b.eventId,
     );
+  }
+
+  // As maild: every word in the event's text, in start order. The fixture
+  // is small, so the mock keeps no range and no limit but the one asked.
+  private search(p: Params): Occurrence[] {
+    const words = String(p.query ?? "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (words.length === 0) throw new RPCError(ErrorCode.invalidParams, "query must hold a word");
+    const zone = typeof p.timeZone === "string" ? p.timeZone : "UTC";
+    const found = this.sorted(
+      this.visible()
+        .filter((mock) => {
+          const e = mock.event;
+          const people = [...(e.organizer ? [e.organizer] : []), ...e.attendees];
+          const text = [e.summary, e.location, e.description, ...people.flatMap((a) => [a.name, a.email])]
+            .join("\n")
+            .toLowerCase();
+          return words.every((word) => text.includes(word));
+        })
+        .flatMap((mock) => occurrences(mock, zone)),
+    );
+    return typeof p.limit === "number" ? found.slice(0, p.limit) : found;
   }
 
   private range(p: Params): Occurrence[] {
