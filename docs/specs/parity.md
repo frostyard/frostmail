@@ -86,6 +86,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` | `TestInvitationCard` |
 | P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` | `TestContactPopover` |
 | P-313 | Data detectors: a date, an address or a flight in a message, offered as an event or a contact | | Later | Needs a detector over the message's text; invitations already make events (P-311) |  |
+| P-315 | Picture attachments shown in the message | A thumbnail in place of the attachment's chip, in the desktop app; the web build shows chips, and a PDF opens in the system's viewer ([#205](https://github.com/frostyard/frostmail/issues/205)) | Have | `TestThumbnailScalesDownToFitAndNeverUp`, `TestThumbnailIsUpright`, `TestThumbnailRefuses`, `TestPreviewable` | `TestPictureAttachmentsShowAsThumbnails` |
 
 ## Acting on messages
 

@@ -124,6 +124,7 @@ type Window struct {
 	contactPhotos bool
 	photos        *live.Photos
 	bitmaps       map[string]*ui.Bitmap
+	thumbGate     sync.Mutex // one attachment's picture decodes at a time
 	state         conn.State
 	connected1    bool // connected at least once
 	conv          *conv
