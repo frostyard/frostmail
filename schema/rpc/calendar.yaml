@@ -172,6 +172,24 @@ methods:
     result: "[]Occurrence"
     errors: [invalidParams, notFound]
     callers: [local, session, agent]
+  - name: search
+    doc: >-
+      The occurrences of the events that hold every word of query, in start
+      order, from enabled calendars of accounts with the calendar service on.
+      A word matches inside an event's title, location, notes, organizer or
+      invitees (names and addresses), whatever its case. An occurrence of a
+      series matches by its own event: the series, or the override that
+      replaced it. The search reads the days from 5 years before today to 2
+      years after it; when more than limit occurrences match, the answer
+      keeps those whose starts are nearest to now.
+    params:
+      - {name: query, type: string, doc: "Words separated by spaces; at least one."}
+      - {name: timeZone, type: string, optional: true, doc: "The IANA zone of today and of all-day occurrences. Default: maild's local zone."}
+      - {name: calendarIds, type: "[]int", optional: true, doc: "Only these calendars."}
+      - {name: limit, type: int, optional: true, doc: "At most this many, 1 to 500. Default: 100."}
+    result: "[]Occurrence"
+    errors: [invalidParams]
+    callers: [local, session]
   - name: event
     doc: An event, or one occurrence of a series.
     params:

@@ -58,7 +58,7 @@ func (m *Module) calendarView(c *ui.Context) {
 	cal := &m.cal
 	t := c.Theme()
 	view := ui.Column(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Focusable().TabStop(false).FocusRing(false).Background(t.Background)
-	if cal.focusAsk == paneCalView {
+	if cal.focusAsk == paneCalView && !m.searching() { // the results' list takes it
 		cal.focusAsk = ""
 		view.Focus()
 	}
@@ -66,6 +66,11 @@ func (m *Module) calendarView(c *ui.Context) {
 		cal.focus = paneCalView
 	}
 	view.Children(func() {
+		if m.searching() {
+			m.searchResults(c)
+			drawScope(c, &cal.scope)
+			return
+		}
 		days := viewDays(cal.view, cal.date, m.clock.weekStart)
 		if cal.view == viewMonth {
 			cal.timeGridOn = false

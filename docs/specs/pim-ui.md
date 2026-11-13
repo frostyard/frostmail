@@ -477,8 +477,48 @@ width and its right segment the event pane's.
   a month "October 2026"), and at the right a `radiogroup` named "View"
   of Day, Week and Month (a 28-high segmented control: a `--badge-bg`
   track, the chosen segment `--bg-window` with a soft shadow).
-- Over the event pane: Settings and the window controls; no search field
-  in Phase 3.
+  In the desktop app a **Search Events** button (a magnifier, "Search
+  Events (Ctrl+Alt+F)") ends the segment (Calendar search, below).
+- Over the event pane: Settings and the window controls. The search
+  field is not here: the pane is 320 wide.
+
+### Calendar search
+
+Finding events by their text, as Apple Calendar's search field does. In
+the desktop app; the web build has no search field yet.
+
+- **Opening:** the Search Events button or Ctrl+Alt+F puts a search
+  field (220 wide, placeholder "Search Events") at the right of the
+  view's segment, with the keyboard in it. While it is open the segment
+  holds only New Event, the title and the field: Today, ‹ ›, and the View
+  control make room for it. A field left empty closes when the keyboard
+  leaves it.
+- **Query:** the field's text, trimmed, becomes the query 250 ms after
+  the last key, or at once on Enter. It goes to `calendar.search` in the
+  app's zone: every word must be in the event's title, location, notes,
+  organizer or invitees, whatever its case, in the calendars that are
+  shown. maild reads from 5 years before today to 2 years after and
+  answers with at most 100 occurrences, the nearest to now.
+- **Results** take the view's place while there is a query; the sidebar
+  and the event pane stay. The segment's title becomes "Search Results"
+  with a line under it: "Searching…", "1 result" or "N results", or
+  "The search failed". The list has two headings, 24 high: **Upcoming**,
+  the occurrences that have not ended, in start order, then **Earlier**,
+  the rest, the latest first; a heading with no rows is left out. With no
+  occurrence the pane says "No Results".
+- **A row** is 44 high: the calendar's 8px dot, the title 600 (or "No
+  Title"), and under it in secondary text the day ("Fri, Oct 9, 2026"),
+  the time range or "All day", the location, and "Cancelled" for a
+  cancelled event, joined by " · ". The list names it by both lines.
+- **Selecting** a row selects the occurrence and its date, so the event
+  pane shows it and the small month follows. ↑ ↓ move through the rows;
+  Enter or a double click opens the event editor, as in the views; Delete
+  deletes as the pane's Delete does.
+- **Escape** empties and closes the field and shows the view again, on
+  the selected date, with the occurrence still selected; a second Escape
+  clears the selection.
+- **Data:** a `calendar.changed` event asks the search again, as it does
+  the ranges.
 
 ### Calendar behavior
 
@@ -492,7 +532,8 @@ width and its right segment the event pane's.
   week in the month view (in the day and week views they scroll the grid
   by an hour); Enter opens the selected occurrence in the event editor,
   or with none selected shows the selected date's day; Escape clears the
-  selected occurrence. Ctrl+N creates an event (the editor, below), and
+  selected occurrence. Ctrl+Alt+F opens the search field (Calendar
+  search, above). Ctrl+N creates an event (the editor, below), and
   Delete or Backspace deletes the selected occurrence as the pane's
   Delete does. Tab and Shift+Tab move between sidebar, view and pane.
 - **Data:** the view's days come from `calendar.range` (the day; the

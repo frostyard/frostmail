@@ -647,6 +647,20 @@ Result: `[]Occurrence`.
 Errors: `invalidParams`, `notFound`.
 Callers of this method: `local`, `session`, `agent`.
 
+### `calendar.search`
+
+The occurrences of the events that hold every word of query, in start order, from enabled calendars of accounts with the calendar service on. A word matches inside an event's title, location, notes, organizer or invitees (names and addresses), whatever its case. An occurrence of a series matches by its own event: the series, or the override that replaced it. The search reads the days from 5 years before today to 2 years after it; when more than limit occurrences match, the answer keeps those whose starts are nearest to now.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `query` | `string` | Words separated by spaces; at least one. |
+| `timeZone` | `string` (optional) | The IANA zone of today and of all-day occurrences. Default: maild's local zone. |
+| `calendarIds` | `[]int` (optional) | Only these calendars. |
+| `limit` | `int` (optional) | At most this many, 1 to 500. Default: 100. |
+
+Result: `[]Occurrence`.
+Errors: `invalidParams`.
+
 ### `calendar.event`
 
 An event, or one occurrence of a series.
