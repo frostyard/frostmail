@@ -20,6 +20,17 @@ and onboarding, not new mail features. Tests use generated mail and the
 `frostmail-mailtest` container, as plan 0011 does, unless a phase says
 otherwise.
 
+Status: **done** (2026-10-30). Phase 1's last step, core's amendment,
+merged on 2026-10-29 ([core#175](https://github.com/frostyard/core/pull/175):
+ADR-0058, ADR-0062 and plan 0010 link ADR-0046). Core's plan 0010 records
+Mail's `v0.4.0` release, listing and install
+([core#176](https://github.com/frostyard/core/pull/176), merged 2026-10-30).
+Phases 2 to 10 are done, as the status below says. Issue
+[#149](https://github.com/frostyard/frostmail/issues/149), the gate's open
+finding, is closed: [PR #151](https://github.com/frostyard/frostmail/pull/151)
+fixed it (merged 2026-10-30). The open question on lodge mode with the
+window closed stays open.
+
 Status (2026-10-29): **Phase 1 is open:** Brian accepted ADR-0046 on
 2026-10-28, and ADR-0013, 0041 and 0045 say that it amends them in part;
 core's amendment of ADR-0058 and plan 0010 is still to come.

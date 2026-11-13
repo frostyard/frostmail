@@ -10,6 +10,11 @@ install that runs maild as a user service. It follows
 [M3](0005-m3-compose-and-send.md) in the [roadmap](0002-roadmap.md).
 Microsoft accounts are not in the user's set; their profile waits (Later).
 
+Status: **done** (2026-10-21), with exit 2 (OAuth survives the week) not
+met and carried to M6. The evidence is in
+[Result (2026-10-21)](#result-2026-10-21), recorded in
+[PR #90](https://github.com/frostyard/frostmail/pull/90).
+
 ## Decisions taken for M4
 
 - [ADR-0011](../adr/0011-sign-in-and-credentials.md): sign-in is

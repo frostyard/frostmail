@@ -19,6 +19,18 @@ backlog"), after Odrade's review of nexmail, a self-hosted mail client.
   nsl machine for the app; `make engine-it` where a phase names an
   integration test.
 
+Status: **done** (2026-11-10). Phase 0 merged in
+[PR #167](https://github.com/frostyard/frostmail/pull/167) (2026-11-05).
+Phases 1 to 4 merged in
+[#169](https://github.com/frostyard/frostmail/pull/169),
+[#168](https://github.com/frostyard/frostmail/pull/168),
+[#192](https://github.com/frostyard/frostmail/pull/192) and
+[#221](https://github.com/frostyard/frostmail/pull/221) (2026-11-06 to
+2026-11-10), and their issues #159 to #162 are closed. The backlog issues
+[#163](https://github.com/frostyard/frostmail/issues/163),
+[#164](https://github.com/frostyard/frostmail/issues/164) and
+[#166](https://github.com/frostyard/frostmail/issues/166) stay open.
+
 Status (2026-11-10):
 - **Phase 0 is done:** PR #167 merged on 2026-11-05; ADRs 0050 and 0051
   are Accepted.
