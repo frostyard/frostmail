@@ -41,6 +41,9 @@ func (c calendarService) Invitation(ctx context.Context, p *api.CalendarInvitati
 		return nil, err
 	}
 	out := invitationAPI(msg.Method, main, emails, stored, account.ReadOnly)
+	if out.CanAdd, err = c.canAdd(ctx, msg.Method, account, stored); err != nil {
+		return nil, err
+	}
 	if err := c.invitationOccurrences(ctx, &out, stored); err != nil {
 		return nil, err
 	}

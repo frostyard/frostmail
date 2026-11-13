@@ -601,6 +601,10 @@ func (w *Window) invitationCard(c *ui.Context, cv *conv, m *openMsg) {
 							w.answerInvitation(cv, m, a.Answer)
 						}
 					}
+				} else if inv.CanAdd {
+					if ui.Button(c, "Add to Calendar").Disabled(m.inviteBusy).Clicked() {
+						w.addInvitation(cv, m)
+					}
 				} else {
 					frostui.Muted(c, lines.Status)
 				}
@@ -623,6 +627,28 @@ func (w *Window) answerInvitation(cv *conv, m *openMsg, answer api.PartStat) {
 		_, err := cv.client.Calendar().Respond(cv.ctx, &api.CalendarRespondParams{MessageID: &id, Answer: answer})
 		if err != nil {
 			w.toast("Could not answer the invitation", err)
+		}
+		w.o.Post(func() {
+			m.inviteBusy = false
+			if w.conv == cv {
+				w.loadInvitation(cv, m)
+			}
+		})
+	}()
+}
+
+// addInvitation adds a published event to the account's default calendar
+// and asks for the card again, which then says the calendar has it.
+func (w *Window) addInvitation(cv *conv, m *openMsg) {
+	if m.inviteBusy {
+		return
+	}
+	m.inviteBusy = true
+	id := m.summary.ID
+	go func() {
+		_, err := cv.client.Calendar().AddFromMessage(cv.ctx, &api.CalendarAddFromMessageParams{MessageID: id})
+		if err != nil {
+			w.toast("Could not add the event to the calendar", err)
 		}
 		w.o.Post(func() {
 			m.inviteBusy = false

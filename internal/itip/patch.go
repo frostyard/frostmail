@@ -134,3 +134,37 @@ func withoutSchedule(p contentline.Prop) (contentline.Prop, bool) {
 	}
 	return out, len(out.Params) != len(p.Params)
 }
+
+// Published returns a published event as a calendar object of the user's
+// own: src without its METHOD line and, in every event, without the
+// ORGANIZER and ATTENDEE lines and the alarms. Nothing else changes. With
+// no organizer and no attendee no server schedules the copy, and an alarm
+// a sender wrote, which a server may act on by mail, does not come along.
+func Published(src []byte) ([]byte, error) {
+	cal, err := firstCalendar(src)
+	if err != nil {
+		return nil, err
+	}
+	var edits []contentline.Edit
+	for _, p := range cal.PropsNamed("METHOD") {
+		edits = append(edits, contentline.Edit{Start: p.Start, End: p.End})
+	}
+	for _, event := range cal.ChildrenNamed("VEVENT") {
+		for _, name := range []string{"ORGANIZER", "ATTENDEE"} {
+			for _, p := range event.PropsNamed(name) {
+				edits = append(edits, contentline.Edit{Start: p.Start, End: p.End})
+			}
+		}
+		for _, alarm := range event.ChildrenNamed("VALARM") {
+			edits = append(edits, contentline.Edit{Start: alarm.Start, End: alarm.End})
+		}
+	}
+	if len(edits) == 0 {
+		return src, nil
+	}
+	out, err := contentline.Apply(src, edits...)
+	if err != nil {
+		return nil, fmt.Errorf("make the published event the user's own: %w", err)
+	}
+	return out, nil
+}

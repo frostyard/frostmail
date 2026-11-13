@@ -984,9 +984,20 @@ The reader shows an invitation as a card above the message's body
     border. Otherwise one line 12/16 `--text-secondary`: "This invitation
     is out of date." when outdated, else the user's answer ("You
     accepted", "You declined", "You said maybe"), else nothing.
+  - **Add to Calendar** in the answers' place when `canAdd` (a published
+    event the account's calendars do not hold;
+    [ADR-0059](../adr/0059-add-a-published-event-from-mail-as-the-users-own.md)):
+    one button, 28 high, `--bg-window` with a 1px `--separator` border.
+    Once the calendar holds a published event, the line reads "This event
+    is in your calendar."
   - **Show in Calendar** at the right of the last line, a text button in
     `--accent`: Calendar on the event's date, its occurrence selected when
     the calendar has it (`eventId`).
+- **Adding** calls `calendar.addFromMessage` with the message's ID: the
+  event goes to the account's default calendar as the user's own, without
+  the sender's organizer, attendees and alarms. The button is disabled
+  until it answers, then the card asks `calendar.invitation` again; a
+  failure shows as a toast in the desktop app.
 - **Answering** calls `calendar.respond` with the message's ID and the
   answer; the buttons are disabled until it answers, then the card asks
   `calendar.invitation` again. A `calendar.changed` event refreshes it

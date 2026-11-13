@@ -686,6 +686,18 @@ Answer an invitation, from its message or its stored event. maild changes the us
 Result: `CalendarEvent`.
 Errors: `notFound`, `invalidParams`, `conflict`.
 
+### `calendar.addFromMessage`
+
+Add the published event in a message's text/calendar part to a calendar: an event to add, with no answer expected (METHOD PUBLISH, or none), such as a ticket or a booking. maild stores the event with its UID, times, recurrence and text, and without its METHOD, its ORGANIZER and ATTENDEE lines and its alarms, so no server invites or answers anyone for it and nothing rings that the user did not set (ADR-0059). The copy is the user's own event, which calendar.update can change.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `messageId` | `int` |  |
+| `calendarId` | `int` (optional) | The calendar to add it to. Default: the default calendar of the message's account. |
+
+Result: `CalendarEvent`.
+Errors: `notFound`, `invalidParams`, `conflict`.
+
 ### `calendar.reminders`
 
 The reminders that are due now and neither dismissed nor snoozed, oldest first.
@@ -875,6 +887,7 @@ An iTIP message in mail, matched against the stored events (ADR-0019).
 | `from` | `Attendee` (optional) | Request and cancel: the organizer. Reply: the attendee who answered. |
 | `answer` | `PartStat` (optional) | The user's current answer to the stored event or, before it is stored, to the message. |
 | `canRespond` | `bool` | A request the user is invited to, not outdated, in an account that can write. |
+| `canAdd` | `bool` | A published event that the account's calendars do not hold, in an account with a calendar that can be written: calendar.addFromMessage can add it. |
 | `outdated` | `bool` | The stored event has a later SEQUENCE than the message. |
 | `conflicts` | `[]Occurrence` | Busy occurrences overlapping the event's first occurrence. |
 | `adjacent` | `[]Occurrence` | The occurrences just before and after it on the same day. |
