@@ -446,7 +446,11 @@ tailnet, such as the friend's Windows install.
     lodge session. lodge keeps at most 8 per node and app, and past that
     closes the least recently active, which reconnects.
 - **Parts.** The reader's images are already `data:` URLs (ADR-0014), so
-  the reader frame is unchanged. `open_part` downloads an attachment from
+  the reader frame is unchanged. A picture attachment's thumbnail
+  (`uikit.Thumbnail`, [specs/ui.md](../specs/ui.md), Picture attachments)
+  is made in Go from the part's bytes, never in the frame: the header's
+  pixel count is checked before anything is decoded, and only the small
+  picture is kept. `open_part` downloads an attachment from
   `<contentOrigin>/mail/<contentPath>` into the app's cache, and opens that
   file as today. The webview still fetches nothing: only the Rust layer
   reaches the network.
