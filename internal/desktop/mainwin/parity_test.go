@@ -15,6 +15,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
+	"github.com/frostyard/frostmail/internal/desktop/uikit"
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 	"github.com/frostyard/frostmail/internal/mailsync"
 	"github.com/frostyard/frostmail/internal/rpctest"
@@ -400,7 +401,12 @@ func TestListPreviewLinesFollowTheSetting(t *testing.T) {
 		}
 		return max(a.Y-b.Y, b.Y-a.Y)
 	}
-	f.until(t, "rows 84 apart", func() bool { return gap() == 84 })
+	apart := func(lines int) {
+		t.Helper()
+		want := uikit.SummaryHeightFor(lines)
+		f.until(t, fmt.Sprintf("rows %v apart at %d lines", want, lines), func() bool { return gap() == want })
+	}
+	apart(2)
 	set := func(n int64) {
 		t.Helper()
 		if _, err := f.c.Settings().Set(t.Context(), &api.SettingsSetParams{PreviewLines: &n}); err != nil {
@@ -409,13 +415,13 @@ func TestListPreviewLinesFollowTheSetting(t *testing.T) {
 	}
 	set(0)
 	f.hasNot(t, "the preview at none", "Body of Alpha report")
-	f.until(t, "rows 52 apart", func() bool { return gap() == 52 })
+	apart(0)
 	if !f.tt.HasText("Alpha report") || !f.tt.HasText("Ann") {
 		t.Error("a row without a preview lost its sender or subject")
 	}
 	snapshot(t, f.tt, "list-preview-none")
 	set(5)
 	f.has(t, "the preview at 5 lines", "Body of Alpha report")
-	f.until(t, "rows 132 apart", func() bool { return gap() == 132 })
+	apart(5)
 	snapshot(t, f.tt, "list-preview-five")
 }

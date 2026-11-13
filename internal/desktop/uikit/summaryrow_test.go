@@ -182,37 +182,80 @@ func TestSoftListSoftensTheChoice(t *testing.T) {
 }
 
 // P-211: a row shows as many lines of preview as it is told, none for 0,
-// and its height follows, whatever its text.
+// and its height follows, whatever its text. A preview line is as high as
+// its font makes it, which differs by platform (16 on Linux; Windows
+// measured 16.63, frostyard/frostmail#313), so the test measures a line
+// and holds every count of lines to what the usual 2 show: a row never
+// cuts more of its preview than the 2-line row does in the same font.
 func TestSummaryRowLinesSetTheHeightAndThePreview(t *testing.T) {
 	setIcons()
+	const slack = 0.01
 	long := strings.Repeat("several words of a preview ", 40)
-	for lines, height := range map[int]float32{0: 52, 1: 68, 2: 84, 3: 100, 5: 132} {
+	for lines, height := range map[int]float32{0: 52, 1: 68, 2: 84, 3: 101, 4: 118, 5: 135} {
 		if got := uikit.SummaryHeightFor(lines); got != height {
 			t.Errorf("SummaryHeightFor(%d) = %v, want %v", lines, got, height)
-		}
-		for _, preview := range []string{long, "short", ""} {
-			tt := ui.NewTester(func(c *ui.Context) {
-				ui.Column(c).Width(320).AlignItems(ui.Stretch).Children(func() {
-					uikit.SummaryRowLines(c, uikit.Summary{Title: "Ann Lee", Date: "9:41", Subtitle: "Plans", Preview: preview}, lines).Label("the row")
-				})
-			}, 320, 200)
-			tt.Frame()
-			row, ok := tt.Find("the row")
-			if !ok || row.H != height {
-				t.Errorf("%d lines, preview %q…: the row is %v high, want %v", lines, firstWord(preview), row.H, height)
-			}
-			if box, shown := tt.Find(preview); preview != "" {
-				if (lines > 0) != shown {
-					t.Errorf("%d lines: the preview shows = %v", lines, shown)
-				}
-				if shown && (box.H > float32(lines)*16 || box.Y+box.H > row.Y+row.H) {
-					t.Errorf("%d lines, preview %q…: its box %+v is over %d lines or leaves the row %+v", lines, firstWord(preview), box, lines, row)
-				}
-			}
 		}
 	}
 	if uikit.SummaryHeightFor(2) != uikit.SummaryHeight || uikit.SummaryHeightFor(-3) != 52 {
 		t.Error("2 lines is the usual height, and fewer than none is none")
+	}
+	draw := func(lines int, preview string) (row, box ui.Rect, shown bool) {
+		tt := ui.NewTester(func(c *ui.Context) {
+			ui.Column(c).Width(320).AlignItems(ui.Stretch).Children(func() {
+				uikit.SummaryRowLines(c, uikit.Summary{Title: "Ann Lee", Date: "9:41", Subtitle: "Plans", Preview: preview}, lines).Label("the row")
+			})
+		}, 320, 240)
+		tt.Frame()
+		row, ok := tt.Find("the row")
+		if !ok {
+			t.Fatalf("%d lines: no row", lines)
+		}
+		box, shown = tt.Find(preview)
+		return row, box, shown && preview != ""
+	}
+	// The font's line: one line of preview in a row with room for 5.
+	_, one, ok := draw(5, "short")
+	if !ok || one.H < 12 || one.H > 24 {
+		t.Fatalf("one line of preview is %v high", one.H)
+	}
+	line := one.H
+	// What the usual row cuts of its 2 lines in this font: nothing where a
+	// line is 16 high.
+	_, two, _ := draw(2, long)
+	cut := max(2*line-two.H, 0)
+	if cut > line/4 {
+		t.Fatalf("the usual row cuts %v of its 2 lines of %v", cut, line)
+	}
+	for _, lines := range []int{0, 1, 2, 3, 4, 5} {
+		for _, preview := range []string{long, "short", ""} {
+			what := fmt.Sprintf("%d lines, preview %q…", lines, firstWord(preview))
+			row, box, shown := draw(lines, preview)
+			if row.H != uikit.SummaryHeightFor(lines) {
+				t.Errorf("%s: the row is %v high, want %v", what, row.H, uikit.SummaryHeightFor(lines))
+			}
+			if preview == "" {
+				continue
+			}
+			if (lines > 0) != shown {
+				t.Errorf("%s: the preview shows = %v", what, shown)
+			}
+			if !shown {
+				continue
+			}
+			// A long preview fills the lines asked for, a short one takes
+			// 1; neither is cut more than the usual row cuts, nor leaves
+			// the row.
+			full := line
+			if preview == long {
+				full = float32(lines) * line
+			}
+			if box.H > full+slack || box.H < full-cut-slack {
+				t.Errorf("%s: the preview is %v high, want %v, less at most %v", what, box.H, full, cut)
+			}
+			if box.Y+box.H > row.Y+row.H+slack {
+				t.Errorf("%s: its box %+v leaves the row %+v", what, box, row)
+			}
+		}
 	}
 }
 

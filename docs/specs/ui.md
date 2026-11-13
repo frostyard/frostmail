@@ -360,7 +360,10 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   ([settings-ui.md](settings-ui.md), `settings.previewLines`) sets how
   many lines the preview is clamped to, 0 to 5; 2 until the user chooses.
   Every row is then 52 + 16 × lines high (52, 68, 84, 100, 116, 132),
-  whatever its text, and with 0 lines the row has no preview. The list
+  whatever its text, and with 0 lines the row has no preview. In the
+  desktop app each line over 2 adds 17, not 16 (101, 118, 135): a preview
+  line is as high as the platform's font makes it, 16 on Linux and 16.63
+  on Windows, and the row must not cut more of 5 lines than it cuts of 2. The list
   follows a change at once (`settings.changed`). A row not yet loaded
   keeps the same height. Unsaved drafts' rows keep 2 lines.
 - **Gutter:** a 9px `--accent` dot centered on line 1 when unseen; a 12px

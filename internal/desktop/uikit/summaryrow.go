@@ -12,17 +12,30 @@ import (
 // preview.
 const SummaryHeight = 84
 
-// SummaryPreviewLines is how many lines of preview SummaryRow shows, and
-// summaryLine the height of one.
+// SummaryPreviewLines is how many lines of preview SummaryRow shows.
+const SummaryPreviewLines = 2
+
+// A row with fewer lines of preview than 2 is summaryLine lower for each,
+// and one with more is summaryLineMore higher for each. A preview line is
+// as high as its font makes it: 16 in the Linux build's font and 16.63 in
+// Windows', which no setting makes shorter. Taking 16 off keeps what is
+// left its room in either; adding 17 gives each line more its room in
+// either, so a row of 5 lines cuts no more of its last line than a row of
+// 2 does (frostyard/frostmail#313).
 const (
-	SummaryPreviewLines = 2
-	summaryLine         = 16
+	summaryLine     = 16
+	summaryLineMore = 17
 )
 
 // SummaryHeightFor is the height of a summary row with lines of preview:
-// SummaryHeight for 2, and a line's height more or less for each other.
+// SummaryHeight for 2; 68 and 52 for 1 and none; 101, 118 and 135 for 3,
+// 4 and 5.
 func SummaryHeightFor(lines int) float32 {
-	return SummaryHeight + float32(max(lines, 0)-SummaryPreviewLines)*summaryLine
+	more := max(lines, 0) - SummaryPreviewLines
+	if more > 0 {
+		return SummaryHeight + float32(more)*summaryLineMore
+	}
+	return SummaryHeight + float32(more)*summaryLine
 }
 
 // SummaryIcon is a small mark after a row's title.
