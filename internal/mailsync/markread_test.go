@@ -28,8 +28,8 @@ func rpcCode(err error) api.ErrorCode {
 // (500), so the marks go out as several.
 func TestMarkMailboxRead(t *testing.T) {
 	mem := imapxtest.StartMem(t)
-	seed(t, mem) // 5 in INBOX
-	const more = 600
+	seed(t, mem)     // 5 in INBOX
+	const more = 520 // with the seed's 5 and 6 read already: 519 unread, more than one op's 500
 	for i := range more {
 		raw := fmt.Sprintf("From: a@x.test\r\nTo: b@x.test\r\nSubject: Note %d\r\nMessage-ID: <n%d@x.test>\r\nDate: Mon, 09 Nov 2026 09:41:00 +0000\r\n\r\nNote\r\n", i, i)
 		flags := []imap.Flag{}
@@ -46,8 +46,17 @@ func TestMarkMailboxRead(t *testing.T) {
 	if _, err := mem.User.Append("Other", strings.NewReader("From: a@x.test\r\nSubject: Elsewhere\r\nMessage-ID: <o@x.test>\r\n\r\nUnread\r\n"), &imap.AppendOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	h := newHarness(t, mem.DialOptions(), imapxtest.Password)
-	h.waitPhase(api.SyncPhaseIdle)
+	// The first sync of this mailbox is the test's fixture, not its
+	// subject: it fetches 200 messages a round, not the harness's 2, and
+	// has a minute, not the harness's 10 seconds, which the race detector's
+	// build outran at 554 of the 605 it then had (frostyard/frostmail#314).
+	cfg := testConfig
+	cfg.Chunk = 200
+	h := newHarnessWith(t, mem.DialOptions(), imapxtest.Password, cfg)
+	h.waitFor(time.Minute, "the first sync of the 525 messages", func(_ api.EventEnvelope, ev api.Event) bool {
+		p, ok := ev.(api.SyncProgress)
+		return ok && p.Status.Phase == api.SyncPhaseIdle && p.Status.AccountID == h.acct
+	})
 	ctx := t.Context()
 	const unread = 5 + more - 6
 	inbox := h.inbox()
@@ -95,7 +104,7 @@ func TestMarkMailboxRead(t *testing.T) {
 	for i := range uids {
 		uids[i] = uint32(i + 1)
 	}
-	waitUntil(t, 20*time.Second, "every message read on the server", func() bool {
+	waitUntil(t, time.Minute, "every message read on the server", func() bool {
 		ups, err := server.FetchFlags(ctx, uids, 0)
 		if err != nil || len(ups) != len(uids) {
 			return false
