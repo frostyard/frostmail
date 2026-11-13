@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-09",
+  "scope": "app reply quote selection",
+  "correction": "A non-blank selection in the app document outside every message body (headers, a banner, across 2 bodies) fell through to a stale selection still held in a reader frame, so Reply quoted text the user had not just selected; such a selection now quotes the whole message.",
+  "evidence": "frostmail#220, cross-review (anthropic/claude-opus-5-5) of head 290a102, finding 1",
+  "promoted_to": "app/src/features/reader/quoteSelection.test.ts (a selection outside the bodies quotes the whole message, even with a frame selection)"
+}

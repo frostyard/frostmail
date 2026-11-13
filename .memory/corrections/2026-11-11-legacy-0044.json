@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "uikit safe page",
+  "correction": "Each Frame.Load ran on its own goroutine with no order, so an older document could replace a newer one; each Load now has a number, only the newest goes to the page, and one document goes at a time, still after the content rules.",
+  "evidence": "PR 223 cross-review M2; internal/desktop/uikit/safehtml.go",
+  "promoted_to": "internal/desktop/uikit/safehtml_internal_test.go: TestSafeFrameDropsASupersededLoad, TestSafeFrameLoadsOneAtATime"
+}

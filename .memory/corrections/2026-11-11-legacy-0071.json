@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin palette",
+  "correction": "The palette kept its query, its results and a chosen item across a change of maild, so they acted on the new maild with the last one's message and mailbox IDs. leaveDaemon now closes the palette, and its replies and item runs are bound to the maild they came from.",
+  "evidence": "PR 223 cross-review M43; internal/desktop/mainwin/palette.go",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go TestPaletteDropsAnAnswerOfTheLastMaild, TestPaletteChoiceStaysWithItsMaild"
+}

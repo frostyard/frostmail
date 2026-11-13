@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin delete holds",
+  "correction": "A delete that timed out, or whose read afterwards failed, was marked done at once, so a view that loaded while maild still ran the Delete counted as proof and let the hold go, and a second Delete then erased the message from Trash. Such a delete now stays held while confirmDeletes reads the message back: it is done only from the read that shows it moved, so only a view opened after counts, and it lets go when, after the bound, maild still holds the message where its row shows it.",
+  "evidence": "PR 223 cross-review M40 (re-review 2); internal/desktop/mainwin/actions.go",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go TestATimedOutDeleteWaitsForMaild, TestATimedOutDeleteMaildNeverRanLetsGo"
+}

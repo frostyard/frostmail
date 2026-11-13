@@ -3,7 +3,7 @@
 Decisions from [frostyard/core](https://github.com/frostyard/core/tree/main/docs/adr) this repository follows:
 
 - ADR-0071: the repository baseline (core's `docs/specs/repository-baseline.md`, rows B1 to B16); `internal/workflowcheck` checks the files of rows B1, B2, B6 and B13.
-- ADR-0002, ADR-0018, ADR-0029: `AGENTS.md` is canonical; `CLAUDE.md`, `GEMINI.md`, `.cursorrules` and `.github/copilot-instructions.md` are relative symlinks to it, and `.claude/skills` is a symlink to `.agents/skills/`. `.memory/corrections.jsonl` is the corrections inbox.
+- ADR-0002, ADR-0018, ADR-0029: `AGENTS.md` is canonical; `CLAUDE.md`, `GEMINI.md`, `.cursorrules` and `.github/copilot-instructions.md` are relative symlinks to it, and `.claude/skills` is a symlink to `.agents/skills/`. `.memory/corrections/` is the corrections inbox.
 - ADR-0012, ADR-0053: svu versions with `.svu.yml`; `make bump` tags a tested candidate (ADR-0048 of this repository).
 - ADR-0016: reverse-DNS identifiers; the app ID is `org.frostyard.Frostmail`.
 - ADR-0019, ADR-0068: risk tiers in the PR template; `.github/risk-paths.json` and the PR triage caller `.github/workflows/risk-paths.yml` label a PR that touches a high-risk path `risk:high`, and label every PR with 1 level from `level:L1` to `level:L4` (ADR-0078).
@@ -16,3 +16,4 @@ Decisions from [frostyard/core](https://github.com/frostyard/core/tree/main/docs
 - ADR-0076: every default branch requires status checks.
 - ADR-0077: `ready-for-human` is bound to the head commit; the triage workflow removes it when the head moves after the label, or when CI is not green at the label.
 - ADR-0078: pull requests sort by levels `L1` to `L4`; `.github/risk-paths.json` is schema version 2 (amends ADR-0068, whose `risk:high` stays as the alias of L1 and L2).
+- ADR-0081: each correction is 1 file in `.memory/corrections/`, in canonical form (amends ADR-0018 and ADR-0071 in part). `internal/workflowcheck` (`make verify`) checks each file's name, content and form, and fails while the old single corrections file exists. It reads only the working tree, so it does not catch a removed, renamed or changed record.

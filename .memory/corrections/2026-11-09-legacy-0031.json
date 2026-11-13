@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-09",
+  "scope": "app reader find",
+  "correction": "Enter on a find bar button reached the window's keymap, which took it as open when the list had focus and cancelled the button's activation; the bar now stops every Enter and prevents only the field's.",
+  "evidence": "frostmail#219, cross-review (openai/gpt-6.1-sol) of head f40feda, finding 1",
+  "promoted_to": "app/src/app/Find.test.tsx (Enter on Done with the list focused)"
+}

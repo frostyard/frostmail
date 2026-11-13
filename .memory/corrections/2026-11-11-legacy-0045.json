@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/pim/calendar_grid.go",
+  "correction": "A pressed all-day bar re-read its grab day from the pointer on every frame, so a multi-day bar dragged across its own days shifted by the wrong amount and wrote the wrong date to the server and its attendees. The grab day is now read once per press and kept until the press ends.",
+  "evidence": "PR 223 cross-review M65; internal/desktop/pim/calendar_grid.go",
+  "promoted_to": "internal/desktop/pim/calendar_test.go TestDraggingABarAcrossItsOwnDaysMeasuresFromTheGrab"
+}

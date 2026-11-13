@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop mini-month ranges",
+  "correction": "The busy-day fetch must follow the month being browsed, independently of the selected day, in both Calendar and the To-Do Bar.",
+  "evidence": "Issue #233, PR #223 cross-review M67",
+  "promoted_to": "internal/desktop/pim/calendar_state_test.go TestMiniMonthLoadsTheBrowsedMonth"
+}

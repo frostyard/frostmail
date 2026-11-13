@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "thumbnails over lodge's content node (#312)",
+  "correction": "A size limit on bytes the app reads unasked holds at every source and while reading: metadata can understate a part, so the limit goes into the reader of the HTTP response and of the file, not into a check of the named size or of what was already buffered.",
+  "evidence": "TestReadPartHoldsLodgeToTheLimit serves a part one byte over the limit, with and without Content-Length, and a 64 MiB one the reader must not take whole; TestReadPartHoldsTheCacheToTheLimit does the same for the parts cache. Before, the lodge path read up to conn.MaxDownload (128 MiB) for a thumbnail.",
+  "promoted_to": "internal/desktop/conn/content.go (ReadPart, fetchLimited)"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-08",
+  "scope": "app maild switch",
+  "correction": "Session recorded the maild key only after rpc.hello, so a first connection that closed during the handshake left no key, and the retry on another maild mounted the old target; the key is now recorded as soon as the transport connects.",
+  "evidence": "frostmail#196, cross-review (openai/gpt-6.1-sol) of head 7f31d53, finding 1",
+  "promoted_to": "app/src/data/session.left.test.tsx"
+}

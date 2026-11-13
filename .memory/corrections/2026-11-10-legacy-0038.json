@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-10",
+  "scope": "desktop risk paths",
+  "correction": "The native app's safe page, link and attachment rules, sign-in and secret entry and the commands that stop maild were not in the risk paths; they are now at L1.",
+  "evidence": "PR 223 review findings 15 and 25; .github/risk-paths.json",
+  "promoted_to": "governedPaths in internal/workflowcheck/baseline_test.go"
+}

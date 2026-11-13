@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "compose images behind Lodge (#240)",
+  "correction": "Non-message cache images in a saved draft need a draft-scoped content lookup; a message-part path parser cannot load them. Validate references and cache containment before signing.",
+  "evidence": "TestLoadCachedDraftImageFromLodge renders a remote cached image; TestDraftImageNamesOnlyReferencedCachedImages checks the signed bytes and refused references, paths, files and size.",
+  "promoted_to": "docs/adr/0057-name-cached-draft-images-on-lodges-content-route.md"
+}

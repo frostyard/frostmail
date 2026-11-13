@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop list selection",
+  "correction": "The list kept message IDs that had left the view while any selected row remained, so a message another client moved to Trash was erased by the next Delete; each departed ID now leaves the selection, and Delete acts only on messages the list has a row for.",
+  "evidence": "PR 223 cross-review M39; internal/desktop/mainwin/list.go",
+  "promoted_to": "TestDeleteSparesAMessageThatLeftTheList and TestDeleteLeavesAMessageTheListDoesNotHold in internal/desktop/mainwin"
+}

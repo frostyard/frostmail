@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/render/css.go, internal/desktop/uikit/safehtml.go, internal/desktop/mail/plaintext.go",
+  "correction": "Message CSS could reopen @layer print-guard and hide the printed header with the guard's own selector, and a message element with display:contents or an inline !important style could paint over it; @page could print in the margins. The sanitizer now drops @page and prefixes every word of an @layer prelude with message-, uikit.Document holds the whole message in one app-written element after the header, and the guard makes that element a stacking context under the header with transitions off.",
+  "evidence": "PR 223 cross-review M46; internal/render/css.go",
+  "promoted_to": "internal/render TestSanitizeCSSKeepsMessagesOffThePage and hostile corpus 51/52; internal/desktop/uikit TestDocumentHoldsTheMessageInOneElement; internal/desktop/mail TestPrintGuardHoldsTheMessageBelowTheHeader"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop quit with compose windows",
+  "correction": "A quit stops at the first compose window that turns it down to save, before asking the windows after it, and the app asked again only once no compose window was left, so it never quit; each compose window that turned a quit down now asks again when it has closed, and one kept open by a failed save ends the quit.",
+  "evidence": "PR 223 cross-review RR1-N1; cmd/frostmail/compose.go",
+  "promoted_to": "TestQuitGoesOnAfterEachComposerCloses and TestAKeptComposerEndsTheQuit in cmd/frostmail"
+}

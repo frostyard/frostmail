@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose across a change of maild",
+  "correction": "On a Flatpak change from this computer to lodge, change() stopped this computer's maild before SetTarget closed the compose windows, so their last save failed and the windows closed anyway; the change now saves and closes the compose windows (Options.LeaveLocal) after writing the choice and before the stop.",
+  "evidence": "PR 223 cross-review M7; internal/desktop/settings/mode.go",
+  "promoted_to": "TestChangeToLodgeStopsMaildAfterTheDraftsSaved and TestChangeLocalToLodgeWritesThenStopsMaild in internal/desktop/settings"
+}

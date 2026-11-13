@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin/reader.go",
+  "correction": "The printed header left out the sender check warning that docs/specs/ui.md says prints with the message. printHeader now passes mail.SenderCheckText to PrintHeader on a fail verdict, and PrintHeader writes it escaped.",
+  "evidence": "PR 223 cross-review M47; internal/desktop/mainwin/reader.go",
+  "promoted_to": "internal/desktop/mainwin/reader_internal_test.go TestPrintHeaderCarriesTheSenderWarning"
+}

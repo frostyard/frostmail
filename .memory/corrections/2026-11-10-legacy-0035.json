@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-10",
+  "scope": "app e2e accessibility audit cleanup",
+  "correction": "The audit's afterEach closed the extra windows before it stopped the launch, so a WebDriver call that rejected (a window gone after it was listed) or hung skipped the stop and the SIGTERM fallback, and the lingering single-instance app could take the next launch; endLaunch now bounds each step, runs every step, ends an app that outlives its session, and throws the collected errors last.",
+  "evidence": "frostmail#222, cross-review (openai/gpt-6.1-sol) of head 26b3793, finding 1",
+  "promoted_to": "app/e2e/a11y-endLaunch.e2e.ts (a rejected or hanging closeOthers still stops and ends the app)"
+}

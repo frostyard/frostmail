@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "erase old Trash and Junk (ADR-0051)",
+  "correction": "expungeOp held UIDs without UIDVALIDITY and ops replay before the first sync, so an unattended erase could hit a UID the server reused; the op now records UIDVALIDITY and erases nothing on a mismatch.",
+  "evidence": "frostmail#167, cross-review (openai/gpt-6.1-sol) of head 16f986e, finding 2",
+  "promoted_to": "docs/design/organize.md (Erase old mail); frostmail#162 TestEraseOldUIDValidityChanged"
+}

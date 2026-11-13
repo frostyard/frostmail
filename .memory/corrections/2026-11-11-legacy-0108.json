@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "compose nested quoted lists (#241)",
+  "correction": "Quote depth and list indentation need separate paragraph fields. Sharing Indent flattens nested quoted lists; paragraph IDs cannot carry inheritable formatting through a split.",
+  "evidence": "TestListsInsideNestedQuotesKeepBothDepths checks exact HTML, splits, joins, undo and list formatting with the companion MyGo QuoteDepth change.",
+  "promoted_to": "internal/desktop/compose/convert.go"
+}

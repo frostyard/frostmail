@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-08",
+  "scope": "app reader conversation",
+  "correction": "Every load of a conversation added its unread messages to the expanded set, so a reload (Trash or a read-only account changed) expanded again a message the user had collapsed; only the first load now decides what opens expanded.",
+  "evidence": "frostmail#211, cross-review (openai/gpt-6.1-sol) of head 077e2c6, finding R1",
+  "promoted_to": "app/src/app/Conversation.collapse.test.tsx (keeps a collapsed message collapsed when the conversation loads again)"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "mailsync tests",
+  "correction": "Repeated trigger DDL used pooled SQLite connections whose schema caches could disagree, so the refusal switch now uses one installed trigger and a row updated with DML.",
+  "evidence": "main CI run 41987016744 (race detector), after frostmail#157",
+  "promoted_to": "internal/mailsync/problems_linux_test.go"
+}

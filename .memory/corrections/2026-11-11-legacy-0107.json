@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "newsletter preview padding (#268)",
+  "correction": "Decode one remaining layer of entities and remove Cf characters and U+034F before applying preview quote, whitespace and length rules.",
+  "evidence": "TestPreviewRemovesNewsletterPadding covers plain entity text, decoded padding and HTML escaped once and twice; TestPreviewCleansBeforeQuoteAndLengthRules covers formatting and truncation. Both fail with the cleanup reverted.",
+  "promoted_to": "internal/mimex/preview.go"
+}

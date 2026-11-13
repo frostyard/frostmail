@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "workflowcheck glob validation",
+  "correction": "validGlob checked only leading slashes and empty or .. segments, so a glob that core's validator refuses (an empty brace alternative, nested braces, [ ], a** segments) passed make verify; it now ports core's validateGlob, with TestValidGlob.",
+  "evidence": "frostmail#170, cross-review (openai/gpt-6.1-sol) of head f712f30, finding 3",
+  "promoted_to": "internal/workflowcheck/baseline_test.go"
+}

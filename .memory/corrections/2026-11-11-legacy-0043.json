@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "conn lodge dial",
+  "correction": "The lodge WebSocket dial used a client that follows redirects, also cross-origin and to plain http, past ParseLodge's https rule; the dial now uses a client whose CheckRedirect refuses every redirect.",
+  "evidence": "PR 223 cross-review M21; internal/desktop/conn/dial.go",
+  "promoted_to": "internal/desktop/conn/conn_test.go: TestDialLodgeRefusesARedirect"
+}

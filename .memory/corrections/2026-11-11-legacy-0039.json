@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/mailsync, internal/pimsync, internal/engine (activity emit points)",
+  "correction": "ADR-0055 asks for a test of each emit point, but Fetched, DraftSaved, Announced, Erased, RemindFired, the scheduled SendLater, a retried send's warning, Connected, Listed, Lost, TokenRefreshed, the Gmail pass and the PIM pass, failure and refusal points had none, so removing a call failed nothing. Each point now has a test that fails when its call is removed or, for the retried send, when its level becomes error; IdleWoke stays with the Dovecot test, as the memory server has no IDLE.",
+  "evidence": "PR 223 cross-review M13; internal/mailsync/activity_test.go",
+  "promoted_to": "internal/mailsync TestActivityOf* and TestGmailActivityCountsWhatChanged; internal/pimsync TestActivityOf* and TestRecordTellsSignInFromFailure"
+}

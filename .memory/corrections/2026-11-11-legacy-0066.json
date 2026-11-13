@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop pim tasks",
+  "correction": "A task write past the app's 60 s deadline advanced the task's write queue while maild could still run it, so the old write could land after the next one and undo it. A queued task write now has no deadline of the app's own: the next write waits for maild's answer, or for the connection's end, when maild cancels the request's context.",
+  "evidence": "PR 223 cross-review M89; internal/desktop/pim/tasks.go",
+  "promoted_to": "internal/desktop/pim/tasks_test.go TestATaskWriteWaitsForTheLastAnswer"
+}

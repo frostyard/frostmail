@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop pim tasks",
+  "correction": "A New Task create's answer from a maild the module had left cleared the next maild's New Task field (Tasks and the To-Do Bar) when it held the same text, and ended that field's creating state. submitNewTask's answer is now fenced by Module.daemon and only reports a failure.",
+  "evidence": "PR 223 cross-review M90; internal/desktop/pim/tasks.go",
+  "promoted_to": "internal/desktop/pim/leave_test.go TestACreateFromTheLastMaildLeavesTheNewTaskField"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-13",
+  "scope": "internal/desktop/mainwin",
+  "correction": "A request the window keeps for its next connection may be resent only when its call reads. OpenMessage's lookup may; a call that makes something, such as draft.create, may have committed when the connection ended, so it is sent once and a lost answer drops the request.",
+  "evidence": "Review of frostyard/frostmail#315: ReplyTo kept its request after a transport error and the next connection sent draft.create again, 2 calls for one Reply. TestALostReplyIsNotSentAgain closes the client after maild has the request and counts 1 call on the next connection; it fails with the retry restored.",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop pim tasks",
+  "correction": "A task write in flight when Leave reset the Tasks state posted its answer into the next maild's queue: it popped that queue's own write of the same ID, or sliced the empty queue and panicked. nextTaskWrite now keeps the maild it began on (Module.daemon, which only Leave counts, so a reconnect to the same maild keeps its queue), and an answer from a maild the module has left only reports a failure.",
+  "evidence": "PR 223 cross-review RR1-N3; internal/desktop/pim/tasks.go",
+  "promoted_to": "internal/desktop/pim/leave_test.go TestAWriteFromTheLastMaildLeavesTheNextQueue"
+}

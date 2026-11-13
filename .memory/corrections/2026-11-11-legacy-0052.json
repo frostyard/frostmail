@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose",
+  "correction": "Token wrote a sender's name unquoted unless it held , ; or a quote, and an address as it came, so a name with a line break (or an address whose quoted local part held a comma) read back as an extra recipient in a reply. Token now turns control characters into spaces, drops quotes, quotes any name with RFC 5322 specials, and quotes an address it cannot write plainly as one invalid piece; addresses with white space, controls or , ; \" < > are no longer valid.",
+  "evidence": "PR 223 cross-review M26; internal/desktop/compose/address.go",
+  "promoted_to": "internal/desktop/compose/window_test.go: TestHostileAddressesStayOneRecipient"
+}

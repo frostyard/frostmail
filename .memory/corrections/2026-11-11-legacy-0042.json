@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "organize sheets",
+  "correction": "RuleSheet.Edit and SmartSheet.Edit kept the rule's condition and action slices, which the editors change in place, so Cancel left the edits in the Rules pane's cached rule and Duplicate created a rule from them; Edit, FromSearch and the snapshot each save hands its worker now copy them.",
+  "evidence": "PR 223 cross-review M58; internal/desktop/organize/sheets.go",
+  "promoted_to": "internal/desktop/organize/organize_test.go: TestCancellingARuleLeavesTheOriginal, TestCancellingASmartMailboxLeavesTheOriginal; internal/desktop/settings/rules_test.go: TestDuplicateAfterACancelledEditCopiesTheRule"
+}

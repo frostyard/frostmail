@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop pim calendar",
+  "correction": "An event window with changes refused Leave's close (MyGo's Window.Close asks CloseRequested), Leave still dropped it, and its Save then wrote the last maild's event and calendar IDs to the next maild; the close after Save and after Don't Save was refused the same way. A window now closes without a question once it closes for good or its maild is left, and it is bound to the maild it opened on (Module.daemon): Save and Delete do nothing on another. The test fixture's close now asks CloseRequested, as the app's does.",
+  "evidence": "PR 223 cross-review M43; internal/desktop/pim/event_window.go",
+  "promoted_to": "internal/desktop/pim/leave_test.go TestAChangedEventWindowWritesNothingToTheNextMaild"
+}

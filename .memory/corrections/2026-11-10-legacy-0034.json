@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-10",
+  "scope": "mailsync erase old mail",
+  "correction": "EraseOld took each mailbox's cutoff from the account's erase setting read before the mailbox transaction, so an account.update to Never, or to a longer period, between the list read and that transaction still erased with the old setting; the pass now reads the account and its setting inside the transaction that erases.",
+  "evidence": "frostmail#221, cross-review of head a69654b, finding 1",
+  "promoted_to": "internal/mailsync/erase_test.go (TestEraseOldReadsSettingsInTheTransaction)"
+}

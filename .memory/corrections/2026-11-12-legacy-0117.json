@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "Calendar search results (#310)",
+  "correction": "A list sorted by start cannot be split in two at the first unfinished item: a long event under way starts before shorter ones that are over. Judge each occurrence by its own end, then order each group.",
+  "evidence": "TestSearchRowsJudgeEachOccurrenceByItsEnd (desktop) and calendarSearch.test.ts's \"judges each occurrence by its own end\" (web) put an ongoing five-day conference under Upcoming and the finished meetings that start after it under Earlier; both fail on the split at the first unfinished one.",
+  "promoted_to": "internal/desktop/pim/calendar_search.go, app/src/lib/calendarSearch.ts"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mail undo",
+  "correction": "Undo.Move remembered nothing when its action failed part way, so a move whose first account's group went and second failed could not be undone. It now reads the messages after any action that ran and remembers the inverse of what changed.",
+  "evidence": "PR 223 cross-review RR1-N2; internal/desktop/mail/actions.go",
+  "promoted_to": "internal/desktop/mail/undo_order_test.go TestAMoveThatFailsPartWayCanBeUndone"
+}

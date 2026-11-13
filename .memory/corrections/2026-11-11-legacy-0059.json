@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop delete repeat",
+  "correction": "Each Delete started its own worker for the same IDs, so a key repeat after the first move replayed erased the message from Trash; a delete is now held per ID until the list drops the row.",
+  "evidence": "PR 223 cross-review M40; internal/desktop/mainwin/actions.go",
+  "promoted_to": "TestASecondDeleteWaitsForTheList in internal/desktop/mainwin"
+}

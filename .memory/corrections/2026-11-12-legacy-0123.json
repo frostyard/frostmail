@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "calendar.addFromMessage of a part with several calendar objects (#311)",
+  "correction": "A sanitizer that edits inside the object it chose must also bound its output to that object: bytes outside it pass through untouched, and a check that parses only the first object does not see them. Return the chosen object's range alone, also when nothing inside it changes, and count the objects in what is about to be stored.",
+  "evidence": "TestPublishedIsOneCalendarObject gives two and three concatenated VCALENDARs, with the first needing no change, and wants the first alone; TestAddFromMessageOfTwoCalendarObjectsStoresTheFirstAlone reads the stored object and the server's copy and finds one VCALENDAR and nothing of the second's event, organizer, attendees or alarm. With the trimming off, the engine's count refuses the write.",
+  "promoted_to": "internal/itip/patch.go (Published), internal/engine/add_from_message.go (calendarObjects)"
+}

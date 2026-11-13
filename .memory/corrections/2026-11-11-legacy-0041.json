@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "settings accounts",
+  "correction": "A finished account save, create or Find Settings wrote its answer into the form without checking which form asked, so account B's form could take account A's servers and the next Save wrote them to B; each answer now carries the form's number and is dropped for another form, a discovery also for another address, and a click on the open account no longer makes a new form.",
+  "evidence": "PR 223 cross-review M3; internal/desktop/settings/accounts.go",
+  "promoted_to": "internal/desktop/settings/accounts_test.go: TestALateSaveLeavesAnotherAccountsForm, TestALateDiscoveryLeavesAnotherForm, TestALateDiscoveryOfAnotherAddressFillsNothing"
+}

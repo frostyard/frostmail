@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop activity bound",
+  "correction": "Activity entries waiting for activity.recent grew without limit, against ADR-0055's bound at every step; at most 256 now wait, and those without room are counted in one dropped entry.",
+  "evidence": "PR 223 cross-review M24; internal/desktop/live/activity.go",
+  "promoted_to": "TestPendingActivityIsBounded in internal/desktop/live"
+}

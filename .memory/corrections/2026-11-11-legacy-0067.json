@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop pim tasks",
+  "correction": "The task pane committed its Title and Notes and rebound them to the next task before the fields took the frame's input, so text typed or committed by an input method in the frame of a selection or source change was lost, or landed in the next task's field. The pane now draws the outgoing task for that one frame, commits after its fields take the input, and keys each task's fields by its ID.",
+  "evidence": "PR 223 cross-review M88; internal/desktop/pim/tasks.go",
+  "promoted_to": "internal/desktop/pim/tasks_test.go TestAnEditInTheFrameOfASwitchStaysWithItsTask"
+}

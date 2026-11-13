@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin delete holds",
+  "correction": "A held delete let go after 10 s while the list still showed the stale row, and an error in the read after a successful delete let go of it too, so a repeated Delete erased the message from Trash. A hold now lasts until the list drops the row, shows it in other mailboxes, or a view opened since shows it; it lets go at once only when nothing was sent or maild still holds the message where the row shows it, and a delete that failed or was not read back stays held.",
+  "evidence": "PR 223 cross-review M40; internal/desktop/mainwin/actions.go",
+  "promoted_to": "internal/desktop/mainwin/daemon_internal_test.go TestASecondDeleteWaitsForTheList, TestADeleteNotReadBackStaysHeld"
+}

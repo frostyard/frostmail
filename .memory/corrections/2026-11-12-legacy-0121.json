@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "calendar.addFromMessage into another account (#311)",
+  "correction": "When a write can put a thing in another account than the one a read searches, the read must search where the write can put it, and the write's once-only check must cover the same accounts.",
+  "evidence": "TestAddFromMessageToAnotherAccountKeepsTheMessagesLink adds a message's event to another account's calendar and wants calendar.invitation to name it and offer no second add; searching only the message's account, it returned no eventId and canAdd true, and a second add stored a second copy.",
+  "promoted_to": "internal/engine/invitation.go (publishedCopies)"
+}

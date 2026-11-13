@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose",
+  "correction": "flush held saveMu across draft.update, which change() takes on the UI thread, so typing during a slow save froze the windows. A separate flushMu orders the saves, saveMu guards only the fields, and a revision lets a save clear dirty only if nothing changed meanwhile.",
+  "evidence": "PR 223 cross-review M33; internal/desktop/compose/window.go",
+  "promoted_to": "internal/desktop/compose/window_test.go: TestTypingGoesOnDuringASlowSave, TestAnEditDuringASaveStaysToSave"
+}

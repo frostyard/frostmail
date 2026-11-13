@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/live/view.go",
+  "correction": "view.open ran under a 30 s deadline and a later answer was dropped, so maild kept that view until the disconnect. The call now has no deadline; after 30 s the view fails with context.DeadlineExceeded, and a late successful answer is closed with view.close.",
+  "evidence": "PR 223 cross-review M27; internal/desktop/live/view.go",
+  "promoted_to": "internal/desktop/live TestALateViewOpenIsClosedInMaild"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-09",
+  "scope": "app reader find",
+  "correction": "The find bar took Enter on its buttons as Next Match, and a second Ctrl+F in its field did nothing because the window's keymap leaves plain Ctrl+F to a text field; the bar now moves on Enter only from its field and takes its own Ctrl+F.",
+  "evidence": "frostmail#219, cross-review (openai/gpt-6.1-sol) of head e941592, findings 4 and 5",
+  "promoted_to": "app/src/features/reader/FindBar.test.tsx (Ctrl+F in its field; Enter on its buttons)"
+}

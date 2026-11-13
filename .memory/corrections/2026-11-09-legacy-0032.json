@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-09",
+  "scope": "app reader find",
+  "correction": "The find bar took the Enter that confirms an input method's composition as Next Match and cancelled it; the bar now leaves a composing Enter (isComposing, or keyCode 229) to the input method and only keeps it from the window.",
+  "evidence": "frostmail#219, cross-review (openai/gpt-6.1-sol) of head 5f2fde6, finding 1",
+  "promoted_to": "app/src/features/reader/FindBar.test.tsx (leaves an input method's Enter to the input method)"
+}

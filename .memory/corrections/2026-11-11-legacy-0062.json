@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop state across maild",
+  "correction": "SetTarget kept the selection, revealed messages, pending opens and open sheets, so an open Redirect sheet sent the new maild's message; a change of target now resets them, closes the sheets and questions, and drops late answers by a generation.",
+  "evidence": "PR 223 cross-review M43; internal/desktop/mainwin/mainwin.go",
+  "promoted_to": "TestAChangeOfMaildLeavesItsState in internal/desktop/mainwin"
+}

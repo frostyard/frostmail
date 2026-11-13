@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop PIM calendar test fetch ordering",
+  "correction": "TestMiniMonthPagesAndSelects asserted a busy-day dot after the selected date changed but before the independent mini-month range fetch answered. It now waits for the busy-day result.",
+  "evidence": "PR #259 Windows (go test), job 130735126565: calendar_test.go:507 no dot on a busy day; issue #256 fetch-order audit",
+  "promoted_to": "TestMiniMonthPagesAndSelects in internal/desktop/pim/calendar_test.go"
+}

@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop compose inline images behind lodge",
+  "correction": "The remote inline-image path had no test that loads an image, so a load from this computer's parts cache alone would pass; a test now loads one through a fake maild that names the part on lodge's content route and a fake content server, beside a cached copy that a cache-only load would return.",
+  "evidence": "PR 223 cross-review M8; cmd/frostmail/compose.go",
+  "promoted_to": "TestLoadPartReadsLodgesContentRoute in cmd/frostmail"
+}

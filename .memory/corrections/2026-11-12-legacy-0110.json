@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "message CSS color-scheme guard (#269)",
+  "correction": "A removal that writes only whitespace must keep the declaration-start state, or a later color-scheme declaration escapes the guard.",
+  "evidence": "TestSanitizeCSSShowsALightPage: the cases color scheme after a removed at-rule, color scheme after an import, color scheme after cdo and cdo after cdc at the start fail without the fix.",
+  "promoted_to": "internal/render/css.go"
+}

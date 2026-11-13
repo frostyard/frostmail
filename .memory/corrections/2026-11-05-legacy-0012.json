@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-05",
+  "scope": "workflowcheck corrections",
+  "correction": "TestCorrectionsInbox refused an empty promoted_to, which core allows for an unpromoted correction, and allowed blank text and impossible dates; it now follows core's check-corrections rules, with TestCorrectionProblems.",
+  "evidence": "frostmail#170, cross-review (openai/gpt-6.1-sol) of head f712f30, finding 5",
+  "promoted_to": "internal/workflowcheck/baseline_test.go"
+}

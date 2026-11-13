@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop pim calendar",
+  "correction": "A removed occurrence stayed selected while another series in its calendar had an occurrence at the same time, as the check matched only the recurrence ID and the calendar. It now matches the series: the selection's event ID, or an override whose event maild names with the series' UID.",
+  "evidence": "PR 223 cross-review M66; internal/desktop/pim/calendar.go",
+  "promoted_to": "internal/desktop/pim/calendar_test.go TestAnotherSeriesAtTheSameTimeKeepsNoRemovedOccurrence"
+}

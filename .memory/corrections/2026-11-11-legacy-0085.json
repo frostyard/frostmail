@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop print guard",
+  "correction": "Message CSS could blur, fade, blend, mask, contain or skip the rendering of the printed header and sender warning through html and body, as a child's own values cannot undo an ancestor's filter or opacity; the guard now resets each of these on html and body.",
+  "evidence": "PR 223 re-review 2 M46; internal/desktop/mail/plaintext.go",
+  "promoted_to": "TestPrintGuardKeepsTheHeadersAncestorsPlain"
+}

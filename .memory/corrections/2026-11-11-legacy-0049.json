@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mail/plaintext.go",
+  "correction": "A text body's quote depth came from the count of \">\" in the message with no cap, so one line could build 100,000 nested divs on the UI thread. parseText now caps the level at maxQuoteDepth (8).",
+  "evidence": "PR 223 cross-review M36; internal/desktop/mail/plaintext.go",
+  "promoted_to": "internal/desktop/mail/plaintext_test.go TestTextHTMLCapsQuoteDepth"
+}

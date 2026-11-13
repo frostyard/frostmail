@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-12",
+  "scope": "calendar.addFromMessage of a file with several events (#311)",
+  "correction": "What a write stores must be what the read before it showed and checked: a published file can hold several unrelated events, and a calendar resource holds one UID (RFC 4791 §4.1). Cut the source down to the shown event's UID before storing, and check the result holds that UID alone.",
+  "evidence": "TestPublishedKeepsOneUID keeps the first master and its override and drops another UID's event, a VTODO and nothing of the time zones; TestAddFromMessageOfSeveralEventsAddsTheOneShown adds a message of two flights and finds one VEVENT in the stored object and in the server's copy. Before, the object put on the server held both UIDs while one was indexed.",
+  "promoted_to": "internal/itip/patch.go (Published), internal/engine/add_from_message.go"
+}

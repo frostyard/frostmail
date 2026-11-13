@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "internal/desktop/mainwin/reader_cmds.go",
+  "correction": "closeFind reset the find token, so a Find still running could match the next find's token and store counts for more pages than it held, and stepFind then indexed past the end in a goroutine. closeFind now advances the token, and stepFind refuses counts whose length differs from the pages'.",
+  "evidence": "PR 223 cross-review M51; internal/desktop/mainwin/reader_cmds.go",
+  "promoted_to": "internal/desktop/mainwin/reader_internal_test.go TestFindFromBeforeACloseIsDropped, TestStepFindRefusesCountsOfOtherPages"
+}

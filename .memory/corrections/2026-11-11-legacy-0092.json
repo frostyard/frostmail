@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop find fallback",
+  "correction": "The Find command must remain enabled without a selected message so Ctrl+F can focus search, as the UI spec requires.",
+  "evidence": "Issue #235, PR #223 cross-review M91",
+  "promoted_to": "internal/desktop/mainwin/mainwin_test.go TestFindWithoutAMessageFocusesSearch"
+}

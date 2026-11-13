@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop PIM test fetch ordering",
+  "correction": "TestNewContactAndDelete checked the account name in the delete question before the independent accounts fetch had answered. It now waits for that account before opening the question. Other PIM account-name assertions already wait on their dependent fetch or displayed text.",
+  "evidence": "Issue #256, remainder of the blocking CI finding in PR #223; internal/desktop/pim/people_test.go",
+  "promoted_to": "TestNewContactAndDelete in internal/desktop/pim/people_test.go"
+}

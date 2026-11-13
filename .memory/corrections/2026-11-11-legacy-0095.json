@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop task edits on module switches",
+  "correction": "Keep task fields for their final draw before switching module, then commit their values against the task they edited; returning keeps the task selected.",
+  "evidence": "Issue #239, PR #223 cross-review M88",
+  "promoted_to": "internal/desktop/mainwin/task_switch_test.go TestSwitchingModuleSavesTaskEdits"
+}

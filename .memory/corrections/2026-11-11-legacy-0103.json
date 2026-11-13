@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-11",
+  "scope": "desktop Delete holds",
+  "correction": "An unanswered Delete cannot settle from an unchanged read after reconnect: keep the hold until a moved/erased read or a view delta drops the row.",
+  "evidence": "#245: TestDeleteCommitAcrossReconnect holds a real store transaction across a disconnected RPC and reads the unchanged row on the new connection, then checks moved-read and view-drop completion separately.",
+  "promoted_to": "docs/specs/ui.md"
+}
