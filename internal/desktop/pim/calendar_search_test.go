@@ -1,8 +1,10 @@
 package pim
 
 import (
+	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -141,5 +143,30 @@ func TestCalendarSearchFieldClosesWhenLeftEmpty(t *testing.T) {
 	f.until("Escape closes it", func() bool { return !f.m.cal.search.open && f.tt.HasText("Today") })
 	if f.m.cal.selected == nil {
 		t.Error("Escape in the empty field also ended the selection")
+	}
+}
+
+// A conference from the 5th to the 9th is under way on the 8th at 10:30,
+// and starts before the meetings of the 6th and 7th, which are over: each
+// occurrence is judged by its own end.
+func TestSearchRowsJudgeEachOccurrenceByItsEnd(t *testing.T) {
+	day := func(d, hour int) time.Time { return time.Date(2026, 10, d, hour, 0, 0, 0, time.UTC) }
+	meeting := func(d int) api.Occurrence {
+		return api.Occurrence{EventID: int64(d), Start: day(d, 11), End: day(d, 12)}
+	}
+	occs := []api.Occurrence{{EventID: 50, Start: day(5, 8), End: day(9, 17)}, meeting(6), meeting(7), meeting(8), meeting(9)}
+	var got []string
+	for _, r := range searchRows(occs, testNow) {
+		if r.occ == nil {
+			got = append(got, r.heading)
+		} else {
+			got = append(got, fmt.Sprint(r.occ.EventID))
+		}
+	}
+	if want := []string{"Upcoming", "50", "8", "9", "Earlier", "7", "6"}; !slices.Equal(got, want) {
+		t.Errorf("rows = %q, want %q", got, want)
+	}
+	if rows := searchRows(nil, testNow); len(rows) != 0 {
+		t.Errorf("no occurrences gave %d rows", len(rows))
 	}
 }

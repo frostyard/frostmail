@@ -42,6 +42,22 @@ describe("searchRows", () => {
     expect(ids("2026-10-08T11:30:00Z")).toEqual(["Upcoming", 9, "Earlier", 8, 7, 6, 5]);
   });
 
+  // A conference from the 5th to the 9th is under way on the 8th, and
+  // starts before the meetings of the 6th and 7th, which are over.
+  it("judges each occurrence by its own end, not by where the first unfinished one starts", () => {
+    const conference = occurrence({ eventId: 50, start: "2026-10-05T08:00:00.000Z", end: "2026-10-09T17:00:00.000Z" });
+    const rows = searchRows([conference, at(6), at(7), at(8), at(9)], new Date("2026-10-08T10:30:00Z"));
+    expect(rows.map((row) => ("heading" in row ? row.heading : row.occurrence.eventId))).toEqual([
+      "Upcoming",
+      50,
+      8,
+      9,
+      "Earlier",
+      7,
+      6,
+    ]);
+  });
+
   it("leaves out a heading with no rows", () => {
     expect(ids("2026-10-01T00:00:00Z")).toEqual(["Upcoming", 5, 6, 7, 8, 9]);
     expect(ids("2026-11-01T00:00:00Z")).toEqual(["Earlier", 9, 8, 7, 6, 5]);

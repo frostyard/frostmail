@@ -100,24 +100,26 @@ func (m *Module) syncSearch() {
 	}
 }
 
-// searchRows splits occurrences in start order at now.
+// searchRows puts each occurrence, given in start order, under Upcoming
+// when it has not ended and under Earlier when it has. Each is judged by
+// its own end: a long event still under way starts before shorter ones
+// that are over, so the list has no one place to split.
 func searchRows(occs []api.Occurrence, now time.Time) []searchRow {
-	first := slices.IndexFunc(occs, func(o api.Occurrence) bool { return o.End.After(now) })
-	if first < 0 {
-		first = len(occs)
+	var upcoming, earlier []searchRow
+	for i := range occs {
+		if occs[i].End.After(now) {
+			upcoming = append(upcoming, searchRow{occ: &occs[i]})
+		} else {
+			earlier = append(earlier, searchRow{occ: &occs[i]})
+		}
 	}
+	slices.Reverse(earlier)
 	var rows []searchRow
-	if first < len(occs) {
-		rows = append(rows, searchRow{heading: "Upcoming"})
-		for i := first; i < len(occs); i++ {
-			rows = append(rows, searchRow{occ: &occs[i]})
-		}
+	if len(upcoming) > 0 {
+		rows = append(append(rows, searchRow{heading: "Upcoming"}), upcoming...)
 	}
-	if first > 0 {
-		rows = append(rows, searchRow{heading: "Earlier"})
-		for i := first - 1; i >= 0; i-- {
-			rows = append(rows, searchRow{occ: &occs[i]})
-		}
+	if len(earlier) > 0 {
+		rows = append(append(rows, searchRow{heading: "Earlier"}), earlier...)
 	}
 	return rows
 }

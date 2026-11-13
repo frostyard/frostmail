@@ -5,14 +5,14 @@ import { timeRange } from "./eventText";
 /** SearchRow is a heading or an occurrence of the results. */
 export type SearchRow = { heading: string } | { occurrence: Occurrence };
 
-/** searchRows splits occurrences in start order at now: those not yet ended
- * under Upcoming, then the rest under Earlier, the latest first. */
+/** searchRows puts each occurrence, given in start order, under Upcoming
+ * when it has not ended, and under Earlier, the latest first, when it has.
+ * Each is judged by its own end: a long event still under way starts before
+ * shorter ones that are over, so the list has no one place to split. */
 export function searchRows(occurrences: Occurrence[], now: Date): SearchRow[] {
   const at = now.getTime();
-  let first = occurrences.findIndex((o) => Date.parse(o.end) > at);
-  if (first < 0) first = occurrences.length;
-  const upcoming = occurrences.slice(first);
-  const earlier = occurrences.slice(0, first).reverse();
+  const upcoming = occurrences.filter((o) => Date.parse(o.end) > at);
+  const earlier = occurrences.filter((o) => Date.parse(o.end) <= at).reverse();
   return [
     ...(upcoming.length > 0 ? [{ heading: "Upcoming" }, ...upcoming.map((occurrence) => ({ occurrence }))] : []),
     ...(earlier.length > 0 ? [{ heading: "Earlier" }, ...earlier.map((occurrence) => ({ occurrence }))] : []),
