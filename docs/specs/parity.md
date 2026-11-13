@@ -85,6 +85,7 @@ tasks are not Mail's and are not listed; their parity is
 | P-310 | Collapse and expand messages in a conversation | Read messages other than the selected one show as 1 row each; a click, Enter or Space expands one, a click on its header collapses it | Have | `Conversation.collapse.test.tsx` | `TestConversationCollapsesReadMessages` |
 | P-311 | Calendar invitations in mail | The invitation card | Have | `Invitation.test.tsx`, `Invitation.once.test.tsx` | `TestInvitationCard` |
 | P-312 | Add the sender to VIPs, to Contacts | VIPs; Add to Contacts | Have | `ContactPopover.vip.test.tsx`, `VipStar.test.tsx`, `ContactCard.test.tsx` | `TestContactPopover` |
+| P-313 | Data detectors: a date, an address or a flight in a message, offered as an event or a contact | | Later | Needs a detector over the message's text; invitations already make events (P-311) |  |
 
 ## Acting on messages
 
@@ -121,6 +122,8 @@ tasks are not Mail's and are not listed; their parity is
 | P-509 | Mail Drop, Hide My Email, stationery | | Out | iCloud services and Apple's templates |  |
 | P-510 | Writing Tools, Smart Reply, summaries | | Out | Apple Intelligence. Writing help from the user's own endpoint needs a new ADR, or goes to Porter ([#166](https://github.com/frostyard/frostmail/issues/166)) |  |
 | P-511 | Check Spelling While Typing | The subject and the body, never the address fields; WebKitGTK in the system's languages, the browser's and WebView2's own checker elsewhere ([compose-ui.md](compose-ui.md#spelling)) | Have | `ComposeWindow.spellcheck.test.tsx`, `spell::tests` |  |
+| P-512 | S/MIME: sign and encrypt outgoing mail; show a signed or encrypted message's state | | Later | Needs a certificate store, and a decision on where keys live when maild runs in lodge: a new ADR |  |
+| P-513 | Markup: draw on an image or a PDF attachment before sending | | Later | An image editor in compose; an attachment can be edited outside and attached |  |
 
 ## Search
 
@@ -171,6 +174,9 @@ tasks are not Mail's and are not listed; their parity is
 | P-956 | Mail.app's shortcuts with Ctrl for ⌘ | The keymap; ⌘1–9 favorites are Ctrl+1 and the modules | Have | `keymap.test.ts`, `Shortcuts.test.tsx`, `Undo.test.tsx` | `TestForOutsideTextFields`, `TestForInATextField` |
 | P-958 | The Help menu's search, which finds a menu command by name | The command palette, Ctrl+Shift+P, with each command's shortcut; a Commands button in the web build ([ui.md](ui.md#command-palette)) | Have | `keymap.palette.test.ts`, `CommandPalette.test.tsx`, `Palette.test.tsx`, `Palette.lodge.test.tsx` | `TestPaletteOpensWithBothKeysAndListsBuiltCommands`, `TestItemsNameAndDisable` |
 | P-957 | Fonts and Colors, Viewing settings | | Later | Tokens are fixed today |  |
+| P-959 | Exchange accounts (Exchange Web Services) | Microsoft accounts over IMAP, SMTP and Graph; personal accounts only | Out | Exchange Web Services is being retired, and ActiveSync is licensed ([ADR-0039](../adr/0039-microsoft-accounts-over-imap-smtp-and-graph.md)). Work and school Microsoft 365 accounts are Later ([plan 0010](../plans/0010-m7-microsoft-and-windows.md)) |  |
+| P-960 | POP accounts | | Later | The sync engine is IMAP; not needed by the user's accounts |  |
+| P-961 | Window tabs: several viewers or compose windows as tabs of one window | | Later | Each viewer and each draft is a window of its own |  |
 
 ## Accepted differences of the native app
 
