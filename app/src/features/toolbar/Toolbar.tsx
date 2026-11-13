@@ -36,6 +36,7 @@ import {
   RefreshCw,
   Reply,
   ReplyAll,
+  Search,
   Settings,
   SquarePen,
   Trash2,
@@ -58,6 +59,7 @@ export type ToolbarCommand =
   | { kind: "previousPeriod" }
   | { kind: "nextPeriod" }
   | { kind: "calendarView"; view: CalendarView }
+  | { kind: "calendarSearch" }
   | { kind: "toggleSidebar" }
   | { kind: "getMail" }
   | { kind: "delete" }
@@ -99,6 +101,10 @@ export interface ToolbarCalendar {
   title: string;
   canCreate?: boolean;
   paneWidth: number;
+  /** The search field is open: it takes the place of Today, the paging
+   * buttons and the View control. results is the line under the title
+   * "Search Results" while there is a query. */
+  search?: { results: string | null };
 }
 
 /** ToolbarTasks describes the task source and detail pane. */
@@ -786,22 +792,44 @@ function ReaderSegment({
 
 function CalendarSegment({
   calendar,
+  search,
   onCommand,
 }: {
   calendar: ToolbarCalendar;
+  search: ReactNode;
   onCommand: (cmd: ToolbarCommand) => void;
 }) {
   const labels: Record<CalendarView, string> = { day: "Day", week: "Week", month: "Month" };
   const views: CalendarView[] = ["day", "week", "month"];
+  const newEvent = (
+    <IconButton
+      label="New Event"
+      keys="Ctrl+N"
+      icon={Plus}
+      disabled={calendar.canCreate === false}
+      onClick={() => onCommand({ kind: "newEvent" })}
+    />
+  );
+  if (calendar.search)
+    return (
+      <div data-segment="calendar" className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
+        {newEvent}
+        {calendar.search.results === null ? (
+          <span className="min-w-0 flex-1 truncate px-2 text-[15px] leading-5 font-semibold">{calendar.title}</span>
+        ) : (
+          <span className="flex min-w-0 flex-1 flex-col px-2">
+            <span className="truncate text-[13px] leading-[18px] font-semibold">Search Results</span>
+            <span className="truncate text-[11px] leading-[14px] text-secondary">{calendar.search.results}</span>
+          </span>
+        )}
+        <div data-search-slot className="w-[220px] min-w-[100px] shrink">
+          {search}
+        </div>
+      </div>
+    );
   return (
     <div data-segment="calendar" className="flex h-full min-w-0 flex-1 items-center gap-1 px-3">
-      <IconButton
-        label="New Event"
-        keys="Ctrl+N"
-        icon={Plus}
-        disabled={calendar.canCreate === false}
-        onClick={() => onCommand({ kind: "newEvent" })}
-      />
+      {newEvent}
       <button
         type="button"
         className="h-7 rounded-md px-[10px] text-[13px] hover:bg-selection-inactive"
@@ -836,6 +864,12 @@ function CalendarSegment({
           </button>
         ))}
       </div>
+      <IconButton
+        label="Search Events"
+        keys="Ctrl+Alt+F"
+        icon={Search}
+        onClick={() => onCommand({ kind: "calendarSearch" })}
+      />
     </div>
   );
 }
@@ -885,6 +919,7 @@ function ToolbarSegments({
       {props.mode === "calendar" ? (
         <CalendarSegment
           calendar={props.calendar ?? { view: "week", title: props.title, paneWidth: 320 }}
+          search={props.search}
           onCommand={props.onCommand}
         />
       ) : props.mode === "tasks" ? (

@@ -13,6 +13,7 @@ import {
   type ToolbarNarrow,
 } from "../features/toolbar/Toolbar";
 import { step, viewTitle } from "../lib/calendarDates";
+import { searchSubtitle } from "../lib/calendarSearch";
 import { formatCount } from "../lib/format";
 import { buildSidebar } from "../lib/mailboxTree";
 import {
@@ -25,12 +26,14 @@ import {
   toggleRead,
 } from "./commands";
 import { openSettings } from "./settings";
-import { useCalendarFrame } from "./useCalendar";
+import { type CalendarSearchData, useCalendarFrame } from "./useCalendar";
 import { type PeopleData, personEmail, writeToPerson } from "./usePeople";
 
 import type { TasksData } from "./useTasks";
 
 interface ToolbarContainerProps {
+  /** Calendar's search, for the line under "Search Results". */
+  calendarSearch?: CalendarSearchData;
   tasks?: TasksData;
   onNewTask?: () => void;
   onNewEvent?: () => void;
@@ -151,6 +154,7 @@ function useToolbarCommand(props: ToolbarContainerProps) {
         if (command.kind === "newEvent") props.onNewEvent?.();
         else if (command.kind === "today") ui.setCalendarDate(frame.today);
         else if (command.kind === "calendarView") ui.setCalendarView(command.view);
+        else if (command.kind === "calendarSearch") ui.openCalendarSearch();
         else if (command.kind === "previousPeriod" || command.kind === "nextPeriod")
           ui.setCalendarDate(
             step(ui.calendarView, ui.calendarDate || frame.today, command.kind === "previousPeriod" ? -1 : 1),
@@ -202,6 +206,29 @@ function useToolbarCommand(props: ToolbarContainerProps) {
       }
     },
     [client, props, frame.today],
+  );
+}
+
+// Calendar's field shows only while its search is open, and takes the
+// keyboard as it appears. Left empty, it closes.
+function CalendarSearch({ searchRef }: Pick<ToolbarContainerProps, "searchRef">) {
+  const ui = useUI();
+  return (
+    <div className="w-full">
+      <SearchField
+        value={ui.calendarSearchDraft}
+        placeholder="Search Events"
+        onChange={ui.setCalendarSearchDraft}
+        onSearch={ui.commitCalendarSearch}
+        onClear={ui.clearCalendarSearch}
+        inputRef={searchRef}
+        autoFocus
+        onBlur={() => {
+          const now = useUI.getState();
+          if (now.calendarSearchDraft === "" && now.calendarSearch === "") now.clearCalendarSearch();
+        }}
+      />
+    </div>
   );
 }
 
@@ -276,6 +303,19 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
               canCreate: props.onNewEvent !== undefined,
               title: viewTitle(ui.calendarView, frame.date, frame.weekStart, frame.locale),
               paneWidth: 320,
+              ...(ui.calendarSearchOpen || ui.calendarSearch !== ""
+                ? {
+                    search: {
+                      results:
+                        ui.calendarSearch === ""
+                          ? null
+                          : searchSubtitle(
+                              props.calendarSearch?.occurrences ?? null,
+                              props.calendarSearch?.failed ?? false,
+                            ),
+                    },
+                  }
+                : {}),
             }
           : undefined
       }
@@ -290,7 +330,13 @@ export function ToolbarContainer(props: ToolbarContainerProps) {
       moveTargets={data.moveTargets}
       maximized={false}
       onCommand={onCommand}
-      search={<ToolbarSearch searchRef={props.searchRef} />}
+      search={
+        ui.module === "calendar" ? (
+          <CalendarSearch searchRef={props.searchRef} />
+        ) : (
+          <ToolbarSearch searchRef={props.searchRef} />
+        )
+      }
     />
   );
 }

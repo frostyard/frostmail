@@ -92,6 +92,10 @@ export interface UIState {
   calendarDate: string;
   calendarSelected: OccurrenceKey | null;
   calendarFocus: Pane;
+  /** Calendar's search field shows in the toolbar (docs/specs/pim-ui.md, Calendar search). */
+  calendarSearchOpen: boolean;
+  calendarSearch: string;
+  calendarSearchDraft: string;
   tasksSource: TasksSource;
   tasksSelected: number | null;
   tasksFocus: Pane;
@@ -149,6 +153,11 @@ export interface UIActions {
   setCalendarDate: (date: string) => void;
   selectOccurrence: (key: OccurrenceKey | null, date?: string) => void;
   setCalendarFocus: (pane: Pane) => void;
+  openCalendarSearch: () => void;
+  setCalendarSearchDraft: (calendarSearchDraft: string) => void;
+  commitCalendarSearch: (calendarSearch: string) => void;
+  /** Empties and closes the field. */
+  clearCalendarSearch: () => void;
   setModule: (module: Module) => void;
   setTasksSource: (source: TasksSource) => void;
   selectTask: (id: number | null) => void;
@@ -192,6 +201,9 @@ const initialUI: UIState = {
   calendarDate: "",
   calendarSelected: null,
   calendarFocus: "list",
+  calendarSearchOpen: false,
+  calendarSearch: "",
+  calendarSearchDraft: "",
   tasksSource: "today",
   tasksSelected: null,
   tasksFocus: "list",
@@ -239,6 +251,10 @@ export const useUI = create<UIState & UIActions>()(
       selectOccurrence: (calendarSelected, date) =>
         set({ calendarSelected, ...(date === undefined ? {} : { calendarDate: date }) }),
       setCalendarFocus: (calendarFocus) => set({ calendarFocus }),
+      openCalendarSearch: () => set({ calendarSearchOpen: true }),
+      setCalendarSearchDraft: (calendarSearchDraft) => set({ calendarSearchDraft }),
+      commitCalendarSearch: (calendarSearch) => set({ calendarSearch }),
+      clearCalendarSearch: () => set({ calendarSearchOpen: false, calendarSearch: "", calendarSearchDraft: "" }),
       setModule: (module) => set({ module }),
       setTasksSource: (tasksSource) => set({ tasksSource, tasksSelected: null, taskListsOpen: false }),
       selectTask: (tasksSelected) => set({ tasksSelected }),

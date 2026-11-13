@@ -477,15 +477,16 @@ width and its right segment the event pane's.
   a month "October 2026"), and at the right a `radiogroup` named "View"
   of Day, Week and Month (a 28-high segmented control: a `--badge-bg`
   track, the chosen segment `--bg-window` with a soft shadow).
-  In the desktop app a **Search Events** button (a magnifier, "Search
-  Events (Ctrl+Alt+F)") ends the segment (Calendar search, below).
+  A **Search Events** button (a magnifier, "Search Events
+  (Ctrl+Alt+F)") ends the segment (Calendar search, below).
 - Over the event pane: Settings and the window controls. The search
   field is not here: the pane is 320 wide.
 
 ### Calendar search
 
-Finding events by their text, as Apple Calendar's search field does. In
-the desktop app; the web build has no search field yet.
+Finding events by their text, as Apple Calendar's search field does. A
+narrow window (docs/specs/ui.md, Narrow windows) has no search field:
+its toolbar has no room for one.
 
 - **Opening:** the Search Events button or Ctrl+Alt+F puts a search
   field (220 wide, placeholder "Search Events") at the right of the

@@ -198,7 +198,6 @@ export interface PaletteEntry {
 const each = (name: string) => ({ mail: name, calendar: name, people: name, tasks: name });
 const mail = (name: string) => ({ mail: name });
 const calendar = (name: string) => ({ calendar: name });
-const mailPeople = (name: string) => ({ mail: name, people: name });
 
 /**
  * PALETTE is the palette's commands, in the order it lists them, and null
@@ -220,7 +219,7 @@ export const PALETTE: Readonly<Record<Command, PaletteEntry | null>> = {
   undo: { name: { mail: "Undo", calendar: "Undo", people: "Undo" } },
   selectAll: { name: mail("Select All") },
   getMail: { name: mail("Get Mail") },
-  focusSearch: { name: mailPeople("Search") },
+  focusSearch: { name: { mail: "Search", calendar: "Search", people: "Search" } },
   // Ctrl+F is the browser's find when one message shows (ADR-0052).
   find: null,
   print: { name: mail("Print…"), needs: "message" },
