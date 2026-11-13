@@ -1004,7 +1004,7 @@ finds a menu command by name (parity P-958).
   | undo | Undo | Mail, Calendar, People | |
   | selectAll | Select All | Mail | |
   | getMail | Get Mail | Mail | |
-  | focusSearch | Search | Mail, People | |
+  | focusSearch | Search | Mail, Calendar, People | |
   | find | Find in Message | Mail (not the web build) | — (focuses search without a message) |
   | print | Print… | Mail | one message |
   | rawSource | Raw Source… | Mail | one message |

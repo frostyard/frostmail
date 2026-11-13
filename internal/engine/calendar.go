@@ -24,16 +24,9 @@ type calendarService struct{ Deps }
 
 // Range returns visible occurrences overlapping the requested days.
 func (c calendarService) Range(ctx context.Context, p *api.CalendarRangeParams) ([]api.Occurrence, error) {
-	zone := time.Local
-	if p.TimeZone != nil {
-		var err error
-		if *p.TimeZone == "" || *p.TimeZone == "Local" {
-			return nil, api.InvalidParams("unknown time zone")
-		}
-		zone, err = time.LoadLocation(*p.TimeZone)
-		if err != nil {
-			return nil, api.InvalidParams("unknown time zone")
-		}
+	zone, err := paramZone(p.TimeZone)
+	if err != nil {
+		return nil, err
 	}
 	from, err := time.Parse(time.DateOnly, p.From)
 	if err != nil {
@@ -58,6 +51,83 @@ func (c calendarService) Range(ctx context.Context, p *api.CalendarRangeParams) 
 	return scopedFunc(ctx, occ, func(o api.Occurrence) int64 { return o.AccountID }), nil
 }
 
+// paramZone is the zone a call names, else maild's local zone.
+func paramZone(name *string) (*time.Location, error) {
+	if name == nil {
+		return time.Local, nil
+	}
+	if *name == "" || *name == "Local" {
+		return nil, api.InvalidParams("unknown time zone")
+	}
+	zone, err := time.LoadLocation(*name)
+	if err != nil {
+		return nil, api.InvalidParams("unknown time zone")
+	}
+	return zone, nil
+}
+
+// The days a search reads, around today, and how many occurrences it
+// answers with.
+const (
+	searchYearsBack  = 5
+	searchYearsAhead = 2
+	searchLimit      = 100
+	searchLimitMax   = 500
+)
+
+// Search returns the occurrences of the events that hold every word of
+// the query, the nearest to now when there are more than the limit.
+func (c calendarService) Search(ctx context.Context, p *api.CalendarSearchParams) ([]api.Occurrence, error) {
+	zone, err := paramZone(p.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+	words := strings.Fields(strings.ToLower(p.Query))
+	if len(words) == 0 {
+		return nil, api.InvalidParams("query must hold a word")
+	}
+	limit := searchLimit
+	if p.Limit != nil {
+		limit = int(*p.Limit)
+		if limit < 1 || limit > searchLimitMax {
+			return nil, api.InvalidParams("limit must be 1 to %d", searchLimitMax)
+		}
+	}
+	texts, err := c.DB.EventTexts(ctx, store.EventsFilter{Visible: true, CalendarIDs: p.CalendarIDs})
+	if err != nil {
+		return nil, err
+	}
+	matches := map[int64]bool{}
+	for id, text := range texts {
+		text = strings.ToLower(text)
+		if !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(text, w) }) {
+			matches[id] = true
+		}
+	}
+	if len(matches) == 0 {
+		return []api.Occurrence{}, nil
+	}
+	now := c.DB.Now()
+	y, m, d := now.In(zone).Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	from, to := today.AddDate(-searchYearsBack, 0, 0), today.AddDate(searchYearsAhead, 0, 1)
+	rows, err := c.expandRange(ctx, store.OccurrenceFilter{From: dayInZone(from, zone), To: dayInZone(to, zone),
+		FromDate: from.Format(time.DateOnly), ToDate: to.Format(time.DateOnly), CalendarIDs: p.CalendarIDs}, matches)
+	if err != nil {
+		return nil, err
+	}
+	out := sortedOccurrences(rows, zone)
+	// In start order, the occurrence farthest from now is the first or the last.
+	for len(out) > limit {
+		if now.Sub(out[0].Start).Abs() >= out[len(out)-1].Start.Sub(now).Abs() {
+			out = out[1:]
+		} else {
+			out = out[:len(out)-1]
+		}
+	}
+	return out, nil
+}
+
 func dayInZone(day time.Time, zone *time.Location) time.Time {
 	return time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, zone).UTC()
 }
@@ -73,11 +143,20 @@ func (c calendarService) occurrences(ctx context.Context, f store.OccurrenceFilt
 	if ok && !f.From.Before(from) && !f.To.After(to) && f.FromDate >= from.Format(time.DateOnly) && f.ToDate <= to.Format(time.DateOnly) {
 		rows, err = c.DB.Occurrences(ctx, f)
 	} else {
-		rows, err = c.expandRange(ctx, f)
+		rows, err = c.expandRange(ctx, f, nil)
 	}
 	if err != nil {
 		return nil, err
 	}
+	out := sortedOccurrences(rows, zone)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// sortedOccurrences answers with rows in start order, all-day ones first.
+func sortedOccurrences(rows []store.OccurrenceRow, zone *time.Location) []api.Occurrence {
 	out := make([]api.Occurrence, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, occurrenceAPI(row, zone))
@@ -94,13 +173,12 @@ func (c calendarService) occurrences(ctx context.Context, f store.OccurrenceFilt
 		}
 		return cmp.Compare(a.EventID, b.EventID)
 	})
-	if limit > 0 && len(out) > limit {
-		out = out[:limit]
-	}
-	return out, nil
+	return out
 }
 
-func (c calendarService) expandRange(ctx context.Context, f store.OccurrenceFilter) ([]store.OccurrenceRow, error) {
+// expandRange expands the events' occurrences in a range. With only set,
+// it keeps the occurrences of those events alone.
+func (c calendarService) expandRange(ctx context.Context, f store.OccurrenceFilter, only map[int64]bool) ([]store.OccurrenceRow, error) {
 	events, err := c.DB.Events(ctx, store.EventsFilter{Visible: true, CalendarIDs: f.CalendarIDs})
 	if err != nil {
 		return nil, err
@@ -121,6 +199,10 @@ func (c calendarService) expandRange(ctx context.Context, f store.OccurrenceFilt
 			n++
 		}
 		group := events[:n]
+		events = events[n:]
+		if only != nil && !slices.ContainsFunc(group, func(e store.EventRow) bool { return only[e.ID] }) {
+			continue
+		}
 		instances, err := pimsync.Instances(group, time.Local, from, to)
 		if err != nil {
 			return nil, err
@@ -137,11 +219,10 @@ func (c calendarService) expandRange(ctx context.Context, f store.OccurrenceFilt
 		}
 		for _, i := range instances {
 			e := byID[i.EventID]
-			if instanceMatches(i, f) && eventWithEmail(e, f.WithEmail) {
+			if instanceMatches(i, f) && eventWithEmail(e, f.WithEmail) && (only == nil || only[i.EventID]) {
 				out = append(out, store.OccurrenceRow{Instance: i, Event: e})
 			}
 		}
-		events = events[n:]
 	}
 	return out, nil
 }

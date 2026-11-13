@@ -26,7 +26,7 @@ import { type CalendarHandle, CalendarModule } from "./CalendarModule";
 import { archiveMailbox, compose, getMail, moveMessages, toggleFlag, toggleRead, toggleSpam } from "./commands";
 import { FirstRun } from "./FirstRun";
 import { ListContainer, type ListHandle } from "./ListContainer";
-import { calendarPane, narrowPane, peoplePane, tasksPane, useNarrow } from "./narrow";
+import { calendarPane, isNarrow, narrowPane, peoplePane, tasksPane, useNarrow } from "./narrow";
 import { UndoToasts } from "./OutboxContainer";
 import { newEventAt, openEvent } from "./openEvent";
 import { PaletteContainer } from "./PaletteContainer";
@@ -219,25 +219,28 @@ function calendarCommand(command: Command, client: Client, frame: CalendarData, 
       break;
     case "left":
     case "right":
-      if (ui.calendarFocus !== "list") return false;
+      if (ui.calendarFocus !== "list" || ui.calendarSearch !== "") return false;
       ui.setCalendarDate(addDays(date, command === "left" ? -1 : 1));
       break;
     case "previous":
     case "next": {
-      if (ui.calendarFocus !== "list") return false;
+      // The results are a list with its own keys.
+      if (ui.calendarFocus !== "list" || ui.calendarSearch !== "") return false;
       const direction = command === "previous" ? -1 : 1;
       if (ui.calendarView === "month") ui.setCalendarDate(addDays(date, direction * 7));
       else handles.calendar.current?.scroll(direction);
       break;
     }
     case "open":
-      if (ui.calendarFocus !== "list") return false;
+      if (ui.calendarFocus !== "list" || ui.calendarSearch !== "") return false;
       if (ui.calendarSelected && handles.calendar.current?.edit()) return true;
       ui.setCalendarDate(date);
       ui.setCalendarView("day");
       break;
     case "escape":
-      ui.selectOccurrence(null);
+      // The search first, then the selection.
+      if (ui.calendarSearchOpen || ui.calendarSearch !== "" || ui.calendarSearchDraft !== "") ui.clearCalendarSearch();
+      else ui.selectOccurrence(null);
       break;
     default:
       return false;
@@ -270,8 +273,17 @@ function runCommand(
   // (ADR-0052). Without one, Ctrl+F has the search field's meaning, below.
   if (command === "find" && ui.module === "mail" && ui.selected.length === 1) return false;
   if (command === "focusSearch" || command === "find") {
-    // Calendar and Tasks have no search field: the key does nothing there.
-    if (ui.module === "calendar" || ui.module === "tasks") return false;
+    // Tasks has no search field: the key does nothing there.
+    if (ui.module === "tasks") return false;
+    // Calendar's opens first, and takes the keyboard as it appears; a
+    // narrow window has none.
+    if (ui.module === "calendar") {
+      if (command === "find" || isNarrow()) return false;
+      if (!ui.calendarSearchOpen && ui.calendarSearch === "") {
+        ui.openCalendarSearch();
+        return true;
+      }
+    }
     handles.search.current?.focus();
     handles.search.current?.select();
     return true;
@@ -636,6 +648,7 @@ export function MainWindow() {
         onNewTask={() => handles.tasks.current?.focusNewTask()}
         onNewEvent={canCreateEvent(calendar) ? () => newCalendarEvent(calendar) : undefined}
         people={people}
+        calendarSearch={calendar.search}
         model={model}
         onDelete={onDelete}
         searchRef={handles.search}
