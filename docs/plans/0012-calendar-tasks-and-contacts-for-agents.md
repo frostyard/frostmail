@@ -13,6 +13,14 @@ waiting on the user, and waiting on others
   which made `/mcp/mail`, its scope and its tools.
 - **The contract:** [specs/lodge-app.md](../specs/lodge-app.md#calendar-tasks-and-contacts).
 
+Status: **done** (2026-10-21). Phase 1 (ADR-0042 accepted) and Phase 5 (the
+live check over lodge's agent socket) are recorded in
+[PR #90](https://github.com/frostyard/frostmail/pull/90). Phases 2 to 4 are
+built in [#82](https://github.com/frostyard/frostmail/pull/82),
+[#83](https://github.com/frostyard/frostmail/pull/83) and
+[#84](https://github.com/frostyard/frostmail/pull/84) (merged 2026-10-19),
+with their evidence under each phase. The open question on Cc stays open.
+
 Status (2026-10-21):
 - **Phase 1 is done.** The user accepted ADR-0042 on 2026-10-21.
 - **Phases 2 to 4 are built** (2026-10-19, frostyard/frostmail#82–#84),
