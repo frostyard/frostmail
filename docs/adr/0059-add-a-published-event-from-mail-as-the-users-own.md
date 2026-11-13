@@ -49,7 +49,10 @@ from an invitation in what its lines mean once a server holds them:
   file's time zones. The events of other `UID`s and any other component
   (`VTODO`, `VJOURNAL`, `VFREEBUSY`) are left out: a calendar resource
   holds one `UID` (RFC 4791 §4.1), and a server refuses one that holds
-  more. maild checks the copy holds that `UID` alone before it writes.
+  more. A part that holds several calendar objects gives its first: the
+  copy is that one object's bytes, and nothing before or after it is
+  stored. maild checks the copy is one calendar object that holds that
+  `UID` alone before it writes.
 - **Where it goes:** the calendar named, which must take writes, else the
   default calendar of the message's account, found as `calendar.respond`
   finds it. No calendar that takes writes is a `conflict`.

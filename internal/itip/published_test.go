@@ -111,3 +111,43 @@ func TestPublishedKeepsOneUID(t *testing.T) {
 		}
 	}
 }
+
+// A part that holds two calendar objects gives the first, sanitized, and
+// nothing of the second or of what surrounds them, also when the first
+// needs no change (frostyard/frostmail#311).
+func TestPublishedIsOneCalendarObject(t *testing.T) {
+	plain := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:a@x.example\r\nDTSTART:20261005T170000Z\r\nSUMMARY:Plain\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	second := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:b@x.example\r\nDTSTART:20261006T170000Z\r\nSUMMARY:Second\r\n" +
+		"ORGANIZER:mailto:o@x.example\r\nATTENDEE:mailto:someone@else.example\r\n" +
+		"BEGIN:VALARM\r\nACTION:EMAIL\r\nTRIGGER:-PT1H\r\nSUMMARY:S\r\nDESCRIPTION:D\r\nATTENDEE:mailto:list@else.example\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	for name, src := range map[string]string{
+		"a second calendar after one that needs no change": plain + second,
+		"three calendars": plain + second + second,
+	} {
+		out, err := itip.Published([]byte(src))
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+		if string(out) != plain {
+			t.Errorf("%s: the copy =\n%q\nwant\n%q", name, out, plain)
+		}
+	}
+	// The first calendar is the one sanitized, when it is the one with work.
+	out, err := itip.Published([]byte(second + plain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:b@x.example\r\nDTSTART:20261006T170000Z\r\nSUMMARY:Second\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	if string(out) != want {
+		t.Errorf("the first of two =\n%q\nwant\n%q", out, want)
+	}
+	// Lines outside any calendar object are no calendar: nothing is made.
+	if out, err := itip.Published([]byte("X-STRAY:before\r\n" + plain + second)); err == nil {
+		t.Errorf("stray lines before the calendar gave %q", out)
+	}
+	// A lone calendar that needs no change still comes back as it is.
+	if out, err := itip.Published([]byte(plain)); err != nil || string(out) != plain {
+		t.Errorf("alone = %q, %v", out, err)
+	}
+}

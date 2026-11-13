@@ -64,6 +64,10 @@ func (c calendarService) AddFromMessage(ctx context.Context, p *api.CalendarAddF
 			return nil, api.InvalidParams("the message's calendar does not hold the event it shows alone")
 		}
 	}
+	// calendar.Parse reads the first calendar object: the copy must be one.
+	if n := calendarObjects(raw); n != 1 {
+		return nil, api.InvalidParams("the copy to store holds %d calendar objects", n)
+	}
 	uid, err := c.newUID()
 	if err != nil {
 		return nil, err
@@ -99,6 +103,17 @@ func (c calendarService) AddFromMessage(ctx context.Context, p *api.CalendarAddF
 		}
 	}
 	return nil, api.NotFound("the added event is not in the calendar")
+}
+
+// calendarObjects counts the VCALENDAR objects that begin in raw.
+func calendarObjects(raw []byte) int {
+	n := 0
+	for line := range strings.Lines(string(raw)) {
+		if strings.EqualFold(strings.TrimSpace(line), "BEGIN:VCALENDAR") {
+			n++
+		}
+	}
+	return n
 }
 
 // addTarget is the calendar an event from a message of account goes to:

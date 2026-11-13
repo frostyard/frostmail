@@ -145,7 +145,9 @@ func withoutSchedule(p contentline.Prop) (contentline.Prop, bool) {
 // (RFC 4791 §4.1). In the events kept, the ORGANIZER and ATTENDEE lines and
 // the alarms go; nothing else changes. With no organizer and no attendee no
 // server schedules the copy, and an alarm a sender wrote, which a server
-// may act on by mail, does not come along.
+// may act on by mail, does not come along. The answer is that one calendar
+// object and nothing else of src: a second VCALENDAR, or any bytes before
+// or after the first, are not copied through.
 func Published(src []byte) ([]byte, error) {
 	cal, err := firstCalendar(src)
 	if err != nil {
@@ -167,7 +169,15 @@ func Published(src []byte) ([]byte, error) {
 	if uid == nil || uid.Value == "" {
 		return nil, errors.New("the event has no UID")
 	}
+	// Everything outside the chosen calendar goes, whether or not anything
+	// inside it changes.
 	var edits []contentline.Edit
+	if cal.Start > 0 {
+		edits = append(edits, contentline.Edit{Start: 0, End: cal.Start})
+	}
+	if cal.End < len(src) {
+		edits = append(edits, contentline.Edit{Start: cal.End, End: len(src)})
+	}
 	for _, p := range cal.PropsNamed("METHOD") {
 		edits = append(edits, contentline.Edit{Start: p.Start, End: p.End})
 	}

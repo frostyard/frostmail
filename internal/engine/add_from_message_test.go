@@ -280,3 +280,44 @@ func TestAddFromMessageOfSeveralEventsAddsTheOneShown(t *testing.T) {
 		t.Errorf("the card afterwards: eventId %v, canAdd %v", after.EventID, after.CanAdd)
 	}
 }
+
+// A calendar part that holds two calendar objects adds the first one's
+// event, and nothing of the second reaches the stored object or the
+// server: not its event, its organizer, its attendees or its alarm, also
+// when the first object needs no change (frostyard/frostmail#311).
+func TestAddFromMessageOfTwoCalendarObjectsStoresTheFirstAlone(t *testing.T) {
+	plain := string(vcal("BEGIN:VEVENT", "UID:plain@x.example", "DTSTAMP:20261009T140000Z", "DTSTART:20261020T083000Z",
+		"DTEND:20261020T104500Z", "SUMMARY:Plain event", "END:VEVENT"))
+	for name, first := range map[string]string{"a first object with a method and people": ticket("PUBLISH"), "a first object that needs no change": plain} {
+		t.Run(name, func(t *testing.T) {
+			e := newInviteEnv(t)
+			second := strings.NewReplacer("flight-400@airline.example", "other@airline.example", "Flight LH 400", "Other flight",
+				"noreply@airline.example", "second-organizer@airline.example").Replace(ticket("PUBLISH"))
+			id := e.mail(t, first+second)
+			ev := e.add(t, &api.CalendarAddFromMessageParams{MessageID: id})
+			rows, err := e.srv.DB.EventsByUID(t.Context(), e.acct, ev.UID)
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("stored = %+v, %v", rows, err)
+			}
+			obj, err := e.srv.DB.GetObject(t.Context(), rows[0].ObjectID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.pass(t)
+			for where, raw := range map[string]string{"the stored object": string(obj.Raw), "the server's copy": e.serverCopy(t, ev.UID)} {
+				if n := strings.Count(raw, "BEGIN:VCALENDAR"); n != 1 {
+					t.Errorf("%s holds %d calendar objects:\n%s", where, n, raw)
+				}
+				for _, gone := range []string{"other@airline.example", "Other flight", "second-organizer@airline.example",
+					"METHOD", "ORGANIZER", "ATTENDEE", "VALARM", "someone@else.example"} {
+					if strings.Contains(raw, gone) {
+						t.Errorf("%s has %q:\n%s", where, gone, raw)
+					}
+				}
+			}
+			if other, err := e.srv.DB.EventsByUID(t.Context(), e.acct, "other@airline.example"); err != nil || len(other) != 0 {
+				t.Errorf("the second object's event is stored: %+v, %v", other, err)
+			}
+		})
+	}
+}
