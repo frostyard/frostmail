@@ -439,16 +439,28 @@ func (m *Manager) deleteTx(ctx context.Context, tx *store.Tx, ids []int64) ([]in
 			return err
 		}
 		var hidden []int64
+		// What the loop needs to know of an account, asked once for each
+		// account and not once for each message (issue 290).
+		writable := map[int64]bool{}
+		trashes := map[int64]int64{}
+		gmails := map[int64]bool{}
 		for _, mem := range mems {
-			if err := refuseReadOnly(ctx, tx, mem.AccountID); err != nil {
-				return err
+			if !writable[mem.AccountID] {
+				if err := refuseReadOnly(ctx, tx, mem.AccountID); err != nil {
+					return err
+				}
+				writable[mem.AccountID] = true
 			}
 			if mem.UID == 0 {
 				continue // a move is pending; delete it after it lands
 			}
-			trash, err := trashOf(ctx, tx, mem.AccountID)
-			if err != nil {
-				return err
+			trash, ok := trashes[mem.AccountID]
+			if !ok {
+				var err error
+				if trash, err = trashOf(ctx, tx, mem.AccountID); err != nil {
+					return err
+				}
+				trashes[mem.AccountID] = trash
 			}
 			accountOf[mem.MailboxID] = mem.AccountID
 			changed[mem.AccountID] = append(changed[mem.AccountID], mem.MessageID)
@@ -476,9 +488,13 @@ func (m *Manager) deleteTx(ctx context.Context, tx *store.Tx, ids []int64) ([]in
 			}
 			// On Gmail the message leaves its labels for Trash. Label
 			// memberships have no UID, so the loop skips them.
-			gmail, err := tx.GmailAccount(ctx, mem.AccountID)
-			if err != nil {
-				return err
+			gmail, ok := gmails[mem.AccountID]
+			if !ok {
+				var err error
+				if gmail, err = tx.GmailAccount(ctx, mem.AccountID); err != nil {
+					return err
+				}
+				gmails[mem.AccountID] = gmail
 			}
 			if gmail {
 				dropped, err := tx.DropGmailLabels(ctx, mem.MessageID)
@@ -919,15 +935,7 @@ func (a *actor) mailboxPath(ctx context.Context, id int64) (string, error) {
 	return mb.Path, err
 }
 
+// mailbox returns 1 mailbox of the actor's account, without its counts.
 func (a *actor) mailbox(ctx context.Context, id int64) (store.Mailbox, error) {
-	mbs, err := a.m.db.ListMailboxes(ctx, a.acct.ID)
-	if err != nil {
-		return store.Mailbox{}, err
-	}
-	for _, mb := range mbs {
-		if mb.ID == id {
-			return mb, nil
-		}
-	}
-	return store.Mailbox{}, fmt.Errorf("mailbox %d: %w", id, store.ErrNotFound)
+	return a.m.db.MailboxByID(ctx, a.acct.ID, id)
 }
