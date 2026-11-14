@@ -180,23 +180,10 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 		if _, err := tx.AssignThreads(ctx, a.acct.ID, ids); err != nil {
 			return err
 		}
-		// Index the messages this insert created: resolve each header's UID
-		// to its message and skip the ones that were already stored.
-		created := map[int64]bool{}
-		for _, id := range ids {
-			created[id] = true
-		}
-		for _, h := range headers {
-			var id int64
-			err := tx.QueryRowContext(ctx, `SELECT message_id FROM message_mailbox WHERE mailbox_id = ? AND uid = ?`, mb.ID, int64(h.UID)).Scan(&id)
-			if err != nil {
-				return err
-			}
-			if created[id] {
-				if err := tx.IndexMessage(ctx, id, store.SearchDocFor(h)); err != nil {
-					return err
-				}
-			}
+		// Index the messages this insert created, and skip the headers that
+		// were already stored.
+		if err := indexCreated(ctx, tx, mb.ID, headers, ids); err != nil {
+			return err
 		}
 		if waiting {
 			// New inbox mail waits for the rules (ADR-0024).
@@ -210,6 +197,40 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 		return tx.Emit(ctx, api.MailboxChanged{ID: mb.ID, AccountID: a.acct.ID})
 	})
 	return created, applied(ctx, err)
+}
+
+// indexCreated adds to the search index the headers whose message is one of
+// created, the messages an insert of headers into a mailbox made. It finds
+// the messages of the whole batch at once: a query for each header would
+// hold the writer for a first sync's every message (issue 290).
+func indexCreated(ctx context.Context, tx *store.Tx, mailboxID int64, headers []store.MessageHeader, created []int64) error {
+	if len(created) == 0 {
+		return nil
+	}
+	isNew := make(map[int64]bool, len(created))
+	for _, id := range created {
+		isNew[id] = true
+	}
+	uids := make([]uint32, len(headers))
+	for i, h := range headers {
+		uids[i] = h.UID
+	}
+	at, err := tx.MessagesAtUIDs(ctx, mailboxID, uids)
+	if err != nil {
+		return err
+	}
+	for _, h := range headers {
+		id, ok := at[h.UID]
+		if !ok {
+			return fmt.Errorf("index uid %d of mailbox %d: %w", h.UID, mailboxID, store.ErrNotFound)
+		}
+		if isNew[id] {
+			if err := tx.IndexMessage(ctx, id, store.SearchDocFor(h)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // remove deletes local copies of UIDs the server no longer has.

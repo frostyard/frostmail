@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/internal/mimex"
@@ -106,6 +107,44 @@ func (t *Tx) InsertHeaders(ctx context.Context, accountID, mailboxID int64, hs [
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// uidChunk is how many UIDs MessagesAtUIDs asks for in 1 query, below
+// SQLite's limit on bound parameters.
+const uidChunk = 500
+
+// MessagesAtUIDs returns the message at each of uids in a mailbox, keyed by
+// UID; a UID the mailbox does not hold has no entry. It takes 1 query for
+// each 500 UIDs, so a caller with a batch of headers does not ask once for
+// each header.
+func (t *Tx) MessagesAtUIDs(ctx context.Context, mailboxID int64, uids []uint32) (map[uint32]int64, error) {
+	out := make(map[uint32]int64, len(uids))
+	for chunk := range slices.Chunk(uids, uidChunk) {
+		args := make([]any, 0, len(chunk)+1)
+		args = append(args, mailboxID)
+		for _, uid := range chunk {
+			args = append(args, int64(uid))
+		}
+		rows, err := t.QueryContext(ctx, `SELECT uid, message_id FROM message_mailbox
+			WHERE mailbox_id = ? AND uid IN (`+strings.TrimSuffix(strings.Repeat("?, ", len(chunk)), ", ")+`)`, args...)
+		if err != nil {
+			return nil, fmt.Errorf("messages at uids: %w", err)
+		}
+		for rows.Next() {
+			var uid, id int64
+			if err := rows.Scan(&uid, &id); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("messages at uids: %w", err)
+			}
+			out[uint32(uid)] = id
+		}
+		err = rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, fmt.Errorf("messages at uids: %w", err)
+		}
+	}
+	return out, nil
 }
 
 // recordSeen counts a new message's From, To and Cc addresses for

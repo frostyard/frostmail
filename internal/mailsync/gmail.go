@@ -238,21 +238,8 @@ func (a *actor) insertGmail(ctx context.Context, mb store.Mailbox, allMail bool,
 		if _, err := tx.AssignGmailThreads(ctx, a.acct.ID, ids); err != nil {
 			return err
 		}
-		added := map[int64]bool{}
-		for _, id := range r.Added {
-			added[id] = true
-		}
-		for _, h := range headers {
-			var id int64
-			if err := tx.QueryRowContext(ctx, `SELECT message_id FROM message_mailbox WHERE mailbox_id = ? AND uid = ?`,
-				mb.ID, int64(h.UID)).Scan(&id); err != nil {
-				return err
-			}
-			if added[id] {
-				if err := tx.IndexMessage(ctx, id, store.SearchDocFor(h)); err != nil {
-					return err
-				}
-			}
+		if err := indexCreated(ctx, tx, mb.ID, headers, r.Added); err != nil {
+			return err
 		}
 		return a.announce(ctx, tx, ids, append([]int64{mb.ID}, r.Mailboxes...))
 	})

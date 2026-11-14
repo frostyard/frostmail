@@ -37,6 +37,26 @@ func (t *Tx) ListMailboxes(ctx context.Context, accountID int64) ([]Mailbox, err
 	return listMailboxes(ctx, t, accountID)
 }
 
+// MailboxByID returns 1 mailbox of an account without its counts (Total and
+// Unread are 0): it reads 1 row, where ListMailboxes counts the messages of
+// every mailbox. A mailbox that is missing, or that belongs to another
+// account, wraps ErrNotFound.
+func (d *DB) MailboxByID(ctx context.Context, accountID, id int64) (Mailbox, error) {
+	mb := Mailbox{ID: id, AccountID: accountID}
+	var role string
+	err := d.db.QueryRowContext(ctx, `SELECT path, name, delimiter, role, is_gmail_label
+		FROM mailboxes WHERE id = ? AND account_id = ?`, id, accountID).
+		Scan(&mb.Path, &mb.Name, &mb.Delimiter, &role, &mb.Label)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Mailbox{}, fmt.Errorf("mailbox %d: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return Mailbox{}, fmt.Errorf("mailbox %d: %w", id, err)
+	}
+	mb.Role = api.MailboxRole(role)
+	return mb, nil
+}
+
 // querier is satisfied by *sql.DB and *Tx, so a query helper can run inside
 // a write transaction and see its uncommitted rows.
 type querier interface {
