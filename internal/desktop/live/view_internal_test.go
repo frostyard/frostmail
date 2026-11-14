@@ -126,7 +126,7 @@ func TestAnOlderRefreshDoesNotUndoANewerOne(t *testing.T) {
 func TestAPageOlderThanAnEventIsAskedAgain(t *testing.T) {
 	v := departedView()
 	v.total = 2
-	v.loading[0] = true
+	v.loading[0] = v.seq
 	asked := v.seq
 	event := v.messageChangedLocked([]int64{2})
 	again := v.storeLocked(0, []api.MessageSummary{{ID: 1, Subject: "one"}, {ID: 2, Subject: "old"}}, asked)
@@ -142,7 +142,7 @@ func TestAPageOlderThanAnEventIsAskedAgain(t *testing.T) {
 // older copy must not replace it; the row keeps the page's index.
 func TestAPageKeepsANewerRefresh(t *testing.T) {
 	v := departedView(2)
-	v.loading[0] = true
+	v.loading[0] = v.seq
 	asked := v.seq
 	event := v.messageChangedLocked([]int64{2})
 	v.refreshLocked([]api.MessageSummary{{ID: 2, Subject: "new"}}, event)
@@ -191,5 +191,28 @@ func TestAPageInFlightDuringAnEventEndsCurrent(t *testing.T) {
 			r, _ := v.Row(0)
 			t.Fatalf("row 0 = %+v, want the row after the event", r)
 		}
+	}
+}
+
+// Pages that overlap without end, as in a long scroll: an event that every
+// page still out was asked after is forgotten, though some page is always
+// out.
+func TestChangedIsPrunedWhilePagesOverlap(t *testing.T) {
+	v := departedView()
+	v.total = 300
+	v.loading[0] = v.seq
+	v.messageChangedLocked([]int64{5})
+	v.loading[1] = v.seq
+	v.messageChangedLocked([]int64{6})
+	delete(v.loading, 0)
+	v.pruneChangedLocked()
+	if _, ok := v.changed[5]; ok || v.changed[6] == 0 {
+		t.Errorf("after page 0: changed = %v, want only message 6", v.changed)
+	}
+	v.loading[2] = v.seq
+	delete(v.loading, 1)
+	v.pruneChangedLocked()
+	if len(v.changed) != 0 {
+		t.Errorf("after page 1: changed = %v, want none", v.changed)
 	}
 }

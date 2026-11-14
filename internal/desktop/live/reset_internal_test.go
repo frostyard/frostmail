@@ -197,7 +197,7 @@ func TestPendingActivityIsBounded(t *testing.T) {
 }
 
 func departedView(rows ...int64) *View {
-	v := &View{opened: true, id: 1, total: int64(len(rows)), rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{},
+	v := &View{opened: true, id: 1, total: int64(len(rows)), rows: map[int64]api.MessageSummary{}, loading: map[int64]uint64{}, departed: map[int64]bool{},
 		held: map[int64]uint64{}, changed: map[int64]uint64{}}
 	for i, id := range rows {
 		v.rows[int64(i)] = api.MessageSummary{ID: id}

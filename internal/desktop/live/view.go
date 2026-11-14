@@ -44,7 +44,7 @@ type View struct {
 	err     error
 	total   int64
 	rows    map[int64]api.MessageSummary
-	loading map[int64]bool // pages in flight
+	loading map[int64]uint64 // pages in flight, with the seq each was asked at
 	gen     uint64
 	window  [2]int64
 	closed  bool
@@ -56,7 +56,7 @@ type View struct {
 	departed map[int64]bool
 	// seq counts the message.changed events. held is, for each message in
 	// rows, the seq its row was asked at; changed is the seq of the last
-	// event of each message while pages are in flight.
+	// event of each message, kept while a page asked before it is out.
 	seq     uint64
 	held    map[int64]uint64
 	changed map[int64]uint64
@@ -72,7 +72,7 @@ func OpenView(c *api.Client, events *Events, q api.ViewQuery, notify func()) *Vi
 func openView(c *api.Client, events *Events, q api.ViewQuery, notify func(), timeout time.Duration) *View {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &View{c: c, query: q, notify: notify, ctx: ctx, cancel: cancel,
-		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{},
+		rows: map[int64]api.MessageSummary{}, loading: map[int64]uint64{}, departed: map[int64]bool{},
 		held: map[int64]uint64{}, changed: map[int64]uint64{}}
 	v.off = events.On(v.event)
 	go v.open(timeout)
@@ -230,8 +230,8 @@ func (v *View) ensureLocked() {
 	}
 	last := min(v.window[1], v.total)
 	for p := v.window[0] / Page; p*Page < last; p++ {
-		if !v.loading[p] && !v.pageLoaded(p) {
-			v.loading[p] = true
+		if _, out := v.loading[p]; !out && !v.pageLoaded(p) {
+			v.loading[p] = v.seq
 			go v.fetch(p, v.id, v.gen, v.seq)
 		}
 	}
@@ -353,6 +353,17 @@ func (v *View) messageChangedLocked(ids []int64) uint64 {
 	return v.seq
 }
 
+// pruneChangedLocked forgets the events that every page in flight was
+// asked after: no answer still out can be older than them.
+func (v *View) pruneChangedLocked() {
+	if len(v.loading) == 0 {
+		clear(v.changed)
+		return
+	}
+	oldest := slices.Min(slices.Collect(maps.Values(v.loading)))
+	maps.DeleteFunc(v.changed, func(_ int64, seq uint64) bool { return seq <= oldest })
+}
+
 // applyLocked applies a delta's ops in order: an insert shifts the rows at
 // or after it up, a remove drops its rows and shifts the later ones down.
 // Pages in flight carry stale indices, so they are asked for again.
@@ -399,9 +410,7 @@ func (v *View) fetch(p, id int64, gen, seq uint64) {
 		v.evictLocked()
 		v.changedLocked()
 	}
-	if len(v.loading) == 0 {
-		clear(v.changed)
-	}
+	v.pruneChangedLocked()
 	now := v.seq
 	v.mu.Unlock()
 	if err != nil {

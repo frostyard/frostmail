@@ -379,15 +379,33 @@ func TestARemindersAnswerOlderThanADismissIsDropped(t *testing.T) {
 	if win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
 		t.Fatalf("after the dismiss: %q", win.tt.Texts())
 	}
+	// The call after the old answer is held too: its answer would replace
+	// a row the old one brought back before a frame of the window shows it.
+	next, nextHeld := make(chan struct{}), make(chan struct{})
+	fake.mu.Lock()
+	fake.remindHold, fake.remindHeld = next, nextHeld
+	fake.mu.Unlock()
 	close(hold)
-	back := false
-	f.until("a new answer", func() bool {
-		back = back || win.tt.HasText("Meeting a")
+	f.until("the next call", func() bool {
+		select {
+		case <-nextHeld:
+			return true
+		default:
+			return false
+		}
+	})
+	// The old answer has landed, and the next call cannot answer yet.
+	win.tt.Frame()
+	if win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
+		t.Errorf("the old answer brought the dismissed row back: %q", win.tt.Texts())
+	}
+	close(next)
+	f.until("the new answer", func() bool {
 		l := &f.m.remind.list
 		return !l.running && !l.dirty && !l.pending
 	})
-	if back || win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
-		t.Errorf("the dismissed row came back (in a frame: %v); now: %q", back, win.tt.Texts())
+	if win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
+		t.Errorf("after the new answer: %q", win.tt.Texts())
 	}
 }
 
