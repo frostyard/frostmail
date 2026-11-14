@@ -124,6 +124,12 @@ func followActivity(ctx context.Context, c *api.Client, live <-chan api.Activity
 			return nil
 		case e, ok := <-live:
 			if !ok {
+				// The stream ends with the connection. When ctx has ended
+				// too, select may see the closed stream first: a stop that
+				// the user asked for is not an error.
+				if ctx.Err() != nil {
+					return nil
+				}
 				return c.Err()
 			}
 			if e.Seq != 0 && e.Seq <= seq {
