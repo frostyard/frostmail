@@ -203,10 +203,11 @@ func (a *actor) insert(ctx context.Context, mb store.Mailbox, headers []store.Me
 // created, the messages an insert of headers into a mailbox made. It finds
 // the messages of the whole batch at once: a query for each header would
 // hold the writer for a first sync's every message (issue 290).
+//
+// Every header's UID must hold a message, also when the batch created none:
+// a Gmail batch that only moved stored messages is checked too, and 2
+// headers that move 1 message leave the first UID with none.
 func indexCreated(ctx context.Context, tx *store.Tx, mailboxID int64, headers []store.MessageHeader, created []int64) error {
-	if len(created) == 0 {
-		return nil
-	}
 	isNew := make(map[int64]bool, len(created))
 	for _, id := range created {
 		isNew[id] = true

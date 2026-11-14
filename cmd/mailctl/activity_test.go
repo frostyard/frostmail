@@ -207,14 +207,27 @@ func TestFollowStoppedIsNoError(t *testing.T) {
 	if err := followActivity(t.Context(), c, live, &strings.Builder{}, names, api.ActivityLevelInfo, 0); err == nil {
 		t.Fatal("a connection lost while ctx lives = nil, want its error")
 	}
+	// ctx ends at followActivity's first Err call, which is in the closed
+	// stream's branch: select must take that branch, with no chance in it.
 	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	// select picks at random between the ended ctx and the closed stream.
-	for i := range 200 {
-		if err := followActivity(ctx, c, live, &strings.Builder{}, names, api.ActivityLevelInfo, 0); err != nil {
-			t.Fatalf("follow %d after cancel = %v, want nil", i, err)
-		}
+	defer cancel()
+	stop := &stopOnErr{Context: ctx, cancel: cancel}
+	if err := followActivity(stop, c, live, &strings.Builder{}, names, api.ActivityLevelInfo, 0); err != nil {
+		t.Fatalf("follow stopped as the connection closed = %v, want nil", err)
 	}
+}
+
+// stopOnErr keeps its Done channel open until the first Err call, which
+// cancels it.
+type stopOnErr struct {
+	context.Context
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+func (s *stopOnErr) Err() error {
+	s.once.Do(s.cancel)
+	return s.Context.Err()
 }
 
 func TestActivityJSONFiltersByLevel(t *testing.T) {
