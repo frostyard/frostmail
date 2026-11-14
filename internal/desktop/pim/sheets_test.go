@@ -358,6 +358,8 @@ func TestARemindersAnswerOlderThanADismissIsDropped(t *testing.T) {
 	})
 	win := f.windows[remindersKey]
 	hold, held := make(chan struct{}), make(chan struct{})
+	release := sync.OnceFunc(func() { close(hold) })
+	t.Cleanup(release) // a failed wait must not leave the call held
 	fake.mu.Lock()
 	fake.remindHold, fake.remindHeld = hold, held
 	fake.mu.Unlock()
@@ -382,10 +384,12 @@ func TestARemindersAnswerOlderThanADismissIsDropped(t *testing.T) {
 	// The call after the old answer is held too: its answer would replace
 	// a row the old one brought back before a frame of the window shows it.
 	next, nextHeld := make(chan struct{}), make(chan struct{})
+	releaseNext := sync.OnceFunc(func() { close(next) })
+	t.Cleanup(releaseNext)
 	fake.mu.Lock()
 	fake.remindHold, fake.remindHeld = next, nextHeld
 	fake.mu.Unlock()
-	close(hold)
+	release()
 	f.until("the next call", func() bool {
 		select {
 		case <-nextHeld:
@@ -399,7 +403,7 @@ func TestARemindersAnswerOlderThanADismissIsDropped(t *testing.T) {
 	if win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
 		t.Errorf("the old answer brought the dismissed row back: %q", win.tt.Texts())
 	}
-	close(next)
+	releaseNext()
 	f.until("the new answer", func() bool {
 		l := &f.m.remind.list
 		return !l.running && !l.dirty && !l.pending
