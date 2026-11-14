@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -297,6 +298,99 @@ func TestOperationDirIsPerOperation(t *testing.T) {
 			t.Errorf("%s went: %v", dir, err)
 		}
 	}
+}
+
+// #328: two answers to message.summaries can come in any order: an older
+// one must not undo the row a newer one put there.
+func TestAnOlderReaderRefreshDoesNotUndoANewerOne(t *testing.T) {
+	at := time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC)
+	cv := &conv{}
+	cv.store([]api.MessageSummary{{ID: 1, Subject: "old"}}, nil, 0)
+	cv.msgs = map[int64]*openMsg{1: {summary: cv.rows[0]}}
+	first := cv.messageChanged([]int64{1})
+	second := cv.messageChanged([]int64{1})
+	if !cv.take([]api.MessageSummary{{ID: 1, Subject: "new", RemindAt: &at}}, second) {
+		t.Fatal("the newer answer changed nothing")
+	}
+	if cv.take([]api.MessageSummary{{ID: 1, Subject: "old"}}, first) {
+		t.Error("the older answer reports a change")
+	}
+	if r := cv.rows[0]; r.Subject != "new" || r.RemindAt == nil {
+		t.Errorf("row 0 = %+v, want the newer answer", r)
+	}
+	if s := cv.msgs[1].summary; s.Subject != "new" || s.RemindAt == nil {
+		t.Errorf("the message's summary = %+v, want the newer answer", s)
+	}
+}
+
+// #328: a message.changed that comes while the conversation's load is out
+// finds no rows. The rows the load read before it must be asked for again.
+func TestAReaderLoadOlderThanAnEventIsAskedAgain(t *testing.T) {
+	cv := &conv{}
+	asked := cv.seq
+	event := cv.messageChanged([]int64{2})
+	again := cv.store([]api.MessageSummary{{ID: 1, Subject: "one"}, {ID: 2, Subject: "old"}}, nil, asked)
+	if !slices.Equal(again, []int64{2}) {
+		t.Fatalf("asked again for %v, want [2]", again)
+	}
+	if len(cv.changed) != 0 {
+		t.Errorf("the events stay kept: %v", cv.changed)
+	}
+	if !cv.take([]api.MessageSummary{{ID: 2, Subject: "new"}}, event) {
+		t.Fatal("the row the event named did not take the answer")
+	}
+	if r := cv.rows[1]; r.ID != 2 || r.Subject != "new" {
+		t.Errorf("row 1 = %+v, want the refresh", r)
+	}
+	if len(cv.held) != 2 || cv.held[1] != asked || cv.held[2] != event {
+		t.Errorf("held = %v, want only the 2 rows' seqs", cv.held)
+	}
+}
+
+// #328: message.get's summary is asked before an answer to
+// message.summaries that comes first; the older summary changes nothing.
+func TestAMessageGetOlderThanARefreshKeepsTheRefresh(t *testing.T) {
+	cv := &conv{}
+	cv.store([]api.MessageSummary{{ID: 1, Subject: "old"}}, nil, 0)
+	cv.msgs = map[int64]*openMsg{1: {summary: cv.rows[0]}}
+	asked := cv.seq // as loadMessage takes it before its call
+	event := cv.messageChanged([]int64{1})
+	cv.take([]api.MessageSummary{{ID: 1, Subject: "new"}}, event)
+	if cv.take([]api.MessageSummary{{ID: 1, Subject: "stale"}}, asked) {
+		t.Error("the older message.get reports a change")
+	}
+	if r := cv.rows[0]; r.Subject != "new" {
+		t.Errorf("row 0 = %+v, want the refresh", r)
+	}
+	if s := cv.msgs[1].summary; s.Subject != "new" {
+		t.Errorf("the message's summary = %+v, want the refresh", s)
+	}
+}
+
+// #328, end to end: the conversation's load answers after a
+// message.changed of its only row, and asks for that row again.
+func TestAConversationLoadDuringAnEventEndsCurrent(t *testing.T) {
+	release := make(chan struct{})
+	s := &fakeMaild{result: map[string]any{
+		"message.summaries": []api.MessageSummary{{ID: 7, Subject: "old"}},
+		"message.get":       api.Message{Summary: api.MessageSummary{ID: 7, Subject: "old"}},
+	}, hold: map[string]chan struct{}{"message.summaries": release}}
+	loop := frostuitest.NewLoop()
+	w := New(Options{Target: conn.Target{Socket: "none"}, Post: loop.Post})
+	w.client = s.client(t)
+	w.openConv(7)
+	defer w.closeConv()
+	poll(t, "the load", func() bool { loop.Flush(); return s.count("message.summaries") == 1 })
+	w.refreshSummaries([]int64{7}) // the posted message.changed, with no row yet
+	if cv := w.conv; cv.loaded || cv.seq != 1 {
+		t.Fatalf("before the load answers: loaded %v, seq %d", cv.loaded, cv.seq)
+	}
+	close(release)
+	poll(t, "the row asked for again", func() bool {
+		loop.Flush()
+		cv := w.conv
+		return s.count("message.summaries") == 2 && len(cv.rows) == 1 && cv.held[7] == cv.seq
+	})
 }
 
 type commandFrame struct {
