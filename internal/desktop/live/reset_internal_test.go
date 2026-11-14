@@ -197,7 +197,8 @@ func TestPendingActivityIsBounded(t *testing.T) {
 }
 
 func departedView(rows ...int64) *View {
-	v := &View{opened: true, id: 1, total: int64(len(rows)), rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{}}
+	v := &View{opened: true, id: 1, total: int64(len(rows)), rows: map[int64]api.MessageSummary{}, loading: map[int64]uint64{}, departed: map[int64]bool{},
+		held: map[int64]uint64{}, changed: map[int64]uint64{}}
 	for i, id := range rows {
 		v.rows[int64(i)] = api.MessageSummary{ID: id}
 	}
@@ -225,7 +226,7 @@ func TestTakeDepartedWaitsForAMovedRow(t *testing.T) {
 	if got := v.TakeDeparted(); got != nil {
 		t.Errorf("departed %v while row 0 is not loaded", got)
 	}
-	v.storeLocked(0, summaries(3, 1, 2))
+	v.storeLocked(0, summaries(3, 1, 2), 0)
 	if got := v.TakeDeparted(); got != nil {
 		t.Errorf("departed = %v, the row only moved", got)
 	}
