@@ -25,6 +25,11 @@ const callTimeout = 30 * time.Second
 // of rows. It opens the view when made, applies view.delta, refreshes rows
 // named by message.changed, and fetches the rows Ensure asks for. Every
 // change calls the notify function given to OpenView, from any goroutine.
+//
+// maild answers calls in any order, so an answer can be older than a row
+// the view holds. Each message.changed gets the next sequence number; a
+// call carries the number of the last event it saw when it was asked, and
+// a row is replaced only by an answer that is not older than the row's.
 type View struct {
 	c      *api.Client
 	query  api.ViewQuery
@@ -49,6 +54,12 @@ type View struct {
 	// departed are the messages deltas removed from loaded rows, until a
 	// reply shows one back or TakeDeparted hands them on.
 	departed map[int64]bool
+	// seq counts the message.changed events. held is, for each message in
+	// rows, the seq its row was asked at; changed is the seq of the last
+	// event of each message while pages are in flight.
+	seq     uint64
+	held    map[int64]uint64
+	changed map[int64]uint64
 }
 
 // OpenView opens a view of q on c and keeps it current from events.
@@ -61,7 +72,8 @@ func OpenView(c *api.Client, events *Events, q api.ViewQuery, notify func()) *Vi
 func openView(c *api.Client, events *Events, q api.ViewQuery, notify func(), timeout time.Duration) *View {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &View{c: c, query: q, notify: notify, ctx: ctx, cancel: cancel,
-		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{}}
+		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{},
+		held: map[int64]uint64{}, changed: map[int64]uint64{}}
 	v.off = events.On(v.event)
 	go v.open(timeout)
 	return v
@@ -220,7 +232,7 @@ func (v *View) ensureLocked() {
 	for p := v.window[0] / Page; p*Page < last; p++ {
 		if !v.loading[p] && !v.pageLoaded(p) {
 			v.loading[p] = true
-			go v.fetch(p, v.id, v.gen)
+			go v.fetch(p, v.id, v.gen, v.seq)
 		}
 	}
 }
@@ -321,8 +333,24 @@ func (v *View) event(ev api.Event) {
 		}
 		v.mu.Unlock()
 	case api.MessageChanged:
-		go v.refresh(e.IDs)
+		v.mu.Lock()
+		seq := v.messageChangedLocked(e.IDs)
+		v.mu.Unlock()
+		go v.refresh(e.IDs, seq)
 	}
+}
+
+// messageChangedLocked counts a message.changed of ids and returns its
+// seq. A page in flight was asked before it, so the event is kept for the
+// page's answer to see.
+func (v *View) messageChangedLocked(ids []int64) uint64 {
+	v.seq++
+	if len(v.loading) > 0 {
+		for _, id := range ids {
+			v.changed[id] = v.seq
+		}
+	}
+	return v.seq
 }
 
 // applyLocked applies a delta's ops in order: an insert shifts the rows at
@@ -342,15 +370,20 @@ func (v *View) applyLocked(d api.ViewDelta) {
 				next[i-op.Count] = r
 			default:
 				v.departed[r.ID] = true
+				delete(v.held, r.ID)
 			}
 		}
 		v.rows = next
 	}
 	v.total = d.Count
 	clear(v.loading)
+	clear(v.changed)
 }
 
-func (v *View) fetch(p, id int64, gen uint64) {
+// fetch asks for page p, at seq, the count of message.changed events so
+// far. Its rows can be older than a message.changed that came while it was
+// out: those rows are asked for again once it is stored.
+func (v *View) fetch(p, id int64, gen, seq uint64) {
 	ctx, cancel := context.WithTimeout(v.ctx, callTimeout)
 	defer cancel()
 	rows, err := v.c.View().Range(ctx, &api.ViewRangeParams{ID: id, Start: p * Page, End: (p + 1) * Page})
@@ -360,41 +393,67 @@ func (v *View) fetch(p, id int64, gen uint64) {
 		return // a delta came first: it asked again
 	}
 	delete(v.loading, p)
+	var again []int64
+	if err == nil {
+		again = v.storeLocked(p*Page, rows, seq)
+		v.evictLocked()
+		v.changedLocked()
+	}
+	if len(v.loading) == 0 {
+		clear(v.changed)
+	}
+	now := v.seq
+	v.mu.Unlock()
 	if err != nil {
-		v.mu.Unlock()
 		return
 	}
-	v.storeLocked(p*Page, rows)
-	v.evictLocked()
-	v.changedLocked()
-	v.mu.Unlock()
 	v.notify()
+	if len(again) > 0 {
+		v.refresh(again, now)
+	}
 }
 
-// storeLocked puts rows at start. A reply to view.range can be newer than
-// the deltas applied so far, so a message it holds may still sit at
+// storeLocked puts rows asked at seq at start, and returns the messages
+// among them that changed after seq. A reply to view.range can be newer
+// than the deltas applied so far, so a message it holds may still sit at
 // another index here: that older copy goes, and is fetched again if its
 // index stays in view. A message is at one index only, as a list's keys
-// must be unique.
-func (v *View) storeLocked(start int64, rows []api.MessageSummary) {
+// must be unique. A copy asked after seq is newer than the reply's row,
+// and its content stays, at the reply's index.
+func (v *View) storeLocked(start int64, rows []api.MessageSummary, seq uint64) (again []int64) {
 	incoming := make(map[int64]bool, len(rows))
 	for _, r := range rows {
 		incoming[r.ID] = true
 		delete(v.departed, r.ID)
 	}
+	newer := map[int64]api.MessageSummary{}
 	next := make(map[int64]api.MessageSummary, len(v.rows)+len(rows))
 	for i, r := range v.rows {
-		if !incoming[r.ID] {
+		switch {
+		case !incoming[r.ID]:
 			next[i] = r
+		case v.held[r.ID] > seq:
+			newer[r.ID] = r
 		}
 	}
 	for i, r := range rows {
+		if n, ok := newer[r.ID]; ok {
+			next[start+int64(i)] = n
+			continue
+		}
 		next[start+int64(i)] = r
+		v.held[r.ID] = seq
+		if v.changed[r.ID] > seq {
+			again = append(again, r.ID)
+		}
 	}
 	v.rows = next
+	return again
 }
 
-func (v *View) refresh(ids []int64) {
+// refresh asks again for the loaded rows of ids, at seq, the
+// message.changed event that named them.
+func (v *View) refresh(ids []int64, seq uint64) {
 	v.mu.Lock()
 	var hit []int64
 	for _, r := range v.rows {
@@ -412,16 +471,31 @@ func (v *View) refresh(ids []int64) {
 	if err != nil {
 		return
 	}
+	v.mu.Lock()
+	changed := v.refreshLocked(fresh, seq)
+	v.mu.Unlock()
+	if changed {
+		v.notify()
+	}
+}
+
+// refreshLocked puts message.summaries' rows, asked at seq, in place of the
+// loaded rows of the same messages, and reports whether one changed. A row
+// asked after seq is newer and stays: two answers can come in any order.
+func (v *View) refreshLocked(fresh []api.MessageSummary, seq uint64) bool {
+	if v.closed {
+		return false
+	}
 	byID := make(map[int64]api.MessageSummary, len(fresh))
 	for _, s := range fresh {
 		byID[s.ID] = s
 	}
-	v.mu.Lock()
 	changed := false
 	next := maps.Clone(v.rows)
 	for i, r := range v.rows {
-		if s, ok := byID[r.ID]; ok && !v.closed {
+		if s, ok := byID[r.ID]; ok && v.held[r.ID] <= seq {
 			next[i] = s
+			v.held[r.ID] = seq
 			changed = true
 		}
 	}
@@ -429,10 +503,7 @@ func (v *View) refresh(ids []int64) {
 		v.rows = next
 		v.changedLocked()
 	}
-	v.mu.Unlock()
-	if changed {
-		v.notify()
-	}
+	return changed
 }
 
 func (v *View) pageLoaded(p int64) bool {
@@ -455,6 +526,11 @@ func (v *View) evictLocked() {
 			}
 		}
 	})
+	kept := make(map[int64]bool, len(v.rows))
+	for _, r := range v.rows {
+		kept[r.ID] = true
+	}
+	maps.DeleteFunc(v.held, func(id int64, _ uint64) bool { return !kept[id] })
 }
 
 func (v *View) changedLocked() { v.version++ }

@@ -185,6 +185,10 @@ func (m *Module) answerReminders(ids []string, until *time.Time) {
 			for _, id := range ids {
 				delete(r.pending, id)
 			}
+			// A calendar.reminders call still out was asked before this
+			// answer, and would bring the answered rows back: its answer no
+			// longer counts, and the next frame asks again.
+			r.list.gen++
 			r.list.dirty = true
 			if err != nil {
 				verb := "dismiss"

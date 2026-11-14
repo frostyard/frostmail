@@ -26,6 +26,10 @@ type fakeCalendar struct {
 	zones     []string // each Range's zone, "" for none
 	snoozeErr error    // the next Snooze fails with it
 	hold      chan struct{}
+	// The next Reminders answers with the list it read, once remindHold
+	// closes; it closes remindHeld when it holds.
+	remindHold chan struct{}
+	remindHeld chan struct{}
 }
 
 func (s *fakeCalendar) ask(n *bool) error {
@@ -54,8 +58,15 @@ func (s *fakeCalendar) Restore(ctx context.Context, p *api.CalendarRestoreParams
 
 func (s *fakeCalendar) Reminders(context.Context, *api.CalendarRemindersParams) ([]api.Reminder, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]api.Reminder{}, s.due...), nil
+	due := append([]api.Reminder{}, s.due...)
+	hold, held := s.remindHold, s.remindHeld
+	s.remindHold, s.remindHeld = nil, nil
+	s.mu.Unlock()
+	if hold != nil {
+		close(held)
+		<-hold
+	}
+	return due, nil
 }
 
 func (s *fakeCalendar) Range(ctx context.Context, p *api.CalendarRangeParams) ([]api.Occurrence, error) {
@@ -330,6 +341,54 @@ func TestRemindersRaiseListSnoozeDismissAndClose(t *testing.T) {
 	fake.mu.Unlock()
 	f.m.event(api.CalendarReminders{Count: 1})
 	f.until("the raised window", func() bool { w := f.windows[remindersKey]; return w != nil && w.tt.HasText("Meeting c") })
+}
+
+// #317: a calendar.reminders call asked before a Dismiss answers after
+// it, with the dismissed row. That answer must not bring the row back: a
+// second Dismiss would answer the same reminder again.
+func TestARemindersAnswerOlderThanADismissIsDropped(t *testing.T) {
+	due := func(id string) api.Reminder {
+		return api.Reminder{ID: id, EventID: 1, Summary: "Meeting " + id, Start: testNow, DueAt: testNow}
+	}
+	fake := &fakeCalendar{due: []api.Reminder{due("a"), due("b")}}
+	f := newFixture(t, commands.Calendar, withFake(fake))
+	f.until("the rows", func() bool {
+		w := f.windows[remindersKey]
+		return w != nil && w.tt.HasText("Meeting a") && w.tt.HasText("Meeting b") && !f.m.remind.list.running
+	})
+	win := f.windows[remindersKey]
+	hold, held := make(chan struct{}), make(chan struct{})
+	fake.mu.Lock()
+	fake.remindHold, fake.remindHeld = hold, held
+	fake.mu.Unlock()
+	f.m.remindersChanged()
+	f.until("the held call", func() bool {
+		select {
+		case <-held:
+			return true
+		default:
+			return false
+		}
+	})
+	f.clickIn(win, "Dismiss")
+	f.until("the dismiss answered", func() bool {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return len(fake.dismissed) == 1 && len(f.m.remind.pending) == 0
+	})
+	if win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
+		t.Fatalf("after the dismiss: %q", win.tt.Texts())
+	}
+	close(hold)
+	back := false
+	f.until("a new answer", func() bool {
+		back = back || win.tt.HasText("Meeting a")
+		l := &f.m.remind.list
+		return !l.running && !l.dirty && !l.pending
+	})
+	if back || win.tt.HasText("Meeting a") || !win.tt.HasText("Meeting b") {
+		t.Errorf("the dismissed row came back (in a frame: %v); now: %q", back, win.tt.Texts())
+	}
 }
 
 func TestEscapeClosesRemindersKeepingThem(t *testing.T) {

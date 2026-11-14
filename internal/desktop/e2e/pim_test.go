@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -101,8 +102,24 @@ func TestRemindersWindowAnswers(t *testing.T) {
 	s.waitNode(w, "", "Remind two")
 	// Snooze's menu is a native popup, which automation cannot choose from:
 	// TestRemindersRaiseListSnoozeDismissAndClose covers it.
+	// The window must show each answer before the next press: a row it
+	// still shows would take the press, and answer a reminder twice.
+	// "^Dismiss$" is a row's button, never Dismiss All.
+	rows := func(n int) func([]node) bool {
+		return func(tree []node) bool {
+			count := 0
+			for _, x := range tree {
+				if x.Role == "button" && x.Label == "Dismiss" {
+					count++
+				}
+			}
+			return count == n
+		}
+	}
 	for left := 1; left >= 0; left-- {
-		s.press(w, s.waitNode(w, "button", "^Dismiss"))
+		s.waitFor(w, fmt.Sprintf("%d rows", left+1), rows(left+1))
+		s.press(w, s.waitNode(w, "button", "^Dismiss$"))
+		s.waitFor(w, fmt.Sprintf("%d rows", left), rows(left))
 		eventually(t, "a reminder answered", func() bool {
 			list, err := s.client.Calendar().Reminders(ctx, &api.CalendarRemindersParams{})
 			return err == nil && len(list) == left
