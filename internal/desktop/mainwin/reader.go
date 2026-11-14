@@ -20,6 +20,12 @@ import (
 const maxConversation = 20
 
 // conv is the conversation the reader shows. It belongs to the UI thread.
+//
+// maild answers calls in any order, so an answer can be older than a row
+// the conversation holds. Each message.changed gets the next sequence
+// number; a call carries the number of the last event it saw when it was
+// asked, and a row is replaced only by an answer that is not older than
+// the row's.
 type conv struct {
 	id       int64
 	client   *api.Client
@@ -32,6 +38,13 @@ type conv struct {
 	showAll  bool
 	msgs     map[int64]*openMsg
 	focused  int64 // the message whose page last had the focus
+	// seq counts the message.changed events since the conversation opened.
+	// held is, for each row in rows, the seq its data was asked at; changed
+	// is the seq of the last event of each message, kept while the load,
+	// asked before it, is out.
+	seq     uint64
+	held    map[int64]uint64
+	changed map[int64]uint64
 }
 
 // openMsg is one expanded message: what the reader draws for it.
@@ -93,19 +106,39 @@ func (w *Window) dropFrame(m *openMsg) {
 
 func (w *Window) openConv(id int64) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cv := &conv{id: id, client: w.client, ctx: ctx, cancel: cancel, expanded: map[int64]bool{id: true}, msgs: map[int64]*openMsg{}}
+	cv := &conv{id: id, client: w.client, ctx: ctx, cancel: cancel, expanded: map[int64]bool{id: true}, msgs: map[int64]*openMsg{},
+		held: map[int64]uint64{}, changed: map[int64]uint64{}}
 	w.conv = cv
 	st := w.mail.State()
+	asked := cv.seq
 	go func() {
 		rows, err := loadConversation(ctx, cv.client, id, st)
 		w.o.Post(func() {
 			if w.conv != cv {
 				return
 			}
-			cv.rows, cv.err, cv.loaded = rows, err, true
+			again := cv.store(rows, err, asked)
 			w.conversationLoaded(cv, st)
+			w.askSummaries(cv, again, cv.seq)
 		})
 	}()
+}
+
+// store puts the rows the load answered, asked at seq, in the conversation
+// and returns the messages among them that changed after seq: the load may
+// have read them before that change. The kept events are dropped then:
+// the call that reads those rows again carries the current seq.
+func (cv *conv) store(rows []api.MessageSummary, err error, asked uint64) (again []int64) {
+	cv.rows, cv.err, cv.loaded = rows, err, true
+	cv.held = make(map[int64]uint64, len(rows))
+	for _, r := range rows {
+		cv.held[r.ID] = asked
+		if cv.changed[r.ID] > asked {
+			again = append(again, r.ID)
+		}
+	}
+	cv.changed = nil
+	return again
 }
 
 // loadConversation lists the selected message's conversation, newest
@@ -207,6 +240,7 @@ func (w *Window) setExpanded(cv *conv, id int64, open bool) {
 func (w *Window) loadMessage(cv *conv, r api.MessageSummary) {
 	m := &openMsg{summary: r}
 	cv.msgs[r.ID] = m
+	asked := cv.seq
 	go func() {
 		ctx := cv.ctx
 		msg, err := cv.client.Message().Get(ctx, &api.MessageGetParams{ID: r.ID})
@@ -222,7 +256,8 @@ func (w *Window) loadMessage(cv *conv, r api.MessageSummary) {
 			if err != nil {
 				return
 			}
-			m.summary = msg.Summary
+			// A refresh asked after this call is newer than its summary.
+			cv.take([]api.MessageSummary{msg.Summary}, asked)
 			w.showRendering(m, rendering)
 			w.loadExtras(cv, m)
 		})
@@ -344,38 +379,89 @@ func (w *Window) readerEvent(ev api.Event) {
 	}
 }
 
+// refreshSummaries re-reads the rows a message.changed named. Every event
+// is counted, whether or not its message is a row yet: the load of a
+// conversation was asked before it.
 func (w *Window) refreshSummaries(ids []int64) {
 	cv := w.conv
 	if cv == nil {
 		return
 	}
+	seq := cv.messageChanged(ids)
 	var want []int64
 	for _, r := range cv.rows {
 		if slices.Contains(ids, r.ID) {
 			want = append(want, r.ID)
 		}
 	}
-	if len(want) == 0 {
+	w.askSummaries(cv, want, seq)
+}
+
+// messageChanged counts a message.changed of ids and returns its seq. A
+// load in flight was asked before it, so the event is kept for the load's
+// rows to see.
+func (cv *conv) messageChanged(ids []int64) uint64 {
+	cv.seq++
+	if !cv.loaded {
+		if cv.changed == nil {
+			cv.changed = map[int64]uint64{}
+		}
+		for _, id := range ids {
+			cv.changed[id] = cv.seq
+		}
+	}
+	return cv.seq
+}
+
+// askSummaries asks for the rows of ids, at seq, the message.changed event
+// that named them, and posts their answer to the conversation.
+func (w *Window) askSummaries(cv *conv, ids []int64, seq uint64) {
+	if len(ids) == 0 {
 		return
 	}
 	go func() {
-		fresh, err := cv.client.Message().Summaries(cv.ctx, &api.MessageSummariesParams{IDs: want})
+		fresh, err := cv.client.Message().Summaries(cv.ctx, &api.MessageSummariesParams{IDs: ids})
 		if err != nil {
 			return
 		}
 		w.o.Post(func() {
-			for _, s := range fresh {
-				for i := range cv.rows {
-					if cv.rows[i].ID == s.ID {
-						cv.rows[i] = s
-					}
-				}
-				if m := cv.msgs[s.ID]; m != nil {
-					m.summary = s
-				}
+			if w.conv != cv {
+				return
 			}
+			cv.take(fresh, seq)
 		})
 	}()
+}
+
+// take puts message.summaries' rows, asked at seq, in place of the rows of
+// the same messages, and reports whether one changed. A row asked after
+// seq is newer and stays: two answers can come in any order.
+func (cv *conv) take(fresh []api.MessageSummary, seq uint64) bool {
+	var changed bool
+	for _, s := range fresh {
+		if cv.held[s.ID] > seq {
+			continue
+		}
+		found := false
+		for i, r := range cv.rows {
+			if r.ID == s.ID {
+				cv.rows[i] = s
+				found = true
+			}
+		}
+		if found {
+			if cv.held == nil {
+				cv.held = map[int64]uint64{}
+			}
+			cv.held[s.ID] = seq
+			changed = true
+		}
+		if m := cv.msgs[s.ID]; m != nil {
+			m.summary = s
+			changed = true
+		}
+	}
+	return changed
 }
 
 // reader draws the reader pane.
