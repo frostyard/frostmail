@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/internal/mimex"
@@ -126,7 +125,7 @@ func (t *Tx) MessagesAtUIDs(ctx context.Context, mailboxID int64, uids []uint32)
 			args = append(args, int64(uid))
 		}
 		rows, err := t.QueryContext(ctx, `SELECT uid, message_id FROM message_mailbox
-			WHERE mailbox_id = ? AND uid IN (`+strings.TrimSuffix(strings.Repeat("?, ", len(chunk)), ", ")+`)`, args...)
+			WHERE mailbox_id = ? AND uid IN (`+inPlace(len(chunk))+`)`, args...)
 		if err != nil {
 			return nil, fmt.Errorf("messages at uids: %w", err)
 		}
