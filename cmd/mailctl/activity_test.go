@@ -186,6 +186,37 @@ func TestFollowOutlastsASlowOutput(t *testing.T) {
 	}
 }
 
+// A follow that ctx stopped returns nil, even when the connection has
+// closed too and select sees the closed stream before the ended ctx
+// (issue 308). A connection lost while ctx lives is still an error.
+func TestFollowStoppedIsNoError(t *testing.T) {
+	serverSide, clientSide := net.Pipe()
+	defer serverSide.Close()
+	c := api.NewClient(clientSide)
+	_ = c.Close()
+	// The client reports its error once its read loop has ended, which
+	// also closes its notifications.
+	for range c.Notifications() {
+	}
+	if c.Err() == nil {
+		t.Fatal("a closed client reports no error; the test needs one")
+	}
+	live := make(chan api.ActivityEntry)
+	close(live)
+	names := &clientNames{c: c}
+	if err := followActivity(t.Context(), c, live, &strings.Builder{}, names, api.ActivityLevelInfo, 0); err == nil {
+		t.Fatal("a connection lost while ctx lives = nil, want its error")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	// select picks at random between the ended ctx and the closed stream.
+	for i := range 200 {
+		if err := followActivity(ctx, c, live, &strings.Builder{}, names, api.ActivityLevelInfo, 0); err != nil {
+			t.Fatalf("follow %d after cancel = %v, want nil", i, err)
+		}
+	}
+}
+
 func TestActivityJSONFiltersByLevel(t *testing.T) {
 	srv := rpctest.Start(t)
 	srv.Activity.Record(activity.Connected(1, time.Second))
