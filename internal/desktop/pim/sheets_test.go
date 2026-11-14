@@ -26,6 +26,8 @@ type fakeCalendar struct {
 	zones     []string // each Range's zone, "" for none
 	snoozeErr error    // the next Snooze fails with it
 	hold      chan struct{}
+	holdList  chan struct{} // Reminders reads, says so on asked, and waits for it, when set
+	asked     chan struct{}
 }
 
 func (s *fakeCalendar) ask(n *bool) error {
@@ -54,8 +56,13 @@ func (s *fakeCalendar) Restore(ctx context.Context, p *api.CalendarRestoreParams
 
 func (s *fakeCalendar) Reminders(context.Context, *api.CalendarRemindersParams) ([]api.Reminder, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]api.Reminder{}, s.due...), nil
+	list, hold := append([]api.Reminder{}, s.due...), s.holdList
+	s.mu.Unlock()
+	if hold != nil {
+		s.asked <- struct{}{}
+		<-hold
+	}
+	return list, nil
 }
 
 func (s *fakeCalendar) Range(ctx context.Context, p *api.CalendarRangeParams) ([]api.Occurrence, error) {
@@ -347,4 +354,54 @@ func TestEscapeClosesRemindersKeepingThem(t *testing.T) {
 	if len(fake.due) != 1 {
 		t.Error("closing dismissed the reminder")
 	}
+}
+
+// A list call that read before a Dismiss answers after it: its rows are
+// from before, and must not bring the dismissed reminder back
+// (frostyard/frostmail#317).
+func TestAnOlderRemindersAnswerDoesNotBringARowBack(t *testing.T) {
+	due := func(id string) api.Reminder {
+		return api.Reminder{ID: id, EventID: 1, Summary: "Meeting " + id, Start: testNow.Add(10 * time.Minute), DueAt: testNow}
+	}
+	fake := &fakeCalendar{due: []api.Reminder{due("a"), due("b")}, asked: make(chan struct{}, 8)}
+	f := newFixture(t, commands.Calendar, withFake(fake))
+	f.until("the window", func() bool { return f.windows[remindersKey] != nil })
+	win := f.windows[remindersKey]
+	f.until("the rows", func() bool { return win.tt.HasText("Meeting a") && win.tt.HasText("Meeting b") })
+	asked := func(what string) {
+		t.Helper()
+		f.until(what, func() bool {
+			select {
+			case <-fake.asked:
+				return true
+			default:
+				return false
+			}
+		})
+	}
+	// A list call reads both reminders, and its answer waits.
+	hold := make(chan struct{})
+	fake.mu.Lock()
+	fake.holdList = hold
+	fake.mu.Unlock()
+	f.m.event(api.CalendarReminders{Count: 2})
+	asked("the list call")
+	f.clickIn(win, "Dismiss")
+	f.until("the answer", func() bool {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return len(fake.dismissed) == 1 && len(f.m.remind.pending) == 0
+	})
+	fake.mu.Lock()
+	gone := "Meeting " + fake.dismissed[0]
+	fake.mu.Unlock()
+	// The older answer comes; the window asks again, and that call waits
+	// too, so the window shows what the older answer left.
+	hold <- struct{}{}
+	asked("the next list call")
+	win.tt.Frame()
+	if win.tt.HasText(gone) {
+		t.Errorf("%s is back after its Dismiss: %s", gone, dump(win.tt))
+	}
+	close(hold)
 }

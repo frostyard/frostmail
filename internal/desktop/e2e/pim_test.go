@@ -4,7 +4,9 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -101,8 +103,21 @@ func TestRemindersWindowAnswers(t *testing.T) {
 	s.waitNode(w, "", "Remind two")
 	// Snooze's menu is a native popup, which automation cannot choose from:
 	// TestRemindersRaiseListSnoozeDismissAndClose covers it.
+	dismiss := regexp.MustCompile("^Dismiss$")
 	for left := 1; left >= 0; left-- {
-		s.press(w, s.waitNode(w, "button", "^Dismiss"))
+		// Press only when the window shows the reminders maild still has: a
+		// Dismiss pressed on a row that is on its way out answers nothing,
+		// and the wait below then never ends (frostyard/frostmail#317).
+		tree := s.waitFor(w, fmt.Sprintf("%d reminders to dismiss", left+1), func(tree []node) bool {
+			n := 0
+			for _, x := range tree {
+				if x.Role == "button" && dismiss.MatchString(x.Label) {
+					n++
+				}
+			}
+			return n == left+1
+		})
+		s.press(w, *find(tree, "button", "^Dismiss$"))
 		eventually(t, "a reminder answered", func() bool {
 			list, err := s.client.Calendar().Reminders(ctx, &api.CalendarRemindersParams{})
 			return err == nil && len(list) == left

@@ -185,6 +185,10 @@ func (m *Module) answerReminders(ids []string, until *time.Time) {
 			for _, id := range ids {
 				delete(r.pending, id)
 			}
+			// A list call that is out may have read before this answer: its
+			// rows would bring an answered reminder back. Drop it, and ask
+			// again.
+			r.list.gen++
 			r.list.dirty = true
 			if err != nil {
 				verb := "dismiss"

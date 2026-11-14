@@ -23,8 +23,9 @@ const callTimeout = 30 * time.Second
 
 // View is one maild view as a list shows it: its count and a sparse window
 // of rows. It opens the view when made, applies view.delta, refreshes rows
-// named by message.changed, and fetches the rows Ensure asks for. Every
-// change calls the notify function given to OpenView, from any goroutine.
+// named by message.changed (one refresh at a time), and fetches the rows
+// Ensure asks for. Every change calls the notify function given to
+// OpenView, from any goroutine.
 type View struct {
 	c      *api.Client
 	query  api.ViewQuery
@@ -49,6 +50,14 @@ type View struct {
 	// departed are the messages deltas removed from loaded rows, until a
 	// reply shows one back or TakeDeparted hands them on.
 	departed map[int64]bool
+	// stale are the messages message.changed has named that wait for the
+	// refresher, and refreshing says it runs: 1 refresh at a time, so an
+	// older answer never lands on a newer one.
+	stale      map[int64]bool
+	refreshing bool
+	// changing are the messages named while a page was in flight: the
+	// page's answer may be older than the change.
+	changing map[int64]bool
 }
 
 // OpenView opens a view of q on c and keeps it current from events.
@@ -61,7 +70,8 @@ func OpenView(c *api.Client, events *Events, q api.ViewQuery, notify func()) *Vi
 func openView(c *api.Client, events *Events, q api.ViewQuery, notify func(), timeout time.Duration) *View {
 	ctx, cancel := context.WithCancel(context.Background())
 	v := &View{c: c, query: q, notify: notify, ctx: ctx, cancel: cancel,
-		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{}}
+		rows: map[int64]api.MessageSummary{}, loading: map[int64]bool{}, departed: map[int64]bool{},
+		stale: map[int64]bool{}, changing: map[int64]bool{}}
 	v.off = events.On(v.event)
 	go v.open(timeout)
 	return v
@@ -321,7 +331,9 @@ func (v *View) event(ev api.Event) {
 		}
 		v.mu.Unlock()
 	case api.MessageChanged:
-		go v.refresh(e.IDs)
+		v.mu.Lock()
+		v.markStaleLocked(e.IDs, len(v.loading) > 0)
+		v.mu.Unlock()
 	}
 }
 
@@ -365,6 +377,18 @@ func (v *View) fetch(p, id int64, gen uint64) {
 		return
 	}
 	v.storeLocked(p*Page, rows)
+	// A row of this answer that changed while the page was in flight may be
+	// the row from before the change: read it again.
+	var again []int64
+	for _, r := range rows {
+		if v.changing[r.ID] {
+			again = append(again, r.ID)
+		}
+	}
+	if len(v.loading) == 0 {
+		clear(v.changing)
+	}
+	v.markStaleLocked(again, false)
 	v.evictLocked()
 	v.changedLocked()
 	v.mu.Unlock()
@@ -394,44 +418,76 @@ func (v *View) storeLocked(start int64, rows []api.MessageSummary) {
 	v.rows = next
 }
 
-func (v *View) refresh(ids []int64) {
-	v.mu.Lock()
-	var hit []int64
-	for _, r := range v.rows {
-		if slices.Contains(ids, r.ID) {
-			hit = append(hit, r.ID)
-		}
-	}
-	v.mu.Unlock()
-	if len(hit) == 0 {
+// markStaleLocked queues ids for the refresher and starts it when it is
+// not running. With inFlight, a page is loading: the ids are also kept for
+// its answer.
+func (v *View) markStaleLocked(ids []int64, inFlight bool) {
+	if v.closed || len(ids) == 0 {
 		return
 	}
-	ctx, cancel := context.WithTimeout(v.ctx, callTimeout)
-	defer cancel()
-	fresh, err := v.c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: hit})
-	if err != nil {
-		return
-	}
-	byID := make(map[int64]api.MessageSummary, len(fresh))
-	for _, s := range fresh {
-		byID[s.ID] = s
-	}
-	v.mu.Lock()
-	changed := false
-	next := maps.Clone(v.rows)
-	for i, r := range v.rows {
-		if s, ok := byID[r.ID]; ok && !v.closed {
-			next[i] = s
-			changed = true
+	for _, id := range ids {
+		v.stale[id] = true
+		if inFlight {
+			v.changing[id] = true
 		}
 	}
-	if changed {
-		v.rows = next
-		v.changedLocked()
+	if !v.refreshing {
+		v.refreshing = true
+		go v.refresh()
 	}
-	v.mu.Unlock()
-	if changed {
-		v.notify()
+}
+
+// refresh reads the loaded rows that message.changed named, until none is
+// left. It is the only reader, and it asks after the event came: its answer
+// is never older than the change, nor than an answer it stored before.
+// Refreshes that ran side by side could store an older row over a newer
+// one, and the list then kept it (issue 317).
+func (v *View) refresh() {
+	for {
+		v.mu.Lock()
+		if v.closed || len(v.stale) == 0 {
+			v.refreshing = false
+			v.mu.Unlock()
+			return
+		}
+		var hit []int64
+		for _, r := range v.rows {
+			if v.stale[r.ID] {
+				hit = append(hit, r.ID)
+			}
+		}
+		clear(v.stale)
+		v.mu.Unlock()
+		if len(hit) == 0 {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(v.ctx, callTimeout)
+		fresh, err := v.c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: hit})
+		cancel()
+		if err != nil {
+			continue
+		}
+		byID := make(map[int64]api.MessageSummary, len(fresh))
+		for _, s := range fresh {
+			byID[s.ID] = s
+		}
+		v.mu.Lock()
+		changed := false
+		next := maps.Clone(v.rows)
+		for i, r := range v.rows {
+			if s, ok := byID[r.ID]; ok && !v.closed {
+				next[i] = s
+				changed = true
+			}
+		}
+		if changed {
+			v.rows = next
+			v.changedLocked()
+		}
+		v.mu.Unlock()
+		if changed {
+			v.notify()
+		}
 	}
 }
 
