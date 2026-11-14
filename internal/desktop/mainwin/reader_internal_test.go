@@ -371,6 +371,8 @@ func TestAMessageGetOlderThanARefreshKeepsTheRefresh(t *testing.T) {
 // message.changed of its only row, and asks for that row again.
 func TestAConversationLoadDuringAnEventEndsCurrent(t *testing.T) {
 	release := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(release) })
+	defer unblock() // a failure before the release must not leave the held call blocked
 	s := &fakeMaild{result: map[string]any{
 		"message.summaries": []api.MessageSummary{{ID: 7, Subject: "old"}},
 		"message.get":       api.Message{Summary: api.MessageSummary{ID: 7, Subject: "old"}},
@@ -385,7 +387,7 @@ func TestAConversationLoadDuringAnEventEndsCurrent(t *testing.T) {
 	if cv := w.conv; cv.loaded || cv.seq != 1 {
 		t.Fatalf("before the load answers: loaded %v, seq %d", cv.loaded, cv.seq)
 	}
-	close(release)
+	unblock()
 	poll(t, "the row asked for again", func() bool {
 		loop.Flush()
 		cv := w.conv
