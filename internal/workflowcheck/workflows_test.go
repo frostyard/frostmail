@@ -123,9 +123,9 @@ func TestWorkflowsFollowADR0021(t *testing.T) {
 // Every job that runs in flathub's flatpak-github-actions image mounts a
 // named volume over /var/lib/flatpak. flatpak-builder updates the image's
 // runtime on every build, and the update renames a directory of an image
-// layer; on an overlayfs with redirect_dir off (the AWS-hosted runners) that
-// rename fails with EXDEV and the build fails. A named volume holds a copy of
-// the installation on the host's own file system.
+// layer; on an overlayfs with redirect_dir off that rename fails with EXDEV,
+// and the build failed that way on AWS-hosted runners. A named volume holds a
+// copy of the installation on the host's own file system.
 func TestFlatpakJobsKeepTheInstallationOffOverlayfs(t *testing.T) {
 	jobs := 0
 	for name, root := range workflows(t) {
