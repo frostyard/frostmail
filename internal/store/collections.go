@@ -134,6 +134,12 @@ func (t *Tx) ReplaceCollections(ctx context.Context, accountID int64, kind api.C
 		if _, err := t.ExecContext(ctx, "DELETE FROM collections WHERE id = ?", c.ID); err != nil {
 			return nil, fmt.Errorf("delete collection: %w", err)
 		}
+		if kind == api.CollectionKindAddressbook {
+			// Its contacts went with it (ON DELETE CASCADE).
+			if err := t.MarkPeopleStale(ctx); err != nil {
+				return nil, err
+			}
+		}
 		changed = true
 	}
 	res, err := t.ExecContext(ctx, `UPDATE collections SET is_default = 1 WHERE id =

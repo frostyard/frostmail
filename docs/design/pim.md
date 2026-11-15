@@ -63,13 +63,19 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   objects on the first run), then a `multiget` for the changed hrefs in
   batches of 100. A server without sync-collection is compared by ETag
   (`PROPFIND` depth 1). An invalid token (`valid-sync-token` error) resyncs
-  the collection. Each batch is one transaction with events. On a server
+  the collection. Each batch is one transaction with events. A batch
+  that changes contacts marks the people index stale (`store_info`
+  `people_stale`) in its transaction, and the address books' pass relinks
+  people once at its end, in its own transaction, also after a failure; a
+  mark that a failed or cut-off pass leaves is relinked by the next pass.
+  On a server
   whose sync calls objects deleted that it still serves (Google's; the
   profile's `ServesDeleted`), the multiget also asks for every href the
   sync calls deleted: what comes back is stored, the rest removed.
 - **The Tasks loop.** For Google accounts with tasks on: `tasklists.list`,
   then per list `tasks.list` with `updatedMin` (the stored high-water mark),
-  `showDeleted` and `showHidden`.
+  `showDeleted` and `showHidden`. The list's stored tasks are read in 1
+  query, to leave unchanged ones alone.
 - **When.** Every 5 minutes; at once on `sync.now`, on window focus (the app
   calls `sync.now` with a `pim` hint), and after a write. Read-only accounts
   sync and never write.
@@ -143,8 +149,11 @@ Everything after the store reads them as it reads a DAV source. Plan
     with a new window, and what the listing lacks is removed.
 - **Reading contacts.** `/me/contacts/delta`, or
   `/me/contactFolders/{id}/contacts/delta`, with the delta link as the
-  sync token. A changed contact's photo is read from `photo/$value` (404:
-  none) and kept as the vCard's `PHOTO`.
+  sync token. A contact that a round names at the ETag the store holds is
+  unchanged and left alone (a new photo changes the change key). A new or
+  changed contact's photo is read from `photo/$value` (404: none), 4 at a
+  time, and kept as the vCard's `PHOTO`. People are relinked as for DAV
+  address books.
 - **Events into iCalendar.** One `VEVENT` per master, single event or
   exception, the exceptions with `RECURRENCE-ID`:
   - `UID` from `iCalUId`; `SUMMARY` from `subject`; `LOCATION` from

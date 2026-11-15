@@ -30,6 +30,7 @@ const eligibleContactJoins = ` JOIN objects o ON o.id = c.object_id
 // RelinkPeople joins eligible contacts transitively by email, retaining unchanged rows.
 // Ineligible contacts lose their person; no events are emitted.
 func (t *Tx) RelinkPeople(ctx context.Context) error {
+	t.d.observe(OpRelinkPeople)
 	contacts, err := t.peopleContacts(ctx)
 	if err != nil {
 		return err
@@ -80,7 +81,35 @@ func (t *Tx) RelinkPeople(ctx context.Context) error {
 	if _, err := t.ExecContext(ctx, "DELETE FROM people WHERE id NOT IN (SELECT person_id FROM contacts WHERE person_id IS NOT NULL)"); err != nil {
 		return fmt.Errorf("remove obsolete people: %w", err)
 	}
+	if _, err := t.ExecContext(ctx, "DELETE FROM store_info WHERE key = ?", peopleStaleKey); err != nil {
+		return fmt.Errorf("clear people mark: %w", err)
+	}
 	return nil
+}
+
+// peopleStaleKey is the store_info row that says the people index waits
+// for RelinkPeople.
+const peopleStaleKey = "people_stale"
+
+// MarkPeopleStale records that the transaction changed contacts and the
+// people index waits for RelinkPeople. A sync pass marks each batch it
+// commits and relinks once at its end; the mark is durable, so a pass that
+// fails part-way leaves it for the next pass. RelinkPeople clears it.
+func (t *Tx) MarkPeopleStale(ctx context.Context) error {
+	if _, err := t.ExecContext(ctx, "INSERT OR IGNORE INTO store_info (key, value) VALUES (?, '1')", peopleStaleKey); err != nil {
+		return fmt.Errorf("mark people stale: %w", err)
+	}
+	return nil
+}
+
+// PeopleStale reports whether a transaction marked the people index stale
+// after the last RelinkPeople.
+func (d *DB) PeopleStale(ctx context.Context) (bool, error) {
+	var n int
+	if err := d.db.QueryRowContext(ctx, "SELECT count(*) FROM store_info WHERE key = ?", peopleStaleKey).Scan(&n); err != nil {
+		return false, fmt.Errorf("people mark: %w", err)
+	}
+	return n > 0, nil
 }
 
 func (t *Tx) peopleContacts(ctx context.Context) ([]PersonRow, error) {

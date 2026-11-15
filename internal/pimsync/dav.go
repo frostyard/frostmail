@@ -1,6 +1,7 @@
 package pimsync
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -15,7 +16,12 @@ import (
 
 // syncDAV reconciles accepted collections and syncs enabled ones in order,
 // continuing past collection failures unless the server refuses credentials.
-func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, collectionKind api.CollectionKind, want func(davx.Collection) bool) error {
+// Address books relink people once, after every collection, even when one
+// failed (relinkPeople).
+func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, collectionKind api.CollectionKind, want func(davx.Collection) bool) (err error) {
+	if kind == davx.AddressBooks {
+		defer func() { err = cmp.Or(err, p.relinkPeople(ctx)) }()
+	}
 	remote, err := c.Collections(ctx, kind)
 	if err != nil {
 		return fmt.Errorf("list dav collections: %w", err)
@@ -34,10 +40,7 @@ func (p *pass) syncDAV(ctx context.Context, c *davx.Client, kind davx.Kind, coll
 	err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		cols, err = tx.ReplaceCollections(ctx, p.acct.ID, collectionKind, list)
-		if err != nil {
-			return err
-		}
-		return relinkDAVPeople(ctx, tx, kind)
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("replace dav collections: %w", err)
@@ -99,7 +102,7 @@ func (p *pass) syncCollection(ctx context.Context, c *davx.Client, kind davx.Kin
 	if err := p.fetchDAV(ctx, c, kind, col, fetch); err != nil {
 		return err
 	}
-	if err := p.deleteDAV(ctx, kind, col, deleted); err != nil {
+	if err := p.deleteDAV(ctx, col, deleted); err != nil {
 		return err
 	}
 	return p.m.db.Tx(ctx, func(tx *store.Tx) error {
@@ -219,11 +222,9 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 			}
 			changed = len(objects) > 0 || n > 0
 			if changed {
-				if err := p.emitDAV(ctx, tx, col.Kind); err != nil {
-					return err
-				}
+				return p.emitDAV(ctx, tx, col.Kind)
 			}
-			return relinkDAVPeople(ctx, tx, kind)
+			return nil
 		})
 		if err != nil {
 			return fmt.Errorf("store dav batch: %w", err)
@@ -235,7 +236,7 @@ func (p *pass) fetchDAV(ctx context.Context, c *davx.Client, kind davx.Kind, col
 	return nil
 }
 
-func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, col store.Collection, hrefs []string) error {
+func (p *pass) deleteDAV(ctx context.Context, col store.Collection, hrefs []string) error {
 	if len(hrefs) == 0 {
 		return nil
 	}
@@ -247,11 +248,9 @@ func (p *pass) deleteDAV(ctx context.Context, kind davx.Kind, col store.Collecti
 		}
 		changed = n > 0
 		if changed {
-			if err := p.emitDAV(ctx, tx, col.Kind); err != nil {
-				return err
-			}
+			return p.emitDAV(ctx, tx, col.Kind)
 		}
-		return relinkDAVPeople(ctx, tx, kind)
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("delete dav objects: %w", err)
@@ -274,9 +273,15 @@ func (p *pass) markDAVChanged(id int64) {
 	}
 }
 
+// emitDAV records a collection's change in the transaction that made it:
+// its event, and for an address book the people index's mark
+// (store.Tx.MarkPeopleStale).
 func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind api.CollectionKind) error {
 	switch kind {
 	case api.CollectionKindAddressbook:
+		if err := tx.MarkPeopleStale(ctx); err != nil {
+			return err
+		}
 		return tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID})
 	case api.CollectionKindTasklist:
 		return tx.Emit(ctx, api.TasksChanged{AccountID: p.acct.ID})
@@ -285,10 +290,21 @@ func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind api.CollectionKin
 	}
 }
 
-// relinkDAVPeople keeps the people index in step only for address books.
-func relinkDAVPeople(ctx context.Context, tx *store.Tx, kind davx.Kind) error {
-	if kind == davx.AddressBooks {
-		return tx.RelinkPeople(ctx)
+// relinkPeople relinks the people index once, in its own transaction, when
+// a transaction marked it stale (store.Tx.MarkPeopleStale). A pass's
+// batches commit apart and mark it; their pass calls this after its last
+// collection, also after a failure. A relink that fails, or a pass cut off
+// before it, leaves the durable mark, and the next pass relinks.
+func (p *pass) relinkPeople(ctx context.Context) error {
+	stale, err := p.m.db.PeopleStale(ctx)
+	if err != nil {
+		return fmt.Errorf("read people mark: %w", err)
+	}
+	if !stale {
+		return nil
+	}
+	if err := p.m.db.Tx(ctx, func(tx *store.Tx) error { return tx.RelinkPeople(ctx) }); err != nil {
+		return fmt.Errorf("relink people: %w", err)
 	}
 	return nil
 }

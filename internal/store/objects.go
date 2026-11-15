@@ -92,7 +92,29 @@ func (t *Tx) SetObjectRemote(ctx context.Context, id int64, remote []byte) error
 
 // ObjectByHref returns the object at the exact href, or ErrNotFound.
 func (d *DB) ObjectByHref(ctx context.Context, collectionID int64, href string) (Object, error) {
+	d.observe(OpObjectByHref)
 	return readObject(d.db.QueryRowContext(ctx, "SELECT "+objectColumns+" FROM objects WHERE collection_id = ? AND href = ?", collectionID, href))
+}
+
+// ObjectRaws returns every object's source in the collection, by exact
+// href, in 1 query.
+func (d *DB) ObjectRaws(ctx context.Context, collectionID int64) (map[string][]byte, error) {
+	d.observe(OpObjectRaws)
+	rows, err := d.db.QueryContext(ctx, "SELECT href, raw FROM objects WHERE collection_id = ?", collectionID)
+	if err != nil {
+		return nil, fmt.Errorf("object sources: %w", err)
+	}
+	defer rows.Close()
+	out := map[string][]byte{}
+	for rows.Next() {
+		var href string
+		var raw []byte
+		if err := rows.Scan(&href, &raw); err != nil {
+			return nil, fmt.Errorf("object sources: %w", err)
+		}
+		out[href] = raw
+	}
+	return out, rows.Err()
 }
 
 // ObjectRemotes returns, by href, the Graph JSON the collection's objects
