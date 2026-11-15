@@ -399,12 +399,23 @@ func TestFactsFrom(t *testing.T) {
 	}
 }
 
-// A field takes its input as it is drawn: text that arrives in the frame of
-// Enter, as an input method's commit does, is part of what Enter saves.
-func TestEnterSavesTheTextOfItsOwnFrame(t *testing.T) {
+// Enter while an input method composes is the input method's, as on every
+// platform (MyGo's Tester holds the key back, egoist/mygo#1815): it saves
+// no partial address. Once the input method commits, Enter saves the
+// whole text. The pane reads its input when Enter acts, not at the top of
+// the frame, so text that a real backend delivers in the frame of Enter is
+// saved too; a Tester runs a frame for each event and cannot deliver both
+// in one.
+func TestEnterSavesTheCommittedText(t *testing.T) {
 	s := serverSetup(t, settings.ServerFacts{}, "", nil)
 	s.chooseLodge("https://lodge.example")
 	s.tt.Compose(".ts.net", 7)
+	s.tt.Key(0, ui.KeyEnter)
+	s.tt.Frame()
+	if got := s.seen(); len(got) != 0 {
+		t.Fatalf("Enter while composing saved: steps = %q", got)
+	}
+	s.tt.Type(".ts.net")
 	s.tt.Key(0, ui.KeyEnter)
 	s.until("the move", func() bool { return len(s.seen()) == 1 })
 	if s.stored() != lodgeURL {
