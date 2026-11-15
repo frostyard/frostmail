@@ -42,7 +42,7 @@ application checks cover the combined dependency update.
 
 Upstream merged #1731 (merge commit `d7da941`) and released it in
 MyGo v0.9.1 on 2026-11-15. Frostmail now requires `github.com/egoist/mygo`
-v0.9.1, `go.mod` has no `replace`, and the Flatpak's offline sources fetch
+v0.9.1, `go.mod` has no MyGo `replace`, and the Flatpak's offline sources fetch
 the upstream module. The Go, desktop and compose checks ran again on that
 version, as the Decision asks.
 

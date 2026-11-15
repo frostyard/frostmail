@@ -207,7 +207,7 @@ waits on the owner's checks on real desktops.
 - MyGo is `github.com/egoist/mygo` v0.9.1, the first upstream release with
   the quotation-depth change (upstream #1731). It replaced the owner's fork
   pin of [ADR-0058](docs/adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md);
-  `go.mod` has no `replace`. frostui v0.5.1 requires v0.9.0, so the app's
+  `go.mod` has no MyGo `replace`. frostui v0.5.1 requires v0.9.0, so the app's
   requirement is the higher one.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
