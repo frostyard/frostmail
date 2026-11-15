@@ -28,7 +28,10 @@ import (
 // cancellation, which was written again) and split; an all-day event; a
 // contact changed, given a photo, deleted and restored; everything deleted
 // again, and a last pass that changes nothing. Outlook took every write,
-// and the replay sends each request the recording did, in its order.
+// and the replay sends each request the recording did, in its order,
+// except 4 photo reads of a contact that a delta named at its stored
+// ETag, which a pass no longer sends (frostmail#291): they are out of the
+// trace.
 func TestMicrosoftWriteReplay(t *testing.T) {
 	ctx := t.Context()
 	trace := filepath.Join("testdata", "replay", "graph-writes.trace")

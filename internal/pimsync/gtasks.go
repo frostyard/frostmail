@@ -106,21 +106,25 @@ func (p *pass) syncGoogleTaskList(ctx context.Context, c *gtasks.Client, col sto
 }
 
 // googleTaskChanges leaves pending local edits and unchanged source alone.
+// A first sync sends the whole list, and a later one every task updated
+// since the high-water mark: the list's stored tasks are read in 1 query,
+// not 1 for each task.
 func (p *pass) googleTaskChanges(ctx context.Context, collectionID int64, tasks []gtasks.Task) ([]gtasks.Task, error) {
 	pending, err := p.m.db.PendingHrefs(ctx, collectionID)
 	if err != nil {
 		return nil, fmt.Errorf("read pending tasks: %w", err)
+	}
+	stored, err := p.m.db.ObjectRaws(ctx, collectionID)
+	if err != nil {
+		return nil, fmt.Errorf("read google tasks: %w", err)
 	}
 	var changed []gtasks.Task
 	for _, task := range tasks {
 		if pending[task.ID] {
 			continue
 		}
-		old, err := p.m.db.ObjectByHref(ctx, collectionID, task.ID)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			return nil, fmt.Errorf("read google task %q: %w", task.ID, err)
-		}
-		if task.Deleted || errors.Is(err, store.ErrNotFound) || !bytes.Equal(old.Raw, task.Raw) {
+		old, ok := stored[task.ID]
+		if task.Deleted || !ok || !bytes.Equal(old, task.Raw) {
 			changed = append(changed, task)
 		}
 	}

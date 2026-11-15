@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
@@ -381,7 +382,10 @@ func (p *pass) graphExceptionOwners(ctx context.Context, col store.Collection) (
 	return out, nil
 }
 
-func (p *pass) syncGraphContacts(ctx context.Context, c *graph.Client) error {
+// syncGraphContacts syncs the account's contact folders and relinks people
+// once, after every folder, even when one failed (relinkPeople).
+func (p *pass) syncGraphContacts(ctx context.Context, c *graph.Client) (err error) {
+	defer func() { err = cmp.Or(err, p.relinkPeople(ctx)) }()
 	folders, err := c.ContactFolders(ctx)
 	if err != nil {
 		return fmt.Errorf("list graph contact folders: %w", err)
@@ -394,10 +398,7 @@ func (p *pass) syncGraphContacts(ctx context.Context, c *graph.Client) error {
 	err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
 		var err error
 		cols, err = tx.ReplaceCollections(ctx, p.acct.ID, api.CollectionKindAddressbook, list)
-		if err != nil {
-			return err
-		}
-		return tx.RelinkPeople(ctx)
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("replace graph contact folders: %w", err)
@@ -447,6 +448,7 @@ func (p *pass) syncGraphFolder(ctx context.Context, c *graph.Client, col store.C
 		removed bool
 	}
 	var got []contact
+	var photoIDs []string // the contacts in got whose photos to read, in order
 	named := map[string]bool{}
 	for _, raw := range items {
 		var gc graph.Contact
@@ -461,11 +463,23 @@ func (p *pass) syncGraphFolder(ctx context.Context, c *graph.Client, col store.C
 			got = append(got, contact{c: gc, removed: true})
 			continue
 		}
-		photo, err := c.Photo(ctx, gc.ID)
-		if err != nil {
-			return fmt.Errorf("contact photo: %w", err)
+		// A contact at the ETag the store holds is unchanged, its photo
+		// too (a new photo changes the contact's change key): a full
+		// round names every contact again, and those are left alone.
+		if etag, ok := stored[gc.ID]; ok && etag != "" && etag == gc.ETag {
+			continue
 		}
-		got = append(got, contact{raw: raw, c: gc, photo: photo})
+		got = append(got, contact{raw: raw, c: gc})
+		photoIDs = append(photoIDs, gc.ID)
+	}
+	photos, err := contactPhotos(ctx, c, photoIDs)
+	if err != nil {
+		return err
+	}
+	for i := range got {
+		if !got[i].removed {
+			got[i].photo = photos[got[i].c.ID]
+		}
 	}
 	var gone []string
 	if full {
@@ -493,12 +507,12 @@ func (p *pass) syncGraphFolder(ctx context.Context, c *graph.Client, col store.C
 		}
 		if len(got) > 0 || n > 0 {
 			p.changed++
+			if err := tx.MarkPeopleStale(ctx); err != nil {
+				return err
+			}
 			if err := tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID}); err != nil {
 				return err
 			}
-		}
-		if err := tx.RelinkPeople(ctx); err != nil {
-			return err
 		}
 		tok.Link = next
 		return tx.SetCollectionSync(ctx, col.ID, tok.encode(), "")
@@ -507,4 +521,58 @@ func (p *pass) syncGraphFolder(ctx context.Context, c *graph.Client, col store.C
 		return fmt.Errorf("store graph contacts: %w", err)
 	}
 	return nil
+}
+
+// photoWorkers is how many contact photos a pass reads at once.
+const photoWorkers = 4
+
+// contactPhotos reads the photos of the contacts ids names, photoWorkers at
+// a time, by contact id; a contact without a photo (404) has none. The
+// first error stops the rest, and so does the end of ctx.
+func contactPhotos(ctx context.Context, c *graph.Client, ids []string) (map[string][]byte, error) {
+	photos := make([][]byte, len(ids))
+	work, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var mu sync.Mutex
+	var first error
+	next := make(chan int)
+	var wg sync.WaitGroup
+	for range min(photoWorkers, len(ids)) {
+		wg.Go(func() {
+			for i := range next {
+				photo, err := c.Photo(work, ids[i])
+				if err != nil {
+					mu.Lock()
+					if first == nil {
+						first = fmt.Errorf("contact photo: %w", err)
+					}
+					mu.Unlock()
+					cancel()
+					continue
+				}
+				photos[i] = photo
+			}
+		})
+	}
+feed:
+	for i := range ids {
+		select {
+		case next <- i:
+		case <-work.Done():
+			break feed
+		}
+	}
+	close(next)
+	wg.Wait()
+	if first != nil {
+		return nil, first
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("contact photos: %w", err)
+	}
+	out := make(map[string][]byte, len(ids))
+	for i, id := range ids {
+		out[id] = photos[i]
+	}
+	return out, nil
 }

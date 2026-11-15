@@ -60,6 +60,23 @@ type DB struct {
 	// OnCommit receives each committed transaction's events, in commit
 	// order, while the write lock is held. It must not block.
 	OnCommit func([]api.EventEnvelope)
+	// Observe, when set, receives the name of each costly call that a sync
+	// pass must not repeat (OpRelinkPeople, OpObjectByHref, OpObjectRaws)
+	// as it starts, so that tests can count them. It must not block.
+	Observe func(op string)
+}
+
+// The operations Observe names.
+const (
+	OpRelinkPeople = "RelinkPeople"
+	OpObjectByHref = "ObjectByHref"
+	OpObjectRaws   = "ObjectRaws"
+)
+
+func (d *DB) observe(op string) {
+	if d.Observe != nil {
+		d.Observe(op)
+	}
 }
 
 // Open opens or creates the database at path and applies pending migrations.

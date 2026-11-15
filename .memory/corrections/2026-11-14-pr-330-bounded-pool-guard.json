@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-14",
+  "scope": "pimsync",
+  "correction": "A test of a bounded worker pool must prove the bound: that more than 1 call runs at once, that no more than the limit runs at once, and that an error or the end of ctx stops the calls in flight. Checking results only passes a serial or an unbounded pool too.",
+  "evidence": "frostyard/frostmail#330, cross-review (openai/gpt-6.1-sol) of head 35f3c11, finding 2",
+  "promoted_to": "internal/pimsync/photos_internal_test.go"
+}
