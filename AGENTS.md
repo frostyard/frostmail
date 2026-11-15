@@ -308,6 +308,8 @@ or a pass that the samples do not establish.
 
 A confirmation that a step happened does not close a phase whose "Done
 when" asks for more evidence: record the step as done and keep the phase
-open. A record that closes an item without its "Done when" evidence
-names each missing piece and who accepted closing without it, in every
-line that marks it done (a roadmap row and a status line too).
+open. The record that closes an item without its "Done when" evidence
+(the plan's phase and status) names each missing piece and who accepted
+closing without it. Every other line that marks the item done (a
+roadmap row, a status line) names who accepted it and points to that
+record.
