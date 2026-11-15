@@ -9,7 +9,7 @@ and depends on lodge's Phases 1 (the kit) and 2 (lodge v1). It runs after
 and leaves the friend's Windows install on its local maild.
 The contract is [specs/lodge-app.md](../specs/lodge-app.md).
 
-Status (2026-10-24):
+Status (2026-11-15):
 - **Phase 1 is done.** The user accepted ADR-0041 on 2026-10-21.
 - **Phases 2 to 6 are built,** merged on 2026-10-19 (#60–#68 and
   #71–#77) and pinned to lodge's `kit/v0.1.0` and `client/v0.1.0`. Each
@@ -18,17 +18,28 @@ Status (2026-10-24):
   - Phase 3: the reader frame's images from `lodge-content`, and the
     switcher's chord, in a real browser;
   - Phase 6: a real notification on Linux and on Windows.
-- **Phase 7's tools are built** (2026-10-24): `mailctl export` and
+- **Phase 7's move is done** (by 2026-11-15). The user's mail runs on
+  lodge's host; the user confirmed it on 2026-11-15, and
+  `frostmail.service` there was reported active with
+  `FROSTMAIL_SECRETS=sealed`. Its tools were built on 2026-10-24:
+  `mailctl export` and
   [`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh),
   tested against a staged root (#115).
 - **The sealed secrets store is built** (2026-10-24):
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
   accepted the same day. `FROSTMAIL_SECRETS=sealed`, the unit and the
   move script's `sealed` (#117), and `scripts/seal-mail-secrets.sh`
-  (#118) are tested; the key step on lodge's host is not run yet. The move itself
-  waits on the user. [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)
+  (#118) are tested. maild on lodge's host is reported to run with the
+  sealed store (Phase 7). [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)
   (2026-10-28) makes the key at first start, with `frostmail-secrets-key.service`,
   so a Snosi host needs no by-hand key step.
+- **Phase 7 stays open.** Its "Done when" asks for a week in which the
+  user's accounts sync only on lodge's host, read from the phone, a
+  browser and the desktop app, with clean daily verifies, and then the
+  removal of the desktop's Secret Service items. The record holds none of
+  this evidence, and no exact date of the move. Phase 7 is done when that
+  evidence is recorded, or when the user accepts closing it without the
+  evidence; the record then names who accepted it.
 
 ## Decisions for M8
 
@@ -306,6 +317,10 @@ The user's accounts, their mail and their secrets move from the desktop's
 maild to `/var/lib/frostmail` on lodge's host, which is another machine,
 and the desktop's maild stops.
 
+- **The move is done** (by 2026-11-15). The user's mail runs on lodge's
+  host, and the user confirmed it on 2026-11-15. `frostmail.service` there
+  was reported active with `FROSTMAIL_SECRETS=sealed`. The "Done when"
+  below is not met yet: the Status says what is not recorded.
 - **The sign-in question** is answered:
   [ADR-0043](../adr/0043-finish-a-sign-in-with-a-pasted-address.md)
   (accepted 2026-10-21) finishes a sign-in with a pasted address.
@@ -340,7 +355,9 @@ and the desktop's maild stops.
   and run `systemctl daemon-reload`; run `scripts/seal-mail-secrets.sh`
   (dry run) and then with `--apply`, which makes the key and seals the
   test deployment's `secrets.json`; then
-  `scripts/move-mail-to-lodge.sh --from DIR`.
+  `scripts/move-mail-to-lodge.sh --from DIR`. The move is done (by
+  2026-11-15), but the record does not say which of these steps ran or
+  which way made the key.
 - **`mailctl export DIR`** (built). On the desktop, with maild stopped, it
   writes a still copy of maild's data:
   - `frostmail.db`, by SQLite's `VACUUM INTO`, with no migration;
@@ -383,7 +400,10 @@ and the desktop's maild stops.
 - **Done when:** the user's accounts sync only on lodge's host for a week,
   read from the phone, a browser and the desktop app, with clean daily
   verifies. Then the desktop's Secret Service items go
-  (`secret-tool clear application frostmail`).
+  (`secret-tool clear application frostmail`). Not recorded yet: the
+  week of sync only on lodge's host, the reads from the 3 clients, the
+  daily verifies and the removal of the Secret Service items (see the
+  Status).
 
 ## Later / ideas
 
