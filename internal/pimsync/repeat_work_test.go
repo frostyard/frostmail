@@ -78,6 +78,60 @@ func TestDAVContactPassRelinksPeopleOnce(t *testing.T) {
 	}
 }
 
+// The relink tells readers: a people.changed commits after it, so that a
+// reader that refreshed on a batch's event, before the relink, reads the
+// linked index again.
+func TestPeopleChangedFollowsTheRelink(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		setup func(t *testing.T) (*store.DB, func())
+	}{
+		{"dav", func(t *testing.T) (*store.DB, func()) {
+			e := newEnv(t, davtest.Options{}, api.ServiceKindContacts)
+			book := e.dav.AddressBook("default", "Contacts")
+			for i := range 5 {
+				e.dav.Put(fmt.Sprintf("%sc%d.vcf", book, i), vcard(fmt.Sprint("c", i), fmt.Sprint("Person ", i), "same@example.com"))
+			}
+			return e.db, e.pass
+		}},
+		{"graph", func(t *testing.T) (*store.DB, func()) {
+			e := newGraphEnv(t, allGraphScopes)
+			for i := range 3 {
+				e.srv.PutContact("contacts", graphPerson(i), nil)
+			}
+			return e.db, e.pass
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			db, pass := c.setup(t)
+			var mu sync.Mutex
+			var log []string // relinks and committed people.changed, in order
+			db.Observe = func(op string) {
+				if op == store.OpRelinkPeople {
+					mu.Lock()
+					log = append(log, "relink")
+					mu.Unlock()
+				}
+			}
+			db.OnCommit = func(evs []api.EventEnvelope) {
+				mu.Lock()
+				defer mu.Unlock()
+				for _, ev := range evs {
+					if ev.Event == "people.changed" {
+						log = append(log, "people.changed")
+					}
+				}
+			}
+			pass()
+			mu.Lock()
+			defer mu.Unlock()
+			if !slices.Contains(log, "relink") || log[len(log)-1] != "people.changed" {
+				t.Errorf("relinks and events = %q, want a people.changed after the last relink", log)
+			}
+		})
+	}
+}
+
 // A pass that fails part-way still relinks the contacts its committed
 // batches stored.
 func TestDAVContactPassRelinksAfterAFailure(t *testing.T) {

@@ -66,7 +66,8 @@ IMAP    ──► imapx ───► actor ─┘   │          ├─ People �
   the collection. Each batch is one transaction with events. A batch
   that changes contacts marks the people index stale (`store_info`
   `people_stale`) in its transaction, and the address books' pass relinks
-  people once at its end, in its own transaction, also after a failure; a
+  people once at its end, in its own transaction with its own
+  `people.changed`, also after a failure; a
   mark that a failed or cut-off pass leaves is relinked by the next pass.
   On a server
   whose sync calls objects deleted that it still serves (Google's; the

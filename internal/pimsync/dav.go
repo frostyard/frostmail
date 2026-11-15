@@ -294,7 +294,9 @@ func (p *pass) emitDAV(ctx context.Context, tx *store.Tx, kind api.CollectionKin
 // a transaction marked it stale (store.Tx.MarkPeopleStale). A pass's
 // batches commit apart and mark it; their pass calls this after its last
 // collection, also after a failure. A relink that fails, or a pass cut off
-// before it, leaves the durable mark, and the next pass relinks.
+// before it, leaves the durable mark, and the next pass relinks. The
+// batches' people.changed came before the relink, so the relink sends its
+// own: readers that refreshed early read the index again, linked.
 func (p *pass) relinkPeople(ctx context.Context) error {
 	stale, err := p.m.db.PeopleStale(ctx)
 	if err != nil {
@@ -303,7 +305,13 @@ func (p *pass) relinkPeople(ctx context.Context) error {
 	if !stale {
 		return nil
 	}
-	if err := p.m.db.Tx(ctx, func(tx *store.Tx) error { return tx.RelinkPeople(ctx) }); err != nil {
+	err = p.m.db.Tx(ctx, func(tx *store.Tx) error {
+		if err := tx.RelinkPeople(ctx); err != nil {
+			return err
+		}
+		return tx.Emit(ctx, api.PeopleChanged{AccountID: p.acct.ID})
+	})
+	if err != nil {
 		return fmt.Errorf("relink people: %w", err)
 	}
 	return nil
