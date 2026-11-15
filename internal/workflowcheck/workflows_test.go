@@ -152,6 +152,7 @@ func TestFlatpakJobsKeepTheInstallationOffOverlayfs(t *testing.T) {
 	if jobs == 0 {
 		t.Fatal("no job runs in the flatpak-github-actions image")
 	}
+	t.Logf("%d jobs run in the flatpak-github-actions image", jobs)
 }
 
 // namedVolumeAt reports whether a container's volumes mount a named volume
