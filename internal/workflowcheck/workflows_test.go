@@ -120,6 +120,74 @@ func TestWorkflowsFollowADR0021(t *testing.T) {
 	}
 }
 
+// Every job that runs in flathub's flatpak-github-actions image mounts a
+// named volume over /var/lib/flatpak. flatpak-builder updates the image's
+// runtime on every build, and the update renames a directory of an image
+// layer; on an overlayfs with redirect_dir off that rename fails with EXDEV,
+// and the build failed that way on AWS-hosted runners. A named volume holds a
+// copy of the installation on the host's own file system.
+func TestFlatpakJobsKeepTheInstallationOffOverlayfs(t *testing.T) {
+	jobs := 0
+	for name, root := range workflows(t) {
+		all := get(root, "jobs")
+		if all == nil || all.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i+1 < len(all.Content); i += 2 {
+			id, job := all.Content[i].Value, all.Content[i+1]
+			container := get(job, "container")
+			image := get(container, "image")
+			if container != nil && container.Kind == yaml.ScalarNode {
+				image = container
+			}
+			if image == nil || !strings.Contains(image.Value, "/flatpak-github-actions:") {
+				continue
+			}
+			jobs++
+			if !namedVolumeAt(get(container, "volumes"), "/var/lib/flatpak") {
+				t.Errorf("%s: job %s runs in %s without a named volume at /var/lib/flatpak", name, id, image.Value)
+			}
+		}
+	}
+	if jobs == 0 {
+		t.Fatal("no job runs in the flatpak-github-actions image")
+	}
+	t.Logf("%d jobs run in the flatpak-github-actions image", jobs)
+}
+
+// namedVolumeAt reports whether a container's volumes mount a named volume
+// (not a host path) at target.
+func namedVolumeAt(volumes *yaml.Node, target string) bool {
+	if volumes == nil || volumes.Kind != yaml.SequenceNode {
+		return false
+	}
+	for _, v := range volumes.Content {
+		source, dest, ok := strings.Cut(v.Value, ":")
+		dest, _, _ = strings.Cut(dest, ":")
+		if ok && dest == target && source != "" && !strings.ContainsAny(source[:1], "/.~$") {
+			return true
+		}
+	}
+	return false
+}
+
+func TestNamedVolumeAt(t *testing.T) {
+	for spec, want := range map[string]bool{
+		"flatpak-installation:/var/lib/flatpak":    true,
+		"flatpak-installation:/var/lib/flatpak:rw": true,
+		"/srv/flatpak:/var/lib/flatpak":            false,
+		"./flatpak:/var/lib/flatpak":               false,
+		"/var/lib/flatpak":                         false,
+		"flatpak-installation:/var/lib/flatpak2":   false,
+		"flatpak-installation:/tmp":                false,
+	} {
+		volumes := &yaml.Node{Kind: yaml.SequenceNode, Content: []*yaml.Node{{Kind: yaml.ScalarNode, Value: spec}}}
+		if got := namedVolumeAt(volumes, "/var/lib/flatpak"); got != want {
+			t.Errorf("namedVolumeAt(%q) = %v, want %v", spec, got, want)
+		}
+	}
+}
+
 // The release workflow's build job runs third-party npm code, so it holds no
 // write token and no id-token; only the release job may write, attest and
 // mint an id-token (frostyard/core ADR-0011, ADR-0021).
