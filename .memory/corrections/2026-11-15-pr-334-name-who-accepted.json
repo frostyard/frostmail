@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-15",
+  "scope": "docs/plans",
+  "correction": "Every line that marks an item done without its Done when evidence names who accepted it, also a short status line such as a roadmap row: an acceptance date alone does not say who accepted.",
+  "evidence": "frostyard/frostmail#334, cross-review (openai/gpt-6.1-sol) of head 7d70171, finding 1",
+  "promoted_to": "AGENTS.md"
+}

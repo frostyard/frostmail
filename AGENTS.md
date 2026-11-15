@@ -35,8 +35,9 @@ and each milestone's plan carries its own status. M8, mail in lodge
   (`FROSTMAIL_SECRETS=sealed`, a key from a systemd credential, made by
   `frostmail-secrets-key.service` at first start, [ADR-0047](docs/adr/0047-make-the-secrets-key-at-first-start.md);
   `scripts/seal-mail-secrets.sh` can make it earlier). The move is done:
-  the user's mail runs on lodge's host (by 2026-11-15). Phase 7 stays
-  open until its week of evidence is recorded (plan 0011's status).
+  the user's mail runs on lodge's host (by 2026-11-15). Phase 7 is done,
+  accepted by the user on 2026-11-15 without the recorded week of
+  verifies (plan 0011's status).
 
 M8.5 ([plan 0012](docs/plans/0012-calendar-tasks-and-contacts-for-agents.md)),
 calendar, task and contact tools on `/mcp/mail` for Porter, is built and
@@ -304,3 +305,11 @@ in place when decisions change.
 A check's record (a plan's gate or VM check) states what its evidence
 shows: the observed times, counts and texts. Never state a limit, a cause
 or a pass that the samples do not establish.
+
+A confirmation that a step happened does not close a phase whose "Done
+when" asks for more evidence: record the step as done and keep the phase
+open. The record that closes an item without its "Done when" evidence
+(the plan's phase and status) names each missing piece and who accepted
+closing without it. Every other line that marks the item done (a
+roadmap row, a status line) names who accepted it and points to that
+record.

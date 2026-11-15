@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-15",
+  "scope": "docs/plans",
+  "correction": "A confirmation that a step happened (the mail moved to lodge's host) does not close the phase whose Done when asks for more evidence. Record the step as done and keep the phase open until its evidence is recorded or someone accepts closing it without the evidence.",
+  "evidence": "frostyard/frostmail#333, cross-review (openai/gpt-6.1-sol) of head 384f354, finding 1",
+  "promoted_to": "AGENTS.md"
+}
