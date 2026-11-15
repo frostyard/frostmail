@@ -1,6 +1,6 @@
 # 0058 — Pin MyGo's quote-depth fix from the owner's fork
 
-- **Status:** Accepted
+- **Status:** Accepted; the replacement ended on 2026-11-15 (see Outcome)
 - **Date:** 2026-11-11
 
 ## Context
@@ -37,6 +37,14 @@ The fix can ship before the upstream review finishes. Frostmail temporarily
 owns a dependency replacement and must track the upstream PR. The pinned
 fork also includes upstream changes between v0.9.0 and `0d644f4a`; the normal
 application checks cover the combined dependency update.
+
+## Outcome
+
+Upstream merged #1731 (merge commit `d7da941`) and released it in
+MyGo v0.9.1 on 2026-11-15. Frostmail now requires `github.com/egoist/mygo`
+v0.9.1, `go.mod` has no MyGo `replace`, and the Flatpak's offline sources fetch
+the upstream module. The Go, desktop and compose checks ran again on that
+version, as the Decision asks.
 
 ## Alternatives considered
 
