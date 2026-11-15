@@ -33,11 +33,13 @@ Status (2026-11-15):
   sealed store (Phase 7). [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)
   (2026-10-28) makes the key at first start, with `frostmail-secrets-key.service`,
   so a Snosi host needs no by-hand key step.
-- **Not recorded:** Phase 7's "Done when" asks for a week of sync on
-  lodge's host only, with clean daily verifies, and then the removal of
-  the desktop's Secret Service items. The record holds no daily verifies,
-  no exact date of the move, and no record of that removal. Phase 7 is
-  marked done on the user's confirmation of 2026-11-15.
+- **Phase 7 stays open.** Its "Done when" asks for a week in which the
+  user's accounts sync only on lodge's host, read from the phone, a
+  browser and the desktop app, with clean daily verifies, and then the
+  removal of the desktop's Secret Service items. The record holds none of
+  this evidence, and no exact date of the move. Phase 7 is done when that
+  evidence is recorded, or when the user accepts closing it without the
+  evidence; the record then names who accepted it.
 
 ## Decisions for M8
 
@@ -315,10 +317,10 @@ The user's accounts, their mail and their secrets move from the desktop's
 maild to `/var/lib/frostmail` on lodge's host, which is another machine,
 and the desktop's maild stops.
 
-- **Done** (by 2026-11-15). The user's mail runs on lodge's host, and the
-  user confirmed it on 2026-11-15. `frostmail.service` there was reported
-  active with `FROSTMAIL_SECRETS=sealed`. The Status says what is not
-  recorded.
+- **The move is done** (by 2026-11-15). The user's mail runs on lodge's
+  host, and the user confirmed it on 2026-11-15. `frostmail.service` there
+  was reported active with `FROSTMAIL_SECRETS=sealed`. The "Done when"
+  below is not met yet: the Status says what is not recorded.
 - **The sign-in question** is answered:
   [ADR-0043](../adr/0043-finish-a-sign-in-with-a-pasted-address.md)
   (accepted 2026-10-21) finishes a sign-in with a pasted address.
@@ -398,7 +400,8 @@ and the desktop's maild stops.
 - **Done when:** the user's accounts sync only on lodge's host for a week,
   read from the phone, a browser and the desktop app, with clean daily
   verifies. Then the desktop's Secret Service items go
-  (`secret-tool clear application frostmail`). Not recorded: the week's
+  (`secret-tool clear application frostmail`). Not recorded yet: the
+  week of sync only on lodge's host, the reads from the 3 clients, the
   daily verifies and the removal of the Secret Service items (see the
   Status).
 
