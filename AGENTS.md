@@ -305,3 +305,9 @@ in place when decisions change.
 A check's record (a plan's gate or VM check) states what its evidence
 shows: the observed times, counts and texts. Never state a limit, a cause
 or a pass that the samples do not establish.
+
+A confirmation that a step happened does not close a phase whose "Done
+when" asks for more evidence: record the step as done and keep the phase
+open. A record that closes an item without its "Done when" evidence
+names each missing piece and who accepted closing without it, in every
+line that marks it done (a roadmap row and a status line too).
