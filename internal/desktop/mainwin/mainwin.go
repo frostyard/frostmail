@@ -270,6 +270,9 @@ func (w *Window) Raise() {
 	}
 }
 
+// NewMessage starts a message, as the tray's New Message does.
+func (w *Window) NewMessage() { w.compose() }
+
 // ShowProblem shows a toast saying what went wrong.
 func (w *Window) ShowProblem(title string, err error) { w.toast(title, err) }
 

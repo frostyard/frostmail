@@ -148,6 +148,11 @@ type Window struct {
 	// that started it.
 	server   serverPane
 	firstRun firstRun
+
+	// This computer's close-to-tray setting, and whether the app has a tray
+	// icon to close to.
+	closeToTray bool
+	trayShown   bool
 }
 
 // New returns a window that is not connected yet.
@@ -164,6 +169,7 @@ func New(o Options) *Window {
 	w.mount(PaneAccounts)
 	w.readServer(false)
 	w.firstRun.dismissed = moveNoteDismissed(o.ConfigFile)
+	w.closeToTray = closeToTrayOn(o.ConfigFile)
 	return w
 }
 

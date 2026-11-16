@@ -91,12 +91,14 @@ func run() error {
 		return err
 	}
 	post := &poster{}
+	// The tray reads the count after main exists, as the posted functions
+	// run only once the window is ready.
+	tc := &trayCount{post: post.post, count: func() int64 { return main.InboxesUnread() }}
 	mygo.App.OnSecondInstance(func(args []string, _ string) {
 		if win == nil {
 			return
 		}
-		win.Restore()
-		win.Focus()
+		raise(win)
 		if id, ok := openMessageArg(args); ok {
 			post.post(func() { main.OpenMessage(id) })
 		}
@@ -137,14 +139,11 @@ func run() error {
 			SocketLost:   func(err error) { rec.Error(codeSocketLost, err) },
 			Settings:     prefs.w,
 			OpenSettings: prefs.open,
-			Raise: func() {
-				win.Restore()
-				win.Focus()
-			},
+			Raise:        func() { raise(win) },
 			OpenCompose: func(c *api.Client, draft int64, fresh bool) {
 				composer.open(ctx, c, draft, fresh)
 			},
-			UnreadChanged: badge.Changed,
+			UnreadChanged: func() { badge.Changed(); tc.Changed() },
 		})
 		composer = &composeWindows{windows: map[draftKey]*mygo.Window{}, main: main, target: target, paths: paths, settings: prefs.open, all: windows}
 		prefs.main, prefs.all = main, windows
@@ -157,6 +156,15 @@ func run() error {
 		windows.add(win)
 		win.OnClosed(prefs.close)
 		win.OnClosed(main.SaveState)
+		tray, err := frostui.NewTray(frostui.TrayOptions{ID: appName(os.Getenv), ToolTip: "Frostmail", OpenLabel: "Open Frostmail", Icon: icons.Tray(), Window: win, Items: trayItems(main.NewMessage)})
+		if err != nil {
+			slog.Info("no tray icon", "err", err)
+		} else {
+			tc.attach(tray)
+			prefs.w.SetTray(true)
+			win.OnClose(closeToTray(tray, prefs.w.CloseToTray))
+			mygo.App.OnQuit(tray.Destroy)
+		}
 		frames = uikit.NewSafeHTMLView(win, "frostmail-reader", main.OpenLink, func() { post.post(func() {}) })
 		main.Start(ctx)
 		if id, ok := openMessageArg(os.Args[1:]); ok {

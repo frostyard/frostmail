@@ -110,11 +110,21 @@ func (w *Window) generalGroups() []frostui.SettingsGroup {
 	for i := range g.names {
 		flags[i] = frostui.Setting{Title: mail.FlagNames[i], Control: func(c *ui.Context) { w.flagField(c, g, i, off) }}
 	}
-	return []frostui.SettingsGroup{
-		{Settings: []frostui.Setting{notify, undo, blocked, preview}},
-		{Title: "Flag Names", Settings: flags},
-		{Title: "Blocked Senders", Settings: w.blockedRows()},
+	groups := []frostui.SettingsGroup{{Settings: []frostui.Setting{notify, undo, blocked, preview}}}
+	// This computer's own prefs follow the ones maild holds: they are no
+	// part of a connection, so they are never disabled.
+	if w.trayShown {
+		groups = append(groups, frostui.SettingsGroup{Title: "This Computer", Settings: []frostui.Setting{{
+			Title:    "Close to tray",
+			Subtitle: "Closing the main window keeps Frostmail in the tray while a panel shows its icon. Quit from the tray's menu.",
+			Switch:   &w.closeToTray,
+			OnChange: w.saveCloseToTray,
+		}}})
 	}
+	return append(groups,
+		frostui.SettingsGroup{Title: "Flag Names", Settings: flags},
+		frostui.SettingsGroup{Title: "Blocked Senders", Settings: w.blockedRows()},
+	)
 }
 
 // flagColor is a flag's color, light and dark (docs/specs/ui.md, Tokens:

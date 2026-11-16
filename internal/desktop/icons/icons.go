@@ -5,7 +5,10 @@
 // too.
 package icons
 
-import "fmt"
+import (
+	_ "embed"
+	"fmt"
+)
 
 // FlagPrefix starts the name of a flag's icon; the color's number, 1 to 7,
 // follows.
@@ -16,6 +19,18 @@ const FlagPrefix = "frostmail-flag-"
 var flagColors = [7]string{"#ff3b30", "#ff9500", "#ffcc00", "#34c759", "#007aff", "#af52de", "#8e8e93"}
 
 const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+
+// trayPNG is the tray icon: the app's own icon, which frostui.NewTray
+// takes. TestTrayIconIsTheAppsIcon keeps it in step with
+// packaging/icons/128x128.png.
+//
+//go:embed tray.png
+var trayPNG []byte
+
+// Tray returns the tray icon, a PNG in color, 128 pixels on a side
+// (frostui.TrayOptions.Icon). The slice is shared: callers must not change
+// it.
+func Tray() []byte { return trayPNG }
 
 // Embedded returns the icons by name, for frostui.NewIcons.
 func Embedded() map[string][]byte {

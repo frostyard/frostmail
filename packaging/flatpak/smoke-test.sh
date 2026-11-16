@@ -14,6 +14,8 @@
 #   - the launcher's normal start through a fake flatpak-spawn, which leaves
 #     no flatpak-spawn behind, while maild lives on, and the maild it started
 #     names the click's helper in FROSTMAIL_APP;
+#   - the app's TMPDIR, the app's shared runtime directory, in local and
+#     lodge mode, where the host's panel can read the tray icon;
 #   - a notification's click: the helper runs the app through flatpak-spawn
 #     with --latest-version, and runs frostmail here when there is none;
 #   - `frostmail --start-maild` in local mode, which starts maild through the
@@ -205,6 +207,7 @@ FAKE
 cat >"$work/libexec/frostmail-app" <<'FAKE'
 #!/bin/sh
 echo "$@" >>"$SMOKE_MARKS/app"
+echo "${TMPDIR:-}" >"$SMOKE_MARKS/tmpdir"
 FAKE
 cat >"$work/libexec/frostmail-request-background" <<'FAKE'
 #!/bin/sh
@@ -332,6 +335,10 @@ mailctl rules ls | grep -q "smoke test rule" || fail "the rule is gone after the
 wait_file "$SMOKE_MARKS/background" || fail "the launcher did not ask the Background portal"
 wait_file "$SMOKE_MARKS/app" || fail "the launcher did not run the app"
 [ "$(cat "$SMOKE_MARKS/app")" = "--open-message 1" ] || fail "the app got '$(cat "$SMOKE_MARKS/app")'"
+# The host's panel reads the tray icon from the app's TMPDIR: the shared
+# runtime directory, never the sandbox's private /tmp.
+[ "$(cat "$SMOKE_MARKS/tmpdir")" = "$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail" ] ||
+    fail "the app's TMPDIR is '$(cat "$SMOKE_MARKS/tmpdir")', not the shared runtime directory"
 # maild lives on, with no flatpak-spawn: it holds its own output.
 sleep 1
 alive "$new" || fail "maild $new ended with flatpak-spawn"
@@ -484,6 +491,8 @@ fi
 rm -f "$SMOKE_SPAWN_PID" "$SMOKE_CHILD_PID" "$SMOKE_MARKS/app" "$SMOKE_MARKS/background"
 "$bin/frostmail" >"$work/launcher.log" 2>&1
 [ -e "$SMOKE_MARKS/app" ] || fail "the launcher did not run the app in lodge mode"
+[ "$(cat "$SMOKE_MARKS/tmpdir")" = "$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail" ] ||
+    fail "in lodge mode the app's TMPDIR is '$(cat "$SMOKE_MARKS/tmpdir")', not the shared runtime directory"
 sleep 1
 [ ! -e "$SMOKE_SPAWN_PID" ] || fail "the launcher started a maild in lodge mode"
 [ ! -e "$SMOKE_MARKS/background" ] || fail "the launcher asked the Background portal in lodge mode"

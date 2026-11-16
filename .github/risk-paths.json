@@ -43,6 +43,11 @@
       "why": "publication: the Flatpak manifest and its sandbox permissions, the launcher, the version stamp, the install wrapper and the wrapper it installs"
     },
     {
+      "glob": "packaging/flatpak/shared-modules/**",
+      "level": "L1",
+      "why": "publication: the native libraries that the Flatpak builds from pinned sources and ships (libayatana-appindicator for the tray)"
+    },
+    {
       "glob": "packaging/{nfpm.yaml,deb-check.py}",
       "level": "L1",
       "why": "publication: the contents of the .deb and its check"

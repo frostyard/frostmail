@@ -55,6 +55,14 @@
 # `flatpak-spawn --latest-version frostmail ARGS`, which opens the window, as
 # a normal start does, in a new sandbox of the latest installed deployment.
 #
+# The tray icon (docs/adr/0060-close-to-the-tray-is-an-opt-in-setting.md):
+# MyGo writes the icon as a PNG file under the temporary directory and gives
+# the panel its path. The sandbox's /tmp is private, so the host's panel
+# would read nothing there and draw a blank icon. Before it runs the app, the
+# launcher sets TMPDIR to the app's directory under $XDG_RUNTIME_DIR, which
+# Flatpak shares with the host at the same path. maild keeps the TMPDIR it
+# had.
+#
 # --latest-version makes the portal start the command from the newest
 # installed deployment of this app, never from the one this window runs. An
 # old window, or an old notification's click, cannot bring back an old maild:
@@ -203,6 +211,17 @@ ask_background() {
     "$request_background" >>"$state/background.log" 2>&1 &
 }
 
+# app_tmpdir: give the app the app's shared runtime directory as TMPDIR,
+# when it exists (see the header): the host's panel reads the tray icon
+# there. Without it, the app keeps the TMPDIR it had.
+app_tmpdir() {
+    shared="${XDG_RUNTIME_DIR:-}/app/${FLATPAK_ID:-}"
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -n "${FLATPAK_ID:-}" ] && [ -d "$shared" ]; then
+        TMPDIR="$shared"
+        export TMPDIR
+    fi
+}
+
 # The mode: local or lodge. When maild cannot say (a malformed app.json, no
 # maild), the launcher treats it as local; maild's own check decides.
 mode=$(maild -mode 2>/dev/null) || mode=local
@@ -245,6 +264,7 @@ fi
 
 if [ "$mode" = "lodge" ]; then
     # The window talks to the maild of lodge's host: nothing runs here.
+    app_tmpdir
     exec "$app" "$@"
 fi
 
@@ -253,4 +273,5 @@ start_local || maild_not_started
 
 ask_background
 
+app_tmpdir
 exec "$app" "$@"

@@ -386,6 +386,7 @@ var governedPaths = []string{
 	".svu.yml",
 	"packaging/flatpak/org.frostyard.Frostmail.json",
 	"packaging/flatpak/frostmail",
+	"packaging/flatpak/shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json",
 	"packaging/nfpm.yaml",
 	"mygo.json",
 	"internal/desktop/uikit/safehtml.go",

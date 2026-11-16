@@ -398,6 +398,43 @@ GNOME's own dash shows no count.
   call to a name the proxy does not allow failed with `ServiceUnknown`.
 - Windows shows no count yet: a taskbar overlay is later (P-113).
 
+## Tray icon
+
+While the app runs, it shows an icon in the panel's tray (the notification
+area on Windows), on frostui's `Tray`
+([ADR-0060](../adr/0060-close-to-the-tray-is-an-opt-in-setting.md)).
+
+- **The menu:** "N unread" (disabled; the All Inboxes count, the same
+  `mail.InboxesUnread` as the launcher count), Open Frostmail, New Message
+  (a new draft in a compose window, as Ctrl N does), Quit. The tooltip is
+  "Frostmail — N unread". A dot shows on the icon while N is more than 0.
+- **The count** follows `UnreadChanged`, as the launcher count does. The
+  updates are coalesced: while 1 is posted to the UI thread, more changes
+  post nothing, and the posted one reads the count when it runs.
+- **The icon** is `packaging/icons/128x128.png` in color
+  (`internal/desktop/icons/tray.png`, a copy that a test keeps equal).
+  GNOME's top bar is dark in both modes, so it is never a template icon.
+- **Clicks** are frostui's: on Linux the panel opens the menu, and its
+  activation (GNOME: a double click; Plasma: a click) shows the window; on
+  Windows a click shows the window and a right click opens the menu.
+- **Close to tray** is the General pane's switch, off by default, kept as
+  the file `close-to-tray` beside `app.json`. The main window's `OnClose`
+  calls `Tray.CloseToTray(e, setting)`: with the setting on, a panel
+  hosting the icon and no quit running, the window hides and the app runs
+  on; else the close goes on as before. A second launch, a notification's
+  click and its Reply show a hidden window (`Show`, then `Restore` and
+  `Focus`).
+- **No tray:** where `frostui.NewTray` fails (a host install without
+  `libayatana-appindicator3`), the app logs it at Info and runs as before;
+  the General pane shows no switch.
+- **Flatpak:** the manifest builds `libayatana-appindicator3` from the
+  vendored Flathub shared modules (`packaging/flatpak/shared-modules/`),
+  and may talk to `org.kde.StatusNotifierWatcher`. MyGo writes the icon
+  to a file under `TMPDIR` and gives the panel its path, so the launcher
+  sets the app's `TMPDIR` to `$XDG_RUNTIME_DIR/app/$FLATPAK_ID`, which
+  the host sees at the same path; with the sandbox's private `/tmp`, the
+  panel draws a blank icon.
+
 ## Windows
 
 ADR-0038; plan 0010's Phase 4 builds maild's side, and Phase 5 the app,

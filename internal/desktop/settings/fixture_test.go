@@ -238,6 +238,17 @@ func (f *fixture) checked(name string) bool {
 	return f.control(ui.RoleCheckBox, name).Checked
 }
 
+// toggle moves the switch named name, which is no check box.
+func (f *fixture) toggle(name string) {
+	f.t.Helper()
+	f.press(f.control(ui.RoleSwitch, name))
+}
+
+func (f *fixture) toggled(name string) bool {
+	f.t.Helper()
+	return f.control(ui.RoleSwitch, name).Checked
+}
+
 func (f *fixture) disabled(name string) bool {
 	f.t.Helper()
 	f.tt.Frame()
