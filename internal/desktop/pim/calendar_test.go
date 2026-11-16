@@ -577,7 +577,7 @@ func TestInvitationShowsAnswerPeopleAndOnlyEdit(t *testing.T) {
 	if f.tt.HasText("Delete Event") {
 		t.Error("an invitation offers Delete")
 	}
-	f.m.editSelected()
+	f.editSelected()
 	f.until("the window", func() bool { w := f.window("event-"); return w != nil && f.m.windows[w.spec.Key].loaded })
 	win := f.window("event-")
 	win.tt.Frame()
@@ -688,7 +688,7 @@ func TestClosingWithChangesAsks(t *testing.T) {
 	f.text("Review")
 	f.click("Review, 2:00 – 3:30 PM")
 	f.until("selection", func() bool { return f.m.shownEvent() != nil })
-	f.m.editSelected()
+	f.editSelected()
 	f.until("the window", func() bool { w := f.window("event-"); return w != nil && f.m.windows[w.spec.Key].loaded })
 	win := f.window("event-")
 	w := f.m.windows[win.spec.Key]
@@ -732,10 +732,10 @@ func TestEventWindowOpensOnceByKey(t *testing.T) {
 	f.text("Review")
 	f.click("Review, 2:00 – 3:30 PM")
 	f.until("selection", func() bool { return f.m.shownEvent() != nil })
-	f.m.editSelected()
+	f.editSelected()
 	f.until("the window", func() bool { return f.window("event-") != nil })
 	first := f.window("event-")
-	f.m.editSelected()
+	f.editSelected()
 	if f.window("event-") != first || len(f.m.windows) != 1 {
 		t.Error("a second window")
 	}

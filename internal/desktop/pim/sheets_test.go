@@ -178,13 +178,56 @@ func TestAnUndoThatTellsInviteesAsksAndCancelKeepsTheEntry(t *testing.T) {
 	})
 }
 
+// heldCollections holds account.collections until release closes.
+type heldCollections struct {
+	api.AccountService
+	release chan struct{}
+}
+
+func (h heldCollections) Collections(ctx context.Context, p *api.AccountCollectionsParams) ([]api.Collection, error) {
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return h.AccountService.Collections(ctx, p)
+}
+
+// TestEditWaitsForTheCalendars is the guard for frostyard/frostmail#338:
+// an event can show before the calendars answer, and until they do, its
+// rights are unknown and Module.editSelected opens nothing. A test that
+// edits must wait for the rights (fixture.editSelected), or it waits for a
+// window that never opens (TestEventWindowNotifySheetKeepsTheDraftOnCancel,
+// Windows, run 43301245121).
+func TestEditWaitsForTheCalendars(t *testing.T) {
+	held := heldCollections{release: make(chan struct{})}
+	f := newFixture(t, commands.Calendar, options{Options: rpctest.Options{Services: func(s *api.Services) {
+		held.AccountService = s.Account
+		s.Account = held
+	}}})
+	f.text("Review")
+	f.click("Review, 2:00 – 3:30 PM")
+	f.until("selection", func() bool { return f.m.shownEvent() != nil })
+	f.m.editSelected()
+	f.tt.Frame()
+	if w := f.window("event-"); w != nil {
+		t.Fatal("an event window opened before its calendar's rights were known")
+	}
+	if f.tt.HasText("Edit Event") {
+		t.Error("Edit Event shows before the calendars answered")
+	}
+	close(held.release)
+	f.editSelected()
+	f.until("the window", func() bool { w := f.window("event-"); return w != nil && f.m.windows[w.spec.Key].loaded })
+}
+
 func TestEventWindowNotifySheetKeepsTheDraftOnCancel(t *testing.T) {
 	fake := &fakeCalendar{notify: true}
 	f := newFixture(t, commands.Calendar, withFake(fake))
 	f.text("Review")
 	f.click("Review, 2:00 – 3:30 PM")
 	f.until("selection", func() bool { return f.m.shownEvent() != nil })
-	f.m.editSelected()
+	f.editSelected()
 	f.until("the window", func() bool { w := f.window("event-"); return w != nil && f.m.windows[w.spec.Key].loaded })
 	win := f.window("event-")
 	w := f.m.windows[win.spec.Key]

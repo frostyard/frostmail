@@ -206,6 +206,23 @@ func (f *fixture) window(prefix string) *window {
 	return nil
 }
 
+// editSelected opens the selected event's window as Edit Event does, once
+// the event's rights are known. The rights read the calendars and the
+// accounts, which can answer after the event: before they do,
+// Module.editSelected opens nothing (frostyard/frostmail#304, #338).
+func (f *fixture) editSelected() {
+	f.t.Helper()
+	f.until("the event's rights", func() bool {
+		e := f.m.shownEvent()
+		if e == nil {
+			return false
+		}
+		writable, _ := f.m.eventRights(e)
+		return writable
+	})
+	f.m.editSelected()
+}
+
 // until redraws until ok holds.
 func (f *fixture) until(what string, ok func() bool) {
 	f.t.Helper()

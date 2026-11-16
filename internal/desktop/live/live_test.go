@@ -27,7 +27,13 @@ type fixture struct {
 
 func newFixture(t *testing.T, n int) *fixture {
 	t.Helper()
-	srv := rpctest.Start(t)
+	return newFixtureWith(t, n, rpctest.Options{})
+}
+
+// newFixtureWith is newFixture on a maild started with o.
+func newFixtureWith(t *testing.T, n int, o rpctest.Options) *fixture {
+	t.Helper()
+	srv := rpctest.StartWith(t, o)
 	ctx := t.Context()
 	f := &fixture{srv: srv, base: time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)}
 	err := srv.DB.Tx(ctx, func(tx *store.Tx) error {
@@ -181,6 +187,73 @@ func TestMailStoreLoadsAndFollows(t *testing.T) {
 	f.events.Deliver(api.SyncProgress{Status: api.SyncStatus{AccountID: f.acct, Phase: api.SyncPhaseIdle}})
 	if s := m.State().Sync[f.acct]; s.Phase != api.SyncPhaseOffline {
 		t.Error("a disconnected store still follows events")
+	}
+}
+
+// heldSync holds sync.status until release closes, then answers with stale:
+// an answer that maild read before a later sync.progress.
+type heldSync struct {
+	api.SyncService
+	asked   chan struct{}
+	release chan struct{}
+	stale   []api.SyncStatus
+}
+
+func (h *heldSync) Status(ctx context.Context, _ *api.SyncStatusParams) ([]api.SyncStatus, error) {
+	close(h.asked)
+	select {
+	case <-h.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return h.stale, nil
+}
+
+// TestASyncProgressDuringConnectIsKept is the guard for
+// frostyard/frostmail#338: a sync.progress that comes while Connect loads
+// is newer than the sync.status answer, which must not undo it. Before the
+// fix, the account stayed "syncing" after its sync had ended, until the
+// next sync (TestFollowUpRowOpensTheMessage, Windows, run 43549273755).
+func TestASyncProgressDuringConnectIsKept(t *testing.T) {
+	held := &heldSync{asked: make(chan struct{}), release: make(chan struct{})}
+	f := newFixtureWith(t, 0, rpctest.Options{Services: func(s *api.Services) {
+		held.SyncService = s.Sync
+		s.Sync = held
+	}})
+	held.stale = []api.SyncStatus{{AccountID: f.acct, Phase: api.SyncPhaseSyncing}}
+	m := live.NewMail(func() {})
+	// Connect starts the Follow Up ticker, which only Disconnect stops.
+	t.Cleanup(m.Disconnect)
+	var release sync.Once
+	free := func() { release.Do(func() { close(held.release) }) }
+	t.Cleanup(free) // a failure before the release must not leave Connect held
+	done := make(chan error, 1)
+	go func() { done <- m.Connect(t.Context(), f.c, f.events) }()
+	timeout := time.After(10 * time.Second)
+	select {
+	case <-held.asked:
+	case err := <-done:
+		t.Fatalf("Connect returned before it asked sync.status: %v", err)
+	case <-timeout:
+		t.Fatal("timed out waiting for Connect to ask sync.status")
+	}
+	f.events.Deliver(api.SyncProgress{Status: api.SyncStatus{AccountID: f.acct, Phase: api.SyncPhaseIdle}})
+	free()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-timeout:
+		t.Fatal("timed out waiting for Connect")
+	}
+	if s := m.State().Sync[f.acct]; s.Phase != api.SyncPhaseIdle {
+		t.Fatalf("after connect, sync = %+v, want the newer sync.progress (idle)", s)
+	}
+	// A later sync.progress still replaces it.
+	f.events.Deliver(api.SyncProgress{Status: api.SyncStatus{AccountID: f.acct, Phase: api.SyncPhaseOffline}})
+	if s := m.State().Sync[f.acct]; s.Phase != api.SyncPhaseOffline {
+		t.Errorf("after a later sync.progress, sync = %+v", s)
 	}
 }
 

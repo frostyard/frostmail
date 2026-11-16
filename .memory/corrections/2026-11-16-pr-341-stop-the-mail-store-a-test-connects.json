@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-16",
+  "scope": "internal/desktop/live",
+  "correction": "A test that connects a live.Mail must stop it with t.Cleanup(m.Disconnect): Connect starts the Follow Up ticker on context.Background(), which closing the client does not end. A test that holds a call must release it in a cleanup too, and wait for it with a bound.",
+  "evidence": "frostyard/frostmail#341, cross-review (openai/gpt-6.1-sol) of head ce3b033, finding 1 (blocking) and finding 2; guard: the AGENTS.md Conventions rule \"A test stops what it starts\"",
+  "promoted_to": "AGENTS.md"
+}
