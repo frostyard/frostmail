@@ -160,9 +160,7 @@ func run() error {
 		if err != nil {
 			slog.Info("no tray icon", "err", err)
 		} else {
-			tc.attach(tray)
-			prefs.w.SetTray(true)
-			win.OnClose(closeToTray(tray, prefs.w.CloseToTray))
+			wireTray(win, tray, tc, prefs.w)
 			mygo.App.OnQuit(tray.Destroy)
 		}
 		frames = uikit.NewSafeHTMLView(win, "frostmail-reader", main.OpenLink, func() { post.post(func() {}) })

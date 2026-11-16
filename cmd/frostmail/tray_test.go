@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -52,13 +53,24 @@ func (q *queue) run() {
 
 // fakeTray is the tray's status, without an icon.
 type fakeTray struct {
-	status string
-	dot    bool
+	status    string
+	dot       bool
+	enabled   bool
+	closes    int
+	destroyed int
 }
 
 func (f *fakeTray) SetStatus(line string) { f.status = line }
 
 func (f *fakeTray) SetDot(on bool) { f.dot = on }
+
+func (f *fakeTray) CloseToTray(_ *mygo.CloseEvent, enabled bool) bool {
+	f.closes++
+	f.enabled = enabled
+	return enabled
+}
+
+func (f *fakeTray) Destroy() { f.destroyed++ }
 
 func TestTrayCountCoalesces(t *testing.T) {
 	var n atomic.Int64
@@ -137,5 +149,95 @@ func TestCloseToTrayPassesTheSetting(t *testing.T) {
 	}
 	if c.calls != 2 {
 		t.Errorf("the tray decided %d closes, want 2", c.calls)
+	}
+}
+
+// fakeWindow keeps the main window's listeners, as mygo.Window does.
+type fakeWindow struct {
+	onClose  []func(*mygo.CloseEvent)
+	onClosed []func()
+}
+
+func (w *fakeWindow) OnClose(fn func(*mygo.CloseEvent)) func() {
+	w.onClose = append(w.onClose, fn)
+	return func() {}
+}
+
+func (w *fakeWindow) OnClosed(fn func()) func() {
+	w.onClosed = append(w.onClosed, fn)
+	return func() {}
+}
+
+// close and closed run the listeners, as the app's window does.
+func (w *fakeWindow) close(e *mygo.CloseEvent) {
+	for _, fn := range w.onClose {
+		fn(e)
+	}
+}
+
+func (w *fakeWindow) closed() {
+	for _, fn := range w.onClosed {
+		fn()
+	}
+}
+
+// fakeSetting is this computer's close-to-tray setting.
+type fakeSetting struct {
+	on   bool
+	seen []bool
+}
+
+func (s *fakeSetting) CloseToTray() bool { return s.on }
+
+func (s *fakeSetting) SetTray(shown bool) { s.seen = append(s.seen, shown) }
+
+func TestWireTrayTakesTheTrayWithTheWindow(t *testing.T) {
+	var n atomic.Int64
+	n.Store(2)
+	q := &queue{}
+	tc := &trayCount{post: q.post, count: n.Load}
+	win := &fakeWindow{}
+	tray := &fakeTray{}
+	setting := &fakeSetting{}
+	wireTray(win, tray, tc, setting)
+
+	if len(setting.seen) != 1 || !setting.seen[0] {
+		t.Fatalf("SetTray got %v, want [true]", setting.seen)
+	}
+	if tray.status != "2 unread" || !tray.dot {
+		t.Errorf("the tray shows %q, dot %v, want 2 unread with the dot", tray.status, tray.dot)
+	}
+
+	setting.on = true
+	win.close(&mygo.CloseEvent{})
+	if tray.closes != 1 || !tray.enabled {
+		t.Errorf("the close passed enabled %v, %d closes; want this computer's on", tray.enabled, tray.closes)
+	}
+
+	// The window's own close, after a close the tray did not take, takes
+	// the icon away: Open must not show a window that is gone.
+	win.closed()
+	if tray.destroyed != 1 {
+		t.Errorf("the tray was destroyed %d times, want 1", tray.destroyed)
+	}
+	if len(setting.seen) != 2 || setting.seen[1] {
+		t.Errorf("SetTray got %v, want [true false]", setting.seen)
+	}
+}
+
+// fakeRaiser records what raise calls, in order.
+type fakeRaiser struct {
+	calls []string
+}
+
+func (r *fakeRaiser) Show()    { r.calls = append(r.calls, "show") }
+func (r *fakeRaiser) Restore() { r.calls = append(r.calls, "restore") }
+func (r *fakeRaiser) Focus()   { r.calls = append(r.calls, "focus") }
+
+func TestRaiseShowsTheHiddenWindow(t *testing.T) {
+	r := &fakeRaiser{}
+	raise(r)
+	if want := []string{"show", "restore", "focus"}; !slices.Equal(r.calls, want) {
+		t.Errorf("raise called %v, want %v: a window close to tray hid is shown first", r.calls, want)
 	}
 }

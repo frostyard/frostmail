@@ -424,6 +424,10 @@ area on Windows), on frostui's `Tray`
   on; else the close goes on as before. A second launch, a notification's
   click and its Reply show a hidden window (`Show`, then `Restore` and
   `Focus`).
+- **The tray lives with the main window.** When the main window really
+  closes while another window (a compose window) keeps the app running,
+  the tray icon goes too, and the General pane's switch with it: its Open
+  would have no window to show. A quit removes it as well.
 - **No tray:** where `frostui.NewTray` fails (a host install without
   `libayatana-appindicator3`), the app logs it at Info and runs as before;
   the General pane shows no switch.

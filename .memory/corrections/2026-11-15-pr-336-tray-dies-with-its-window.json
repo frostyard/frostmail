@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-15",
+  "scope": "cmd/frostmail",
+  "correction": "A tray icon whose Open shows the main window must end when that window really closes, not only at the quit: another window (a compose window) can keep the app running, and Open would then show a destroyed window. Destroy the tray in the main window's OnClosed, and show a hidden window with Show before Restore and Focus.",
+  "evidence": "frostyard/frostmail#336, cross-review (openai/gpt-6.1-sol) of head b4631f6, findings 1 and 2; guards: TestWireTrayTakesTheTrayWithTheWindow and TestRaiseShowsTheHiddenWindow in cmd/frostmail/tray_test.go",
+  "promoted_to": ""
+}

@@ -74,9 +74,55 @@ func closeToTray(t interface {
 	return func(e *mygo.CloseEvent) { t.CloseToTray(e, enabled()) }
 }
 
+// trayHandle is frostui's Tray as its wiring needs it.
+type trayHandle interface {
+	trayIcon
+	CloseToTray(*mygo.CloseEvent, bool) bool
+	Destroy()
+}
+
+// trayWindow is the main window as the wiring needs it; *mygo.Window
+// satisfies it, and a test gives a fake.
+type trayWindow interface {
+	OnClose(func(*mygo.CloseEvent)) func()
+	OnClosed(func()) func()
+}
+
+// traySetting is this computer's close-to-tray setting, as the settings
+// window holds it.
+type traySetting interface {
+	CloseToTray() bool
+	SetTray(bool)
+}
+
+// wireTray puts the tray on the main window: it shows the count now, sets
+// the close's rule, and takes the icon away with the window. The app runs
+// on after the main window closes while a compose window is open, so a
+// tray left behind would offer Open for a window that is gone.
+//
+// A count posted after Destroy is safe: frostui's Tray keeps its status
+// and dot in fields and skips an icon it no longer has.
+func wireTray(win trayWindow, tray trayHandle, tc *trayCount, setting traySetting) {
+	tc.attach(tray)
+	setting.SetTray(true)
+	win.OnClose(closeToTray(tray, setting.CloseToTray))
+	win.OnClosed(func() {
+		tray.Destroy()
+		setting.SetTray(false)
+	})
+}
+
+// raiser is a window that can come to the front; *mygo.Window satisfies
+// it, and a test gives a fake.
+type raiser interface {
+	Show()
+	Restore()
+	Focus()
+}
+
 // raise shows and focuses the main window, after close to tray hid it or
 // a second instance asked for it.
-func raise(w *mygo.Window) {
+func raise(w raiser) {
 	w.Show()
 	w.Restore()
 	w.Focus()
