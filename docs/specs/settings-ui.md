@@ -124,6 +124,16 @@ container calls maild.
   the contact card ([pim-ui.md](pim-ui.md#contact-card)).
 - An error from maild shows in an `ALERT` under the rows, until the next
   change succeeds; an unblock's error too.
+- **This Computer** (the desktop app only, and only while it shows a tray
+  icon; [ADR-0060](../adr/0060-close-to-the-tray-is-an-opt-in-setting.md)):
+  the second group of the pane, with 1 switch, "Close to tray", subtitle
+  "Closing the main window keeps Frostmail in the tray while a panel shows
+  its icon. Quit from the tray's menu." Off by default. It is not maild's:
+  the app keeps it as the file `close-to-tray` beside `app.json` (present
+  means on). The pane shows it with its other rows, once maild's
+  settings have loaded. A failed write turns the
+  switch back and shows a toast, "Could not save the tray setting"
+  ([design/desktop.md](../design/desktop.md#tray-icon)).
 
 ## Rules pane
 

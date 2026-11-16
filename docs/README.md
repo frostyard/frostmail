@@ -75,6 +75,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0057 — Name cached draft images on Lodge's content route](adr/0057-name-cached-draft-images-on-lodges-content-route.md)
 - [0058 — Pin MyGo's quote-depth fix from the owner's fork](adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md) (Accepted)
 - [0059 — Add a published event from mail as the user's own event](adr/0059-add-a-published-event-from-mail-as-the-users-own.md) (Proposed)
+- [0060 — Close to the tray is an opt-in setting; the tray icon shows while the app runs](adr/0060-close-to-the-tray-is-an-opt-in-setting.md) (Accepted)
 
 ### Design
 
