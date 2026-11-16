@@ -31,15 +31,21 @@ func TestMain(m *testing.M) {
 }
 
 type fixture struct {
-	srv  *rpctest.Server
-	acct int64
-	loop *frostuitest.Loop
-	win  *mainwin.Window
-	tt   *ui.Tester
+	srv   *rpctest.Server
+	acct  int64
+	inbox int64   // the INBOX mailbox's ID
+	ids   []int64 // the messages' IDs, in UID order
+	loop  *frostuitest.Loop
+	win   *mainwin.Window
+	tt    *ui.Tester
 }
 
 // newFixture runs the window against a real maild holding n messages.
-func newFixture(t *testing.T, n int) *fixture {
+func newFixture(t *testing.T, n int) *fixture { return newFixtureWith(t, n, nil) }
+
+// newFixtureWith runs the window against a real maild holding n messages,
+// after extra has changed its options; nil extra keeps them.
+func newFixtureWith(t *testing.T, n int, extra func(*mainwin.Options)) *fixture {
 	t.Helper()
 	srv := rpctest.Start(t)
 	ctx := t.Context()
@@ -57,20 +63,25 @@ func newFixture(t *testing.T, n int) *fixture {
 			return err
 		}
 		f.acct = a.ID
+		f.inbox = mbs[0].ID
 		hs := make([]store.MessageHeader, 0, n)
 		for uid := 1; uid <= n; uid++ {
 			d := base.Add(time.Duration(uid) * time.Minute)
 			hs = append(hs, store.MessageHeader{UID: uint32(uid), Subject: fmt.Sprintf("Message %d", uid),
 				MessageID: fmt.Sprintf("%d@x", uid), From: store.Address{Name: "Ann", Addr: "ann@x.test"}, Date: d, InternalDate: d})
 		}
-		_, err = tx.InsertHeaders(ctx, a.ID, mbs[0].ID, hs)
+		f.ids, err = tx.InsertHeaders(ctx, a.ID, mbs[0].ID, hs)
 		return err
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.win = mainwin.New(mainwin.Options{Target: conn.Target{Socket: srv.Socket}, Client: "frostmail test",
-		Post: f.loop.Post, Wake: time.Millisecond, Retry: 10 * time.Millisecond})
+	o := mainwin.Options{Target: conn.Target{Socket: srv.Socket}, Client: "frostmail test",
+		Post: f.loop.Post, Wake: time.Millisecond, Retry: 10 * time.Millisecond}
+	if extra != nil {
+		extra(&o)
+	}
+	f.win = mainwin.New(o)
 	f.tt = ui.NewTester(func(c *ui.Context) {
 		f.loop.Flush()
 		f.win.View(c)
@@ -343,4 +354,68 @@ func TestListCountShowsOnceAndTheHeaderTheUnread(t *testing.T) {
 			t.Errorf("the count shows again at %+v: %q", info.Bounds, info.Name)
 		}
 	}
+}
+
+// UnreadChanged says the All Inboxes count may have changed, which the
+// app's launcher icon shows: reading a message takes one off it.
+func TestUnreadChangedFollowsTheInboxesCount(t *testing.T) {
+	changed := make(chan struct{}, 1)
+	f := newFixtureWith(t, 3, func(o *mainwin.Options) {
+		o.UnreadChanged = func() {
+			select {
+			case changed <- struct{}{}:
+			default: // a wake is pending
+			}
+		}
+	})
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	deadline := time.NewTimer(15 * time.Second)
+	defer deadline.Stop()
+	wait := func(what string, want int64) {
+		t.Helper()
+		for {
+			f.tt.Frame()
+			if got := f.win.InboxesUnread(); got == want {
+				return
+			}
+			select {
+			case <-changed:
+			case <-tick.C:
+			case <-deadline.C:
+				t.Fatalf("timed out waiting for %s; All Inboxes shows %d", what, f.win.InboxesUnread())
+			}
+		}
+	}
+	wait("the unread inboxes", 3)
+	if !slices.Contains(f.ids, int64(1)) {
+		t.Fatalf("the fixture's messages are %v, not 1..n", f.ids)
+	}
+	for drained := false; !drained; { // the load's wakes are not this change's
+		select {
+		case <-changed:
+		default:
+			drained = true
+		}
+	}
+	// Mark message 1 seen, as maild does when the user reads it: the flag
+	// and the mailbox's change, which moves the count. A test server runs
+	// no sync engine, so message.setFlags is unavailable here.
+	seen := true
+	ctx := t.Context()
+	if err := f.srv.DB.Tx(ctx, func(tx *store.Tx) error {
+		if _, err := tx.ChangeFlags(ctx, []int64{1}, store.FlagChange{Seen: &seen}); err != nil {
+			return err
+		}
+		return tx.Emit(ctx, api.MailboxChanged{ID: f.inbox, AccountID: f.acct})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// The window must say so: without the wake the icon keeps the old count.
+	select {
+	case <-changed:
+	case <-deadline.C:
+		t.Fatal("no UnreadChanged after the message was read")
+	}
+	wait("the message read", 2)
 }

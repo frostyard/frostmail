@@ -31,6 +31,9 @@ no ChairLift pattern where it does not fit.
 - **Parity means today's desktop app,** as the inventory below records it:
   what it lacks today (a tray, an unread badge, a `mailto:` handler, `.eml`
   files, dragging attachments out, search tokens) stays out of this plan.
+  The unread badge came later, on its own: on Linux, the launcher icon
+  shows the All Inboxes count (P-113, [desktop.md](../design/desktop.md#launcher-count)).
+  Windows' taskbar overlay is still later.
 
 Status (2026-11-11): the app moved to frostui v0.5.0 and its Frostyard
 look ([below](#the-frostyard-look); frostui's plan `frostyard-look.md`,
@@ -282,7 +285,7 @@ becomes. "frostui" means the kit's API as of its extraction (`feat/extract`);
 | Local mode: maild notifies over D-Bus; a click runs `frostmail --open-message <id>` (`open.sh` in the Flatpak) | unchanged; the native app takes `--open-message` |
 | Lodge mode: `message.announced` → `notify_mail` | `mygo.NewNotification` with an `ID` per message; Windows through the notifier |
 | Windows: `frostmail-notify.exe` (Rust, WinRT), `frostmail-toast:` | kept (MyGo shows balloons without actions) |
-| No tray, no badge (P-113 Later), no sounds, no `mailto:` handler, no `.eml` association, no drag out | none added here |
+| No tray, no badge (P-113 Later), no sounds, no `mailto:` handler, no `.eml` association, no drag out | none added here; the Linux launcher count came later, outside this plan (P-113, [desktop.md](../design/desktop.md#launcher-count)) |
 
 ### Packaging, CI and tests
 

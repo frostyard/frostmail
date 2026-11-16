@@ -236,17 +236,23 @@ func extraRows(e Extras) []Item {
 	return rows
 }
 
+// InboxesUnread is the All Inboxes count: the unread messages of every
+// inbox. The sidebar shows it, and so does the app's launcher icon.
+func InboxesUnread(mailboxes []api.Mailbox) int64 {
+	var unread int64
+	for _, m := range mailboxes {
+		if m.Role == api.MailboxRoleInbox {
+			unread += m.Unread
+		}
+	}
+	return unread
+}
+
 // BuildSidebar builds the sidebar: Favorites, Smart Mailboxes, then one
 // section per account.
 func BuildSidebar(accounts []api.Account, mailboxes []api.Mailbox, e Extras) []Section {
-	var allInboxes int64
-	for _, m := range mailboxes {
-		if m.Role == api.MailboxRoleInbox {
-			allInboxes += m.Unread
-		}
-	}
 	favorites := Section{Key: "favorites", Title: "Favorites",
-		Items: []Item{{Key: "all-inboxes", Label: "All Inboxes", Icon: "mail-read", Unread: allInboxes, Selectable: true}}}
+		Items: []Item{{Key: "all-inboxes", Label: "All Inboxes", Icon: "mail-read", Unread: InboxesUnread(mailboxes), Selectable: true}}}
 	favorites.Items = append(favorites.Items, unifiedRows(mailboxes)...)
 	favorites.Items = append(favorites.Items, extraRows(e)...)
 	for _, m := range e.Favorites {

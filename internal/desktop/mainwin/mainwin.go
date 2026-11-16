@@ -84,6 +84,10 @@ type Options struct {
 	OpenCompose func(c *api.Client, draft int64, fresh bool)
 	// Raise brings the window to the front, on the UI thread; nil for none.
 	Raise func()
+	// UnreadChanged runs after each change of the mail the window holds,
+	// which may change InboxesUnread, on any goroutine; nil for none. It
+	// must not block.
+	UnreadChanged func()
 }
 
 // Window is the main window's state.
@@ -189,7 +193,12 @@ func New(o Options) *Window {
 		Compose: w.composeTo, OpenMessage: w.showMessage, OpenWindow: w.openWindow, CloseWindow: o.CloseWindow,
 		SetWindowTitle: o.SetWindowTitle, ShowModule: w.setModule, OpenImage: o.OpenImage})
 	w.loadState()
-	w.mail = live.NewMail(w.waker.Wake)
+	w.mail = live.NewMail(func() {
+		w.waker.Wake()
+		if o.UnreadChanged != nil {
+			o.UnreadChanged()
+		}
+	})
 	w.act = live.NewActivity(w.addActivity)
 	w.console.SetNotify(w.waker.Wake)
 	w.session = conn.NewSession(o.Target, conn.Options{Client: o.Client, Retry: o.Retry,
@@ -247,6 +256,9 @@ func (w *Window) SetTarget(t conn.Target) { w.session.SetTarget(t) }
 
 // MailState is the mail the window holds.
 func (w *Window) MailState() live.MailState { return w.mail.State() }
+
+// InboxesUnread is the All Inboxes count the sidebar shows; any goroutine may call it.
+func (w *Window) InboxesUnread() int64 { return mail.InboxesUnread(w.mail.State().Mailboxes) }
 
 // OrganizeContext is what the condition and action editors need.
 func (w *Window) OrganizeContext() organize.Context { return w.organizeContext() }

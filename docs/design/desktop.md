@@ -348,6 +348,56 @@ desktop icon.
 - A Remind Me reminder notifies when it fires, with "Reminder" before the
   subject ([organize.md](organize.md#remind-me)).
 
+## Launcher count
+
+On Linux, the desktop app shows the All Inboxes unread count on its
+launcher icon (parity P-113), in the docks that read Unity's LauncherEntry
+API: KDE Plasma's task manager, Ubuntu's dock, Dash to Dock and Plank.
+GNOME's own dash shows no count.
+
+- The count is the sidebar's All Inboxes count: the unread messages of
+  every inbox (`mail.InboxesUnread`). It is the count lodge's rail shows
+  from `/health`'s `badge`.
+- `internal/desktop/launcher` sends it as the signal
+  `com.canonical.Unity.LauncherEntry.Update` on the session bus (godbus):
+  the app URI `application://org.frostyard.Frostmail.desktop` and the
+  properties `count` (int64) and `count-visible` (false for 0, which hides
+  the badge). The object path is libunity's,
+  `/com/canonical/unity/launcherentry/<g_str_hash of the URI>`.
+- The main window calls `UnreadChanged` after each change of the mail it
+  holds, so the count follows the same `mailbox.changed` and
+  `account.changed` events as the sidebar. One goroutine reads the count
+  and sends only a count that differs from the last one sent. A move to
+  another maild empties the store, so the badge shows 0 until the new
+  maild's mailboxes load.
+- When the app quits (`App.OnQuit`), it sends count 0 with `count-visible`
+  false. A second instance, which hands its arguments to the first and
+  exits, sends nothing.
+- The entry dials the session bus's unix socket itself (from
+  `DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus`; never
+  `dbus-launch`), with a 2 s limit on the handshake. So a quit never waits
+  on a stalled bus: `Close` waits 500 ms for the last signal, then closes
+  the socket under a blocked write and waits 500 ms more, and closes the
+  godbus connection only after its writer has stopped.
+- Without a session bus, the app sends nothing and logs one Debug line. A
+  failed signal logs once at Debug until one succeeds again. A signal needs
+  no listener: a desktop with no such dock gives no error.
+- MyGo's `App.SetBadgeCount` sends the same signal, but names the desktop
+  entry after the executable (`frostmail-app.desktop` in the Flatpak) unless
+  the launcher set `GIO_LAUNCHED_DESKTOP_FILE`, so a dock would not find the
+  app after a start from a terminal, autostart or a notification. The app
+  names its own entry instead.
+- **Flatpak:** the manifest needs no permission for it. The signal is a
+  broadcast (no destination), and xdg-dbus-proxy gives every client TALK
+  to a message with no destination
+  ([`flatpak-proxy.c`](https://github.com/flatpak/xdg-dbus-proxy/blob/72b40c8f6d9d585cfbdb249690724f740d207087/flatpak-proxy.c#L1919-L1925),
+  `flatpak_proxy_client_get_max_policy_and_matched`). Checked on
+  2026-11-15 with xdg-dbus-proxy 0.1.6 in `--filter` mode with only the
+  manifest's two `--talk` names: `dbus-monitor` on the bus behind the proxy
+  saw the signal with its URI, `count` 3 and `count-visible` true, and a
+  call to a name the proxy does not allow failed with `ServiceUnknown`.
+- Windows shows no count yet: a taskbar overlay is later (P-113).
+
 ## Windows
 
 ADR-0038; plan 0010's Phase 4 builds maild's side, and Phase 5 the app,

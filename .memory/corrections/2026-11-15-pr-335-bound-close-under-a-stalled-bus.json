@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-15",
+  "scope": "internal/desktop/launcher",
+  "correction": "A quit hook that closes a godbus connection must not wait on Conn.Close while an Emit may block: Conn.Close takes the output lock that a blocked write holds. Own the unix socket, close it to unblock the write, and call Conn.Close only after the writer has exited.",
+  "evidence": "frostyard/frostmail#335, cross-review (openai/gpt-6.1-sol) of head e29faa0, finding 1; guard: TestCloseIsBoundedWhenTheBusStalls",
+  "promoted_to": ""
+}
