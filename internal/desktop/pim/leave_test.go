@@ -119,7 +119,7 @@ func TestAChangedEventWindowWritesNothingToTheNextMaild(t *testing.T) {
 	}
 	f.m.selectOccurrence(&o)
 	f.until("the selection", func() bool { return f.m.shownEvent() != nil })
-	f.m.editSelected()
+	f.editSelected()
 	key := eventWindowKey(o.EventID, o.RecurrenceID)
 	f.until("the window", func() bool { w := f.m.windows[key]; return w != nil && w.loaded })
 	w := f.m.windows[key]
