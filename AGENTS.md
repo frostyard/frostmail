@@ -137,6 +137,8 @@ waits on the owner's checks on real desktops.
   `internal/smtpx`: the only package that imports go-smtp.
 - `cmd/frostmail` and `internal/desktop/`: the desktop app, native on MyGo
   and frostui. `internal/desktop/e2e` drives it in real windows.
+  `internal/desktop/launcher` shows the All Inboxes count on the launcher
+  icon on Linux (Unity's LauncherEntry signal; no Flatpak permission).
 - `app/`: the React web app that lodge serves. It builds only for lodge
   (`make web-build`) and runs in lodge's development build
   ([docs/design/app.md](docs/design/app.md#dev-and-test), Dev and test);

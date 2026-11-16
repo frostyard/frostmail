@@ -20,6 +20,7 @@ import (
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/icons"
+	"github.com/frostyard/frostmail/internal/desktop/launcher"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 	"github.com/frostyard/frostmail/internal/problemrec"
@@ -74,6 +75,12 @@ func run() error {
 	if !lockSingleInstance() {
 		return nil // the running app takes over
 	}
+	// A second instance never touches the badge of the first, so the entry
+	// opens after the lock.
+	var main *mainwin.Window
+	badge := launcher.Open(slog.Default(), func() int64 { return main.InboxesUnread() })
+	mygo.App.OnQuit(badge.Close)
+	defer badge.Close()
 	frostui.SetIcons(frostui.NewIcons(icons.Embedded()))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -83,7 +90,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	var main *mainwin.Window
 	post := &poster{}
 	mygo.App.OnSecondInstance(func(args []string, _ string) {
 		if win == nil {
@@ -138,6 +144,7 @@ func run() error {
 			OpenCompose: func(c *api.Client, draft int64, fresh bool) {
 				composer.open(ctx, c, draft, fresh)
 			},
+			UnreadChanged: badge.Changed,
 		})
 		composer = &composeWindows{windows: map[draftKey]*mygo.Window{}, main: main, target: target, paths: paths, settings: prefs.open, all: windows}
 		prefs.main, prefs.all = main, windows

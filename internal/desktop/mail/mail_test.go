@@ -284,3 +284,16 @@ func TestOutboxStatus(t *testing.T) {
 		}
 	}
 }
+
+// The launcher icon shows the same count: every inbox, in every account,
+// and nothing else.
+func TestInboxesUnread(t *testing.T) {
+	mbs := []api.Mailbox{mb(1, 1, "INBOX", api.MailboxRoleInbox, 2), mb(2, 2, "INBOX", api.MailboxRoleInbox, 3),
+		mb(3, 1, "Sent", api.MailboxRoleSent, 4), mb(4, 1, "News", api.MailboxRoleNone, 5)}
+	if got := mail.InboxesUnread(mbs); got != 5 {
+		t.Errorf("InboxesUnread = %d, want 5", got)
+	}
+	if got := mail.InboxesUnread(nil); got != 0 {
+		t.Errorf("InboxesUnread of no mailbox = %d, want 0", got)
+	}
+}
