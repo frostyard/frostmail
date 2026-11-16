@@ -67,6 +67,10 @@ type Mail struct {
 	off       func()
 	ctx       context.Context
 	cancelCtx context.CancelFunc
+	// syncSeen holds, while Connect loads, the accounts whose
+	// sync.progress came after it began to listen: that status is newer
+	// than the sync.status answer, which must not undo it (#338).
+	syncSeen map[int64]bool
 }
 
 // NewMail returns an empty store that calls notify after every change.
@@ -90,6 +94,7 @@ func (m *Mail) Connect(ctx context.Context, c *api.Client, events *Events) error
 	m.c = c
 	m.ctx, m.cancelCtx = context.WithCancel(context.Background())
 	m.off = events.On(m.event)
+	m.syncSeen = map[int64]bool{}
 	m.mu.Unlock()
 
 	accounts, err := c.Account().List(ctx, &api.AccountListParams{})
@@ -113,6 +118,14 @@ func (m *Mail) Connect(ctx context.Context, c *api.Client, events *Events) error
 		byAccount[s.AccountID] = s
 	}
 	m.update(c, func(s *MailState) {
+		// The other fields reload on their events; a sync status does
+		// not, so a newer one from an event stays.
+		for id := range m.syncSeen {
+			if st, ok := s.Sync[id]; ok {
+				byAccount[id] = st
+			}
+		}
+		m.syncSeen = nil
 		s.Accounts, s.Mailboxes, s.Sync, s.Outbox, s.Loaded = accounts, mailboxes, byAccount, outbox, true
 	})
 	for _, load := range []func(){m.loadVIPs, m.loadBlocked, m.loadSettings, m.loadSmart, m.loadRules, m.loadFollowUp} {
@@ -178,6 +191,7 @@ func (m *Mail) stopLocked() {
 		m.fuTick.Stop()
 	}
 	m.mbTimer, m.outTimer, m.cntTimer, m.fuTimer, m.fuTick, m.c = nil, nil, nil, nil, nil, nil
+	m.syncSeen = nil
 }
 
 func (m *Mail) event(ev api.Event) {
@@ -211,6 +225,9 @@ func (m *Mail) event(ev api.Event) {
 			maps.Copy(next, s.Sync)
 			next[e.Status.AccountID] = e.Status
 			s.Sync = next
+			if m.syncSeen != nil {
+				m.syncSeen[e.Status.AccountID] = true
+			}
 		})
 	}
 }
