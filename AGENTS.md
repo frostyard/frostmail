@@ -228,6 +228,11 @@ waits on the owner's checks on real desktops.
   `encoding/json/v2`; no mutable package state; modern idioms (`t.Context()`,
   `wg.Go`, `omitzero`). Tests use temp dirs, `rpctest`, `imapxtest`; no
   sleeps for synchronization.
+- A test stops what it starts: a `live.Mail` it connects gets
+  `t.Cleanup(m.Disconnect)` (its Follow Up ticker runs on
+  `context.Background()`, so closing the client does not end it), and a
+  call it holds is released in a cleanup too, so a failure leaves nothing
+  blocked.
 - Every write goes through `store.DB.Tx`; emit durable events with `Tx.Emit`
   in the same transaction as the change.
 - An update of optional fields reads the row inside the `store.DB.Tx` that

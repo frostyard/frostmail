@@ -222,13 +222,30 @@ func TestASyncProgressDuringConnectIsKept(t *testing.T) {
 	}})
 	held.stale = []api.SyncStatus{{AccountID: f.acct, Phase: api.SyncPhaseSyncing}}
 	m := live.NewMail(func() {})
+	// Connect starts the Follow Up ticker, which only Disconnect stops.
+	t.Cleanup(m.Disconnect)
+	var release sync.Once
+	free := func() { release.Do(func() { close(held.release) }) }
+	t.Cleanup(free) // a failure before the release must not leave Connect held
 	done := make(chan error, 1)
 	go func() { done <- m.Connect(t.Context(), f.c, f.events) }()
-	<-held.asked
+	timeout := time.After(10 * time.Second)
+	select {
+	case <-held.asked:
+	case err := <-done:
+		t.Fatalf("Connect returned before it asked sync.status: %v", err)
+	case <-timeout:
+		t.Fatal("timed out waiting for Connect to ask sync.status")
+	}
 	f.events.Deliver(api.SyncProgress{Status: api.SyncStatus{AccountID: f.acct, Phase: api.SyncPhaseIdle}})
-	close(held.release)
-	if err := <-done; err != nil {
-		t.Fatal(err)
+	free()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-timeout:
+		t.Fatal("timed out waiting for Connect")
 	}
 	if s := m.State().Sync[f.acct]; s.Phase != api.SyncPhaseIdle {
 		t.Fatalf("after connect, sync = %+v, want the newer sync.progress (idle)", s)
