@@ -373,6 +373,12 @@ GNOME's own dash shows no count.
 - When the app quits (`App.OnQuit`), it sends count 0 with `count-visible`
   false. A second instance, which hands its arguments to the first and
   exits, sends nothing.
+- The entry dials the session bus's unix socket itself (from
+  `DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus`; never
+  `dbus-launch`), with a 2 s limit on the handshake. So a quit never waits
+  on a stalled bus: `Close` waits 500 ms for the last signal, then closes
+  the socket under a blocked write and waits 500 ms more, and closes the
+  godbus connection only after its writer has stopped.
 - Without a session bus, the app sends nothing and logs one Debug line. A
   failed signal logs once at Debug until one succeeds again. A signal needs
   no listener: a desktop with no such dock gives no error.

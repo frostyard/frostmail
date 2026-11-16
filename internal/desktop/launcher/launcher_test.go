@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -111,7 +112,7 @@ func TestUpdateShowsTheCount(t *testing.T) {
 	f := newFake()
 	var n atomic.Int64
 	n.Store(3)
-	e := newEntry(discard(), n.Load, f.emit, nil)
+	e := newEntry(discard(), n.Load, f.emit, nil, nil)
 	defer e.Close()
 	e.Changed()
 	c := next(t, f)
@@ -134,7 +135,7 @@ func TestZeroHidesTheCount(t *testing.T) {
 		f := newFake()
 		var c0 atomic.Int64
 		c0.Store(n)
-		e := newEntry(discard(), c0.Load, f.emit, nil)
+		e := newEntry(discard(), c0.Load, f.emit, nil, nil)
 		e.Changed()
 		got := next(t, f)
 		if v := count(t, got); v != 0 {
@@ -151,7 +152,7 @@ func TestTheSameCountSendsNothing(t *testing.T) {
 	f := newFake()
 	var n atomic.Int64
 	n.Store(3)
-	e := newEntry(discard(), n.Load, f.emit, nil)
+	e := newEntry(discard(), n.Load, f.emit, nil, nil)
 	defer e.Close()
 	e.Changed()
 	if got := count(t, next(t, f)); got != 3 {
@@ -171,7 +172,7 @@ func TestTheSameCountSendsNothing(t *testing.T) {
 func TestTheLatestCountWins(t *testing.T) {
 	f := newFake()
 	var n atomic.Int64
-	e := newEntry(discard(), n.Load, f.emit, nil)
+	e := newEntry(discard(), n.Load, f.emit, nil, nil)
 	defer e.Close()
 	var wg sync.WaitGroup
 	for i := range 20 {
@@ -208,7 +209,7 @@ func TestCloseClearsTheBadge(t *testing.T) {
 	e := newEntry(discard(), n.Load, f.emit, func() error {
 		closed.Add(1)
 		return nil
-	})
+	}, nil)
 	e.Changed()
 	if got := count(t, next(t, f)); got != 5 {
 		t.Fatalf("count = %d, want 5", got)
@@ -241,7 +242,7 @@ func TestFailedEmitsLogOnce(t *testing.T) {
 	var n atomic.Int64
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	e := newEntry(log, n.Load, f.emit, nil)
+	e := newEntry(log, n.Load, f.emit, nil, nil)
 	defer e.Close()
 	for i := range 3 {
 		n.Store(int64(i + 1))
@@ -255,7 +256,7 @@ func TestFailedEmitsLogOnce(t *testing.T) {
 
 func TestInertEntryDoesNothing(t *testing.T) {
 	var calls atomic.Int32
-	e := newEntry(discard(), func() int64 { calls.Add(1); return 1 }, nil, nil)
+	e := newEntry(discard(), func() int64 { calls.Add(1); return 1 }, nil, nil, nil)
 	e.Changed()
 	e.Close()
 	e.Close()
@@ -272,5 +273,162 @@ func TestPathIsLibunitys(t *testing.T) {
 	}
 	if want := dbus.ObjectPath("/com/canonical/unity/launcherentry/3122036172"); entryPath != want {
 		t.Errorf("entryPath = %q, want %q", entryPath, want)
+	}
+}
+
+// A bus that stopped reading holds the clear signal: Close cuts the write
+// off by closing the socket, and closes the bus only after the worker.
+func TestCloseIsBoundedWhenTheBusStalls(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+	note := func(what string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, what)
+	}
+	unblock := make(chan struct{})
+	first := make(chan struct{}, 1)
+	sent := false // the worker's goroutine only
+	var n atomic.Int64
+	n.Store(5)
+	emit := func(_ dbus.ObjectPath, _ string, values ...any) error {
+		hints, ok := values[1].(map[string]dbus.Variant)
+		if !ok {
+			return errors.New("no hints")
+		}
+		c, _ := hints["count"].Value().(int64)
+		switch {
+		case c == 0 && sent:
+			<-unblock // the bus reads nothing more
+			note("emit returned")
+			return errors.New("closed")
+		case c == 5 && !sent:
+			sent = true
+			first <- struct{}{}
+		}
+		return nil
+	}
+	var hardCalls, busCalls atomic.Int32
+	hard := func() error {
+		note("hard")
+		hardCalls.Add(1)
+		close(unblock)
+		return nil
+	}
+	bus := func() error {
+		note("bus")
+		busCalls.Add(1)
+		return nil
+	}
+	e := newEntry(discard(), n.Load, emit, bus, hard)
+	e.limit = 50 * time.Millisecond
+	e.Changed()
+	select {
+	case <-first:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first count was never sent")
+	}
+	start := time.Now()
+	e.Close()
+	if el := time.Since(start); el > 2*time.Second {
+		t.Errorf("Close took %v", el)
+	}
+	if got := hardCalls.Load(); got != 1 {
+		t.Errorf("the socket was closed %d times, want 1", got)
+	}
+	if got := busCalls.Load(); got != 1 {
+		t.Errorf("the bus was closed %d times, want 1", got)
+	}
+	mu.Lock()
+	got := slices.Clone(order)
+	mu.Unlock()
+	if want := []string{"hard", "emit returned", "bus"}; !slices.Equal(got, want) {
+		t.Errorf("the order is %q, want %q", got, want)
+	}
+	e.Close() // twice is safe, and closes nothing again
+	e.Changed()
+	mu.Lock()
+	defer mu.Unlock()
+	if len(order) != 3 {
+		t.Errorf("a second Close or a Changed after it did more: %q", order)
+	}
+}
+
+// A worker stuck in an emit that not even a closed socket releases keeps
+// Close from closing the bus, and Close still returns.
+func TestCloseSkipsTheBusWhenTheWorkerStaysStuck(t *testing.T) {
+	unblock := make(chan struct{})
+	t.Cleanup(func() { close(unblock) }) // let the stuck worker finish
+	first := make(chan struct{}, 1)
+	sent := false // the worker's goroutine only
+	var n atomic.Int64
+	n.Store(5)
+	emit := func(_ dbus.ObjectPath, _ string, values ...any) error {
+		hints, ok := values[1].(map[string]dbus.Variant)
+		if !ok {
+			return errors.New("no hints")
+		}
+		c, _ := hints["count"].Value().(int64)
+		switch {
+		case c == 0 && sent:
+			<-unblock // a bus that never reads again
+			return errors.New("closed")
+		case c == 5 && !sent:
+			sent = true
+			first <- struct{}{}
+		}
+		return nil
+	}
+	var busCalls atomic.Int32
+	bus := func() error {
+		busCalls.Add(1)
+		return nil
+	}
+	e := newEntry(discard(), n.Load, emit, bus, func() error { return nil })
+	e.limit = 20 * time.Millisecond
+	e.Changed()
+	select {
+	case <-first:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first count was never sent")
+	}
+	start := time.Now()
+	e.Close()
+	if el := time.Since(start); el > 2*time.Second {
+		t.Errorf("Close took %v", el)
+	}
+	if got := busCalls.Load(); got != 0 {
+		t.Errorf("the bus was closed %d times, want 0", got)
+	}
+}
+
+func TestSessionSocket(t *testing.T) {
+	tests := []struct {
+		name, address, runtimeDir, want string
+	}{
+		{"path", "unix:path=/run/user/1000/bus", "", "/run/user/1000/bus"},
+		{"with a guid", "unix:path=/run/flatpak/bus,guid=abc", "", "/run/flatpak/bus"},
+		{"abstract", "unix:abstract=/tmp/dbus-X,guid=1", "", "@/tmp/dbus-X"},
+		{"a later entry", "tcp:host=h,port=1;unix:path=/b", "", "/b"},
+		{"escaped", "unix:path=/a%2cb", "", "/a,b"},
+		{"another unix transport", "unix:tmpdir=/tmp", "/run/user/9", ""},
+		{"the runtime dir", "", "/run/user/7", "/run/user/7/bus"},
+		{"neither", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getenv := func(key string) string {
+				switch key {
+				case "DBUS_SESSION_BUS_ADDRESS":
+					return tt.address
+				case "XDG_RUNTIME_DIR":
+					return tt.runtimeDir
+				}
+				return ""
+			}
+			if got := sessionSocket(getenv); got != tt.want {
+				t.Errorf("sessionSocket of %q and %q = %q, want %q", tt.address, tt.runtimeDir, got, tt.want)
+			}
+		})
 	}
 }
