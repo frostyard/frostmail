@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"errors"
 	"log/slog"
+	"net"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -431,4 +433,53 @@ func TestSessionSocket(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A bus that accepts and never answers must not keep the app from
+// starting: the handshake gives up after connectLimit, and the entry does
+// nothing.
+func TestOpenGivesUpOnASilentBus(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "bus")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = l.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := l.Accept(); err == nil {
+			accepted <- c // held open and never read: a wedged bus
+		}
+	}()
+	t.Cleanup(func() {
+		select {
+		case c := <-accepted:
+			_ = c.Close()
+		default:
+		}
+	})
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+sock)
+	opened := make(chan *Entry, 1)
+	go func() { opened <- Open(discard(), func() int64 { return 1 }) }()
+	var e *Entry
+	select {
+	case e = <-opened:
+	case <-time.After(connectLimit + 2*time.Second):
+		t.Fatalf("Open still waits on a silent bus after %v", connectLimit+2*time.Second)
+	}
+	if e.emit != nil {
+		t.Error("Open on a silent bus made a live entry")
+	}
+	e.Changed()
+	e.Close()
+}
+
+// No socket at the address: the entry does nothing, at once.
+func TestOpenWithNoSocketIsInert(t *testing.T) {
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+filepath.Join(t.TempDir(), "none"))
+	e := Open(discard(), func() int64 { return 1 })
+	if e.emit != nil {
+		t.Error("Open with no socket made a live entry")
+	}
+	e.Close()
 }

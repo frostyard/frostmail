@@ -47,7 +47,7 @@ const (
 	signalName = iface + "." + member
 	// appURI is the entry's app URI, the desktop entry of ADR-0013.
 	appURI = "application://" + config.AppID + ".desktop"
-	// connectLimit bounds the dial, the auth and the hello: a wedged bus
+	// connectLimit bounds the dial, the auth and the hello together: a wedged bus
 	// must not keep the app from starting.
 	connectLimit = 2 * time.Second
 	// closeLimit is how long Close waits for the worker, twice at most:
@@ -145,12 +145,21 @@ func Open(log *slog.Logger, count func() int64) *Entry {
 		log.Debug("launcher count", "err", "no session bus address")
 		return newEntry(log, count, nil, nil, nil)
 	}
-	raw, err := net.DialUnix("unix", nil, &net.UnixAddr{Name: addr, Net: "unix"})
+	// One deadline covers the dial, the auth and the hello.
+	deadline := time.Now().Add(connectLimit)
+	dialer := net.Dialer{Deadline: deadline}
+	c, err := dialer.Dial("unix", addr)
 	if err != nil {
 		log.Debug("launcher count", "err", err)
 		return newEntry(log, count, nil, nil, nil)
 	}
-	_ = raw.SetDeadline(time.Now().Add(connectLimit))
+	raw, ok := c.(*net.UnixConn)
+	if !ok { // net.Dialer makes a *net.UnixConn for "unix"
+		_ = c.Close()
+		log.Debug("launcher count", "err", "the session bus socket is not a unix socket")
+		return newEntry(log, count, nil, nil, nil)
+	}
+	_ = raw.SetDeadline(deadline)
 	conn, err := dbus.ConnectUnix(raw) // Auth and Hello
 	if err != nil {
 		_ = raw.Close()
