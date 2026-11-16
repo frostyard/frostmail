@@ -937,6 +937,25 @@ change landed in MyGo v0.9.1, which frostmail now requires
   gone in the branch's last commit, which reverts on its own. The React
   app builds for lodge. Still by hand: GNOME and KDE, Windows 11, Orca,
   Narrator, and clicking a real toast.
+- **Status (2026-11-15): the gate is still open.** The owner reports,
+  relayed on 2026-11-15, that he has used the native app every day on his
+  own Linux desktop since its first release, `v0.6.0` (2026-11-11), and
+  that no issue he found is open: he fixed each one he found. This is
+  daily use, not a recorded manual pass: the report names no desktop,
+  session type or step, and no observed result. It does not cover:
+  - KDE, on Wayland and X11;
+  - Windows 11 on `frostmail-win11`, with the installer;
+  - Orca on Linux and Narrator on Windows;
+  - Phase 4's direct probe for script in the built app's reader, on
+    WebKitGTK and WebView2;
+  - a release candidate's Flatpak and Windows installer in plan 0013's
+    clean-install gate.
+
+  Issue [#253](https://github.com/frostyard/frostmail/issues/253) tracks
+  these passes. The tray of
+  [#336](https://github.com/frostyard/frostmail/pull/336) has its own
+  desktop check, on GNOME 48 on Wayland with that PR's Flatpak bundle
+  (the PR's comment); its KDE and Windows trays are not checked.
 
 ### Differences the owner accepted (2026-11-10)
 
