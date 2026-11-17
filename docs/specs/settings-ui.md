@@ -105,8 +105,14 @@ container calls maild.
 - **List preview** (P-211): a `select`: No Preview (0), 1 Line, 2 Lines,
   3 Lines, 4 Lines, 5 Lines. Choosing one calls
   `settings.set {previewLines}`; the message list follows
-  ([ui.md](ui.md), Message list). In the desktop app it is the last row
-  of the pane's first group.
+  ([ui.md](ui.md), Message list). In the desktop app it is the
+  fourth row of the pane's first group.
+- **Text size** (P-957, desktop app only): a drop-down after List preview:
+  Smaller, Default, Larger, Largest. Choosing one calls
+  `settings.set {textSize}`; every window of the desktop app draws its text
+  at 0.9, 1, 1.15 or 1.3 times the usual size at once ([ui.md](ui.md),
+  Tokens). The web build has no such row. Like the others in the group it is
+  off while the window is not connected.
 - **Flag names:** seven rows, each a 12px filled `flag` in `--flag-<n>`
   and a `FIELD` text input (named "Flag <n> name", placeholder the
   color's own name, at most 40 characters) holding the custom name, empty

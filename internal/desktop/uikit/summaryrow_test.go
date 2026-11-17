@@ -263,3 +263,40 @@ func firstWord(s string) string {
 	word, _, _ := strings.Cut(s, " ")
 	return word
 }
+
+// P-957: a row's height grows with the text size, so a larger size clips no
+// line, and at the usual size it is the height it always was.
+func TestSummaryRowHeightFollowsTheTextSize(t *testing.T) {
+	setIcons()
+	long := strings.Repeat("several words of a preview ", 40)
+	for _, scale := range []float32{1, 0.9, 1.15, 1.3} {
+		for _, lines := range []int{0, 2, 5} {
+			var in float32
+			tt := ui.NewTester(func(c *ui.Context) {
+				uikit.Adapt(c, scale)
+				in = uikit.SummaryHeightIn(c, lines)
+				ui.Column(c).Width(320).AlignItems(ui.Stretch).Children(func() {
+					uikit.SummaryRowLines(c, uikit.Summary{Title: "Ann Lee", Date: "9:41", Subtitle: "Plans", Preview: long}, lines).Label("the row")
+				})
+			}, 320, 240)
+			tt.Frame()
+			row, ok := tt.Find("the row")
+			if !ok {
+				t.Fatalf("scale %v, %d lines: no row", scale, lines)
+			}
+			want := uikit.SummaryHeightFor(lines) * scale
+			if scale == 1 && (row.H != uikit.SummaryHeightFor(lines) || in != row.H) {
+				t.Errorf("at the usual size, %d lines: the row is %v and SummaryHeightIn %v, want %v", lines, row.H, in, uikit.SummaryHeightFor(lines))
+			}
+			if d := row.H - want; d > 0.01 || d < -0.01 || in != row.H {
+				t.Errorf("scale %v, %d lines: the row is %v and SummaryHeightIn %v, want %v", scale, lines, row.H, in, want)
+			}
+			if lines == 0 {
+				continue
+			}
+			if box, ok := tt.Find(long); !ok || box.Y+box.H > row.Y+row.H+0.01 {
+				t.Errorf("scale %v, %d lines: the preview %+v leaves the row %+v", scale, lines, box, row)
+			}
+		}
+	}
+}

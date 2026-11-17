@@ -103,7 +103,9 @@ func (w *Window) filterRow(c *ui.Context) {
 	if width := row.LayoutBounds().W; width > 0 {
 		w.listWidth = width
 	}
-	count := mail.FitFilters(w.listWidth-2*frostui.SpaceS-sortWidth, w.q.Filter)
+	// FitFilters estimates the tabs' text at the usual size: at a larger one
+	// the room it is given shrinks in step (docs/specs/ui.md, Tokens).
+	count := mail.FitFilters((w.listWidth-2*frostui.SpaceS-sortWidth)/frostui.TextSize(c, 1), w.q.Filter)
 	row.Children(func() {
 		for _, f := range mail.Filters[:count] {
 			if w.tab(c.Key(f.Filter), f.Label, w.q.Filter == f.Filter).Clicked() {

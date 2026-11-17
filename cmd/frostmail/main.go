@@ -21,6 +21,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/icons"
 	"github.com/frostyard/frostmail/internal/desktop/launcher"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 	"github.com/frostyard/frostmail/internal/problemrec"
@@ -144,13 +145,21 @@ func run() error {
 				composer.open(ctx, c, draft, fresh)
 			},
 			UnreadChanged: func() { badge.Changed(); tc.Changed() },
+			// Every window draws at the text size the main window holds.
+			TextSizeChanged: windows.repaint,
 		})
+		windows.textScale = func() float32 {
+			if main == nil {
+				return 1
+			}
+			return mail.TextScale(main.MailState().Settings)
+		}
 		composer = &composeWindows{windows: map[draftKey]*mygo.Window{}, main: main, target: target, paths: paths, settings: prefs.open, all: windows}
 		prefs.main, prefs.all = main, windows
 		win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Frostmail", Width: 1200, Height: 780, MinWidth: 800, MinHeight: 500,
 			TitleBarStyle: mygo.TitleBarHidden,
-			Content:       ui.View(main.View),
+			Content:       ui.View(windows.sized(main.View)),
 		})
 		post.attach(win)
 		windows.add(win)

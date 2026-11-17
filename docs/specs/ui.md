@@ -58,6 +58,22 @@ part ([plan 0015, The Frostyard look](../plans/0015-mygo-desktop.md#the-frostyar
 the layout, the order and the behavior bind both builds. The flag colors
 are the same in both.
 
+**Text size (desktop app).** The user's choice in the General pane's Text
+size (P-957, `settings.textSize`, kept by maild) is Smaller, Default, Larger
+or Largest: 0.9, 1, 1.15 or 1.3 times the usual size, which is Default and
+what every size in this spec is given at. Every window of the desktop app
+draws at it, and a change shows at once in every window that is open. The
+window's theme takes the scale (`uikit.Adapt`, times the desktop's own text
+size), so every frostui text size and MyGo's own text follow; so do the
+heights that hold text: the message list's rows (`uikit.SummaryHeightIn`,
+which is `SummaryHeightFor` at Default), the calendar's all-day lanes, month
+lines and hours' gutter, and the rows of People and of the calendar's
+search. The reader's page zooms by the scale on screen
+(`@media screen{:root{zoom:…}}`, none at Default) and not on paper, and its
+height is the zoomed page's. The web build keeps its own text size. The
+font family, the fixed-width font and the colors are not chosen
+([#204](https://github.com/frostyard/frostmail/issues/204)).
+
 **Flags.** `flagColor` 1–7 (the API's numbering, `$MailFlagBit0-2` + 1):
 
 | Color | Name | Light | Dark |

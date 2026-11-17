@@ -2577,6 +2577,7 @@ Change the preferences given; the others stay. Returns them all.
 | `favorites` | `[]int` (optional) | Mailbox IDs, at most 50, without repeats. |
 | `blockAction` | `BlockAction` (optional) |  |
 | `previewLines` | `int` (optional) | 0 to 5. |
+| `textSize` | `TextSize` (optional) |  |
 
 Result: `Settings`.
 Errors: `invalidParams`, `notFound`.
@@ -2600,6 +2601,7 @@ Every preference, with its current value.
 | `favorites` | `[]int` (optional) | Mailboxes added to the sidebar's Favorites, in order; mailboxes since deleted are left out. Absent when there are none. |
 | `blockAction` | `BlockAction` (optional) | mark when absent. |
 | `previewLines` | `int` (optional) | Lines of a message's preview in the list: 0 to 5. 2 when absent. |
+| `textSize` | `TextSize` (optional) | default when absent. |
 
 ### Enum `NotifyScope`
 
@@ -2621,6 +2623,17 @@ What happens to new mail from a blocked sender (ADR-0028).
 | --- | --- |
 | `mark` | It stays where it arrives, marked as blocked (the default). |
 | `trash` | New inbox mail moves to the Trash as it arrives. |
+
+### Enum `TextSize`
+
+How large the desktop app draws its text (docs/specs/ui.md, Tokens).
+
+| Value | Meaning |
+| --- | --- |
+| `smaller` | 0.9 times the usual size. |
+| `default` | The usual size (the default). |
+| `larger` | 1.15 times the usual size. |
+| `largest` | 1.3 times the usual size. |
 
 ## smart
 

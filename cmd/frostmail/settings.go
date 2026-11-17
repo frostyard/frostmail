@@ -100,10 +100,10 @@ func (s *settingsWindow) open(pane string) {
 	}
 	s.win = mygo.NewWindow(mygo.WindowOptions{Title: "Settings", Width: settings.Width, Height: settings.Height,
 		MinWidth: settings.MinWidth, MinHeight: settings.MinHeight, TitleBarStyle: mygo.TitleBarHidden,
-		Content: ui.View(func(c *ui.Context) {
+		Content: ui.View(s.all.sized(func(c *ui.Context) {
 			s.w.View(c)
 			s.rules.View(c)
-		})})
+		}))})
 	s.all.add(s.win)
 	s.win.OnClosed(func() { s.win = nil })
 }

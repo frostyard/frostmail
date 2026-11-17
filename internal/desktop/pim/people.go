@@ -451,7 +451,7 @@ func (m *Module) personRow(c *ui.Context, row peopleRow, t *ui.Theme) {
 		second = ""
 	}
 	sep := t.Border
-	ui.Row(c).Height(44).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Draw(func(pt *ui.Painter, r ui.Rect) {
+	ui.Row(c).Height(frostui.TextSize(c, 44)).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Draw(func(pt *ui.Painter, r ui.Rect) {
 		pt.Fill(ui.Rect{X: r.X + 50, Y: r.Y + r.H - 1, W: r.W - 50, H: 1}, sep, 0)
 	}).Children(func() {
 		avatar(c, 28, p.DisplayName, p.Email, nil)

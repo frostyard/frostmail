@@ -142,7 +142,7 @@ func (m *Module) dayHeaders(c *ui.Context, days []string) {
 	t := c.Theme()
 	today := m.today()
 	ui.Row(c).Height(48).Shrink(0).AlignItems(ui.Stretch).Children(func() {
-		ui.Box(c).Width(gutterWidth).Shrink(0)
+		ui.Box(c).Width(gutterW(c)).Shrink(0)
 		for _, date := range days {
 			b := ui.ButtonBase(c.Key(date)).Column().Grow(1).Basis(0).MinWidth(0).AlignItems(ui.Center).Justify(ui.Center).Cursor(ui.CursorPointer).Label(longDate(date))
 			if date == today {
@@ -168,6 +168,14 @@ func (m *Module) dayHeaders(c *ui.Context, days []string) {
 	frostui.RowDivider(c)
 }
 
+// gutterW, laneH and monthLine are the width of the hours' gutter, and the
+// heights of an all-day lane and of a month line, which hold text, at c's
+// text size: gutterWidth, laneHeight and monthLineH at the usual one, so a
+// larger text size clips no label or title (docs/specs/ui.md, Tokens).
+func gutterW(c *ui.Context) float32   { return frostui.TextSize(c, gutterWidth) }
+func laneH(c *ui.Context) float32     { return frostui.TextSize(c, laneHeight) }
+func monthLine(c *ui.Context) float32 { return frostui.TextSize(c, monthLineH) }
+
 func (m *Module) allDayStrip(c *ui.Context, days []string) {
 	t := c.Theme()
 	cal := &m.cal
@@ -183,10 +191,10 @@ func (m *Module) allDayStrip(c *ui.Context, days []string) {
 	}
 	height := float32(8)
 	if lanes > 0 {
-		height = float32(shown)*(laneHeight+laneGap) + 6
+		height = float32(shown)*(laneH(c)+laneGap) + 6
 	}
 	ui.Row(c).Height(height).Shrink(0).AlignItems(ui.Stretch).Children(func() {
-		ui.Box(c).Width(gutterWidth).Shrink(0).Padding(4, 8, 0, 0).Children(func() {
+		ui.Box(c).Width(gutterW(c)).Shrink(0).Padding(4, 8, 0, 0).Children(func() {
 			if lanes > 0 {
 				ui.Text(c, "all-day").FontSize(frostui.TextSize(c, 11)).TextColor(tertiary(t)).TextAlign(ui.End).SingleLine()
 			}
@@ -247,8 +255,8 @@ func (m *Module) allDayBar(c *ui.Context, bar *allDayBar, days []string, cw floa
 	color := m.colorOf(t, o.CalendarID)
 	fill, text, dashed := eventLook(t, color, o, active)
 	span := bar.last - bar.first + 1
-	b := ui.ButtonBase(c).Row().Absolute().Top(4+float32(bar.lane)*(laneHeight+laneGap)).Left(float32(bar.first)*cw+barInset).
-		Width(float32(span)*cw-2*barInset).Height(laneHeight).Radius(frostui.RadiusChip).Padding(0, 4).AlignItems(ui.Center).Background(fill).KeepFocus().Clip().
+	b := ui.ButtonBase(c).Row().Absolute().Top(4+float32(bar.lane)*(laneH(c)+laneGap)).Left(float32(bar.first)*cw+barInset).
+		Width(float32(span)*cw-2*barInset).Height(laneH(c)).Radius(frostui.RadiusChip).Padding(0, 4).AlignItems(ui.Center).Background(fill).KeepFocus().Clip().
 		Cursor(ui.CursorPointer).Label(title(o) + ", all day").Checked(active)
 	if dashed {
 		b.Border(1, color).BorderStyle(ui.BorderDashed)
@@ -314,7 +322,7 @@ func (m *Module) allDayMore(c *ui.Context, bars []allDayBar, days []string, cw f
 		if n == 0 {
 			continue
 		}
-		b := ui.ButtonBase(c.Key([2]any{"more", date})).Absolute().Top(4 + 2*(laneHeight+laneGap)).Left(float32(i)*cw + 2).Height(laneHeight).AlignItems(ui.Center).
+		b := ui.ButtonBase(c.Key([2]any{"more", date})).Absolute().Top(4 + 2*(laneH(c)+laneGap)).Left(float32(i)*cw + 2).Height(laneH(c)).AlignItems(ui.Center).
 			Cursor(ui.CursorPointer).Label(fmt.Sprintf("Show %d more on %s", n, longDate(date)))
 		if b.Clicked() {
 			m.showDay(date)
@@ -334,7 +342,7 @@ func (m *Module) gutter(c *ui.Context, days []string) {
 	for _, d := range days {
 		shown = shown || d == today
 	}
-	ui.Box(c).Width(gutterWidth).Shrink(0).Children(func() {
+	ui.Box(c).Width(gutterW(c)).Shrink(0).Children(func() {
 		for hour := 1; hour < 24; hour++ {
 			ui.Text(c.Key(hour), hourLabel(hour, k.h24)).FontSize(frostui.TextSize(c, 11)).TextColor(tertiary(t)).Absolute().Top(float32(hour*hourHeight) - 7).Right(8).SingleLine()
 		}
@@ -588,7 +596,7 @@ func (m *Module) monthGrid(c *ui.Context, days []string) {
 	cal := &m.cal
 	lines := 4
 	if cal.cellHeight > 0 {
-		lines = max(2, int((cal.cellHeight-monthCellPad)/monthLineH))
+		lines = max(2, int((cal.cellHeight-monthCellPad)/monthLine(c)))
 	}
 	ui.Row(c).Height(24).Shrink(0).AlignItems(ui.Center).Children(func() {
 		for _, d := range days[:7] {
@@ -671,7 +679,7 @@ func (m *Module) monthCell(c *ui.Context, date string, lines int) {
 			m.monthItem(c.Key(keyOf(o)), o, date, width)
 		}
 		if more > 0 {
-			b := ui.ButtonBase(c.Key("more")).Height(monthLineH).Cursor(ui.CursorPointer).Label(fmt.Sprintf("Show %d more on %s", more, longDate(date)))
+			b := ui.ButtonBase(c.Key("more")).Height(monthLine(c)).Cursor(ui.CursorPointer).Label(fmt.Sprintf("Show %d more on %s", more, longDate(date)))
 			if b.Clicked() {
 				m.showDay(date)
 			}
@@ -694,7 +702,7 @@ func (m *Module) monthItem(c *ui.Context, o *api.Occurrence, date string, cellWi
 	if start != "" {
 		name = start
 	}
-	b := ui.ButtonBase(c).Row().Height(monthLineH).Gap(4).Padding(0, 4).Radius(frostui.RadiusChip).AlignItems(ui.Center).KeepFocus().Cursor(ui.CursorPointer).
+	b := ui.ButtonBase(c).Row().Height(monthLine(c)).Gap(4).Padding(0, 4).Radius(frostui.RadiusChip).AlignItems(ui.Center).KeepFocus().Cursor(ui.CursorPointer).
 		Label(title(o) + ", " + name).Checked(active)
 	fill, text, dashed := eventLook(t, color, o, active)
 	if o.AllDay || active {
