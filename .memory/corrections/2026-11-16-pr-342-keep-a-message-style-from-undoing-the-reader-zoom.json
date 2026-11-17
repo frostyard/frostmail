@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-16",
+  "scope": "internal/desktop/mail",
+  "correction": "A rule the app adds to the reader's page and a message's own style must not undo goes in an app-owned cascade layer with !important, as PrintGuard does: a layered important declaration beats an unlayered one, and the sanitizer keeps a message's own :root{zoom:1 !important}. mail.ZoomStyle is @layer text-size{@media screen{:root{zoom:X!important}}}.",
+  "evidence": "frostyard/frostmail#342, cross-review (openai/gpt-6.1-sol) of head 876135c, finding 3 (blocking); guard: the own zoom page of TestTextSizeScalesTheListAndThePage and TestTextScaleAndZoomStyle",
+  "promoted_to": ""
+}

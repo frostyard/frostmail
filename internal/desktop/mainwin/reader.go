@@ -3,6 +3,7 @@ package mainwin
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -66,6 +67,8 @@ type openMsg struct {
 	// thumbs are the thumbnails of picture attachments, by part path, as
 	// they are made (docs/specs/ui.md, Attachments).
 	thumbs map[string]*ui.Bitmap
+	// pageScale is the text size the page was loaded at (mail.TextScale).
+	pageScale float32
 }
 
 // syncReader follows the selection: exactly one message shows, its
@@ -283,10 +286,50 @@ func (w *Window) showRendering(m *openMsg, r *api.Rendering) {
 	if body == "" {
 		body, style = mail.TextHTML(r.Text), mail.TextStyle
 	}
-	m.frame.Load(uikit.Document(body, w.printHeader(m), mail.PrintGuard+style))
+	m.pageScale = w.currentTextScale()
+	m.frame.Load(uikit.Document(body, w.printHeader(m), mail.PrintGuard+mail.ZoomStyle(m.pageScale)+style))
 	if m.printOnLoad {
 		m.printOnLoad = false
 		m.frame.Print()
+	}
+}
+
+// currentTextScale is the text size the window holds now (mail.TextScale);
+// the usual one before it holds any.
+func (w *Window) currentTextScale() float32 {
+	if w.mail == nil {
+		return 1
+	}
+	return mail.TextScale(w.mail.State().Settings)
+}
+
+// followTextSize runs every frame. When the text size the window holds
+// has changed, the pages of the open messages load again at the new size
+// (the page zooms; its height follows from the measure), and the app's
+// other windows draw again. Each page loads again once at a size, so a
+// frame that changes nothing makes no call.
+func (w *Window) followTextSize() {
+	scale := w.currentTextScale()
+	if cv := w.conv; cv != nil {
+		stale := func(m *openMsg) bool { return m.frame != nil && m.rendering != nil && m.pageScale != scale }
+		if slices.ContainsFunc(slices.Collect(maps.Values(cv.msgs)), stale) {
+			// A page that loads again has lost its highlights and its
+			// current match, and a search can not wait for the load: the
+			// find bar closes, as it does when a page closes, and the
+			// next search starts from the first match of the new pages.
+			w.closeFind()
+		}
+		for _, m := range cv.msgs {
+			if stale(m) {
+				w.showRendering(m, m.rendering)
+			}
+		}
+	}
+	if scale != w.textScale {
+		w.textScale = scale
+		if w.o.TextSizeChanged != nil {
+			w.o.TextSizeChanged()
+		}
 	}
 }
 

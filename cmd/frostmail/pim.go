@@ -26,7 +26,7 @@ func (s *pimWindows) open(spec pim.WindowSpec) {
 	}
 	win := mygo.NewWindow(mygo.WindowOptions{Title: spec.Title, Width: int(spec.Width), Height: int(spec.Height),
 		MinWidth: int(spec.MinWidth), MinHeight: int(spec.MinHeight), AlwaysOnTop: spec.AlwaysOnTop,
-		TitleBarStyle: style, Content: ui.View(spec.View)})
+		TitleBarStyle: style, Content: ui.View(s.all.sized(spec.View))})
 	s.windows[spec.Key] = win
 	s.all.add(win)
 	if spec.CloseRequested != nil {

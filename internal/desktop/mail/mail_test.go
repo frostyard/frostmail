@@ -297,3 +297,32 @@ func TestInboxesUnread(t *testing.T) {
 		t.Errorf("InboxesUnread of no mailbox = %d, want 0", got)
 	}
 }
+
+// P-957: the user's text size is a scale, 1 when there is none or it is
+// unknown; the reader's page zooms by it, and not at all at 1.
+func TestTextScaleAndZoomStyle(t *testing.T) {
+	size := func(s string) *api.Settings { v := api.TextSize(s); return &api.Settings{TextSize: &v} }
+	for _, c := range []struct {
+		name string
+		in   *api.Settings
+		want float32
+		zoom string
+	}{
+		{"no settings", nil, 1, ""},
+		{"absent", &api.Settings{}, 1, ""},
+		{"unknown", size("huge"), 1, ""},
+		{"empty", size(""), 1, ""},
+		{"default", size("default"), 1, ""},
+		{"smaller", size("smaller"), 0.9, "@layer text-size{@media screen{:root{zoom:0.9!important}}}"},
+		{"larger", size("larger"), 1.15, "@layer text-size{@media screen{:root{zoom:1.15!important}}}"},
+		{"largest", size("largest"), 1.3, "@layer text-size{@media screen{:root{zoom:1.3!important}}}"},
+	} {
+		got := mail.TextScale(c.in)
+		if got != c.want {
+			t.Errorf("%s: TextScale = %v, want %v", c.name, got, c.want)
+		}
+		if z := mail.ZoomStyle(got); z != c.zoom {
+			t.Errorf("%s: ZoomStyle = %q, want %q", c.name, z, c.zoom)
+		}
+	}
+}

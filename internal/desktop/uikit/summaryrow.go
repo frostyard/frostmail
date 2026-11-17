@@ -38,6 +38,13 @@ func SummaryHeightFor(lines int) float32 {
 	return SummaryHeight + float32(more)*summaryLine
 }
 
+// SummaryHeightIn is SummaryHeightFor at the text size of c's theme: the
+// height grows with the text (frostui.TextSize), so a larger text size
+// clips no line, and it is SummaryHeightFor at the usual size.
+func SummaryHeightIn(c *ui.Context, lines int) float32 {
+	return frostui.TextSize(c, SummaryHeightFor(lines))
+}
+
 // SummaryIcon is a small mark after a row's title.
 type SummaryIcon struct{ Name, Label string }
 
@@ -75,11 +82,11 @@ func SummaryRow(c *ui.Context, s Summary) ui.Element {
 }
 
 // SummaryRowLines is SummaryRow with lines of preview, none for 0: the
-// row's height follows (SummaryHeightFor), the same for every row of a
+// row's height follows (SummaryHeightIn), the same for every row of a
 // list whatever its text.
 func SummaryRowLines(c *ui.Context, s Summary, lines int) ui.Element {
 	t := c.Theme()
-	row := ui.Row(c).Height(SummaryHeightFor(lines)).Padding(frostui.SpaceS, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Start).
+	row := ui.Row(c).Height(SummaryHeightIn(c, lines)).Padding(frostui.SpaceS, frostui.SpaceM).Gap(frostui.SpaceS).AlignItems(ui.Start).
 		BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Clip()
 	hovered := row.Hovered()
 	row.Children(func() {

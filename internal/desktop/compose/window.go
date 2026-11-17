@@ -920,7 +920,7 @@ func (w *Window) insertSnippet(src string) {
 func (w *Window) field(c *ui.Context, label string, draw func()) {
 	t := c.Theme()
 	ui.Row(c.Key(label)).Padding(4, 16).Gap(frostui.SpaceS).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		ui.Text(c, label+":").Width(64).TextColor(t.TextMuted).TextAlign(ui.End).SingleLine()
+		ui.Text(c, label+":").Width(frostui.TextSize(c, 64)).TextColor(t.TextMuted).TextAlign(ui.End).SingleLine()
 		draw()
 	})
 }

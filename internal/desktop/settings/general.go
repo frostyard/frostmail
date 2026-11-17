@@ -62,6 +62,10 @@ var previewOptions = []option[int64]{
 	{0, "No Preview"}, {1, "1 Line"}, {2, "2 Lines"}, {3, "3 Lines"}, {4, "4 Lines"}, {5, "5 Lines"},
 }
 
+var textSizeOptions = []option[api.TextSize]{
+	{api.TextSizeSmaller, "Smaller"}, {api.TextSizeDefault, "Default"}, {api.TextSizeLarger, "Larger"}, {api.TextSizeLargest, "Largest"},
+}
+
 // generalGroups are the General pane's rows.
 func (w *Window) generalGroups() []frostui.SettingsGroup {
 	g := w.gen
@@ -101,6 +105,15 @@ func (w *Window) generalGroups() []frostui.SettingsGroup {
 			w.setSettings(&api.SettingsSetParams{PreviewLines: &next})
 		}).Width(240).Shrink(0)
 	}}
+	size := api.TextSizeDefault
+	if s != nil && s.TextSize != nil && slices.ContainsFunc(textSizeOptions, func(o option[api.TextSize]) bool { return o.value == *s.TextSize }) {
+		size = *s.TextSize
+	}
+	textSize := frostui.Setting{Title: "Text size", Control: func(c *ui.Context) {
+		choose(c, "Text size", size, textSizeOptions, off, func(next api.TextSize) {
+			w.setSettings(&api.SettingsSetParams{TextSize: &next})
+		}).Width(240).Shrink(0)
+	}}
 	blocked := frostui.Setting{Title: "Blocked mail", Control: func(c *ui.Context) {
 		choose(c, "Blocked mail", block, blockOptions, off, func(next api.BlockAction) {
 			w.setSettings(&api.SettingsSetParams{BlockAction: &next})
@@ -110,7 +123,7 @@ func (w *Window) generalGroups() []frostui.SettingsGroup {
 	for i := range g.names {
 		flags[i] = frostui.Setting{Title: mail.FlagNames[i], Control: func(c *ui.Context) { w.flagField(c, g, i, off) }}
 	}
-	groups := []frostui.SettingsGroup{{Settings: []frostui.Setting{notify, undo, blocked, preview}}}
+	groups := []frostui.SettingsGroup{{Settings: []frostui.Setting{notify, undo, blocked, preview, textSize}}}
 	// This computer's own prefs follow the ones maild holds: they are no
 	// part of a connection, so they are never disabled.
 	if w.trayShown {

@@ -241,7 +241,7 @@ func (m *Module) searchRow(c *ui.Context, row searchRow, t *ui.Theme) {
 	}
 	o := row.occ
 	sep := t.Border
-	ui.Row(c).Height(44).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Draw(func(pt *ui.Painter, r ui.Rect) {
+	ui.Row(c).Height(frostui.TextSize(c, 44)).Padding(0, frostui.SpaceM).Gap(10).AlignItems(ui.Center).Draw(func(pt *ui.Painter, r ui.Rect) {
 		pt.Fill(ui.Rect{X: r.X, Y: r.Y + r.H - 1, W: r.W, H: 1}, sep, 0)
 	}).Children(func() {
 		uikit.Dot(c, 8, m.colorOf(t, o.CalendarID))

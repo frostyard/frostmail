@@ -88,6 +88,10 @@ type Options struct {
 	// which may change InboxesUnread, on any goroutine; nil for none. It
 	// must not block.
 	UnreadChanged func()
+	// TextSizeChanged runs on the UI thread when the text size the window
+	// holds changes, as the others open windows, which the app draws too,
+	// must draw again at the new size; nil for none.
+	TextSizeChanged func()
 }
 
 // Window is the main window's state.
@@ -136,6 +140,7 @@ type Window struct {
 	find          findState
 	readerScroll  ui.ScrollState
 	readerHeight  float32
+	textScale     float32 // the text size the last frame drew at (mail.TextScale)
 	readerFocused bool
 	focusPane     string              // the pane Tab asked to focus
 	pane          string              // the pane holding the focus
@@ -175,7 +180,7 @@ func New(o Options) *Window {
 	w := &Window{o: o, listWidth: listDefault, selected: -1, table: frostui.NewCommandTable(), branches: map[string]bool{},
 		q:       mail.ListState{Source: mail.Source{Kind: mail.AllInboxes}, Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate, SearchAll: true},
 		console: frostui.NewConsole(5000), latest: map[int64]string{}, state: conn.State{Target: o.Target},
-		daemon: o.Target, undo: &mail.Undo{}, deleting: map[int64]*heldDelete{}, readBackEvery: time.Second}
+		daemon: o.Target, textScale: 1, undo: &mail.Undo{}, deleting: map[int64]*heldDelete{}, readBackEvery: time.Second}
 	w.waker = frostui.NewWaker(o.Post, o.Wake)
 	w.shell.Dialogs = &frostui.Dialogs{}
 	w.shell.Console.Title = "Activity"
@@ -498,6 +503,7 @@ func (w *Window) View(c *ui.Context) {
 	// the rest of View reads that state before the shell would run it.
 	w.shell.Palette.RunPending()
 	frostui.Adapt(c)
+	w.followTextSize()
 	for _, t := range w.toasts {
 		c.AddToast(t)
 	}

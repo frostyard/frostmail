@@ -4758,6 +4758,30 @@ func (v BlockAction) Valid() bool {
 	return false
 }
 
+// TextSize: How large the desktop app draws its text (docs/specs/ui.md,
+// Tokens).
+type TextSize string
+
+const (
+	// 0.9 times the usual size.
+	TextSizeSmaller TextSize = "smaller"
+	// The usual size (the default).
+	TextSizeDefault TextSize = "default"
+	// 1.15 times the usual size.
+	TextSizeLarger TextSize = "larger"
+	// 1.3 times the usual size.
+	TextSizeLargest TextSize = "largest"
+)
+
+// Valid reports whether v is one of the declared values.
+func (v TextSize) Valid() bool {
+	switch v {
+	case TextSizeSmaller, TextSizeDefault, TextSizeLarger, TextSizeLargest:
+		return true
+	}
+	return false
+}
+
 // Settings: Every preference, with its current value.
 type Settings struct {
 	// Seconds a sent message waits in the outbox: 0, 10, 20 or 30.
@@ -4775,6 +4799,8 @@ type Settings struct {
 	BlockAction *BlockAction `json:"blockAction,omitzero"`
 	// Lines of a message's preview in the list: 0 to 5. 2 when absent.
 	PreviewLines *int64 `json:"previewLines,omitzero"`
+	// default when absent.
+	TextSize *TextSize `json:"textSize,omitzero"`
 }
 
 // SettingsGetParams holds the params of settings.get.
@@ -4793,7 +4819,8 @@ type SettingsSetParams struct {
 	Favorites   []int64      `json:"favorites,omitzero"`
 	BlockAction *BlockAction `json:"blockAction,omitzero"`
 	// 0 to 5.
-	PreviewLines *int64 `json:"previewLines,omitzero"`
+	PreviewLines *int64    `json:"previewLines,omitzero"`
+	TextSize     *TextSize `json:"textSize,omitzero"`
 }
 
 // SettingsService: Preferences maild keeps for every account, so they hold

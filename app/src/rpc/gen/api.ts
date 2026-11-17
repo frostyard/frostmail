@@ -2732,6 +2732,10 @@ export const NotifyScopeValues: readonly NotifyScope[] = ["inbox", "vips", "cont
 export type BlockAction = "mark" | "trash";
 export const BlockActionValues: readonly BlockAction[] = ["mark", "trash"];
 
+/** How large the desktop app draws its text (docs/specs/ui.md, Tokens). */
+export type TextSize = "smaller" | "default" | "larger" | "largest";
+export const TextSizeValues: readonly TextSize[] = ["smaller", "default", "larger", "largest"];
+
 /** Every preference, with its current value. */
 export interface Settings {
   /** Seconds a sent message waits in the outbox: 0, 10, 20 or 30. */
@@ -2753,6 +2757,8 @@ export interface Settings {
   blockAction?: BlockAction;
   /** Lines of a message's preview in the list: 0 to 5. 2 when absent. */
   previewLines?: number;
+  /** default when absent. */
+  textSize?: TextSize;
 }
 
 /** Params of settings.get. */
@@ -2772,6 +2778,7 @@ export interface SettingsSetParams {
   blockAction?: BlockAction;
   /** 0 to 5. */
   previewLines?: number;
+  textSize?: TextSize;
 }
 
 /** A preference changed. */

@@ -66,6 +66,24 @@ func TestGeneralListPreview(t *testing.T) {
 	f.until("a change made elsewhere", func() bool { return f.choice("List preview") == "1 Line" })
 }
 
+// P-957: the desktop app's text size, Smaller to Largest, Default until
+// chosen; a change made elsewhere shows.
+func TestGeneralTextSize(t *testing.T) {
+	f := newFixture(t, setup{})
+	f.general()
+	f.until("the default", func() bool { return f.choice("Text size") == "Default" })
+	f.choose("Text size", "Largest")
+	f.until("largest", func() bool { s := f.settings().TextSize; return s != nil && *s == api.TextSizeLargest })
+	f.until("the shown choice", func() bool { return f.choice("Text size") == "Largest" })
+	f.choose("Text size", "Smaller")
+	f.until("smaller", func() bool { s := f.settings().TextSize; return s != nil && *s == api.TextSizeSmaller })
+	larger := api.TextSizeLarger
+	if _, err := f.c.Settings().Set(t.Context(), &api.SettingsSetParams{TextSize: &larger}); err != nil {
+		t.Fatal(err)
+	}
+	f.until("a change made elsewhere", func() bool { return f.choice("Text size") == "Larger" })
+}
+
 func TestGeneralShowsAChangeMadeElsewhere(t *testing.T) {
 	f := newFixture(t, setup{})
 	f.general()

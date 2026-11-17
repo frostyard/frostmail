@@ -18,6 +18,7 @@ type Settings struct {
 	Favorites     []int64 // mailboxes in the sidebar's Favorites, in order
 	BlockAction   string  // api.BlockAction: what new mail from a blocked sender does
 	PreviewLines  int     // lines of preview in the message list: 0 to MaxPreviewLines
+	TextSize      string  // api.TextSize: how large the desktop app draws its text
 }
 
 // FlagColors is how many flag colors there are, and so flag names.
@@ -33,7 +34,8 @@ const (
 // DefaultSettings are the settings of a new database.
 func DefaultSettings() Settings {
 	return Settings{UndoDelay: 10, NotifyScope: string(api.NotifyScopeInbox), FlagNames: make([]string, FlagColors),
-		Favorites: []int64{}, BlockAction: string(api.BlockActionMark), PreviewLines: DefaultPreviewLines}
+		Favorites: []int64{}, BlockAction: string(api.BlockActionMark), PreviewLines: DefaultPreviewLines,
+		TextSize: string(api.TextSizeDefault)}
 }
 
 // fields maps each key of the settings table to its field of s.
@@ -46,6 +48,7 @@ func (s *Settings) fields() map[string]any {
 		"favorites":     &s.Favorites,
 		"blockAction":   &s.BlockAction,
 		"previewLines":  &s.PreviewLines,
+		"textSize":      &s.TextSize,
 	}
 }
 

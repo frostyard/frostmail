@@ -114,6 +114,12 @@ func (s settingsService) Set(ctx context.Context, p *api.SettingsSetParams) (*ap
 			}
 			st.BlockAction = string(*p.BlockAction)
 		}
+		if p.TextSize != nil {
+			if !p.TextSize.Valid() {
+				return api.InvalidParams("textSize %q is unknown", *p.TextSize)
+			}
+			st.TextSize = string(*p.TextSize)
+		}
 		out = st
 		return tx.SetSettings(ctx, st)
 	})
@@ -152,6 +158,8 @@ func toAPISettings(s store.Settings) *api.Settings {
 	out.BlockAction = &action
 	lines := int64(s.PreviewLines)
 	out.PreviewLines = &lines
+	size := api.TextSize(s.TextSize)
+	out.TextSize = &size
 	return out
 }
 

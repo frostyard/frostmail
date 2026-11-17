@@ -2,6 +2,7 @@ package mail
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,4 +126,37 @@ func PreviewLines(s *api.Settings) int {
 		return 2
 	}
 	return int(*s.PreviewLines)
+}
+
+// TextScale is how much larger than usual the desktop app draws its text:
+// 0.9, 1, 1.15 or 1.3 for the user's choice of Smaller, Default, Larger or
+// Largest; 1 when there is none or it is one this app does not know
+// (docs/specs/ui.md, Tokens).
+func TextScale(s *api.Settings) float32 {
+	if s == nil || s.TextSize == nil {
+		return 1
+	}
+	switch *s.TextSize {
+	case api.TextSizeSmaller:
+		return 0.9
+	case api.TextSizeLarger:
+		return 1.15
+	case api.TextSizeLargest:
+		return 1.3
+	}
+	return 1
+}
+
+// ZoomStyle is the style that makes a page of the reader draw at scale
+// times its size: nothing at 1, so the page is the one the app always made.
+// The zoom is for the screen; paper keeps its size (PrintGuard also sets
+// zoom 1 for it). It is !important in a cascade layer of its own, which
+// comes after PrintGuard's and before any the message has: a layered
+// important declaration beats an unlayered one, so no style of the message,
+// !important or not, can undo it (as PrintGuard's rules rely on).
+func ZoomStyle(scale float32) string {
+	if scale <= 0 || scale == 1 {
+		return ""
+	}
+	return "@layer text-size{@media screen{:root{zoom:" + strconv.FormatFloat(float64(scale), 'f', -1, 32) + "!important}}}"
 }

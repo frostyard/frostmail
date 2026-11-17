@@ -39,6 +39,7 @@ var tags = regexp.MustCompile(`<style>.*?</style>|<div class="print-only">.*?</d
 type fakeFrame struct {
 	mu        sync.Mutex
 	doc       string
+	loads     int
 	closed    bool
 	printed   int
 	selection string
@@ -50,6 +51,7 @@ func (f *fakeFrame) Load(document string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.doc = document
+	f.loads++
 }
 
 func (f *fakeFrame) text() string {

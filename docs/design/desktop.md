@@ -439,6 +439,56 @@ area on Windows), on frostui's `Tray`
   the host sees at the same path; with the sandbox's private `/tmp`, the
   panel draws a blank icon.
 
+## Text size
+
+P-957; the spec is [ui.md](../specs/ui.md), Tokens. maild keeps
+`settings.textSize` (`smaller`, `default`, `larger`, `largest`), and
+`mail.TextScale` turns it into 0.9, 1, 1.15 or 1.3.
+
+- **Where the theme takes it:** every `mygo.NewWindow` of `cmd/frostmail`
+  (the main, compose, Calendar and settings windows) wraps its content view
+  in `windowSet.sized`, which calls `uikit.Adapt(c, scale)` before the view.
+  `uikit.Adapt` is `frostui.Adapt` and, at a scale other than 1, a copy of
+  its theme whose `FontSize` is the usual size times the desktop's own
+  `TextScale` times the scale. The window's own `frostui.Adapt` then keeps
+  that theme (it keeps a Frostyard theme), and the size is set from the usual
+  size each time, so a second call in a frame changes nothing. The scale is
+  `mail.TextScale` of the main window's settings, read on the UI thread
+  (`mainwin.Window.MailState` holds a lock). `TestEveryWindowDrawsThroughSized`
+  holds each new window to the wrapper.
+- **What follows from the theme:** every `frostui.TextSize` and MyGo's own
+  text. Heights that hold text use `frostui.TextSize` too, so they follow the
+  theme's text size, which includes the desktop's own text scale
+  (`Preferences.TextScale`): at desktop scale 1 and the Default size each is
+  exactly what it was, and with a desktop scale each grows with the text
+  instead of cutting it (`TestSummaryRowFollowsTheDesktopsTextScale`). They are: `uikit.SummaryHeightIn` for the list's rows, and the
+  calendar's `gutterW`, `laneH` and `monthLine`, the two-line rows of People
+  and of the calendar's search, the compose window's label column, and the
+  room the filter row gives its tabs. Heights of things that are time or
+  pixels, not text (an hour of the calendar's grid, a block's minimum), stay.
+- **The repaint:** the main window keeps the scale it last drew. When the
+  settings it holds give another, it calls `Options.TextSizeChanged`, which
+  `main.go` sets to `windowSet.repaint`, so every open window, the compose
+  and settings windows too, builds again at the new size. A frame at an
+  unchanged size calls nothing, so there is no loop.
+- **The find bar:** when a text size change loads the open pages again, the
+  find bar closes (`closeFind`), as it does when a page closes: a page that
+  loads again has lost its highlights and its current match, and a search
+  cannot wait for the load, so the next search starts from the first match of
+  the new pages (`TestTextSizeChangeEndsTheFind`).
+- **The reader:** `showRendering` adds `mail.ZoomStyle(scale)` to the page's
+  style after the print guard: `@layer text-size{@media screen{:root{zoom:X!important}}}`,
+  and nothing at Default, so the Default document is as it always was. The
+  rule is `!important` in a layer of its own, which comes before any layer the
+  message has (the sanitizer renames those) and after the guard's: a layered
+  important declaration beats an unlayered one, so a message's own
+  `:root{zoom:1 !important}` cannot undo it (`TestTextSizeScalesTheListAndThePage`,
+  its second page). Print keeps its size (the guard also sets `zoom:1` on
+  paper, and the rule is for the screen). Each open message records the scale
+  its page loaded with; a frame that sees another scale loads the page again
+  once. `measureScript` needs no change: WebKitGTK reports the zoomed
+  height.
+
 ## Windows
 
 ADR-0038; plan 0010's Phase 4 builds maild's side, and Phase 5 the app,
