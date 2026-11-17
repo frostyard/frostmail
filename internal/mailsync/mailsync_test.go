@@ -299,6 +299,22 @@ func TestLiveChangesReachClients(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	rows, err := h.c.View().Range(ctx, &api.ViewRangeParams{ID: view.ID, Start: 0, End: view.Count})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// seed appends 01-welcome.eml first, so its message has IMAP UID 1.
+	var flagID int64
+	for _, row := range rows {
+		if row.Subject == "Welcome to the frostmail test server" {
+			flagID = row.ID
+			break
+		}
+	}
+	if flagID == 0 {
+		t.Fatal("message at IMAP UID 1 not found in INBOX")
+	}
+
 	// New mail: IDLE wakes C2, the pass inserts it, the view grows by one.
 	start := time.Now()
 	if _, err := mem.User.Append("INBOX", bytes.NewReader([]byte("Subject: Fresh\r\nFrom: z@mailtest.test\r\nDate: Thu, 08 Oct 2026 09:00:00 +0000\r\n\r\nnew\r\n")), &imap.AppendOptions{}); err != nil {
@@ -322,12 +338,23 @@ func TestLiveChangesReachClients(t *testing.T) {
 	if err := other.StoreFlags(ctx, []uint32{1}, []string{`\Seen`, `\Flagged`}, nil); err != nil {
 		t.Fatal(err)
 	}
-	h.waitFor(5*time.Second, "message.changed for the flag change", func(env api.EventEnvelope, ev api.Event) bool {
-		c, ok := ev.(api.MessageChanged)
-		return ok && env.Seq > 0 && len(c.IDs) == 1
-	})
-	if got := h.inbox(); got.Unread != 5 { // 6 messages, one now seen
-		t.Fatalf("unread after flag change = %d, want 5", got.Unread)
+	// The view manager sends view.delta itself, not through the event
+	// broker, so it can overtake the new mail's message.changed. Wait for a
+	// message.changed of the flagged message itself, and for the unread
+	// count it brings: an older event of that message comes before it.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			t.Fatal("timed out waiting for unread after flag change = 5")
+		}
+		h.waitFor(remaining, "message.changed for the flag change", func(env api.EventEnvelope, ev api.Event) bool {
+			c, ok := ev.(api.MessageChanged)
+			return ok && env.Seq > 0 && slices.Contains(c.IDs, flagID)
+		})
+		if got := h.inbox(); got.Unread == 5 { // 6 messages, one now seen
+			break
+		}
 	}
 	if err := other.StoreFlags(ctx, []uint32{2}, []string{`\Deleted`}, nil); err != nil {
 		t.Fatal(err)
