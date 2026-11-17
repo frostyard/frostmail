@@ -457,8 +457,11 @@ P-957; the spec is [ui.md](../specs/ui.md), Tokens. maild keeps
   (`mainwin.Window.MailState` holds a lock). `TestEveryWindowDrawsThroughSized`
   holds each new window to the wrapper.
 - **What follows from the theme:** every `frostui.TextSize` and MyGo's own
-  text. Heights that hold text use `frostui.TextSize` too, so at Default each
-  is what it was: `uikit.SummaryHeightIn` for the list's rows, and the
+  text. Heights that hold text use `frostui.TextSize` too, so they follow the
+  theme's text size, which includes the desktop's own text scale
+  (`Preferences.TextScale`): at desktop scale 1 and the Default size each is
+  exactly what it was, and with a desktop scale each grows with the text
+  instead of cutting it (`TestSummaryRowFollowsTheDesktopsTextScale`). They are: `uikit.SummaryHeightIn` for the list's rows, and the
   calendar's `gutterW`, `laneH` and `monthLine`, the two-line rows of People
   and of the calendar's search, the compose window's label column, and the
   room the filter row gives its tabs. Heights of things that are time or
@@ -468,13 +471,23 @@ P-957; the spec is [ui.md](../specs/ui.md), Tokens. maild keeps
   `main.go` sets to `windowSet.repaint`, so every open window, the compose
   and settings windows too, builds again at the new size. A frame at an
   unchanged size calls nothing, so there is no loop.
+- **The find bar:** when a text size change loads the open pages again, the
+  find bar closes (`closeFind`), as it does when a page closes: a page that
+  loads again has lost its highlights and its current match, and a search
+  cannot wait for the load, so the next search starts from the first match of
+  the new pages (`TestTextSizeChangeEndsTheFind`).
 - **The reader:** `showRendering` adds `mail.ZoomStyle(scale)` to the page's
-  style after the print guard: `@media screen{:root{zoom:X}}`, and nothing at
-  Default, so the Default document is as it always was. Print keeps its size
-  (the guard also sets `zoom:1` on paper). Each open message records the scale
+  style after the print guard: `@layer text-size{@media screen{:root{zoom:X!important}}}`,
+  and nothing at Default, so the Default document is as it always was. The
+  rule is `!important` in a layer of its own, which comes before any layer the
+  message has (the sanitizer renames those) and after the guard's: a layered
+  important declaration beats an unlayered one, so a message's own
+  `:root{zoom:1 !important}` cannot undo it (`TestTextSizeScalesTheListAndThePage`,
+  its second page). Print keeps its size (the guard also sets `zoom:1` on
+  paper, and the rule is for the screen). Each open message records the scale
   its page loaded with; a frame that sees another scale loads the page again
   once. `measureScript` needs no change: WebKitGTK reports the zoomed
-  height (`TestTextSizeScalesTheListAndThePage`).
+  height.
 
 ## Windows
 

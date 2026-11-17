@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-16",
+  "scope": "internal/desktop/mainwin",
+  "correction": "Code that loads the reader's pages again must end the find state that points at them: a reloaded page has lost its highlights and its current match, but w.find (asked, current, moved, counts) stays, and the find bar does not search again while the query equals asked. followTextSize closes the find bar (closeFind) before it reloads a page, because a search cannot wait for the load.",
+  "evidence": "frostyard/frostmail#342, cross-review (openai/gpt-6.1-sol) of head 876135c, finding 2 (blocking); guard: TestTextSizeChangeEndsTheFind",
+  "promoted_to": ""
+}

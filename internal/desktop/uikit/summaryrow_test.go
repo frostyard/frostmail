@@ -300,3 +300,44 @@ func TestSummaryRowHeightFollowsTheTextSize(t *testing.T) {
 		}
 	}
 }
+
+// The row's height follows the theme's text size, which includes the
+// desktop's own text scale: at the app's Default size and a desktop scale of
+// 1.5, frostui draws every text 1.5 times larger, and the row grows with it
+// instead of cutting the preview. At desktop scale 1 it is the usual height.
+func TestSummaryRowFollowsTheDesktopsTextScale(t *testing.T) {
+	setIcons()
+	const desktop = 1.5
+	long := strings.Repeat("several words of a preview ", 40)
+	draw := func(prefs ui.Preferences) (row, preview ui.Rect) {
+		tt := ui.NewTesterWith(func(c *ui.Context) {
+			uikit.Adapt(c, 1)
+			ui.Column(c).Width(320).AlignItems(ui.Stretch).Children(func() {
+				uikit.SummaryRowLines(c, uikit.Summary{Title: "Ann Lee", Date: "9:41", Subtitle: "Plans", Preview: long}, 2).Label("the row")
+			})
+		}, 320, 300, ui.TesterOptions{Preferences: prefs})
+		tt.Frame()
+		row, ok1 := tt.Find("the row")
+		preview, ok2 := tt.Find(long)
+		if !ok1 || !ok2 {
+			t.Fatalf("no row or preview in %q", tt.Texts())
+		}
+		return row, preview
+	}
+	usualRow, _ := draw(ui.Preferences{TextScale: 1})
+	if usualRow.H != uikit.SummaryHeightFor(2) {
+		t.Errorf("at desktop scale 1 the row is %v high, want %v", usualRow.H, uikit.SummaryHeightFor(2))
+	}
+	row, preview := draw(ui.Preferences{TextScale: desktop})
+	if d := row.H - uikit.SummaryHeightFor(2)*desktop; d > 0.01 || d < -0.01 {
+		t.Errorf("at desktop scale %v the row is %v high, want %v", desktop, row.H, uikit.SummaryHeightFor(2)*desktop)
+	}
+	bottom := preview.Y + preview.H - row.Y
+	if bottom > row.H+0.01 {
+		t.Errorf("the preview ends %v down a row %v high", bottom, row.H)
+	}
+	// The old fixed height would have cut it: that is why the row follows.
+	if bottom <= uikit.SummaryHeightFor(2) {
+		t.Errorf("the preview ends %v down, inside the old fixed height %v: the test no longer shows the row had to grow", bottom, uikit.SummaryHeightFor(2))
+	}
+}

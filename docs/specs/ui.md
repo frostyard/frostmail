@@ -64,13 +64,19 @@ or Largest: 0.9, 1, 1.15 or 1.3 times the usual size, which is Default and
 what every size in this spec is given at. Every window of the desktop app
 draws at it, and a change shows at once in every window that is open. The
 window's theme takes the scale (`uikit.Adapt`, times the desktop's own text
-size), so every frostui text size and MyGo's own text follow; so do the
-heights that hold text: the message list's rows (`uikit.SummaryHeightIn`,
-which is `SummaryHeightFor` at Default), the calendar's all-day lanes, month
-lines and hours' gutter, and the rows of People and of the calendar's
-search. The reader's page zooms by the scale on screen
-(`@media screen{:root{zoom:…}}`, none at Default) and not on paper, and its
-height is the zoomed page's. The web build keeps its own text size. The
+scale), so every frostui text size and MyGo's own text follow. So do the
+heights that hold text: they follow the theme's text size, which includes the
+desktop's own text scale. At desktop scale 1 and the Default size they are
+exactly as they always were; with a desktop scale they grow with the text,
+where the fixed heights cut it (a list row with 2 lines of preview, 84, at a
+desktop scale of 1.5, cut the preview, which ends 110 down). Those heights are
+the message list's rows (`uikit.SummaryHeightIn`, which is `SummaryHeightFor`
+at the usual size), the calendar's all-day lanes, month lines and hours'
+gutter, and the rows of People and of the calendar's search. The reader's
+page zooms by the scale on screen
+(`@layer text-size{@media screen{:root{zoom:…!important}}}`, none at Default;
+the layer keeps a message's own style from undoing it) and not on paper, and
+its height is the zoomed page's. The web build keeps its own text size. The
 font family, the fixed-width font and the colors are not chosen
 ([#204](https://github.com/frostyard/frostmail/issues/204)).
 

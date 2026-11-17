@@ -12,6 +12,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/mainwin"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
+	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 )
 
 func (f *fixture) setTextSize(t *testing.T, size api.TextSize) {
@@ -90,7 +91,7 @@ func TestReaderPageFollowsTheTextSize(t *testing.T) {
 		}
 		return frame != nil && strings.Contains(frame.page(), "Hello from the page")
 	})
-	const zoom = "@media screen{:root{zoom:"
+	const zoom = "@layer text-size{@media screen{:root{zoom:"
 	if strings.Contains(frame.page(), zoom) {
 		t.Fatalf("the page zooms at the usual size: %s", frame.page())
 	}
@@ -98,7 +99,7 @@ func TestReaderPageFollowsTheTextSize(t *testing.T) {
 	for _, c := range []struct {
 		size api.TextSize
 		want string
-	}{{api.TextSizeLargest, zoom + "1.3}}"}, {api.TextSizeSmaller, zoom + "0.9}}"}} {
+	}{{api.TextSizeLargest, zoom + "1.3!important}}}"}, {api.TextSizeSmaller, zoom + "0.9!important}}}"}} {
 		before := frame.count()
 		f.setTextSize(t, c.size)
 		f.until(t, string(c.size)+" page", func() bool { return strings.Contains(frame.page(), c.want) })
@@ -128,4 +129,41 @@ func (f *fakeFrame) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.loads
+}
+
+// A text size change loads the open pages again, which loses their find
+// highlights and the current match, so the find bar closes with it: its
+// "3 of 4" must not stay over pages that show no match, and the next search
+// starts from the first match of the new pages.
+func TestTextSizeChangeEndsTheFind(t *testing.T) {
+	f := newReaderFixture(t, func(mem *imapxtest.Mem) {
+		raw(mem, t, "From: Ann <ann@x.test>\nTo: me@x.test\nSubject: Long talk\nMessage-ID: <m1@x.test>\nDate: Mon, 09 Nov 2026 09:01:00 +0000\n\nneedle older\n")
+		raw(mem, t, "From: Ann <ann@x.test>\nTo: me@x.test\nSubject: Long talk\nMessage-ID: <m2@x.test>\nIn-Reply-To: <m1@x.test>\nReferences: <m1@x.test>\nDate: Mon, 09 Nov 2026 09:02:00 +0000\n\nneedle newer\n")
+	})
+	f.sized()
+	f.has(t, "the row", "Long talk")
+	f.open(t, "Long talk")
+	f.until(t, "2 pages", func() bool { return len(f.live()) == 2 })
+	for _, fr := range f.live() {
+		fr.mu.Lock()
+		fr.matches = 2
+		fr.mu.Unlock()
+	}
+	f.tt.Key(ui.Cmd, ui.KeyF)
+	f.tt.Frame()
+	f.tt.Type("needle")
+	f.has(t, "the count", "1 of 4")
+	for _, want := range []string{"2 of 4", "3 of 4"} { // past the first page's matches
+		f.tt.Key(0, ui.KeyEnter)
+		f.has(t, want, want)
+	}
+	before := f.live()[0].count() + f.live()[1].count()
+	f.setTextSize(t, api.TextSizeLargest)
+	f.until(t, "both pages loaded again", func() bool { return f.live()[0].count()+f.live()[1].count() == before+2 })
+	f.until(t, "the find bar closed", func() bool { return !f.tt.HasText("3 of 4") && !f.tt.HasText("1 of 4") })
+	// Find again: from the first match.
+	f.tt.Key(ui.Cmd, ui.KeyF)
+	f.tt.Frame()
+	f.tt.Type("needle")
+	f.has(t, "the new search", "1 of 4")
 }

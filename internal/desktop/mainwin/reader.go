@@ -3,6 +3,7 @@ package mainwin
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -310,8 +311,16 @@ func (w *Window) currentTextScale() float32 {
 func (w *Window) followTextSize() {
 	scale := w.currentTextScale()
 	if cv := w.conv; cv != nil {
+		stale := func(m *openMsg) bool { return m.frame != nil && m.rendering != nil && m.pageScale != scale }
+		if slices.ContainsFunc(slices.Collect(maps.Values(cv.msgs)), stale) {
+			// A page that loads again has lost its highlights and its
+			// current match, and a search can not wait for the load: the
+			// find bar closes, as it does when a page closes, and the
+			// next search starts from the first match of the new pages.
+			w.closeFind()
+		}
 		for _, m := range cv.msgs {
-			if m.frame != nil && m.rendering != nil && m.pageScale != scale {
+			if stale(m) {
 				w.showRendering(m, m.rendering)
 			}
 		}

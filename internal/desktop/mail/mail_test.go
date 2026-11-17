@@ -313,9 +313,9 @@ func TestTextScaleAndZoomStyle(t *testing.T) {
 		{"unknown", size("huge"), 1, ""},
 		{"empty", size(""), 1, ""},
 		{"default", size("default"), 1, ""},
-		{"smaller", size("smaller"), 0.9, "@media screen{:root{zoom:0.9}}"},
-		{"larger", size("larger"), 1.15, "@media screen{:root{zoom:1.15}}"},
-		{"largest", size("largest"), 1.3, "@media screen{:root{zoom:1.3}}"},
+		{"smaller", size("smaller"), 0.9, "@layer text-size{@media screen{:root{zoom:0.9!important}}}"},
+		{"larger", size("larger"), 1.15, "@layer text-size{@media screen{:root{zoom:1.15!important}}}"},
+		{"largest", size("largest"), 1.3, "@layer text-size{@media screen{:root{zoom:1.3!important}}}"},
 	} {
 		got := mail.TextScale(c.in)
 		if got != c.want {
