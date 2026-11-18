@@ -32,13 +32,13 @@ func TestDocumentCarriesThePolicyFirst(t *testing.T) {
 
 func TestPrintHeaderIsPrintOnly(t *testing.T) {
 	doc := uikit.Document("body", "<div>From: Ann</div>", "")
-	if !strings.Contains(doc, `<body><div class="print-only"><div>From: Ann</div></div><div>body</div></body>`) {
+	if !strings.Contains(doc, `<body><div class="print-only"><div>From: Ann</div></div><div>body</div><style>`) {
 		t.Errorf("print header missing: %s", doc)
 	}
 	if !strings.Contains(doc, `@media screen{.print-only{display:none}body>.print-only:first-child+div{display:contents}}`) {
 		t.Errorf("the print header shows on screen, or the message's holder lays out: %s", doc)
 	}
-	if doc := uikit.Document("body", "", ""); !strings.Contains(doc, `<body>body</body>`) {
+	if doc := uikit.Document("body", "", ""); !strings.Contains(doc, `<body>body<style>`) {
 		t.Errorf("without a header: %s", doc)
 	}
 }
@@ -69,10 +69,13 @@ func TestDocumentHoldsTheMessageInOneElement(t *testing.T) {
 	for c := range body.ChildNodes() {
 		children = append(children, c)
 	}
-	if len(children) != 2 {
-		t.Fatalf("the body has %d children, want the header and the message's holder", len(children))
+	if len(children) != 3 {
+		t.Fatalf("the body has %d children, want the header, the message's holder and the final style", len(children))
 	}
-	header, holder := children[0], children[1]
+	header, holder, style := children[0], children[1], children[2]
+	if style.DataAtom != atom.Style {
+		t.Errorf("last child %s, want the app's final style", style.Data)
+	}
 	if header.DataAtom != atom.Div || len(header.Attr) != 1 || header.Attr[0] != (html.Attribute{Key: "class", Val: "print-only"}) {
 		t.Errorf("first child %s %v, want the header", header.Data, header.Attr)
 	}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/rpctest"
@@ -25,6 +26,7 @@ func TestTextSizeScalesTheListAndThePage(t *testing.T) {
 	for _, tc := range []struct{ name, page string }{
 		{"plain", text},
 		{"own zoom", `<style>:root{zoom:1 !important}html{zoom:1 !important}</style>` + text},
+		{"classic scrollbar", `<style>::-webkit-scrollbar{width:17px}</style>` + text},
 	} {
 		t.Run(tc.name, func(t *testing.T) { textSizeScales(t, tc.page) })
 	}
@@ -68,22 +70,24 @@ func textSizeScales(t *testing.T, page string) {
 		})
 		return row, page
 	}
-	// A page loaded again need not come back to its first height: on
-	// WebView2 the first page measured 1875 and the same page, loaded again
-	// at Default after Largest, 1692 (CI, frostyard/frostmail#342), as the
-	// first measure can come before the window's final layout. So the
-	// return to Default holds the row to its height and the page to a
-	// shrink from its Largest height by at least the factor Largest added
-	// to it, which a page still zoomed cannot meet.
+	// The page must return to its Default height, not only shrink from
+	// Largest. A classic inner scrollbar must not narrow the first page
+	// while its viewport still has the reader's initial 40-pixel height.
+	// The native reader scrolls the page; its viewport has no vertical
+	// scrollbar, so the first load and a reload wrap at the same width.
 	near := func(got, want, tolerance float64) bool { return math.Abs(got-want) <= tolerance }
 
-	// The page lays out after the window shows it: wait for its height to
-	// settle, which is the text's.
+	// Require 1.3 seconds of unchanged height, longer than the frame's
+	// measureInterval × measureAgree (400 milliseconds × 3). Two equal
+	// reads can occur before its next height measure.
 	var last float64
-	row0, page0 := waitHeights("the page's height at the Default size", func(row, page float64) bool {
-		same := page > 100 && page == last
-		last = page
-		return row > 0 && same
+	var unchangedSince time.Time
+	row0, page0 := waitHeights("the page's settled height at the Default size", func(row, page float64) bool {
+		if page != last || page <= 100 || row <= 0 {
+			last, unchangedSince = page, time.Now()
+			return false
+		}
+		return time.Since(unchangedSince) >= 1300*time.Millisecond
 	})
 	t.Logf("Default: row %v, page %v", row0, page0)
 
@@ -94,8 +98,8 @@ func textSizeScales(t *testing.T, page string) {
 	t.Logf("Largest: row %v, page %v", row1, page1)
 
 	set(api.TextSizeDefault)
-	row2, page2 := waitHeights(fmt.Sprintf("the Default size again: a row within 0.5 of %v and a page at most %v / 1.15", row0, page1), func(row, page float64) bool {
-		return near(row, row0, 0.5) && page > 100 && page*1.15 <= page1
+	row2, page2 := waitHeights(fmt.Sprintf("the Default size again: a row within 0.5 of %v and a page within 0.5 of %v", row0, page0), func(row, page float64) bool {
+		return near(row, row0, 0.5) && near(page, page0, 0.5)
 	})
 	t.Logf("Default again: row %v, page %v", row2, page2)
 }
