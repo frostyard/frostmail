@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -12,6 +13,23 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
+
+// The first viewport is short until the frame measures the page. A classic
+// scrollbar would narrow that viewport and add lines, unlike a reload into
+// an already tall viewport. The native reader owns vertical scrolling, so
+// the document must suppress that scrollbar before the first measure, on
+// screen only: printing must still paginate the whole message.
+func TestDocumentSuppressesTheViewportScrollbarBeforeTheFirstMeasure(t *testing.T) {
+	for _, header := range []string{"", "<div>From: Ann</div>"} {
+		doc := Document("<p>A message</p>", header, "")
+		const rule = `@media screen{html{overflow-y:hidden}}`
+		at := strings.Index(doc, rule)
+		body := strings.Index(doc, "<body>")
+		if at < 0 || at >= body {
+			t.Fatalf("no screen-only viewport scrollbar rule before the message: %s", doc)
+		}
+	}
+}
 
 // fakePage stands in for a web page: it records what the frame asks of it,
 // and hands back the handlers the frame set.
