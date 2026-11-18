@@ -204,7 +204,7 @@ waits on the owner's checks on real desktops.
   `make bump CANDIDATE=vX.Y.Z-rc.N` runs `make verify` on the candidate's commit, tags
   that commit `vX.Y.Z` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
-  `github.com/frostyard/frostui` v0.9.0 (the desktop app's kit, on MyGo;
+  `github.com/frostyard/frostui` v0.10.0 (the desktop app's kit, on MyGo;
   read its `docs/design/frostui.md` API changes after a bump),
   `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).

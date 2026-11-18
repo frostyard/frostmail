@@ -1137,7 +1137,7 @@ in `uikit` (see Phases 5 and 6 for the remaining differences).
 - Related plans: [plan 0011](0011-m8-mail-in-lodge.md) (the web build),
   [plan 0013](0013-m6-the-standalone-desktop-flatpak.md) (the Flatpak and
   its gates)
-- MyGo's docs (in the module cache, v0.9.0 since 2026-11-11): `docs/ui/web-view.md`,
+- MyGo's docs (in the module cache, v0.10.0 since 2026-11-18): `docs/ui/web-view.md`,
   `docs/frontend.md` (untrusted pages), `docs/windows.md` (pages, find,
   printing, blocking content), `docs/ui/rich-text-editor.md`,
   `docs/ui/testing.md`, `docs/native.md` (notifications),
