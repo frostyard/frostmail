@@ -216,7 +216,9 @@ waits on the owner's checks on real desktops.
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
 - The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
   the Go versions above; it changes with every bump. Run `make flatpak-sources`
-  after a change to `go.mod` or `go.sum`.
+  after a change to `go.mod` or `go.sum`. A dependency bump also updates every
+  current-state version in `AGENTS.md`, ADRs and plans; dated historical text
+  stays unchanged when it still describes the recorded fact.
   `mise.toml`, the other `packaging/` files, the workflows and `scripts/` pin no
   frostyard or bketelsen module.
 - Users: lodge hosts maild as its `mail` app, and Porter calls `/mcp/mail`. Other users:
