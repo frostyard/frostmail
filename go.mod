@@ -5,13 +5,13 @@ go 1.27.4
 require (
 	github.com/Microsoft/go-winio v0.6.4
 	github.com/coder/websocket v1.8.15
-	github.com/egoist/mygo v0.9.1
+	github.com/egoist/mygo v0.10.0
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.1
 	github.com/frostyard/clix v0.5.0
-	github.com/frostyard/frostui v0.9.0
+	github.com/frostyard/frostui v0.10.0
 	github.com/frostyard/lodge/kit v0.4.0
 	github.com/frostyard/std v0.5.0
 	github.com/godbus/dbus/v5 v5.2.4

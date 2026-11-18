@@ -39,8 +39,8 @@ github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2
 github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
 github.com/ebitengine/purego v0.11.3 h1:OB+JLpdm7ioymhyA+6s5kbb/uOuYycAgL8NNTFc5MLg=
 github.com/ebitengine/purego v0.11.3/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
-github.com/egoist/mygo v0.9.1 h1:vzMjSyahUjSk62+n+qmNXt8Bamyx1UNz359OyEDo/kg=
-github.com/egoist/mygo v0.9.1/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
+github.com/egoist/mygo v0.10.0 h1:HpLUrlh6WES+4VYbz5K0TvUSw/v8PSdjT/ttiUYrBFM=
+github.com/egoist/mygo v0.10.0/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
 github.com/emersion/go-message v0.18.2 h1:rl55SQdjd9oJcIoQNhubD2Acs1E6IzlZISRTK7x/Lpg=
 github.com/emersion/go-message v0.18.2/go.mod h1:XpJyL70LwRvq2a8rVbHXikPgKj8+aI0kGdHlg16ibYA=
 github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 h1:oP4q0fw+fOSWn3DfFi4EXdT+B+gTtzx8GC9xsc26Znk=
@@ -51,8 +51,8 @@ github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHk
 github.com/frankban/quicktest v1.14.6/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=
 github.com/frostyard/clix v0.5.0 h1:Krzt2hcCoc/bRFNABKWNZMOZjU1cKtJy22e6rxlxQeo=
 github.com/frostyard/clix v0.5.0/go.mod h1:W0QNHnzoBz0KSwrMtWwKQmApJMrEy0DdOnJifYlH8WU=
-github.com/frostyard/frostui v0.9.0 h1:st5PRF+S9b/ZRsUE+3yRbcrVVACUZeGcZgDxcLrFIwQ=
-github.com/frostyard/frostui v0.9.0/go.mod h1:7DbUG2z/Aw0yXX57/NWebKJAYFZ6FtsiAG+jqytd4xc=
+github.com/frostyard/frostui v0.10.0 h1:bZXZm8HYcDSCJ1UQV9e2pU1aXOObblZEk3XFABLjNTQ=
+github.com/frostyard/frostui v0.10.0/go.mod h1:wi/n7ViwIyyB3jiyw3aK5pui5QLzqCh4Fh+/Cbva82M=
 github.com/frostyard/lodge/kit v0.4.0 h1:CIu9YWBi+7tob8mHl+Qr2yk80Qleo1iGn8mwKIPw1Jo=
 github.com/frostyard/lodge/kit v0.4.0/go.mod h1:u1oc0QWL29ZESg/nQlLs8q9hFDlteKHxcY/lFQcMZaU=
 github.com/frostyard/std v0.5.0 h1:SUmy+LnGpFAsfCrokeJc8Sa/M5pj3jpSlwHlgaIJR94=

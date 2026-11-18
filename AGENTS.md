@@ -78,7 +78,7 @@ and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Proposed) adds maild's activity stream for the app's console; its maild
 side is built (`mailctl activity`). `cmd/frostmail` draws every window on
-Linux on frostui v0.9.0, in its Frostyard look (frostui's ADR-0011: the
+Linux on frostui v0.10.0, in its Frostyard look (frostui's ADR-0011: the
 Frostyard and Frostyard light themes, Inter, nearly square corners;
 plan 0015, [The Frostyard look](docs/plans/0015-mygo-desktop.md#the-frostyard-look))
 (`internal/desktop/`: `mainwin`, `compose`, `organize`, `pim`, `settings`),
@@ -208,10 +208,10 @@ waits on the owner's checks on real desktops.
   read its `docs/design/frostui.md` API changes after a bump),
   `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
-- MyGo is `github.com/egoist/mygo` v0.9.1, the first upstream release with
-  the quotation-depth change (upstream #1731). It replaced the owner's fork
-  pin of [ADR-0058](docs/adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md);
-  `go.mod` has no MyGo `replace`. frostui v0.9.0 requires v0.9.1 too.
+- MyGo is `github.com/egoist/mygo` v0.10.0. The quotation-depth change
+  (upstream #1731) first shipped upstream in v0.9.1, which replaced the owner's
+  fork pin of [ADR-0058](docs/adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md).
+  `go.mod` has no MyGo `replace`. frostui v0.10.0 requires v0.10.0 too.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
 - The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
