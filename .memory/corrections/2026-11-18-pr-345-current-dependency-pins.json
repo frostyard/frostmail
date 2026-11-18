@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-18",
+  "scope": "dependencies and docs",
+  "correction": "A dependency bump must update every current-state version line, not only go.mod and generated sources. Check AGENTS.md, ADRs and plans for active pin statements; keep dated historical statements unchanged when they still describe the fact recorded at that time.",
+  "evidence": "frostyard/frostmail#345, cross-review (github-copilot/claude-sonnet-5.5) of head dc79f4e, finding 1 (blocking); guard: AGENTS.md rule that a dependency bump updates current-state versions in AGENTS.md, ADRs and plans",
+  "promoted_to": "AGENTS.md"
+}

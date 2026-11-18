@@ -205,14 +205,14 @@
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1.mod",
+    "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.10.0.mod",
     "sha256": "c5f553e2f93ddcff569f7fd95902e334f7a972d6819db1d5ca075b7e7c79cc18",
     "dest": "goproxy/github.com/egoist/mygo/@v"
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1.zip",
-    "sha256": "39b3857b6cf4ce3819ee6e8dc5e4c59d8c5c18ec5eee6bc25e13662ce82bb426",
+    "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.10.0.zip",
+    "sha256": "53b0ce8c4bf7581deb3891a2e8cf75267a5804a82ed6de0d5d68b8440d8c395a",
     "dest": "goproxy/github.com/egoist/mygo/@v"
   },
   {
@@ -265,14 +265,14 @@
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/frostyard/frostui/@v/v0.9.0.mod",
-    "sha256": "c1637a8255ad1626f2948cf12f7baf1f0199e57ed32d1aa146d4f89bcf5b6cbc",
+    "url": "https://proxy.golang.org/github.com/frostyard/frostui/@v/v0.10.0.mod",
+    "sha256": "1ea87cc9e1bd74a491557db61bed0fecf2bd559179cb05d20fda546f93f7f454",
     "dest": "goproxy/github.com/frostyard/frostui/@v"
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/frostyard/frostui/@v/v0.9.0.zip",
-    "sha256": "8f3928739ab626a7fe0497acae8a44f3617beb8c6dd67f17e5edc1f7aa9d22ff",
+    "url": "https://proxy.golang.org/github.com/frostyard/frostui/@v/v0.10.0.zip",
+    "sha256": "70e05fb915dfcf37feacbff350829ed1f185af2def757351ac59ccb171e37f63",
     "dest": "goproxy/github.com/frostyard/frostui/@v"
   },
   {
