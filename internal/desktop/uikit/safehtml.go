@@ -25,11 +25,7 @@ const PageRules = `[
  {"trigger": {"url-filter": "^about:"}, "action": {"type": "ignore-previous-rules"}}
 ]`
 
-// The native reader scrolls the page. An inner vertical scrollbar would
-// narrow the initial, short viewport and change the first height measure's
-// line wrapping. Hide it on screen only, so printing can paginate the page.
 const pageStyle = `html{color-scheme:light}` +
-	`@media screen{html{overflow-y:hidden}}` +
 	`body{margin:0;padding:20px;background:#fff;color:#000;font:14px/1.45 "Inter Variable",system-ui,sans-serif;overflow-wrap:anywhere}` +
 	`img{max-width:100%;height:auto}` +
 	`@media screen{.print-only{display:none}body>.print-only:first-child+div{display:contents}}` +
@@ -60,7 +56,11 @@ func Document(body, printHeader, extraStyle string) string {
 		b.WriteString(body)
 		b.WriteString(`</div>`)
 	}
-	b.WriteString(`</body></html>`)
+	// The native reader scrolls the page. An inner vertical scrollbar
+	// would narrow the initial viewport and change its line wrapping.
+	// Keep this important rule after the message's own styles. Apply it
+	// on screen only, so printing can paginate the whole message.
+	b.WriteString(`<style>@media screen{html{overflow-y:hidden!important}}</style></body></html>`)
 	return b.String()
 }
 

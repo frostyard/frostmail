@@ -21,12 +21,15 @@ import (
 // screen only: printing must still paginate the whole message.
 func TestDocumentSuppressesTheViewportScrollbarBeforeTheFirstMeasure(t *testing.T) {
 	for _, header := range []string{"", "<div>From: Ann</div>"} {
-		doc := Document("<p>A message</p>", header, "")
-		const rule = `@media screen{html{overflow-y:hidden}}`
-		at := strings.Index(doc, rule)
-		body := strings.Index(doc, "<body>")
-		if at < 0 || at >= body {
-			t.Fatalf("no screen-only viewport scrollbar rule before the message: %s", doc)
+		const ownRule = `html{overflow-y:scroll!important}`
+		doc := Document("<style>"+ownRule+"</style><p>A message</p>", header, "")
+		const finalStyle = `<style>@media screen{html{overflow-y:hidden!important}}</style>`
+		own := strings.Index(doc, ownRule)
+		message := strings.Index(doc, "<p>A message</p>")
+		final := strings.LastIndex(doc, finalStyle)
+		end := strings.Index(doc, "</body>")
+		if own < 0 || message <= own || final <= message || final+len(finalStyle) != end {
+			t.Fatalf("the final screen-only scrollbar rule must follow the message's own important rule and precede </body>: %s", doc)
 		}
 	}
 }

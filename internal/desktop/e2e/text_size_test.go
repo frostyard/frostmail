@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/rpctest"
@@ -76,14 +77,17 @@ func textSizeScales(t *testing.T, page string) {
 	// scrollbar, so the first load and a reload wrap at the same width.
 	near := func(got, want, tolerance float64) bool { return math.Abs(got-want) <= tolerance }
 
-	// Wait for a measured page height to reach the native tree. Two reads
-	// do not establish that the frame's slower height poll has settled;
-	// the page must wrap at its full width even before that poll finishes.
+	// Require 1.3 seconds of unchanged height, longer than the frame's
+	// measureInterval × measureAgree (400 milliseconds × 3). Two equal
+	// reads can occur before its next height measure.
 	var last float64
-	row0, page0 := waitHeights("the page's height at the Default size", func(row, page float64) bool {
-		same := page > 100 && page == last
-		last = page
-		return row > 0 && same
+	var unchangedSince time.Time
+	row0, page0 := waitHeights("the page's settled height at the Default size", func(row, page float64) bool {
+		if page != last || page <= 100 || row <= 0 {
+			last, unchangedSince = page, time.Now()
+			return false
+		}
+		return time.Since(unchangedSince) >= 1300*time.Millisecond
 	})
 	t.Logf("Default: row %v, page %v", row0, page0)
 
