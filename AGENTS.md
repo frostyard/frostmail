@@ -206,7 +206,7 @@ waits on the owner's checks on real desktops.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
   `github.com/frostyard/frostui` v0.10.0 (the desktop app's kit, on MyGo;
   read its `docs/design/frostui.md` API changes after a bump),
-  `github.com/frostyard/lodge/kit` v0.4.0, `github.com/frostyard/std` v0.5.0 (direct:
+  `github.com/frostyard/lodge/kit` v0.5.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
 - MyGo is `github.com/egoist/mygo` v0.10.0. The quotation-depth change
   (upstream #1731) first shipped upstream in v0.9.1, which replaced the owner's
