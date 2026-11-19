@@ -178,6 +178,20 @@ func TestReaderPageRunsNoScript(t *testing.T) {
 			if n := selfchecks.Load(); n != 1 || initialHits != 0 {
 				t.Fatalf("canary selfcheck: %d selfchecks, %d other requests", n, initialHits)
 			}
+			// A request as a script would make it must be counted and named;
+			// then the count starts again from 0.
+			res, err = http.Get(origin + "/script/selfcheck")
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = res.Body.Close()
+			mu.Lock()
+			counted, named := hits, strings.Join(paths, " ")
+			hits, paths = 0, nil
+			mu.Unlock()
+			if counted != 1 || named != "/script/selfcheck" {
+				t.Fatalf("canary count check: %d requests, paths %q", counted, named)
+			}
 
 			vectors := probeVectors(origin)
 			page := probePage(origin)
