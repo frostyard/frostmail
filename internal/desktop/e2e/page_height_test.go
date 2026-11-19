@@ -26,9 +26,17 @@ func TestViewportRootMessageShowsAllOfItsContent(t *testing.T) {
 		`<p>A direct debit of 10.00 USD left the account that ends in 0000.</p>` +
 		`<p>When you did not expect this payment, call the number on the back of your card.</p>` +
 		`<p>This notice is automatic. Replies to it are not read.</p></td></tr></table></div>`
-	control := settledPageHeight(t, `<style>body{margin:0!important;padding:0!important}</style>`+notice)
-	if control <= 100 {
-		t.Fatalf("the control page is %v high: its content did not lay out", control)
+	// Each page has its app in a subtest of its own, which stops it before
+	// the next starts: on Windows, a second app of the same user does not
+	// start while one runs.
+	var control float64
+	if !t.Run("control", func(t *testing.T) {
+		control = settledPageHeight(t, `<style>body{margin:0!important;padding:0!important}</style>`+notice)
+		if control <= 100 {
+			t.Fatalf("the control page is %v high: its content did not lay out", control)
+		}
+	}) {
+		return
 	}
 	for _, tc := range []struct{ name, style string }{
 		{"percent root", `html,body{height:100%!important;margin:0!important;padding:0!important}`},
