@@ -632,9 +632,42 @@ unless that pipe listed only fixture accounts.
   browser), and the window count stayed at 1. A `file:` link in the same
   message reached the page as plain text, since maild's sanitizer had
   removed the link.
-- **Not run:** a direct probe for script in the built app on either
-  engine (the spikes ran that on the page). A link click on WebKitGTK is
-  in Phase 9's check.
+- **Check of 2026-11-18, the script probe in the built app on WebKitGTK,
+  fixture maild:** `TestReaderPageRunsNoScript` in `internal/desktop/e2e`
+  (`make desktop-e2e`). The build: the e2e harness's automation build of
+  `cmd/frostmail` (`-tags automation`, `CGO_ENABLED=0`, MyGo v0.10.0,
+  frostui v0.10.0) from this check's branch. The engine: the host's
+  `libwebkit2gtk-4.1-0` 2.54.0-1~deb13u3 (WebKitGTK 2.54.0), GTK on X11
+  under Xvfb, with `WEBKIT_DISABLE_COMPOSITING_MODE=1`, as CI runs it. One
+  message holds 22 ways to run script (inline, module, `data:` and remote
+  scripts; image, body, SVG, animation, toggle, style and video handlers;
+  `javascript:`, `srcdoc`, `data:` and remote frames; object, embed and a
+  `javascript:` refresh). Each one that runs adds a mark to the page and
+  requests a canary on loopback. The reader's find bar counts the marks:
+  the page shows 1 itself, so its count less 1 is the scripts that ran. A
+  script in a frame of another origin (the `data:` and remote frames, the
+  object and the embed) marks only its own page: only its request shows
+  it ran, and the content rules block that request. The test passes only
+  when both counts are 0. Before the page, the test checks that the
+  canary counts and names a request.
+
+  | Runs of the final test | Path to the page | Scripts run | Canary requests |
+  | --- | --- | --- | --- |
+  | 3 | maild's sanitizer bypassed: the CSP and the rules | 0 | 0 |
+  | 3 | maild's sanitizer, the CSP and the rules | 0 | 0 |
+
+  Every run found the page's own mark ("1 of 1", twice, 2 s apart), so the
+  page had loaded. Earlier versions of the test on the same branch gave the
+  same counts in 5 more runs of each path. A control, with a local change
+  that was not committed: with `uikit.PageCSP` empty and `uikit.PageRules`
+  blocking nothing, 17 scripts ran and the canary logged 19 requests (17
+  from scripts, the remote script and image), in 2 runs; with the CSP
+  empty and the rules kept, 16 scripts ran and the canary logged 0, in 1
+  run. Without either defense, the object, embed, `data:` and remote
+  frames and the `javascript:` refresh left no mark and made no canary
+  request on this engine. **Not run:** the same probe on WebView2 in the
+  built app on `frostmail-win11`, and the control on WebView2. A link
+  click on WebKitGTK is in Phase 9's check.
 - **Differences from the React reader, to confirm at the gate:**
   - Find covers the message bodies only, not the native header and
     banners. Text bodies are drawn in a page too, so find, print and
@@ -956,6 +989,15 @@ change landed in MyGo v0.9.1, which frostmail now requires
   [#336](https://github.com/frostyard/frostmail/pull/336) has its own
   desktop check, on GNOME 48 on Wayland with that PR's Flatpak bundle
   (the PR's comment); its KDE and Windows trays are not checked.
+- **Status (2026-11-18): the gate is still open.** Phase 4's direct probe
+  for script passed on WebKitGTK: 0 scripts run and 0 canary requests
+  ([Phase 4's check of 2026-11-18](#phase-4--the-reader-l)). CI's job
+  "Windows app (installer, native e2e)" also ran the probe on WebView2, on
+  a GitHub Windows runner, and passed (frostmail#352). That run logged no
+  counts, and the control was not run on WebView2, so it does not show
+  that the probe sees script on that engine. The WebView2 half stays open
+  for the check on `frostmail-win11`, and so does every other pass that
+  the 2026-11-15 status lists.
 
 ### Differences the owner accepted (2026-11-10)
 
