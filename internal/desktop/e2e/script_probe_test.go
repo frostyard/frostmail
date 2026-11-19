@@ -94,6 +94,44 @@ func (r *rawRender) Render(ctx context.Context, p *api.MessageRenderParams) (*ap
 	return rendered, err
 }
 
+// findCount retries the query until the loaded page reports a match count.
+// The find bar finds only when its query changes, so a find that ran before
+// the page loaded stays at "No matches"; that is never read as 0. The query
+// is cleared first, and the bar must drop the last count, so an older count
+// is never read as this one.
+func (s *session) findCount(query string) int {
+	s.t.Helper()
+	counts := regexp.MustCompile(`^(\d+) of (\d+)$`)
+	deadline := time.Now().Add(settle)
+	var lastStatus string
+	for time.Now().Before(deadline) {
+		n := s.waitNode(1, "textField", "^Find$")
+		s.must("act", map[string]any{"window": 1, "id": n.ID, "action": "setValue", "text": ""}, nil)
+		s.idle(1)
+		if s.within(1, 5*time.Second, func(tree []node) bool { return find(tree, "status", counts.String()) == nil }) == nil {
+			continue
+		}
+		s.must("act", map[string]any{"window": 1, "id": n.ID, "action": "setValue", "text": query}, nil)
+		s.idle(1)
+		tree := s.within(1, 5*time.Second, func(tree []node) bool {
+			if status := find(tree, "status", ""); status != nil {
+				lastStatus = status.Label
+			}
+			return find(tree, "status", counts.String()) != nil
+		})
+		if tree != nil {
+			match := counts.FindStringSubmatch(find(tree, "status", counts.String()).Label)
+			total, err := strconv.Atoi(match[2])
+			if err != nil {
+				s.t.Fatal(err)
+			}
+			return total
+		}
+	}
+	s.t.Fatalf("waiting for find count for %q; last status %q; window shows:\n%s", query, lastStatus, dump(s.tree(1)))
+	return 0
+}
+
 // TestReaderPageRunsNoScript is plan 0015 Phase 4's direct probe for script
 // in the built app's reader. The first subtest bypasses only maild's
 // sanitizer, so the page's CSP (uikit.PageCSP) and content rules
@@ -160,23 +198,18 @@ func TestReaderPageRunsNoScript(t *testing.T) {
 			// signal. TestHostileMailMakesNoRequests waits the same way.
 			time.Sleep(3 * time.Second)
 			s.key(1, "CmdOrCtrl+F")
-			s.input(1, map[string]any{"type": "text", "text": probeMark})
-			counts := regexp.MustCompile(`^(\d+) of (\d+)$`)
-			tree := s.waitFor(1, "the probe mark's find count", func(tree []node) bool {
-				return find(tree, "status", counts.String()) != nil
-			})
-			match := counts.FindStringSubmatch(find(tree, "status", counts.String()).Label)
-			total, err := strconv.Atoi(match[2])
-			if err != nil {
-				t.Fatal(err)
-			}
+			first := s.findCount(probeMark)
+			// A handler can run after the page first shows; count again.
+			time.Sleep(2 * time.Second)
+			second := s.findCount(probeMark)
+			total := max(first, second)
 			time.Sleep(time.Second)
 			mu.Lock()
 			requests := hits
 			gotPaths := append([]string(nil), paths...)
 			mu.Unlock()
 			scripts := total - 1
-			t.Logf("%s on %s: %d vectors, %d script executions, %d canary requests", subtest, runtime.GOOS, len(vectors), scripts, requests)
+			t.Logf("%s on %s: %d vectors, %d script executions, %d canary requests, find totals %d and %d", subtest, runtime.GOOS, len(vectors), scripts, requests, first, second)
 			if scripts != 0 {
 				t.Errorf("the reader ran %d scripts", scripts)
 			}
