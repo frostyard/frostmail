@@ -32,6 +32,17 @@ const pageStyle = `html{color-scheme:light}` +
 	`.print-only{font-size:12px;margin:0 0 16px;padding:0 0 8px;border-bottom:1px solid #ccc}` +
 	`.print-only div{margin:2px 0}`
 
+// pageHeightStyle gives the page the height of its content. The native
+// reader sizes its view to the page's measured height, so the viewport has
+// no height of its own to give: a message that sizes its root to the
+// viewport (html,body{height:100%}) and clips or scrolls a box of that
+// height measures as the viewport, the reader's first 40 pixels, and the
+// rest of the message stays hidden. With the root's height auto, a
+// percentage height below it lays out as auto. The rule is in a layer
+// declared before any of the message's, after the print guard's, so no
+// important rule of the message can undo it.
+const pageHeightStyle = `@layer page-height{html,body{height:auto!important}}`
+
 // Document wraps sanitized HTML in the page. printHeader is HTML, already
 // escaped, that shows only on paper: what the app draws natively above the
 // page on screen. With a header, the body's children are the header and
@@ -46,6 +57,7 @@ func Document(body, printHeader, extraStyle string) string {
 	b.WriteString(`"><meta charset="utf-8"><meta name="color-scheme" content="light"><base target="_blank"><style>`)
 	b.WriteString(pageStyle)
 	b.WriteString(extraStyle)
+	b.WriteString(pageHeightStyle)
 	b.WriteString(`</style></head><body>`)
 	if printHeader == "" {
 		b.WriteString(body)

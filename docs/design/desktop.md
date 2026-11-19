@@ -488,6 +488,18 @@ P-957; the spec is [ui.md](../specs/ui.md), Tokens. maild keeps
   its page loaded with; a frame that sees another scale loads the page again
   once. `measureScript` needs no change: WebKitGTK reports the zoomed
   height.
+- **The reader's page height:** the reader sizes each page's view to the
+  page's measured height, and starts it at 40 pixels. So the viewport has no
+  height of its own to give: a message that sizes its root to the viewport
+  (`html,body{height:100%}`, or `100vh` on the root) and clips or scrolls a
+  box of that height would measure as the viewport, and show only its top 40
+  pixels. `uikit.Document` puts `@layer page-height{html,body{height:auto!important}}`
+  in the page's style, after the print guard and the text size and before any
+  layer of the message's, so no important rule of the message undoes it; a
+  percentage height below the root then lays out as `auto`
+  (`TestViewportRootMessageShowsAllOfItsContent`). A box below the root sized
+  in `vh`, or positioned against the viewport, still takes the viewport's
+  height.
 
 ## Windows
 
