@@ -12,7 +12,7 @@ require (
 	github.com/emersion/go-smtp v0.25.1
 	github.com/frostyard/clix v0.5.0
 	github.com/frostyard/frostui v0.10.0
-	github.com/frostyard/lodge/kit v0.4.0
+	github.com/frostyard/lodge/kit v0.5.0
 	github.com/frostyard/std v0.5.0
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
