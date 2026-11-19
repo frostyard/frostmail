@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-19",
+  "scope": "desktop e2e tests",
+  "correction": "An e2e test that reads the reader page's height must wait for a height above the reader's 40-pixel placeholder before it waits for the height to stay the same: the page shows at the placeholder until its document loads and measures, which on a slow runner takes longer than the settle time.",
+  "evidence": "frostyard/frostmail CI run 44572463577 on main 46a6e00, job 'Windows app (installer, native e2e)': TestViewportRootMessageShowsAllOfItsContent/control took the placeholder height 40 as settled; guard: TestHeightSettleWaitsForTheMeasure in internal/desktop/e2e/page_height_test.go",
+  "promoted_to": "internal/desktop/e2e/page_height_test.go"
+}

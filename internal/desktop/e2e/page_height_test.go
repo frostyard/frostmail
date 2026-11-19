@@ -53,8 +53,7 @@ func TestViewportRootMessageShowsAllOfItsContent(t *testing.T) {
 }
 
 // settledPageHeight opens page as the only message, and returns the reader
-// page's height once it has stayed the same for longer than the frame's
-// polls take to agree (400 milliseconds × 3).
+// page's height once it has settled (heightSettle).
 func settledPageHeight(t *testing.T, page string) float64 {
 	t.Helper()
 	dir := t.TempDir()
@@ -63,11 +62,11 @@ func settledPageHeight(t *testing.T, page string) float64 {
 	}
 	s := start(t, options{fixture: []string{"-n", "0", "-hostile", dir}})
 	openHostile(s)
-	var height, last float64
-	var unchangedSince time.Time
+	var height float64
+	var settle heightSettle
 	defer func() {
 		if t.Failed() {
-			t.Logf("the last page height seen was %v", last)
+			t.Logf("the last page height seen was %v", settle.last)
 		}
 	}()
 	eventually(t, "the reader page's settled height", func() bool {
@@ -75,11 +74,70 @@ func settledPageHeight(t *testing.T, page string) float64 {
 		if n := find(s.tree(1), "", "Message body"); n != nil {
 			height = n.Bounds.Height
 		}
-		if height != last || height <= 0 {
-			last, unchangedSince = height, time.Now()
-			return false
-		}
-		return time.Since(unchangedSince) >= 1300*time.Millisecond
+		return settle.settled(height, time.Now())
 	})
 	return height
+}
+
+// readerPlaceholder is the height the reader gives a page that has not
+// measured yet (internal/desktop/mainwin/reader.go, max(Height(), 40)).
+const readerPlaceholder = 40
+
+// settleQuiet is longer than the frame's polls take to agree
+// (measureInterval × measureAgree, 400 milliseconds × 3).
+const settleQuiet = 1300 * time.Millisecond
+
+// heightSettle follows the reader page's height. The page shows at the
+// reader's placeholder height until its document has loaded and measured,
+// which on a slow runner can take longer than settleQuiet: a height at or
+// under the placeholder never settles, so a page that measures as its
+// 40-pixel viewport fails as a timeout, not as a height.
+type heightSettle struct {
+	last  float64
+	since time.Time
+}
+
+// settled takes the height read at now, and reports whether a height above
+// the reader's placeholder has stayed the same for settleQuiet.
+func (h *heightSettle) settled(height float64, now time.Time) bool {
+	if height != h.last || height <= readerPlaceholder {
+		h.last, h.since = height, now
+		return false
+	}
+	return now.Sub(h.since) >= settleQuiet
+}
+
+// The reader's placeholder height never settles, however long it stays:
+// the page has not measured yet. A measured height settles after
+// settleQuiet, and a change starts the wait again.
+func TestHeightSettleWaitsForTheMeasure(t *testing.T) {
+	t0 := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+	var h heightSettle
+	for _, ms := range []int{0, 1300, 5000, 30000} {
+		if h.settled(readerPlaceholder, t0.Add(time.Duration(ms)*time.Millisecond)) {
+			t.Fatalf("the placeholder height settled at %d ms", ms)
+		}
+	}
+	if h.settled(0, t0.Add(31*time.Second)) {
+		t.Fatal("no height settled")
+	}
+	base := t0.Add(32 * time.Second)
+	for _, step := range []struct {
+		height float64
+		after  time.Duration
+		want   bool
+	}{
+		{300, 0, false},
+		{300, settleQuiet - time.Millisecond, false},
+		{300, settleQuiet, true},
+		{320, settleQuiet + time.Millisecond, false},
+		{320, 2 * settleQuiet, false},
+		{320, 2*settleQuiet + time.Millisecond, true},
+		{41, 3 * settleQuiet, false},
+		{41, 4 * settleQuiet, true},
+	} {
+		if got := h.settled(step.height, base.Add(step.after)); got != step.want {
+			t.Errorf("height %v at +%v: settled %v, want %v", step.height, step.after, got, step.want)
+		}
+	}
 }
