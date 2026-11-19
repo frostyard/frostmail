@@ -30,6 +30,20 @@ func TestDocumentCarriesThePolicyFirst(t *testing.T) {
 	}
 }
 
+// The page's height rule is in a layer of the page's head, after the
+// extra style (the print guard's layer comes first) and before the body,
+// where every style of the message is: so its layer comes before any
+// layer of the message's, and an important rule of the message cannot
+// give the root the viewport's height.
+func TestDocumentGivesTheRootItsContentHeight(t *testing.T) {
+	const rule = `@layer page-height{html,body{height:auto!important}}`
+	doc := uikit.Document(`<style>@layer message-root{html,body{height:100%!important}}</style>`, "", `@layer print-guard{}`)
+	guard, at, head := strings.Index(doc, `@layer print-guard`), strings.Index(doc, rule), strings.Index(doc, `</head>`)
+	if guard < 0 || at < guard || head < at {
+		t.Fatalf("guard at %d, the height rule at %d, the head's end at %d: %s", guard, at, head, doc)
+	}
+}
+
 func TestPrintHeaderIsPrintOnly(t *testing.T) {
 	doc := uikit.Document("body", "<div>From: Ann</div>", "")
 	if !strings.Contains(doc, `<body><div class="print-only"><div>From: Ann</div></div><div>body</div><style>`) {
