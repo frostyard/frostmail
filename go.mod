@@ -9,7 +9,7 @@ require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
-	github.com/emersion/go-smtp v0.25.1
+	github.com/emersion/go-smtp v0.26.0
 	github.com/frostyard/clix v0.5.0
 	github.com/frostyard/frostui v0.10.0
 	github.com/frostyard/lodge/kit v0.5.0
@@ -18,7 +18,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/spf13/cobra v1.10.2
-	github.com/tdewolff/parse/v2 v2.8.20
+	github.com/tdewolff/parse/v2 v2.25.0
 	github.com/teambition/rrule-go v1.8.2
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/net v0.62.0
