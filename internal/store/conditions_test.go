@@ -184,7 +184,7 @@ func TestCompileEveryCondition(t *testing.T) {
 		{"listid", "is", "dev.x.test", []int64{f.lunch}},
 		{"account", "is", acct, all},
 		{"account", "isnot", acct, []int64{}},
-		{"account", "anyof", acct + ",999", all},
+		{"account", "anyof", acct + ",999", []int64{}},
 		{"mailbox", "is", id(f.inbox), []int64{f.lunch}},
 		{"mailbox", "isnot", id(f.inbox), []int64{f.invoice, f.old, f.report}},
 		{"mailbox", "anyof", id(f.inbox) + "," + id(f.archive), []int64{f.lunch, f.invoice}},
@@ -224,6 +224,67 @@ func TestCompileEveryCondition(t *testing.T) {
 		if !slices.Equal(got, c.want) {
 			t.Errorf("%s %s %q = %v, want %v", c.field, c.op, c.value, got, c.want)
 		}
+	}
+}
+
+func TestMatchingIDsRemovedAccountOrMailbox(t *testing.T) {
+	f := newConditionsFixture(t)
+	ctx := t.Context()
+	other := insertAccount(t, f.d, sampleAccount("other@mailtest.test")).ID
+	removedAccount := insertAccount(t, f.d, sampleAccount("removed@mailtest.test")).ID
+	var second, removedMailbox int64
+	if err := f.d.Tx(ctx, func(tx *Tx) error {
+		mbs, err := tx.ReplaceMailboxes(ctx, other, []ServerMailbox{
+			{Path: "INBOX", Role: api.MailboxRoleInbox, Selectable: true},
+			{Path: "Removed", Role: api.MailboxRoleNone, Selectable: true},
+		})
+		if err != nil {
+			return err
+		}
+		ids, err := tx.InsertHeaders(ctx, other, mbs[0].ID, []MessageHeader{{UID: 1, MessageID: "other@x", Subject: "Other"}})
+		if err != nil {
+			return err
+		}
+		second, removedMailbox = ids[0], mbs[1].ID
+		if err := tx.deleteMailbox(ctx, other, removedMailbox); err != nil {
+			return err
+		}
+		return tx.DeleteAccount(ctx, removedAccount)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	id := func(n int64) string { return strconv.FormatInt(n, 10) }
+	all := []int64{f.lunch, f.invoice, f.old, f.report, second}
+	for _, tc := range []struct {
+		name  string
+		field api.ConditionField
+		op    api.ConditionOp
+		value string
+		want  []int64
+	}{
+		{"account is removed", "account", "is", id(removedAccount), nil},
+		{"account isnot removed", "account", "isnot", id(removedAccount), nil},
+		{"account anyof removed", "account", "anyof", id(f.acct) + "," + id(removedAccount), nil},
+		{"mailbox is removed", "mailbox", "is", id(removedMailbox), nil},
+		{"mailbox isnot removed", "mailbox", "isnot", id(removedMailbox), nil},
+		{"mailbox anyof removed", "mailbox", "anyof", id(f.inbox) + "," + id(removedMailbox), nil},
+		{"account isnot existing", "account", "isnot", id(f.acct), []int64{second}},
+		{"mailbox isnot existing", "mailbox", "isnot", id(f.inbox), []int64{f.invoice, f.old, f.report, second}},
+		{"account is existing", "account", "is", id(f.acct), []int64{f.lunch, f.invoice, f.old, f.report}},
+		{"account anyof duplicate", "account", "anyof", id(f.acct) + "," + id(f.acct), []int64{f.lunch, f.invoice, f.old, f.report}},
+		{"account anyof numeric duplicate", "account", "anyof", id(f.acct) + ",0" + id(f.acct), []int64{f.lunch, f.invoice, f.old, f.report}},
+		{"mailbox anyof numeric duplicate", "mailbox", "anyof", id(f.inbox) + ",0" + id(f.inbox), []int64{f.lunch}},
+		{"account anyof existing", "account", "anyof", id(other) + "," + id(f.acct), all},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := f.d.MatchingIDs(t.Context(), one(tc.field, tc.op, tc.value), all, time.UTC)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("MatchingIDs(%s %s %q) = %v, want %v", tc.field, tc.op, tc.value, got, tc.want)
+			}
+		})
 	}
 }
 

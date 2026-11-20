@@ -176,6 +176,7 @@ func TestSmartMailboxViews(t *testing.T) {
 	trash := createSmart(t, f.d, SmartMailbox{Name: "And Trash", Conditions: all, IncludeTrash: true})
 	both := createSmart(t, f.d, SmartMailbox{Name: "And both", Conditions: all, IncludeTrash: true, IncludeSent: true})
 	flagged := createSmart(t, f.d, SmartMailbox{Name: "Flagged", Conditions: one("flagged", "is", "true"), IncludeTrash: true})
+	missing := createSmart(t, f.d, SmartMailbox{Name: "Missing mailbox", Conditions: one("mailbox", "isnot", "9999")})
 	ids := func(filter ViewFilter) []int64 {
 		t.Helper()
 		got, err := f.d.ViewIDs(ctx, filter)
@@ -189,6 +190,7 @@ func TestSmartMailboxViews(t *testing.T) {
 		filter ViewFilter
 		want   []int64
 	}{
+		"missing mailbox":  {ViewFilter{SmartMailboxID: missing.ID}, nil},
 		"neither":          {ViewFilter{SmartMailboxID: none.ID}, []int64{f.lunch, f.invoice}},
 		"trash":            {ViewFilter{SmartMailboxID: trash.ID}, []int64{f.lunch, f.invoice, f.old}},
 		"both":             {ViewFilter{SmartMailboxID: both.ID}, []int64{f.lunch, f.invoice, f.old, f.report}},
