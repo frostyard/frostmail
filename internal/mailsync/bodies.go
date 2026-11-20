@@ -8,7 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/imapx"
@@ -168,8 +167,7 @@ func (a *actor) serveBody(ctx context.Context, s *imapx.Session, msgID int64, wh
 			}
 		}
 		id, size, err := a.fetchBody(ctx, s, msgID, whole)
-		var imapErr *imap.Error
-		if err == nil || errors.Is(err, store.ErrNotFound) || errors.Is(err, imapx.ErrNoMessage) || errors.As(err, &imapErr) {
+		if err == nil || errors.Is(err, store.ErrNotFound) || errors.Is(err, imapx.ErrNoMessage) || imapx.IsServerError(err) {
 			return s, id, size, err
 		}
 		// The connection failed (it may have timed out while idle).

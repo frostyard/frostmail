@@ -19,6 +19,7 @@ import (
 	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
 	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/frostyard/frostmail/internal/smtpx/smtpxtest"
+	"github.com/frostyard/frostmail/internal/store"
 )
 
 // sendHarness is maild with sync on, an IMAP server with UIDPLUS, and an
@@ -149,6 +150,38 @@ func (h *sendHarness) waitServer(mailbox, what string, ok func([][]byte) bool) {
 	h.waitFor(10*time.Second, what, func(api.EventEnvelope, api.Event) bool {
 		return ok(h.serverMessages(mailbox))
 	})
+}
+
+func TestSendRemembersSMTPMaxSize(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		limit int64
+		state api.OutboxState
+	}{
+		{"success", 10_000_000, api.OutboxStateSent},
+		{"too large", 10, api.OutboxStateFailed},
+		{"none", 0, api.OutboxStateSent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newSendHarness(t, 0)
+			h.smtp.SetMaxSize(tc.limit)
+			if err := h.srv.DB.Tx(t.Context(), func(tx *store.Tx) error {
+				return tx.SetSMTPMaxSize(t.Context(), h.acct, 1_000_000)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			d := h.draft("SIZE", []api.Address{bob}, nil, nil)
+			item, err := h.c.Draft().Send(t.Context(), &api.DraftSendParams{ID: d.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.waitOutbox(item.ID, tc.state)
+			a, err := h.srv.DB.GetAccount(t.Context(), h.acct)
+			if err != nil || a.SMTPMaxSize != tc.limit {
+				t.Fatalf("SMTPMaxSize = %d, %v; want %d", a.SMTPMaxSize, err, tc.limit)
+			}
+		})
+	}
 }
 
 func TestSendDeliversAndFilesTheSentCopy(t *testing.T) {

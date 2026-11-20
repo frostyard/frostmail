@@ -122,7 +122,9 @@ waits on the owner's checks on real desktops.
   (`make lodge-package`, which stages under `usr/` only:
   core [ADR-0058](https://github.com/frostyard/core/blob/main/docs/adr/0058-ship-suite-desktop-apps-as-flatpaks-and-services-as-sysexts.md)); `dev/lodge/run.sh` runs maild behind lodge's
   development build; `tools/lodgeprobe` checks a lodge socket.
-- `internal/imapx`: the only package that imports go-imap.
+- `internal/imapx`: the only production package that imports go-imap
+  (`third_party/` and the probe `tools/msprobe` aside;
+  `internal/workflowcheck` holds the rule).
   `third_party/go-imap` is a patched fork (Gmail X-GM-EXT-1); see its
   `FROSTMAIL-PATCHES.md` and [ADR-0004](docs/adr/0004-go-imap-fork.md).
 - `internal/mimex`: message parsing and normalization helpers.
@@ -164,7 +166,7 @@ waits on the owner's checks on real desktops.
   runner.
 - `internal/workflowcheck`: tests of the repository's own files, not of
   product code: the workflows follow frostyard/core ADR-0021, and the
-  baseline files (below) are complete.
+  baseline files (below) are complete, and only `internal/imapx` imports go-imap.
 
 ## Gates
 

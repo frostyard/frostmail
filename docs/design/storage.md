@@ -23,6 +23,9 @@ lexically. Highlights:
   `erase_trash_days` and `erase_junk_days` say how long mail stays in the
   account's trash or junk mailbox before maild erases it: 0 (Never), 1, 7
   or 30 ([organize.md](organize.md#erase-old-mail); ADR-0051).
+  `smtp_max_size` keeps the SMTP server's last announced `SIZE` in bytes;
+  0 means unknown or no announced limit. Changing the SMTP settings resets
+  it ([send.md](send.md#attachments)).
 - `mailboxes`: one per server folder or Gmail label, with sync state
   (`uidvalidity`, `uidnext`, `highestmodseq`, `synced_low_uid`).
 - `messages`: one per message per account (Gmail: per `gm_msgid`), with

@@ -135,17 +135,27 @@ func compileCondition(c api.Condition, now time.Time, loc *time.Location) (strin
 		if err != nil {
 			return "", nil, err
 		}
-		return inList("m.account_id", op, ids)
+		ids = distinctConditionIDs(ids)
+		in, args, err := inList("m.account_id", op, ids)
+		if err != nil {
+			return "", nil, err
+		}
+		// docs/design/organize.md: a condition naming a removed account or mailbox matches nothing.
+		return "((SELECT count(*) FROM accounts WHERE id IN (" + inPlace(len(ids)) + ")) = " + strconv.Itoa(len(ids)) +
+			" AND (" + in + "))", append(slices.Clone(ids), args...), nil
 	case api.ConditionFieldMailbox:
 		ids, err := idList(op, v)
 		if err != nil {
 			return "", nil, err
 		}
+		ids = distinctConditionIDs(ids)
 		in, args, err := inList("mm.mailbox_id", api.ConditionOpAnyof, ids)
 		if err != nil {
 			return "", nil, err
 		}
-		return existsOrNot(op, `SELECT 1 FROM message_mailbox mm WHERE mm.message_id = m.id AND `+in), args, nil
+		predicate := existsOrNot(op, `SELECT 1 FROM message_mailbox mm WHERE mm.message_id = m.id AND `+in)
+		return "((SELECT count(*) FROM mailboxes WHERE id IN (" + inPlace(len(ids)) + ")) = " + strconv.Itoa(len(ids)) +
+			" AND (" + predicate + "))", append(slices.Clone(ids), args...), nil
 	case api.ConditionFieldRole:
 		roles, err := roleList(op, v)
 		if err != nil {
@@ -191,6 +201,17 @@ func compileCondition(c api.Condition, now time.Time, loc *time.Location) (strin
 		return yesNo(op, v, `EXISTS (SELECT 1 FROM message_reminders r WHERE r.message_id = m.id)`)
 	}
 	return "", nil, fmt.Errorf("%s does not take %s", f, op)
+}
+
+// distinctConditionIDs keeps the first occurrence of each parsed ID.
+func distinctConditionIDs(ids []any) []any {
+	out := make([]any, 0, len(ids))
+	for _, id := range ids {
+		if !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // containsWords matches every word of v (a quoted v is a phrase) in an FTS

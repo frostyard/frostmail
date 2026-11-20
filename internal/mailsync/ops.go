@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
+	"github.com/frostyard/frostmail/internal/imapx"
 	"github.com/frostyard/frostmail/internal/providers"
 	"github.com/frostyard/frostmail/internal/store"
 )
@@ -634,7 +634,6 @@ func (a *actor) replay(ctx context.Context, cmd conn) error {
 	}()
 	for _, op := range ops {
 		err := a.replayOne(ctx, cmd, op)
-		var imapErr *imap.Error
 		switch {
 		case errors.Is(err, errAfterListing):
 			continue // stays queued for the replay after the first full pass
@@ -643,7 +642,7 @@ func (a *actor) replay(ctx context.Context, cmd conn) error {
 				return err
 			}
 			pushed++
-		case errors.As(err, &imapErr) || errors.Is(err, store.ErrNotFound) || errors.Is(err, errUIDValidityChanged):
+		case imapx.IsServerError(err) || errors.Is(err, store.ErrNotFound) || errors.Is(err, errUIDValidityChanged):
 			a.m.log.Warn("server refused an offline action", "account", a.acct.ID, "op", op.Kind, "err", err)
 			if err := a.undo(ctx, op, err.Error()); err != nil {
 				return err

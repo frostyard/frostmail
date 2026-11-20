@@ -30,6 +30,7 @@ type Message struct {
 type Server struct {
 	Addr     string
 	password string
+	srv      *smtp.Server
 	// Token, when set before mail is sent, is the access token XOAUTH2
 	// accepts (offered next to PLAIN).
 	Token string
@@ -53,6 +54,7 @@ func Start(t testing.TB, password string) *Server {
 	t.Helper()
 	s := &Server{password: password, changed: make(chan struct{})}
 	srv := smtp.NewServer(s)
+	s.srv = srv
 	srv.Domain = "smtp.test"
 	srv.AllowInsecureAuth = true
 	srv.ReadTimeout = 10 * time.Second
@@ -73,6 +75,12 @@ func Start(t testing.TB, password string) *Server {
 		_ = srv.Close()
 	})
 	return s
+}
+
+// SetMaxSize sets the announced size limit in bytes; 0 announces no limit.
+// Call it before any connection to the server.
+func (s *Server) SetMaxSize(n int64) {
+	s.srv.MaxMessageBytes = n
 }
 
 // Config is the account setting that reaches the server.

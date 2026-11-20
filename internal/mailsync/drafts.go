@@ -6,7 +6,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/emersion/go-imap/v2"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
 	"github.com/frostyard/frostmail/internal/compose"
@@ -72,8 +71,7 @@ func (a *actor) saveDrafts(ctx context.Context, cmd *imapx.Session) error {
 			continue
 		}
 		uid, err := cmd.Append(ctx, mb.Path, raw, []string{`\Draft`, `\Seen`})
-		var imapErr *imap.Error
-		if errors.As(err, &imapErr) {
+		if imapx.IsServerError(err) {
 			a.m.log.Warn("server refused a draft copy", "account", a.acct.ID, "draft", d.ID, "err", err)
 			a.unsaved[d.ID] = d.UpdatedAt
 			continue

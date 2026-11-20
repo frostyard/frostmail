@@ -205,6 +205,40 @@ func send(t *testing.T, opts Options, to ...string) error {
 	return Send(t.Context(), opts, Envelope{From: "ann@x.test", To: to}, int64(len(testMessage)), strings.NewReader(testMessage))
 }
 
+func TestSendSizeSeen(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		limit   int64
+		wantErr error
+	}{
+		{"success", 52_428_800, nil},
+		{"too large", 10, ErrTooLarge},
+		{"none", 0, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeServer{password: "secret"}
+			opts := listen(t, f, api.TLSModeInsecure, func(s *smtp.Server) { s.MaxMessageBytes = tc.limit })
+			calls, seen := 0, int64(-1)
+			opts.SizeSeen = func(limit int64) { calls++; seen = limit }
+			if err := send(t, opts, "bob@x.test"); !errors.Is(err, tc.wantErr) {
+				t.Fatalf("Send = %v, want %v", err, tc.wantErr)
+			}
+			if calls != 1 || seen != tc.limit {
+				t.Errorf("SizeSeen calls = %d, limit = %d; want 1, %d", calls, seen, tc.limit)
+			}
+		})
+	}
+}
+
+func TestMaxSizeDoesNotCallSizeSeen(t *testing.T) {
+	f := &fakeServer{password: "secret"}
+	opts := listen(t, f, api.TLSModeInsecure, nil)
+	opts.SizeSeen = func(int64) { t.Error("MaxSize called SizeSeen") }
+	if _, err := MaxSize(t.Context(), opts); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSendModes(t *testing.T) {
 	for _, mode := range []api.TLSMode{api.TLSModeInsecure, api.TLSModeStartTLS, api.TLSModeTLS} {
 		t.Run(string(mode), func(t *testing.T) {
