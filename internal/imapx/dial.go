@@ -158,6 +158,13 @@ func unavailable(e *imap.Error) bool {
 		strings.Contains(strings.ToLower(e.Text), "authenticated but not connected")
 }
 
+// IsServerError reports whether err is, or wraps, a NO or BAD reply of
+// the server (an *imap.Error).
+func IsServerError(err error) bool {
+	_, ok := errors.AsType[*imap.Error](err)
+	return ok
+}
+
 // ResponseCode returns the response code of the server's NO or BAD in err
 // ("" when it gave none), and whether err holds such a response at all. It
 // never returns the response's text (internal/activity, ADR-0055).
