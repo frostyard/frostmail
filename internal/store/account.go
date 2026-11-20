@@ -33,6 +33,10 @@ type Account struct {
 	// GrantedScopes are the OAuth scopes the account's grant covers,
 	// space-separated; "" for password accounts.
 	GrantedScopes string
+	// SMTPMaxSize is the server's SIZE at the last submission, in bytes;
+	// 0 means unknown or no announced limit. SMTP settings changes reset it
+	// (docs/design/send.md, Attachments).
+	SMTPMaxSize int64
 }
 
 // ServerConfig is one server's connection settings.
@@ -59,7 +63,7 @@ type AccountUpdate struct {
 const accountColumns = `SELECT id, kind, email, display_name, auth,
 	imap_host, imap_port, imap_tls, imap_username,
 	smtp_host, smtp_port, smtp_tls, smtp_username, created_at, read_only, notify, sync_days, needs_reauth,
-	granted_scopes, erase_trash_days, erase_junk_days
+	granted_scopes, erase_trash_days, erase_junk_days, smtp_max_size
 	FROM accounts`
 
 func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
@@ -69,7 +73,7 @@ func scanAccount(row interface{ Scan(...any) error }) (Account, error) {
 		&a.IMAP.Host, &a.IMAP.Port, &a.IMAP.TLS, &a.IMAP.Username,
 		&a.SMTP.Host, &a.SMTP.Port, &a.SMTP.TLS, &a.SMTP.Username,
 		&createdAt, &a.ReadOnly, &a.Notify, &a.SyncDays, &a.NeedsReauth, &a.GrantedScopes,
-		&a.EraseTrashDays, &a.EraseJunkDays)
+		&a.EraseTrashDays, &a.EraseJunkDays, &a.SMTPMaxSize)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Account{}, ErrNotFound
 	}
@@ -112,6 +116,7 @@ func (t *Tx) InsertAccount(ctx context.Context, a Account) (Account, error) {
 	}
 	a.ID = id
 	a.CreatedAt = createdAt
+	a.SMTPMaxSize = 0 // learned only when submitting, never copied on insert
 	// Every account sends as itself by default (docs/design/send.md).
 	if _, err := t.ExecContext(ctx, `INSERT INTO identities (account_id, name, email, is_default) VALUES (?, ?, ?, 1)`,
 		id, a.DisplayName, a.Email); err != nil {
@@ -195,6 +200,9 @@ func (t *Tx) UpdateAccount(ctx context.Context, id int64, u AccountUpdate) (Acco
 		a.IMAP = *u.IMAP
 	}
 	if u.SMTP != nil {
+		if *u.SMTP != a.SMTP {
+			a.SMTPMaxSize = 0
+		}
 		a.SMTP = *u.SMTP
 	}
 	if u.ReadOnly != nil {
@@ -217,12 +225,12 @@ func (t *Tx) UpdateAccount(ctx context.Context, id int64, u AccountUpdate) (Acco
 		display_name = ?,
 		imap_host = ?, imap_port = ?, imap_tls = ?, imap_username = ?,
 		smtp_host = ?, smtp_port = ?, smtp_tls = ?, smtp_username = ?,
-		read_only = ?, notify = ?, sync_days = ?, erase_trash_days = ?, erase_junk_days = ?
+		read_only = ?, notify = ?, sync_days = ?, erase_trash_days = ?, erase_junk_days = ?, smtp_max_size = ?
 		WHERE id = ?`,
 		a.DisplayName,
 		a.IMAP.Host, a.IMAP.Port, a.IMAP.TLS, a.IMAP.Username,
 		a.SMTP.Host, a.SMTP.Port, a.SMTP.TLS, a.SMTP.Username,
-		a.ReadOnly, a.Notify, a.SyncDays, a.EraseTrashDays, a.EraseJunkDays,
+		a.ReadOnly, a.Notify, a.SyncDays, a.EraseTrashDays, a.EraseJunkDays, a.SMTPMaxSize,
 		id)
 	if err != nil {
 		if IsUniqueViolation(err) {
@@ -260,6 +268,18 @@ func (t *Tx) DeleteAccount(ctx context.Context, id int64) error {
 		return ErrNotFound
 	}
 	return t.Emit(ctx, api.AccountChanged{ID: id, Deleted: true})
+}
+
+// SetSMTPMaxSize saves the server's SIZE without an API event. A missing
+// account is harmless: it can be removed while a message is sent.
+func (t *Tx) SetSMTPMaxSize(ctx context.Context, accountID, size int64) error {
+	if size < 0 {
+		return errors.New("smtp max size must not be negative")
+	}
+	if _, err := t.ExecContext(ctx, `UPDATE accounts SET smtp_max_size = ? WHERE id = ?`, size, accountID); err != nil {
+		return fmt.Errorf("set smtp max size: %w", err)
+	}
+	return nil
 }
 
 // SetNeedsReauth records whether the account's stored credential was

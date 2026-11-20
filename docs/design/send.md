@@ -182,6 +182,10 @@ compose window ── draft.update ──► drafts (store) ──5 s quiet─�
 - A draft's attachments and its built message count against the account's
   size limit: the SMTP server's `SIZE` when known, else 25 MB of attachments.
   `draft.send` refuses larger messages with `invalidParams`.
+  maild reads the server's `SIZE` at each submission and keeps it on the
+  account (`accounts.smtp_max_size`). Changing the SMTP settings forgets
+  it. Until a submission learns it, or when the server announces none, the
+  25 MB rule applies.
 
 ## Addresses
 

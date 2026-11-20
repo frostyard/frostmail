@@ -17,7 +17,10 @@ func TestExportCopiesTheDatabaseWithoutMigratingTheSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	insertAccount(t, d, sampleAccount("a@mailtest.test"))
+	a := insertAccount(t, d, sampleAccount("a@mailtest.test"))
+	if err := d.Tx(ctx, func(tx *Tx) error { return tx.SetSMTPMaxSize(ctx, a.ID, 10_000_000) }); err != nil {
+		t.Fatal(err)
+	}
 	oauth := sampleAccount("b@mailtest.test")
 	oauth.Auth = api.AuthKindOAuth2
 	insertAccount(t, d, oauth)
@@ -65,6 +68,10 @@ func TestExportCopiesTheDatabaseWithoutMigratingTheSource(t *testing.T) {
 	got, err := c.ListAccounts(ctx)
 	if err != nil || len(got) != 2 || got[0].Email != "a@mailtest.test" || got[1].Email != "b@mailtest.test" || got[1].Auth != api.AuthKindOAuth2 {
 		t.Fatalf("the copy lists %+v, %v", got, err)
+	}
+
+	if got[0].SMTPMaxSize != 10_000_000 {
+		t.Errorf("the copy's SMTPMaxSize = %d, want 10000000", got[0].SMTPMaxSize)
 	}
 
 	// dst must be new.

@@ -241,12 +241,23 @@ func (a *actor) submit(ctx context.Context, it store.OutboxItem) error {
 		Host: s.Host, Port: s.Port, TLS: s.TLS, Username: s.Username, Password: secret, OAuth: isOAuth,
 		InsecureSkipVerify: a.m.cfg.InsecureSkipVerify,
 	}
+	sizeSeen := int64(-1)
+	opts.SizeSeen = func(limit int64) { sizeSeen = limit }
 	err = a.sendBlob(ctx, opts, it)
 	if errors.Is(err, smtpx.ErrAuth) && isOAuth {
 		if opts.Password, err = a.refreshed(ctx); err != nil {
-			return fmt.Errorf("%w: %w", smtpx.ErrAuth, err)
+			err = fmt.Errorf("%w: %w", smtpx.ErrAuth, err)
+		} else {
+			err = a.sendBlob(ctx, opts, it)
 		}
-		err = a.sendBlob(ctx, opts, it)
+	}
+	if sizeSeen >= 0 {
+		wctx := context.WithoutCancel(ctx)
+		if saveErr := a.m.db.Tx(wctx, func(tx *store.Tx) error {
+			return tx.SetSMTPMaxSize(wctx, a.acct.ID, sizeSeen)
+		}); saveErr != nil {
+			a.m.log.Warn("smtp size", "account", a.acct.ID, "err", saveErr)
+		}
 	}
 	return err
 }

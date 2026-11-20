@@ -768,12 +768,26 @@ func (d Deps) build(ctx context.Context, dr store.Draft, date time.Time) (built,
 	if acct.ReadOnly {
 		return built{}, api.Conflict("account %d is read-only", dr.AccountID)
 	}
+	if acct.SMTPMaxSize == 0 {
+		var size int64
+		for _, a := range dr.Attachments {
+			size += a.Size
+		}
+		if size > AttachmentLimit {
+			return built{}, api.InvalidParams("the attachments are larger than the %d MB limit", AttachmentLimit/1_000_000)
+		}
+	}
 	m := mailsync.DraftMessage(dr, ident, d.Blobs, d.parts(), date)
 	var buf bytes.Buffer
 	if err := compose.Build(&buf, m); errors.Is(err, compose.ErrInvalid) {
 		return built{}, api.InvalidParams("%v", err)
 	} else if err != nil {
 		return built{}, err
+	}
+	// The server's SIZE when known, else 25 MB of attachments (send.md).
+	if acct.SMTPMaxSize > 0 && int64(buf.Len()) > acct.SMTPMaxSize {
+		return built{}, api.InvalidParams("the message is %.1f MB, larger than the server's %.1f MB limit",
+			float64(buf.Len())/1e6, float64(acct.SMTPMaxSize)/1e6)
 	}
 	blobID, err := d.Blobs.Put(ctx, &buf)
 	if err != nil {
@@ -782,8 +796,8 @@ func (d Deps) build(ctx context.Context, dr store.Draft, date time.Time) (built,
 	return built{blobID: blobID, ident: ident, recipients: m.Envelope()}, nil
 }
 
-// checkSendable refuses a draft without recipients, with an address that
-// does not parse, or with too much attached.
+// checkSendable refuses a draft without recipients or with an address that
+// does not parse.
 func checkSendable(dr store.Draft) error {
 	c := dr.Content
 	n := 0
@@ -797,13 +811,6 @@ func checkSendable(dr store.Draft) error {
 	}
 	if n == 0 {
 		return api.InvalidParams("the message has no recipients")
-	}
-	var size int64
-	for _, a := range dr.Attachments {
-		size += a.Size
-	}
-	if size > AttachmentLimit {
-		return api.InvalidParams("the attachments are larger than the %d MB limit", AttachmentLimit/1_000_000)
 	}
 	return nil
 }

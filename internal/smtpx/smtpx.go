@@ -49,6 +49,10 @@ type Options struct {
 	// Timeout bounds connecting, the greeting, STARTTLS and AUTH; zero means
 	// 30s. Later commands use go-smtp's per-command timeouts.
 	Timeout time.Duration
+	// SizeSeen, when set, receives the SIZE the server announced, in bytes
+	// (0 when it announced none), once the session is authenticated and
+	// before the size check and MAIL FROM.
+	SizeSeen func(limit int64)
 }
 
 // Envelope is one message's SMTP envelope.
@@ -70,6 +74,10 @@ func Send(ctx context.Context, opts Options, env Envelope, size int64, msg io.Re
 		return err
 	}
 	defer c.Close()
+	if opts.SizeSeen != nil {
+		max, _ := c.MaxMessageSize()
+		opts.SizeSeen(int64(max))
+	}
 	stop := context.AfterFunc(ctx, func() { _ = c.Close() })
 	defer stop()
 
