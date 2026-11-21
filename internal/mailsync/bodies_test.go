@@ -200,8 +200,12 @@ func TestPrefetchFetchesRecentInboxAndVIPMail(t *testing.T) {
 	}
 }
 
+// TestPrefetchActivityCountsStoredBodyBytes resets C3's connection at
+// first, as a flaky network does (#367): that prefetch run stores nothing
+// and still records its summary, with no bodies. The summary of the run
+// that stores the body counts it and its bytes.
 func TestPrefetchActivityCountsStoredBodyBytes(t *testing.T) {
-	mem := imapxtest.StartMem(t)
+	mem, reset := imapxtest.StartMemExamineReset(t)
 	raw := plain("ann@example.test", "Prefetched")
 	if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{Time: time.Now()}); err != nil {
 		t.Fatal(err)
@@ -209,8 +213,16 @@ func TestPrefetchActivityCountsStoredBodyBytes(t *testing.T) {
 	cfg := testConfig
 	cfg.NoPrefetch = false
 	h := newHarnessWith(t, mem.DialOptions(), imapxtest.Password, cfg)
-	e := h.waitActivity(api.ActivityKindFetched, nil)
-	if e.N == nil || *e.N != 1 || e.Bytes == nil || *e.Bytes != int64(len(raw)) {
-		t.Fatalf("prefetch = %+v, want one body and %d bytes", e, len(raw))
+	h.waitActivity(api.ActivityKindFetched, func(e api.ActivityEntry) bool { return e.N != nil && *e.N == 0 })
+	reset.Disarm()
+	if err := h.c.Sync().Now(t.Context(), &api.SyncNowParams{AccountID: h.acct}); err != nil {
+		t.Fatal(err)
+	}
+	e := h.waitFetchedBodies()
+	if e.Bytes == nil {
+		t.Fatalf("prefetch = %+v, without bytes", e)
+	}
+	if *e.N != 1 || *e.Bytes != int64(len(raw)) {
+		t.Fatalf("prefetch stored %d bodies of %d bytes, want one body and %d bytes", *e.N, *e.Bytes, len(raw))
 	}
 }

@@ -39,6 +39,15 @@ func (h *harness) waitActivity(kind api.ActivityKind, match func(api.ActivityEnt
 	return found
 }
 
+// waitFetchedBodies waits for the summary of a prefetch run that stored
+// bodies. A run that stores none, as when C3's connection is reset,
+// records a fetched entry too (TestFailedPrefetchFinishesItsActivity), so
+// the first fetched entry need not be the run a test waits for (#367).
+func (h *harness) waitFetchedBodies() api.ActivityEntry {
+	h.t.Helper()
+	return h.waitActivity(api.ActivityKindFetched, func(e api.ActivityEntry) bool { return e.N != nil && *e.N > 0 })
+}
+
 // TestActivityHoldsNoCanary is ADR-0055's canary run, end to end: mail
 // whose subject, body and addresses carry canaries is synced, flagged,
 // sent, refused by the SMTP server with a canary in its reply, and the
@@ -245,7 +254,7 @@ func TestActivityOfPrefetch(t *testing.T) {
 	cfg := testConfig
 	cfg.NoPrefetch = false
 	h := newHarnessWith(t, mem.DialOptions(), imapxtest.Password, cfg)
-	if e := h.waitActivity(api.ActivityKindFetched, nil); *e.N != 1 || e.Level != api.ActivityLevelDebug {
+	if e := h.waitFetchedBodies(); *e.N != 1 || e.Level != api.ActivityLevelDebug {
 		t.Errorf("fetched entry = %+v, want 1 body, debug", e)
 	}
 }

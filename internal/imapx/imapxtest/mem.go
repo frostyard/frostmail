@@ -54,6 +54,16 @@ func startMem(t testing.TB, caps imap.CapSet) *Mem {
 
 func startMemWith(t testing.TB, caps imap.CapSet, wrap func(imapserver.Session) imapserver.Session) *Mem {
 	t.Helper()
+	if wrap == nil {
+		return startMemConn(t, caps, nil)
+	}
+	return startMemConn(t, caps, func(_ *imapserver.Conn, s imapserver.Session) imapserver.Session { return wrap(s) })
+}
+
+// startMemConn is startMemWith whose wrap also gets the session's
+// connection.
+func startMemConn(t testing.TB, caps imap.CapSet, wrap func(*imapserver.Conn, imapserver.Session) imapserver.Session) *Mem {
+	t.Helper()
 	user := imapmemserver.NewUser(Username, Password)
 	if err := user.Create("INBOX", nil); err != nil {
 		t.Fatal(err)
@@ -69,10 +79,10 @@ func startMemWith(t testing.TB, caps imap.CapSet, wrap func(imapserver.Session) 
 	mem := imapmemserver.New()
 	mem.AddUser(user)
 	srv := imapserver.New(&imapserver.Options{
-		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+		NewSession: func(conn *imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			s := mem.NewSession()
 			if wrap != nil {
-				s = wrap(s)
+				s = wrap(conn, s)
 			}
 			return s, nil, nil
 		},
