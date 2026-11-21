@@ -241,14 +241,14 @@
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/emersion/go-smtp/@v/v0.25.1.mod",
+    "url": "https://proxy.golang.org/github.com/emersion/go-smtp/@v/v0.26.0.mod",
     "sha256": "c90914c039d7a1eba0c1c07c00435f0561607cb0e56bf43664c63a45c6e17900",
     "dest": "goproxy/github.com/emersion/go-smtp/@v"
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/emersion/go-smtp/@v/v0.25.1.zip",
-    "sha256": "94c378f1bfebcbaef8c2fcdaa53d339e0558cb1ff965fecddcf6eb2d9ef49e29",
+    "url": "https://proxy.golang.org/github.com/emersion/go-smtp/@v/v0.26.0.zip",
+    "sha256": "a23eec23af5ae2c129e6da57fb8e7cc874d6add02a52ef1426c1b960f0659fc2",
     "dest": "goproxy/github.com/emersion/go-smtp/@v"
   },
   {
@@ -661,14 +661,14 @@
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/tdewolff/parse/v2/@v/v2.8.20.mod",
+    "url": "https://proxy.golang.org/github.com/tdewolff/parse/v2/@v/v2.25.0.mod",
     "sha256": "f965d4017020e52b5e5405aa1fa0e04770372a4e0185acbc7fa64b5266aec9d0",
     "dest": "goproxy/github.com/tdewolff/parse/v2/@v"
   },
   {
     "type": "file",
-    "url": "https://proxy.golang.org/github.com/tdewolff/parse/v2/@v/v2.8.20.zip",
-    "sha256": "e0f50344f4a52ffb24c1943343f3b3960656ffcfe71992b469a22c1e41307a73",
+    "url": "https://proxy.golang.org/github.com/tdewolff/parse/v2/@v/v2.25.0.zip",
+    "sha256": "42aac094be9dcdf44136d4262eb36922fcd214097533545cb6130d5637eadc8d",
     "dest": "goproxy/github.com/tdewolff/parse/v2/@v"
   },
   {
