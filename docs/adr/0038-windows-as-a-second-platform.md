@@ -1,6 +1,6 @@
 # 0038 — Windows is a second platform, with maild and the app as on Linux
 
-- **Status:** Accepted
+- **Status:** Accepted; the Tauri installer superseded by [0054](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
 - **Date:** 2026-10-15
 
 ## Context

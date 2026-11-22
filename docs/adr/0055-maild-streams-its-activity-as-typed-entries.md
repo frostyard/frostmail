@@ -1,6 +1,6 @@
 # 0055 — maild streams its background activity as typed entries with no free text
 
-- **Status:** Proposed
+- **Status:** Accepted (Brian, 2026-11-22)
 - **Date:** 2026-11-10
 
 ## Context

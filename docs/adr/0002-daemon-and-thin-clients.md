@@ -1,6 +1,7 @@
 # 0002 — A headless daemon with thin clients
 
-- **Status:** Accepted
+- **Status:** Accepted; the Tauri bullet (the app is Tauri v2 in WebKitGTK)
+  superseded by [0054](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md): the desktop app is a native Go app on MyGo and frostui
 - **Date:** 2026-10-07
 
 ## Context

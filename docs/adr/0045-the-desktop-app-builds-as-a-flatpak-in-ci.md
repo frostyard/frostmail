@@ -1,7 +1,8 @@
 # 0045 — The desktop app builds as a Flatpak in CI
 
 - **Status:** Accepted (Brian, 2026-10-26); amended in part by
-  [0046](0046-the-desktop-flatpak-carries-its-own-maild.md)
+  [0046](0046-the-desktop-flatpak-carries-its-own-maild.md); the Tauri module
+  superseded by [0054](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
 - **Date:** 2026-10-26
 
 ## Context

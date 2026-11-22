@@ -1,6 +1,7 @@
 # 0036 — Links in the reader's frame open as new-window requests
 
-- **Status:** Accepted
+- **Status:** Accepted; its mechanism superseded on the desktop by [0054](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
+  (its rule holds)
 - **Date:** 2026-10-14
 
 ## Context
