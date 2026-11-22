@@ -35,6 +35,12 @@ no ChairLift pattern where it does not fit.
   shows the All Inboxes count (P-113, [desktop.md](../design/desktop.md#launcher-count)).
   Windows' taskbar overlay is still later.
 
+Status (2026-11-22): ADR-0054 and ADR-0055 are accepted, and the old ADRs'
+statuses say which part each replaces: ADR-0002's Tauri bullet, ADR-0009 for
+the desktop app, ADR-0005's iframe, ADR-0036's mechanism on the desktop,
+ADR-0038's Tauri installer and ADR-0045's Tauri module. Phase 0's decisions
+are done.
+
 Status (2026-11-11): the app moved to frostui v0.5.0 and its Frostyard
 look ([below](#the-frostyard-look); frostui's plan `frostyard-look.md`,
 phase 4).

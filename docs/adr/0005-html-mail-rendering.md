@@ -1,7 +1,8 @@
 # 0005 — Render HTML mail in a sandboxed iframe under a strict CSP
 
 - **Status:** Accepted; the frame's sandbox and link handling superseded by
-  [0036](0036-reader-links-open-as-new-window-requests.md)
+  [0036](0036-reader-links-open-as-new-window-requests.md); the iframe and the
+  CSP's place superseded on the desktop by [0054](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
 - **Date:** 2026-10-07
 
 ## Context

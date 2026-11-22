@@ -1,6 +1,6 @@
 # 0054 — Draw the desktop app natively with MyGo and frostui
 
-- **Status:** Proposed
+- **Status:** Accepted (Brian, 2026-11-22)
 - **Date:** 2026-11-10
 
 ## Context

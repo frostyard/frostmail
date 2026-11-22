@@ -73,10 +73,10 @@ take its ideas only, never its code.
 
 Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
 [ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
-(Proposed, 2026-11-10) replace the old shell with a native Go app on MyGo
+(Accepted, 2026-11-22) replace the old shell with a native Go app on MyGo
 and frostui; the React app stays as lodge's web app.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
-(Proposed) adds maild's activity stream for the app's console; its maild
+(Accepted) adds maild's activity stream for the app's console; its maild
 side is built (`mailctl activity`). `cmd/frostmail` draws every window on
 Linux on frostui v0.10.0, in its Frostyard look (frostui's ADR-0011: the
 Frostyard and Frostyard light themes, Inter, nearly square corners;

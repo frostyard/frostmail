@@ -1,6 +1,7 @@
 # 0009 — Build the app as a thin client over live views
 
-- **Status:** Accepted
+- **Status:** Accepted; superseded for the desktop app by [0054](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md) (it holds
+  for lodge's React web app)
 - **Date:** 2026-10-07
 
 ## Context
