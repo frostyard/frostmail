@@ -419,3 +419,44 @@ func TestUnreadChangedFollowsTheInboxesCount(t *testing.T) {
 	}
 	wait("the message read", 2)
 }
+
+// #356: the Keyboard Shortcuts dialog fits a 1280×800 window, and its
+// body scrolls to the last group's rows (frostui's Info, v0.10.1).
+func TestShortcutsDialogFitsAndScrolls(t *testing.T) {
+	const height = 800
+	f := newFixture(t, 1)
+	f.tt.SetSize(1280, height)
+	f.until(t, "the row", func() bool { return f.tt.HasText("Message 1") })
+	f.tt.Key(ui.Cmd|ui.Shift, ui.KeyP)
+	f.tt.Frame()
+	f.tt.Type("keyboard")
+	f.tt.Frame()
+	f.tt.Key(0, ui.KeyEnter)
+	f.tt.Frame()
+	f.tt.Frame()
+	dialog, ok := f.tt.Find("Keyboard Shortcuts")
+	if !ok {
+		t.Fatalf("no Keyboard Shortcuts dialog; the window shows %q", f.tt.Texts())
+	}
+	if dialog.Y < 0 || dialog.Y+dialog.H > height {
+		t.Errorf("the dialog runs past the window: %+v", dialog)
+	}
+	last := "Show/Hide Sidebar" // in View, the dialog's last group
+	shown := func() bool {
+		r, ok := f.tt.Find(last)
+		return ok && r.H > 0 && r.Y >= dialog.Y && r.Y+r.H <= dialog.Y+dialog.H
+	}
+	if shown() {
+		t.Fatalf("%s shows before any scroll; the test needs a list longer than the dialog", last)
+	}
+	x, y := dialog.X+dialog.W/2, dialog.Y+dialog.H/2
+	for range 20 {
+		f.tt.Scroll(x, y, 0, 200)
+		f.tt.Frame()
+		if shown() {
+			return
+		}
+	}
+	r, _ := f.tt.Find(last)
+	t.Errorf("the dialog's body does not scroll to %s: %+v in %+v", last, r, dialog)
+}
