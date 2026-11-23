@@ -93,6 +93,13 @@ func (w *Window) syncTable() {
 		}
 		return w.pim.Selected(w.module)
 	}
+	// The palette's keys head the Keyboard Shortcuts dialog, in the App
+	// group (docs/specs/ui.md, Keyboard map). The shell's own command
+	// would sit in its View group, last, below the dialog's foot. The
+	// table keeps an app's command, so its keys stay the shell's.
+	palette := w.shell.Palette.Command()
+	palette.Group = commands.GroupApp
+	w.table.Add(palette)
 	w.table.Add(commands.Table(w.module, selected, run)...)
 	if w.module == commands.People {
 		// Ctrl+F has no name of its own in People, and still finds.

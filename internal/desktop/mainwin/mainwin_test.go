@@ -419,3 +419,23 @@ func TestUnreadChangedFollowsTheInboxesCount(t *testing.T) {
 	}
 	wait("the message read", 2)
 }
+
+func TestShortcutsDialogShowsThePaletteKeys(t *testing.T) {
+	f := newFixture(t, 1)
+	f.tt.SetSize(1280, 800)
+	f.until(t, "the row", func() bool { return f.tt.HasText("Message 1") })
+	f.tt.Key(ui.Cmd|ui.Shift, ui.KeyP)
+	f.tt.Frame()
+	f.tt.Type("keyboard")
+	f.tt.Frame()
+	f.tt.Key(0, ui.KeyEnter)
+	f.tt.Frame()
+	f.tt.Frame()
+	r, ok := f.tt.Find("Command Palette")
+	if !ok {
+		t.Fatal("Command Palette not found in Keyboard Shortcuts")
+	}
+	if r.H <= 0 || r.Y+r.H > 800 {
+		t.Errorf("Command Palette is outside the window: %+v", r)
+	}
+}
