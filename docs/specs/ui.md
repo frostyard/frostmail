@@ -1174,6 +1174,24 @@ hold, since maild has finished that request.
 
 The compose window's own keys are in [compose-ui.md](compose-ui.md).
 
+The native app's Keyboard Shortcuts dialog (the palette's Keyboard
+Shortcuts) lists each key of the module shown with its command's palette
+name, grouped as the palette groups them. The palette's own keys head the
+list, as Command Palette (Ctrl+K and Ctrl+Shift+P) in the App group. A
+move has no palette name; the dialog names it:
+
+| Command | Name in the dialog |
+| --- | --- |
+| left, right | Move Left, Move Right |
+| previous, next | Previous Row, Next Row |
+| extendPrevious, extendNext | Extend Selection Up, Extend Selection Down |
+| first, last | First Row, Last Row |
+| pageDown, pageUp | Page Down, Page Up (Tasks: Space is Toggle Completion, [pim-ui.md](pim-ui.md)) |
+| escape | Cancel |
+| nextPane, previousPane | Next Pane, Previous Pane |
+| contextMenu | Show Context Menu |
+| open | Open |
+
 ## Rules
 
 - No component draws literal colors or fonts; tokens only.

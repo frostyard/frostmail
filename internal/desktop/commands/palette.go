@@ -118,6 +118,28 @@ const messageReason = "Select one message first"
 var moves = []Command{Left, Right, Previous, Next, ExtendPrevious, ExtendNext, First, Last, PageDown, PageUp,
 	Escape, NextPane, PreviousPane, ContextMenu, Open}
 
+// moveTitles name the moves in the Keyboard Shortcuts dialog, which
+// lists every key (docs/specs/ui.md, Keyboard map): a move has no palette
+// name of its own.
+var moveTitles = map[Command]string{
+	Left: "Move Left", Right: "Move Right", Previous: "Previous Row", Next: "Next Row",
+	ExtendPrevious: "Extend Selection Up", ExtendNext: "Extend Selection Down",
+	First: "First Row", Last: "Last Row", PageDown: "Page Down", PageUp: "Page Up",
+	Escape: "Cancel", NextPane: "Next Pane", PreviousPane: "Previous Pane",
+	ContextMenu: "Show Context Menu", Open: "Open",
+}
+
+// moveTitlesIn name a move in a module where its key does something else.
+var moveTitlesIn = map[Module]map[Command]string{Tasks: {PageDown: "Toggle Completion"}}
+
+// MoveTitle names a move in a module's Keyboard Shortcuts dialog.
+func MoveTitle(m Module, c Command) string {
+	if title := moveTitlesIn[m][c]; title != "" {
+		return title
+	}
+	return moveTitles[c]
+}
+
 // Table lists a module's commands that the window can run: those of
 // Entries with a name in the module and a function in run, in Entries'
 // order, then the moves, unlisted. selected reads the number of rows
@@ -135,7 +157,7 @@ func Table(m Module, selected func() int, run map[Command]func()) []frostui.Comm
 	}
 	for _, c := range moves {
 		if fn := run[c]; fn != nil {
-			cmds = append(cmds, frostui.Command{ID: string(c), Title: string(c), Group: GroupApp, Run: fn, Bindings: Keys(c), Unlisted: true})
+			cmds = append(cmds, frostui.Command{ID: string(c), Title: MoveTitle(m, c), Group: GroupApp, Run: fn, Bindings: Keys(c), Unlisted: true})
 		}
 	}
 	return cmds
