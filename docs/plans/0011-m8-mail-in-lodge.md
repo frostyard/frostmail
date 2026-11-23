@@ -9,7 +9,7 @@ and depends on lodge's Phases 1 (the kit) and 2 (lodge v1). It runs after
 and leaves the friend's Windows install on its local maild.
 The contract is [specs/lodge-app.md](../specs/lodge-app.md).
 
-Status (2026-11-15):
+Status (2026-11-23):
 - **Phase 1 is done.** The user accepted ADR-0041 on 2026-10-21.
 - **Phases 2 to 6 are built,** merged on 2026-10-19 (#60–#68 and
   #71–#77) and pinned to lodge's `kit/v0.1.0` and `client/v0.1.0`. Each
@@ -21,7 +21,9 @@ Status (2026-11-15):
 - **Phase 7's move is done** (by 2026-11-15). The user's mail runs on
   lodge's host; the user confirmed it on 2026-11-15, and
   `frostmail.service` there was reported active with
-  `FROSTMAIL_SECRETS=sealed`. Its tools were built on 2026-10-24:
+  `FROSTMAIL_SECRETS=sealed`. On 2026-11-23 it was reported still
+  active there with `FROSTMAIL_SECRETS=sealed`, 8 days after the user
+  confirmed the move. Its tools were built on 2026-10-24:
   `mailctl export` and
   [`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh),
   tested against a staged root (#115).
@@ -319,9 +321,10 @@ and the desktop's maild stops.
 
 - **The move is done** (by 2026-11-15). The user's mail runs on lodge's
   host, and the user confirmed it on 2026-11-15. `frostmail.service` there
-  was reported active with `FROSTMAIL_SECRETS=sealed`. Phase 7 is done,
-  accepted by the user on 2026-11-15 without the recorded week of
-  verifies; the Status says what is not recorded.
+  was reported active with `FROSTMAIL_SECRETS=sealed`, and still active
+  with it on 2026-11-23. Phase 7 is done, accepted by the user on
+  2026-11-15 without the recorded week of verifies; the Status says what
+  is not recorded.
 - **The sign-in question** is answered:
   [ADR-0043](../adr/0043-finish-a-sign-in-with-a-pasted-address.md)
   (accepted 2026-10-21) finishes a sign-in with a pasted address.
