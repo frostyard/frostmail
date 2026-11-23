@@ -439,3 +439,59 @@ func TestShortcutsDialogShowsThePaletteKeys(t *testing.T) {
 		t.Errorf("Command Palette is outside the window: %+v", r)
 	}
 }
+
+// TestShortcutsDialogScrollsAt1280x800 opens Keyboard Shortcuts on a
+// 1280×800 screen, where the list is taller than the window (#356), and
+// scrolls the body with the mouse wheel until the Edit, Go to and View
+// groups and the last row each come into view inside the dialog, below its
+// fixed Close button.
+func TestShortcutsDialogScrollsAt1280x800(t *testing.T) {
+	const width, height = 1280, 800
+	f := newFixture(t, 1)
+	f.tt.SetSize(width, height)
+	f.until(t, "the row", func() bool { return f.tt.HasText("Message 1") })
+	f.tt.Key(ui.Cmd|ui.Shift, ui.KeyP)
+	f.tt.Frame()
+	f.tt.Type("keyboard")
+	f.tt.Frame()
+	f.tt.Key(0, ui.KeyEnter)
+	f.tt.Frame()
+	f.tt.Frame()
+	dialog, ok := f.tt.Find("Keyboard Shortcuts")
+	if !ok || dialog.H <= 0 || dialog.Y+dialog.H > height {
+		t.Fatalf("Keyboard Shortcuts is not open inside the window: found=%v, bounds=%+v", ok, dialog)
+	}
+	closeButton, ok := f.tt.Find("Close")
+	if !ok || closeButton.H <= 0 {
+		t.Fatalf("Close not shown: found=%v, bounds=%+v", ok, closeButton)
+	}
+	first, ok := f.tt.Find("Command Palette")
+	if !ok || first.H <= 0 {
+		t.Fatalf("the first row is not shown: found=%v, bounds=%+v", ok, first)
+	}
+	// MyGo's Find keeps a label that is clipped away, with zero height.
+	inView := func(label string) bool {
+		r, ok := f.tt.Find(label)
+		return ok && r.H > 0 && r.Y >= closeButton.Y+closeButton.H && r.Y+r.H <= dialog.Y+dialog.H && r.Y+r.H <= height
+	}
+	// The last row starts below the window: the list does not fit.
+	const last = "Show Activity"
+	if inView(last) {
+		t.Fatalf("%q fits without scrolling; the check needs a list taller than the window", last)
+	}
+	// Scroll down in steps of 120 DIPs, at most 40 steps (4800 DIPs, more
+	// than the whole list), over the body, until each label is in view.
+	for _, label := range []string{"Edit", "Go to", "View", last} {
+		for step := 0; !inView(label); step++ {
+			if step == 40 {
+				r, _ := f.tt.Find(label)
+				t.Fatalf("%q never scrolled into view in the dialog %+v: %+v", label, dialog, r)
+			}
+			f.tt.Scroll(first.X+first.W/2, dialog.Y+dialog.H/2, 0, 120)
+			f.tt.Frame()
+		}
+	}
+	if after, ok := f.tt.Find("Close"); !ok || after != closeButton {
+		t.Errorf("scrolling moved Close: before=%+v, after=%+v", closeButton, after)
+	}
+}
