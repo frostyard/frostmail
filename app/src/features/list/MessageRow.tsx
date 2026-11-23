@@ -87,6 +87,8 @@ export function MessageRow(props: MessageRowProps) {
   const contrast = selected && focused;
   const secondary = contrast ? "text-accent-contrast" : "text-secondary";
   const subject = message.subject.trim();
+  // (No Subject) is tertiary, which has no contrast on the accent row.
+  const subjectTone = subject === "" && !contrast && "text-tertiary";
   const lines = props.previewLines ?? PREVIEW_LINES;
   const reminder = message.remindAt
     ? `Reminder ${whenText(new Date(message.remindAt), now, Intl.DateTimeFormat().resolvedOptions().timeZone, appLocale(navigator.language))}`
@@ -195,7 +197,7 @@ export function MessageRow(props: MessageRowProps) {
       </div>
 
       <div className="flex items-center gap-1">
-        <span className={joinClasses("text-list-subject truncate flex-1", subject === "" && "text-tertiary")}>
+        <span className={joinClasses("text-list-subject truncate flex-1", subjectTone)}>
           {subject === "" ? "(No Subject)" : subject}
         </span>
         {showThreadCount && message.threadCount > 1 && (

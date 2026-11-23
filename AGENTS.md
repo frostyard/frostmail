@@ -208,14 +208,14 @@ waits on the owner's checks on real desktops.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
   `github.com/frostyard/frostui` v0.10.1 (the desktop app's kit, on MyGo;
   read its `docs/design/frostui.md` API changes after a bump),
-  `github.com/frostyard/lodge/kit` v0.5.0, `github.com/frostyard/std` v0.5.0 (direct:
+  `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
 - MyGo is `github.com/egoist/mygo` v0.10.0. The quotation-depth change
   (upstream #1731) first shipped upstream in v0.9.1, which replaced the owner's
   fork pin of [ADR-0058](docs/adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md).
   `go.mod` has no MyGo `replace`. frostui v0.10.1 requires v0.10.0 too.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
-  `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.6.0`.
+  `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.7.0`.
 - The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
   the Go versions above; it changes with every bump. Run `make flatpak-sources`
   after a change to `go.mod` or `go.sum`. A dependency bump also updates every

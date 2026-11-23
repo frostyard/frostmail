@@ -102,7 +102,7 @@ function Row({
         {completed && <Check size={12} aria-hidden="true" />}
       </span>
       <div className="min-w-0 flex-1">
-        <div className={`truncate text-list-subject ${completed ? "text-tertiary" : ""}`}>{title}</div>
+        <div className={`truncate text-list-subject ${completed && !contrast ? "text-tertiary" : ""}`}>{title}</div>
         {detail && (
           <div className={`truncate text-list-preview ${contrast ? "text-accent-contrast" : "text-secondary"}`}>
             {detail}
