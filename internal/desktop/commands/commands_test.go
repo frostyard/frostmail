@@ -213,3 +213,46 @@ func TestMovesAreUnlisted(t *testing.T) {
 		}
 	}
 }
+
+func TestEveryShortcutHasATitle(t *testing.T) {
+	for _, m := range commands.Modules {
+		run := map[commands.Command]func(){}
+		for _, b := range commands.Bindings {
+			run[b.Command] = func() {}
+		}
+		table := frostui.NewCommandTable(commands.Table(m, func() int { return 1 }, run)...)
+		got := table.Shortcuts()
+		for _, entry := range got {
+			if entry.Title == "" {
+				t.Errorf("%s: empty title for keys %q", m, entry.Keys)
+			}
+			for id := range run {
+				if entry.Title == string(id) {
+					t.Errorf("%s: raw command title %q for keys %q", m, entry.Title, entry.Keys)
+				}
+			}
+		}
+		var want []frostui.ShortcutEntry
+		switch m {
+		case commands.Mail:
+			want = []frostui.ShortcutEntry{
+				{Title: "Page Down", Keys: []string{"Space"}},
+				{Title: "Page Up", Keys: []string{"Shift", "Space"}},
+				{Title: "Cancel", Keys: []string{"Esc"}},
+				{Title: "Next Pane", Keys: []string{"Tab"}},
+				{Title: "Previous Pane", Keys: []string{"Shift", "Tab"}},
+				{Title: "Open", Keys: []string{"Enter"}},
+			}
+		case commands.Tasks:
+			want = []frostui.ShortcutEntry{{Title: "Toggle Completion", Keys: []string{"Space"}}}
+		}
+		for _, entry := range want {
+			i := slices.IndexFunc(got, func(e frostui.ShortcutEntry) bool { return slices.Equal(e.Keys, entry.Keys) })
+			if i < 0 {
+				t.Errorf("%s: no shortcut for keys %q; want title %q", m, entry.Keys, entry.Title)
+			} else if got[i].Title != entry.Title {
+				t.Errorf("%s: keys %q have title %q; want %q", m, entry.Keys, got[i].Title, entry.Title)
+			}
+		}
+	}
+}

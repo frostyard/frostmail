@@ -420,10 +420,10 @@ func TestUnreadChangedFollowsTheInboxesCount(t *testing.T) {
 	wait("the message read", 2)
 }
 
-// #356: the Keyboard Shortcuts dialog fits a 1280×800 window, and its
-// body scrolls to the last group's rows (frostui's Info, v0.10.1).
-func TestShortcutsDialogFitsAndScrolls(t *testing.T) {
-	const height = 800
+// openShortcuts opens the Keyboard Shortcuts dialog the user's way, in a
+// 1280 wide window of the height, and returns the dialog's frame.
+func openShortcuts(t *testing.T, height int) (*fixture, ui.Rect) {
+	t.Helper()
 	f := newFixture(t, 1)
 	f.tt.SetSize(1280, height)
 	f.until(t, "the row", func() bool { return f.tt.HasText("Message 1") })
@@ -438,6 +438,25 @@ func TestShortcutsDialogFitsAndScrolls(t *testing.T) {
 	if !ok {
 		t.Fatalf("no Keyboard Shortcuts dialog; the window shows %q", f.tt.Texts())
 	}
+	return f, dialog
+}
+
+func TestShortcutsDialogShowsThePaletteKeys(t *testing.T) {
+	f, _ := openShortcuts(t, 800)
+	r, ok := f.tt.Find("Command Palette")
+	if !ok {
+		t.Fatal("Command Palette not found in Keyboard Shortcuts")
+	}
+	if r.H <= 0 || r.Y+r.H > 800 {
+		t.Errorf("Command Palette is outside the window: %+v", r)
+	}
+}
+
+// #356: the Keyboard Shortcuts dialog fits a 1280×800 window, and its
+// body scrolls to the last group's rows (frostui's Info, v0.10.1).
+func TestShortcutsDialogFitsAndScrolls(t *testing.T) {
+	const height = 800
+	f, dialog := openShortcuts(t, height)
 	if dialog.Y < 0 || dialog.Y+dialog.H > height {
 		t.Errorf("the dialog runs past the window: %+v", dialog)
 	}
