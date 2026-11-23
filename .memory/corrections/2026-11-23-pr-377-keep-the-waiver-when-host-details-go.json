@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-23",
+  "scope": "plan records",
+  "correction": "A change that removed one lodge host's details from plan 0011 also removed Phase 7's waiver, so the plan, AGENTS.md and roadmap 0002 marked Phase 7 done without naming its missing Done when evidence or who accepted closing without it; the waiver is back, and AGENTS.md says that taking a deployment's details out of such a record keeps the missing pieces and the acceptance.",
+  "evidence": "frostmail#377, cross-review of head 57be268, finding 1 (docs/plans/0011-m8-mail-in-lodge.md:309)",
+  "promoted_to": "AGENTS.md"
+}

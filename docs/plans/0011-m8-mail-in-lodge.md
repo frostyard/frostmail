@@ -18,8 +18,11 @@ Status (2026-11-15):
   - Phase 3: the reader frame's images from `lodge-content`, and the
     switcher's chord, in a real browser;
   - Phase 6: a real notification on Linux and on Windows.
-- **Phase 7 is done** (2026-11-15). Its tools were built on 2026-10-24:
-  `mailctl export` and
+- **Phase 7 is done,** accepted by the user on 2026-11-15 without its
+  "Done when" evidence. The record does not hold the week of sync only on
+  lodge's host, the reads from the phone, a browser and the desktop app,
+  the clean daily verifies, or the removal of the desktop's Secret
+  Service items. Its tools were built on 2026-10-24: `mailctl export` and
   [`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh),
   tested against a staged root (#115).
 - **The sealed secrets store is built** (2026-10-24):
@@ -306,7 +309,8 @@ The user's accounts, their mail and their secrets move from the desktop's
 maild to `/var/lib/frostmail` on lodge's host, which is another machine,
 and the desktop's maild stops.
 
-- **Phase 7 is done** (2026-11-15).
+- **Phase 7 is done,** accepted by the user on 2026-11-15 without its
+  "Done when" evidence; the Status names each missing piece.
 - **The sign-in question** is answered:
   [ADR-0043](../adr/0043-finish-a-sign-in-with-a-pasted-address.md)
   (accepted 2026-10-21) finishes a sign-in with a pasted address.
@@ -384,7 +388,10 @@ and the desktop's maild stops.
 - **Done when:** the user's accounts sync only on lodge's host for a week,
   read from the phone, a browser and the desktop app, with clean daily
   verifies. Then the desktop's Secret Service items go
-  (`secret-tool clear application frostmail`).
+  (`secret-tool clear application frostmail`). Not recorded: the week of
+  sync only on lodge's host, the reads from the 3 clients, the daily
+  verifies and the removal of the Secret Service items. Accepted by the
+  user on 2026-11-15 without them (see the Status).
 
 ## Later / ideas
 
