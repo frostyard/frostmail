@@ -34,10 +34,9 @@ and each milestone's plan carries its own status. M8, mail in lodge
   sealed secrets store of [ADR-0044](docs/adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md)
   (`FROSTMAIL_SECRETS=sealed`, a key from a systemd credential, made by
   `frostmail-secrets-key.service` at first start, [ADR-0047](docs/adr/0047-make-the-secrets-key-at-first-start.md);
-  `scripts/seal-mail-secrets.sh` can make it earlier). The move is done:
-  the user's mail runs on lodge's host (by 2026-11-15). Phase 7 is done,
-  accepted by the user on 2026-11-15 without the recorded week of
-  verifies (plan 0011's status).
+  `scripts/seal-mail-secrets.sh` can make it earlier). Phase 7 is done,
+  accepted by the user on 2026-11-15 without its "Done when" evidence
+  (plan 0011's status names what is missing).
 
 M8.5 ([plan 0012](docs/plans/0012-calendar-tasks-and-contacts-for-agents.md)),
 calendar, task and contact tools on `/mcp/mail` for Porter, is built and
@@ -322,4 +321,6 @@ open. The record that closes an item without its "Done when" evidence
 (the plan's phase and status) names each missing piece and who accepted
 closing without it. Every other line that marks the item done (a
 roadmap row, a status line) names who accepted it and points to that
-record.
+record. A change that takes a deployment's details (a host, a unit's
+state) out of such a record keeps the record itself: each missing piece
+and who accepted closing without it.

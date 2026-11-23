@@ -18,28 +18,20 @@ Status (2026-11-15):
   - Phase 3: the reader frame's images from `lodge-content`, and the
     switcher's chord, in a real browser;
   - Phase 6: a real notification on Linux and on Windows.
-- **Phase 7's move is done** (by 2026-11-15). The user's mail runs on
-  lodge's host; the user confirmed it on 2026-11-15, and
-  `frostmail.service` there was reported active with
-  `FROSTMAIL_SECRETS=sealed`. Its tools were built on 2026-10-24:
-  `mailctl export` and
+- **Phase 7 is done,** accepted by the user on 2026-11-15 without its
+  "Done when" evidence. The record does not hold the week of sync only on
+  lodge's host, the reads from the phone, a browser and the desktop app,
+  the clean daily verifies, or the removal of the desktop's Secret
+  Service items. Its tools were built on 2026-10-24: `mailctl export` and
   [`scripts/move-mail-to-lodge.sh`](../../scripts/move-mail-to-lodge.sh),
   tested against a staged root (#115).
 - **The sealed secrets store is built** (2026-10-24):
   [ADR-0044](../adr/0044-seal-the-servers-secrets-with-a-systemd-credential.md),
   accepted the same day. `FROSTMAIL_SECRETS=sealed`, the unit and the
   move script's `sealed` (#117), and `scripts/seal-mail-secrets.sh`
-  (#118) are tested. maild on lodge's host is reported to run with the
-  sealed store (Phase 7). [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)
+  (#118) are tested. [ADR-0047](../adr/0047-make-the-secrets-key-at-first-start.md)
   (2026-10-28) makes the key at first start, with `frostmail-secrets-key.service`,
   so a Snosi host needs no by-hand key step.
-- **Phase 7 is done,** accepted by the user on 2026-11-15 without the
-  recorded week of verifies. Its "Done when" asks for a week in which the
-  user's accounts sync only on lodge's host, read from the phone, a
-  browser and the desktop app, with clean daily verifies, and then the
-  removal of the desktop's Secret Service items. The record holds none of
-  this evidence, no exact date of the move, and no record that the
-  Secret Service items were removed.
 
 ## Decisions for M8
 
@@ -317,11 +309,8 @@ The user's accounts, their mail and their secrets move from the desktop's
 maild to `/var/lib/frostmail` on lodge's host, which is another machine,
 and the desktop's maild stops.
 
-- **The move is done** (by 2026-11-15). The user's mail runs on lodge's
-  host, and the user confirmed it on 2026-11-15. `frostmail.service` there
-  was reported active with `FROSTMAIL_SECRETS=sealed`. Phase 7 is done,
-  accepted by the user on 2026-11-15 without the recorded week of
-  verifies; the Status says what is not recorded.
+- **Phase 7 is done,** accepted by the user on 2026-11-15 without its
+  "Done when" evidence; the Status names each missing piece.
 - **The sign-in question** is answered:
   [ADR-0043](../adr/0043-finish-a-sign-in-with-a-pasted-address.md)
   (accepted 2026-10-21) finishes a sign-in with a pasted address.
@@ -356,9 +345,7 @@ and the desktop's maild stops.
   and run `systemctl daemon-reload`; run `scripts/seal-mail-secrets.sh`
   (dry run) and then with `--apply`, which makes the key and seals the
   test deployment's `secrets.json`; then
-  `scripts/move-mail-to-lodge.sh --from DIR`. The move is done (by
-  2026-11-15), but the record does not say which of these steps ran or
-  which way made the key.
+  `scripts/move-mail-to-lodge.sh --from DIR`.
 - **`mailctl export DIR`** (built). On the desktop, with maild stopped, it
   writes a still copy of maild's data:
   - `frostmail.db`, by SQLite's `VACUUM INTO`, with no migration;
@@ -404,8 +391,7 @@ and the desktop's maild stops.
   (`secret-tool clear application frostmail`). Not recorded: the week of
   sync only on lodge's host, the reads from the 3 clients, the daily
   verifies and the removal of the Secret Service items. Accepted by the
-  user on 2026-11-15 without the recorded week of verifies (see the
-  Status).
+  user on 2026-11-15 without them (see the Status).
 
 ## Later / ideas
 
