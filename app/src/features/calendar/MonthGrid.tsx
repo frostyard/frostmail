@@ -169,7 +169,7 @@ function MonthOccurrence({ occurrence, date, props, drag }: MonthCellProps & { o
         {occurrence.summary || "No Title"}
       </span>
       {!occurrence.allDay && (
-        <span className="hidden shrink-0 text-secondary tabular-nums @[9rem]:inline">{start}</span>
+        <span className={`hidden shrink-0 tabular-nums @[9rem]:inline ${active ? "" : "text-secondary"}`}>{start}</span>
       )}
     </button>
   );
