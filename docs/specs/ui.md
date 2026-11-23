@@ -1177,8 +1177,10 @@ The compose window's own keys are in [compose-ui.md](compose-ui.md).
 The native app's Keyboard Shortcuts dialog (the palette's Keyboard
 Shortcuts) lists each key of the module shown with its command's palette
 name, grouped as the palette groups them. The palette's own keys head the
-list, as Command Palette (Ctrl+K and Ctrl+Shift+P) in the App group. A
-move has no palette name; the dialog names it:
+list, as Command Palette (Ctrl+K and Ctrl+Shift+P) in the App group.
+When the list is taller than the window (a 1280×800 screen), its body
+scrolls under the fixed title and Close button (frostui's `Info`, from
+v0.10.1). A move has no palette name; the dialog names it:
 
 | Command | Name in the dialog |
 | --- | --- |
