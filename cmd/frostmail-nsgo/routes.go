@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -161,7 +162,13 @@ func (w *workspace) applyRoute(raw string, done func()) {
 						if err != nil {
 							w.problem.Set(err.Error())
 						} else {
-							w.navigate("all-inboxes")
+							source := mail.Source{Kind: mail.AllInboxes}
+							for _, box := range w.store.State().Mailboxes {
+								if slices.Contains(m.MailboxIDs, box.ID) && (source.ID == 0 || box.Role == api.MailboxRoleInbox) {
+									source = mail.Source{Kind: mail.Mailbox, ID: box.ID}
+								}
+							}
+							w.navigate(source.Key())
 							w.openMessage(m.ID, false)
 						}
 						done()

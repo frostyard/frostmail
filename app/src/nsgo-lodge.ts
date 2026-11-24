@@ -1,4 +1,5 @@
 import { connectLodge } from "@frostyard/lodge-client";
+import { permalink } from "./lodge/routes";
 
 async function openPreview() {
   const lodge = await connectLodge({ app: "mail" });
@@ -18,6 +19,13 @@ async function openPreview() {
       report(route: string, title: string, replace: boolean) {
         if (route !== current) lodge.route(route, title, { replace });
         current = route;
+      },
+      context(id: string, messageId: string, title: string) {
+        if (id) lodge.context({ kind: "message", ref: "mail" + permalink(messageId || id), title });
+        else lodge.context({ kind: null, ref: "", title: "" });
+      },
+      backToList() {
+        window.history.back();
       },
       printMessage(subject: string, headers: string, text: string) {
         document.getElementById("mail-print")?.remove();

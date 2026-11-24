@@ -29,6 +29,7 @@ func main() {
 
 type workspace struct {
 	calendarDate    time.Time
+	backHistory     func() bool
 	deferredOpen    func()
 	beforeRoute     func(func(), func())
 	routeGeneration int
@@ -194,7 +195,14 @@ func root(cx *core.Scope) core.Node {
 					if w.opened.Get() == 0 {
 						return list
 					}
-					return core.View{Style: ui.FillRest, Children: []core.Node{button("Back to message list", func() { w.generation++; w.opened.Set(0); w.reader.Set(nil) }), core.Dynamic(w.messageReader)}}
+					return core.View{Style: ui.FillRest, Children: []core.Node{button("Back to message list", func() {
+						if w.backHistory != nil && w.backHistory() {
+							return
+						}
+						w.generation++
+						w.opened.Set(0)
+						w.reader.Set(nil)
+					}), core.Dynamic(w.messageReader)}}
 				})
 			}
 		})}}

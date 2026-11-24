@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"syscall/js"
 	"time"
@@ -74,10 +75,29 @@ func (w *workspace) platformStart() {
 	}
 	ready := core.NewSignal(w.cx, false)
 	var last location
+	overList := false
+	w.backHistory = func() bool {
+		if !overList {
+			return false
+		}
+		overList = false
+		host.Call("backToList")
+		return true
+	}
+	w.cx.Effect(func() {
+		p := w.reader.Get()
+		if p == nil || w.module.Get() != "Mail" {
+			host.Call("context", "", "", "")
+			return
+		}
+		m := p.message
+		host.Call("context", strconv.FormatInt(m.Summary.ID, 10), m.MessageID, m.Summary.Subject)
+	})
 	var sequence int
 	navigate := func(path string) {
 		sequence++
 		seq := sequence
+		overList = false
 		ready.Set(false)
 		// Supersede any outstanding lookup even when the next route must wait.
 		w.routeGeneration++
@@ -105,7 +125,10 @@ func (w *workspace) platformStart() {
 		}
 		next := w.location()
 		if next.path != last.path {
-			replace := next.place == last.place && !(next.depth && !last.depth)
+			same := next.place == last.place
+			deeper := same && next.depth && !last.depth
+			replace := same && !deeper
+			overList = deeper || (overList && same && next.depth)
 			host.Call("report", next.path, next.title, replace)
 		}
 		last = next
