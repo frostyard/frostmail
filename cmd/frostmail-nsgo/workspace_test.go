@@ -91,6 +91,7 @@ func TestPersonalOrganizerRoundTrip(t *testing.T) {
 		}
 		a.WaitFor("label:"+item.title, 5*time.Second)
 		a.Press("label:" + item.title)
+		a.WaitFor("label:Close", 5*time.Second)
 		a.Press("label:Close")
 	}
 }

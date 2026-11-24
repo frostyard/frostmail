@@ -22,7 +22,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	day := core.NewSignal(cx, today)
 	span := core.NewSignal(cx, "Month")
 	cal := core.NewSignal(cx, int64(0))
-	query := ""
+	query := core.NewSignal(cx, "")
 	bounds := func() (time.Time, time.Time) {
 		at := day.GetUntracked()
 		y, m, d := at.Date()
@@ -40,7 +40,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	}
 	rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.CalendarChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Occurrence, error) {
 		start, end := bounds()
-		q := query
+		q := query.GetUntracked()
 		var ids []int64
 		if id := cal.GetUntracked(); id != 0 {
 			ids = []int64{id}
@@ -67,18 +67,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	}
 	picker := ui.DatePicker{Label: "Choose date", Value: func() base.DateValue { return base.DateValue{Start: day.Get()} }, OnChange: func(v base.DateValue) { day.Set(v.Start); load() }}
 	filter := w.collectionFilter(cx, "Calendar", func(c api.Collection) bool { return c.Events }, cal, load)
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, button("New event", func() {
-		at := day.GetUntracked()
-		now := time.Now()
-		y, m, d := at.Date()
-		start := time.Date(y, m, d, now.Hour()+1, 0, 0, 0, at.Location())
-		w.eventForm(api.CalendarEvent{Start: start, End: start.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
-	}), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query = strings.TrimSpace(v); load() }}, collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
-		if o.AllDay {
-			return o.StartDate + " · All day"
-		}
-		return o.Start.Local().Format("Mon Jan 2 · 15:04")
-	}, func(o api.Occurrence) {
+	show := func(o api.Occurrence) {
 		perform(w, func(ctx context.Context, c *api.Client) (*api.CalendarEvent, error) {
 			return c.Calendar().Event(ctx, &api.CalendarEventParams{ID: o.EventID, RecurrenceID: changed("", o.RecurrenceID)})
 		}, func(e *api.CalendarEvent, err error) {
@@ -88,8 +77,30 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 			}
 			w.eventDetail(*e, load)
 		})
+	}
+	agenda := collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
+		if o.AllDay {
+			return o.StartDate + " · All day"
+		}
+		return o.Start.Local().Format("Mon Jan 2 · 15:04")
+	}, show)
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, button("New event", func() {
+		at := day.GetUntracked()
+		now := time.Now()
+		y, m, d := at.Date()
+		start := time.Date(y, m, d, now.Hour()+1, 0, 0, 0, at.Location())
+		w.eventForm(api.CalendarEvent{Start: start, End: start.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
+	}), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }}, core.Dynamic(func(owner *core.Scope) core.Node {
+		date, mode := day.Get(), span.Get()
+		if query.Get() != "" || owner.Env().Window().Width < 720 {
+			return agenda
+		}
+		return calendarGrid(owner, date, mode, rows, func(at time.Time) { day.Set(at); span.Set("Day"); load() }, show, func(at time.Time) {
+			w.eventForm(api.CalendarEvent{Start: at, End: at.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
+		})
 	})}}
 }
+
 func (w *workspace) scopeFor(e api.CalendarEvent, f func(*api.EventScope)) {
 	if !e.Recurring {
 		f(nil)
@@ -140,8 +151,11 @@ func (w *workspace) writeEvent(op func(context.Context, *api.Client, *bool) erro
 	perform(w, func(ctx context.Context, c *api.Client) (struct{}, error) { return struct{}{}, op(ctx, c, nil) }, func(_ struct{}, err error) {
 		w.acting.Set(false)
 		if errors.Is(err, api.ErrNotifyRequired) {
-			w.confirm("Notify attendees?", "This change sends a calendar notice to attendees.", "Send notice", func() {
-				w.change(func(ctx context.Context, c *api.Client) error { yes := true; return op(ctx, c, &yes) }, load)
+			w.show(func(*core.Scope) core.Node {
+				choose := func(notify bool) {
+					w.change(func(ctx context.Context, c *api.Client) error { return op(ctx, c, &notify) }, func() { w.closePanel(); load() })
+				}
+				return w.dialog("Notify attendees?", []core.Node{core.Text{Content: "Choose whether to send an update to attendees."}}, button("Cancel", w.closePanel), button("Save without notifying", func() { choose(false) }), button("Notify attendees", func() { choose(true) }))
 			})
 			return
 		}
