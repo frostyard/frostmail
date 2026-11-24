@@ -1,16 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/frostyard/frostmail/api"
 	oldcompose "github.com/frostyard/frostmail/internal/desktop/compose"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/base/richeditor"
@@ -20,8 +27,17 @@ import (
 )
 
 func (w *workspace) newDraft(kind api.DraftKind, source *int64) {
+	p := api.DraftCreateParams{Kind: kind, SourceID: source}
+	if source == nil && w.source.Kind == mail.Mailbox {
+		for _, b := range w.store.State().Mailboxes {
+			if b.ID == w.source.ID {
+				p.AccountID = &b.AccountID
+				break
+			}
+		}
+	}
 	perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
-		return c.Draft().Create(ctx, &api.DraftCreateParams{Kind: kind, SourceID: source})
+		return c.Draft().Create(ctx, &p)
 	}, w.editDraft)
 }
 func (w *workspace) editDraft(d *api.Draft, err error) {
@@ -149,6 +165,14 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 	}
 	cx.Cleanup(func() { w.beforeRoute = nil })
 	// Keep the window open while its only copy of a local edit is unsaved.
+	if window := cx.CurrentWindow(); window != nil {
+		window.OnClosing(cx, func(event *core.WindowClosing) {
+			if e.changed != e.saved || e.busy.GetUntracked() {
+				event.Cancel()
+				e.save()
+			}
+		})
+	}
 	cx.OnQuitRequest(func(q *core.QuitRequest) {
 		if e.changed != e.saved || e.busy.GetUntracked() {
 			q.Cancel()
@@ -272,7 +296,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 	})
 	insert := core.Dynamic(func(*core.Scope) core.Node {
-		var items []core.Node
+		items := []core.Node{ui.MenuItem{Text: "Inline image", OnSelect: e.inlineImage}}
 		for _, s := range snips.Get() {
 			items = append(items, ui.MenuItem{Text: s.Name, OnSelect: func() { e.editor.Paste("", s.HTML); e.editor.Focus() }})
 		}
@@ -280,9 +304,6 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 			if i.SignatureHTML != "" {
 				items = append(items, ui.MenuItem{Text: "Signature · " + i.Email, OnSelect: func() { e.editor.Paste("", i.SignatureHTML); e.editor.Focus() }})
 			}
-		}
-		if len(items) == 0 {
-			return nil
 		}
 		return ui.Menu{Trigger: ui.Button{Text: "Insert", Disabled: e.busy.Get}, Children: items}
 	})
@@ -295,7 +316,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(205)}, NodeViews: map[string]richeditor.NodeView{"image": image, "inlineImage": image}}
 	})
-	dlg := w.dialog("Compose", []core.Node{from, field("To", &e.to), field("Cc", &e.cc), field("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(append(marks, insert)...), editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	dlg := w.dialog("Compose", []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(append(marks, insert)...), editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
 			closeDraft()
@@ -303,6 +324,112 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 	}
 	return dlg
 }
+
+// The current token may contain a quoted comma. Replacing it keeps all
+// earlier tokens and defers quoting/validation to the shared address parser.
+func (e *draftEditor) recipient(label string, dest *string) core.Node {
+	value := core.NewSignal(e.cx, *dest)
+	choices := core.NewSignalFunc(e.cx, []api.Address(nil), func(_, _ []api.Address) bool { return false })
+	var timer func() bool
+	var revision int
+	change := func(text string) {
+		revision++
+		ticket := revision
+		*dest = text
+		value.Set(text)
+		e.edit()
+		choices.Set(nil)
+		if timer != nil {
+			timer()
+		}
+		_, prefix := oldcompose.RecipientPrefix(text)
+		if prefix == "" || oldcompose.ValidAddress(prefix) {
+			return
+		}
+		timer = e.cx.AfterFunc(180*time.Millisecond, func() {
+			perform(e.w, func(ctx context.Context, c *api.Client) ([]api.Address, error) {
+				limit := int64(5)
+				return c.Address().Suggest(ctx, &api.AddressSuggestParams{Prefix: prefix, Limit: &limit})
+			}, func(rows []api.Address, err error) {
+				if err == nil {
+					e.cx.Post(func() {
+						if ticket == revision {
+							choices.Set(rows)
+						}
+					})
+				}
+			})
+		})
+	}
+	return workspaceui.Stack(ui.Input{Label: label, Placeholder: label, Value: value.Get, Disabled: e.busy.Get, OnChange: change}, core.Dynamic(func(*core.Scope) core.Node {
+		var nodes []core.Node
+		for _, a := range choices.Get() {
+			token := oldcompose.Token(a)
+			nodes = append(nodes, ui.Button{Text: token, Variant: ui.ButtonGhost, Disabled: e.busy.Get, OnPress: func() {
+				prefix, _ := oldcompose.RecipientPrefix(*dest)
+				if prefix != "" {
+					prefix += " "
+				}
+				change(prefix + token + ", ")
+			}})
+		}
+		if len(nodes) == 0 {
+			return nil
+		}
+		return workspaceui.Stack(nodes...)
+	}))
+}
+
+func (e *draftEditor) inlineImage() {
+	e.cx.PickFiles(core.PickFilesOptions{Title: "Insert inline image"}, func(files []core.File, err error) {
+		if err != nil {
+			e.fail(err)
+			return
+		}
+		if len(files) == 0 {
+			return
+		}
+		f := files[0]
+		e.busy.Set(true)
+		go func() {
+			data, err := readInline(f)
+			e.cx.Post(func() {
+				e.busy.Set(false)
+				if err != nil {
+					e.fail(err)
+					return
+				}
+				if len(data)+len(e.editor.HTML()) > 8<<20 {
+					e.fail(errors.New("The image would make this draft too large"))
+					return
+				}
+				e.editor.RunNamed("setImage", richeditor.Attrs{"src": data, "alt": f.Name})
+			})
+		}()
+	})
+}
+
+func readInline(file core.File) (string, error) {
+	const maxSize = 6 << 20
+	if file.Size <= 0 || file.Size > maxSize {
+		return "", errors.New("Choose a PNG, JPEG or GIF smaller than 6 MiB")
+	}
+	reader, err := file.Open()
+	if err != nil {
+		return "", err
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(io.LimitReader(reader, maxSize+1))
+	if err != nil {
+		return "", err
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || len(data) > maxSize || int64(config.Width)*int64(config.Height) > 32_000_000 {
+		return "", errors.New("Choose a PNG, JPEG or GIF up to 32 megapixels")
+	}
+	return "data:" + http.DetectContentType(data) + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
 func (e *draftEditor) attachment(act func(context.Context, *api.Client) error) {
 	if e.busy.GetUntracked() {
 		return

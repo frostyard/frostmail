@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"iter"
 	"regexp"
 	"strings"
 	"time"
@@ -23,23 +24,38 @@ const fieldSpecials = `()<>[]:;@\,."`
 // ValidAddress reports whether text is a plausible email address.
 func ValidAddress(text string) bool { return addressForm.MatchString(text) }
 
-func splitPieces(text string) []string {
-	var pieces []string
-	var cur strings.Builder
-	quoted := false
-	for _, r := range text {
-		switch {
-		case r == '"':
-			quoted = !quoted
-			cur.WriteRune(r)
-		case !quoted && strings.ContainsRune(",;\n\r", r):
-			pieces = append(pieces, cur.String())
-			cur.Reset()
-		default:
-			cur.WriteRune(r)
+// RecipientPrefix returns the completed part of a field, including its last
+// separator, and the last unfinished address for completion.
+func RecipientPrefix(text string) (string, string) {
+	start := 0
+	for index := range separators(text) {
+		start = index + 1
+	}
+	return text[:start], strings.TrimSpace(text[start:])
+}
+
+// A comma in a quoted display name belongs to the address.
+func separators(text string) iter.Seq[int] {
+	return func(yield func(int) bool) {
+		quoted := false
+		for index, r := range text {
+			if r == '"' {
+				quoted = !quoted
+			} else if !quoted && strings.ContainsRune(",;\n\r", r) && !yield(index) {
+				return
+			}
 		}
 	}
-	return append(pieces, cur.String())
+}
+
+func splitPieces(text string) []string {
+	var out []string
+	start := 0
+	for index := range separators(text) {
+		out = append(out, text[start:index])
+		start = index + 1
+	}
+	return append(out, text[start:])
 }
 
 func unquote(name string) string {
