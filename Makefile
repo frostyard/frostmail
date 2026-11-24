@@ -310,12 +310,26 @@ task-finish: ## Verify, move the card to done/ and commit the task's work
 clean: ## Remove build output
 	rm -rf build dist coverage.out coverage.html
 
-.PHONY: nsgo-build nsgo-test nsgo-lodge-app
+.PHONY: nsgo-build nsgo-test nsgo-live nsgo-pictures nsgo-lodge-app
 nsgo-build: ## Build the shared native mail client
 	scripts/build-nsgo-native.sh build/frostmail-nsgo
 
 nsgo-test: ## Exercise the shared mail workspace and compile it for Lodge
 	cd cmd/frostmail-nsgo && go test -tags integration ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .
+
+# The same suite in a real Linux window (plan 0016, rule 10). Xvfb gives it a
+# screen of one size on every host and keeps its windows off the desktop; GTK
+# takes X11 there once WAYLAND_DISPLAY is unset. NSGo's test command has no
+# -tags flag, so the integration tag goes through GOFLAGS. Pictures go to
+# cmd/frostmail-nsgo/.nsgo/test/screenshots/linux, which git ignores.
+NSGO_LIVE = env -u WAYLAND_DISPLAY GOFLAGS=-tags=integration xvfb-run -a -s "-screen 0 1600x1200x24" go tool nsgo test -target linux
+nsgo-live: ## Run the shared client's workflows in a real Linux window, under Xvfb
+	@command -v xvfb-run >/dev/null 2>&1 || { echo "make nsgo-live needs xvfb-run (the xvfb package)"; exit 1; }
+	cd cmd/frostmail-nsgo && $(NSGO_LIVE) .
+
+nsgo-pictures: ## Take the kept pictures of the client's main views again (cmd/frostmail-nsgo/comparison/linux)
+	@command -v xvfb-run >/dev/null 2>&1 || { echo "make nsgo-pictures needs xvfb-run (the xvfb package)"; exit 1; }
+	cd cmd/frostmail-nsgo && $(NSGO_LIVE) -run '^TestPictures' -screenshots comparison/linux .
 
 NSGO_STAGE := build/nsgo-lodge
 NSGO_APP_RELEASE = $(NSGO_STAGE)/release/FrostMail-$(shell sed -n 's/^version: //p' cmd/frostmail-nsgo/nsgo.yaml)-web

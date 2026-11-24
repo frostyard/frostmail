@@ -3,7 +3,8 @@
 - **Status:** Phase 0 is done (2026-11-24): the owner chose D1 to D4
   ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)),
   the kit is in frostui and tagged, and the three apps build on it. Phase
-  0.5 is next. No part of the look is built.
+  0.5 is in progress: FrostMail's part is built, Frostnotes' is left. No
+  part of the look is built.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -295,6 +296,25 @@ pictures.
 - **Done when:** in FrostMail and in Frostnotes the suite passes in a real
   Linux window on the host and in CI, and each repository holds the
   pictures of today's look for the views above: the "before" set.
+- **FrostMail's part (2026-11-24).** `make nsgo-live` runs the suite under
+  Xvfb in a GTK 4 window: 17 tests pass and 2 skip on the host.
+  `cmd/frostmail-nsgo/comparison/linux` holds 14 pictures of today's look,
+  from 5 picture tours (`make nsgo-pictures`), and CI's NSGo client job
+  runs the target and uploads its pictures
+  ([design/testing.md](../design/testing.md#the-nsgo-clients-live-suite)).
+  What the real window showed that the headless run does not:
+  - 2 of the 14 workflows fail there and pass headless: the quick actions
+    of a message row never show under the pointer, and a row dragged onto a
+    mailbox does not move (frostyard/frostmail#391, #392). They skip on a
+    target. The cause of the first
+    is not found (the testing design has what was tried); the second was
+    not looked into. Phase 3 rebuilds these rows: its 3b is not done while
+    either skips.
+  - The tests assumed their working directory; on a target it is another.
+  - The fixture's dates follow the day, so the pictures of the list and
+    the Calendar change from day to day.
+  Not built: bounds checks, which wait for the standard's measures
+  (Phases 2 and 3).
 
 ## Phase 1 — Theme, type and the title row (M)
 
@@ -391,7 +411,10 @@ text an agent drafts:
   its daemon only through Lodge, where PocketGo's reaches a fixture service
   over HTTP. Either the suite runs with `-target web` behind a test
   gateway to the fixture daemon, or the web pictures stay with the Lodge
-  smoke tests. Decided by a trial in Phase 0.5.
+  smoke tests. Not tried yet. What FrostMail's part found: its tests are
+  Linux-only and each starts a maild with `os/exec`, which a browser
+  cannot, so the suite as written cannot run with `-target web`; a web run
+  needs the daemon started outside the test.
 - **Pictures as a gate:** whether a picture that differs fails a run, or
   the pictures are evidence a person reads and only the suite's checks
   fail. Fonts and drawing differ between hosts. By Phase 0.5. What
