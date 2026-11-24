@@ -463,14 +463,9 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 		children = append(children, core.Text{Content: mail.SenderCheckText(m.From.Address), Style: ui.TypeLabel})
 	}
 	if len(p.thread) > 1 {
-		items := []core.Node{}
-		for _, item := range p.thread {
-			if item.ID != id {
-				items = append(items, ui.Button{Text: item.From.Address + " · " + item.Date.Local().Format("Jan 2"), OnPress: func() { w.openMessage(item.ID, false) }})
-			}
-		}
-		children = append(children, workspaceui.Section{Title: "Conversation", Count: func() int { return len(p.thread) }, Content: func(*core.Scope) core.Node { return workspaceui.Stack(items...) }})
+		children = append(children, button(fmt.Sprintf("View conversation (%d messages)", len(p.thread)), func() { w.conversation(p) }))
 	}
+
 	if p.rendering.Remote > 0 {
 		children = append(children, ui.Button{Text: "Load remote images (" + strconv.FormatInt(p.rendering.Remote, 10) + ")", OnPress: func() { w.openMessage(id, true) }})
 	}

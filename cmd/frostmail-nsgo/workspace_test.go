@@ -157,3 +157,15 @@ func TestScheduledSendReturnsToDraft(t *testing.T) {
 		t.Fatalf("Reopened subject %q", got)
 	}
 }
+
+func TestConversationOpensRelatedMessages(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const subject = "Re: Aurora launch checklist"
+	a.WaitFor("label:"+subject, 8*time.Second)
+	a.Press("label:" + subject)
+	a.WaitFor("label:View conversation (3 messages)", 5*time.Second)
+	a.Press("label:View conversation (3 messages)")
+	a.WaitFor("label:Open this message", 5*time.Second)
+	a.Press("label:Close")
+	a.WaitFor("label:View conversation (3 messages)", 5*time.Second)
+}
