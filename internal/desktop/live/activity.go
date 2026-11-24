@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
-	"github.com/frostyard/frostmail/internal/activity"
+	"github.com/frostyard/frostmail/internal/activity/entry"
 )
 
 // maxPending is how many entries wait for activity.recent's answer, as
@@ -59,7 +59,7 @@ func (a *Activity) Connect(ctx context.Context, c *api.Client, events *Events) e
 	if err != nil {
 		return err
 	}
-	limit := int64(activity.MaxRecent)
+	limit := int64(entry.MaxRecent)
 	recent, err := c.Activity().Recent(ctx, &api.ActivityRecentParams{Limit: &limit})
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (a *Activity) Connect(ctx context.Context, c *api.Client, events *Events) e
 	// for the next drain instead of overtaking the rest of the history.
 	for {
 		if a.lost > 0 {
-			out = append(out, activity.Dropped(a.lost, time.Now()))
+			out = append(out, entry.Dropped(a.lost, time.Now()))
 		}
 		for _, e := range a.pending {
 			if e.Seq == 0 || e.Seq > a.seen {

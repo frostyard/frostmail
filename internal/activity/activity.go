@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	wireentry "github.com/frostyard/frostmail/internal/activity/entry"
 )
 
 // The bounds of ADR-0055.
@@ -27,7 +28,7 @@ const (
 	// Warnings and errors are always kept.
 	PerSecond = 20
 	// MaxRecent and DefaultRecent bound activity.recent.
-	MaxRecent     = 500
+	MaxRecent     = wireentry.MaxRecent
 	DefaultRecent = 200
 )
 
@@ -85,7 +86,7 @@ func (h *Hub) Record(e Entry) {
 		routine := e.e.Level == api.ActivityLevelDebug || e.e.Level == api.ActivityLevelInfo
 		ok, lost := h.allow(rateKey{*id, e.e.Kind}, at, routine)
 		if lost > 0 {
-			h.add(dropped(e.e.AccountID, lost), at)
+			h.add(wireentry.DroppedForAccount(e.e.AccountID, lost), at)
 		}
 		if !ok {
 			return
@@ -188,7 +189,7 @@ func (s *Sub) Close() {
 // deliver hands e to the subscription without blocking; h.mu is held.
 func (s *Sub) deliver(e api.ActivityEntry) {
 	if s.lost > 0 {
-		d := dropped(nil, s.lost)
+		d := wireentry.DroppedForAccount(nil, s.lost)
 		d.At = e.At
 		select {
 		case s.ch <- d:
