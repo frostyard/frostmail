@@ -334,11 +334,16 @@ nsgo-test: ## Exercise the shared mail workspace and compile it for Lodge
 	cd cmd/frostmail-nsgo && go test -tags integration ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .
 
 # The same suite in a real Linux window (plan 0016, rule 10). Xvfb gives it a
-# screen of one size on every host and keeps its windows off the desktop; GTK
-# takes X11 there once WAYLAND_DISPLAY is unset. NSGo's test command has no
-# -tags flag, so the integration tag goes through GOFLAGS. Pictures go to
-# cmd/frostmail-nsgo/.nsgo/test/screenshots/linux, which git ignores.
-NSGO_LIVE = env -u WAYLAND_DISPLAY GOFLAGS=-tags=integration xvfb-run -a -s "-screen 0 1600x1200x24" go tool nsgo test -target linux
+# screen of one size on every host and keeps its windows off the desktop.
+# GDK_BACKEND=x11 is what keeps them off: without it GTK tries Wayland first,
+# and with WAYLAND_DISPLAY unset it still finds a desktop's compositor at the
+# default socket, wayland-0. NSGo's test command has no -tags flag, so the
+# integration tag goes through GOFLAGS. GTK reads testdata/xdg's settings
+# file last of the system's: it stops the text caret's blinking. Pictures go
+# to cmd/frostmail-nsgo/.nsgo/test/screenshots/linux, which git ignores.
+NSGO_LIVE = env -u WAYLAND_DISPLAY GDK_BACKEND=x11 XDG_SESSION_TYPE=x11 GOFLAGS=-tags=integration \
+	XDG_CONFIG_DIRS=/etc/xdg:$(CURDIR)/cmd/frostmail-nsgo/testdata/xdg \
+	xvfb-run -a -s "-screen 0 1600x1200x24" go tool nsgo test -target linux
 nsgo-live: ## Run the shared client's workflows in a real Linux window, under Xvfb
 	@command -v xvfb-run >/dev/null 2>&1 || { echo "make nsgo-live needs xvfb-run (the xvfb package)"; exit 1; }
 	cd cmd/frostmail-nsgo && $(NSGO_LIVE) .
