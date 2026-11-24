@@ -44,7 +44,25 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 		st := w.store.State()
 		nodes := []core.Node{button("Open mailbox", func() { w.closePanel(); w.navigate(mail.Source{Kind: mail.Mailbox, ID: b.ID}.Key()) })}
 		if s := st.Settings; s != nil {
-			add := !slices.Contains(s.Favorites, b.ID)
+			index := slices.Index(s.Favorites, b.ID)
+			add := index < 0
+			for _, step := range []struct {
+				label string
+				delta int
+			}{{"Move favorite up", -1}, {"Move favorite down", 1}} {
+				pos := index + step.delta
+				if index < 0 || pos < 0 || pos >= len(s.Favorites) {
+					continue
+				}
+				nodes = append(nodes, button(step.label, func() {
+					favorites := slices.Clone(s.Favorites)
+					favorites[index], favorites[pos] = favorites[pos], favorites[index]
+					w.change(func(ctx context.Context, c *api.Client) error {
+						_, err := c.Settings().Set(ctx, &api.SettingsSetParams{Favorites: favorites})
+						return err
+					}, w.closePanel)
+				}))
+			}
 			label := "Remove from favorites"
 			if add {
 				label = "Add to favorites"

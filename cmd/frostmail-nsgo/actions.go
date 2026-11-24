@@ -34,7 +34,12 @@ func (w *workspace) dialog(title string, children []core.Node, footer ...core.No
 		if !open {
 			w.closePanel()
 		}
-	}, Children: children, Footer: footer}
+	}, Children: append(children, core.Dynamic(func(*core.Scope) core.Node {
+		if err := w.problem.Get(); err != "" {
+			return workspaceui.Notice{Kind: ui.ToastWarning, Title: "Mail", Detail: err, OnDismiss: func() { w.problem.Set("") }}
+		}
+		return nil
+	})), Footer: footer}
 }
 
 func (w *workspace) confirm(title, detail, label string, do func()) {

@@ -96,6 +96,11 @@ func (w *workspace) editAccount(original api.Account) {
 		}
 		readOnly, notify := core.NewSignal(cx, a.ReadOnly), core.NewSignal(cx, a.Notify)
 		nodes = append(nodes, serverFields(cx, "IMAP", &a.IMAP, &ip), serverFields(cx, "SMTP", &a.SMTP, &sp), ui.Checkbox{Text: "Read only", Checked: readOnly.Get, OnChange: readOnly.Set}, ui.Checkbox{Text: "Notify for new mail", Checked: notify.Get, OnChange: notify.Set}, stringField("Days of mail to sync (0 for all)", &days, false))
+		if a.ID > 0 {
+			periods := []ui.Option[int64]{{Label: "Never", Value: 0}, {Label: "After one day", Value: 1}, {Label: "After one week", Value: 7}, {Label: "After 30 days", Value: 30}}
+			nodes = append(nodes, choice("Erase Trash", settingValue(a.EraseTrashDays, 0), periods, func(v int64) { a.EraseTrashDays = &v }, cx),
+				choice("Erase Junk", settingValue(a.EraseJunkDays, 0), periods, func(v int64) { a.EraseJunkDays = &v }, cx))
+		}
 		parse := func(raw string, max int64) (int64, error) {
 			v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 			if err != nil || v < 0 || v > max {
@@ -123,7 +128,7 @@ func (w *workspace) editAccount(original api.Account) {
 				if saved.ID == 0 {
 					return c.Account().Create(ctx, &api.AccountCreateParams{Email: saved.Email, DisplayName: saved.DisplayName, Kind: saved.Kind, Auth: saved.Auth, IMAP: &saved.IMAP, SMTP: &saved.SMTP, SyncDays: &saved.SyncDays, ReadOnly: &saved.ReadOnly, Notify: &saved.Notify})
 				}
-				return c.Account().Update(ctx, &api.AccountUpdateParams{ID: saved.ID, DisplayName: &saved.DisplayName, IMAP: &saved.IMAP, SMTP: &saved.SMTP, SyncDays: &saved.SyncDays, ReadOnly: &saved.ReadOnly, Notify: &saved.Notify})
+				return c.Account().Update(ctx, &api.AccountUpdateParams{ID: saved.ID, EraseTrashDays: saved.EraseTrashDays, EraseJunkDays: saved.EraseJunkDays, DisplayName: &saved.DisplayName, IMAP: &saved.IMAP, SMTP: &saved.SMTP, SyncDays: &saved.SyncDays, ReadOnly: &saved.ReadOnly, Notify: &saved.Notify})
 			}, func(result *api.Account, err error) {
 				w.acting.Set(false)
 				if err != nil {

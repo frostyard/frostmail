@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
@@ -44,6 +45,10 @@ func (w *workspace) oauthClient(provider api.OAuthProvider) {
 	perform(w, func(ctx context.Context, c *api.Client) (*api.OAuthClient, error) {
 		return c.Oauth().GetClient(ctx, &api.OauthGetClientParams{Provider: provider})
 	}, func(info *api.OAuthClient, err error) {
+		if errors.Is(err, api.ErrNotFound) {
+			info = &api.OAuthClient{Provider: provider}
+			err = nil
+		}
 		if err != nil {
 			w.problem.Set(err.Error())
 			return
