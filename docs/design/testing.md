@@ -13,7 +13,7 @@
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | Desktop app | `internal/desktop/**` with `ui.Tester` against a real maild. `mainwin`'s `TestModulesInBothThemes` draws Mail, Calendar, People and Tasks in Frostyard and Frostyard light; with `FROSTMAIL_SNAPSHOT_DIR` set, it and the other snapshot tests write their PNGs there | `make test` |
-| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 14 workflows (`workspace_test.go`) and 5 picture tours (`pictures_test.go`) | `make nsgo-test`, headless (no pixels) |
+| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 15 workflows (`workspace_test.go`) and 7 picture tours (`pictures_test.go`) | `make nsgo-test`, headless (no pixels) |
 | NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. 2 workflows skip on a target ([below](#the-nsgo-clients-live-suite)) | `make nsgo-live`, under Xvfb |
 | Desktop app, real windows | `internal/desktop/e2e` (build tag `e2e`): the automation build on fixture mail: the hostile corpus, the reader's script probe (`TestReaderPageRunsNoScript`: 22 ways to run script, counted by the find bar and a canary, once past maild's sanitizer and once through it), a real link click, a forward with an inline image, dragging an event, the reminders window, and on Linux the Server pane's change of mode | `make desktop-e2e`, under Xvfb with xdotool, or on Windows' desktop |
 
@@ -40,10 +40,14 @@ The shared client has one suite, run two ways
   `cmd/frostmail-nsgo/.nsgo/`, so they find the repository with
   `repoRoot`. Pictures go to `cmd/frostmail-nsgo/.nsgo/test/screenshots/linux`,
   which git ignores; CI uploads them as `nsgo-live-pictures`.
-- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 14 PNGs of
-  the main views (the list, a message, its actions menu, a confirmation,
-  the To-Do Bar, a conversation, compose, the five modules, and the narrow
-  list and message), 1280 by 820 and 620 by 820, taken on Xvfb's X11.
+- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 20 PNGs.
+  14 are the main views in Frostyard light (the list, a message, its
+  actions menu, a confirmation, the To-Do Bar, a conversation, compose,
+  the five modules, and the narrow list and message), and 6, named
+  `dark-`, are a message, its actions menu, a confirmation, the Calendar,
+  compose and the narrow message in Frostyard. A tour names its appearance
+  (`fixtureLook`), so a run does not follow its host's. They are 1280 by
+  820 and 620 by 820, taken on Xvfb's X11.
   (The first set, of 2026-11-24, was 781 high and in the desktop's font:
   it was taken on a Wayland desktop, as above.) `make nsgo-pictures` takes
   them again. A change of

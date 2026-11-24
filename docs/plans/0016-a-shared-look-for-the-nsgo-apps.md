@@ -3,8 +3,8 @@
 - **Status:** Phase 0 is done (2026-11-24): the owner chose D1 to D4
   ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)),
   the kit is in frostui and tagged, and the three apps build on it. Phase
-  0.5 is in progress: FrostMail's part is built, Frostnotes' is left. No
-  part of the look is built.
+  0.5 is done (2026-11-24). Phase 1 is in progress: the kit's themes are
+  tagged and FrostMail draws them; Frostnotes and PocketGo are left.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -256,7 +256,7 @@ controls).
   (11) and frostyard/pocketgo#167 (10), which also removed PocketGo's copy
   of the module.
 
-## Phase 0.5 — Live tests in FrostMail and Frostnotes (M)
+## Phase 0.5 — Live tests in FrostMail and Frostnotes (M, done 2026-11-24)
 
 Before any look changes, so that every later phase shows its change as
 pictures.
@@ -320,6 +320,18 @@ pictures.
     the Calendar change from day to day.
   Not built: bounds checks, which wait for the standard's measures
   (Phases 2 and 3).
+- **Frostnotes' part (2026-11-24),** frostyard/frostnotes#277: its suite
+  passes headless and in a GTK window on Xvfb's X11 (12 tests, none
+  skipped), and it keeps 19 pictures of that day's look. 3 of its 4
+  workflows failed in the window at first, each on a difference of NSGo
+  v0.3.0's test host (the app's clock stands still during a wait; a line
+  break typed into a multiline field is dropped; a paste runs headless
+  only), and its tests now allow for them with no change to the app.
+- **Done (2026-11-24).** Both suites pass in a real Linux window on the
+  host and in CI: FrostMail's NSGo client job (#390, #394) and Frostnotes'
+  Verify job (frostyard/frostnotes#277) ran `make nsgo-live` and passed on
+  their pull requests. Each repository holds the "before" pictures of its
+  views: FrostMail's 14 in the commit of #394, Frostnotes' 19 in #277.
 
 ## Phase 1 — Theme, type and the title row (M)
 
@@ -331,6 +343,24 @@ pictures.
 - **Done when:** each app's live suite passes, and its pictures, made
   again in each theme, show Frostyard's colors and Inter with one title
   row; the contrast test passes; PocketGo's pane-width tests pass.
+- **The kit's part (2026-11-24),** frostyard/frostui#72, tagged
+  `workspaceui/v0.2.0`: `Theme`, `Apply`, `Frame`, `ColorsOf` and
+  `AppearanceChoice`, a contrast test of 69 pairs in each theme at 4.5:1
+  or over, the brand left to the system's title bar on Linux, and the
+  compact shell's ground, which Frostnotes' dark narrow picture showed
+  missing. Not carried over from the MyGo kit: the high-contrast values.
+- **FrostMail's part (2026-11-24).** The client calls `Apply`, sits in a
+  `Frame`, and keeps the General pane's choice of System, Light or Dark in
+  the device's storage (a desktop only: Lodge sets the web build's
+  appearance). Its 14 pictures are made again in Frostyard light, and 6
+  are added in Frostyard; they show the themes' colors in the shell, the
+  list, a menu, a dialog and the Calendar, the text in the bundled Inter
+  where Xvfb's own face is another, and the narrow dark window on its
+  ground. One title row is not shown by them: a capture holds the window's
+  content, not the system's title bar; the navigation's head no longer
+  names the app. Not checked: the web build under Lodge and Windows.
+  Still as before, for Phases 3 and 4: every layout, and each row of the
+  control map.
 
 ## Phase 2 — The kit's parts and the gallery (L)
 

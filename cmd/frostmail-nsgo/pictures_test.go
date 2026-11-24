@@ -61,6 +61,42 @@ func TestPicturesOfTheModules(t *testing.T) {
 	}
 }
 
+// The same views in Frostyard, the dark theme: the three panes with a
+// message, a menu, a confirmation, compose, the Calendar and the narrow
+// message.
+func TestPicturesInDark(t *testing.T) {
+	a := fixtureLook(t, "", 1280, 820, true)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 8*time.Second)
+	a.Press("label:" + subject)
+	a.WaitFor("label:Message body", 8*time.Second)
+	a.Screenshot("dark-mail-message")
+	a.Press("label:Message actions")
+	a.WaitFor("label:Delete message", 5*time.Second)
+	a.Screenshot("dark-mail-message-actions")
+	a.Press("label:Delete message")
+	a.WaitFor("label:Cancel", 5*time.Second)
+	a.Screenshot("dark-dialog-confirm")
+	a.Press("label:Cancel")
+	a.Press("label:Calendar")
+	a.WaitUntil(5*time.Second, func() bool { return a.Exists("id:content-header >> text:Calendar") })
+	a.Settle()
+	a.Screenshot("dark-module-Calendar")
+	a.Press("label:Compose")
+	a.WaitFor("label:Subject", 5*time.Second)
+	a.Type("label:Subject", "Lunch on Thursday")
+	a.Screenshot("dark-compose")
+}
+
+func TestPicturesOfANarrowWindowInDark(t *testing.T) {
+	a := fixtureLook(t, "", 620, 820, true)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 20*time.Second)
+	a.Press("label:" + subject)
+	a.WaitFor("label:Message body", 8*time.Second)
+	a.Screenshot("dark-narrow-message")
+}
+
 func TestPicturesOfANarrowWindow(t *testing.T) {
 	a := fixtureSized(t, "", 620, 820)
 	const subject = "Your trip to Lisbon: itinerary"

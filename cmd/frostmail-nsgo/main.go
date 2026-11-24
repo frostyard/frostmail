@@ -66,12 +66,22 @@ type workspace struct {
 	undo            *mail.Undo
 	overlay         *core.Signal[*panel]
 	acting          *core.Signal[bool]
+	appearance      *core.Signal[core.Appearance]
 }
 
 func invalidate(s *core.Signal[int]) { s.Set(s.GetUntracked() + 1) }
 
 func root(cx *core.Scope) core.Node {
 	cx.SetTitle("FrostMail")
+	// The Frostyard look and the bundled Inter (plan 0016, rule 1). A font
+	// the platform refuses leaves the text in the system's face.
+	_ = workspaceui.Apply(cx)
+	appearance := core.AppearanceSystem
+	if desktopServer {
+		// Lodge sets the web build's appearance; a desktop keeps its own.
+		appearance = savedAppearance(cx)
+		cx.SetAppearance(appearance)
+	}
 	target, err := platformTarget()
 	if err != nil {
 		return workspaceui.Page(core.Text{Content: err.Error()})
@@ -79,6 +89,7 @@ func root(cx *core.Scope) core.Node {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
 	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
+	w.appearance = core.NewSignal(cx, appearance)
 	w.watchReader()
 	w.showPhotos = core.NewSignal(cx, true)
 	w.textScale = core.NewSignal(cx, float32(1))
@@ -206,7 +217,7 @@ func root(cx *core.Scope) core.Node {
 				})
 			}
 		})}}
-	return core.View{Style: ui.FillRest, Children: []core.Node{dragdrop.Area{Children: []core.Node{shell}}, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
+	return workspaceui.Frame(dragdrop.Area{Children: []core.Node{shell}}, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
 		if w.switching.Get() {
 			dlg := w.dialog("Changing mail server…", nil)
 			dlg.Footer = nil
@@ -217,7 +228,7 @@ func root(cx *core.Scope) core.Node {
 			return p.render(cx)
 		}
 		return nil
-	})}}
+	}))
 }
 
 func (w *workspace) sections() []ui.SidebarSection {
