@@ -32,3 +32,4 @@ Extending each existing frontend independently retains separate implementations 
 - [Native desktop](0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
 - [Rendering](../design/rendering.md)
 - [Lodge app contract](../specs/lodge-app.md)
+- [The client's look and the kit's home](0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)

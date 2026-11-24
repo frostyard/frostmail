@@ -85,6 +85,15 @@ and the Flatpak, the Windows installer and CI build it.
 Tauri's shell is gone; plan 0015 has each phase's status, and the parity gate
 waits on the owner's checks on real desktops.
 
+Plan 0016 ([a shared look for the NSGo apps](docs/plans/0016-a-shared-look-for-the-nsgo-apps.md))
+and [ADR-0062](docs/adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)
+(Accepted, 2026-11-24) give the NSGo client (`cmd/frostmail-nsgo`,
+[ADR-0061](docs/adr/0061-share-the-mail-client-with-nsgo.md)) Frostyard's
+look from a kit that FrostMail, Frostnotes and PocketGo share. Phase 0 is
+in progress: the kit moves from `frostyard/pocketgo` to
+`github.com/frostyard/frostui/workspaceui`. No part of the look is built,
+and the MyGo client stays the default.
+
 ## Two kinds of agent work
 
 - **Planning and core work** (architecture, contracts, the sync engine,
