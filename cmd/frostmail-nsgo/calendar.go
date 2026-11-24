@@ -18,7 +18,8 @@ import (
 )
 
 func (w *workspace) calendar(cx *core.Scope) core.Node {
-	today := time.Now()
+	zone := calendarZone().String()
+	today := time.Now().In(calendarZone())
 	if !w.calendarDate.IsZero() {
 		today = w.calendarDate
 	}
@@ -51,9 +52,9 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 		}
 		return func(ctx context.Context, c *api.Client) ([]api.Occurrence, error) {
 			if q != "" {
-				return c.Calendar().Search(ctx, &api.CalendarSearchParams{Query: q, CalendarIDs: ids})
+				return c.Calendar().Search(ctx, &api.CalendarSearchParams{Query: q, TimeZone: changed("Local", zone), CalendarIDs: ids})
 			}
-			return c.Calendar().Range(ctx, &api.CalendarRangeParams{From: start.Format(time.DateOnly), To: end.Format(time.DateOnly), CalendarIDs: ids})
+			return c.Calendar().Range(ctx, &api.CalendarRangeParams{From: start.Format(time.DateOnly), To: end.Format(time.DateOnly), TimeZone: changed("Local", zone), CalendarIDs: ids})
 		}
 	})
 	step := func(n int) {
@@ -96,7 +97,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 }
 
 func (w *workspace) scopeFor(e api.CalendarEvent, f func(*api.EventScope)) {
-	if !e.Recurring {
+	if !e.Recurring || e.RecurrenceID == "" {
 		f(nil)
 		return
 	}
@@ -122,13 +123,39 @@ func (w *workspace) eventDetail(e api.CalendarEvent, load func()) {
 		for _, a := range e.Attendees {
 			nodes = append(nodes, core.Text{Content: a.Email, Style: ui.TypeCaption})
 		}
-		if !e.ReadOnly {
+		invited := e.Organizer != nil && !e.Organizer.IsUser
+		if !e.ReadOnly && invited {
+			var responses []core.Node
+			for _, a := range []struct {
+				label  string
+				answer api.PartStat
+			}{{"Accept", api.PartStatAccepted}, {"Maybe", api.PartStatTentative}, {"Decline", api.PartStatDeclined}} {
+				responses = append(responses, button(a.label, func() {
+					w.confirm("Send calendar response?", e.Summary, a.label, func() {
+						w.change(func(ctx context.Context, c *api.Client) error {
+							_, err := c.Calendar().Respond(ctx, &api.CalendarRespondParams{EventID: &e.ID, RecurrenceID: changed("", e.RecurrenceID), Answer: a.answer})
+							return err
+						}, load)
+					})
+				}))
+			}
+			nodes = append(nodes, workspaceui.Row(responses...))
+		}
+		if !e.ReadOnly && !invited {
+			availability := "Show as free"
+			if e.Transparent {
+				availability = "Show as busy"
+			}
+			nodes = append(nodes, button(availability, func() { v := !e.Transparent; w.updateEventFields(e, api.EventFields{Transparent: &v}, load) }))
+			if len(e.Attendees) == 0 {
+				nodes = append(nodes, button("Move to calendar", func() { w.moveEvent(e, load) }))
+			}
+
 			nodes = append(nodes, workspaceui.Row(ui.Button{Text: "Edit event", OnPress: func() { w.scopeFor(e, func(scope *api.EventScope) { w.eventForm(e, scope, load) }) }}, ui.Button{Text: "Delete event", Variant: ui.ButtonGhost, OnPress: func() {
 				w.scopeFor(e, func(scope *api.EventScope) {
 					w.confirm("Delete event?", e.Summary, "Delete", func() {
-						w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) error {
-							_, err := c.Calendar().Delete(ctx, &api.CalendarDeleteParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Notify: notify})
-							return err
+						w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) (*api.EventWrite, error) {
+							return c.Calendar().Delete(ctx, &api.CalendarDeleteParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Notify: notify})
 						}, load)
 					})
 				})
@@ -137,33 +164,80 @@ func (w *workspace) eventDetail(e api.CalendarEvent, load func()) {
 		return w.dialog(e.Summary, nodes)
 	})
 }
-func (w *workspace) writeEvent(op func(context.Context, *api.Client, *bool) error, load func()) {
-	if w.acting.GetUntracked() {
-		return
-	}
-	w.acting.Set(true)
-	perform(w, func(ctx context.Context, c *api.Client) (struct{}, error) { return struct{}{}, op(ctx, c, nil) }, func(_ struct{}, err error) {
-		w.acting.Set(false)
-		if errors.Is(err, api.ErrNotifyRequired) {
-			w.show(func(*core.Scope) core.Node {
-				choose := func(notify bool) {
-					w.change(func(ctx context.Context, c *api.Client) error { return op(ctx, c, &notify) }, func() { w.closePanel(); load() })
-				}
-				return w.dialog("Notify attendees?", []core.Node{core.Text{Content: "Choose whether to send an update to attendees."}}, button("Cancel", w.closePanel), button("Save without notifying", func() { choose(false) }), button("Notify attendees", func() { choose(true) }))
-			})
+
+type eventOperation func(context.Context, *api.Client, *bool) (*api.EventWrite, error)
+
+func (w *workspace) writeEvent(op eventOperation, load func()) {
+	target := w.session.Target()
+	var submit func(*bool)
+	submit = func(notify *bool) {
+		if w.acting.GetUntracked() || !w.session.Target().Same(target) {
 			return
 		}
+		w.acting.Set(true)
+		perform(w, func(ctx context.Context, c *api.Client) (*api.EventWrite, error) { return op(ctx, c, notify) }, func(result *api.EventWrite, err error) {
+			w.acting.Set(false)
+			if notify == nil && errors.Is(err, api.ErrNotifyRequired) {
+				w.show(func(*core.Scope) core.Node {
+					yes, no := true, false
+					return w.dialog("Notify attendees?", []core.Node{core.Text{Content: "Choose whether to send an update to attendees."}}, button("Cancel", w.closePanel), button("Save without notifying", func() { submit(&no) }), button("Notify attendees", func() { submit(&yes) }))
+				})
+				return
+			}
+			if err != nil {
+				w.problem.Set(err.Error())
+				return
+			}
+			w.closePanel()
+			load()
+			if result == nil || result.RestoreID == "" {
+				return
+			}
+			w.toaster.Show(ui.ToastContent{Title: "Calendar updated", Action: "Undo calendar change", OnAction: func() {
+				if !w.session.Target().Same(target) || w.overlay.GetUntracked() != nil {
+					return
+				}
+				w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) (*api.EventWrite, error) {
+					return nil, c.Calendar().Restore(ctx, &api.CalendarRestoreParams{RestoreID: result.RestoreID, Notify: notify})
+				}, load)
+			}})
+		})
+	}
+	submit(nil)
+}
+
+func (w *workspace) updateEventFields(e api.CalendarEvent, f api.EventFields, load func()) {
+	w.scopeFor(e, func(scope *api.EventScope) {
+		w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) (*api.EventWrite, error) {
+			return c.Calendar().Update(ctx, &api.CalendarUpdateParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Fields: f, Notify: notify})
+		}, load)
+	})
+}
+func (w *workspace) moveEvent(e api.CalendarEvent, load func()) {
+	perform(w, func(ctx context.Context, c *api.Client) ([]api.Collection, error) {
+		return c.Account().Collections(ctx, &api.AccountCollectionsParams{AccountID: &e.AccountID})
+	}, func(all []api.Collection, err error) {
 		if err != nil {
 			w.problem.Set(err.Error())
 			return
 		}
-		w.closePanel()
-		load()
+		w.show(func(*core.Scope) core.Node {
+			var options []core.Node
+			for _, cal := range all {
+				if cal.Events && cal.Enabled && !cal.ReadOnly && cal.ID != e.CalendarID {
+					options = append(options, button(cal.Name, func() { w.updateEventFields(e, api.EventFields{CalendarID: &cal.ID}, load) }))
+				}
+			}
+			if len(options) == 0 {
+				options = append(options, core.Text{Content: "No other writable calendars on this account."})
+			}
+			return w.dialog("Move to calendar", options)
+		})
 	})
 }
 func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load func()) {
 	defer func() { w.routePanel(eventPath(e)) }()
-	loc := time.Local
+	loc := calendarZone()
 	if e.TimeZone != "" {
 		if v, err := time.LoadLocation(e.TimeZone); err == nil {
 			loc = v
@@ -190,12 +264,19 @@ func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load f
 	for _, n := range e.Alarms {
 		alarms = append(alarms, strconv.FormatInt(n, 10))
 	}
+	rule := ""
+	for line := range strings.SplitSeq(e.Recurrence, "\n") {
+		if value, ok := strings.CutPrefix(line, "RRULE:"); ok {
+			rule = strings.TrimSpace(value)
+			break
+		}
+	}
 	invites, alerts := strings.Join(addresses, ", "), strings.Join(alarms, ", ")
-	w.form("Event", []editField{{"Title", e.Summary, false}, {"Location", e.Location, false}, {"Description", e.Description, true}, {"Start (date or date and time)", from, false}, {"End (exclusive)", to, false}, {"Time zone", zone, false}, {"Recurrence rule", e.Recurrence, false}, {"Invitees", invites, true}, {"Reminder minutes before start", alerts, false}}, func(v []string) error {
+	w.form("Event", []editField{{"Title", e.Summary, false}, {"Location", e.Location, false}, {"Description", e.Description, true}, {"Start (date or date and time)", from, false}, {"End (exclusive)", to, false}, {"Time zone", zone, false}, {"Recurrence rule", rule, false}, {"Invitees", invites, true}, {"Reminder minutes before start", alerts, false}}, func(v []string) error {
 		if strings.TrimSpace(v[0]) == "" {
 			return fmt.Errorf("Enter an event title")
 		}
-		fields := api.EventFields{Summary: changed(e.Summary, v[0]), Location: changed(e.Location, v[1]), Description: changed(e.Description, v[2]), Rrule: changed(e.Recurrence, v[6])}
+		fields := api.EventFields{Summary: changed(e.Summary, v[0]), Location: changed(e.Location, v[1]), Description: changed(e.Description, v[2]), Rrule: changed(rule, v[6])}
 		if v[7] != invites {
 			fields.Attendees = []api.Invitee{}
 			if strings.TrimSpace(v[7]) != "" {
@@ -269,13 +350,11 @@ func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load f
 				fields.TimeZone = &name
 			}
 		}
-		w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) error {
+		w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) (*api.EventWrite, error) {
 			if e.ID == 0 {
-				_, err := c.Calendar().Create(ctx, &api.CalendarCreateParams{CalendarID: optionalID(e.CalendarID), Fields: fields, Notify: notify})
-				return err
+				return c.Calendar().Create(ctx, &api.CalendarCreateParams{CalendarID: optionalID(e.CalendarID), Fields: fields, Notify: notify})
 			}
-			_, err := c.Calendar().Update(ctx, &api.CalendarUpdateParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Fields: fields, Notify: notify})
-			return err
+			return c.Calendar().Update(ctx, &api.CalendarUpdateParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Fields: fields, Notify: notify})
 		}, load)
 		return nil
 	})

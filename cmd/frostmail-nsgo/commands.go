@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"github.com/frostyard/frostmail/api"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/ui"
 	"strconv"
 	"strings"
 )
@@ -42,6 +44,9 @@ func (w *workspace) commands() {
 		}
 		cx.OrderFront()
 		w.whenConnected(func() {
+			if origin != w.notificationKey() {
+				return
+			}
 			w.module.Set("Mail")
 			if id > 0 {
 				w.openMessage(id, false)
@@ -51,11 +56,27 @@ func (w *workspace) commands() {
 		})
 	})
 	cx.Cleanup(w.events.On(func(ev api.Event) {
+		target := w.session.Target()
+		switch n := ev.(type) {
+		case api.PeopleChanged:
+			cx.Post(func() {
+				if c := w.session.Client(); c != nil && w.session.Target().Same(target) {
+					w.resetPhotos(c)
+				}
+			})
+			return
+		case api.CalendarReminders:
+			cx.Post(func() {
+				if w.session.Target().Same(target) {
+					w.reminderNotice(n.Count)
+				}
+			})
+			return
+		}
 		n, ok := ev.(api.MessageAnnounced)
 		if !ok {
 			return
 		}
-		target := w.session.Target()
 		cx.Post(func() {
 			if !w.session.Target().Same(target) {
 				return
@@ -84,4 +105,36 @@ func (w *workspace) notificationSettings(cx *core.Scope) []core.Node {
 		}
 		return nil
 	})}
+}
+
+func (w *workspace) checkReminders() {
+	perform(w, func(ctx context.Context, c *api.Client) ([]api.Reminder, error) {
+		return c.Calendar().Reminders(ctx, &api.CalendarRemindersParams{})
+	}, func(rows []api.Reminder, err error) {
+		if err == nil {
+			w.reminderNotice(int64(len(rows)))
+		}
+	})
+}
+func (w *workspace) reminderNotice(count int64) {
+	const id = "calendar-reminders"
+	if count == 0 {
+		w.toaster.Dismiss(id)
+		return
+	}
+	key := w.notificationKey()
+	title := "Calendar reminder"
+	if count > 1 {
+		title = fmt.Sprintf("%d calendar reminders", count)
+	}
+	w.toaster.Show(ui.ToastContent{ID: id, Title: title, Action: "View reminders", OnAction: func() {
+		if key != w.notificationKey() {
+			return
+		}
+		if save := w.beforeRoute; save != nil {
+			save(w.reminders, func() {})
+		} else {
+			w.reminders()
+		}
+	}})
 }

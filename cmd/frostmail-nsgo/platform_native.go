@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
@@ -21,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func platformTarget() (conn.Target, error) { return conn.TargetFrom(os.Getenv) }
@@ -198,3 +200,5 @@ func (w *workspace) openAttachment(id int64, p api.Part) {
 		}
 	})
 }
+
+func calendarZone() *time.Location { return calendar.LocalZone() }

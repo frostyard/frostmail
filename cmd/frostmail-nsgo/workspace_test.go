@@ -192,3 +192,16 @@ func TestTodoRailCreatesTask(t *testing.T) {
 	a.Press("label:Tasks")
 	a.WaitFor("label:A task from the mail rail", 5*time.Second)
 }
+
+func TestUndoCalendarCreation(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Calendar")
+	a.Press("label:New event")
+	a.Type("label:Title", "A calendar change to undo")
+	a.Press("label:Save")
+	a.WaitFor("label:Undo calendar change", 5*time.Second)
+	a.Press("label:Undo calendar change")
+	a.Type("label:Search events", "A calendar change to undo")
+	a.Submit("label:Search events")
+	a.WaitFor("text:No matching items", 5*time.Second)
+}

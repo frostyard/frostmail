@@ -112,10 +112,9 @@ func root(cx *core.Scope) core.Node {
 				w.stopPhotos = nil
 				w.photos = nil
 			}
-			if st.Connected {
-				photoCtx, stop := context.WithCancel(w.ctx)
-				w.stopPhotos = stop
-				w.photos = live.NewPhotos(photoCtx, w.session.Client(), func() { cx.Post(func() { invalidate(w.rows) }) })
+			if c := w.session.Client(); st.Connected && c != nil && w.session.Target().Same(st.Target) {
+				w.resetPhotos(c)
+				w.checkReminders()
 				w.status.Set("Connected · " + st.Target.String())
 				w.openView()
 				if f := w.deferredOpen; f != nil {
@@ -513,4 +512,14 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 }
 func plainBody(s string) core.Node {
 	return core.Scroll{Style: ui.FillRest, Children: []core.Node{core.Text{Content: s, Selectable: core.SelectableOn}}}
+}
+
+func (w *workspace) resetPhotos(c *api.Client) {
+	if w.stopPhotos != nil {
+		w.stopPhotos()
+	}
+	photoCtx, stop := context.WithCancel(w.ctx)
+	w.stopPhotos = stop
+	w.photos = live.NewPhotos(photoCtx, c, func() { w.cx.Post(func() { invalidate(w.rows) }) })
+	invalidate(w.rows)
 }

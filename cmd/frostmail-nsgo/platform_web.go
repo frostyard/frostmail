@@ -10,6 +10,7 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 	"strings"
 	"syscall/js"
+	"time"
 )
 
 func prepareLaunch() {}
@@ -130,4 +131,12 @@ func (w *workspace) openAttachment(id int64, p api.Part) {
 		}
 		js.Global().Get("frostmailLodge").Call("openPart", *file.ContentPath)
 	})
+}
+
+func calendarZone() *time.Location {
+	name := js.Global().Get("Intl").Get("DateTimeFormat").New().Call("resolvedOptions").Get("timeZone").String()
+	if loc, err := time.LoadLocation(name); err == nil {
+		return loc
+	}
+	return time.Local
 }
