@@ -1,10 +1,9 @@
 # Plan 0016: A shared look for the NSGo apps
 
-- **Status:** Phase 0 in progress (2026-11-24). The owner chose D1 to D4 on
-  2026-11-24
-  ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)).
-  The kit is in frostui and tagged, and FrostMail's client builds on it;
-  Frostnotes and PocketGo are left to switch. No part of the look is built.
+- **Status:** Phase 0 is done (2026-11-24): the owner chose D1 to D4
+  ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)),
+  the kit is in frostui and tagged, and the three apps build on it. Phase
+  0.5 is next. No part of the look is built.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -228,7 +227,7 @@ controls).
 | `dialogs` | A form dialog over `ui.Dialog` and NSGo's form rows, `Notice`; a confirmation is `ui.AlertDialog` |
 | `gallery` | An app that shows every part in both themes, built for Linux and the web: what the owner signs off, and what the screenshot tests compare |
 
-## Phase 0 — Decisions and the kit's home (S)
+## Phase 0 — Decisions and the kit's home (S, done 2026-11-24)
 
 - The owner answered D1 to D4 on 2026-11-24, with the recommended choice
   for each:
@@ -245,14 +244,16 @@ controls).
 - The maintainer tags the module (`workspaceui/v0.1.0`). Then each of the
   three apps takes the new import path in a change of its own, with no
   change in what it draws, and PocketGo removes its copy.
-- **Done so far (2026-11-24):** frostyard/frostui#70 merged, and Brian
-  tagged `workspaceui/v0.1.0` on its merge commit. FrostMail's
-  `cmd/frostmail-nsgo` requires that version: `make check` and
-  `make nsgo-test` pass with only the import path, `go.mod`, `go.sum` and
-  the Flatpak's `go-sources.json` changed. Frostnotes and PocketGo have not
-  switched yet, so the phase stays open.
 - **Done when:** the ADRs are accepted, and FrostMail, Frostnotes and
   PocketGo build and pass their gates on one tagged version of the kit.
+- **Done (2026-11-24).** ADR-0062 here and frostui's ADR-0014 are
+  accepted. frostyard/frostui#70 merged, and Brian tagged
+  `workspaceui/v0.1.0` on its merge commit. Each app requires that version,
+  with only its import path, `go.mod`, `go.sum` and what follows them
+  changed, and each change merged with every check of its pull request
+  passing: frostyard/frostmail#387 (12 checks), frostyard/frostnotes#275
+  (11) and frostyard/pocketgo#167 (10), which also removed PocketGo's copy
+  of the module.
 
 ## Phase 0.5 — Live tests in FrostMail and Frostnotes (M)
 
@@ -393,7 +394,13 @@ text an agent drafts:
   smoke tests. Decided by a trial in Phase 0.5.
 - **Pictures as a gate:** whether a picture that differs fails a run, or
   the pictures are evidence a person reads and only the suite's checks
-  fail. Fonts and drawing differ between hosts. By Phase 0.5.
+  fail. Fonts and drawing differ between hosts. By Phase 0.5. What
+  frostyard/pocketgo#167 recorded, from one host on 2026-11-24: a headless
+  run captures no picture; 4 of the 13 committed web pictures differed
+  from what `main` drew there, and the committed Linux pictures were 39
+  px taller than that host's Xvfb captures; 1 picture of 13 differed
+  between runs of the same tree (an animated icon); and 1 Linux-target run
+  captured a blank picture and failed a test that passed on 2 reruns.
 - **Lodge's web build:** whether it takes the kit's palettes or Lodge's own
   theme tokens when the two differ. By Phase 1.
 

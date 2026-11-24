@@ -90,11 +90,11 @@ and [ADR-0062](docs/adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-sh
 (Accepted, 2026-11-24) give the NSGo client (`cmd/frostmail-nsgo`,
 [ADR-0061](docs/adr/0061-share-the-mail-client-with-nsgo.md)) Frostyard's
 look from a kit that FrostMail, Frostnotes and PocketGo share. Phase 0 is
-in progress: the kit moved from `frostyard/pocketgo` to
-`github.com/frostyard/frostui/workspaceui` (Brian tagged
-`workspaceui/v0.1.0` on 2026-11-24), and the client builds on it; Frostnotes
-and PocketGo are left to switch. No part of the look is built, and the MyGo
-client stays the default.
+done (2026-11-24): the kit moved from `frostyard/pocketgo` to
+`github.com/frostyard/frostui/workspaceui` (`workspaceui/v0.1.0`), and the
+three apps build on it. Phase 0.5, live UI tests in a real window with kept
+pictures, is next. No part of the look is built, and the MyGo client stays
+the default.
 
 ## Two kinds of agent work
 
