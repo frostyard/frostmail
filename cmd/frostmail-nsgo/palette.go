@@ -57,12 +57,12 @@ func (w *workspace) commandTable() []command {
 		{"Delete message", "Message", "delete", active, triage(w.deleteMessage)},
 		{"Archive", "Message", "mod+alt+a", active, triage(func(m api.MessageSummary) {
 			if box := mail.ArchiveOf(m.AccountID, w.store.State().Mailboxes); box != nil {
-				w.change(w.moveMessage(m, *box), nil)
+				w.change(w.moveMessage(m, *box), w.moved("Message moved to "+box.Name))
 			}
 		})},
 		{"Toggle junk", "Message", "mod+shift+j", active, triage(func(m api.MessageSummary) {
 			if _, box := mail.SpamTarget([]api.MessageSummary{m}, w.store.State().Mailboxes); box != nil {
-				w.change(w.moveMessage(m, *box), nil)
+				w.change(w.moveMessage(m, *box), w.moved("Message moved to "+box.Name))
 			}
 		})},
 		{"Print or save PDF", "Message", "mod+p", hasMail, message(w.printMessage)},
@@ -115,7 +115,7 @@ func (w *workspace) palette() {
 		}
 		for _, section := range w.sections() {
 			for _, item := range section.Items {
-				if strings.HasPrefix(item.ID, "module:") {
+				if strings.HasPrefix(item.ID, "module:") || strings.HasPrefix(item.ID, "panel:") {
 					continue
 				}
 				key := "navigate/" + item.ID

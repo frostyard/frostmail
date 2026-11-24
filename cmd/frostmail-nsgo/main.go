@@ -38,7 +38,6 @@ type workspace struct {
 	searchInput     *core.Ref
 	trayChoice      *core.Signal[bool]
 	listState       mail.ListState
-	selecting       *core.Signal[bool]
 	selection       *ui.Selection
 	cx              *core.Scope
 	ctx             context.Context
@@ -67,6 +66,11 @@ type workspace struct {
 	overlay         *core.Signal[*panel]
 	acting          *core.Signal[bool]
 	appearance      *core.Signal[core.Appearance]
+	online          *core.Signal[bool]
+	dropping        bool
+	listWidth       *core.Signal[core.Points]
+	contentWidth    *core.Signal[core.Points]
+	tier            *core.Memo[tier]
 }
 
 func invalidate(s *core.Signal[int]) { s.Set(s.GetUntracked() + 1) }
@@ -90,14 +94,22 @@ func root(cx *core.Scope) core.Node {
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
 	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
 	w.appearance = core.NewSignal(cx, appearance)
+	w.online = core.NewSignal(cx, false)
 	w.watchReader()
 	w.showPhotos = core.NewSignal(cx, true)
 	w.textScale = core.NewSignal(cx, float32(1))
 	w.toaster = ui.NewToaster(cx)
 	w.searchInput = &core.Ref{}
 	w.trayChoice = core.NewSignal(cx, false)
-	w.selecting = core.NewSignal(cx, false)
 	w.selection = ui.NewSelection(cx, true)
+	// The list's choice follows the reader: when a message closes by any
+	// way but the list (Back, a removal, a route), the row lets go too, so
+	// a press on it opens the message again.
+	cx.Effect(func() {
+		if w.opened.Get() == 0 && core.Untracked(cx, w.selection.Len) == 1 {
+			w.selection.Clear()
+		}
+	})
 	w.listState = mail.ListState{Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate}
 	w.term = core.NewSignal(cx, "")
 	w.switching = core.NewSignal(cx, false)
@@ -132,7 +144,8 @@ func root(cx *core.Scope) core.Node {
 			if c := w.session.Client(); st.Connected && c != nil && w.session.Target().Same(st.Target) {
 				w.resetPhotos(c)
 				w.checkReminders()
-				w.status.Set("Connected · " + st.Target.String())
+				w.status.Set(st.Target.String())
+				w.online.Set(true)
 				w.openView()
 				if f := w.deferredOpen; f != nil {
 					w.deferredOpen = nil
@@ -141,6 +154,7 @@ func root(cx *core.Scope) core.Node {
 				return
 			}
 			w.clearView()
+			w.online.Set(false)
 			if st.Err != nil {
 				w.status.Set("Reconnecting · " + st.Err.Error())
 			} else {
@@ -160,6 +174,8 @@ func root(cx *core.Scope) core.Node {
 	})
 	list := w.messageList()
 	listWidth := core.NewSignal(cx, core.Points(390))
+	w.listWidth, w.contentWidth = listWidth, core.NewSignal(cx, core.Points(0))
+	w.tier = core.NewMemo(cx, w.toolbarTier)
 	split := ui.ResizablePanelGroup{Style: ui.FillRest, HandleLabel: "Resize message list", Panels: []base.ResizablePanel{
 		{Size: listWidth.Get, OnResize: listWidth.Set, MinSize: 180, Children: []core.Node{list}},
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
@@ -171,16 +187,12 @@ func root(cx *core.Scope) core.Node {
 		return w.selected.Get()
 	}, Navigate: w.navigate,
 		Widths: workspaceui.PaneWidths{Inspector: 280}, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
-		Actions: []core.Node{core.Dynamic(func(owner *core.Scope) core.Node {
-			compose := func() { w.newDraft(api.DraftKindNew, nil) }
-			if owner.Env().Window().Width < 720 {
-				return workspaceui.Row(ui.IconButton{Label: "Compose", Icon: lucide.Pencil, OnPress: compose}, ui.Menu{Trigger: ui.Button{Variant: ui.ButtonGhost, Label: "Mail actions", Icon: lucide.Menu}, Children: []core.Node{ui.MenuItem{Text: "Commands", OnSelect: w.palette}, ui.MenuItem{Text: "Open local drafts", OnSelect: w.draftList}, ui.MenuItem{Text: "Outbox", OnSelect: w.outbox}}})
-			}
-			return workspaceui.Row(ui.Button{Label: "Commands", Icon: lucide.Command, Variant: ui.ButtonGhost, OnPress: w.palette}, ui.Button{Text: "Compose", Icon: lucide.Pencil, OnPress: compose}, ui.Button{Text: "Drafts", Label: "Open local drafts", Variant: ui.ButtonGhost, OnPress: w.draftList}, ui.Button{Text: "Outbox", Variant: ui.ButtonGhost, OnPress: w.outbox})
-		})},
-		Header:        []core.Node{core.Text{ContentFunc: w.title, Style: ui.TypeTitle}},
-		SidebarFooter: []core.Node{core.Text{ContentFunc: w.status.Get, Style: ui.TypeCaption.Merge(core.Style{Padding: core.All(10)})}},
-		Content: []core.Node{core.Dynamic(func(*core.Scope) core.Node {
+		Actions:       []core.Node{w.actions()},
+		Header:        []core.Node{w.header()},
+		SidebarHeader: []core.Node{w.moduleTabs()},
+		SidebarFooter: []core.Node{w.sidebarFoot()},
+		// The pane reports its width, which the toolbar over it fits to.
+		Content: []core.Node{core.View{Style: ui.FillRest, OnLayout: func(b core.Bounds) { w.contentWidth.Set(b.Size.Width) }, Children: []core.Node{core.Dynamic(func(*core.Scope) core.Node {
 			if m := w.problem.Get(); m != "" {
 				return workspaceui.Notice{Kind: ui.ToastWarning, Title: "Mail", Detail: m, OnDismiss: func() { w.problem.Set("") }}
 			}
@@ -216,7 +228,7 @@ func root(cx *core.Scope) core.Node {
 					}), core.Dynamic(w.messageReader)}}
 				})
 			}
-		})}}
+		})}}}}
 	return workspaceui.Frame(dragdrop.Area{Children: []core.Node{shell}}, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
 		if w.switching.Get() {
 			dlg := w.dialog("Changing mail server…", nil)
@@ -231,59 +243,6 @@ func root(cx *core.Scope) core.Node {
 	}))
 }
 
-func (w *workspace) sections() []ui.SidebarSection {
-	w.state.Get()
-	st := w.store.State()
-	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}, {ID: "module:Settings", Text: "Settings", Icon: lucide.Settings}, {ID: "module:Activity", Text: "Activity", Icon: lucide.Activity}}}}
-	extras := mail.Extras{VIPs: st.VIPs, Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts}
-	if st.Settings != nil {
-		extras.FlagNames = st.Settings.FlagNames
-		for _, id := range st.Settings.Favorites {
-			for _, box := range st.Mailboxes {
-				if box.ID == id {
-					extras.Favorites = append(extras.Favorites, box)
-					break
-				}
-			}
-		}
-	}
-	boxes := make(map[int64]api.Mailbox, len(st.Mailboxes))
-	for _, b := range st.Mailboxes {
-		boxes[b.ID] = b
-	}
-	for _, s := range mail.BuildSidebar(st.Accounts, st.Mailboxes, extras) {
-		section := ui.SidebarSection{Title: s.Title, Collapsible: true}
-		for _, i := range s.Items {
-			if !i.Selectable {
-				continue
-			}
-			label := i.Label
-			if i.Unread > 0 {
-				label += fmt.Sprintf("  ·  %d", i.Unread)
-			}
-			item := ui.SidebarItem{ID: i.Key, TestID: "mailbox-" + i.Key, Text: label, Icon: lucide.Inbox}
-			if b, ok := boxes[i.MailboxID]; ok {
-				item.Content = w.mailboxTarget(i, label, s.Title, b)
-				for _, a := range st.Accounts {
-					if a.ID == b.AccountID {
-						item.Menu = []core.Node{ui.MenuItem{Text: "Mailbox options", OnSelect: func() { w.mailboxMenu(a, b) }}}
-						break
-					}
-				}
-			}
-			section.Items = append(section.Items, item)
-		}
-		out = append(out, section)
-	}
-	if follow := st.FollowUp; follow != nil && len(follow.Threads) > 0 {
-		section := ui.SidebarSection{Title: "Follow up", Collapsible: true}
-		for _, t := range follow.Threads {
-			section.Items = append(section.Items, ui.SidebarItem{ID: fmt.Sprintf("follow:%d", t.Message.ID), Text: t.Message.Subject, Icon: lucide.Clock})
-		}
-		out = append(out, section)
-	}
-	return out
-}
 func (w *workspace) title() string {
 	if m := w.module.Get(); m != "Mail" {
 		return m
@@ -294,6 +253,21 @@ func (w *workspace) title() string {
 	return mail.SourceTitle(w.source, mail.Names{Mailboxes: st.Mailboxes, Smart: st.Smart})
 }
 func (w *workspace) navigate(key string) {
+	// In a GTK window the release that drops a message on a mailbox also
+	// presses that mailbox's row, in the same turn of the window's loop
+	// (frostyard/frostmail#392): a drop files the message and leaves the
+	// list where it is.
+	if w.dropping {
+		return
+	}
+	switch key {
+	case panelDrafts:
+		w.draftList()
+		return
+	case panelOutbox:
+		w.outbox()
+		return
+	}
 	if m, ok := strings.CutPrefix(key, "module:"); ok {
 		w.module.Set(m)
 		return
@@ -335,106 +309,6 @@ func (w *workspace) openView() {
 	w.view = live.OpenView(c, w.events, q, func() { w.cx.Post(func() { invalidate(w.rows) }) })
 	w.view.Ensure(0, live.Page)
 }
-func (w *workspace) messageList() core.Node {
-	term := w.term
-	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
-	return core.View{Style: ui.FillRest, Children: []core.Node{
-		workspaceui.Row(ui.Input{Ref: w.searchInput, Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),
-		w.listOptions(), w.bulkActions(), ui.List{Label: "Messages", Style: ui.FillRest, EstimatedSize: 68, TapSelects: true, Count: func() int {
-			w.rows.Get()
-			if w.view == nil {
-				return 0
-			}
-			return int(w.view.Count())
-		},
-			Row: func(cx *core.Scope, row core.ListRow) core.Node {
-				return core.Dynamic(func(*core.Scope) core.Node {
-					idx := int64(row.Index())
-					w.rows.Get()
-					v := w.view
-					if v == nil {
-						return nil
-					}
-					msg, ok := v.Row(idx)
-					if !ok {
-						v.Ensure(idx, idx+1)
-						return core.Text{Content: "Loading…"}
-					}
-					sender := msg.From.Name
-					if sender == "" {
-						sender = msg.From.Address
-					}
-					unread := !msg.Flags.Seen
-					if msg.ThreadUnread != nil {
-						unread = *msg.ThreadUnread > 0
-					}
-					if unread {
-						sender = "●  " + sender
-					}
-					w.state.Get()
-					lines := mail.PreviewLines(w.store.State().Settings)
-					if mail.IsVIP(msg.From.Address, w.store.State().VIPs) {
-						sender = "★ " + sender
-					}
-					if msg.Flags.Flagged {
-						sender += " · ⚑"
-						if color := msg.Flags.FlagColor; color > 0 {
-							var names []string
-							if st := w.store.State().Settings; st != nil {
-								names = st.FlagNames
-							}
-							sender += " " + mail.FlagLabel(int(color), names)
-						}
-					}
-					if msg.RemindAt != nil {
-						sender += " · ◷"
-					}
-					if w.listState.Conversations && msg.ThreadCount > 1 {
-						sender += fmt.Sprintf(" · %d messages", msg.ThreadCount)
-					}
-					children := []core.Node{core.Text{Content: sender, Style: w.scaled(ui.TypeLabel)}, core.Text{Content: msg.Subject, MaxLines: 1, Style: w.scaled(ui.TypeBody)}}
-					if lines > 0 {
-						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: w.scaled(ui.TypeCaption)})
-					}
-					var content core.Node = workspaceui.Stack(children...)
-					if w.showPhotos.Get() && w.photos != nil {
-						w.photos.Want([]string{msg.From.Address})
-						if photo := w.photos.Get(msg.From.Address); len(photo) > 0 {
-							content = workspaceui.Row(core.Image{Label: "Sender photo", Source: core.ImageSource{Data: photo}, Style: core.Style{Width: core.Pt(32), Height: core.Pt(32), CornerRadius: 16}}, content)
-						}
-					}
-					colors := ui.ColorsOf(cx)
-					rowButton := base.Button{Label: msg.Subject, Selected: func() bool { return w.opened.Get() == msg.ID }, StyleFunc: func() core.Style {
-						return core.Style{Width: core.Pct(100), Padding: core.All(5), CornerRadius: 6, Selected: &core.Style{Background: ui.Alpha(colors.Accent(), 0.15)}}
-					}, Children: []core.Node{content}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
-					draggable := w.rowWithActions(cx, msg, w.dragRow(cx, msg, rowButton))
-					if w.selecting.Get() {
-						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, draggable)
-					}
-					return draggable
-				})
-			}, OnActivate: func(i int) {
-				if w.view != nil {
-					if m, ok := w.view.Row(int64(i)); ok {
-						w.openMessage(m.ID, false)
-					}
-				}
-			},
-			Empty: core.Text{ContentFunc: func() string {
-				w.rows.Get()
-				if w.view == nil {
-					return ""
-				}
-				if err := w.view.Err(); err != nil {
-					return err.Error()
-				}
-				if !w.view.Ready() {
-					return "Loading messages…"
-				}
-				return "No messages"
-			}}},
-	}}
-}
 
 type messagePage struct {
 	remote    bool
@@ -452,6 +326,10 @@ func (w *workspace) openMessage(id int64, remote bool) {
 	gen := w.generation
 	w.opened.Set(id)
 	w.reader.Set(nil)
+	// A message opened from elsewhere (Follow up, a link) is the list's choice too.
+	if !w.selection.Has(id) || w.selection.Len() != 1 {
+		w.selection.Set(id)
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(w.ctx, 45*time.Second)
 		defer cancel()
@@ -508,11 +386,13 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 	id := w.opened.Get()
 	p := w.reader.Get()
 	if p == nil {
-		label := "Select a message"
-		if id != 0 {
-			label = "Loading message…"
+		switch chosen := w.selection.Len(); {
+		case id != 0:
+			return workspaceui.Page(ui.Skeleton{Avatar: true, Lines: 3, Label: "Loading message"})
+		case chosen > 1:
+			return workspaceui.EmptyState{Icon: lucide.Mails, Title: strconv.Itoa(chosen) + " messages selected", Hint: "Delete, flag or move them from the toolbar."}
 		}
-		return workspaceui.Page(core.Text{Content: label, Style: ui.TypeTitle})
+		return workspaceui.EmptyState{Icon: lucide.MailOpen, Title: "No message selected", Hint: "Choose a message to read it here."}
 	}
 	m := p.message.Summary
 	children := []core.Node{core.Text{Content: m.Subject, Style: ui.TypeTitle}, core.Text{Content: m.From.Address + " · " + m.Date.Local().Format("Jan 2, 2006 15:04"), Style: ui.TypeCaption}}
@@ -521,11 +401,10 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 		if current == nil || current.ID != id {
 			return nil
 		}
-		nodes := []core.Node{w.triage(*current)}
 		if current.RemindAt != nil {
-			nodes = append(nodes, workspaceui.Row(core.Text{Content: "Reminder · " + mail.WhenText(*current.RemindAt, time.Now())}, button("Remove reminder", func() { w.remind(id, nil) })))
+			return workspaceui.Row(core.Text{Content: "Reminder · " + mail.WhenText(*current.RemindAt, time.Now())}, button("Remove reminder", func() { w.remind(id, nil) }))
 		}
-		return workspaceui.Stack(nodes...)
+		return nil
 	}))
 	if p.message.SenderCheck != nil && *p.message.SenderCheck == api.SenderCheckFail {
 		children = append(children, core.Text{Content: mail.SenderCheckText(m.From.Address), Style: ui.TypeLabel})
@@ -553,11 +432,4 @@ func (w *workspace) resetPhotos(c *api.Client) {
 	w.stopPhotos = stop
 	w.photos = live.NewPhotos(photoCtx, c, func() { w.cx.Post(func() { invalidate(w.rows) }) })
 	invalidate(w.rows)
-}
-
-func (w *workspace) scaled(style core.Style) core.Style {
-	f := core.Points(w.textScale.Get())
-	style.FontSize *= f
-	style.LineHeight *= f
-	return style
 }

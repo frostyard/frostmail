@@ -24,6 +24,7 @@ func (w *workspace) notificationKey() string {
 }
 func (w *workspace) commands() {
 	cx := w.cx
+	cx.OnKey("mod+k", w.palette)
 	cx.OnKey("mod+shift+p", w.palette)
 	for _, entry := range w.commandTable() {
 		if entry.key != "" {
