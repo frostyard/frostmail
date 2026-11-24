@@ -62,12 +62,19 @@ jobs:
       - name: Tidy, generated files, vet, format, lint, unit and fork tests
         run: make verify
 
-  race:
-    name: Race detector
+  # The race gate (make race), split over runners: tools/testshard deals the
+  # packages of `go list ./...` into the shards, which together hold every
+  # package once. The job below, Race detector, is the required check.
+  race-shard:
+    name: Race detector, shard ${{ matrix.shard }} of 4
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       FROSTMAIL_REQUIRE_DBUS: "1"
     steps:
@@ -77,13 +84,62 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
+      # The race build of the standard library and the dependencies, in a
+      # build cache of its own. setup-go's cache has none of it: every Linux
+      # job shares its key, and the first job to finish saves it, which is
+      # govulncheck's. Only main saves this one, when go.mod or go.sum
+      # changed; pull requests restore main's.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: race-cache
+        with:
+          path: ${{ runner.temp }}/go-build-race
+          key: go-build-race-${{ runner.os }}-shard-${{ matrix.shard }}-of-4-${{ hashFiles('go.mod', 'go.sum') }}
       # The desktop app's view tests render headless with MyGo, which lays
       # text out with Pango and cairo (no GTK, no display).
       - name: Install Pango and fonts
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends fonts-dejavu-core libpangocairo-1.0-0
-      - run: go test -race ./...
+      # -count=1: every test runs; no result comes from a cache.
+      #
+      # trim.txt holds the time go last trimmed its build cache. go trims
+      # entries unused for 5 days at the end of a build, at most once a day,
+      # and the first build here is tools/testshard's: without today's time
+      # in trim.txt, it would empty a restored cache that main saved more
+      # than 5 days ago, before the tests use it.
+      - name: go test -race, this shard's packages
+        env:
+          RACE_SHARD: ${{ matrix.shard }}/4
+          GOCACHE: ${{ runner.temp }}/go-build-race
+        run: |
+          mkdir -p "$GOCACHE"
+          date +%s > "$GOCACHE/trim.txt"
+          make race RACE_FLAGS=-count=1
+      # A failed save must not fail the shard.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.ref == 'refs/heads/main' && steps.race-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/go-build-race
+          key: ${{ steps.race-cache.outputs.cache-primary-key }}
+
+  # The required check. It runs whatever the shards did, and passes only
+  # when every shard passed: without always(), a failed shard would leave
+  # this job skipped, and a skipped required check counts as passed.
+  race:
+    name: Race detector
+    needs: race-shard
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every shard passed
+        env:
+          SHARDS: ${{ needs.race-shard.result }}
+        run: |
+          echo "The race shards: $SHARDS"
+          test "$SHARDS" = success
 
   windows:
     name: Windows (go test)

@@ -174,7 +174,8 @@ left. No part of the look is built, and the MyGo client stays the default.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card
-  runner.
+  runner. `tools/testshard`: deals the packages into the shards of CI's race
+  gate; `weights.txt` holds the measured seconds that balance them.
 - `internal/workflowcheck`: tests of the repository's own files, not of
   product code: the workflows follow frostyard/core ADR-0021, and the
   baseline files (below) are complete, and only `internal/imapx` imports go-imap.
@@ -185,7 +186,13 @@ left. No part of the look is built, and the MyGo client stays the default.
   gofmt, the pinned golangci-lint (`mise install`), unit tests, and the fork's
   tests. Run it before claiming any Go change is complete.
 - `make engine-it` runs integration tests against the Dovecot container
-  (resetting it first). `make ui-test` runs in the nsl machine. `make ci` is verify plus race tests and the app checks.
+  (resetting it first). `make ui-test` runs in the nsl machine. `make ci` is
+  verify plus the race gate (`make race`) and the app checks.
+- `make race` is the race gate: `go test -race ./...`. CI runs it as 4 shards on
+  runners of their own (`RACE_SHARD=I/4`, split by `tools/testshard`, which puts
+  every package of `go list ./...` in exactly 1 shard), with `-count=1`. The
+  required check "Race detector" passes only when every shard passed
+  (`internal/workflowcheck` holds this).
 - `make flatpak-sources` regenerates the Flatpak's `go-sources.json`. Run it
   after any change to `go.mod` or `go.sum`; CI's job
   "Flatpak sources (make flatpak-sources)" fails on a stale file.

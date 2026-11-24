@@ -98,7 +98,13 @@ func TestSummaryRowActionsShowOnHoverOnly(t *testing.T) {
 
 // pixel is the color the last frame drew at (x, y), in DIPs.
 func pixel(tt *ui.Tester, width int, x, y float32) color.RGBA {
-	img := tt.Image()
+	return pixelOf(tt.Image(), width, x, y)
+}
+
+// pixelOf is the color of a frame at (x, y), in DIPs. A test that reads
+// many pixels of one frame takes the frame once: Tester.Image converts the
+// whole frame on every call.
+func pixelOf(img *image.RGBA, width int, x, y float32) color.RGBA {
 	scale := float32(img.Bounds().Dx()) / float32(width)
 	return color.RGBAModel.Convert(img.At(int(x*scale), int(y*scale))).(color.RGBA)
 }
@@ -129,9 +135,10 @@ func TestSummaryRowKeepsALongTokenInside(t *testing.T) {
 	if r, ok := tt.Find("12"); !ok || r.X+r.W > listWidth {
 		t.Errorf("the count is at %+v (%v), outside the %d-wide list", r, ok, listWidth)
 	}
+	frame := tt.Image()
 	for y := float32(0); y < uikit.SummaryHeight; y++ {
 		for x := float32(listWidth + 1); x < width; x += 3 {
-			if p := pixel(tt, width, x, y); !near(p, bg) {
+			if p := pixelOf(frame, width, x, y); !near(p, bg) {
 				t.Fatalf("the row paints %v at (%v, %v), past its %d DIPs", p, x, y, listWidth)
 			}
 		}

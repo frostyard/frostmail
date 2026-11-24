@@ -1,5 +1,5 @@
 .PHONY: help build build-windows install install-app flatpak-sources desktop-installer desktop-e2e uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
-	verify check ci vulncheck web-build lodge-package deb deb-check bump svu-version-check ui-check ui-test ui-vitest ui-fmt app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
+	verify check race ci vulncheck web-build lodge-package deb deb-check bump svu-version-check ui-check ui-test ui-vitest ui-fmt app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -138,8 +138,24 @@ verify: ## Tidy, generated files, vet (Linux and Windows), format, lint and unit
 
 check: fmt verify ## Format, then verify (the developer gate)
 
+# The race gate: every package of `go list ./...` under the race detector.
+# CI splits it over runners: RACE_SHARD=I/N runs shard I of N, and the N
+# shards together hold every package once (tools/testshard). RACE_FLAGS adds
+# go test flags; CI passes -count=1, so that no result comes from a cache.
+RACE_SHARD ?=
+RACE_FLAGS ?=
+race: ## Run the tests under the race detector (RACE_SHARD=I/N: shard I of N)
+ifeq ($(strip $(RACE_SHARD)),)
+	go test -race $(RACE_FLAGS) ./...
+else
+	@set -e; all=$$(go list ./...); \
+	pkgs=$$(printf '%s\n' "$$all" | go run ./tools/testshard -shard '$(RACE_SHARD)'); \
+	echo "go test -race $(RACE_FLAGS)" $$pkgs; \
+	go test -race $(RACE_FLAGS) $$pkgs
+endif
+
 ci: verify ui-check desktop-build desktop-build-windows ## verify plus race tests and the app checks
-	go test -race ./...
+	$(MAKE) --no-print-directory race
 
 vulncheck: ## Report reachable vulnerabilities (govulncheck; needs the network)
 	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
