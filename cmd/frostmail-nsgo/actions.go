@@ -18,6 +18,9 @@ type panel struct{ render func(*core.Scope) core.Node }
 func (w *workspace) show(render func(*core.Scope) core.Node) { w.overlay.Set(&panel{render}) }
 func (w *workspace) closePanel()                             { w.overlay.Set(nil) }
 func (w *workspace) dialog(title string, children []core.Node, footer ...core.Node) ui.Dialog {
+	if len(footer) == 0 {
+		footer = []core.Node{ui.Button{Text: "Close", Variant: ui.ButtonSecondary, OnPress: w.closePanel}}
+	}
 	return ui.Dialog{Title: title, Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
 		if !open {
 			w.closePanel()

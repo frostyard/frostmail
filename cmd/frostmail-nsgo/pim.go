@@ -1,0 +1,234 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/pocketgo/desktop/workspaceui"
+	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/ui"
+)
+
+// A collection refreshes after a relevant maild event or reconnect. Only
+// the latest request may replace the list; changing modules disposes it.
+func collection[T any](cx *core.Scope, w *workspace, match func(api.Event) bool, fetch func() func(context.Context, *api.Client) ([]T, error)) (*core.Signal[[]T], func()) {
+	rows := core.NewSignalFunc(cx, []T(nil), func(_, _ []T) bool { return false })
+	revision := 0
+	load := func() {
+		revision++
+		ticket := revision
+		if w.session.Client() == nil {
+			return
+		}
+		perform(w, fetch(), func(v []T, err error) {
+			cx.Post(func() {
+				if ticket != revision {
+					return
+				}
+				if err != nil {
+					w.problem.Set(err.Error())
+					return
+				}
+				rows.Set(v)
+			})
+		})
+	}
+	// Coalesce notification bursts before issuing another list query.
+	var scheduled func() bool
+	cx.Cleanup(w.events.On(func(ev api.Event) {
+		if match(ev) {
+			cx.Post(func() {
+				if scheduled != nil {
+					scheduled()
+				}
+				scheduled = cx.AfterFunc(100*time.Millisecond, load)
+			})
+		}
+	}))
+	cx.Effect(func() { w.status.Get(); load() })
+	return rows, load
+}
+func collectionList[T any](rows *core.Signal[[]T], label string, title, subtitle func(T) string, show func(T)) core.Node {
+	return ui.List{Label: label, Style: ui.FillRest, EstimatedSize: 62, Count: func() int { return len(rows.Get()) }, Row: func(cx *core.Scope, row core.ListRow) core.Node {
+		return core.Dynamic(func(*core.Scope) core.Node {
+			all := rows.Get()
+			i := row.Index()
+			if i < 0 || i >= len(all) {
+				return nil
+			}
+			v := all[i]
+			return workspaceui.Row(ui.Button{Text: title(v), Variant: ui.ButtonGhost, OnPress: func() { show(v) }}, core.Text{Content: subtitle(v), MaxLines: 1, Style: ui.TypeCaption})
+		})
+	}, Empty: core.Text{Content: "No matching items"}}
+}
+
+type editField struct {
+	label, value string
+	multi        bool
+}
+
+func (w *workspace) form(title string, fields []editField, submit func([]string) error) {
+	w.show(func(cx *core.Scope) core.Node {
+		values := make([]string, len(fields))
+		children := make([]core.Node, 0, len(fields)+1)
+		problem := core.NewSignal(cx, "")
+		for i, f := range fields {
+			values[i] = f.value
+			children = append(children, workspaceui.Stack(core.Text{Content: f.label, Style: ui.TypeCaption}, ui.Input{Label: f.label, DefaultValue: f.value, Multiline: f.multi, OnChange: func(v string) { values[i] = v }}))
+		}
+		children = append(children, core.Text{ContentFunc: problem.Get})
+		return w.dialog(title, []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(480)}, Children: children}}, ui.Button{Text: "Cancel", Variant: ui.ButtonSecondary, OnPress: w.closePanel}, ui.Button{Text: "Save", Disabled: w.acting.Get, OnPress: func() {
+			if err := submit(values); err != nil {
+				problem.Set(err.Error())
+			}
+		}})
+	})
+}
+func (w *workspace) tasks(cx *core.Scope) core.Node {
+	completed := core.NewSignal(cx, false)
+	rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.TasksChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Task, error) {
+		value := completed.GetUntracked()
+		return func(ctx context.Context, c *api.Client) ([]api.Task, error) {
+			return c.Tasks().List(ctx, &api.TasksListParams{Completed: &value})
+		}
+	})
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Button{Text: "New task", OnPress: func() { w.taskForm(api.Task{}, load) }}, ui.Checkbox{Text: "Completed tasks", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }}), collectionList(rows, "Tasks", func(t api.Task) string { return t.Title }, func(t api.Task) string { return t.Due }, func(t api.Task) { w.taskDetail(t, load) })}}
+}
+func (w *workspace) taskDetail(t api.Task, load func()) {
+	w.show(func(*core.Scope) core.Node {
+		children := []core.Node{core.Text{Content: t.Notes}, core.Text{Content: t.Due, Style: ui.TypeCaption}}
+		if !t.ReadOnly {
+			done := !t.Completed
+			label := "Complete"
+			if !done {
+				label = "Reopen"
+			}
+			children = append(children, workspaceui.Row(ui.Button{Text: label, OnPress: func() {
+				w.change(func(ctx context.Context, c *api.Client) error {
+					_, err := c.Tasks().Update(ctx, &api.TasksUpdateParams{ID: t.ID, Completed: &done})
+					return err
+				}, func() { w.closePanel(); load() })
+			}}, ui.Button{Text: "Edit task", OnPress: func() { w.taskForm(t, load) }}, ui.Button{Text: "Delete task", Variant: ui.ButtonDanger, OnPress: func() {
+				w.confirm("Delete task?", t.Title, "Delete", func() {
+					w.change(func(ctx context.Context, c *api.Client) error {
+						return c.Tasks().Delete(ctx, &api.TasksDeleteParams{ID: t.ID})
+					}, load)
+				})
+			}}))
+		}
+		return w.dialog(t.Title, children)
+	})
+}
+func changed(old, v string) *string {
+	if old == v {
+		return nil
+	}
+	return &v
+}
+func (w *workspace) taskForm(t api.Task, load func()) {
+	w.form("Task", []editField{{"Title", t.Title, false}, {"Notes", t.Notes, true}, {"Due date (YYYY-MM-DD)", t.Due, false}}, func(v []string) error {
+		if strings.TrimSpace(v[0]) == "" {
+			return fmt.Errorf("Enter a task title")
+		}
+		if v[2] != "" {
+			if _, err := time.Parse(time.DateOnly, v[2]); err != nil {
+				return err
+			}
+		}
+		w.change(func(ctx context.Context, c *api.Client) error {
+			if t.ID == 0 {
+				_, err := c.Tasks().Create(ctx, &api.TasksCreateParams{Title: v[0], Notes: &v[1], Due: changed("", v[2])})
+				return err
+			}
+			_, err := c.Tasks().Update(ctx, &api.TasksUpdateParams{ID: t.ID, Title: changed(t.Title, v[0]), Notes: changed(t.Notes, v[1]), Due: changed(t.Due, v[2])})
+			return err
+		}, func() { w.closePanel(); load() })
+		return nil
+	})
+}
+func (w *workspace) people(cx *core.Scope) core.Node {
+	var query string
+	rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.PeopleChanged); return ok }, func() func(context.Context, *api.Client) ([]api.PersonSummary, error) {
+		q := query
+		return func(ctx context.Context, c *api.Client) ([]api.PersonSummary, error) {
+			return c.People().List(ctx, &api.PeopleListParams{Query: changed("", q)})
+		}
+	})
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Input{Label: "Find a person", Placeholder: "Name or address", OnSubmit: func(v string) { query = v; load() }}, ui.Button{Text: "New contact", OnPress: func() { w.contactForm(api.Contact{}, load) }}), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
+		perform(w, func(ctx context.Context, c *api.Client) (*api.Person, error) {
+			return c.People().Get(ctx, &api.PeopleGetParams{ID: p.ID})
+		}, func(person *api.Person, err error) {
+			if err != nil {
+				w.problem.Set(err.Error())
+				return
+			}
+			w.personDetail(person, load)
+		})
+	})}}
+}
+func (w *workspace) personDetail(p *api.Person, load func()) {
+	w.show(func(*core.Scope) core.Node {
+		var cards []core.Node
+		for _, c := range p.Contacts {
+			children := []core.Node{core.Text{Content: c.DisplayName, Style: ui.TypeTitle}, core.Text{Content: c.Organization}, core.Text{Content: c.Note}}
+			for _, address := range c.Emails {
+				children = append(children, ui.Button{Text: address.Value, Variant: ui.ButtonGhost, OnPress: func() {
+					perform(w, func(ctx context.Context, client *api.Client) (*api.Draft, error) {
+						return client.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew, To: []api.Address{{Name: p.DisplayName, Address: address.Value}}})
+					}, w.editDraft)
+				}})
+			}
+			for _, n := range c.Phones {
+				children = append(children, core.Text{Content: n.Label + " " + n.Value})
+			}
+			if !c.ReadOnly {
+				children = append(children, workspaceui.Row(ui.Button{Text: "Edit contact", OnPress: func() { w.contactForm(c, load) }}, ui.Button{Text: "Delete contact", Variant: ui.ButtonGhost, OnPress: func() {
+					w.confirm("Delete contact?", c.DisplayName, "Delete", func() {
+						w.change(func(ctx context.Context, client *api.Client) error {
+							_, err := client.People().Delete(ctx, &api.PeopleDeleteParams{ID: c.ID})
+							return err
+						}, load)
+					})
+				}}))
+			}
+			cards = append(cards, workspaceui.Card{Children: children})
+		}
+		return w.dialog(p.DisplayName, []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(480)}, Children: cards}})
+	})
+}
+func (w *workspace) contactForm(c api.Contact, load func()) {
+	email := ""
+	if len(c.Emails) > 0 {
+		email = c.Emails[0].Value
+	}
+	w.form("Contact", []editField{{"Given name", c.GivenName, false}, {"Family name", c.FamilyName, false}, {"Organization", c.Organization, false}, {"Email", email, false}, {"Notes", c.Note, true}}, func(v []string) error {
+		if strings.TrimSpace(v[0]+v[1]+v[2]+v[3]) == "" {
+			return fmt.Errorf("Enter a name, organization or address")
+		}
+		f := api.ContactFields{GivenName: changed(c.GivenName, v[0]), FamilyName: changed(c.FamilyName, v[1]), Organization: changed(c.Organization, v[2]), Note: changed(c.Note, v[4])}
+		if email != v[3] {
+			f.Emails = append([]api.LabeledValue{}, c.Emails...)
+			if len(f.Emails) > 0 {
+				if v[3] == "" {
+					f.Emails = f.Emails[1:]
+				} else {
+					f.Emails[0].Value = v[3]
+				}
+			} else {
+				f.Emails = append(f.Emails, api.LabeledValue{Value: v[3]})
+			}
+		}
+		w.change(func(ctx context.Context, client *api.Client) error {
+			if c.ID == 0 {
+				_, err := client.People().Create(ctx, &api.PeopleCreateParams{Fields: f})
+				return err
+			}
+			_, err := client.People().Update(ctx, &api.PeopleUpdateParams{ID: c.ID, Fields: f})
+			return err
+		}, func() { w.closePanel(); load() })
+		return nil
+	})
+}

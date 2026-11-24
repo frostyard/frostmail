@@ -71,3 +71,21 @@ func TestDraftRoundTrip(t *testing.T) {
 		t.Fatalf("reopened subject: %q", got)
 	}
 }
+
+func TestPersonalOrganizerRoundTrip(t *testing.T) {
+	a := fixtureWorkspace(t)
+	for _, item := range []struct{ module, add, field, title string }{
+		{"Tasks", "New task", "Title", "Book fixture appointment"},
+		{"People", "New contact", "Given name", "Fixtureperson"},
+		{"Calendar", "New event", "Title", "Fixture appointment"},
+	} {
+		a.Press("label:" + item.module)
+		a.WaitFor("label:"+item.add, 5*time.Second)
+		a.Press("label:" + item.add)
+		a.Type("label:"+item.field, item.title)
+		a.Press("label:Save")
+		a.WaitFor("label:"+item.title, 5*time.Second)
+		a.Press("label:" + item.title)
+		a.Press("label:Close")
+	}
+}

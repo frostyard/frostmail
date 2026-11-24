@@ -28,6 +28,7 @@ type workspace struct {
 	store           *live.Mail
 	events          *live.Events
 	view            *live.View
+	module          *core.Signal[string]
 	source          mail.Source
 	search          string
 	selected        *core.Signal[string]
@@ -51,6 +52,7 @@ func root(cx *core.Scope) core.Node {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
+	w.module = core.NewSignal(cx, "Mail")
 	w.overlay = core.NewSignal(cx, (*panel)(nil))
 	w.acting = core.NewSignal(cx, false)
 	w.undo = &mail.Undo{}
@@ -80,7 +82,12 @@ func root(cx *core.Scope) core.Node {
 		{Size: func() core.Points { return 390 }, MinSize: 180, Children: []core.Node{list}},
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
-	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: w.selected.Get, Navigate: w.navigate,
+	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: func() string {
+		if mode := w.module.Get(); mode != "Mail" {
+			return "module:" + mode
+		}
+		return w.selected.Get()
+	}, Navigate: w.navigate,
 		Actions:       []core.Node{ui.Button{Text: "Compose", Icon: lucide.Pencil, OnPress: func() { w.newDraft(api.DraftKindNew, nil) }}, ui.Button{Text: "Drafts", Label: "Open local drafts", Variant: ui.ButtonGhost, OnPress: w.draftList}, ui.Button{Text: "Outbox", Variant: ui.ButtonGhost, OnPress: w.outbox}},
 		Header:        []core.Node{core.Text{ContentFunc: w.title, Style: ui.TypeTitle}},
 		SidebarFooter: []core.Node{core.Text{ContentFunc: w.status.Get, Style: ui.TypeCaption.Merge(core.Style{Padding: core.All(10)})}},
@@ -89,7 +96,18 @@ func root(cx *core.Scope) core.Node {
 				return workspaceui.Notice{Kind: ui.ToastWarning, Title: "Mail", Detail: m, OnDismiss: func() { w.problem.Set("") }}
 			}
 			return nil
-		}), split}}
+		}), core.Dynamic(func(cx *core.Scope) core.Node {
+			switch w.module.Get() {
+			case "People":
+				return w.people(cx)
+			case "Tasks":
+				return w.tasks(cx)
+			case "Calendar":
+				return w.calendar(cx)
+			default:
+				return split
+			}
+		})}}
 	return core.View{Style: ui.FillRest, Children: []core.Node{shell, core.Dynamic(func(cx *core.Scope) core.Node {
 		if p := w.overlay.Get(); p != nil {
 			return p.render(cx)
@@ -101,7 +119,7 @@ func root(cx *core.Scope) core.Node {
 func (w *workspace) sections() []ui.SidebarSection {
 	w.state.Get()
 	st := w.store.State()
-	var out []ui.SidebarSection
+	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}}}}
 	for _, s := range mail.BuildSidebar(st.Accounts, st.Mailboxes, mail.Extras{VIPs: st.VIPs, Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts}) {
 		section := ui.SidebarSection{Title: s.Title, Collapsible: true}
 		for _, i := range s.Items {
@@ -119,12 +137,20 @@ func (w *workspace) sections() []ui.SidebarSection {
 	return out
 }
 func (w *workspace) title() string {
+	if m := w.module.Get(); m != "Mail" {
+		return m
+	}
 	w.selected.Get()
 	w.state.Get()
 	st := w.store.State()
 	return mail.SourceTitle(w.source, mail.Names{Mailboxes: st.Mailboxes, Smart: st.Smart})
 }
 func (w *workspace) navigate(key string) {
+	if m, ok := strings.CutPrefix(key, "module:"); ok {
+		w.module.Set(m)
+		return
+	}
+	w.module.Set("Mail")
 	if s, ok := mail.SourceFromKey(key, w.store.State().VIPs); ok {
 		w.source = s
 		w.selected.Set(key)
