@@ -968,6 +968,14 @@ lodge's frame are.
     not Starred), by path; disabled when empty.
   - Flag or Unflag (as Toggle Flag), Flag Color ▸ the 7 colors (the first
     message's checked) and Clear Flag, then Mark as Read or Mark as Unread.
+    It reads Mark as Read when a row of the menu's set shows the unread
+    dot (Gutter): in conversation mode, a row whose own message is read
+    can show it. In conversation mode, Mark as Read (here, the toolbar's
+    button and the palette's toggleRead) marks every unread message of
+    each selected conversation read (`thread.messages`), so the dot goes,
+    as Mail.app does (#380); Undo takes it back. Mark as Unread marks the
+    rows' own messages unread, which brings the dot back. With
+    Conversations off, both act on the selected messages.
     The colors are labeled with the flag names, as the sidebar's are (M5);
     so is the toolbar's Flag menu. A flag glyph's accessible name keeps the
     color's own name ("Flagged Red").
