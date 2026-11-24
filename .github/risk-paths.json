@@ -38,6 +38,11 @@
       "why": "governance: the tests that hold the workflows (ADR-0021) and the repository baseline files"
     },
     {
+      "glob": "tools/testshard/**",
+      "level": "L2",
+      "why": "governance: the split of the race gate's packages over CI's shards"
+    },
+    {
       "glob": "packaging/flatpak/{org.frostyard.Frostmail.json,frostmail,frostmail.sh,stamp-version.sh,request-background.py,install.sh,open.sh}",
       "level": "L1",
       "why": "publication: the Flatpak manifest and its sandbox permissions, the launcher, the version stamp, the install wrapper and the wrapper it installs"

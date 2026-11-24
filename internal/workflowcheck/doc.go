@@ -4,5 +4,7 @@
 // declared at the top, and checkouts that do not keep the token), and the
 // files of the repository baseline (ADR-0071, rows B1, B2, B6 and B13): the
 // instruction symlinks, the corrections inbox, the risk-path list and the
-// Dependabot entries. It also holds the go-imap import boundary of AGENTS.md.
+// Dependabot entries. It also holds the go-imap import boundary of AGENTS.md,
+// and the shape of CI's race gate: the required check passes only when every
+// shard passed.
 package workflowcheck

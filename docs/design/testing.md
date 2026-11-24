@@ -62,7 +62,7 @@ The shared client has one suite, run two ways
 `.github/workflows/ci.yml` runs the jobs of `make ci` on every push to
 `main`, every pull request and merge-queue entry, and nightly (so upstream
 drift shows within a day): **Verify** (`make verify`, with golangci-lint
-from `mise.lock`), **Race detector** (`go test -race ./...`), **App UI**
+from `mise.lock`), **Race detector** (`make race`, in shards; see below), **App UI**
 (`make ui-check`), **NSGo client** (`make nsgo-test nsgo-build`, then
 `make nsgo-live` under Xvfb, whose pictures it uploads) and **Desktop app**
 (Linux and Windows release builds, then `make desktop-e2e` on Linux),
@@ -77,6 +77,59 @@ pinned to full commit SHAs, `permissions: {}`, checkouts without
 persisted credentials), which `internal/workflowcheck` tests. Integration
 tests against the mail server and `make e2e` need incus or a display and
 stay local.
+
+### The race gate
+
+`make race` runs `go test -race` on every package of `go list ./...`, and
+`make ci` runs it as one command. CI splits it over 4 runners, since one
+runner took 9 minutes for it (below):
+
+- Each shard job runs `make race` with `RACE_SHARD=I/4` and
+  `RACE_FLAGS=-count=1`. `tools/testshard` deals the packages into the
+  shards: the heaviest first, each to the shard that is lightest so far.
+  The 4 shards together hold every package of `go list ./...` exactly
+  once. A package that `tools/testshard/weights.txt` does not name still
+  lands in a shard, with a weight of 1.
+- `weights.txt` holds the seconds each slow package took under the race
+  detector on CI's runner. The weights only balance the shards. When one
+  shard takes much longer than the others, refresh them from the `ok`
+  lines of the shard jobs' logs.
+- `-count=1` makes every test run: no result comes from a cache.
+- The job named **Race detector**, which main's rulesets require, needs
+  the shards, runs whatever their results (`if: always()`) and passes only
+  when every shard passed. Without `always()` a failed shard would leave
+  it skipped, and a skipped required check counts as passed.
+  `internal/workflowcheck` holds this shape
+  (`TestRaceDetectorCheckNeedsEveryShard`).
+- Each shard keeps the race build of the standard library and the
+  dependencies in a build cache of its own (`GOCACHE` in the runner's
+  temporary directory, saved with `actions/cache`). The cache that
+  setup-go restores has no race build: every Linux job shares its key, and
+  the first job to finish saves it, which is govulncheck's. Only a run on
+  `main` saves a shard's cache, when `go.mod` or `go.sum` changed; pull
+  requests restore main's. The step writes today's time to the cache's
+  `trim.txt` first: go trims entries unused for 5 days at the end of a
+  build, at most once a day, and the first build of the step is
+  `tools/testshard`'s, which would empty an older restored cache before
+  the tests use it.
+
+Where the time went, in the one job that ran every package (CI run
+45427387961, 2026-11-24): the job took 557 seconds, of which
+`go test -race ./...` took 526, and checkout, setup-go and the Pango
+install 26. The packages' test times add up to 1535 seconds; the same
+packages took 270 seconds without the race detector in that run's Verify
+job. The slowest were `internal/desktop/pim` (240 s),
+`internal/desktop/mainwin` (194 s), `internal/store` (166 s),
+`internal/mailsync` (144 s) and `internal/desktop/settings` (121 s).
+
+CPU profiles of 7 of them under the race detector on a developer's
+machine, the same day (`pim`, `mainwin`, `store`, `mailsync`, `engine`,
+`pimsync` and `cmd/mailctl`): the CPU samples were 95% to 122% of the wall
+time, so these tests compute and do not wait. `store.Open`, which applies
+the 23 migrations to each test's new database, took 25% to 63% of the
+samples. `-race` also turns on the compiler's `checkptr` checks, which are
+costly in SQLite's translated C (`modernc.org/sqlite`):
+`runtime.checkptrBase` alone took 21% to 38%.
 
 ## Windows
 
