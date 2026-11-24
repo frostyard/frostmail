@@ -111,6 +111,19 @@ make app-run        # nsl: maild plus the built app
 `make help` lists every target. Architecture starts at
 [docs/design/overview.md](docs/design/overview.md).
 
+### Try the shared NSGo client
+
+Linux, Windows and Lodge can run the same Go workspace against maild. Mail, drafts, rules, accounts, Calendar, People and Tasks use the existing database and RPC API. The Linux client connects to the local socket or the Lodge address in Frostmail’s server settings.
+
+| Build | How to open it |
+| --- | --- |
+| Linux checkout | Run `make nsgo-build`, start maild, then run `build/frostmail-nsgo`. |
+| Candidate Flatpak | Run `flatpak run --env=FROSTMAIL_UI=nsgo org.frostyard.Frostmail`. |
+| Candidate Windows installer | Open `frostmail-nsgo.exe` from the Frostmail installation directory. |
+| Lodge | Run `make nsgo-lodge-app` and use `build/nsgo-lodge/apps/mail` as the Mail app directory in a test Lodge. It uses the signed-in Lodge session. |
+
+For a disposable local trial, `make nsgo-test` runs the workspace against generated mailboxes and a loopback SMTP server. The authenticated Firefox test and host-specific behavior are described in [the NSGo design decision](docs/adr/0061-share-the-mail-client-with-nsgo.md).
+
 ## Where to go next
 
 - [AGENTS.md](AGENTS.md): the rules for agents and contributors.
