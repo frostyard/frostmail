@@ -36,6 +36,9 @@ type workspace struct {
 	opened          *core.Signal[int64]
 	reader          *core.Signal[*messagePage]
 	generation      int
+	undo            *mail.Undo
+	overlay         *core.Signal[*panel]
+	acting          *core.Signal[bool]
 }
 
 func invalidate(s *core.Signal[int]) { s.Set(s.GetUntracked() + 1) }
@@ -48,6 +51,9 @@ func root(cx *core.Scope) core.Node {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
+	w.overlay = core.NewSignal(cx, (*panel)(nil))
+	w.acting = core.NewSignal(cx, false)
+	w.undo = &mail.Undo{}
 	w.store = live.NewMail(func() { cx.Post(func() { invalidate(w.state) }) })
 	w.session = conn.NewSession(target, conn.Options{Client: "FrostMail NSGo", OnConnect: func(ctx context.Context, c *api.Client, _ *api.Hello) error {
 		go w.events.Run(c)
@@ -74,7 +80,7 @@ func root(cx *core.Scope) core.Node {
 		{Size: func() core.Points { return 390 }, MinSize: 180, Children: []core.Node{list}},
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
-	return workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: w.selected.Get, Navigate: w.navigate,
+	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: w.selected.Get, Navigate: w.navigate,
 		Header:        []core.Node{core.Text{ContentFunc: w.title, Style: ui.TypeTitle}},
 		SidebarFooter: []core.Node{core.Text{ContentFunc: w.status.Get, Style: ui.TypeCaption.Merge(core.Style{Padding: core.All(10)})}},
 		Content: []core.Node{core.Dynamic(func(*core.Scope) core.Node {
@@ -83,6 +89,12 @@ func root(cx *core.Scope) core.Node {
 			}
 			return nil
 		}), split}}
+	return core.View{Style: ui.FillRest, Children: []core.Node{shell, core.Dynamic(func(cx *core.Scope) core.Node {
+		if p := w.overlay.Get(); p != nil {
+			return p.render(cx)
+		}
+		return nil
+	})}}
 }
 
 func (w *workspace) sections() []ui.SidebarSection {
@@ -240,8 +252,10 @@ func (w *workspace) openMessage(id int64, remote bool) {
 				w.opened.Set(0)
 				return
 			}
+			unread := !p.message.Summary.Flags.Seen
+			p.message.Summary.Flags.Seen = true
 			w.reader.Set(p)
-			if !p.message.Summary.Flags.Seen {
+			if unread {
 				w.call(func(ctx context.Context, c *api.Client) error {
 					yes := true
 					return c.Message().SetFlags(ctx, &api.MessageSetFlagsParams{IDs: []int64{id}, Changes: api.FlagChanges{Seen: &yes}})
@@ -280,6 +294,10 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 	}
 	m := p.message.Summary
 	children := []core.Node{core.Text{Content: m.Subject, Style: ui.TypeTitle}, core.Text{Content: m.From.Address + " · " + m.Date.Local().Format("Jan 2, 2006 15:04"), Style: ui.TypeCaption}}
+	children = append(children, w.triage(p.message.Summary))
+	if p.message.SenderCheck != nil && *p.message.SenderCheck == api.SenderCheckFail {
+		children = append(children, core.Text{Content: mail.SenderCheckText(m.From.Address), Style: ui.TypeLabel})
+	}
 	if len(p.thread) > 1 {
 		items := []core.Node{}
 		for _, item := range p.thread {
