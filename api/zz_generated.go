@@ -2989,6 +2989,10 @@ type MessageSummary struct {
 	RemindAt *time.Time `json:"remindAt,omitzero"`
 	// Present and true when the message's conversation is muted (ADR-0028).
 	Muted *bool `json:"muted,omitzero"`
+	// In view.range of a view with threads: the unread messages of the row's
+	// conversation within the view's scope, the view's unread condition aside (0
+	// when none). Absent elsewhere, as in message.summaries.
+	ThreadUnread *int64 `json:"threadUnread,omitzero"`
 }
 
 // Part: One MIME part.

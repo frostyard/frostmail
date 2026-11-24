@@ -1675,6 +1675,12 @@ export interface MessageSummary {
   remindAt?: string /* RFC 3339 */;
   /** Present and true when the message's conversation is muted (ADR-0028). */
   muted?: boolean;
+  /**
+   * In view.range of a view with threads: the unread messages of the row's
+   * conversation within the view's scope, the view's unread condition aside
+   * (0 when none). Absent elsewhere, as in message.summaries.
+   */
+  threadUnread?: number;
 }
 
 /** One MIME part. */

@@ -133,6 +133,23 @@ func (v views) Range(ctx context.Context, p *api.ViewRangeParams) ([]api.Message
 	for _, s := range sums {
 		out = append(out, toAPISummary(s))
 	}
+	f, err := v.Views.Filter(api.ConnFrom(ctx), p.ID)
+	if errors.Is(err, view.ErrNotFound) {
+		return nil, api.NotFound("view %d is not open on this connection", p.ID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if f.Threads {
+		counts, err := v.DB.ThreadUnread(ctx, f, ids)
+		if err != nil {
+			return nil, err
+		}
+		for i := range out {
+			count := counts[out[i].ID]
+			out[i].ThreadUnread = &count
+		}
+	}
 	return out, nil
 }
 
