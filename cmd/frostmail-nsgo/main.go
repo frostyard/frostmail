@@ -376,7 +376,7 @@ func (w *workspace) messageList() core.Node {
 					rowButton := base.Button{Label: msg.Subject, Selected: func() bool { return w.opened.Get() == msg.ID }, StyleFunc: func() core.Style {
 						return core.Style{Width: core.Pct(100), Padding: core.All(5), CornerRadius: 6, Selected: &core.Style{Background: ui.Alpha(colors.Accent(), 0.15)}}
 					}, Children: []core.Node{content}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
-					draggable := w.dragRow(cx, msg, rowButton)
+					draggable := w.rowWithActions(cx, msg, w.dragRow(cx, msg, rowButton))
 					if w.selecting.Get() {
 						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, draggable)
 					}

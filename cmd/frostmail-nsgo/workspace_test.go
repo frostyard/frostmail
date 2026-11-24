@@ -272,3 +272,15 @@ func TestForwardToLocalSMTP(t *testing.T) {
 		t.Fatalf("forwarded fixture lost its recipient, subject or inline image")
 	}
 }
+
+func TestMessageRowQuickActions(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 5*time.Second)
+	a.Hover("label:" + subject)
+	a.WaitFor("label:Delete message", 5*time.Second)
+	a.Press("label:Delete message")
+	a.WaitFor("label:Cancel", 5*time.Second)
+	a.Press("label:Cancel")
+	a.WaitFor("label:"+subject, 5*time.Second)
+}

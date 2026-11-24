@@ -97,13 +97,7 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 		return action(label, func(ctx context.Context, c *api.Client) error { return undo.Flags(ctx, c, ids, ch) })
 	}
 	boxes := w.store.State().Mailboxes
-	source := w.source
-	move := func(box api.Mailbox) func(context.Context, *api.Client) error {
-		return func(ctx context.Context, c *api.Client) error {
-			_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Move(ctx, mail.MoveParams(ids, box, source, boxes)) })
-			return err
-		}
-	}
+	move := func(box api.Mailbox) func(context.Context, *api.Client) error { return w.moveMessage(m, box) }
 	seen, flag := !m.Flags.Seen, !m.Flags.Flagged
 	readLabel := "Mark as unread"
 	if seen {
@@ -166,21 +160,34 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 	items = append(items, action(muteLabel, func(ctx context.Context, c *api.Client) error {
 		return c.Message().Mute(ctx, &api.MessageMuteParams{IDs: ids, Muted: muted})
 	}), w.remindMenu(m))
-	items = append(items, ui.MenuItem{Text: "Delete message", OnSelect: func() {
-		w.confirm("Delete message?", m.Subject, "Delete", func() {
-			w.change(func(ctx context.Context, c *api.Client) error {
-				_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids}) })
-				return err
-			}, func() {
-				if w.opened.GetUntracked() == m.ID {
-					w.generation++
-					w.opened.Set(0)
-					w.reader.Set(nil)
-				}
-			})
-		})
-	}})
+	items = append(items, ui.MenuItem{Text: "Delete message", OnSelect: func() { w.deleteMessage(m) }})
 	return workspaceui.Row(ui.Button{Text: "Reply", Variant: ui.ButtonSecondary, OnPress: func() { w.newDraft(api.DraftKindReply, &m.ID) }}, ui.Menu{Trigger: ui.Button{Text: "Forward or reply all", Variant: ui.ButtonGhost}, Children: []core.Node{ui.MenuItem{Text: "Reply all", OnSelect: func() { w.newDraft(api.DraftKindReplyall, &m.ID) }}, ui.MenuItem{Text: "Forward", OnSelect: func() { w.newDraft(api.DraftKindForward, &m.ID) }}, ui.MenuItem{Text: "Forward as attachment", OnSelect: func() { w.newDraft(api.DraftKindAttached, &m.ID) }}}}, ui.Menu{Trigger: ui.Button{Text: "Message actions", Variant: ui.ButtonSecondary}, Children: items}, ui.Button{Text: "Undo", Variant: ui.ButtonGhost, OnPress: func() {
 		w.change(func(ctx context.Context, c *api.Client) error { _, err := undo.Do(ctx, c); return err }, nil)
 	}})
+}
+
+func (w *workspace) deleteMessage(m api.MessageSummary) {
+	undo := w.undo
+	ids := []int64{m.ID}
+	w.confirm("Delete message?", m.Subject, "Delete", func() {
+		w.change(func(ctx context.Context, c *api.Client) error {
+			_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids}) })
+			return err
+		}, func() {
+			if w.opened.GetUntracked() == m.ID {
+				w.generation++
+				w.opened.Set(0)
+				w.reader.Set(nil)
+			}
+		})
+	})
+}
+
+func (w *workspace) moveMessage(m api.MessageSummary, b api.Mailbox) func(context.Context, *api.Client) error {
+	ids, undo := []int64{m.ID}, w.undo
+	p := mail.MoveParams(ids, b, w.source, w.store.State().Mailboxes)
+	return func(ctx context.Context, c *api.Client) error {
+		_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Move(ctx, p) })
+		return err
+	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/base/dragdrop"
 	"github.com/nsgo-dev/nsgo/core"
@@ -97,4 +98,40 @@ func (w *workspace) dropMail(d draggedMail, box api.Mailbox) {
 		_, err = undo.Move(ctx, c, d.ids, func() error { return c.Message().Move(ctx, mail.MoveParams(d.ids, box, d.source, boxes)) })
 		return err
 	}, func() { w.selection.Clear() })
+}
+
+// Keep hover buttons outside the drag source so a press on a command never
+// starts a move. Touch users get the same commands in the reader toolbar.
+func (w *workspace) rowWithActions(cx *core.Scope, m api.MessageSummary, row core.Node) core.Node {
+	if ui.Touch(cx) || !w.writable(m.AccountID) {
+		return row
+	}
+	hover := core.NewSignal(cx, false)
+	flag := !m.Flags.Flagged
+	flagLabel := "Flag"
+	if !flag {
+		flagLabel = "Unflag"
+	}
+	undo := w.undo
+	var actions []ui.IconButton
+	actions = append(actions, ui.IconButton{Label: flagLabel, Icon: lucide.Flag, Selected: func() bool { return m.Flags.Flagged }, OnPress: func() {
+		w.change(func(ctx context.Context, c *api.Client) error {
+			return undo.Flags(ctx, c, []int64{m.ID}, api.FlagChanges{Flagged: &flag})
+		}, nil)
+	}})
+	if box := mail.ArchiveOf(m.AccountID, w.store.State().Mailboxes); box != nil {
+		actions = append(actions, ui.IconButton{Label: "Archive", Icon: lucide.Archive, OnPress: func() { w.change(w.moveMessage(m, *box), nil) }})
+	}
+	actions = append(actions, ui.IconButton{Label: "Delete message", Icon: lucide.Trash, OnPress: func() { w.deleteMessage(m) }})
+	menu := []core.Node{ui.MenuItem{Text: "Reply", OnSelect: func() { w.newDraft(api.DraftKindReply, &m.ID) }}}
+	var buttons []core.Node
+	for _, a := range actions {
+		menu = append(menu, ui.MenuItem{Text: a.Label, Disabled: w.acting.Get, OnSelect: a.OnPress})
+		a.Disabled = w.acting.Get
+		a.Size = 24
+		buttons = append(buttons, a)
+	}
+	style := core.Style{FlexGrow: 1, FlexShrink: 1, FlexBasis: core.Pt(0), Width: core.Pct(100)}
+	content := core.View{Style: style.Merge(core.Style{Direction: core.Row, AlignItems: core.AlignCenter}), OnMouseEnter: func(core.MouseEvent) { hover.Set(true) }, OnMouseLeave: func(core.MouseEvent) { hover.Set(false) }, Children: []core.Node{row, core.Show{When: hover.Get, Then: func(*core.Scope) core.Node { return workspaceui.Row(buttons...) }}}}
+	return ui.ContextMenu{Style: style, Trigger: content, Children: menu}
 }
