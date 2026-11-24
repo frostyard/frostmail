@@ -870,6 +870,15 @@ stand-ins of its panes with the control map's controls (rule 11):
   pass, no row of the control map's "Today" column is still true of it,
   and the three suites' pictures of the main window, side by side,
   show one toolbar, one sidebar row, one selected fill and one dialog.
+- **Frostnotes' tree (2026-11-24), built** (frostyard/frostnotes#280).
+  A vault's notes are NSGo's `ui.Tree` with the kit's `NavLabel` rows on
+  its soft rows: a folder holds its folders, then its notes, and opens
+  and closes. The sidebar it replaces had a section for each folder's
+  path and showed no folder inside another. `make check` passes there;
+  `make nsgo-live` on Xvfb's X11 passed 17 of 17, with 2 new workflows
+  (the tree's shape; nesting, folding and opening in the window). The
+  tours' vault has a note in a folder inside a folder, so the kept
+  pictures show the nesting.
 
 ## Phase 6 — Upstream (S, alongside)
 
