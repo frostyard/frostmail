@@ -19,38 +19,19 @@ func check(cx *core.Scope, label string, v *bool) core.Node {
 	s := core.NewSignal(cx, *v)
 	return ui.Checkbox{Text: label, Checked: s.Get, OnChange: func(on bool) { *v = on; s.Set(on) }}
 }
-func (w *workspace) filters(cx *core.Scope) core.Node {
-	return core.Dynamic(func(*core.Scope) core.Node {
-		w.state.Get()
-		st := w.store.State()
-		nodes := []core.Node{workspaceui.Row(primary("New rule", func() { w.filterForm(api.Rule{Enabled: true}, nil) }), button("New smart mailbox", func() { w.filterForm(api.Rule{}, &api.SmartMailbox{}) })), core.Text{Content: "Rules", Style: ui.TypeTitle}}
-		for i, r := range st.Rules {
-			detail := "Enabled"
-			if !r.Enabled {
-				detail = "Disabled"
-			}
-			if r.Problem != nil {
-				detail += " · " + *r.Problem
-			}
-			nodes = append(nodes, workspaceui.Card{Children: []core.Node{core.Text{Content: r.Name, Style: ui.TypeLabel}, core.Text{Content: detail}, workspaceui.Row(button("Edit "+r.Name, func() { w.filterForm(r, nil) }), button("Duplicate", func() { r.ID = 0; r.Name += " Copy"; w.filterForm(r, nil) }), ui.Button{Text: "Move up", Variant: ui.ButtonSecondary, Disabled: func() bool { return i == 0 }, OnPress: func() { w.moveRule(r, -1) }}, ui.Button{Text: "Move down", Variant: ui.ButtonSecondary, Disabled: func() bool { return i+1 == len(st.Rules) }, OnPress: func() { w.moveRule(r, 1) }}, danger("Delete rule", func() {
-				w.destroy("Delete rule?", r.Name, "Delete", func() {
-					w.change(func(ctx context.Context, c *api.Client) error {
-						return c.Rule().Delete(ctx, &api.RuleDeleteParams{ID: r.ID})
-					}, nil)
-				})
-			}))}})
-		}
-		nodes = append(nodes, core.Text{Content: "Smart mailboxes", Style: ui.TypeTitle})
-		for _, s := range st.Smart {
-			nodes = append(nodes, workspaceui.Row(button("Edit "+s.Name, func() { w.filterForm(api.Rule{}, &s) }), danger("Delete smart mailbox", func() {
-				w.destroy("Delete smart mailbox?", s.Name, "Delete", func() {
-					w.change(func(ctx context.Context, c *api.Client) error {
-						return c.Smart().Delete(ctx, &api.SmartDeleteParams{ID: s.ID})
-					}, nil)
-				})
-			})))
-		}
-		return workspaceui.Page(nodes...)
+func (w *workspace) deleteRule(r api.Rule) {
+	w.destroy("Delete rule?", r.Name, "Delete", func() {
+		w.change(func(ctx context.Context, c *api.Client) error {
+			return c.Rule().Delete(ctx, &api.RuleDeleteParams{ID: r.ID})
+		}, nil)
+	})
+}
+
+func (w *workspace) deleteSmart(s api.SmartMailbox) {
+	w.destroy("Delete smart mailbox?", s.Name, "Delete", func() {
+		w.change(func(ctx context.Context, c *api.Client) error {
+			return c.Smart().Delete(ctx, &api.SmartDeleteParams{ID: s.ID})
+		}, nil)
 	})
 }
 func (w *workspace) moveRule(r api.Rule, delta int64) {

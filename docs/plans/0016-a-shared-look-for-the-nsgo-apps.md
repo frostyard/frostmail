@@ -666,6 +666,39 @@ stand-ins of its panes with the control map's controls (rule 11):
     31 passed, 0 skipped. 21 of the 26 kept pictures changed. 2 new
     workflows: the 3 helpers' variants, and Delete's alert with Cancel
     before Delete, which a cancel leaves undone.
+- **4b (2026-11-24), built; the owner has not looked at its pictures.**
+  `cmd/frostmail-nsgo/settings_view.go` holds Settings:
+  - **The view.** NSGo's `ui.Settings`: 7 categories at its side
+    (Accounts, General, Identities, Snippets, Filters, Mailboxes, Sign-in,
+    and Server on a desktop) in place of a row of tabs, groups of rows,
+    and a search through every row. An account, an identity, a snippet, a
+    rule, a smart mailbox and a mailbox are rows of NSGo's own, so the
+    search finds them by name as it finds a preference.
+  - **General.** A row for each preference, with what it does under its
+    name and its control at the row's end; the tray's choice is a switch,
+    and the options read in words (Inbox, Mark as blocked) where they
+    showed the stored values.
+  - **Rows' actions.** A group's main action is at its heading (Add
+    account, New rule). A row's are icon buttons at its end, named for
+    what they act on (Edit, Delete, Duplicate, Move up and down), in
+    place of a card of 5 text buttons, or of a dialog that held 2.
+  - **Panels.** An account's panel and a mailbox's are a list of rows to
+    press (`ui.FormSection` and `ui.FormRow`), the destroying one in the
+    danger color, in place of a stack of buttons. So are the lists that
+    choose an account and a parent mailbox.
+  - **Built again when what it lists changes,** not with every change of
+    the store, so a sync leaves an open menu and the scroll in place.
+  - **Left.** Mail's navigation still stands beside Settings' own list
+    of categories (4d). The Server pane's content is as it was. The forms
+    the rows open are 4a's form dialog.
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    33 passed, 0 skipped. 31 kept pictures: 15 changed and 5 are new (3
+    categories, an account's panel and a mailbox's). 1 new workflow: the
+    categories, a search for a preference and for an account, and an
+    account's panel, whose Remove asks in an alert that a cancel leaves.
+    The settings' 3 older workflows pass with 2 handles changed: General
+    is a row of the view's list, not a tab, and a saved snippet is a
+    row's text. Not looked at: the view in a window under 800.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 

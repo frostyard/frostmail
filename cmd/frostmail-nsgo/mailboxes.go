@@ -6,31 +6,9 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
-	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
-	"github.com/nsgo-dev/nsgo/ui"
 )
 
-func (w *workspace) mailboxes(cx *core.Scope) core.Node {
-	return core.Dynamic(func(*core.Scope) core.Node {
-		w.state.Get()
-		st := w.store.State()
-		var cards []core.Node
-		for _, a := range st.Accounts {
-			rows := []core.Node{core.Text{Content: a.Email, Style: ui.TypeTitle}}
-			if !a.ReadOnly {
-				rows = append(rows, button("Create mailbox in "+a.Email, func() { w.createMailbox(a.ID, nil) }))
-			}
-			for _, box := range st.Mailboxes {
-				if box.AccountID == a.ID {
-					rows = append(rows, button(box.Path, func() { w.mailboxMenu(a, box) }))
-				}
-			}
-			cards = append(cards, workspaceui.Card{Children: rows})
-		}
-		return workspaceui.Page(cards...)
-	})
-}
 func (w *workspace) createMailbox(account int64, parent *int64) {
 	w.form("New mailbox", []editField{{"Mailbox name", "", false}}, func(v []string) error {
 		w.change(func(ctx context.Context, c *api.Client) error {
@@ -43,7 +21,8 @@ func (w *workspace) createMailbox(account int64, parent *int64) {
 func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 	w.show(func(cx *core.Scope) core.Node {
 		st := w.store.State()
-		nodes := []core.Node{button("Open mailbox", func() { w.closePanel(); w.navigate(mail.Source{Kind: mail.Mailbox, ID: b.ID}.Key()) })}
+		var role core.Node
+		nodes := []core.Node{action("Open mailbox", func() { w.closePanel(); w.navigate(mail.Source{Kind: mail.Mailbox, ID: b.ID}.Key()) })}
 		if s := st.Settings; s != nil {
 			index := slices.Index(s.Favorites, b.ID)
 			add := index < 0
@@ -55,7 +34,7 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 				if index < 0 || pos < 0 || pos >= len(s.Favorites) {
 					continue
 				}
-				nodes = append(nodes, button(step.label, func() {
+				nodes = append(nodes, action(step.label, func() {
 					favorites := slices.Clone(s.Favorites)
 					favorites[index], favorites[pos] = favorites[pos], favorites[index]
 					w.change(func(ctx context.Context, c *api.Client) error {
@@ -68,7 +47,7 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 			if add {
 				label = "Add to favorites"
 			}
-			nodes = append(nodes, button(label, func() {
+			nodes = append(nodes, action(label, func() {
 				next := slices.Clone(s.Favorites)
 				if add {
 					next = append(next, b.ID)
@@ -82,14 +61,14 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 			}))
 		}
 		if !a.ReadOnly {
-			nodes = append(nodes, button("Mark all as read", func() {
+			nodes = append(nodes, action("Mark all as read", func() {
 				w.change(func(ctx context.Context, c *api.Client) error {
 					_, err := c.Mailbox().MarkRead(ctx, &api.MailboxMarkReadParams{ID: b.ID})
 					return err
 				}, w.closePanel)
-			}), button("New submailbox", func() { w.createMailbox(a.ID, &b.ID) }))
+			}), action("New submailbox", func() { w.createMailbox(a.ID, &b.ID) }))
 			if b.Role == api.MailboxRoleNone {
-				nodes = append(nodes, button("Rename mailbox", func() {
+				nodes = append(nodes, action("Rename mailbox", func() {
 					w.form("Rename mailbox", []editField{{"Mailbox name", b.Name, false}}, func(v []string) error {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							_, err := c.Mailbox().Rename(ctx, &api.MailboxRenameParams{ID: b.ID, Name: v[0]})
@@ -97,7 +76,7 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 						}, w.closePanel)
 						return nil
 					})
-				}), button("Move mailbox", func() {
+				}), action("Move mailbox", func() {
 					w.show(func(*core.Scope) core.Node {
 						move := func(parent *int64) {
 							w.change(func(ctx context.Context, c *api.Client) error {
@@ -105,15 +84,15 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 								return err
 							}, w.closePanel)
 						}
-						choices := []core.Node{button("Account root", func() { move(nil) })}
+						choices := []core.Node{action("Account root", func() { move(nil) })}
 						for _, p := range st.Mailboxes {
 							if p.AccountID == a.ID && p.ID != b.ID {
-								choices = append(choices, button(p.Path, func() { move(&p.ID) }))
+								choices = append(choices, action(p.Path, func() { move(&p.ID) }))
 							}
 						}
-						return w.dialog("Choose parent mailbox", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(400)}, Children: choices}})
+						return w.dialog("Choose parent mailbox", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(400)}, Children: []core.Node{actionList(choices...)}}})
 					})
-				}), danger("Delete mailbox", func() {
+				}), destroying("Delete mailbox", func() {
 					w.destroy("Delete mailbox?", b.Path+" and its child mailboxes will be removed.", "Delete", func() {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							return c.Mailbox().Delete(ctx, &api.MailboxDeleteParams{ID: b.ID})
@@ -122,7 +101,7 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 				}))
 			}
 			if b.Role == api.MailboxRoleTrash || b.Role == api.MailboxRoleJunk {
-				nodes = append(nodes, danger("Empty mailbox", func() {
+				nodes = append(nodes, destroying("Empty mailbox", func() {
 					w.destroy("Permanently empty mailbox?", b.Path, "Erase all messages", func() {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							_, err := c.Mailbox().Erase(ctx, &api.MailboxEraseParams{ID: b.ID})
@@ -132,15 +111,19 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 				}))
 			}
 			if a.Kind != api.AccountKindGmail {
-				nodes = append(nodes, choice("Use mailbox for", b.Role, named(api.MailboxRoleDrafts, api.MailboxRoleSent, api.MailboxRoleJunk, api.MailboxRoleTrash, api.MailboxRoleArchive), func(v api.MailboxRole) {
+				role = choice("Use mailbox for", b.Role, named(api.MailboxRoleDrafts, api.MailboxRoleSent, api.MailboxRoleJunk, api.MailboxRoleTrash, api.MailboxRoleArchive), func(v api.MailboxRole) {
 					w.change(func(ctx context.Context, c *api.Client) error {
 						_, err := c.Mailbox().SetRole(ctx, &api.MailboxSetRoleParams{ID: b.ID, Role: v})
 						return err
 					}, w.closePanel)
-				}, cx))
+				}, cx)
 			}
 		}
-		return w.dialog(b.Path, nodes)
+		panel := []core.Node{actionList(nodes...)}
+		if role != nil {
+			panel = append(panel, role)
+		}
+		return w.dialog(b.Path, panel)
 	})
 }
 func (w *workspace) saveSearch() {

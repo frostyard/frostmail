@@ -78,6 +78,26 @@ func TestPicturesOfTheReader(t *testing.T) {
 	}
 }
 
+// Settings' categories, and the panels of an account and of a mailbox.
+func TestPicturesOfSettings(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Settings")
+	a.WaitFor("label:Add account", 5*time.Second)
+	for _, category := range []string{"General", "Filters", "Mailboxes"} {
+		a.Press("id:settings >> label:" + category)
+		a.Settle()
+		a.Screenshot("settings-" + category)
+	}
+	a.Press("label:Options for Archive, ann.lee@example.com")
+	a.WaitFor("label:Open mailbox", 5*time.Second)
+	a.Screenshot("settings-mailbox-panel")
+	a.Press("label:Close")
+	a.Press("id:settings >> label:Accounts")
+	a.Press("label:Manage ann.lee@example.com")
+	a.WaitFor("label:Verify account", 5*time.Second)
+	a.Screenshot("settings-account-panel")
+}
+
 func TestPicturesOfCompose(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Compose")
