@@ -280,6 +280,35 @@ func TestSettingsSearchesItsRowsAndListsAPanelsActions(t *testing.T) {
 	a.Find("id:settings >> label:Manage ann@northwind.example")
 }
 
+// TestComposeHasItsBarAndAsksInAlerts checks the compose window: the header
+// is rows of named fields, formatting is a toolbar of buttons, a time to
+// send at is NSGo's date field, and discarding asks in an alert that a
+// cancel leaves.
+func TestComposeHasItsBarAndAsksInAlerts(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Compose")
+	a.WaitFor("label:Subject", 5*time.Second)
+	for _, field := range []string{"From", "To", "Cc", "Bcc", "Subject"} {
+		a.Find("role:dialog >> label:" + field)
+	}
+	for _, tool := range []string{"Bold", "Italic", "Bulleted list", "Link", "Insert", "Attach file"} {
+		a.Find("role:toolbar Formatting >> label:" + tool)
+	}
+	a.Type("label:Subject", "A draft to keep")
+	a.Press("label:Send later")
+	a.Press("label:Choose date and time")
+	a.WaitFor("label:Send at", 5*time.Second)
+	a.Press("label:Cancel schedule")
+	a.WaitForGone("label:Send at", 5*time.Second)
+	a.Press("label:Discard…")
+	a.WaitFor("role:alertdialog >> text:Discard this draft?", 5*time.Second)
+	a.Press("role:alertdialog >> role:button Keep draft")
+	a.WaitForGone("role:alertdialog", 5*time.Second)
+	if got := a.Find("label:Subject").Text; got != "A draft to keep" {
+		t.Errorf("after Keep draft the subject reads %q", got)
+	}
+}
+
 func TestMailboxReadsFixture(t *testing.T) {
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"

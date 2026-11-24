@@ -699,6 +699,39 @@ stand-ins of its panes with the control map's controls (rule 11):
     The settings' 3 older workflows pass with 2 handles changed: General
     is a row of the view's list, not a tab, and a saved snippet is a
     row's text. Not looked at: the view in a window under 800.
+- **4c (2026-11-24), built; the owner has not looked at its pictures.**
+  The compose window (`cmd/frostmail-nsgo/compose.go`,
+  `compose_format.go`):
+  - **The header** is rows of a name and a field: From, as `ui.Select`
+    in place of a button that opened a menu, To, Cc, Bcc and Subject. The
+    window is 720 wide where a form's 440 held it, and the text takes the
+    height the window has.
+  - **The formatting bar** is a `ui.Toolbar` of icon buttons in groups
+    (bold, italic, underline, strikethrough; lists and quote; link and
+    clear; undo and redo; insert and attach), in place of a Format menu
+    and 2 text buttons. A button does not show that its mark is on.
+  - **A time to send at** is `ui.DatePicker` with its time, in place of
+    a line typed as YYYY-MM-DD HH:MM.
+  - **Alerts.** Discarding, and sending with no file where the text
+    names one, ask in `ui.AlertDialog` over the draft, in place of cards
+    inside it.
+  - **Files** are rows of a name, a size and a remove button, and the
+    draft's state is a quiet line at the footer's start, by Discard, Save
+    and close, Send later and Send, the one filled button.
+  - **Recipients are not on `ui.TagInput`,** as this phase said they
+    would be. The control keeps what is being typed to itself, so the
+    address book cannot suggest for it, and it splits at every comma, so
+    a quoted name with one ("Lee, Ann") becomes 2 tags. The fields stay
+    text, read by the shared address parser, and the address book's
+    suggestions are rows to press under the field (`ui.FormRow`) in
+    place of text buttons. Phase 6 lists the gap.
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    34 passed, 0 skipped. 33 kept pictures: 16 changed and 2 are new (the
+    time to send at, and the alert before discarding). 1 new workflow:
+    the header's fields, the bar's buttons, the time's field, and Keep
+    draft, which leaves the subject as typed. The 4 older compose
+    workflows pass unchanged. No suggestion was shown in a test or a
+    picture: no test types a known name.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
@@ -725,6 +758,9 @@ text an agent drafts:
 - A `Style` on `IconButton`, `Badge` and `SidebarItem`; a count on
   `SidebarItem`.
 - Row hover, and sticky headers with selection, in `ui.List`.
+- In `ui.TagInput`: what is being typed, for suggestions beside it, and a
+  way to split that keeps a quoted comma. FrostMail's recipients wait on
+  it (Phase 4c).
 - **Done when:** each has an issue whose link is in the kit's spec, and the
   spec names the workaround to remove when it lands.
 

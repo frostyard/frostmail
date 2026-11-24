@@ -104,6 +104,13 @@ func TestPicturesOfCompose(t *testing.T) {
 	a.WaitFor("label:Subject", 5*time.Second)
 	a.Type("label:Subject", "Lunch on Thursday")
 	a.Screenshot("compose")
+	a.Press("label:Send later")
+	a.Press("label:Choose date and time")
+	a.WaitFor("label:Send at", 5*time.Second)
+	a.Screenshot("compose-schedule")
+	a.Press("label:Discard…")
+	a.WaitFor("role:alertdialog", 5*time.Second)
+	a.Screenshot("compose-discard")
 }
 
 func TestPicturesOfTheModules(t *testing.T) {

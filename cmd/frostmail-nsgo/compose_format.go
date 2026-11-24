@@ -10,6 +10,7 @@ import (
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base/richeditor"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -36,7 +37,9 @@ func draftImage(_ *core.Scope, p richeditor.NodeProps) core.Node {
 	})
 }
 
-func (e *draftEditor) formatting(cx *core.Scope) (core.Node, core.Node) {
+// formatting is the formatting bar's groups of icon buttons, and the row
+// that asks for a link's address while a link is being set.
+func (e *draftEditor) formatting(cx *core.Scope) ([]core.Node, core.Node) {
 	link := core.NewSignal(cx, false)
 	startLink := func() {
 		if !e.busy.GetUntracked() {
@@ -61,18 +64,31 @@ func (e *draftEditor) formatting(cx *core.Scope) (core.Node, core.Node) {
 		}
 		return workspaceui.Row(ui.Input{Label: "Link address", Placeholder: "https://", OnChange: func(v string) { url = v }, OnSubmit: apply}, primary("Apply link", func() { apply(url) }), button("Cancel link", func() { link.Set(false) }))
 	}}
-	var items []core.Node
-	for _, m := range []struct{ label, name string }{{"Bold", "toggleBold"}, {"Italic", "toggleItalic"}, {"Underline", "toggleUnderline"}, {"Strikethrough", "toggleStrike"}, {"Bulleted list", "toggleBulletList"}, {"Numbered list", "toggleOrderedList"}, {"Quote", "toggleBlockquote"}, {"Undo", "undo"}, {"Redo", "redo"}} {
-		items = append(items, ui.MenuItem{Text: m.label, OnSelect: func() { e.editor.RunNamed(m.name, nil); e.editor.Focus() }})
+	run := func(name string) func() {
+		return func() { e.editor.RunNamed(name, nil); e.editor.Focus() }
 	}
-	items = append(items, ui.MenuItem{Text: "Link", OnSelect: startLink}, ui.MenuItem{Text: "Clear formatting", OnSelect: func() {
+	tool := func(label string, icon func() *core.SVG, press func()) core.Node {
+		return ui.IconButton{Label: label, Icon: icon, Disabled: e.busy.Get, OnPress: press}
+	}
+	clear := func() {
 		state := e.editor.State()
 		tr := state.Tr().RemoveMark(state.Selection.From(), state.Selection.To(), nil, nil).SetStoredMarks(nil)
 		e.editor.Dispatch(tr)
 		e.editor.Focus()
-	}})
-	return core.Dynamic(func(keys *core.Scope) core.Node {
+	}
+	// The first group also binds the link's keys while the bar is shown.
+	text := core.Dynamic(func(keys *core.Scope) core.Node {
 		keys.OnKey("mod+k", startLink)
-		return ui.Menu{Trigger: ui.Button{Text: "Format", Variant: ui.ButtonSecondary, Disabled: e.busy.Get}, Children: items}
-	}), bar
+		return ui.ToolbarGroup{Label: "Text", Children: []core.Node{
+			tool("Bold", lucide.Bold, run("toggleBold")), tool("Italic", lucide.Italic, run("toggleItalic")),
+			tool("Underline", lucide.Underline, run("toggleUnderline")), tool("Strikethrough", lucide.Strikethrough, run("toggleStrike"))}}
+	})
+	return []core.Node{text, ui.ToolbarSeparator{},
+		ui.ToolbarGroup{Label: "Paragraph", Children: []core.Node{
+			tool("Bulleted list", lucide.List, run("toggleBulletList")), tool("Numbered list", lucide.ListOrdered, run("toggleOrderedList")), tool("Quote", lucide.TextQuote, run("toggleBlockquote"))}},
+		ui.ToolbarSeparator{},
+		ui.ToolbarGroup{Label: "Link and clearing", Children: []core.Node{tool("Link", lucide.Link, startLink), tool("Clear formatting", lucide.RemoveFormatting, clear)}},
+		ui.ToolbarSeparator{},
+		ui.ToolbarGroup{Label: "History", Children: []core.Node{tool("Undo typing", lucide.Undo2, run("undo")), tool("Redo typing", lucide.Redo2, run("redo"))}},
+	}, bar
 }

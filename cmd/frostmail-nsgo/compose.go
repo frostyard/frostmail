@@ -22,6 +22,7 @@ import (
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/base/richeditor"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 	rich "github.com/nsgo-dev/nsgo/ui/richeditor"
 )
@@ -214,9 +215,14 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 			e.save()
 		}
 	})
-	field := func(label string, p *string) core.Node {
-		return ui.Input{Label: label, Placeholder: label, DefaultValue: *p, Disabled: e.busy.Get, OnChange: func(v string) { *p = v; e.edit() }}
+	colors := ui.ColorsOf(cx)
+	// row is a line of the header: its name, then its field.
+	row := func(label string, control core.Node) core.Node {
+		return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignStart, Gap: 8}, Children: []core.Node{
+			core.Text{Content: label, Style: ui.TypeCaption.Merge(core.Style{Width: core.Pt(56), Padding: core.Edges{Top: 6}}), StyleFunc: ui.Colored(colors.Muted)},
+			core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)}, Children: []core.Node{control}}}}
 	}
+	subject := ui.Input{Label: "Subject", DefaultValue: e.content.Subject, Disabled: e.busy.Get, OnChange: func(v string) { e.content.Subject = v; e.edit() }}
 	identity := core.NewSignalFunc(cx, []api.Identity(nil), func(_, _ []api.Identity) bool { return false })
 	perform(w, func(ctx context.Context, c *api.Client) ([]api.Identity, error) {
 		return c.Identity().List(ctx, &api.IdentityListParams{AccountID: &d.AccountID})
@@ -226,28 +232,33 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		}
 	})
 	who := core.NewSignal(cx, d.Content.IdentityID)
-	from := core.Dynamic(func(*core.Scope) core.Node {
-		label := "From"
-		var items []core.Node
-		for _, i := range identity.Get() {
-			if i.ID == who.Get() {
-				label = "From: " + i.Email
+	from := ui.Select[int64]{Label: "From", Placeholder: "From", Style: core.Style{Width: core.Pct(100)}, Disabled: e.busy.Get, Value: who.Get,
+		OnChange: func(id int64) { who.Set(id); e.content.IdentityID = id; e.edit() },
+		OptionsFunc: func() []ui.Option[int64] {
+			var out []ui.Option[int64]
+			for _, i := range identity.Get() {
+				out = append(out, ui.Option[int64]{Value: i.ID, Label: i.Email})
 			}
-			items = append(items, ui.MenuItem{Text: i.Email, OnSelect: func() { who.Set(i.ID); e.content.IdentityID = i.ID; e.edit() }})
-		}
-		return ui.Menu{Trigger: ui.Button{Text: label, Variant: ui.ButtonSecondary}, Children: items}
-	})
+			return out
+		}}
 	format, linkBar := e.formatting(cx)
 	fileList := core.Dynamic(func(*core.Scope) core.Node {
 		var rows []core.Node
 		for _, f := range e.files.Get() {
-			rows = append(rows, ui.Button{Text: "Remove " + f.Filename, Variant: ui.ButtonGhost, Disabled: e.busy.Get, OnPress: func() {
-				e.attachment(func(ctx context.Context, c *api.Client) error {
-					return c.Draft().Detach(ctx, &api.DraftDetachParams{ID: d.ID, AttachmentID: f.ID})
-				})
-			}})
+			rows = append(rows, core.View{TestID: "draft-file", Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8}, Children: []core.Node{
+				ui.Icon(lucide.Paperclip, 14, colors.Muted),
+				core.Text{Content: f.Filename, MaxLines: 1, Style: ui.TypeBody.Merge(core.Style{FlexShrink: 1, MinWidth: core.Pt(0)})},
+				ui.Tabular(ui.Text(mail.FormatSize(f.Size), 12, ui.Regular, colors.Muted)), ui.Spacer{},
+				ui.IconButton{Label: "Remove " + f.Filename, Icon: lucide.X, Disabled: e.busy.Get, OnPress: func() {
+					e.attachment(func(ctx context.Context, c *api.Client) error {
+						return c.Draft().Detach(ctx, &api.DraftDetachParams{ID: d.ID, AttachmentID: f.ID})
+					})
+				}}}})
 		}
-		return workspaceui.Stack(rows...)
+		if len(rows) == 0 {
+			return nil
+		}
+		return core.View{Style: core.Style{Gap: 2}, Children: rows}
 	})
 	sendNow := func(when *time.Time) {
 		e.flush(func() {
@@ -284,30 +295,33 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		}
 		sendNow(at)
 	}
-	reminder := core.Dynamic(func(*core.Scope) core.Node {
-		if !remind.Get() {
-			return nil
-		}
-		return workspaceui.Card{Children: []core.Node{core.Text{Content: "You mentioned an attachment. Send without one?", Style: ui.TypeLabel},
-			workspaceui.Row(button("Keep editing", func() { remind.Set(false) }), primary("Send without attachment", func() { remind.Set(false); sendNow(pendingTime) }))}}
-	})
-	scheduling := core.NewSignal(cx, false)
-	schedule := core.Dynamic(func(*core.Scope) core.Node {
-		if !scheduling.Get() {
-			return nil
-		}
-		const layout = "2006-01-02 15:04"
-		when := oldcompose.TomorrowMorning(time.Now()).Format(layout)
-		return workspaceui.Row(stringField("Local date and time", &when, false), primary("Schedule send", func() {
-			at, err := time.ParseInLocation(layout, when, time.Local)
-			if err != nil || !at.After(time.Now()) {
-				e.status.Set("Enter a future local date and time (YYYY-MM-DD HH:MM).")
-				return
+	reminder := ui.AlertDialog{Title: "Send without an attachment?", Description: "The message mentions an attachment, and has none.", StyleFunc: workspaceui.DialogPanel(cx), Open: remind.Get,
+		OnOpenChange: func(open bool, _ base.Reason) {
+			if !open {
+				remind.Set(false)
 			}
-			scheduling.Set(false)
-			requestSend(&at)
-		}), button("Cancel schedule", func() { scheduling.Set(false) }))
-	})
+		},
+		Actions: []ui.AlertAction{
+			{Text: "Keep editing", Variant: ui.ButtonSecondary, Role: core.AlertCancel},
+			{Text: "Send without attachment", Default: true, OnPress: func() { remind.Set(false); sendNow(pendingTime) }}}}
+	scheduling := core.NewSignal(cx, false)
+	// A date value is a wall clock time in UTC; the draft is sent at that
+	// wall clock time here.
+	tomorrow := oldcompose.TomorrowMorning(time.Now())
+	when := core.NewSignal(cx, base.DateValue{Start: time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), tomorrow.Hour(), tomorrow.Minute(), 0, 0, time.UTC)})
+	schedule := core.Show{When: scheduling.Get, Then: func(*core.Scope) core.Node {
+		return row("Send at", workspaceui.Row(ui.DatePicker{Label: "Send at", TimePrecision: base.TimeMinute, Value: when.Get, OnChange: when.Set},
+			primary("Schedule send", func() {
+				v := when.GetUntracked().Start
+				at := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), 0, 0, time.Local)
+				if !at.After(time.Now()) {
+					e.status.Set("Choose a time that is still to come.")
+					return
+				}
+				scheduling.Set(false)
+				requestSend(&at)
+			}), button("Cancel schedule", func() { scheduling.Set(false) })))
+	}}
 	var times []core.Node
 	for _, c := range oldcompose.SendChoices(time.Now()) {
 		times = append(times, ui.MenuItem{Text: c.Label, OnSelect: func() { t := c.At; requestSend(&t) }})
@@ -328,7 +342,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 				items = append(items, ui.MenuItem{Text: "Signature · " + i.Email, OnSelect: func() { e.editor.Paste("", i.SignatureHTML); e.editor.Focus() }})
 			}
 		}
-		return ui.Menu{Trigger: ui.Button{Text: "Insert", Variant: ui.ButtonSecondary, Disabled: e.busy.Get}, Children: items}
+		return ui.Menu{Label: "Insert", Trigger: ui.Button{Label: "Insert", Icon: lucide.Plus, Variant: ui.ButtonGhost}, Children: items}
 	})
 	closeDraft := func() { e.flush(w.closePanel) }
 	// Blocking edits during send keeps the transmitted snapshot identical to
@@ -337,32 +351,45 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		if e.busy.Get() {
 			return core.Text{Content: "Finishing draft…"}
 		}
-		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(205)}, NodeViews: map[string]richeditor.NodeView{"image": draftImage, "inlineImage": draftImage}}
+		// The header and the footer take about 470 points of the window.
+		height := min(420, max(180, cx.Env().Window().Height-470))
+		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(height)}, NodeViews: map[string]richeditor.NodeView{"image": draftImage, "inlineImage": draftImage}}
 	})
 	discarding := core.NewSignal(cx, false)
-	discard := core.Show{When: discarding.Get, Then: func(*core.Scope) core.Node {
-		return workspaceui.Card{Children: []core.Node{core.Text{Content: "Discard this draft?", Style: ui.TypeLabel}, workspaceui.Row(button("Keep draft", func() { discarding.Set(false) }), ui.Button{Text: "Discard draft", Variant: ui.ButtonDanger, Disabled: e.busy.Get, OnPress: func() {
-			if e.saving {
-				e.status.Set("Saving the draft. Try discarding it again in a moment.")
-				return
+	discard := ui.AlertDialog{Title: "Discard this draft?", Description: "The draft and its attachments are removed.", StyleFunc: workspaceui.DialogPanel(cx), Open: discarding.Get,
+		OnOpenChange: func(open bool, _ base.Reason) {
+			if !open {
+				discarding.Set(false)
 			}
-			if e.timer != nil {
-				e.timer()
-			}
-			e.busy.Set(true)
-			perform(w, func(ctx context.Context, c *api.Client) (struct{}, error) {
-				return struct{}{}, c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: e.id})
-			}, func(_ struct{}, err error) {
-				if err != nil {
-					e.fail(err)
+		},
+		Actions: []ui.AlertAction{
+			{Text: "Keep draft", Variant: ui.ButtonSecondary, Role: core.AlertCancel},
+			{Text: "Discard draft", Variant: ui.ButtonDanger, Default: true, OnPress: func() {
+				discarding.Set(false)
+				if e.saving {
+					e.status.Set("Saving the draft. Try discarding it again in a moment.")
 					return
 				}
-				w.closePanel()
-			})
-		}})}}
-	}}
+				if e.timer != nil {
+					e.timer()
+				}
+				e.busy.Set(true)
+				perform(w, func(ctx context.Context, c *api.Client) (struct{}, error) {
+					return struct{}{}, c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: e.id})
+				}, func(_ struct{}, err error) {
+					if err != nil {
+						e.fail(err)
+						return
+					}
+					w.closePanel()
+				})
+			}}}}
 
-	body := []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(format, insert, ui.Button{Text: "Discard…", Variant: ui.ButtonGhost, Disabled: e.busy.Get, OnPress: func() { discarding.Set(true) }}), discard, linkBar, editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}
+	toolbar := ui.Toolbar{Label: "Formatting", Children: append(format, ui.ToolbarSeparator{}, ui.ToolbarGroup{Label: "Insert and attach", Children: []core.Node{
+		insert, ui.IconButton{Label: "Attach file", Icon: lucide.Paperclip, Disabled: e.busy.Get, OnPress: e.pick}}})}
+	body := []core.Node{row("From", from), row("To", e.recipient("To", &e.to)), row("Cc", e.recipient("Cc", &e.cc)), row("Bcc", e.recipient("Bcc", &e.bcc)), row("Subject", subject),
+		toolbar, linkBar, editor, fileList, schedule}
+	status := core.Text{ContentFunc: e.status.Get, MaxLines: 1, Style: ui.TypeCaption.Merge(core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)}), StyleFunc: ui.Colored(colors.Muted)}
 	dlg := w.dialog("Compose", []core.Node{core.Scroll{StyleFunc: func() core.Style {
 		footer := core.Points(160)
 		if ui.Touch(cx) {
@@ -388,7 +415,13 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		})
 
 		return workspaceui.Stack(body...)
-	})}}}, ui.Button{Text: "Attach file", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	})}}}, status, ui.Button{Text: "Discard…", Variant: ui.ButtonGhost, Disabled: e.busy.Get, OnPress: func() { discarding.Set(true) }},
+		ui.Button{Text: "Save and close", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: closeDraft},
+		ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times},
+		ui.Button{Text: "Send", Icon: lucide.Send, Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	// The window is wider than a form's: a message is written in it.
+	dlg.Style = core.Style{Width: core.Pt(720)}
+	dlg.Children = append(dlg.Children, reminder, discard)
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
 			e.leave(w.closePanel)
@@ -433,11 +466,12 @@ func (e *draftEditor) recipient(label string, dest *string) core.Node {
 			})
 		})
 	}
-	return workspaceui.Stack(ui.Input{Label: label, Placeholder: label, Value: value.Get, Disabled: e.busy.Get, OnChange: change}, core.Dynamic(func(*core.Scope) core.Node {
-		var nodes []core.Node
+	return workspaceui.Stack(ui.Input{Label: label, Value: value.Get, Disabled: e.busy.Get, OnChange: change}, core.Dynamic(func(*core.Scope) core.Node {
+		var rows []core.Node
 		for _, a := range choices.Get() {
 			token := oldcompose.Token(a)
-			nodes = append(nodes, ui.Button{Text: token, Variant: ui.ButtonGhost, Disabled: e.busy.Get, OnPress: func() {
+			name := mail.DisplayName(a)
+			rows = append(rows, ui.FormRow{Leading: ui.Avatar{Name: name, Size: 24}, Title: name, Detail: a.Address, Label: "Add " + token, Disabled: e.busy.Get, OnPress: func() {
 				prefix, _ := oldcompose.RecipientPrefix(*dest)
 				if prefix != "" {
 					prefix += " "
@@ -445,10 +479,10 @@ func (e *draftEditor) recipient(label string, dest *string) core.Node {
 				change(prefix + token + ", ")
 			}})
 		}
-		if len(nodes) == 0 {
+		if len(rows) == 0 {
 			return nil
 		}
-		return workspaceui.Stack(nodes...)
+		return ui.FormSection{Children: rows}
 	}))
 }
 
