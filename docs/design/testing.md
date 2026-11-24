@@ -43,14 +43,14 @@ The shared client has one suite, run two ways
   fixture's dates follow the day it is generated, so the list's dates and
   the Calendar differ from day to day, and fonts differ between hosts.
 - **Skipped on a target** (`headlessOnly`), seen under Xvfb on 2026-11-24:
-  - `TestMessageRowQuickActions`: with the pointer over a message row, no
+  - `TestMessageRowQuickActions` (frostyard/frostmail#391): with the pointer over a message row, no
     quick action shows; the row's `OnMouseEnter` is never called. The same
     pointer shows a toolbar button's hover fill and tooltip, and a view of
     the same shape outside the client (a list row in a context menu's
     trigger, around a drag source and a button) hears the event. The cause
     is not found.
-  - `TestDragMessageToMailbox`: a row dragged onto a mailbox stays in its
-    list. Not looked into further.
+  - `TestDragMessageToMailbox` (frostyard/frostmail#392): a row dragged onto
+    a mailbox stays in its list. Not looked into further.
   Both pass headless. Neither was tried with a person's mouse on a
   desktop.
 - **The web target** is not run. The test files are Linux-only, and each

@@ -305,7 +305,8 @@ pictures.
   What the real window showed that the headless run does not:
   - 2 of the 14 workflows fail there and pass headless: the quick actions
     of a message row never show under the pointer, and a row dragged onto a
-    mailbox does not move. They skip on a target. The cause of the first
+    mailbox does not move (frostyard/frostmail#391, #392). They skip on a
+    target. The cause of the first
     is not found (the testing design has what was tried); the second was
     not looked into. Phase 3 rebuilds these rows: its 3b is not done while
     either skips.

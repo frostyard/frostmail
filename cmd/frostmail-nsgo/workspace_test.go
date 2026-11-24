@@ -28,8 +28,8 @@ func fixtureWorkspace(t *testing.T) *nsgotest.App {
 }
 
 // headlessOnly skips a workflow on a target where it fails and headless it
-// passes, with what the target showed. Plan 0016's Phase 0.5 records each,
-// and its Phase 3 rebuilds the rows these two act on.
+// passes, with what the target showed and its issue. Plan 0016's Phase 0.5
+// records each, and its Phase 3 rebuilds the rows these two act on.
 func headlessOnly(t *testing.T, seen string) {
 	t.Helper()
 	if target := nsgotest.Target(); target != "" {
@@ -238,7 +238,7 @@ func TestConversationOpensRelatedMessages(t *testing.T) {
 }
 
 func TestDragMessageToMailbox(t *testing.T) {
-	headlessOnly(t, "a row dragged onto a mailbox stays in its list (Xvfb, 2026-11-24)")
+	headlessOnly(t, "a row dragged onto a mailbox stays in its list (Xvfb, 2026-11-24): https://github.com/frostyard/frostmail/issues/392")
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
 	a.WaitFor("label:"+subject, 8*time.Second)
@@ -319,7 +319,7 @@ func TestForwardToLocalSMTP(t *testing.T) {
 }
 
 func TestMessageRowQuickActions(t *testing.T) {
-	headlessOnly(t, "the pointer over a row shows no quick actions; the row's OnMouseEnter is not called (Xvfb, 2026-11-24)")
+	headlessOnly(t, "the pointer over a row shows no quick actions; the row's OnMouseEnter is not called (Xvfb, 2026-11-24): https://github.com/frostyard/frostmail/issues/391")
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
 	a.WaitFor("label:"+subject, 5*time.Second)
