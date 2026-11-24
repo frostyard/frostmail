@@ -27,7 +27,7 @@ func (w *workspace) contactPhoto(cx *core.Scope, id int64) core.Node {
 			cx.Post(func() { data.Set(raw) })
 		}
 	})
-	return core.Image{SourceFunc: func() core.ImageSource { return core.ImageSource{Data: data.Get()} }, Label: "Contact photo", Style: core.Style{Width: core.Pt(72), Height: core.Pt(72), CornerRadius: 36}}
+	return core.Image{SourceFunc: func() core.ImageSource { return core.ImageSource{Data: data.Get()} }, Label: "Contact photo", Style: core.Style{Width: core.Pt(72), Height: core.Pt(72), CornerRadius: ui.RadiusFull}}
 }
 func (w *workspace) setContactPhoto(id int64, photo *api.Photo, load func()) {
 	w.change(func(ctx context.Context, c *api.Client) error {

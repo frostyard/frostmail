@@ -13,7 +13,7 @@
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | Desktop app | `internal/desktop/**` with `ui.Tester` against a real maild. `mainwin`'s `TestModulesInBothThemes` draws Mail, Calendar, People and Tasks in Frostyard and Frostyard light; with `FROSTMAIL_SNAPSHOT_DIR` set, it and the other snapshot tests write their PNGs there | `make test` |
-| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 25 workflows (`workspace_test.go`) and 9 picture tours (`pictures_test.go`) | `make nsgo-test`, headless (no pixels) |
+| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 25 workflows (`workspace_test.go`), 10 picture tours (`pictures_test.go`) and the style test (`style_test.go`, which reads the package's files) | `make nsgo-test`, headless (no pixels) |
 | NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. No workflow skips on a target | `make nsgo-live`, under Xvfb |
 | Desktop app, real windows | `internal/desktop/e2e` (build tag `e2e`): the automation build on fixture mail: the hostile corpus, the reader's script probe (`TestReaderPageRunsNoScript`: 22 ways to run script, counted by the find bar and a canary, once past maild's sanitizer and once through it), a real link click, a forward with an inline image, dragging an event, the reminders window, and on Linux the Server pane's change of mode | `make desktop-e2e`, under Xvfb with xdotool, or on Windows' desktop |
 
@@ -40,12 +40,12 @@ The shared client has one suite, run two ways
   `cmd/frostmail-nsgo/.nsgo/`, so they find the repository with
   `repoRoot`. Pictures go to `cmd/frostmail-nsgo/.nsgo/test/screenshots/linux`,
   which git ignores; CI uploads them as `nsgo-live-pictures`.
-- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 33 PNGs.
-  27 are the main views in Frostyard light (3 of Settings' categories, an account's panel and a mailbox's, the list, the To-Do Bar
+- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 37 PNGs.
+  31 are the main views in Frostyard light (3 of Settings' categories, an account's panel and a mailbox's, the list, the To-Do Bar
   beside it, a row under the pointer, a message, its More menu, a
   confirmation, several rows chosen, a search with no match, the reader
   with an invitation, with a file and with a conversation's banner, a conversation, compose, its time to send at and its alert before discarding,
-  the five modules, and the narrow list and message), and 6, named
+  the five modules, the narrow list and message, and in the same narrow window the navigation, compose, the Calendar and Settings), and 6, named
   `dark-`, are a message, its actions menu, a confirmation, the Calendar,
   compose and the narrow message in Frostyard. A tour names its appearance
   (`fixtureLook`), so a run does not follow its host's. They are 1280 by
@@ -55,7 +55,10 @@ The shared client has one suite, run two ways
   them again. A change of
   the look commits its changed pictures. No test compares pixels: the
   fixture's dates follow the day it is generated, so the list's dates and
-  the Calendar differ from day to day, and fonts differ between hosts.
+  the Calendar differ from day to day, and fonts differ between hosts. A
+  message of today shows its time of day, so every picture with the list
+  in it changes with each take: a count of changed pictures says little
+  of what a change touched.
 - **What the real window found** (2 workflows skipped on a target from
   2026-11-24 until plan 0016's Phase 3b, the same day):
   - `TestMessageRowQuickActions` (frostyard/frostmail#391): no quick

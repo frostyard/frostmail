@@ -67,7 +67,7 @@ func (w *workspace) readerHeader(m *api.Message) core.Node {
 		if to := recipients(m); to != "" {
 			lines = append(lines, core.Text{Content: to, MaxLines: 1, Selectable: core.SelectableOn, Style: ui.TypeCaption, StyleFunc: ui.Colored(colors.Muted)})
 		}
-		when := ui.Tabular(ui.Text(m.Summary.Date.Local().Format("Mon, Jan 2, 2006 at 3:04 PM"), 12, ui.Regular, colors.Muted))
+		when := figures(cx, m.Summary.Date.Local().Format("Mon, Jan 2, 2006 at 3:04 PM"))
 		when.TestID = "reader-date"
 		return core.View{TestID: "reader-header", Style: core.Style{Direction: core.Row, AlignItems: core.AlignStart, Gap: 12}, Children: []core.Node{
 			avatar,
@@ -164,7 +164,7 @@ func (w *workspace) attachments(m *api.Message) core.Node {
 			}
 			row := []core.Node{ui.Icon(lucide.Paperclip, 14, colors.Muted),
 				core.Text{Content: name, MaxLines: 1, Style: ui.TypeBody.Merge(core.Style{FlexShrink: 1, MinWidth: core.Pt(0)})},
-				ui.Tabular(ui.Text(mail.FormatSize(p.Size), 12, ui.Regular, colors.Muted)), ui.Spacer{}}
+				figures(cx, mail.FormatSize(p.Size)), ui.Spacer{}}
 			if desktopServer || p.ContentType == "application/pdf" || mail.Previewable(p) {
 				row = append(row, ui.IconButton{Label: "Open " + name, Icon: lucide.ExternalLink, OnPress: func() { w.openAttachment(id, p) }})
 			}

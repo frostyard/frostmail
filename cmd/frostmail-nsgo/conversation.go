@@ -51,14 +51,13 @@ func (w *workspace) conversationArticle(cx *core.Scope, m api.MessageSummary, in
 	if !m.Flags.Seen {
 		weight = ui.Semibold
 	}
-	sender := ui.Text(name, 13, weight, colors.Text)
-	sender.MaxLines, sender.Style.FlexGrow, sender.Style.FlexShrink, sender.Style.MinWidth = 1, 1, 1, core.Pt(0)
+	sender := core.Text{Content: name, MaxLines: 1, Style: ui.TypeBody.Merge(core.Style{FontWeight: weight, FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)})}
 	header := base.Button{Label: name + " · " + when, Expanded: open.Get, OnPress: func(core.PressEvent) { open.Set(!open.GetUntracked()) },
 		Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8, CornerRadius: ui.RadiusControl},
 		StyleFunc: func() core.Style {
 			return core.Style{Hover: &core.Style{Background: colors.Hover()}, FocusVisible: ui.FocusRing(cx, -2)}
 		},
-		Children: []core.Node{ui.Avatar{Name: name, Size: 28}, sender, ui.Tabular(ui.Text(when, 12, ui.Regular, colors.Muted)),
+		Children: []core.Node{ui.Avatar{Name: name, Size: 28}, sender, figures(cx, when),
 			ui.IconOf(func() *core.SVG {
 				if open.Get() {
 					return lucide.ChevronDown()

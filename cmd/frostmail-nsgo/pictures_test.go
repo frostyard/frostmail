@@ -171,3 +171,34 @@ func TestPicturesOfANarrowWindow(t *testing.T) {
 	a.WaitFor("label:Message body", 8*time.Second)
 	a.Screenshot("narrow-message")
 }
+
+// The other surfaces in a window 620 wide: the navigation, compose, a
+// module's bar, which wraps there, and Settings.
+func TestPicturesOfNarrowSurfaces(t *testing.T) {
+	a := fixtureSized(t, "", 620, 820)
+	a.WaitFor("label:Your trip to Lisbon: itinerary", 20*time.Second)
+	a.Press("label:Navigation")
+	a.Settle()
+	a.Screenshot("narrow-navigation")
+	a.Press("label:Navigation")
+	a.Press("label:Compose")
+	a.WaitFor("label:Subject", 5*time.Second)
+	a.Screenshot("narrow-compose")
+	a.Press("label:Save and close")
+	a.WaitForGone("label:Subject", 5*time.Second)
+	a.Press("label:Navigation")
+	a.Press("role:tab Calendar")
+	a.Press("label:Navigation")
+	a.WaitFor("label:New event", 5*time.Second)
+	a.Settle()
+	a.Screenshot("narrow-Calendar")
+	// The bar's last control is inside the window.
+	if bar, add := a.Find("id:module-bar").Bounds(), a.Find("label:New event").Bounds(); add.Origin.X+add.Size.Width > bar.Origin.X+bar.Size.Width {
+		t.Errorf("New event ends at %v, past the bar's end %v", add.Origin.X+add.Size.Width, bar.Origin.X+bar.Size.Width)
+	}
+	a.Press("label:Navigation")
+	a.Press("label:Settings")
+	a.Press("id:nav-general")
+	a.WaitFor("id:settings >> text:Undo send delay", 5*time.Second)
+	a.Screenshot("narrow-Settings")
+}

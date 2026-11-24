@@ -769,6 +769,28 @@ stand-ins of its panes with the control map's controls (rule 11):
     is new: the navigation's workflow now also holds that Calendar,
     People and Tasks each show their own rows and none of mail's, and
     Settings' 2 workflows find its categories in the window's navigation.
+- **4e, in parts.** Its first part (2026-11-24):
+  - **The narrow layout.** Every surface was taken in a window 620 wide
+    on Xvfb's X11: the navigation, compose, More, the Calendar, People,
+    Tasks and Settings. 1 fault: a module's bar did not wrap, so the
+    Calendar's ran past the window's edge, with its search field cut and
+    Reminders and New event out of reach. The bar wraps now. 4 of the
+    pictures are kept (`narrow-navigation`, `narrow-compose`,
+    `narrow-Calendar`, `narrow-Settings`), and their tour holds that New
+    event ends inside the bar.
+  - **The style test of rule 2** is on (`style_test.go`,
+    `TestNoLiteralLooks`): it reads the client's files and fails on a
+    color, a text size or a corner written as a number. It found 6 text
+    sizes and 2 corners, which now take NSGo's type styles and radii; no
+    color was written as a number. It is not whole: 13 paddings are
+    still numbers, in 9 files, and the test lists each file's count,
+    which may only go down. The kit has no spacing to take in their
+    place; that is the kit's next version. A planted `CornerRadius: 7`
+    failed the test.
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    36 passed, 0 skipped. 37 kept pictures, 4 of them new.
+  - **Left of 4e:** the kit's spacing and the 13 paddings; the README's
+    pictures.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
