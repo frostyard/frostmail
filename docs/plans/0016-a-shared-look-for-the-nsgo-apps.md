@@ -780,17 +780,45 @@ stand-ins of its panes with the control map's controls (rule 11):
     event ends inside the bar.
   - **The style test of rule 2** is on (`style_test.go`,
     `TestNoLiteralLooks`): it reads the client's files and fails on a
-    color, a text size or a corner written as a number. It found 6 text
-    sizes and 2 corners, which now take NSGo's type styles and radii; no
-    color was written as a number. It is not whole: 13 paddings are
+    color, a text size or a corner written as a number. 6 text sizes and
+    2 corners were written so (the test found the last of them), and now
+    take NSGo's type styles and radii; no color was written as a number. It is not whole: 13 paddings are
     still numbers, in 9 files, and the test lists each file's count,
     which may only go down. The kit has no spacing to take in their
     place; that is the kit's next version. A planted `CornerRadius: 7`
     failed the test.
   - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
     36 passed, 0 skipped. 37 kept pictures, 4 of them new.
-  - **Left of 4e:** the kit's spacing and the 13 paddings; the README's
-    pictures.
+  - **Lodge's web build in a browser (2026-11-24),** on 4d's commit
+    (1ae750d4), staged as CI stages it, in a headless Firefox 153.8.0esr:
+    - `dev/lodge/nsgo-smoke.py` passed 2 times of 2.
+    - A script of the agent's own took 16 pictures of the web build at
+      1280 and 620 wide (the frame is 1232 and 572 beside Lodge's rail):
+      the list with a message, Settings and its General, the Calendar,
+      and compose. They are not kept.
+    - Every picture was NSGo's touch presentation: dialogs as sheets,
+      and buttons 44 high. NSGo's web target takes a browser for a
+      desktop only when it reports a pointer that is fine and hovers, in
+      a window 600 wide or more; a headless browser reports none.
+    - The theme was Frostyard light and the text Inter in every view,
+      measured in the page, not judged by eye. The dark theme was not
+      seen.
+    - 2 faults of the client. Compose set its own width of 720, which as
+      a sheet ran past the frame at both widths: it sets it now only
+      where NSGo draws a dialog. The Calendar's bar ran past the narrow
+      frame: the fault the narrow window showed above, fixed with it.
+    - 2 of NSGo's, for Phase 6. Inter is registered on the web as 1 face
+      of weight 400, so medium text measured as regular, and semibold
+      and bold as wide as each other (357.63, 357.63, 372.13 and 372.13
+      points for one line at 400, 500, 600 and 700): taken to be the
+      browser's own bold, not Inter's. And the list's rows are in the
+      page in an order that is not the screen's and differed with each
+      load.
+    - Not seen: NSGo's desktop presentation in a browser.
+  - **Left of 4e:** the kit's spacing and the 13 paddings
+    (frostyard/frostui#78 adds the spacing; it needs the kit's tag); a
+    browser check of the 2 fixes and of the desktop presentation; the
+    README's pictures.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
@@ -820,6 +848,9 @@ text an agent drafts:
 - In `ui.TagInput`: what is being typed, for suggestions beside it, and a
   way to split that keeps a quoted comma. FrostMail's recipients wait on
   it (Phase 4c).
+- On the web: a variable font's weights (the kit's Inter is registered
+  as 1 face of weight 400), and a list's rows in the page in the order
+  they are on screen (Phase 4e).
 - **Done when:** each has an issue whose link is in the kit's spec, and the
   spec names the workaround to remove when it lands.
 
