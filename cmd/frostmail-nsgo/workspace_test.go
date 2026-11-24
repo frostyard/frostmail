@@ -89,3 +89,24 @@ func TestPersonalOrganizerRoundTrip(t *testing.T) {
 		a.Press("label:Close")
 	}
 }
+
+func TestAccountAndSnippetSettings(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Settings")
+	a.Press("label:Add account")
+	a.Type("label:Email address", "offline@example.test")
+	a.Press("label:Manual setup")
+	a.Type("label:Full name", "Offline fixture")
+	a.Type("label:IMAP host", "imap.example.test")
+	a.Type("label:SMTP host", "smtp.example.test")
+	a.Press("label:Save account")
+	a.WaitFor("label:Set password", 5*time.Second)
+	a.Press("label:Close")
+	a.WaitFor("label:Manage offline@example.test", 5*time.Second)
+	a.Press("label:Snippets")
+	a.Press("label:Add snippet")
+	a.Type("label:Snippet name", "Fixture signoff")
+	a.Type("label:Snippet HTML", "<p>Good evening</p>")
+	a.Press("label:Save")
+	a.WaitFor("label:Fixture signoff", 5*time.Second)
+}

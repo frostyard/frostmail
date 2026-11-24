@@ -59,6 +59,9 @@ func root(cx *core.Scope) core.Node {
 	w.store = live.NewMail(func() { cx.Post(func() { invalidate(w.state) }) })
 	w.session = conn.NewSession(target, conn.Options{Client: "FrostMail NSGo", OnConnect: func(ctx context.Context, c *api.Client, _ *api.Hello) error {
 		go w.events.Run(c)
+		if _, err := c.Events().Subscribe(ctx, &api.EventsSubscribeParams{}); err != nil {
+			return err
+		}
 		return w.store.Connect(ctx, c, w.events)
 	}, OnChange: func(st conn.State) {
 		cx.Post(func() {
@@ -98,6 +101,8 @@ func root(cx *core.Scope) core.Node {
 			return nil
 		}), core.Dynamic(func(cx *core.Scope) core.Node {
 			switch w.module.Get() {
+			case "Settings":
+				return w.settings(cx)
 			case "People":
 				return w.people(cx)
 			case "Tasks":
@@ -119,7 +124,7 @@ func root(cx *core.Scope) core.Node {
 func (w *workspace) sections() []ui.SidebarSection {
 	w.state.Get()
 	st := w.store.State()
-	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}}}}
+	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}, {ID: "module:Settings", Text: "Settings", Icon: lucide.Settings}}}}
 	for _, s := range mail.BuildSidebar(st.Accounts, st.Mailboxes, mail.Extras{VIPs: st.VIPs, Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts}) {
 		section := ui.SidebarSection{Title: s.Title, Collapsible: true}
 		for _, i := range s.Items {
