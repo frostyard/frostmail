@@ -127,6 +127,7 @@ func (w *workspace) tasks(cx *core.Scope) core.Node {
 				}
 				w.taskForm(t, load)
 			}
+			w.moduleKey(owner, "mod+n", newTask)
 			shown := core.NewMemoFunc(owner, func() []api.Task {
 				all := rows.Get()
 				if tab != "Today" {
@@ -233,7 +234,9 @@ func (w *workspace) people(cx *core.Scope) core.Node {
 			return c.People().List(ctx, &api.PeopleListParams{CollectionID: id, Query: changed("", q)})
 		}
 	})
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Input{Label: "Find a person", Placeholder: "Name or address", OnSubmit: func(v string) { query = v; load() }}, ui.Button{Text: "New contact", OnPress: func() { w.contactForm(api.Contact{CollectionID: book.GetUntracked()}, load) }}), w.collectionFilter(cx, "Address books", func(c api.Collection) bool { return c.Kind == api.CollectionKindAddressbook }, book, load), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
+	newPerson := func() { w.contactForm(api.Contact{CollectionID: book.GetUntracked()}, load) }
+	w.moduleKey(cx, "mod+n", newPerson)
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Input{Label: "Find a person", Placeholder: "Name or address", OnSubmit: func(v string) { query = v; load() }}, ui.Button{Text: "New contact", OnPress: newPerson}), w.collectionFilter(cx, "Address books", func(c api.Collection) bool { return c.Kind == api.CollectionKindAddressbook }, book, load), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
 		perform(w, func(ctx context.Context, c *api.Client) (*api.Person, error) {
 			return c.People().Get(ctx, &api.PeopleGetParams{ID: p.ID})
 		}, func(person *api.Person, err error) {

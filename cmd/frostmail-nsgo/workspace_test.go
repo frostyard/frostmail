@@ -199,7 +199,7 @@ func TestDragMessageToMailbox(t *testing.T) {
 	a.WaitFor("label:"+subject, 8*time.Second)
 	a.DragTo("label:Drag "+subject, "label:File messages in Drafts · ann.lee@example.com")
 	a.WaitUntil(8*time.Second, func() bool { return !a.Exists("label:" + subject) })
-	a.Press("label:All Drafts")
+	a.Press("id:mailbox-role:drafts")
 	a.WaitFor("label:"+subject, 8*time.Second)
 }
 

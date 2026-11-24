@@ -79,13 +79,21 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 		}
 		return o.Start.Local().Format("Mon Jan 2 · 15:04")
 	}, show)
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, button("New event", func() {
+	newEvent := func() {
 		at := day.GetUntracked()
 		now := time.Now()
 		y, m, d := at.Date()
 		start := time.Date(y, m, d, now.Hour()+1, 0, 0, 0, at.Location())
 		w.eventForm(api.CalendarEvent{Start: start, End: start.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
-	}), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }}, core.Dynamic(func(owner *core.Scope) core.Node {
+	}
+	w.moduleKey(cx, "mod+n", newEvent)
+	w.moduleKey(cx, "mod+t", func() { day.Set(time.Now()); load() })
+	w.moduleKey(cx, "mod+left", func() { step(-1) })
+	w.moduleKey(cx, "mod+right", func() { step(1) })
+	for i, mode := range []string{"Day", "Week", "Month"} {
+		w.moduleKey(cx, fmt.Sprintf("mod+alt+%d", i+1), func() { span.Set(mode); load() })
+	}
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, button("New event", newEvent), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }}, core.Dynamic(func(owner *core.Scope) core.Node {
 		date, mode := day.Get(), span.Get()
 		if query.Get() != "" || owner.Env().Window().Width < 720 {
 			return agenda

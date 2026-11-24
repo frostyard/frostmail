@@ -20,7 +20,12 @@ func (w *workspace) settings(cx *core.Scope) core.Node {
 		panes = append(panes, ui.Option[string]{Value: "Server", Label: "Server"})
 	}
 	return core.View{Style: ui.FillRest, Children: []core.Node{
-		ui.Tabs[string]{Label: "Settings panes", Options: panes, Value: tab.Get, OnChange: tab.Set},
+		core.Dynamic(func(owner *core.Scope) core.Node {
+			if owner.Env().Window().Width < 800 {
+				return ui.Select[string]{Label: "Settings panes", Options: panes, Value: tab.Get, OnChange: tab.Set}
+			}
+			return ui.Tabs[string]{Label: "Settings panes", Options: panes, Value: tab.Get, OnChange: tab.Set}
+		}),
 		core.Dynamic(func(cx *core.Scope) core.Node {
 			switch tab.Get() {
 			case "Server":

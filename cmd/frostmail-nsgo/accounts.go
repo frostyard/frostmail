@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostui"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -195,9 +196,14 @@ func (w *workspace) authorizeAccount(a api.Account) {
 			w.problem.Set(err.Error())
 			return
 		}
+		url, err := (frostui.Opener{Schemes: []string{"https"}}).CheckURL(result.URL)
+		if err != nil {
+			w.problem.Set("The mail server returned an invalid provider sign-in URL.")
+			return
+		}
 		w.show(func(*core.Scope) core.Node {
 			var callback string
-			return w.dialog("Sign in to "+a.Email, []core.Node{button("Open provider sign-in", func() { w.cx.OpenURL(result.URL, nil) }), core.Text{Content: "If your browser cannot reach the return address, paste that address here to finish sign-in."}, stringField("Return address", &callback, true)}, button("Close", w.closePanel), button("Finish sign-in", func() {
+			return w.dialog("Sign in to "+a.Email, []core.Node{button("Open provider sign-in", func() { w.cx.OpenURL(url, nil) }), core.Text{Content: "If your browser cannot reach the return address, paste that address here to finish sign-in."}, stringField("Return address", &callback, true)}, button("Close", w.closePanel), button("Finish sign-in", func() {
 				value := callback
 				w.change(func(ctx context.Context, c *api.Client) error {
 					_, err := c.Account().FinishSignIn(ctx, &api.AccountFinishSignInParams{URL: value})

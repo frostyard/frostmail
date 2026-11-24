@@ -85,21 +85,23 @@ func (w *workspace) moreMessageActions(m api.MessageSummary) []core.Node {
 			_, err := c.Rule().Apply(ctx, &api.RuleApplyParams{IDs: []int64{m.ID}})
 			return err
 		}, nil)
-	}}, ui.MenuItem{Text: "Redirect", OnSelect: func() {
-		w.form("Redirect message", []editField{{"Recipients", "", false}}, func(v []string) error {
-			tos, invalid := oldcompose.ParseAddresses(v[0])
-			if len(invalid) > 0 || len(tos) == 0 {
-				return fmt.Errorf("Enter a valid recipient")
-			}
-			w.confirm("Redirect message?", m.Subject+" → "+v[0], "Send", func() {
-				w.change(func(ctx context.Context, c *api.Client) error {
-					_, err := c.Message().Redirect(ctx, &api.MessageRedirectParams{ID: m.ID, To: tos})
-					return err
-				}, nil)
-			})
-			return nil
+	}}, ui.MenuItem{Text: "Redirect", OnSelect: func() { w.redirect(m) }}}
+}
+
+func (w *workspace) redirect(m api.MessageSummary) {
+	w.form("Redirect message", []editField{{"Recipients", "", false}}, func(v []string) error {
+		tos, invalid := oldcompose.ParseAddresses(v[0])
+		if len(invalid) > 0 || len(tos) == 0 {
+			return fmt.Errorf("Enter a valid recipient")
+		}
+		w.confirm("Redirect message?", m.Subject+" → "+v[0], "Send", func() {
+			w.change(func(ctx context.Context, c *api.Client) error {
+				_, err := c.Message().Redirect(ctx, &api.MessageRedirectParams{ID: m.ID, To: tos})
+				return err
+			}, nil)
 		})
-	}}}
+		return nil
+	})
 }
 func (w *workspace) subscription(id int64) {
 	perform(w, func(ctx context.Context, c *api.Client) (*api.Unsubscribe, error) {

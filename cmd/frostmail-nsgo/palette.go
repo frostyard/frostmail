@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -30,11 +31,40 @@ func (w *workspace) commandTable() []command {
 	draft := func(kind api.DraftKind) func() {
 		return message(func(p *messagePage) { w.newDraft(kind, &p.message.Summary.ID) })
 	}
+	active := func() bool {
+		m := w.currentMessage.GetUntracked()
+		return hasMail() && m != nil && w.writable(m.AccountID)
+	}
+	triage := func(f func(api.MessageSummary)) func() {
+		return func() {
+			if m := w.currentMessage.GetUntracked(); m != nil {
+				f(*m)
+			}
+		}
+	}
+	flag := func(m api.MessageSummary, changes api.FlagChanges) {
+		undo := w.undo
+		w.change(func(ctx context.Context, c *api.Client) error { return undo.Flags(ctx, c, []int64{m.ID}, changes) }, nil)
+	}
 	commands := []command{
-		{"Compose", "Mail", "mod+n", nil, func() { w.newDraft(api.DraftKindNew, nil) }},
+		{"Compose", "Mail", "mod+n", mailMode, func() { w.newDraft(api.DraftKindNew, nil) }},
 		{"Open drafts", "Mail", "", nil, w.draftList}, {"Open outbox", "Mail", "", nil, w.outbox},
 		{"Reply", "Message", "mod+r", hasMail, draft(api.DraftKindReply)}, {"Reply all", "Message", "mod+shift+r", hasMail, draft(api.DraftKindReplyall)},
 		{"Forward", "Message", "mod+shift+f", hasMail, draft(api.DraftKindForward)}, {"Forward as attachment", "Message", "", hasMail, draft(api.DraftKindAttached)},
+		{"Redirect", "Message", "mod+shift+e", active, triage(w.redirect)},
+		{"Toggle flag", "Message", "mod+shift+l", active, triage(func(m api.MessageSummary) { v := !m.Flags.Flagged; flag(m, api.FlagChanges{Flagged: &v}) })},
+		{"Toggle read", "Message", "mod+shift+u", active, triage(func(m api.MessageSummary) { v := !m.Flags.Seen; flag(m, api.FlagChanges{Seen: &v}) })},
+		{"Delete message", "Message", "delete", active, triage(w.deleteMessage)},
+		{"Archive", "Message", "mod+alt+a", active, triage(func(m api.MessageSummary) {
+			if box := mail.ArchiveOf(m.AccountID, w.store.State().Mailboxes); box != nil {
+				w.change(w.moveMessage(m, *box), nil)
+			}
+		})},
+		{"Toggle junk", "Message", "mod+shift+j", active, triage(func(m api.MessageSummary) {
+			if _, box := mail.SpamTarget([]api.MessageSummary{m}, w.store.State().Mailboxes); box != nil {
+				w.change(w.moveMessage(m, *box), nil)
+			}
+		})},
 		{"Print or save PDF", "Message", "mod+p", hasMail, message(w.printMessage)},
 		{"All headers", "Message", "mod+shift+h", hasMail, message(func(p *messagePage) { w.sourcePanel(p.message.Summary, true) })},
 		{"Raw source", "Message", "mod+alt+u", hasMail, message(func(p *messagePage) { w.sourcePanel(p.message.Summary, false) })},

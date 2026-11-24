@@ -147,8 +147,9 @@ func root(cx *core.Scope) core.Node {
 		w.store.Disconnect()
 	})
 	list := w.messageList()
+	listWidth := core.NewSignal(cx, core.Points(390))
 	split := ui.ResizablePanelGroup{Style: ui.FillRest, HandleLabel: "Resize message list", Panels: []base.ResizablePanel{
-		{Size: func() core.Points { return 390 }, MinSize: 180, Children: []core.Node{list}},
+		{Size: listWidth.Get, OnResize: listWidth.Set, MinSize: 180, Children: []core.Node{list}},
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
 	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: func() string {
@@ -158,7 +159,13 @@ func root(cx *core.Scope) core.Node {
 		return w.selected.Get()
 	}, Navigate: w.navigate,
 		Widths: workspaceui.PaneWidths{Inspector: 280}, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
-		Actions:       []core.Node{ui.Button{Label: "Commands", Icon: lucide.Command, Variant: ui.ButtonGhost, OnPress: w.palette}, ui.Button{Text: "Compose", Icon: lucide.Pencil, OnPress: func() { w.newDraft(api.DraftKindNew, nil) }}, ui.Button{Text: "Drafts", Label: "Open local drafts", Variant: ui.ButtonGhost, OnPress: w.draftList}, ui.Button{Text: "Outbox", Variant: ui.ButtonGhost, OnPress: w.outbox}},
+		Actions: []core.Node{core.Dynamic(func(owner *core.Scope) core.Node {
+			compose := func() { w.newDraft(api.DraftKindNew, nil) }
+			if owner.Env().Window().Width < 720 {
+				return workspaceui.Row(ui.IconButton{Label: "Compose", Icon: lucide.Pencil, OnPress: compose}, ui.Menu{Trigger: ui.Button{Variant: ui.ButtonGhost, Label: "Mail actions", Icon: lucide.Menu}, Children: []core.Node{ui.MenuItem{Text: "Commands", OnSelect: w.palette}, ui.MenuItem{Text: "Open local drafts", OnSelect: w.draftList}, ui.MenuItem{Text: "Outbox", OnSelect: w.outbox}}})
+			}
+			return workspaceui.Row(ui.Button{Label: "Commands", Icon: lucide.Command, Variant: ui.ButtonGhost, OnPress: w.palette}, ui.Button{Text: "Compose", Icon: lucide.Pencil, OnPress: compose}, ui.Button{Text: "Drafts", Label: "Open local drafts", Variant: ui.ButtonGhost, OnPress: w.draftList}, ui.Button{Text: "Outbox", Variant: ui.ButtonGhost, OnPress: w.outbox})
+		})},
 		Header:        []core.Node{core.Text{ContentFunc: w.title, Style: ui.TypeTitle}},
 		SidebarFooter: []core.Node{core.Text{ContentFunc: w.status.Get, Style: ui.TypeCaption.Merge(core.Style{Padding: core.All(10)})}},
 		Content: []core.Node{core.Dynamic(func(*core.Scope) core.Node {
@@ -235,7 +242,7 @@ func (w *workspace) sections() []ui.SidebarSection {
 			if i.Unread > 0 {
 				label += fmt.Sprintf("  ·  %d", i.Unread)
 			}
-			item := ui.SidebarItem{ID: i.Key, Text: label, Icon: lucide.Inbox}
+			item := ui.SidebarItem{ID: i.Key, TestID: "mailbox-" + i.Key, Text: label, Icon: lucide.Inbox}
 			if b, ok := boxes[i.MailboxID]; ok {
 				item.Content = w.mailboxTarget(i, label, s.Title, b)
 				for _, a := range st.Accounts {

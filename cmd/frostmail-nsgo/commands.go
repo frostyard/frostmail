@@ -139,3 +139,11 @@ func (w *workspace) reminderNotice(count int64) {
 		}
 	}})
 }
+
+func (w *workspace) moduleKey(cx *core.Scope, key string, run func()) {
+	cx.OnKey(key, func() {
+		if w.overlay.GetUntracked() == nil {
+			run()
+		}
+	})
+}

@@ -315,7 +315,14 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 	})
 	cx.OnKey("mod+w", closeDraft)
-	dlg := w.dialog("Compose", []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(format, insert), linkBar, editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	body := []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(format, insert), linkBar, editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}
+	dlg := w.dialog("Compose", []core.Node{core.Scroll{StyleFunc: func() core.Style {
+		footer := core.Points(160)
+		if ui.Touch(cx) {
+			footer = 250
+		}
+		return core.Style{MaxHeight: core.Pt(max(110, cx.Env().Window().Height-footer)), FlexShrink: 1}
+	}, Children: []core.Node{workspaceui.Stack(body...)}}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
 			closeDraft()
