@@ -456,7 +456,7 @@ pictures.
   Phases 3 to 5 decide each window's layout and flow, on that app's
   pictures.
 
-## Phase 3 — FrostMail's main window (L)
+## Phase 3 — FrostMail's main window (L, done 2026-11-24)
 
 Three changes, each with `make nsgo-test` green, and each replacing the
 stand-ins of its panes with the control map's controls (rule 11):
@@ -550,11 +550,15 @@ stand-ins of its panes with the control map's controls (rule 11):
     also pressed the mailbox's row, so the list changed to that mailbox,
     where the test found the message it expected to be gone. The press
     that comes in the drop's own turn of the loop is now passed over.
-  - **Lost or left, for the owner to weigh.** The list no longer follows
-    the text size setting: `SummaryRow` has fixed sizes. A flag's 7
-    colors draw in the kit's 5 tones, so Yellow draws as Orange and
-    Purple as the accent: the kit has no flag colors. Both need a change
-    of the kit.
+  - **Lost or left** (the owner accepted the list on its pictures,
+    2026-11-24, and asked for these as issues). The list no longer
+    follows the text size setting: `SummaryRow` has fixed sizes
+    (frostyard/frostmail#400). A flag's 7 colors draw in the kit's 5
+    tones, so Yellow draws as Orange and Purple as the accent: the kit
+    has no flag colors (frostyard/frostmail#401). Both need a change of
+    the kit. Archive and Junk for several chosen messages are
+    frostyard/frostmail#402, and a test of the undo of a move is
+    frostyard/frostmail#403.
   - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
     27 passed, 0 skipped. 23 kept pictures: the 20 changed, and 3 are
     new (a row under the pointer, several rows chosen, a search with no
@@ -565,6 +569,55 @@ stand-ins of its panes with the control map's controls (rule 11):
     answers that the messages are still moving. `dev/lodge/nsgo-smoke.py`
     was not run. No row was dragged or pointed at by a person on a
     desktop.
+- **3c (2026-11-24), built; the owner has not looked at its pictures.**
+  `cmd/frostmail-nsgo/reader_pane.go` holds the reader pane:
+  - **The header block.** The sender's avatar (the photo or initials),
+    the sender's name and address, the recipients on one line, and the
+    date at the row's end; then the subject as the pane's largest text.
+  - **Banners.** Each is the kit's `Banner` in its tone, with at most one
+    action: a failed sender check (danger), a reminder (accent, Remove
+    reminder), remote images not shown (Load remote images), a calendar
+    invitation (accent, Open invitation), a mailing list (Unsubscribe),
+    and a conversation (View conversation). They replace 6 text buttons
+    and lines.
+  - **Files.** A caption that counts them, and a row for each: its name,
+    its size, and Open and Save as icon buttons.
+  - **The page.** Inside a hairline with rounded corners, with the pane's
+    room around it, in both themes. The page keeps the sender's colors.
+    The ground behind a page that has not painted is the pane's, not
+    white as `uikit.PageFrame` made it: the kit has no page color.
+  - **A conversation.** Its messages stay a stack in a dialog, each with
+    a header (avatar, sender, date) that opens and closes it, and the
+    page in the same frame. They are not stacked in the reader pane: a
+    page's height is not known without script, which the page may not
+    run, so each page there has a fixed height of 270.
+  - **Also.** Every dialog, the toasts and the palette are on the kit's
+    opaque panel (rule 4's ground; the dialogs' forms are Phase 4). In a
+    window under 800 the way back to the list is a quiet button, not a
+    filled one.
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    29 passed, 0 skipped. 26 kept pictures: 16 changed and 3 are new (an
+    invitation, a message with a file, a message of a conversation). 1 new workflow, of the header block, the
+    banners of an invitation and a conversation, a file's row, and no
+    banner on a message with nothing to say. `dev/lodge/nsgo-smoke.py`
+    was not run with this change: the machine had no geckodriver or
+    Firefox for it. It was run afterwards, below.
+- **Lodge's browser (2026-11-24).** `dev/lodge/nsgo-smoke.py` passed 2
+  times of 2 on 3c's commit (ff750202), in a headless Firefox on the
+  owner's desktop: `PASS: inbox, isolated reader, settings, Back, refresh
+  and editable draft permalink`. The client was staged with `make
+  nsgo-lodge-app IN_NSL='sh -c'`, as CI stages it. The tools were Lodge's
+  `lodge-e2e`, `lodgectl` and shell as that checkout had them built (the
+  binary names itself `ui/v0.7.0-dirty`, commit 6217d07), geckodriver
+  0.37.1 and Firefox 153.8.0esr, each fetched from Mozilla and checked
+  against its published SHA-256. The script opens a row, Settings and
+  Compose: it does not press the toolbar, a banner or a row's actions.
+- **Done (2026-11-24).** The 3 changes are built, each with its changed
+  pictures; `make nsgo-test`, the Linux target (29 passed, 0 skipped) and
+  the smoke test pass. Brian accepted the main window (2026-11-24) from
+  the live suite's pictures as each change sent them, in both themes.
+  Missing from "Done when", and accepted by him as it is: the pictures
+  were not set beside [main.png](../images/main.png) in one view.
 
 ## Phase 4 — FrostMail's other surfaces (L)
 

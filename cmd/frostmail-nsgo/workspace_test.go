@@ -187,6 +187,35 @@ func TestNavigationHoldsTheModulesAndTheFoot(t *testing.T) {
 	a.WaitFor("text:Outbox is empty", 5*time.Second)
 }
 
+// TestReaderShowsWhoWhenAndWhat checks the reader: the header block names
+// the sender, the recipients and the date, an invitation and a conversation
+// have a banner with one action, and a file has its row.
+func TestReaderShowsWhoWhenAndWhat(t *testing.T) {
+	a := fixtureWorkspace(t)
+	open := func(subject string) {
+		t.Helper()
+		a.Press("id:messages >> label:" + subject)
+		a.WaitFor("id:reader >> text:"+subject, 8*time.Second)
+	}
+	a.WaitFor("id:messages >> label:Your trip to Lisbon: itinerary", 8*time.Second)
+	open("Your trip to Lisbon: itinerary")
+	a.Find("id:reader-header >> text:Skyline Travel")
+	a.Find("id:reader-header >> text:To: Ann Lee")
+	if got := a.Find("id:reader-date").Text; !strings.Contains(got, " at ") {
+		t.Errorf("the date reads %q", got)
+	}
+	a.WaitFor("id:page-frame >> label:Message body", 8*time.Second)
+	if a.Exists("id:reader >> role:status") {
+		t.Error("a message with nothing to say about it has a banner")
+	}
+	open("Invitation: Release planning")
+	a.WaitFor("id:reader >> role:status >> role:button Open invitation", 8*time.Second)
+	open("Q4 roadmap review (slides attached)")
+	a.WaitFor("id:reader >> id:attachment", 8*time.Second)
+	open("Re: Aurora launch checklist")
+	a.WaitFor("id:reader >> role:status >> role:button View conversation (3 messages)", 8*time.Second)
+}
+
 func TestMailboxReadsFixture(t *testing.T) {
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"

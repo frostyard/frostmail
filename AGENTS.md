@@ -101,14 +101,17 @@ draw them, in Inter, with a saved choice of appearance. Phase 2 is done
 (2026-11-24): the kit holds the accepted parts, the control map and the
 rules for an app (frostui's `docs/specs/workspaceui.md`), with a gallery
 that draws them (`workspaceui/v0.3.0`). Phase 3, the client's main window,
-is in progress: it places the kit's parts and NSGo's controls by the
-control map, and each change carries its changed pictures. 3a, the shell
+placed the kit's parts and NSGo's controls by the control map, and each
+change carried its changed pictures. 3a, the shell
 (the module tabs, the navigation's rows and foot, the icon toolbar:
-`cmd/frostmail-nsgo/shell.go`), and 3b, the list (summary rows, the
-search field, the filter, selection by Ctrl and Shift:
-`cmd/frostmail-nsgo/list.go`), are built, and the owner has not looked
-at 3b's pictures; 3c, the reader, is left. The MyGo client stays the
-default.
+`cmd/frostmail-nsgo/shell.go`), 3b, the list (summary rows, the search
+field, the filter, selection by Ctrl and Shift:
+`cmd/frostmail-nsgo/list.go`), and 3c, the reader (the header block, the
+banners, the page's frame: `cmd/frostmail-nsgo/reader_pane.go`), are
+built, and Phase 3 is done (2026-11-24): Brian accepted the main window
+from the live suite's pictures, without setting them beside `main.png`
+(plan 0016, Phase 3), and `dev/lodge/nsgo-smoke.py` passes. Phase 4, the
+client's other surfaces, is next. The MyGo client stays the default.
 
 ## Two kinds of agent work
 

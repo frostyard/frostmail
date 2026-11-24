@@ -8,7 +8,9 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostui/workspaceui"
+	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -27,24 +29,44 @@ func (w *workspace) conversation(page *messagePage) {
 			message := m()
 			return w.conversationArticle(owner, message, message.ID == selected.ID || !message.Flags.Seen)
 		})
-		return w.dialog("Conversation", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(525)}, Children: []core.Node{articles, core.Dynamic(func(*core.Scope) core.Node {
+		return w.dialog("Conversation", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(525)}, Children: []core.Node{workspaceui.Stack(articles, core.Dynamic(func(*core.Scope) core.Node {
 			n := limit.Get()
 			if n >= len(messages) {
 				return nil
 			}
 			return button(fmt.Sprintf("Show %d earlier messages", min(batch, len(messages)-n)), func() { limit.Set(n + batch) })
-		})}}})
+		}))}}})
 	})
 }
 
+// conversationArticle is one message of a conversation: a header that
+// opens and closes it, and under it the subject, the page in its frame, and
+// a way to the message itself.
 func (w *workspace) conversationArticle(cx *core.Scope, m api.MessageSummary, initial bool) core.Node {
 	open := core.NewSignal(cx, initial)
-	label := m.From.Name
-	if label == "" {
-		label = m.From.Address
+	colors := ui.ColorsOf(cx)
+	name := mail.DisplayName(m.From)
+	when := m.Date.Local().Format("Jan 2, 15:04")
+	weight := ui.Regular
+	if !m.Flags.Seen {
+		weight = ui.Semibold
 	}
+	sender := ui.Text(name, 13, weight, colors.Text)
+	sender.MaxLines, sender.Style.FlexGrow, sender.Style.FlexShrink, sender.Style.MinWidth = 1, 1, 1, core.Pt(0)
+	header := base.Button{Label: name + " · " + when, Expanded: open.Get, OnPress: func(core.PressEvent) { open.Set(!open.GetUntracked()) },
+		Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8, CornerRadius: ui.RadiusControl},
+		StyleFunc: func() core.Style {
+			return core.Style{Hover: &core.Style{Background: colors.Hover()}, FocusVisible: ui.FocusRing(cx, -2)}
+		},
+		Children: []core.Node{ui.Avatar{Name: name, Size: 28}, sender, ui.Tabular(ui.Text(when, 12, ui.Regular, colors.Muted)),
+			ui.IconOf(func() *core.SVG {
+				if open.Get() {
+					return lucide.ChevronDown()
+				}
+				return lucide.ChevronRight()
+			}, 14, colors.Muted)}}
 	return workspaceui.Card{Children: []core.Node{
-		ui.Button{Text: label + " · " + m.Date.Local().Format("Jan 2, 15:04"), Variant: ui.ButtonGhost, OnPress: func() { open.Set(!open.GetUntracked()) }},
+		header,
 		core.Show{When: open.Get, Then: func(scope *core.Scope) core.Node {
 			rendered := core.NewSignal(scope, (*api.Rendering)(nil))
 			failure := core.NewSignal(scope, "")
@@ -72,18 +94,19 @@ func (w *workspace) conversationArticle(cx *core.Scope, m api.MessageSummary, in
 			load(false)
 			return workspaceui.Stack(core.Text{Content: m.Subject, Style: ui.TypeLabel}, core.Dynamic(func(*core.Scope) core.Node {
 				if err := failure.Get(); err != "" {
-					return core.Text{Content: err}
+					return workspaceui.Banner{Tone: workspaceui.Danger, Icon: lucide.CircleAlert, Text: err}
 				}
 				body := rendered.Get()
 				if body == nil {
-					return core.Text{Content: "Loading message…"}
+					return ui.Skeleton{Lines: 3, Label: "Loading message"}
 				}
-				nodes := []core.Node{core.View{Style: core.Style{Height: core.Pt(270)}, Children: []core.Node{bodyView(w, body)}}}
+				var nodes []core.Node
 				if body.Remote > 0 {
-					nodes = append(nodes, button("Load images for this message", func() { load(true) }))
+					nodes = append(nodes, workspaceui.Banner{Icon: lucide.ImageOff, Text: "Remote images are not shown.", Action: "Load images for this message", OnAction: func() { load(true) }})
 				}
+				nodes = append(nodes, pageFrame(scope, bodyView(w, body), core.Style{Height: core.Pt(270)}))
 				return workspaceui.Stack(nodes...)
-			}), button("Open this message", func() { w.closePanel(); w.openMessage(m.ID, false) }))
+			}), workspaceui.Row(ui.Button{Text: "Open this message", Variant: ui.ButtonSecondary, Size: ui.SizeSmall, OnPress: func() { w.closePanel(); w.openMessage(m.ID, false) }}))
 		}},
 	}}
 }

@@ -64,6 +64,20 @@ func TestPicturesOfAConversation(t *testing.T) {
 	a.Screenshot("conversation")
 }
 
+// The reader's banners and a message's files.
+func TestPicturesOfTheReader(t *testing.T) {
+	a := fixtureWorkspace(t)
+	for _, view := range [][2]string{{"reader-invitation", "Invitation: Release planning"}, {"reader-attachments", "Q4 roadmap review (slides attached)"}, {"reader-conversation", "Re: Aurora launch checklist"}} {
+		name, subject := view[0], view[1]
+		a.WaitFor("id:messages >> label:"+subject, 8*time.Second)
+		a.Press("id:messages >> label:" + subject)
+		a.WaitFor("id:reader >> text:"+subject, 8*time.Second)
+		a.WaitFor("label:Message body", 8*time.Second)
+		a.Settle()
+		a.Screenshot(name)
+	}
+}
+
 func TestPicturesOfCompose(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Compose")
