@@ -3,9 +3,9 @@
 - **Status:** Phase 0 is done (2026-11-24): the owner chose D1 to D4
   ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)),
   the kit is in frostui and tagged, and the three apps build on it. Phase
-  0.5 is done (2026-11-24). Phase 1 is built in the kit and in the three
-  apps (2026-11-24), and stays open for 1 check on a desktop. Phase 2 is
-  next.
+  0.5 is done (2026-11-24). Phase 1 is done (2026-11-24; Brian accepted
+  closing it on a desktop picture of 1 of the 3 apps). Phase 2 is in
+  progress.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -334,7 +334,7 @@ pictures.
   their pull requests. Each repository holds the "before" pictures of its
   views: FrostMail's 14 in the commit of #394, Frostnotes' 19 in #277.
 
-## Phase 1 — Theme, type and the title row (M)
+## Phase 1 — Theme, type and the title row (M, done 2026-11-24)
 
 - `theme`: both palettes from frostui's spec, the named roles, Inter
   (bundled for the native builds, served with the app for the web one),
@@ -390,6 +390,9 @@ pictures.
   no name: the name once. It shows PocketGo only. FrostMail's and
   Frostnotes' windows were not looked at on a desktop; the same `Shell`
   of the kit draws their heads.
+- **Closed (2026-11-24).** Brian accepted closing the phase on that
+  picture. The missing piece of "Done when": a desktop picture with one
+  title row for FrostMail and for Frostnotes.
 - **Seen in the pictures, for Phase 2:** a dialog's and a palette's panel
   let the view under them show through and take the ground's color, not
   the panel's; in a wide window the content's ground is 1 step of 255 off

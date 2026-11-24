@@ -94,12 +94,12 @@ done (2026-11-24): the kit moved from `frostyard/pocketgo` to
 `github.com/frostyard/frostui/workspaceui` (`workspaceui/v0.1.0`), and the
 three apps build on it. Phase 0.5 is done (2026-11-24): FrostMail's and
 Frostnotes' suites run in a real GTK window (`make nsgo-live`) and keep
-their pictures. Phase 1 is built (2026-11-24): the kit has the Frostyard
-themes (`workspaceui/v0.2.0`), and the three clients draw them, in Inter,
-with a saved choice of appearance. It stays open for 1 check no picture
-makes: the single title row on a desktop (plan 0016, Phase 1). Phase 2,
-the kit's parts and its gallery, is next. Nothing of the window's layout
-has changed, and the MyGo client stays the default.
+their pictures. Phase 1 is done (2026-11-24; Brian accepted closing it on
+a desktop picture of PocketGo's title row alone, plan 0016, Phase 1): the
+kit has the Frostyard themes (`workspaceui/v0.2.0`), and the three clients
+draw them, in Inter, with a saved choice of appearance. Phase 2, the kit's
+parts and its gallery, is in progress. Nothing of the window's layout has
+changed, and the MyGo client stays the default.
 
 ## Two kinds of agent work
 
