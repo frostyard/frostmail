@@ -16,6 +16,10 @@ import (
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
+// TestMain starts NSGo's test host, so the suite also runs in a real window:
+// go tool nsgo test -target linux (make nsgo-live).
+func TestMain(m *testing.M) { nsgotest.Main(m) }
+
 // Each test owns its maild and generated accounts. No host config, keyring,
 // mail server or installed app participates in the test.
 func fixtureWorkspace(t *testing.T) *nsgotest.App {
@@ -23,7 +27,43 @@ func fixtureWorkspace(t *testing.T) *nsgotest.App {
 	return fixtureWithSMTP(t, "")
 }
 
+// headlessOnly skips a workflow on a target where it fails and headless it
+// passes, with what the target showed. Plan 0016's Phase 0.5 records each,
+// and its Phase 3 rebuilds the rows these two act on.
+func headlessOnly(t *testing.T, seen string) {
+	t.Helper()
+	if target := nsgotest.Target(); target != "" {
+		t.Skipf("skipped on %s: %s", target, seen)
+	}
+}
+
+// repoRoot finds the repository from the working directory, which is this
+// package's directory under go test and a directory below it on a target.
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "tools", "uifixture")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("no tools/uifixture above the working directory")
+		}
+		dir = parent
+	}
+}
+
 func fixtureWithSMTP(t *testing.T, smtp string) *nsgotest.App {
+	t.Helper()
+	return fixtureSized(t, smtp, 1280, 820)
+}
+
+// fixtureSized starts the client in a window of the given size.
+func fixtureSized(t *testing.T, smtp string, width, height core.Points) *nsgotest.App {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "fm-ui-")
 	if err != nil {
@@ -41,7 +81,7 @@ func fixtureWithSMTP(t *testing.T, smtp string) *nsgotest.App {
 	run := func(args ...string) {
 		t.Helper()
 		cmd := exec.CommandContext(t.Context(), "go", args...)
-		cmd.Dir = "../.."
+		cmd.Dir = repoRoot(t)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("go %v: %v\n%s", args, err, out)
 		}
@@ -64,8 +104,12 @@ func fixtureWithSMTP(t *testing.T, smtp string) *nsgotest.App {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = daemon.Process.Kill(); _ = daemon.Wait() })
-	a := nsgotest.Start(t, root, nsgotest.Size(1280, 820), nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1}))
-	a.WaitFor("text:Connected · Local", 20*time.Second)
+	a := nsgotest.Start(t, root, nsgotest.Size(width, height), nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1}))
+	// A compact window (under 720) hides the navigation and its status line:
+	// its caller waits for what it shows instead.
+	if width >= 720 {
+		a.WaitFor("text:Connected · Local", 20*time.Second)
+	}
 	return a
 }
 
@@ -194,6 +238,7 @@ func TestConversationOpensRelatedMessages(t *testing.T) {
 }
 
 func TestDragMessageToMailbox(t *testing.T) {
+	headlessOnly(t, "a row dragged onto a mailbox stays in its list (Xvfb, 2026-11-24)")
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
 	a.WaitFor("label:"+subject, 8*time.Second)
@@ -231,7 +276,7 @@ func TestForwardToLocalSMTP(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "smtpsink")
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, "./tools/smtpsink")
-	build.Dir = "../.."
+	build.Dir = repoRoot(t)
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build smtpsink: %v: %s", err, out)
 	}
@@ -274,6 +319,7 @@ func TestForwardToLocalSMTP(t *testing.T) {
 }
 
 func TestMessageRowQuickActions(t *testing.T) {
+	headlessOnly(t, "the pointer over a row shows no quick actions; the row's OnMouseEnter is not called (Xvfb, 2026-11-24)")
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
 	a.WaitFor("label:"+subject, 5*time.Second)

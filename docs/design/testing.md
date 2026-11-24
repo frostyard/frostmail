@@ -13,7 +13,49 @@
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | Desktop app | `internal/desktop/**` with `ui.Tester` against a real maild. `mainwin`'s `TestModulesInBothThemes` draws Mail, Calendar, People and Tasks in Frostyard and Frostyard light; with `FROSTMAIL_SNAPSHOT_DIR` set, it and the other snapshot tests write their PNGs there | `make test` |
+| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 14 workflows (`workspace_test.go`) and 5 picture tours (`pictures_test.go`) | `make nsgo-test`, headless (no pixels) |
+| NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. 2 workflows skip on a target ([below](#the-nsgo-clients-live-suite)) | `make nsgo-live`, under Xvfb |
 | Desktop app, real windows | `internal/desktop/e2e` (build tag `e2e`): the automation build on fixture mail: the hostile corpus, the reader's script probe (`TestReaderPageRunsNoScript`: 22 ways to run script, counted by the find bar and a canary, once past maild's sanitizer and once through it), a real link click, a forward with an inline image, dragging an event, the reminders window, and on Linux the Server pane's change of mode | `make desktop-e2e`, under Xvfb with xdotool, or on Windows' desktop |
+
+## The NSGo client's live suite
+
+The shared client has one suite, run two ways
+([plan 0016](../plans/0016-a-shared-look-for-the-nsgo-apps.md), rule 10).
+
+- **Headless,** `make nsgo-test`: `go test -tags integration` in
+  `cmd/frostmail-nsgo`. NSGo models the views, with approximate text and no
+  pixels: `app.Screenshot` only logs.
+- **In a real window,** `make nsgo-live`: `go tool nsgo test -target linux`
+  under `xvfb-run`, each test in a process of its own, in a GTK 4 window
+  with WebKitGTK for the message's page. It needs the `xvfb` package, GTK 4
+  and WebKitGTK 6. The target has no `-tags` flag, so the Makefile passes
+  the tag in `GOFLAGS`; it unsets `WAYLAND_DISPLAY` so that GTK takes
+  Xvfb's X11. On a target the tests' working directory is under
+  `cmd/frostmail-nsgo/.nsgo/`, so they find the repository with
+  `repoRoot`. Pictures go to `cmd/frostmail-nsgo/.nsgo/test/screenshots/linux`,
+  which git ignores; CI uploads them as `nsgo-live-pictures`.
+- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 14 PNGs of
+  the main views (the list, a message, its actions menu, a confirmation,
+  the To-Do Bar, a conversation, compose, the five modules, and the narrow
+  list and message), 1280 by 781 and 620 by 781: 39 less in height than
+  the window the tests ask for. `make nsgo-pictures` takes them again. A change of
+  the look commits its changed pictures. No test compares pixels: the
+  fixture's dates follow the day it is generated, so the list's dates and
+  the Calendar differ from day to day, and fonts differ between hosts.
+- **Skipped on a target** (`headlessOnly`), seen under Xvfb on 2026-11-24:
+  - `TestMessageRowQuickActions`: with the pointer over a message row, no
+    quick action shows; the row's `OnMouseEnter` is never called. The same
+    pointer shows a toolbar button's hover fill and tooltip, and a view of
+    the same shape outside the client (a list row in a context menu's
+    trigger, around a drag source and a button) hears the event. The cause
+    is not found.
+  - `TestDragMessageToMailbox`: a row dragged onto a mailbox stays in its
+    list. Not looked into further.
+  Both pass headless. Neither was tried with a person's mouse on a
+  desktop.
+- **The web target** is not run. The test files are Linux-only, and each
+  test starts a maild with `os/exec`, which a browser cannot. Lodge's
+  browser path stays with `dev/lodge/nsgo-smoke.py`.
 
 ## CI
 
@@ -21,8 +63,9 @@
 `main`, every pull request and merge-queue entry, and nightly (so upstream
 drift shows within a day): **Verify** (`make verify`, with golangci-lint
 from `mise.lock`), **Race detector** (`go test -race ./...`), **App UI**
-(`make ui-check`) and **Desktop app** (Linux and Windows release builds,
-then `make desktop-e2e` on Linux),
+(`make ui-check`), **NSGo client** (`make nsgo-test nsgo-build`, then
+`make nsgo-live` under Xvfb, whose pictures it uploads) and **Desktop app**
+(Linux and Windows release builds, then `make desktop-e2e` on Linux),
 **Windows** (`go test ./...` on Windows) and **Windows app** (the
 installer and native app real-window checks; see below).
 The app targets normally run in the nsl machine; CI installs the same

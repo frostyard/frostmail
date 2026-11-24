@@ -93,8 +93,9 @@ look from a kit that FrostMail, Frostnotes and PocketGo share. Phase 0 is
 done (2026-11-24): the kit moved from `frostyard/pocketgo` to
 `github.com/frostyard/frostui/workspaceui` (`workspaceui/v0.1.0`), and the
 three apps build on it. Phase 0.5, live UI tests in a real window with kept
-pictures, is next. No part of the look is built, and the MyGo client stays
-the default.
+pictures, is in progress: FrostMail's suite runs in a GTK window
+(`make nsgo-live`) and keeps 14 pictures of today's look; Frostnotes' is
+left. No part of the look is built, and the MyGo client stays the default.
 
 ## Two kinds of agent work
 
@@ -191,6 +192,12 @@ the default.
 - `make desktop-e2e` drives the built app in real windows on fixture mail
   (`internal/desktop/e2e`, `-tags e2e`; it needs a display: Xvfb with xdotool,
   or Windows' desktop).
+- `make nsgo-test` runs the NSGo client's workflows headless on fixture mail
+  (`cmd/frostmail-nsgo`, `-tags integration`); `make nsgo-live` runs the same
+  suite in a real GTK 4 window under Xvfb. A change of the client's look runs
+  `make nsgo-pictures` and commits the changed PNGs of
+  `cmd/frostmail-nsgo/comparison/linux`
+  ([design/testing.md](docs/design/testing.md#the-nsgo-clients-live-suite)).
 - `make vulncheck` runs govulncheck (pinned in the Makefile; needs the
   network). It is not part of `check`, `verify` or `ci`; the CI job
   "Vulnerabilities (make vulncheck)" runs it. Keep it at 0 reachable findings.
