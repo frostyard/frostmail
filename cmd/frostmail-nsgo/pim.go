@@ -98,7 +98,74 @@ func (w *workspace) tasks(cx *core.Scope) core.Node {
 			return c.Tasks().List(ctx, &api.TasksListParams{ListID: id, Completed: &value})
 		}
 	})
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Button{Text: "New task", OnPress: func() { w.taskForm(api.Task{ListID: list.GetUntracked()}, load) }}, ui.Checkbox{Text: "Include completed", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }}), w.collectionFilter(cx, "Task lists", func(c api.Collection) bool { return c.Tasks }, list, load), button("Flagged mail", func() { w.navigate("flagged") }), collectionList(rows, "Tasks", func(t api.Task) string { return t.Title }, func(t api.Task) string { return t.Due }, func(t api.Task) { w.taskDetail(t, load) })}}
+	mode := core.NewSignal(cx, "All tasks")
+	watchFlagged := func(owner *core.Scope) core.Node {
+		flagged := w.flaggedMessages(owner, 200)
+		return core.Scroll{Style: ui.FillRest, Children: []core.Node{core.Dynamic(func(*core.Scope) core.Node {
+			var items []core.Node
+			for _, m := range flagged() {
+				items = append(items, w.flagTaskRow(m))
+			}
+			if len(items) == 0 {
+				return core.Text{Content: "No flagged mail"}
+			}
+			return workspaceui.Stack(items...)
+		})}}
+	}
+	return core.View{Style: ui.FillRest, Children: []core.Node{
+		ui.Tabs[string]{Label: "Task view", Options: named("Today", "All tasks", "Flagged mail"), Value: mode.Get, OnChange: mode.Set},
+		core.Dynamic(func(owner *core.Scope) core.Node {
+			tab := mode.Get()
+			if tab == "Flagged mail" {
+				return watchFlagged(owner)
+			}
+			today := time.Now().Format(time.DateOnly)
+			newTask := func() {
+				t := api.Task{ListID: list.GetUntracked()}
+				if tab == "Today" {
+					t.Due = today
+				}
+				w.taskForm(t, load)
+			}
+			shown := core.NewMemoFunc(owner, func() []api.Task {
+				all := rows.Get()
+				if tab != "Today" {
+					return all
+				}
+				var due []api.Task
+				for _, t := range all {
+					if !t.Completed && t.Due != "" && t.Due <= today {
+						due = append(due, t)
+					}
+				}
+				return due
+			}, slices.Equal)
+			items := ui.List{Label: "Tasks", Style: ui.FillRest, EstimatedSize: 52, Count: func() int { return len(shown.Get()) }, Row: func(_ *core.Scope, row core.ListRow) core.Node {
+				return core.Dynamic(func(*core.Scope) core.Node {
+					all := shown.Get()
+					i := row.Index()
+					if i < 0 || i >= len(all) {
+						return nil
+					}
+					t := all[i]
+					inset := core.Points(0)
+					if t.ParentID != nil && slices.ContainsFunc(all[:i], func(other api.Task) bool { return other.ID == *t.ParentID }) {
+						inset = 24
+					}
+					label := t.Due
+					if t.MessageID != nil {
+						label = strings.TrimSpace(label + "  · From mail")
+					}
+					return core.View{Style: core.Style{Padding: core.Edges{Left: inset}}, Children: []core.Node{workspaceui.Row(ui.Checkbox{Label: "Completed: " + t.Title, Checked: func() bool { return t.Completed }, Disabled: func() bool { return t.ReadOnly }, OnChange: func(done bool) { w.setTaskCompleted(t, done, load) }}, button(t.Title, func() { w.taskDetail(t, load) }), core.Text{Content: label, Style: ui.TypeCaption})}}
+				})
+			}, Empty: core.Text{Content: "No tasks"}}
+			bar := []core.Node{ui.Button{Text: "New task", OnPress: newTask}}
+			if tab != "Today" {
+				bar = append(bar, ui.Checkbox{Text: "Include completed", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }})
+			}
+			return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(bar...), w.collectionFilter(owner, "Task lists", func(c api.Collection) bool { return c.Tasks }, list, load), items}}
+		}),
+	}}
 }
 func (w *workspace) taskDetail(t api.Task, load func()) {
 	w.show(func(*core.Scope) core.Node {

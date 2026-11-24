@@ -19,7 +19,11 @@ import (
 
 func (w *workspace) calendar(cx *core.Scope) core.Node {
 	today := time.Now()
+	if !w.calendarDate.IsZero() {
+		today = w.calendarDate
+	}
 	day := core.NewSignal(cx, today)
+	cx.Effect(func() { w.calendarDate = day.Get() })
 	span := core.NewSignal(cx, "Month")
 	cal := core.NewSignal(cx, int64(0))
 	query := core.NewSignal(cx, "")
@@ -67,17 +71,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	}
 	picker := ui.DatePicker{Label: "Choose date", Value: func() base.DateValue { return base.DateValue{Start: day.Get()} }, OnChange: func(v base.DateValue) { day.Set(v.Start); load() }}
 	filter := w.collectionFilter(cx, "Calendar", func(c api.Collection) bool { return c.Events }, cal, load)
-	show := func(o api.Occurrence) {
-		perform(w, func(ctx context.Context, c *api.Client) (*api.CalendarEvent, error) {
-			return c.Calendar().Event(ctx, &api.CalendarEventParams{ID: o.EventID, RecurrenceID: changed("", o.RecurrenceID)})
-		}, func(e *api.CalendarEvent, err error) {
-			if err != nil {
-				w.problem.Set(err.Error())
-				return
-			}
-			w.eventDetail(*e, load)
-		})
-	}
+	show := func(o api.Occurrence) { w.showOccurrence(o, load) }
 	agenda := collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
 		if o.AllDay {
 			return o.StartDate + " · All day"
@@ -284,5 +278,17 @@ func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load f
 			return err
 		}, load)
 		return nil
+	})
+}
+
+func (w *workspace) showOccurrence(o api.Occurrence, load func()) {
+	perform(w, func(ctx context.Context, c *api.Client) (*api.CalendarEvent, error) {
+		return c.Calendar().Event(ctx, &api.CalendarEventParams{ID: o.EventID, RecurrenceID: changed("", o.RecurrenceID)})
+	}, func(e *api.CalendarEvent, err error) {
+		if err != nil {
+			w.problem.Set(err.Error())
+			return
+		}
+		w.eventDetail(*e, load)
 	})
 }

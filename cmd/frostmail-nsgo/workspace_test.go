@@ -181,3 +181,14 @@ func TestDragMessageToMailbox(t *testing.T) {
 	a.Press("label:All Drafts")
 	a.WaitFor("label:"+subject, 8*time.Second)
 }
+
+func TestTodoRailCreatesTask(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:To-Do Bar")
+	a.WaitFor("label:New task title", 5*time.Second)
+	a.Type("label:New task title", "A task from the mail rail")
+	a.Submit("label:New task title")
+	a.WaitUntil(5*time.Second, func() bool { return a.Find("label:New task title").Text == "" })
+	a.Press("label:Tasks")
+	a.WaitFor("label:A task from the mail rail", 5*time.Second)
+}
