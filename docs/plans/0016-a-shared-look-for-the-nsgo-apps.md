@@ -384,6 +384,12 @@ pictures.
   show is that the navigation's head no longer names the app on Linux.
   The phase stays open until the owner looks at a client's window on a
   desktop, or accepts closing without it.
+- **The owner's picture (2026-11-24).** Brian's screenshot of PocketGo's
+  window on his desktop, in Frostyard, shows the system's title bar with
+  the app's name and, under it, the navigation's head with its toggle and
+  no name: the name once. It shows PocketGo only. FrostMail's and
+  Frostnotes' windows were not looked at on a desktop; the same `Shell`
+  of the kit draws their heads.
 - **Seen in the pictures, for Phase 2:** a dialog's and a palette's panel
   let the view under them show through and take the ground's color, not
   the panel's; in a wide window the content's ground is 1 step of 255 off
