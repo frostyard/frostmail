@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	oldcompose "github.com/frostyard/frostmail/internal/desktop/compose"
-	"github.com/frostyard/pocketgo/desktop/workspaceui"
+	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base/richeditor"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"

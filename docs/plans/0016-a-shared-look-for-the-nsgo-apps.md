@@ -3,7 +3,8 @@
 - **Status:** Phase 0 in progress (2026-11-24). The owner chose D1 to D4 on
   2026-11-24
   ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)).
-  No part of the look is built.
+  The kit is in frostui and tagged, and FrostMail's client builds on it;
+  Frostnotes and PocketGo are left to switch. No part of the look is built.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -185,6 +186,12 @@ the kit decides how they look.
 - The maintainer tags the module (`workspaceui/v0.1.0`). Then each of the
   three apps takes the new import path in a change of its own, with no
   change in what it draws, and PocketGo removes its copy.
+- **Done so far (2026-11-24):** frostyard/frostui#70 merged, and Brian
+  tagged `workspaceui/v0.1.0` on its merge commit. FrostMail's
+  `cmd/frostmail-nsgo` requires that version: `make check` and
+  `make nsgo-test` pass with only the import path, `go.mod`, `go.sum` and
+  the Flatpak's `go-sources.json` changed. Frostnotes and PocketGo have not
+  switched yet, so the phase stays open.
 - **Done when:** the ADRs are accepted, and FrostMail, Frostnotes and
   PocketGo build and pass their gates on one tagged version of the kit.
 

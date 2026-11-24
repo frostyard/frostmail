@@ -90,9 +90,11 @@ and [ADR-0062](docs/adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-sh
 (Accepted, 2026-11-24) give the NSGo client (`cmd/frostmail-nsgo`,
 [ADR-0061](docs/adr/0061-share-the-mail-client-with-nsgo.md)) Frostyard's
 look from a kit that FrostMail, Frostnotes and PocketGo share. Phase 0 is
-in progress: the kit moves from `frostyard/pocketgo` to
-`github.com/frostyard/frostui/workspaceui`. No part of the look is built,
-and the MyGo client stays the default.
+in progress: the kit moved from `frostyard/pocketgo` to
+`github.com/frostyard/frostui/workspaceui` (Brian tagged
+`workspaceui/v0.1.0` on 2026-11-24), and the client builds on it; Frostnotes
+and PocketGo are left to switch. No part of the look is built, and the MyGo
+client stays the default.
 
 ## Two kinds of agent work
 
@@ -218,6 +220,11 @@ and the MyGo client stays the default.
   read its `docs/design/frostui.md` API changes after a bump),
   `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
+- The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
+  `github.com/frostyard/frostui/workspaceui` v0.1.0, the kit it shares with
+  Frostnotes and PocketGo (a module of its own in frostui, tags
+  `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
+  `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.
 - MyGo is `github.com/egoist/mygo` v0.10.0. The quotation-depth change
   (upstream #1731) first shipped upstream in v0.9.1, which replaced the owner's
   fork pin of [ADR-0058](docs/adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md).
