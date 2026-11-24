@@ -107,6 +107,7 @@ func (w *workspace) scopeFor(e api.CalendarEvent, f func(*api.EventScope)) {
 	})
 }
 func (w *workspace) eventDetail(e api.CalendarEvent, load func()) {
+	defer func() { w.routePanel(eventPath(e)) }()
 	w.show(func(*core.Scope) core.Node {
 		when := e.Start.Local().Format(time.DateTime) + " – " + e.End.Local().Format(time.DateTime)
 		if e.AllDay {
@@ -153,6 +154,7 @@ func (w *workspace) writeEvent(op func(context.Context, *api.Client, *bool) erro
 	})
 }
 func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load func()) {
+	defer func() { w.routePanel(eventPath(e)) }()
 	loc := time.Local
 	if e.TimeZone != "" {
 		if v, err := time.LoadLocation(e.TimeZone); err == nil {

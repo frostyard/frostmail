@@ -27,6 +27,8 @@ func main() {
 
 type workspace struct {
 	deferredOpen    func()
+	beforeRoute     func(func(), func())
+	routeGeneration int
 	trayAvailable   bool
 	trayChoice      *core.Signal[bool]
 	listState       mail.ListState

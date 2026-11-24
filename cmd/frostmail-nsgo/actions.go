@@ -13,9 +13,18 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-type panel struct{ render func(*core.Scope) core.Node }
+type panel struct {
+	render func(*core.Scope) core.Node
+	route  string
+}
 
-func (w *workspace) show(render func(*core.Scope) core.Node) { w.overlay.Set(&panel{render}) }
+func (w *workspace) routePanel(route string) {
+	if p := w.overlay.GetUntracked(); p != nil {
+		w.overlay.Set(&panel{render: p.render, route: route})
+	}
+}
+
+func (w *workspace) show(render func(*core.Scope) core.Node) { w.overlay.Set(&panel{render: render}) }
 func (w *workspace) closePanel()                             { w.overlay.Set(nil) }
 func (w *workspace) dialog(title string, children []core.Node, footer ...core.Node) ui.Dialog {
 	if len(footer) == 0 {

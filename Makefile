@@ -318,11 +318,12 @@ nsgo-test: ## Exercise the shared mail workspace and compile it for Lodge
 	cd cmd/frostmail-nsgo && go test -tags integration ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .
 
 NSGO_STAGE := build/nsgo-lodge
+NSGO_APP_RELEASE = $(NSGO_STAGE)/release/FrostMail-$(shell sed -n 's/^version: //p' cmd/frostmail-nsgo/nsgo.yaml)-web
 nsgo-lodge-app: ## Stage the shared Wasm client as the Lodge mail app
 	cd cmd/frostmail-nsgo && go tool nsgo build -target web -channel none -installers=false -output ../../$(NSGO_STAGE)/release
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --base /app/mail/ --mode nsgo --outDir ../$(NSGO_STAGE)/apps/mail/web --emptyOutDir'
 	mv $(NSGO_STAGE)/apps/mail/web/nsgo.html $(NSGO_STAGE)/apps/mail/web/index.html
-	cp $(NSGO_STAGE)/release/FrostMail-0.9.0-web/nsgo.json $(NSGO_STAGE)/apps/mail/web/
-	cd $(NSGO_STAGE)/release/FrostMail-0.9.0-web && cp nsgo.*.js wasm_exec.*.js *.wasm *.txt ../../apps/mail/web/assets/
+	cp $(NSGO_APP_RELEASE)/nsgo.json $(NSGO_STAGE)/apps/mail/web/
+	cd $(NSGO_APP_RELEASE) && cp nsgo.*.js wasm_exec.*.js *.wasm *.txt ../../apps/mail/web/assets/
 	cp packaging/icons/icon.svg $(NSGO_STAGE)/apps/mail/web/
 	cp packaging/lodge/app.json $(NSGO_STAGE)/apps/mail/

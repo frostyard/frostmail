@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,9 +43,9 @@ func collection[T any](cx *core.Scope, w *workspace, match func(api.Event) bool,
 		if match(ev) {
 			cx.Post(func() {
 				if scheduled != nil {
-					scheduled()
+					return
 				}
-				scheduled = cx.AfterFunc(100*time.Millisecond, load)
+				scheduled = cx.AfterFunc(100*time.Millisecond, func() { scheduled = nil; load() })
 			})
 		}
 	}))
@@ -81,7 +82,7 @@ func (w *workspace) form(title string, fields []editField, submit func([]string)
 		}
 		children = append(children, core.Text{ContentFunc: problem.Get})
 		return w.dialog(title, []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(480)}, Children: children}}, ui.Button{Text: "Cancel", Variant: ui.ButtonSecondary, OnPress: w.closePanel}, ui.Button{Text: "Save", Disabled: w.acting.Get, OnPress: func() {
-			if err := submit(values); err != nil {
+			if err := submit(slices.Clone(values)); err != nil {
 				problem.Set(err.Error())
 			}
 		}})
@@ -307,4 +308,5 @@ func (w *workspace) reminders() {
 		})
 		return w.dialog("Calendar reminders", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(440)}, Children: []core.Node{nodes}}})
 	})
+	w.routePanel("/reminders")
 }

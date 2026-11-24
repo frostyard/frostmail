@@ -30,6 +30,7 @@ func (w *workspace) editDraft(d *api.Draft, err error) {
 		return
 	}
 	w.show(func(cx *core.Scope) core.Node { return w.compose(cx, d) })
+	w.routePanel(fmt.Sprintf("/compose/%d", d.ID))
 }
 func addressLine(list []api.Address) string {
 	tokens := make([]string, 0, len(list))
@@ -52,6 +53,7 @@ type draftEditor struct {
 	changed, saved int
 	saving         bool
 	afterSave      func()
+	onFailure      func()
 	timer          func() bool
 }
 
@@ -74,6 +76,10 @@ func (e *draftEditor) flush(f func()) {
 func (e *draftEditor) fail(err error) {
 	e.busy.Set(false)
 	e.afterSave = nil
+	if report := e.onFailure; report != nil {
+		e.onFailure = nil
+		report()
+	}
 	e.status.Set(err.Error())
 }
 func (e *draftEditor) save() {
@@ -133,6 +139,15 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 	})
 	cx.Cleanup(stop)
+	w.beforeRoute = func(goTo, stay func()) {
+		if e.busy.GetUntracked() {
+			stay()
+			return
+		}
+		e.onFailure = stay
+		e.flush(func() { e.onFailure = nil; goTo() })
+	}
+	cx.Cleanup(func() { w.beforeRoute = nil })
 	// Keep the window open while its only copy of a local edit is unsaved.
 	cx.OnQuitRequest(func(q *core.QuitRequest) {
 		if e.changed != e.saved || e.busy.GetUntracked() {

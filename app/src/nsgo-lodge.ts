@@ -2,8 +2,23 @@ import { connectLodge } from "@frostyard/lodge-client";
 
 async function openPreview() {
   const lodge = await connectLodge({ app: "mail" });
+  let receive: ((route: string) => void) | undefined;
+  const location = lodge.history.location;
+  let current = location.pathname + location.search + location.hash;
+  lodge.on("navigate", ({ route }) => {
+    current = route;
+    receive?.(route);
+  });
   Object.assign(window, {
     frostmailLodge: {
+      onRoute(callback?: (route: string) => void) {
+        receive = callback;
+        return current;
+      },
+      report(route: string, title: string, replace: boolean) {
+        if (route !== current) lodge.route(route, title, { replace });
+        current = route;
+      },
       contentURL: (path: string) => lodge.contentURL(path),
       download: (path: string) => lodge.open(`${lodge.contentURL(path)}?download=1`),
     },
