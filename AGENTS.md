@@ -92,10 +92,12 @@ and [ADR-0062](docs/adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-sh
 look from a kit that FrostMail, Frostnotes and PocketGo share. Phase 0 is
 done (2026-11-24): the kit moved from `frostyard/pocketgo` to
 `github.com/frostyard/frostui/workspaceui` (`workspaceui/v0.1.0`), and the
-three apps build on it. Phase 0.5, live UI tests in a real window with kept
-pictures, is in progress: FrostMail's suite runs in a GTK window
-(`make nsgo-live`) and keeps 14 pictures of today's look; Frostnotes' is
-left. No part of the look is built, and the MyGo client stays the default.
+three apps build on it. Phase 0.5 is done (2026-11-24): FrostMail's and
+Frostnotes' suites run in a real GTK window (`make nsgo-live`) and keep
+their pictures. Phase 1 is in progress: the kit has the Frostyard themes
+(`workspaceui/v0.2.0`), and the client draws them, in Inter, with a saved
+choice of appearance; Frostnotes and PocketGo are left. Nothing of the
+window's layout has changed, and the MyGo client stays the default.
 
 ## Two kinds of agent work
 
@@ -235,7 +237,7 @@ left. No part of the look is built, and the MyGo client stays the default.
   `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
 - The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
-  `github.com/frostyard/frostui/workspaceui` v0.1.0, the kit it shares with
+  `github.com/frostyard/frostui/workspaceui` v0.2.0, the kit it shares with
   Frostnotes and PocketGo (a module of its own in frostui, tags
   `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
   `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.

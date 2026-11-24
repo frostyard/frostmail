@@ -147,6 +147,9 @@ func (w *workspace) general(cx *core.Scope) core.Node {
 				}, nil)
 			}))
 		}
+		if desktopServer {
+			nodes = append([]core.Node{field("Appearance", workspaceui.AppearanceChoice{Value: w.appearance.Get, OnChange: w.saveAppearance})}, nodes...)
+		}
 		return workspaceui.Page(nodes...)
 	})
 }

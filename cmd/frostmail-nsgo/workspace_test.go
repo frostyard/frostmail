@@ -65,6 +65,14 @@ func fixtureWithSMTP(t *testing.T, smtp string) *nsgotest.App {
 // fixtureSized starts the client in a window of the given size.
 func fixtureSized(t *testing.T, smtp string, width, height core.Points) *nsgotest.App {
 	t.Helper()
+	return fixtureLook(t, smtp, width, height, false)
+}
+
+// fixtureLook starts the client in a window of the given size, in the dark
+// appearance or the light one: the test names it, so that a run does not
+// follow its host's.
+func fixtureLook(t *testing.T, smtp string, width, height core.Points, dark bool) *nsgotest.App {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "fm-ui-")
 	if err != nil {
 		t.Fatal(err)
@@ -104,13 +112,33 @@ func fixtureSized(t *testing.T, smtp string, width, height core.Points) *nsgotes
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = daemon.Process.Kill(); _ = daemon.Wait() })
-	a := nsgotest.Start(t, root, nsgotest.Size(width, height), nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1}))
+	a := nsgotest.Start(t, root, nsgotest.Size(width, height), nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1, Dark: dark}))
 	// A compact window (under 720) hides the navigation and its status line:
 	// its caller waits for what it shows instead.
 	if width >= 720 {
 		a.WaitFor("text:Connected · Local", 20*time.Second)
 	}
 	return a
+}
+
+// The General pane's choice of appearance shows at once and is kept on the
+// device.
+func TestAppearanceChoiceIsKept(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Settings")
+	a.Press("role:tab General")
+	a.WaitFor("role:tab Dark", 8*time.Second)
+	a.Press("role:tab Dark")
+	if a.Appearance != core.AppearanceDark {
+		t.Fatalf("the app asked for appearance %v after Dark, want dark", a.Appearance)
+	}
+	if got, _ := a.Storage().GetItem("appearance"); got != "dark" {
+		t.Fatalf("the kept appearance is %q, want dark", got)
+	}
+	a.Press("role:tab System")
+	if _, kept := a.Storage().GetItem("appearance"); kept || a.Appearance != core.AppearanceSystem {
+		t.Fatalf("after System the device keeps a choice (%v) or the app asks for %v", kept, a.Appearance)
+	}
 }
 
 func TestMailboxReadsFixture(t *testing.T) {
