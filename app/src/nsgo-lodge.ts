@@ -23,7 +23,11 @@ async function openPreview() {
         document.getElementById("mail-print")?.remove();
         const printable = document.createElement("article");
         printable.id = "mail-print";
-        for (const [tag, value] of [["h1", subject], ["pre", headers], ["pre", text]] as const) {
+        for (const [tag, value] of [
+          ["h1", subject],
+          ["pre", headers],
+          ["pre", text],
+        ] as const) {
           const element = document.createElement(tag);
           element.textContent = value;
           printable.append(element);
@@ -33,6 +37,7 @@ async function openPreview() {
         window.print();
       },
       contentURL: (path: string) => lodge.contentURL(path),
+      openPart: (path: string) => lodge.open(lodge.contentURL(path)),
       download: (path: string) => lodge.open(`${lodge.contentURL(path)}?download=1`),
     },
   });

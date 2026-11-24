@@ -180,14 +180,22 @@ func (w *workspace) readerExtras(m *api.Message) []core.Node {
 	}
 	parts := mail.Attachments(m.Parts, invitation)
 	if len(parts) > 0 {
-		nodes = append(nodes, workspaceui.Section{Title: "Attachments", Count: func() int { return len(parts) }, Content: func(*core.Scope) core.Node {
+		nodes = append(nodes, workspaceui.Section{Title: "Attachments", Count: func() int { return len(parts) }, Content: func(scope *core.Scope) core.Node {
 			var files []core.Node
+			previews := mail.Previews(parts)
 			for _, p := range parts {
 				name := p.Filename
 				if name == "" {
 					name = p.ContentType
 				}
-				files = append(files, button("Save "+name+" · "+mail.FormatSize(p.Size), func() { w.savePart(m.Summary.ID, p) }))
+				if slices.ContainsFunc(previews, func(preview api.Part) bool { return preview.Path == p.Path }) {
+					files = append(files, w.partThumbnail(scope, m.Summary.ID, p))
+				}
+				actions := []core.Node{button("Save "+name+" · "+mail.FormatSize(p.Size), func() { w.savePart(m.Summary.ID, p) })}
+				if desktopServer || p.ContentType == "application/pdf" || mail.Previewable(p) {
+					actions = append(actions, button("Open "+name, func() { w.openAttachment(m.Summary.ID, p) }))
+				}
+				files = append(files, workspaceui.Row(actions...))
 			}
 			return workspaceui.Stack(files...)
 		}})

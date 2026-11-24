@@ -113,3 +113,20 @@ func (w *workspace) traySetting() core.Node { return nil }
 func (w *workspace) printMessage(p *messagePage) {
 	js.Global().Get("frostmailLodge").Call("printMessage", p.message.Summary.Subject, strings.Join(printHeaders(p.message), "\n"), p.rendering.Text)
 }
+
+func (w *workspace) partThumbnail(*core.Scope, int64, api.Part) core.Node { return nil }
+func (w *workspace) openAttachment(id int64, p api.Part) {
+	perform(w, func(ctx context.Context, c *api.Client) (*api.PartFile, error) {
+		return c.Message().Part(ctx, &api.MessagePartParams{ID: id, Path: p.Path})
+	}, func(file *api.PartFile, err error) {
+		if err != nil {
+			w.problem.Set(err.Error())
+			return
+		}
+		if file.ContentPath == nil {
+			w.problem.Set("Lodge returned no attachment path")
+			return
+		}
+		js.Global().Get("frostmailLodge").Call("openPart", *file.ContentPath)
+	})
+}
