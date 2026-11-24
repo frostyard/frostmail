@@ -26,6 +26,7 @@ rm -rf resources
 mkdir -p "$res"
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w $stamp -H=windowsgui" -o "$res/maild.exe" ./cmd/maild
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w $stamp" -o "$res/mailctl.exe" ./cmd/mailctl
+(cd cmd/frostmail-nsgo && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -H=windowsgui" -o "../../$res/frostmail-nsgo.exe" .)
 cp "$notifier" "$res/frostmail-notify.exe"
 cp packaging/icons/128x128.png "$res/frostmail.png"
 MYGO_LDFLAGS="$stamp" go tool mygo build -platform windows/amd64
