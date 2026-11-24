@@ -66,7 +66,7 @@ def smoke(tools, root, cleanup):
     (root/"run/lodge/apps").mkdir(parents=True)
     shutil.copytree(tools/"lodge/shell", root/"usr/share/lodge/shell")
     shutil.copytree("build/nsgo-lodge/apps/mail", root/"usr/share/lodge/apps/mail")
-    run(["go", "build", "-o", str(root)+"/", "./cmd/maild", "./tools/uifixture"])
+    subprocess.run(["go", "build", "-o", str(root)+"/", "./cmd/maild", "./tools/uifixture"], check=True)
     run([root/"uifixture", "-out", root/"data", "-showcase", "tools/uifixture/showcase"])
     origin = f"http://127.0.0.1:{port()}"
     start([tools/"lodge/lodge-e2e", "--root", root, "--listen", origin.removeprefix("http://"),
@@ -123,7 +123,32 @@ def smoke(tools, root, cleanup):
     post("/refresh", {})
     enter_mail()
     wait("direct message link", lambda: script('return !!document.querySelector("iframe[src]")'))
-    print("PASS: fixture inbox, isolated message content, settings link and browser Back")
+    def click(label):
+        selector = json.dumps(f'[aria-label="{label}"]')
+        wait(label, lambda: script(
+            f"const el=document.querySelector({selector}); if(!el)return false; el.click(); return true"))
+
+    click("Compose")
+    field = wait("draft subject", lambda: script(
+        """const root=document.querySelector('[aria-label="Subject"]');
+        return root && (root.matches('input,textarea') ? root : root.querySelector('input,textarea'));"""))
+    draft_title = "Edited in the Lodge browser"
+    element_id = field["element-6066-11e4-a52e-4f735466cecf"]
+    post(f"/element/{element_id}/value", {"text": draft_title})
+    post("/frame", {"id": None})
+    draft_url = wait("draft route", lambda: (
+        url if "/compose/" in (url := request(browser+"/url")) else None))
+    enter_mail()
+    click("Save and close")
+    post("/frame", {"id": None})
+    wait("draft closed", lambda: request(browser+"/url") != draft_url)
+    post("/url", {"url": draft_url})
+    enter_mail()
+    wait("saved subject at draft permalink", lambda: script(
+        """const root=document.querySelector('[aria-label="Subject"]');
+        const el=root && (root.matches('input,textarea') ? root : root.querySelector('input,textarea'));
+        return el && el.value === 'Edited in the Lodge browser'"""))
+    print("PASS: inbox, isolated reader, settings, Back, refresh and editable draft permalink")
 
 
 if __name__ == "__main__":
