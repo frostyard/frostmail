@@ -815,10 +815,29 @@ stand-ins of its panes with the control map's controls (rule 11):
       page in an order that is not the screen's and differed with each
       load.
     - Not seen: NSGo's desktop presentation in a browser.
+  - **The same check again (2026-11-24),** after the 2 fixes, in each
+    presentation: Firefox as it is, and Firefox told to report a pointer
+    that is fine and hovers (`ui.primaryPointerCapabilities` and
+    `ui.allPointerCapabilities` at 6). 30 pictures, not kept.
+    - In all 30 views the frame was as wide as its content (1232 of 1232
+      and 572 of 572): nothing ran past it, compose and the narrow
+      Calendar included.
+    - With the pointer, NSGo's own test for a desktop was true at 1232
+      wide, and the Compose button measured 28 high (44 without): the
+      desktop presentation, with compose a centred dialog whose fields
+      and buttons are whole, in the 1 picture of it the agent looked at.
+    - At 572 wide the test was false with the pointer too, by its 600
+      minimum: a narrow browser window gets the touch presentation.
+    - 1 fault left, seen in the narrow sheet's picture: compose's 5
+      fields end about 12 points short of the sheet's inner edge, cut,
+      where the buttons under them reach it. The cause is not found, and
+      the desktop dialog does not show it.
+    - The agent looked at 2 of the 30 pictures; the rest is from the
+      page's measurements.
   - **Left of 4e:** the kit's spacing and the 13 paddings
-    (frostyard/frostui#78 adds the spacing; it needs the kit's tag); a
-    browser check of the 2 fixes and of the desktop presentation; the
-    README's pictures.
+    (frostyard/frostui#78 adds the spacing; it needs the kit's tag); the
+    cut fields of the compose sheet; the README's pictures, which stay
+    the default client's while that is the MyGo one.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
