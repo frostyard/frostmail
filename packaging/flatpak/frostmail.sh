@@ -74,6 +74,9 @@ set -u
 
 libexec="${FROSTMAIL_LIBEXEC_DIR:-/app/libexec}"
 app="$libexec/frostmail-app"
+if [ "${FROSTMAIL_UI:-mygo}" = nsgo ]; then
+    app="$libexec/frostmail-nsgo"
+fi
 app_open="$libexec/frostmail-open"
 request_background="$libexec/frostmail-request-background"
 

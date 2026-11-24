@@ -1,20 +1,29 @@
 #!/bin/sh
-# Regenerate the Flatpak's offline sources (make flatpak-sources;
-# docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md):
-#
-#   packaging/flatpak/go-sources.json   the Go modules of the app, maild and
-#                                       mailctl, from go.mod and go.sum
-#
-# Run it after any change to those 2 files; CI regenerates the file and fails
-# when it differs. It needs the network and Go on the host. The generator is
-# tools/flatpakgo, in this repository.
+# Build the checksummed offline module proxy shared by maild and both GUI
+# modules. A local replace (including the parent FrostMail module) already
+# comes from the checkout.
 set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-out=packaging/flatpak
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+go build -o "$stage/flatpakgo" ./tools/flatpakgo
+"$stage/flatpakgo" > "$stage/root.json"
+(cd cmd/frostmail-nsgo && "$stage/flatpakgo") > "$stage/nsgo.json"
 
-# The Go modules: one file source per module, with its checksum, for a
-# file:// GOPROXY (the frostmail module in the manifest).
-go run ./tools/flatpakgo >"$out/go-sources.json.tmp"
-mv "$out/go-sources.json.tmp" "$out/go-sources.json"
+python3 - "$stage/root.json" "$stage/nsgo.json" packaging/flatpak/go-sources.json <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root, gui, output = map(Path, sys.argv[1:])
+sources = {}
+for manifest in (root, gui):
+    for source in json.loads(manifest.read_text()):
+        key = (source["dest"], source.get("dest-filename", source["url"].rsplit("/", 1)[-1]))
+        if key in sources and source != sources[key]:
+            raise ValueError(f"conflicting module sources for {key}")
+        sources[key] = source
+output.write_text(json.dumps(list(sources.values()), indent=2) + "\n")
+PY

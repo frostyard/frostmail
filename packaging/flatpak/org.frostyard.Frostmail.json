@@ -34,6 +34,8 @@
       },
       "build-commands": [
         "go build -tags mygo_noinspector -ldflags '-s -w -X main.version=flatpak -X github.com/egoist/mygo.production=1' -o build/ ./cmd/frostmail ./cmd/maild ./cmd/mailctl",
+        "cd cmd/frostmail-nsgo && go build -ldflags '-s -w' -o ../../build/frostmail-nsgo .",
+        "install -Dm755 build/frostmail-nsgo /app/libexec/frostmail-nsgo",
         "install -Dm755 -t /app/bin build/maild build/mailctl",
         "install -Dm755 build/frostmail /app/libexec/frostmail-app",
         "install -Dm755 packaging/flatpak/frostmail.sh /app/bin/frostmail",
@@ -50,7 +52,7 @@
         "/app/bin/mailctl --help",
         "desktop-file-validate /app/share/applications/org.frostyard.Frostmail.desktop",
         "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",
-        "python3 -c \"import ctypes; [ctypes.CDLL(n) for n in ('libgtk-3.so.0', 'libwebkit2gtk-4.1.so.0', 'libjavascriptcoregtk-4.1.so.0', 'libsoup-3.0.so.0', 'libayatana-appindicator3.so.1')]\"",
+        "python3 -c \"import ctypes; [ctypes.CDLL(n) for n in ('libgtk-4.so.1', 'libwebkitgtk-6.0.so.4', 'libgtk-3.so.0', 'libwebkit2gtk-4.1.so.0', 'libjavascriptcoregtk-4.1.so.0', 'libsoup-3.0.so.0', 'libayatana-appindicator3.so.1')]\"",
         "python3 -m py_compile packaging/flatpak/request-background.py",
         "sh -n packaging/flatpak/open.sh",
         "python3 -c \"from gi.repository import Gio, GLib\"",
