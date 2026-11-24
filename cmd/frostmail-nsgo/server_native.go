@@ -35,7 +35,7 @@ func (w *workspace) serverPanel(cx *core.Scope) core.Node {
 	if facts.Flatpak {
 		nodes = append(nodes, core.Text{Content: "Switching to Lodge stops this computer’s maild. Switching back starts its sync, rules, and outbox again."})
 	}
-	nodes = append(nodes, button("Save server", func() {
+	nodes = append(nodes, primary("Save server", func() {
 		next := strings.TrimSpace(value)
 		if next == cfg.Lodge {
 			return

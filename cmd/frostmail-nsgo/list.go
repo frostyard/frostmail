@@ -29,8 +29,11 @@ type pending int
 // messageList is the list pane.
 func (w *workspace) messageList() core.Node {
 	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
+	// The field is built again only when its source's name changes: built
+	// with every change of the store, it lost what was being typed.
+	title := core.NewMemo(w.cx, w.title)
 	field := core.Dynamic(func(*core.Scope) core.Node {
-		return workspaceui.SearchField{Placeholder: "Search " + w.title(), Keys: "mod+alt+f", Ref: w.searchInput, Value: w.term.Get, OnSubmit: search,
+		return workspaceui.SearchField{Placeholder: "Search " + title.Get(), Keys: "mod+alt+f", Ref: w.searchInput, Value: w.term.Get, OnSubmit: search,
 			OnChange: func(s string) {
 				w.term.Set(s)
 				// Clearing the field ends a search; typing starts none until Enter.
@@ -286,7 +289,7 @@ func (w *workspace) bulkTools(ids []int64) ([]toolGroup, []core.Node) {
 	yes, no := true, false
 	file, mark := groups[0].tools, groups[2].tools
 	file[1].run = func() {
-		w.confirm("Delete selected messages?", fmt.Sprintf("%d selected messages", len(ids)), "Delete", func() {
+		w.destroy("Delete selected messages?", fmt.Sprintf("%d selected messages", len(ids)), "Delete", func() {
 			w.change(func(ctx context.Context, c *api.Client) error {
 				_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids}) })
 				return err

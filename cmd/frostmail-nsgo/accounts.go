@@ -14,7 +14,16 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-func button(label string, press func()) ui.Button { return ui.Button{Text: label, OnPress: press} }
+// button is a button of a region that is not its one main action: quiet,
+// so that the main one, primary, is the only filled button there (plan
+// 0016, rule 3). danger is one that destroys.
+func button(label string, press func()) ui.Button {
+	return ui.Button{Text: label, Variant: ui.ButtonSecondary, OnPress: press}
+}
+func primary(label string, press func()) ui.Button { return ui.Button{Text: label, OnPress: press} }
+func danger(label string, press func()) ui.Button {
+	return ui.Button{Text: label, Variant: ui.ButtonDanger, OnPress: press}
+}
 func field(label string, input core.Node) core.Node {
 	return workspaceui.Stack(core.Text{Content: label, Style: ui.TypeCaption}, input)
 }
@@ -35,7 +44,7 @@ func named[T ~string](values ...T) []ui.Option[T] {
 func (w *workspace) accountsPanel(cx *core.Scope) core.Node {
 	return core.Dynamic(func(*core.Scope) core.Node {
 		w.state.Get()
-		nodes := []core.Node{button("Add account", func() { w.startAccount() })}
+		nodes := []core.Node{primary("Add account", func() { w.startAccount() })}
 		for _, a := range w.store.State().Accounts {
 			nodes = append(nodes, workspaceui.Card{Children: []core.Node{core.Text{Content: a.DisplayName, Style: ui.TypeTitle}, core.Text{Content: a.Email + " · " + string(a.Kind)}, workspaceui.Row(button("Manage "+a.Email, func() { w.accountMenu(a) }))}})
 		}
@@ -55,7 +64,7 @@ func (w *workspace) startAccount() {
 				return
 			}
 			w.editAccount(manual())
-		}), button("Find settings", func() {
+		}), primary("Find settings", func() {
 			if invalid() {
 				w.problem.Set("Enter an email address.")
 				return
@@ -147,7 +156,7 @@ func (w *workspace) accountMenu(a api.Account) {
 		auth := button("Set password", func() {
 			w.show(func(*core.Scope) core.Node {
 				var password string
-				return w.dialog("Set password", []core.Node{stringField("Password", &password, true)}, button("Cancel", w.closePanel), button("Store password", func() {
+				return w.dialog("Set password", []core.Node{stringField("Password", &password, true)}, button("Cancel", w.closePanel), primary("Store password", func() {
 					if password == "" {
 						return
 					}
@@ -179,8 +188,8 @@ func (w *workspace) accountMenu(a api.Account) {
 					return w.dialog("Account verification", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(420)}, Children: rows}})
 				})
 			})
-		}), button("Remove account", func() {
-			w.confirm("Remove account?", "Remove "+a.Email+" and its locally stored mail and settings?", "Remove", func() {
+		}), danger("Remove account", func() {
+			w.destroy("Remove account?", "Remove "+a.Email+" and its locally stored mail and settings?", "Remove", func() {
 				w.change(func(ctx context.Context, c *api.Client) error {
 					return c.Account().Delete(ctx, &api.AccountDeleteParams{ID: a.ID})
 				}, nil)
@@ -256,7 +265,7 @@ func (w *workspace) services(a api.Account) {
 						_, err := c.Account().SetCollection(ctx, &api.AccountSetCollectionParams{ID: col.ID, Enabled: &enabled})
 						return err
 					}, reload)
-				}}, ui.Button{Text: "Use as default", Disabled: func() bool { return col.IsDefault }, OnPress: func() {
+				}}, ui.Button{Text: "Use as default", Variant: ui.ButtonSecondary, Disabled: func() bool { return col.IsDefault }, OnPress: func() {
 					v := true
 					w.change(func(ctx context.Context, c *api.Client) error {
 						_, err := c.Account().SetCollection(ctx, &api.AccountSetCollectionParams{ID: col.ID, IsDefault: &v})

@@ -10,6 +10,7 @@ import (
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -38,16 +39,40 @@ func (w *workspace) dialog(title string, children []core.Node, footer ...core.No
 		}
 	}, Children: append(children, core.Dynamic(func(*core.Scope) core.Node {
 		if err := w.problem.Get(); err != "" {
-			return workspaceui.Notice{Kind: ui.ToastWarning, Title: "Mail", Detail: err, OnDismiss: func() { w.problem.Set("") }}
+			return workspaceui.Banner{Tone: workspaceui.Danger, Icon: lucide.CircleAlert, Text: err, Action: "Dismiss", OnAction: func() { w.problem.Set("") }}
 		}
 		return nil
 	})), Footer: footer}
 }
 
+// confirm asks before an action that sends or changes something, and
+// destroy before one that removes it: NSGo's alert dialog on the kit's
+// panel, Cancel first and quiet, and a destroying action in the danger
+// variant (plan 0016, rules 3 and 4). Either takes the place of the panel
+// that asked.
 func (w *workspace) confirm(title, detail, label string, do func()) {
-	w.show(func(*core.Scope) core.Node {
-		d := w.dialog(title, []core.Node{core.Text{Content: detail}}, ui.Button{Text: "Cancel", Variant: ui.ButtonSecondary, OnPress: w.closePanel}, ui.Button{Text: label, OnPress: func() { w.closePanel(); do() }})
-		return d
+	w.ask(title, detail, label, ui.ButtonPrimary, do)
+}
+
+func (w *workspace) destroy(title, detail, label string, do func()) {
+	w.ask(title, detail, label, ui.ButtonDanger, do)
+}
+
+func (w *workspace) ask(title, detail, label string, variant ui.ButtonVariant, do func()) {
+	w.show(func(cx *core.Scope) core.Node {
+		// The alert reports that it closed after its action ran, which
+		// may have shown a panel of its own: only a cancelled alert
+		// closes what is shown.
+		answered := false
+		return ui.AlertDialog{Title: title, Description: detail, StyleFunc: workspaceui.DialogPanel(cx), Open: func() bool { return true },
+			OnOpenChange: func(open bool, _ base.Reason) {
+				if !open && !answered {
+					w.closePanel()
+				}
+			},
+			Actions: []ui.AlertAction{
+				{Text: "Cancel", Variant: ui.ButtonSecondary, Role: core.AlertCancel},
+				{Text: label, Variant: variant, Default: true, OnPress: func() { answered = true; w.closePanel(); do() }}}}
 	})
 }
 
@@ -103,7 +128,7 @@ func (w *workspace) moved(title string) func() {
 func (w *workspace) deleteMessage(m api.MessageSummary) {
 	undo := w.undo
 	ids := []int64{m.ID}
-	w.confirm("Delete message?", m.Subject, "Delete", func() {
+	w.destroy("Delete message?", m.Subject, "Delete", func() {
 		w.change(func(ctx context.Context, c *api.Client) error {
 			_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Delete(ctx, &api.MessageDeleteParams{IDs: ids}) })
 			return err

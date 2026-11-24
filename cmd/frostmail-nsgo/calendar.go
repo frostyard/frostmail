@@ -93,7 +93,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	for i, mode := range []string{"Day", "Week", "Month"} {
 		w.moduleKey(cx, fmt.Sprintf("mod+alt+%d", i+1), func() { span.Set(mode); load() })
 	}
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, button("New event", newEvent), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }}, core.Dynamic(func(owner *core.Scope) core.Node {
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, primary("New event", newEvent), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }}, core.Dynamic(func(owner *core.Scope) core.Node {
 		date, mode := day.Get(), span.Get()
 		if query.Get() != "" || owner.Env().Window().Width < 720 {
 			return agenda
@@ -115,7 +115,7 @@ func (w *workspace) scopeFor(e api.CalendarEvent, f func(*api.EventScope)) {
 			label string
 			v     api.EventScope
 		}{{"This occurrence", api.EventScopeThis}, {"This and future occurrences", api.EventScopeFuture}, {"Entire series", api.EventScopeAll}} {
-			actions = append(actions, ui.Button{Text: x.label, OnPress: func() { f(&x.v) }})
+			actions = append(actions, button(x.label, func() { f(&x.v) }))
 		}
 		return w.dialog("Which events?", actions)
 	})
@@ -159,9 +159,9 @@ func (w *workspace) eventDetail(e api.CalendarEvent, load func()) {
 				nodes = append(nodes, button("Move to calendar", func() { w.moveEvent(e, load) }))
 			}
 
-			nodes = append(nodes, workspaceui.Row(ui.Button{Text: "Edit event", OnPress: func() { w.scopeFor(e, func(scope *api.EventScope) { w.eventForm(e, scope, load) }) }}, ui.Button{Text: "Delete event", Variant: ui.ButtonGhost, OnPress: func() {
+			nodes = append(nodes, workspaceui.Row(ui.Button{Text: "Edit event", OnPress: func() { w.scopeFor(e, func(scope *api.EventScope) { w.eventForm(e, scope, load) }) }}, ui.Button{Text: "Delete event", Variant: ui.ButtonDanger, OnPress: func() {
 				w.scopeFor(e, func(scope *api.EventScope) {
-					w.confirm("Delete event?", e.Summary, "Delete", func() {
+					w.destroy("Delete event?", e.Summary, "Delete", func() {
 						w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) (*api.EventWrite, error) {
 							return c.Calendar().Delete(ctx, &api.CalendarDeleteParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Notify: notify})
 						}, load)
@@ -188,7 +188,7 @@ func (w *workspace) writeEvent(op eventOperation, load func()) {
 			if notify == nil && errors.Is(err, api.ErrNotifyRequired) {
 				w.show(func(*core.Scope) core.Node {
 					yes, no := true, false
-					return w.dialog("Notify attendees?", []core.Node{core.Text{Content: "Choose whether to send an update to attendees."}}, button("Cancel", w.closePanel), button("Save without notifying", func() { submit(&no) }), button("Notify attendees", func() { submit(&yes) }))
+					return w.dialog("Notify attendees?", []core.Node{core.Text{Content: "Choose whether to send an update to attendees."}}, button("Cancel", w.closePanel), button("Save without notifying", func() { submit(&no) }), primary("Notify attendees", func() { submit(&yes) }))
 				})
 				return
 			}

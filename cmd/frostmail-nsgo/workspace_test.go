@@ -15,6 +15,7 @@ import (
 
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
+	"github.com/nsgo-dev/nsgo/ui"
 )
 
 // TestMain starts NSGo's test host, so the suite also runs in a real window:
@@ -214,6 +215,41 @@ func TestReaderShowsWhoWhenAndWhat(t *testing.T) {
 	a.WaitFor("id:reader >> id:attachment", 8*time.Second)
 	open("Re: Aurora launch checklist")
 	a.WaitFor("id:reader >> role:status >> role:button View conversation (3 messages)", 8*time.Second)
+}
+
+// TestButtonsAreQuietUnlessNamed holds rule 3's helpers: a button is quiet
+// unless it is named the region's main one or a destroying one.
+func TestButtonsAreQuietUnlessNamed(t *testing.T) {
+	nothing := func() {}
+	if got := button("Close", nothing).Variant; got != ui.ButtonSecondary {
+		t.Errorf("a button is variant %v, want the quiet one", got)
+	}
+	if got := primary("Save", nothing).Variant; got != ui.ButtonPrimary {
+		t.Errorf("the main button is variant %v, want the filled one", got)
+	}
+	if got := danger("Delete", nothing).Variant; got != ui.ButtonDanger {
+		t.Errorf("a destroying button is variant %v, want danger", got)
+	}
+}
+
+// TestDeletingAsksInAnAlert checks rule 4's confirmation: an alert dialog
+// with Cancel before the destroying action, which a cancel leaves undone.
+func TestDeletingAsksInAnAlert(t *testing.T) {
+	a := fixtureWorkspace(t)
+	row := "id:messages >> label:Your trip to Lisbon: itinerary"
+	a.WaitFor(row, 8*time.Second)
+	a.Press(row)
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Delete") })
+	a.Press("role:toolbar >> label:Delete")
+	cancel := a.WaitFor("role:alertdialog >> role:button Cancel", 5*time.Second).Bounds()
+	confirm := a.Find("role:alertdialog >> role:button Delete").Bounds()
+	if cancel.Origin.X >= confirm.Origin.X {
+		t.Errorf("Cancel is at %v and Delete at %v: Cancel comes first", cancel.Origin.X, confirm.Origin.X)
+	}
+	a.Find("role:alertdialog >> text:Delete message?")
+	a.Press("role:alertdialog >> role:button Cancel")
+	a.WaitForGone("role:alertdialog", 5*time.Second)
+	a.Find(row)
 }
 
 func TestMailboxReadsFixture(t *testing.T) {

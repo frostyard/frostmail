@@ -113,8 +113,8 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 						}
 						return w.dialog("Choose parent mailbox", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(400)}, Children: choices}})
 					})
-				}), button("Delete mailbox", func() {
-					w.confirm("Delete mailbox?", b.Path+" and its child mailboxes will be removed.", "Delete", func() {
+				}), danger("Delete mailbox", func() {
+					w.destroy("Delete mailbox?", b.Path+" and its child mailboxes will be removed.", "Delete", func() {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							return c.Mailbox().Delete(ctx, &api.MailboxDeleteParams{ID: b.ID})
 						}, nil)
@@ -122,8 +122,8 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 				}))
 			}
 			if b.Role == api.MailboxRoleTrash || b.Role == api.MailboxRoleJunk {
-				nodes = append(nodes, button("Empty mailbox", func() {
-					w.confirm("Permanently empty mailbox?", b.Path, "Erase all messages", func() {
+				nodes = append(nodes, danger("Empty mailbox", func() {
+					w.destroy("Permanently empty mailbox?", b.Path, "Erase all messages", func() {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							_, err := c.Mailbox().Erase(ctx, &api.MailboxEraseParams{ID: b.ID})
 							return err
