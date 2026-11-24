@@ -13,10 +13,16 @@ import (
 
 func (w *workspace) settings(cx *core.Scope) core.Node {
 	tab := core.NewSignal(cx, "Accounts")
+	panes := named("Accounts", "General", "Identities", "Snippets", "Filters", "Mailboxes", "Sign-in")
+	if desktopServer {
+		panes = append(panes, ui.Option[string]{Value: "Server", Label: "Server"})
+	}
 	return core.View{Style: ui.FillRest, Children: []core.Node{
-		ui.Tabs[string]{Label: "Settings panes", Options: named("Accounts", "General", "Identities", "Snippets", "Filters", "Mailboxes", "Sign-in"), Value: tab.Get, OnChange: tab.Set},
+		ui.Tabs[string]{Label: "Settings panes", Options: panes, Value: tab.Get, OnChange: tab.Set},
 		core.Dynamic(func(cx *core.Scope) core.Node {
 			switch tab.Get() {
+			case "Server":
+				return w.serverPanel(cx)
 			case "Filters":
 				return w.filters(cx)
 			case "Mailboxes":

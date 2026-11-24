@@ -58,3 +58,7 @@ func (w *workspace) saveMessage(m api.MessageSummary) {
 		return s.ContentPath, nil
 	}, w.downloadContent)
 }
+
+const desktopServer = false
+
+func (w *workspace) serverPanel(*core.Scope) core.Node { return nil }

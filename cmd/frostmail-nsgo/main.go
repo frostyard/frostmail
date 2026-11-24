@@ -31,6 +31,9 @@ type workspace struct {
 	module          *core.Signal[string]
 	source          mail.Source
 	search          string
+	term            *core.Signal[string]
+	switching       *core.Signal[bool]
+	pendingTarget   string
 	selected        *core.Signal[string]
 	state, rows     *core.Signal[int]
 	status, problem *core.Signal[string]
@@ -52,6 +55,8 @@ func root(cx *core.Scope) core.Node {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
+	w.term = core.NewSignal(cx, "")
+	w.switching = core.NewSignal(cx, false)
 	w.module = core.NewSignal(cx, "Mail")
 	w.overlay = core.NewSignal(cx, (*panel)(nil))
 	w.acting = core.NewSignal(cx, false)
@@ -65,6 +70,10 @@ func root(cx *core.Scope) core.Node {
 		return w.store.Connect(ctx, c, w.events)
 	}, OnChange: func(st conn.State) {
 		cx.Post(func() {
+			if w.pendingTarget != "" && st.Target.Key() == w.pendingTarget {
+				w.pendingTarget = ""
+				w.switching.Set(false)
+			}
 			if st.Connected {
 				w.status.Set("Connected · " + st.Target.String())
 				w.openView()
@@ -79,7 +88,13 @@ func root(cx *core.Scope) core.Node {
 		})
 	}})
 	go w.session.Run(ctx)
-	cx.Cleanup(func() { cancel(); w.clearView(); w.store.Disconnect() })
+	cx.Cleanup(func() {
+		cancel()
+		if w.view != nil {
+			w.view.Close()
+		}
+		w.store.Disconnect()
+	})
 	list := w.messageList()
 	split := ui.ResizablePanelGroup{Style: ui.FillRest, HandleLabel: "Resize message list", Panels: []base.ResizablePanel{
 		{Size: func() core.Points { return 390 }, MinSize: 180, Children: []core.Node{list}},
@@ -114,6 +129,12 @@ func root(cx *core.Scope) core.Node {
 			}
 		})}}
 	return core.View{Style: ui.FillRest, Children: []core.Node{shell, core.Dynamic(func(cx *core.Scope) core.Node {
+		if w.switching.Get() {
+			dlg := w.dialog("Changing mail server…", nil)
+			dlg.Footer = nil
+			dlg.OnOpenChange = nil
+			return dlg
+		}
 		if p := w.overlay.Get(); p != nil {
 			return p.render(cx)
 		}
@@ -199,7 +220,7 @@ func (w *workspace) openView() {
 	w.view.Ensure(0, live.Page)
 }
 func (w *workspace) messageList() core.Node {
-	term := core.NewSignal(w.cx, "")
+	term := w.term
 	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
 	return core.View{Style: ui.FillRest, Children: []core.Node{
 		workspaceui.Row(ui.Input{Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),

@@ -93,6 +93,7 @@ func TestPersonalOrganizerRoundTrip(t *testing.T) {
 func TestAccountAndSnippetSettings(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Settings")
+	a.WaitFor("label:Add account", 5*time.Second)
 	a.Press("label:Add account")
 	a.Type("label:Email address", "offline@example.test")
 	a.Press("label:Manual setup")
@@ -114,6 +115,7 @@ func TestAccountAndSnippetSettings(t *testing.T) {
 func TestOrganizeRuleAndSmartMailbox(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Settings")
+	a.WaitFor("label:Add account", 5*time.Second)
 	a.Press("label:Filters")
 	for _, item := range []struct{ open, title string }{{"New rule", "Fixture rule"}, {"New smart mailbox", "Fixture smart mailbox"}} {
 		a.Press("label:" + item.open)
