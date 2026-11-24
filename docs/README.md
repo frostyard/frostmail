@@ -76,6 +76,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0058 — Pin MyGo's quote-depth fix from the owner's fork](adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md) (Accepted)
 - [0059 — Add a published event from mail as the user's own event](adr/0059-add-a-published-event-from-mail-as-the-users-own.md) (Proposed)
 - [0060 — Close to the tray is an opt-in setting; the tray icon shows while the app runs](adr/0060-close-to-the-tray-is-an-opt-in-setting.md) (Accepted)
+- [0061 — Share the mail client with NSGo](adr/0061-share-the-mail-client-with-nsgo.md) (Proposed)
 
 ### Design
 
