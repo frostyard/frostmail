@@ -49,6 +49,7 @@
       ],
       "test-commands": [
         "/app/bin/maild -version",
+        "test -x /app/libexec/frostmail-nsgo",
         "/app/bin/mailctl --help",
         "desktop-file-validate /app/share/applications/org.frostyard.Frostmail.desktop",
         "appstreamcli validate --no-net /app/share/metainfo/org.frostyard.Frostmail.metainfo.xml",

@@ -213,6 +213,11 @@ cat >"$work/libexec/frostmail-request-background" <<'FAKE'
 #!/bin/sh
 echo run >>"$SMOKE_MARKS/background"
 FAKE
+cat >"$work/libexec/frostmail-nsgo" <<'FAKE'
+#!/bin/sh
+printf '%s\n' "$@" >"$SMOKE_MARKS/nsgo-args"
+FAKE
+chmod +x "$work/libexec/frostmail-nsgo"
 # The click's helper is the real one: the case that runs it puts a fake
 # flatpak-spawn, and then a fake frostmail, first on PATH.
 cp "$here/open.sh" "$work/libexec/frostmail-open"
@@ -499,6 +504,12 @@ sleep 1
 if mailctl hello >/dev/null 2>&1; then
     fail "a maild answers after a normal start in lodge mode"
 fi
+
+# Launching the preview uses the NSGo executable and preserves the selected
+# notification's message ID. The Flatpak build also checks its installed path.
+FROSTMAIL_UI=nsgo "$bin/frostmail" --open-message 7 >"$work/launcher.log" 2>&1
+[ "$(cat "$SMOKE_MARKS/nsgo-args")" = "$(printf '%s\n' --open-message 7)" ] ||
+    fail "the NSGo launch did not forward the notification arguments"
 
 # maild, run directly, exits 0 before it makes a database.
 rc=0

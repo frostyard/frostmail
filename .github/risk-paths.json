@@ -116,6 +116,16 @@
       "glob": "internal/engine/draft_image.go",
       "level": "L1",
       "why": "secrets and credentials: authorizing cached draft images for signed content paths without exposing host files"
+    },
+    {
+      "glob": "cmd/frostmail-nsgo/{accounts.go,settings.go,server_native.go,platform_native.go,platform_web.go,compose_format.go}",
+      "level": "L1",
+      "why": "secrets and credentials: account sign-in, changing maild, opening external files and rendering mail content in the NSGo clients"
+    },
+    {
+      "glob": "app/src/nsgo-lodge.ts",
+      "level": "L1",
+      "why": "auth: the Lodge bridge for authenticated mail content, downloads and navigation"
     }
   ]
 }
