@@ -119,6 +119,33 @@ jobs:
       - name: govulncheck
         run: make vulncheck
 
+  nsgo:
+    name: NSGo client (fixture workflows, native and Lodge builds)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: cmd/frostmail-nsgo/go.mod
+          cache-dependency-path: |
+            go.sum
+            cmd/frostmail-nsgo/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: make nsgo-test nsgo-build
+      - name: Cross-build the Windows client
+        working-directory: cmd/frostmail-nsgo
+        run: GOOS=windows GOARCH=amd64 go build -o ../../build/frostmail-nsgo.exe .
+      - name: Build the Lodge app with the shared client
+        run: make nsgo-lodge-app IN_NSL='sh -c'
+
   ui:
     name: App UI (make ui-check)
     runs-on: ubuntu-24.04

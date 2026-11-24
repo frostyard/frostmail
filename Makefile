@@ -315,7 +315,7 @@ nsgo-build: ## Build the shared native mail client
 	cd cmd/frostmail-nsgo && go build -o ../../build/frostmail-nsgo .
 
 nsgo-test: ## Exercise the shared mail workspace and compile it for Lodge
-	cd cmd/frostmail-nsgo && go test ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .
+	cd cmd/frostmail-nsgo && go test -tags integration ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .
 
 NSGO_STAGE := build/nsgo-lodge
 nsgo-lodge-app: ## Stage the shared Wasm client as the Lodge mail app
