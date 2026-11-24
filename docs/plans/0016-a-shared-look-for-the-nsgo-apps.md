@@ -456,7 +456,7 @@ pictures.
   Phases 3 to 5 decide each window's layout and flow, on that app's
   pictures.
 
-## Phase 3 — FrostMail's main window (L)
+## Phase 3 — FrostMail's main window (L, done 2026-11-24)
 
 Three changes, each with `make nsgo-test` green, and each replacing the
 stand-ins of its panes with the control map's controls (rule 11):
@@ -600,14 +600,24 @@ stand-ins of its panes with the control map's controls (rule 11):
     invitation, a message with a file, a message of a conversation). 1 new workflow, of the header block, the
     banners of an invitation and a conversation, a file's row, and no
     banner on a message with nothing to say. `dev/lodge/nsgo-smoke.py`
-    was not run: this machine has no geckodriver or Firefox for it. The
-    labels it presses (a row by its subject, Settings, Compose) are
-    still the client's.
-- **Phase 3 stays open.** Its 3 changes are built with their pictures.
-  Left of "Done when": the owner's acceptance of the main window beside
-  [main.png](../images/main.png) in both themes (he accepted 3a's and
-  3b's pictures as they came, and has not seen 3c's), and a run of
-  `dev/lodge/nsgo-smoke.py`.
+    was not run with this change: the machine had no geckodriver or
+    Firefox for it. It was run afterwards, below.
+- **Lodge's browser (2026-11-24).** `dev/lodge/nsgo-smoke.py` passed 2
+  times of 2 on 3c's commit (ff750202), in a headless Firefox on the
+  owner's desktop: `PASS: inbox, isolated reader, settings, Back, refresh
+  and editable draft permalink`. The client was staged with `make
+  nsgo-lodge-app IN_NSL='sh -c'`, as CI stages it. The tools were Lodge's
+  `lodge-e2e`, `lodgectl` and shell as that checkout had them built (the
+  binary names itself `ui/v0.7.0-dirty`, commit 6217d07), geckodriver
+  0.37.1 and Firefox 153.8.0esr, each fetched from Mozilla and checked
+  against its published SHA-256. The script opens a row, Settings and
+  Compose: it does not press the toolbar, a banner or a row's actions.
+- **Done (2026-11-24).** The 3 changes are built, each with its changed
+  pictures; `make nsgo-test`, the Linux target (29 passed, 0 skipped) and
+  the smoke test pass. Brian accepted the main window (2026-11-24) from
+  the live suite's pictures as each change sent them, in both themes.
+  Missing from "Done when", and accepted by him as it is: the pictures
+  were not set beside [main.png](../images/main.png) in one view.
 
 ## Phase 4 — FrostMail's other surfaces (L)
 
