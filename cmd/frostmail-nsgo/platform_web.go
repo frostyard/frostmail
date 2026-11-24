@@ -4,13 +4,14 @@ package main
 
 import (
 	"context"
+	"strings"
+	"syscall/js"
+	"time"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"strings"
-	"syscall/js"
-	"time"
 )
 
 func prepareLaunch() {}

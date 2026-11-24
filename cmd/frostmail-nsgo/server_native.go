@@ -5,16 +5,17 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"strings"
+	"time"
+
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/settings"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
 )
 
 const desktopServer = true

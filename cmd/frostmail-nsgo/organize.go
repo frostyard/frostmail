@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/organize"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"slices"
-	"strconv"
-	"strings"
-	"time"
 )
 
 func check(cx *core.Scope, label string, v *bool) core.Node {

@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
+	"slices"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"slices"
 )
 
 func (w *workspace) mailboxes(cx *core.Scope) core.Node {

@@ -5,12 +5,13 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/frostyard/frostmail/api"
-	"github.com/nsgo-dev/nsgo/core"
-	"github.com/nsgo-dev/nsgo/ui"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/frostyard/frostmail/api"
+	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/ui"
 )
 
 func (w *workspace) contactPhoto(cx *core.Scope, id int64) core.Node {

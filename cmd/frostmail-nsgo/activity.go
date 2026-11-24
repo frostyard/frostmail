@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity/entry"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"

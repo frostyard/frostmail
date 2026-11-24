@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/mail"
+	"strconv"
+	"strings"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"net/mail"
-	"strconv"
-	"strings"
 )
 
 func button(label string, press func()) ui.Button { return ui.Button{Text: label, OnPress: press} }

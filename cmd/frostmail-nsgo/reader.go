@@ -3,16 +3,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
+
 	"github.com/frostyard/frostmail/api"
 	oldcompose "github.com/frostyard/frostmail/internal/desktop/compose"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"net/url"
-	"slices"
-	"strings"
-	"time"
 )
 
 func (w *workspace) sourcePanel(m api.MessageSummary, headers bool) {

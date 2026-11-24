@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"strconv"
-	"strings"
 )
 
 func (w *workspace) whenConnected(f func()) {

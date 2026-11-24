@@ -5,6 +5,12 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/icons"
@@ -14,11 +20,6 @@ import (
 	"github.com/frostyard/frostui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"log/slog"
-	"net/url"
-	"os"
-	"strconv"
-	"strings"
 )
 
 func (w *workspace) platformStart() {

@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"slices"
-	"strconv"
 )
 
 func (w *workspace) listOptions() core.Node {

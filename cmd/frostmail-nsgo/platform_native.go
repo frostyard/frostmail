@@ -8,6 +8,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"html"
+	"image/png"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/calendar"
 	"github.com/frostyard/frostmail/internal/config"
@@ -17,12 +24,6 @@ import (
 	"github.com/frostyard/frostui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
-	"html"
-	"image/png"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 func platformTarget() (conn.Target, error) { return conn.TargetFrom(os.Getenv) }
