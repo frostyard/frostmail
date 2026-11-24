@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
@@ -42,7 +43,7 @@ func fixtureWorkspace(t *testing.T) *nsgotest.App {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = daemon.Process.Kill(); _ = daemon.Wait() })
-	a := nsgotest.Start(t, root, nsgotest.Size(1280, 820))
+	a := nsgotest.Start(t, root, nsgotest.Size(1280, 820), nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1}))
 	a.WaitFor("text:Connected · Local", 20*time.Second)
 	return a
 }
@@ -169,4 +170,14 @@ func TestConversationOpensRelatedMessages(t *testing.T) {
 	a.WaitFor("label:Open this message", 5*time.Second)
 	a.Press("label:Close")
 	a.WaitFor("label:View conversation (3 messages)", 5*time.Second)
+}
+
+func TestDragMessageToMailbox(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 8*time.Second)
+	a.DragTo("label:Drag "+subject, "label:File messages in Drafts · ann.lee@example.com")
+	a.WaitUntil(8*time.Second, func() bool { return !a.Exists("label:" + subject) })
+	a.Press("label:All Drafts")
+	a.WaitFor("label:"+subject, 8*time.Second)
 }

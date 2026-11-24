@@ -44,7 +44,7 @@ func (w *workspace) listOptions() core.Node {
 				filterLabel = f.Label
 			}
 		}
-		return workspaceui.Row(ui.Menu{Trigger: ui.Button{Text: filterLabel}, Children: filters}, ui.Menu{Trigger: ui.Button{Text: "List options"}, Children: []core.Node{ui.Submenu{Text: "Sort by", Children: sorts}, ui.MenuItem{Text: order, OnSelect: func() { w.listState.Ascending = !w.listState.Ascending; w.openView() }}, ui.MenuItem{Text: conversation, OnSelect: func() { w.listState.Conversations = !w.listState.Conversations; w.openView() }}, ui.MenuItem{Text: scope, OnSelect: func() { w.listState.SearchAll = !w.listState.SearchAll; w.openView() }}}}, ui.Checkbox{Text: "Select messages", Checked: w.selecting.Get, OnChange: func(v bool) { w.selecting.Set(v); w.selection.Clear() }})
+		return workspaceui.Row(ui.Menu{Trigger: ui.Button{Text: filterLabel}, Children: filters}, ui.Menu{Trigger: ui.Button{Text: "List options"}, Children: []core.Node{ui.MenuItem{Text: "Contact photos", Checked: w.showPhotos.Get, OnSelect: func() { w.showPhotos.Set(!w.showPhotos.GetUntracked()) }}, ui.Submenu{Text: "Sort by", Children: sorts}, ui.MenuItem{Text: order, OnSelect: func() { w.listState.Ascending = !w.listState.Ascending; w.openView() }}, ui.MenuItem{Text: conversation, OnSelect: func() { w.listState.Conversations = !w.listState.Conversations; w.openView() }}, ui.MenuItem{Text: scope, OnSelect: func() { w.listState.SearchAll = !w.listState.SearchAll; w.openView() }}}}, ui.Checkbox{Text: "Select messages", Checked: w.selecting.Get, OnChange: func(v bool) { w.selecting.Set(v); w.selection.Clear() }})
 	})
 }
 func (w *workspace) bulkActions() core.Node {

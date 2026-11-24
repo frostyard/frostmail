@@ -16,6 +16,7 @@ import (
 	"github.com/frostyard/pocketgo/desktop/workspaceui"
 	"github.com/nsgo-dev/nsgo"
 	"github.com/nsgo-dev/nsgo/base"
+	"github.com/nsgo-dev/nsgo/base/dragdrop"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -54,6 +55,9 @@ type workspace struct {
 	opened          *core.Signal[int64]
 	reader          *core.Signal[*messagePage]
 	currentMessage  *core.Signal[*api.MessageSummary]
+	photos          *live.Photos
+	showPhotos      *core.Signal[bool]
+	stopPhotos      context.CancelFunc
 	generation      int
 	undo            *mail.Undo
 	overlay         *core.Signal[*panel]
@@ -72,6 +76,7 @@ func root(cx *core.Scope) core.Node {
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
 	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
 	w.watchReader()
+	w.showPhotos = core.NewSignal(cx, true)
 	w.toaster = ui.NewToaster(cx)
 	w.searchInput = &core.Ref{}
 	w.trayChoice = core.NewSignal(cx, false)
@@ -100,7 +105,15 @@ func root(cx *core.Scope) core.Node {
 				w.pendingTarget = ""
 				w.switching.Set(false)
 			}
+			if w.stopPhotos != nil {
+				w.stopPhotos()
+				w.stopPhotos = nil
+				w.photos = nil
+			}
 			if st.Connected {
+				photoCtx, stop := context.WithCancel(w.ctx)
+				w.stopPhotos = stop
+				w.photos = live.NewPhotos(photoCtx, w.session.Client(), func() { cx.Post(func() { invalidate(w.rows) }) })
 				w.status.Set("Connected · " + st.Target.String())
 				w.openView()
 				if f := w.deferredOpen; f != nil {
@@ -171,7 +184,7 @@ func root(cx *core.Scope) core.Node {
 				})
 			}
 		})}}
-	return core.View{Style: ui.FillRest, Children: []core.Node{shell, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
+	return core.View{Style: ui.FillRest, Children: []core.Node{dragdrop.Area{Children: []core.Node{shell}}, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
 		if w.switching.Get() {
 			dlg := w.dialog("Changing mail server…", nil)
 			dlg.Footer = nil
@@ -201,6 +214,10 @@ func (w *workspace) sections() []ui.SidebarSection {
 			}
 		}
 	}
+	boxes := make(map[int64]api.Mailbox, len(st.Mailboxes))
+	for _, b := range st.Mailboxes {
+		boxes[b.ID] = b
+	}
 	for _, s := range mail.BuildSidebar(st.Accounts, st.Mailboxes, extras) {
 		section := ui.SidebarSection{Title: s.Title, Collapsible: true}
 		for _, i := range s.Items {
@@ -211,7 +228,17 @@ func (w *workspace) sections() []ui.SidebarSection {
 			if i.Unread > 0 {
 				label += fmt.Sprintf("  ·  %d", i.Unread)
 			}
-			section.Items = append(section.Items, ui.SidebarItem{ID: i.Key, Text: label, Icon: lucide.Inbox})
+			item := ui.SidebarItem{ID: i.Key, Text: label, Icon: lucide.Inbox}
+			if b, ok := boxes[i.MailboxID]; ok {
+				item.Content = w.mailboxTarget(i, label, s.Title, b)
+				for _, a := range st.Accounts {
+					if a.ID == b.AccountID {
+						item.Menu = []core.Node{ui.MenuItem{Text: "Mailbox options", OnSelect: func() { w.mailboxMenu(a, b) }}}
+						break
+					}
+				}
+			}
+			section.Items = append(section.Items, item)
 		}
 		out = append(out, section)
 	}
@@ -336,14 +363,22 @@ func (w *workspace) messageList() core.Node {
 					if lines > 0 {
 						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: ui.TypeCaption})
 					}
+					var content core.Node = workspaceui.Stack(children...)
+					if w.showPhotos.Get() && w.photos != nil {
+						w.photos.Want([]string{msg.From.Address})
+						if photo := w.photos.Get(msg.From.Address); len(photo) > 0 {
+							content = workspaceui.Row(core.Image{Label: "Sender photo", Source: core.ImageSource{Data: photo}, Style: core.Style{Width: core.Pt(32), Height: core.Pt(32), CornerRadius: 16}}, content)
+						}
+					}
 					colors := ui.ColorsOf(cx)
 					rowButton := base.Button{Label: msg.Subject, Selected: func() bool { return w.opened.Get() == msg.ID }, StyleFunc: func() core.Style {
 						return core.Style{Width: core.Pct(100), Padding: core.All(5), CornerRadius: 6, Selected: &core.Style{Background: ui.Alpha(colors.Accent(), 0.15)}}
-					}, Children: []core.Node{workspaceui.Stack(children...)}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
+					}, Children: []core.Node{content}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
+					draggable := w.dragRow(cx, msg, rowButton)
 					if w.selecting.Get() {
-						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, rowButton)
+						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, draggable)
 					}
-					return rowButton
+					return draggable
 				})
 			}, OnActivate: func(i int) {
 				if w.view != nil {
