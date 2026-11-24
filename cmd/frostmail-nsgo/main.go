@@ -81,6 +81,7 @@ func root(cx *core.Scope) core.Node {
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
 	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: w.selected.Get, Navigate: w.navigate,
+		Actions:       []core.Node{ui.Button{Text: "Compose", Icon: lucide.Pencil, OnPress: func() { w.newDraft(api.DraftKindNew, nil) }}, ui.Button{Text: "Drafts", Label: "Open local drafts", Variant: ui.ButtonGhost, OnPress: w.draftList}, ui.Button{Text: "Outbox", Variant: ui.ButtonGhost, OnPress: w.outbox}},
 		Header:        []core.Node{core.Text{ContentFunc: w.title, Style: ui.TypeTitle}},
 		SidebarFooter: []core.Node{core.Text{ContentFunc: w.status.Get, Style: ui.TypeCaption.Merge(core.Style{Padding: core.All(10)})}},
 		Content: []core.Node{core.Dynamic(func(*core.Scope) core.Node {

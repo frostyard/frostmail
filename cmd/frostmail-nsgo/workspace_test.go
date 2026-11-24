@@ -54,3 +54,20 @@ func TestMailboxReadsFixture(t *testing.T) {
 	a.Press("label:" + subject)
 	a.WaitFor("label:Message body", 5*time.Second)
 }
+
+func TestDraftRoundTrip(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Compose")
+	a.WaitFor("label:Subject", 5*time.Second)
+	a.Type("label:To", "fixture@example.test")
+	a.Type("label:Subject", "NSGo draft round trip")
+	a.Press("label:Save and close")
+	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
+	a.Press("label:Open local drafts")
+	a.WaitFor("label:NSGo draft round trip", 5*time.Second)
+	a.Press("label:NSGo draft round trip")
+	a.WaitFor("label:Subject", 5*time.Second)
+	if got := a.Find("label:Subject").Text; got != "NSGo draft round trip" {
+		t.Fatalf("reopened subject: %q", got)
+	}
+}

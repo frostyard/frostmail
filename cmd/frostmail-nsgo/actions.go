@@ -164,7 +164,7 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 			})
 		})
 	}})
-	return workspaceui.Row(ui.Menu{Trigger: ui.Button{Text: "Message actions", Variant: ui.ButtonSecondary}, Children: items}, ui.Button{Text: "Undo", Variant: ui.ButtonGhost, OnPress: func() {
+	return workspaceui.Row(ui.Button{Text: "Reply", Variant: ui.ButtonSecondary, OnPress: func() { w.newDraft(api.DraftKindReply, &m.ID) }}, ui.Menu{Trigger: ui.Button{Text: "Forward or reply all", Variant: ui.ButtonGhost}, Children: []core.Node{ui.MenuItem{Text: "Reply all", OnSelect: func() { w.newDraft(api.DraftKindReplyall, &m.ID) }}, ui.MenuItem{Text: "Forward", OnSelect: func() { w.newDraft(api.DraftKindForward, &m.ID) }}, ui.MenuItem{Text: "Forward as attachment", OnSelect: func() { w.newDraft(api.DraftKindAttached, &m.ID) }}}}, ui.Menu{Trigger: ui.Button{Text: "Message actions", Variant: ui.ButtonSecondary}, Children: items}, ui.Button{Text: "Undo", Variant: ui.ButtonGhost, OnPress: func() {
 		w.change(func(ctx context.Context, c *api.Client) error { _, err := undo.Do(ctx, c); return err }, nil)
 	}})
 }
