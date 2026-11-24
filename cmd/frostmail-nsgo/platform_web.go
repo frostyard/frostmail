@@ -12,6 +12,7 @@ import (
 	"syscall/js"
 )
 
+func prepareLaunch() {}
 func platformTarget() (conn.Target, error) {
 	l, err := conn.ParseLodge(js.Global().Get("location").Get("origin").String())
 	return conn.Target{Lodge: &l}, err

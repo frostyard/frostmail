@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
@@ -14,8 +15,10 @@ import (
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 	"log/slog"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func (w *workspace) platformStart() {
@@ -64,22 +67,70 @@ func (w *workspace) platformStart() {
 		})
 	}
 	cx.OnReopen(show)
-	for i, arg := range os.Args {
-		if (arg == "--reply-message" || arg == "--open-message") && i+1 < len(os.Args) {
-			id, err := strconv.ParseInt(os.Args[i+1], 10, 64)
-			if err == nil && id > 0 {
-				w.whenConnected(func() {
-					if arg == "--reply-message" {
+	cx.OnOpenLinks(func(links []string) {
+		for _, raw := range links {
+			link, err := url.Parse(raw)
+			if err != nil || link.Scheme != "frostmail-view" || link.User != nil || link.Host != w.notificationKey() {
+				continue
+			}
+			parts := strings.Split(strings.TrimPrefix(link.Path, "/"), "/")
+			if len(parts) != 2 || (parts[0] != "open" && parts[0] != "reply") {
+				continue
+			}
+			id, err := strconv.ParseInt(parts[1], 10, 64)
+			if err != nil || id <= 0 {
+				continue
+			}
+			show()
+			w.whenConnected(func() {
+				if link.Host != w.notificationKey() {
+					return
+				}
+				open := func() {
+					w.closePanel()
+					w.module.Set("Mail")
+					if parts[0] == "reply" {
 						w.newDraft(api.DraftKindReply, &id)
 					} else {
 						w.openMessage(id, false)
 					}
-				})
-				break
-			}
+				}
+				if save := w.beforeRoute; save != nil {
+					save(open, func() {})
+				} else {
+					open()
+				}
+			})
+			break
 		}
+	})
+}
+
+// NSGo forwards links from a second invocation to the existing window. Map
+// the established launcher arguments to a link scoped to this maild target.
+func prepareLaunch() {
+	for i, arg := range os.Args[1:] {
+		if arg != "--open-message" && arg != "--reply-message" || i+2 >= len(os.Args) {
+			continue
+		}
+		id, err := strconv.ParseInt(os.Args[i+2], 10, 64)
+		if err != nil || id <= 0 {
+			return
+		}
+		target, err := platformTarget()
+		if err != nil {
+			return
+		}
+		verb := "open"
+		if arg == "--reply-message" {
+			verb = "reply"
+		}
+		link := fmt.Sprintf("frostmail-view://%x/%s/%d", sha256.Sum256([]byte(target.Key())), verb, id)
+		os.Args = append([]string{os.Args[0]}, link)
+		return
 	}
 }
+
 func (w *workspace) traySetting() core.Node {
 	if !w.trayAvailable {
 		return nil

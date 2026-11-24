@@ -34,7 +34,7 @@
       },
       "build-commands": [
         "go build -tags mygo_noinspector -ldflags '-s -w -X main.version=flatpak -X github.com/egoist/mygo.production=1' -o build/ ./cmd/frostmail ./cmd/maild ./cmd/mailctl",
-        "cd cmd/frostmail-nsgo && go build -ldflags '-s -w' -o ../../build/frostmail-nsgo .",
+        "scripts/build-nsgo-native.sh build/frostmail-nsgo",
         "install -Dm755 build/frostmail-nsgo /app/libexec/frostmail-nsgo",
         "install -Dm755 -t /app/bin build/maild build/mailctl",
         "install -Dm755 build/frostmail /app/libexec/frostmail-app",

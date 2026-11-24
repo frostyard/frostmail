@@ -23,6 +23,7 @@ import (
 )
 
 func main() {
+	prepareLaunch()
 	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, root) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820))
 }
 
