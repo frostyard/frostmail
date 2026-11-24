@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -80,6 +81,9 @@ func root(cx *core.Scope) core.Node {
 		if _, err := c.Events().Subscribe(ctx, &api.EventsSubscribeParams{}); err != nil {
 			return err
 		}
+		if _, err := c.Activity().Subscribe(ctx, &api.ActivitySubscribeParams{}); err != nil && !errors.Is(err, api.ErrMethodNotFound) {
+			return err
+		}
 		return w.store.Connect(ctx, c, w.events)
 	}, OnChange: func(st conn.State) {
 		cx.Post(func() {
@@ -135,6 +139,8 @@ func root(cx *core.Scope) core.Node {
 			return nil
 		}), core.Dynamic(func(cx *core.Scope) core.Node {
 			switch w.module.Get() {
+			case "Activity":
+				return w.activity(cx)
 			case "Settings":
 				return w.settings(cx)
 			case "People":
@@ -173,7 +179,7 @@ func root(cx *core.Scope) core.Node {
 func (w *workspace) sections() []ui.SidebarSection {
 	w.state.Get()
 	st := w.store.State()
-	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}, {ID: "module:Settings", Text: "Settings", Icon: lucide.Settings}}}}
+	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}, {ID: "module:Settings", Text: "Settings", Icon: lucide.Settings}, {ID: "module:Activity", Text: "Activity", Icon: lucide.Activity}}}}
 	extras := mail.Extras{VIPs: st.VIPs, Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts}
 	if st.Settings != nil {
 		extras.FlagNames = st.Settings.FlagNames
@@ -200,6 +206,13 @@ func (w *workspace) sections() []ui.SidebarSection {
 		}
 		out = append(out, section)
 	}
+	if follow := st.FollowUp; follow != nil && len(follow.Threads) > 0 {
+		section := ui.SidebarSection{Title: "Follow up", Collapsible: true}
+		for _, t := range follow.Threads {
+			section.Items = append(section.Items, ui.SidebarItem{ID: fmt.Sprintf("follow:%d", t.Message.ID), Text: t.Message.Subject, Icon: lucide.Clock})
+		}
+		out = append(out, section)
+	}
 	return out
 }
 func (w *workspace) title() string {
@@ -217,6 +230,13 @@ func (w *workspace) navigate(key string) {
 		return
 	}
 	w.module.Set("Mail")
+	if raw, ok := strings.CutPrefix(key, "follow:"); ok {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err == nil && id > 0 {
+			w.openMessage(id, false)
+		}
+		return
+	}
 	if s, ok := mail.SourceFromKey(key, w.store.State().VIPs); ok {
 		w.source = s
 		w.selected.Set(key)
