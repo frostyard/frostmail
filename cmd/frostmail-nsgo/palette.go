@@ -115,7 +115,7 @@ func (w *workspace) palette() {
 		}
 		for _, section := range w.sections() {
 			for _, item := range section.Items {
-				if strings.HasPrefix(item.ID, "module:") {
+				if strings.HasPrefix(item.ID, "module:") || strings.HasPrefix(item.ID, "panel:") {
 					continue
 				}
 				key := "navigate/" + item.ID

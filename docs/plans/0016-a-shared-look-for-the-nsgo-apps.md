@@ -474,6 +474,46 @@ stand-ins of its panes with the control map's controls (rule 11):
   themes, is set beside [main.png](../images/main.png) and the owner
   accepts it; each of the three changes carried its changed pictures; and
   `make nsgo-test`, the Linux target and `dev/lodge/nsgo-smoke.py` pass.
+- **3a (2026-11-24), built; the owner has not looked at its pictures.**
+  `cmd/frostmail-nsgo/shell.go` holds the shell:
+  - **The navigation.** The modules are a segment of 4 icons at its head
+    (`ui.Tabs`). A row is the kit's `NavLabel`: the icon of the row's role,
+    from the sidebar model's icon names, its name, and its count at the
+    row's end, muted for Flagged and its colors, which count every
+    message. A section with no row is not drawn. At the foot, the kit's
+    `ConnectionItem` (the target's name, in the warning tone while not
+    connected) opens Activity, and a gear opens Settings; neither is a row.
+  - **The toolbar.** The title with the source's unread count under it,
+    Compose as the one filled button, a `ui.Toolbar` of icon buttons in 3
+    groups (Archive, Delete, Junk; Reply, Reply all, Forward; Flag, Move,
+    More), and the palette's field, which mod+K opens. With no message
+    open the buttons are dimmed and keep their places. The reader's row of
+    text buttons is gone. The toolbar fits the pane under it, whose width
+    the navigation and the To-Do Bar take from: Compose and the palette
+    become icons, and under 720 the actions are one menu.
+  - **Placed here, and the plan did not say where.** Local Drafts and
+    Outbox are rows of a section, Outgoing, at the navigation's end, and
+    open the lists they opened as toolbar buttons. Undo is an item of
+    More; a toast with Undo (rule 5) waits for 3b. Flag toggles the flag,
+    and its colors are a submenu of More. In Calendar, People and Tasks
+    the toolbar has the title, Compose as an icon and the palette, and the
+    navigation still lists mail's rows (Phase 4).
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    22 passed, 2 skipped (the 2 of Phase 0.5). All 20 kept pictures
+    changed. 2 new workflows: the toolbar's buttons cannot be pressed with
+    no message open and can with one, and Flag becomes Unflag and back;
+    the modules are tabs, a row's count is the title's unread count, and
+    exactly 1 control is named Activity and 1 Settings.
+    `dev/lodge/nsgo-smoke.py` was not run.
+  - **Seen on the way.** While the toolbar was built again on each change
+    of the open message, the picture taken after a press of More showed no
+    menu, though the test had found the menu's items. With nodes that stay
+    and read the message as they draw, the picture shows the menu. The
+    cause was taken to be the message's change to read just after it
+    opens; that was not checked apart. In the Xvfb window, with a message open, the window's picture is
+    blank from about a second after the To-Do Bar opens; the same steps on
+    main (65637f05) give the same blank picture, so the tour takes the
+    To-Do Bar beside the list alone. Not tried on a desktop.
 
 ## Phase 4 — FrostMail's other surfaces (L)
 

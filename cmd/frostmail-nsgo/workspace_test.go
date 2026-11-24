@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -116,7 +117,7 @@ func fixtureLook(t *testing.T, smtp string, width, height core.Points, dark bool
 	// A compact window (under 720) hides the navigation and its status line:
 	// its caller waits for what it shows instead.
 	if width >= 720 {
-		a.WaitFor("text:Connected · Local", 20*time.Second)
+		a.WaitFor("id:connection >> text:Local", 20*time.Second)
 	}
 	return a
 }
@@ -141,6 +142,61 @@ func TestAppearanceChoiceIsKept(t *testing.T) {
 	}
 }
 
+// TestToolbarFollowsTheOpenMessage checks the toolbar's reader segment: a
+// toolbar whose buttons are dimmed with no message open, and act on the one
+// that is.
+func TestToolbarFollowsTheOpenMessage(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 8*time.Second)
+	a.Find("role:toolbar Message")
+	for _, label := range []string{"Archive", "Delete", "Junk", "Reply", "Reply all", "Forward", "Flag", "Move"} {
+		if a.Enabled("role:toolbar >> label:" + label) {
+			t.Errorf("%s can be pressed with no message open", label)
+		}
+	}
+	a.Press("label:" + subject)
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Flag") })
+	for _, label := range []string{"Archive", "Delete", "Junk", "Reply", "Reply all", "Forward", "Move"} {
+		if !a.Enabled("role:toolbar >> label:" + label) {
+			t.Errorf("%s cannot be pressed with a message open", label)
+		}
+	}
+	a.Press("role:toolbar >> label:Flag")
+	a.WaitFor("role:toolbar >> label:Unflag", 5*time.Second)
+	a.Press("role:toolbar >> label:Unflag")
+	a.WaitFor("role:toolbar >> label:Flag", 5*time.Second)
+}
+
+// TestNavigationHoldsTheModulesAndTheFoot checks the navigation: the
+// modules are tabs at its head, a row's count is the title's unread count,
+// Activity and Settings are at its foot, and no row names a module.
+func TestNavigationHoldsTheModulesAndTheFoot(t *testing.T) {
+	a := fixtureWorkspace(t)
+	count := a.WaitFor("id:mailbox-all-inboxes >> id:nav-count", 8*time.Second).Text
+	if n, err := strconv.Atoi(count); err != nil || n <= 0 {
+		t.Fatalf("All Inboxes' count reads %q, want its unread messages", count)
+	}
+	a.Find("id:content-header >> text:" + count + " unread")
+	for _, module := range []string{"Calendar", "People", "Tasks", "Mail"} {
+		a.Press("role:tab " + module)
+		title := module
+		if module == "Mail" {
+			title = "All Inboxes"
+		}
+		a.WaitFor("id:content-header >> text:"+title, 5*time.Second)
+	}
+	for _, module := range []string{"Activity", "Settings"} {
+		if got := len(a.Query("label:" + module)); got != 1 {
+			t.Errorf("%d controls are named %s, want the one at the navigation's foot", got, module)
+		}
+		a.Press("label:" + module)
+		a.WaitFor("id:content-header >> text:"+module, 5*time.Second)
+	}
+	a.Press("label:Outbox")
+	a.WaitFor("text:Outbox is empty", 5*time.Second)
+}
+
 func TestMailboxReadsFixture(t *testing.T) {
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
@@ -157,7 +213,7 @@ func TestDraftRoundTrip(t *testing.T) {
 	a.Type("label:Subject", "NSGo draft round trip")
 	a.Press("label:Save and close")
 	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
-	a.Press("label:Open local drafts")
+	a.Press("label:Local Drafts")
 	a.WaitFor("label:NSGo draft round trip", 5*time.Second)
 	a.Press("label:NSGo draft round trip")
 	a.WaitFor("label:Subject", 5*time.Second)
@@ -229,8 +285,8 @@ func TestOrganizeRuleAndSmartMailbox(t *testing.T) {
 func TestMessageHeaders(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Your trip to Lisbon: itinerary")
-	a.WaitFor("label:Message actions", 5*time.Second)
-	a.Press("label:Message actions")
+	a.WaitFor("label:Message body", 5*time.Second)
+	a.Press("label:More")
 	a.Press("label:Show headers")
 	a.WaitFor("text:All headers", 5*time.Second)
 	a.WaitFor("label:Save message as", 5*time.Second)
@@ -329,8 +385,7 @@ func TestForwardToLocalSMTP(t *testing.T) {
 	const subject = "Your trip to Lisbon: itinerary"
 	a.WaitFor("label:"+subject, 5*time.Second)
 	a.Press("label:" + subject)
-	a.WaitFor("label:Forward or reply all", 5*time.Second)
-	a.Press("label:Forward or reply all")
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("label:Forward") })
 	a.Press("label:Forward")
 	a.WaitFor("label:To", 5*time.Second)
 	a.Type("label:To", "traveler@example.test")
@@ -365,7 +420,7 @@ func TestClosingNewDraftAndDiscardingEdits(t *testing.T) {
 	a.WaitFor("label:Subject", 5*time.Second)
 	a.Key("ctrl+w")
 	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
-	a.Press("label:Open local drafts")
+	a.Press("label:Local Drafts")
 	a.WaitFor("text:No local drafts", 5*time.Second)
 	a.Press("label:Close")
 	a.Press("label:Compose")
@@ -374,6 +429,6 @@ func TestClosingNewDraftAndDiscardingEdits(t *testing.T) {
 	a.Press("label:Discard…")
 	a.Press("label:Discard draft")
 	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
-	a.Press("label:Open local drafts")
+	a.Press("label:Local Drafts")
 	a.WaitFor("text:No local drafts", 5*time.Second)
 }

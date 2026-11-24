@@ -51,17 +51,17 @@ func (w *workspace) dragRow(cx *core.Scope, m api.MessageSummary, button base.Bu
 	return source
 }
 
-func (w *workspace) mailboxTarget(i mail.Item, label, account string, b api.Mailbox) core.Node {
+func (w *workspace) mailboxTarget(label core.Node, account string, b api.Mailbox) core.Node {
 	return core.Dynamic(func(cx *core.Scope) core.Node {
 		over := core.NewSignal(cx, false)
 		colors := ui.ColorsOf(cx)
 		return dragdrop.Target{View: core.View{Label: "File messages in " + b.Path + " · " + account, StyleFunc: func() core.Style {
-			s := core.Style{Width: core.Pct(100), Direction: core.Row, AlignItems: core.AlignCenter, Gap: 7, Padding: core.Edges{Left: core.Points(i.Depth * 12)}, CornerRadius: 5}
+			s := core.Style{Width: core.Pct(100), Direction: core.Row, AlignItems: core.AlignCenter, CornerRadius: ui.RadiusSmall}
 			if over.Get() {
 				s.Background = ui.Alpha(colors.Accent(), .25)
 			}
 			return s
-		}, Children: []core.Node{ui.Icon(lucide.Folder, 16, colors.Accent), core.Text{Content: label, MaxLines: 1, Style: ui.TypeLabel.Merge(core.Style{FlexShrink: 1})}}},
+		}, Children: []core.Node{label}},
 			Accept: func(v any) bool {
 				d, ok := v.(draggedMail)
 				return ok && d.client != nil && w.session.Client() == d.client && d.account == b.AccountID && w.writable(b.AccountID)
