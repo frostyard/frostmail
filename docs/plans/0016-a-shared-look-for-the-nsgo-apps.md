@@ -847,11 +847,26 @@ stand-ins of its panes with the control map's controls (rule 11):
     bars (`base.SetScrollbarTheme` with `ui.ScrollbarTheme`), which lie
     over the content, in place of the platform's. A browser's bar takes
     12 points of a scrolling view's width, which NSGo's layout does not
-    take from its content. On commit e2930879, in the same headless
-    Firefox, the narrow compose sheet's 5 fields are drawn to their right
-    ends with their borders, and the narrow Calendar's list has no strip
-    at its right: the 2 pictures the agent looked at. `make nsgo-live`
-    on Xvfb's X11 passed, 36 of 36, with the bars set.
+    take from its content. `make nsgo-live` on Xvfb's X11 passed, 36 of
+    36, with the bars set. On commit e2930879, in the same headless
+    Firefox, in both presentations:
+    - The compose sheet's 5 fields are drawn to their measured right
+      ends, 1216 and 556, with their borders; before, their drawing
+      ended 12 short. The dialog of the desktop presentation is as it
+      was.
+    - The strips 12 wide at the right of the navigation and of the
+      lists are gone. No scroll view gives room to a bar, and none is
+      drawn at rest.
+    - The mail list, the navigation and the Calendar's list scroll by a
+      wheel event and by script, and a thumb 4 wide shows over the
+      content while they do, and fades. A finger's drag was not tried.
+    - Against the pictures before the change, the 30 differ only where
+      the strips and the fields' ends were, and in a clock time.
+    - With 14 lines typed, the sheet's body scrolls, no text is under
+      its buttons, and the fields are whole when it is back at the top.
+    - `dev/lodge/nsgo-smoke.py` passed once.
+    - While the sheet's body scrolls, the thumb lies over the fields'
+      right ends, 2 points from From's chevron, and fades with the bar.
   - **Left of 4e:** the kit's spacing and the 13 paddings
     (frostyard/frostui#78 adds the spacing; it needs the kit's tag); the
     README's pictures, which stay the default client's while that is the
