@@ -14,9 +14,13 @@ import (
 func (w *workspace) settings(cx *core.Scope) core.Node {
 	tab := core.NewSignal(cx, "Accounts")
 	return core.View{Style: ui.FillRest, Children: []core.Node{
-		ui.Tabs[string]{Label: "Settings panes", Options: named("Accounts", "General", "Identities", "Snippets", "Sign-in"), Value: tab.Get, OnChange: tab.Set},
+		ui.Tabs[string]{Label: "Settings panes", Options: named("Accounts", "General", "Identities", "Snippets", "Filters", "Mailboxes", "Sign-in"), Value: tab.Get, OnChange: tab.Set},
 		core.Dynamic(func(cx *core.Scope) core.Node {
 			switch tab.Get() {
+			case "Filters":
+				return w.filters(cx)
+			case "Mailboxes":
+				return w.mailboxes(cx)
 			case "General":
 				return w.general(cx)
 			case "Identities":

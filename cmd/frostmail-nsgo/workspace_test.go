@@ -110,3 +110,16 @@ func TestAccountAndSnippetSettings(t *testing.T) {
 	a.Press("label:Save")
 	a.WaitFor("label:Fixture signoff", 5*time.Second)
 }
+
+func TestOrganizeRuleAndSmartMailbox(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Settings")
+	a.Press("label:Filters")
+	for _, item := range []struct{ open, title string }{{"New rule", "Fixture rule"}, {"New smart mailbox", "Fixture smart mailbox"}} {
+		a.Press("label:" + item.open)
+		a.Type("label:Name", item.title)
+		a.Type("label:Condition value", "example.test")
+		a.Press("label:Save")
+		a.WaitFor("label:Edit "+item.title, 5*time.Second)
+	}
+}

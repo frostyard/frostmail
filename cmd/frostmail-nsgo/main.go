@@ -125,7 +125,19 @@ func (w *workspace) sections() []ui.SidebarSection {
 	w.state.Get()
 	st := w.store.State()
 	out := []ui.SidebarSection{{Title: "Workspace", Items: []ui.SidebarItem{{ID: "module:Mail", Text: "Mail", Icon: lucide.Mail}, {ID: "module:Calendar", Text: "Calendar", Icon: lucide.Calendar}, {ID: "module:People", Text: "People", Icon: lucide.Users}, {ID: "module:Tasks", Text: "Tasks", Icon: lucide.ListChecks}, {ID: "module:Settings", Text: "Settings", Icon: lucide.Settings}}}}
-	for _, s := range mail.BuildSidebar(st.Accounts, st.Mailboxes, mail.Extras{VIPs: st.VIPs, Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts}) {
+	extras := mail.Extras{VIPs: st.VIPs, Counts: st.Counts, Smart: st.Smart, HasSmart: true, SmartCounts: st.SmartCounts}
+	if st.Settings != nil {
+		extras.FlagNames = st.Settings.FlagNames
+		for _, id := range st.Settings.Favorites {
+			for _, box := range st.Mailboxes {
+				if box.ID == id {
+					extras.Favorites = append(extras.Favorites, box)
+					break
+				}
+			}
+		}
+	}
+	for _, s := range mail.BuildSidebar(st.Accounts, st.Mailboxes, extras) {
 		section := ui.SidebarSection{Title: s.Title, Collapsible: true}
 		for _, i := range s.Items {
 			if !i.Selectable {
@@ -190,7 +202,7 @@ func (w *workspace) messageList() core.Node {
 	term := core.NewSignal(w.cx, "")
 	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
 	return core.View{Style: ui.FillRest, Children: []core.Node{
-		ui.Input{Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search},
+		workspaceui.Row(ui.Input{Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),
 		ui.List{Label: "Messages", Style: ui.FillRest, EstimatedSize: 68, TapSelects: true, Count: func() int {
 			w.rows.Get()
 			if w.view == nil {
@@ -222,7 +234,13 @@ func (w *workspace) messageList() core.Node {
 					if unread {
 						sender = "●  " + sender
 					}
-					return base.Button{Label: msg.Subject, Children: []core.Node{workspaceui.Stack(core.Text{Content: sender, Style: ui.TypeLabel}, core.Text{Content: msg.Subject, MaxLines: 1}, core.Text{Content: msg.Preview, MaxLines: 1, Style: ui.TypeCaption})}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
+					w.state.Get()
+					lines := mail.PreviewLines(w.store.State().Settings)
+					children := []core.Node{core.Text{Content: sender, Style: ui.TypeLabel}, core.Text{Content: msg.Subject, MaxLines: 1}}
+					if lines > 0 {
+						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: ui.TypeCaption})
+					}
+					return base.Button{Label: msg.Subject, Children: []core.Node{workspaceui.Stack(children...)}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
 				})
 			}, OnActivate: func(i int) {
 				if w.view != nil {
