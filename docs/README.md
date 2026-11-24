@@ -77,6 +77,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0059 — Add a published event from mail as the user's own event](adr/0059-add-a-published-event-from-mail-as-the-users-own.md) (Proposed)
 - [0060 — Close to the tray is an opt-in setting; the tray icon shows while the app runs](adr/0060-close-to-the-tray-is-an-opt-in-setting.md) (Accepted)
 - [0061 — Share the mail client with NSGo](adr/0061-share-the-mail-client-with-nsgo.md) (Proposed)
+- [0062 — Give the NSGo client the Frostyard look from the shared kit](adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md) (Accepted)
 
 ### Design
 
@@ -123,6 +124,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0013 — M6 The standalone desktop Flatpak](plans/0013-m6-the-standalone-desktop-flatpak.md)
 - [0014 — Small features from the nexmail review](plans/0014-small-features-from-the-nexmail-review.md): the sender check, the attachment reminder, snippets, erasing old Trash and Junk
 - [0015 — The desktop app in MyGo](plans/0015-mygo-desktop.md): the native desktop app, its window and console, the spikes and the parity gate
+- [0016 — A shared look for the NSGo apps](plans/0016-a-shared-look-for-the-nsgo-apps.md): the kit FrostMail, Frostnotes and PocketGo share, the standard window and FrostMail's restyle
 
 ## Conventions
 
