@@ -18,6 +18,7 @@ import (
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/base/dragdrop"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -37,7 +38,6 @@ type workspace struct {
 	searchInput     *core.Ref
 	trayChoice      *core.Signal[bool]
 	listState       mail.ListState
-	selecting       *core.Signal[bool]
 	selection       *ui.Selection
 	cx              *core.Scope
 	ctx             context.Context
@@ -67,6 +67,7 @@ type workspace struct {
 	acting          *core.Signal[bool]
 	appearance      *core.Signal[core.Appearance]
 	online          *core.Signal[bool]
+	dropping        bool
 	listWidth       *core.Signal[core.Points]
 	contentWidth    *core.Signal[core.Points]
 	tier            *core.Memo[tier]
@@ -100,8 +101,15 @@ func root(cx *core.Scope) core.Node {
 	w.toaster = ui.NewToaster(cx)
 	w.searchInput = &core.Ref{}
 	w.trayChoice = core.NewSignal(cx, false)
-	w.selecting = core.NewSignal(cx, false)
 	w.selection = ui.NewSelection(cx, true)
+	// The list's choice follows the reader: when a message closes by any
+	// way but the list (Back, a removal, a route), the row lets go too, so
+	// a press on it opens the message again.
+	cx.Effect(func() {
+		if w.opened.Get() == 0 && core.Untracked(cx, w.selection.Len) == 1 {
+			w.selection.Clear()
+		}
+	})
 	w.listState = mail.ListState{Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate}
 	w.term = core.NewSignal(cx, "")
 	w.switching = core.NewSignal(cx, false)
@@ -245,6 +253,13 @@ func (w *workspace) title() string {
 	return mail.SourceTitle(w.source, mail.Names{Mailboxes: st.Mailboxes, Smart: st.Smart})
 }
 func (w *workspace) navigate(key string) {
+	// In a GTK window the release that drops a message on a mailbox also
+	// presses that mailbox's row, in the same turn of the window's loop
+	// (frostyard/frostmail#392): a drop files the message and leaves the
+	// list where it is.
+	if w.dropping {
+		return
+	}
 	switch key {
 	case panelDrafts:
 		w.draftList()
@@ -294,106 +309,6 @@ func (w *workspace) openView() {
 	w.view = live.OpenView(c, w.events, q, func() { w.cx.Post(func() { invalidate(w.rows) }) })
 	w.view.Ensure(0, live.Page)
 }
-func (w *workspace) messageList() core.Node {
-	term := w.term
-	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
-	return core.View{Style: ui.FillRest, Children: []core.Node{
-		workspaceui.Row(ui.Input{Ref: w.searchInput, Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),
-		w.listOptions(), w.bulkActions(), ui.List{Label: "Messages", Style: ui.FillRest, EstimatedSize: 68, TapSelects: true, Count: func() int {
-			w.rows.Get()
-			if w.view == nil {
-				return 0
-			}
-			return int(w.view.Count())
-		},
-			Row: func(cx *core.Scope, row core.ListRow) core.Node {
-				return core.Dynamic(func(*core.Scope) core.Node {
-					idx := int64(row.Index())
-					w.rows.Get()
-					v := w.view
-					if v == nil {
-						return nil
-					}
-					msg, ok := v.Row(idx)
-					if !ok {
-						v.Ensure(idx, idx+1)
-						return core.Text{Content: "Loading…"}
-					}
-					sender := msg.From.Name
-					if sender == "" {
-						sender = msg.From.Address
-					}
-					unread := !msg.Flags.Seen
-					if msg.ThreadUnread != nil {
-						unread = *msg.ThreadUnread > 0
-					}
-					if unread {
-						sender = "●  " + sender
-					}
-					w.state.Get()
-					lines := mail.PreviewLines(w.store.State().Settings)
-					if mail.IsVIP(msg.From.Address, w.store.State().VIPs) {
-						sender = "★ " + sender
-					}
-					if msg.Flags.Flagged {
-						sender += " · ⚑"
-						if color := msg.Flags.FlagColor; color > 0 {
-							var names []string
-							if st := w.store.State().Settings; st != nil {
-								names = st.FlagNames
-							}
-							sender += " " + mail.FlagLabel(int(color), names)
-						}
-					}
-					if msg.RemindAt != nil {
-						sender += " · ◷"
-					}
-					if w.listState.Conversations && msg.ThreadCount > 1 {
-						sender += fmt.Sprintf(" · %d messages", msg.ThreadCount)
-					}
-					children := []core.Node{core.Text{Content: sender, Style: w.scaled(ui.TypeLabel)}, core.Text{Content: msg.Subject, MaxLines: 1, Style: w.scaled(ui.TypeBody)}}
-					if lines > 0 {
-						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: w.scaled(ui.TypeCaption)})
-					}
-					var content core.Node = workspaceui.Stack(children...)
-					if w.showPhotos.Get() && w.photos != nil {
-						w.photos.Want([]string{msg.From.Address})
-						if photo := w.photos.Get(msg.From.Address); len(photo) > 0 {
-							content = workspaceui.Row(core.Image{Label: "Sender photo", Source: core.ImageSource{Data: photo}, Style: core.Style{Width: core.Pt(32), Height: core.Pt(32), CornerRadius: 16}}, content)
-						}
-					}
-					colors := ui.ColorsOf(cx)
-					rowButton := base.Button{Label: msg.Subject, Selected: func() bool { return w.opened.Get() == msg.ID }, StyleFunc: func() core.Style {
-						return core.Style{Width: core.Pct(100), Padding: core.All(5), CornerRadius: 6, Selected: &core.Style{Background: ui.Alpha(colors.Accent(), 0.15)}}
-					}, Children: []core.Node{content}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
-					draggable := w.rowWithActions(cx, msg, w.dragRow(cx, msg, rowButton))
-					if w.selecting.Get() {
-						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, draggable)
-					}
-					return draggable
-				})
-			}, OnActivate: func(i int) {
-				if w.view != nil {
-					if m, ok := w.view.Row(int64(i)); ok {
-						w.openMessage(m.ID, false)
-					}
-				}
-			},
-			Empty: core.Text{ContentFunc: func() string {
-				w.rows.Get()
-				if w.view == nil {
-					return ""
-				}
-				if err := w.view.Err(); err != nil {
-					return err.Error()
-				}
-				if !w.view.Ready() {
-					return "Loading messages…"
-				}
-				return "No messages"
-			}}},
-	}}
-}
 
 type messagePage struct {
 	remote    bool
@@ -411,6 +326,10 @@ func (w *workspace) openMessage(id int64, remote bool) {
 	gen := w.generation
 	w.opened.Set(id)
 	w.reader.Set(nil)
+	// A message opened from elsewhere (Follow up, a link) is the list's choice too.
+	if !w.selection.Has(id) || w.selection.Len() != 1 {
+		w.selection.Set(id)
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(w.ctx, 45*time.Second)
 		defer cancel()
@@ -467,11 +386,13 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 	id := w.opened.Get()
 	p := w.reader.Get()
 	if p == nil {
-		label := "Select a message"
-		if id != 0 {
-			label = "Loading message…"
+		switch chosen := w.selection.Len(); {
+		case id != 0:
+			return workspaceui.Page(ui.Skeleton{Avatar: true, Lines: 3, Label: "Loading message"})
+		case chosen > 1:
+			return workspaceui.EmptyState{Icon: lucide.Mails, Title: strconv.Itoa(chosen) + " messages selected", Hint: "Delete, flag or move them from the toolbar."}
 		}
-		return workspaceui.Page(core.Text{Content: label, Style: ui.TypeTitle})
+		return workspaceui.EmptyState{Icon: lucide.MailOpen, Title: "No message selected", Hint: "Choose a message to read it here."}
 	}
 	m := p.message.Summary
 	children := []core.Node{core.Text{Content: m.Subject, Style: ui.TypeTitle}, core.Text{Content: m.From.Address + " · " + m.Date.Local().Format("Jan 2, 2006 15:04"), Style: ui.TypeCaption}}
@@ -511,11 +432,4 @@ func (w *workspace) resetPhotos(c *api.Client) {
 	w.stopPhotos = stop
 	w.photos = live.NewPhotos(photoCtx, c, func() { w.cx.Post(func() { invalidate(w.rows) }) })
 	invalidate(w.rows)
-}
-
-func (w *workspace) scaled(style core.Style) core.Style {
-	f := core.Points(w.textScale.Get())
-	style.FontSize *= f
-	style.LineHeight *= f
-	return style
 }

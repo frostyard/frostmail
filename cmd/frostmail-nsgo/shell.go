@@ -338,14 +338,14 @@ func (w *workspace) messageTools(m *api.MessageSummary) ([]toolGroup, []core.Nod
 	answer[0].run, answer[1].run, answer[2].run = draft(api.DraftKindReply), draft(api.DraftKindReplyall), draft(api.DraftKindForward)
 	if writable {
 		if box := mail.ArchiveOf(msg.AccountID, boxes); box != nil {
-			file[0].run = func() { w.change(w.moveMessage(msg, *box), nil) }
+			file[0].run = func() { w.change(w.moveMessage(msg, *box), w.moved("Message archived")) }
 		}
 		file[1].run = func() { w.deleteMessage(msg) }
 		if unjunk, box := mail.SpamTarget([]api.MessageSummary{msg}, boxes); box != nil {
 			if unjunk {
 				file[2].label, file[2].icon = "Not junk", lucide.ShieldCheck
 			}
-			file[2].run = func() { w.change(w.moveMessage(msg, *box), nil) }
+			file[2].run = func() { w.change(w.moveMessage(msg, *box), w.moved("Message moved to "+box.Name)) }
 		}
 		flag := !msg.Flags.Flagged
 		if !flag {
@@ -357,7 +357,9 @@ func (w *workspace) messageTools(m *api.MessageSummary) ([]toolGroup, []core.Nod
 			}, nil)
 		}
 		for _, box := range mail.MoveTargets(&msg, boxes) {
-			mark[1].menu = append(mark[1].menu, action(box.Name, w.moveMessage(msg, box)))
+			mark[1].menu = append(mark[1].menu, ui.MenuItem{Text: box.Name, Disabled: w.acting.Get, OnSelect: func() {
+				w.change(w.moveMessage(msg, box), w.moved("Message moved to "+box.Name))
+			}})
 		}
 	}
 
@@ -418,6 +420,10 @@ type toolset struct {
 // while maild reports a change of its message.
 func (w *workspace) tools(cx *core.Scope) func() toolset {
 	return core.NewMemoFunc(cx, func() toolset {
+		if ids := w.selectedIDs(); len(ids) > 1 {
+			groups, more := w.bulkTools(ids)
+			return toolset{groups, more}
+		}
 		groups, more := w.messageTools(w.openSummary())
 		return toolset{groups, more}
 	}, func(toolset, toolset) bool { return false }).Get

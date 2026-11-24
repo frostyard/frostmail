@@ -13,8 +13,8 @@
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | Desktop app | `internal/desktop/**` with `ui.Tester` against a real maild. `mainwin`'s `TestModulesInBothThemes` draws Mail, Calendar, People and Tasks in Frostyard and Frostyard light; with `FROSTMAIL_SNAPSHOT_DIR` set, it and the other snapshot tests write their PNGs there | `make test` |
-| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 17 workflows (`workspace_test.go`) and 7 picture tours (`pictures_test.go`) | `make nsgo-test`, headless (no pixels) |
-| NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. 2 workflows skip on a target ([below](#the-nsgo-clients-live-suite)) | `make nsgo-live`, under Xvfb |
+| NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 20 workflows (`workspace_test.go`) and 7 picture tours (`pictures_test.go`) | `make nsgo-test`, headless (no pixels) |
+| NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. No workflow skips on a target | `make nsgo-live`, under Xvfb |
 | Desktop app, real windows | `internal/desktop/e2e` (build tag `e2e`): the automation build on fixture mail: the hostile corpus, the reader's script probe (`TestReaderPageRunsNoScript`: 22 ways to run script, counted by the find bar and a canary, once past maild's sanitizer and once through it), a real link click, a forward with an inline image, dragging an event, the reminders window, and on Linux the Server pane's change of mode | `make desktop-e2e`, under Xvfb with xdotool, or on Windows' desktop |
 
 ## The NSGo client's live suite
@@ -40,9 +40,10 @@ The shared client has one suite, run two ways
   `cmd/frostmail-nsgo/.nsgo/`, so they find the repository with
   `repoRoot`. Pictures go to `cmd/frostmail-nsgo/.nsgo/test/screenshots/linux`,
   which git ignores; CI uploads them as `nsgo-live-pictures`.
-- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 20 PNGs.
-  14 are the main views in Frostyard light (the list, the To-Do Bar
-  beside it, a message, its More menu, a confirmation, a conversation, compose,
+- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 23 PNGs.
+  17 are the main views in Frostyard light (the list, the To-Do Bar
+  beside it, a row under the pointer, a message, its More menu, a
+  confirmation, several rows chosen, a search with no match, a conversation, compose,
   the five modules, and the narrow list and message), and 6, named
   `dark-`, are a message, its actions menu, a confirmation, the Calendar,
   compose and the narrow message in Frostyard. A tour names its appearance
@@ -54,19 +55,22 @@ The shared client has one suite, run two ways
   the look commits its changed pictures. No test compares pixels: the
   fixture's dates follow the day it is generated, so the list's dates and
   the Calendar differ from day to day, and fonts differ between hosts.
-- **Skipped on a target** (`headlessOnly`). Both fail the same way on
-  Xvfb's X11 (2026-11-24, with `GDK_BACKEND=x11`) and, before that, on a
-  Wayland desktop, where the trials below were made:
-  - `TestMessageRowQuickActions` (frostyard/frostmail#391): with the pointer over a message row, no
-    quick action shows; the row's `OnMouseEnter` is never called. The same
-    pointer shows a toolbar button's hover fill and tooltip, and a view of
-    the same shape outside the client (a list row in a context menu's
-    trigger, around a drag source and a button) hears the event. The cause
-    is not found.
-  - `TestDragMessageToMailbox` (frostyard/frostmail#392): a row dragged onto
-    a mailbox stays in its list. Not looked into further.
-  Both pass headless. Neither was tried with a person's mouse on a
-  desktop.
+- **What the real window found** (2 workflows skipped on a target from
+  2026-11-24 until plan 0016's Phase 3b, the same day):
+  - `TestMessageRowQuickActions` (frostyard/frostmail#391): no quick
+    action showed under the pointer. The view that listened for the
+    pointer was 0 points high: it had a flex basis of 0 in a column, and
+    its content stood outside it (346 by 0 in the headless tree). Why
+    the headless run passed was not looked into. The quick actions now follow the list row's own hover state, which a
+    target does not report, so the test checks it headless and the tour
+    keeps a picture of it (`mail-row-hover`).
+  - `TestDragMessageToMailbox` (frostyard/frostmail#392): the drop was
+    made, and the same release also pressed the mailbox's row, so the
+    list showed that mailbox, with the message in it. The client now
+    passes over a press of the navigation in the drop's own turn of the
+    loop, and the test looks for the message in the list, not in the
+    window.
+  Neither was tried with a person's mouse on a desktop.
 - **A blank picture.** With a message open, the picture of the window is
   blank from about a second after the To-Do Bar opens beside it (seen
   2026-11-24 on Xvfb's X11, on main at 65637f05 and with plan 0016's

@@ -87,6 +87,17 @@ func (w *workspace) change(job func(context.Context, *api.Client) error, done fu
 	})
 }
 
+// moved answers a move or a deletion, which can be undone, with a toast
+// whose action undoes it (plan 0016, rule 5).
+func (w *workspace) moved(title string) func() {
+	return func() {
+		undo := w.undo
+		w.toaster.Show(ui.ToastContent{ID: "undo", Title: title, Action: "Undo", OnAction: func() {
+			w.change(func(ctx context.Context, c *api.Client) error { _, err := undo.Do(ctx, c); return err }, nil)
+		}})
+	}
+}
+
 func (w *workspace) deleteMessage(m api.MessageSummary) {
 	undo := w.undo
 	ids := []int64{m.ID}
@@ -100,6 +111,7 @@ func (w *workspace) deleteMessage(m api.MessageSummary) {
 				w.opened.Set(0)
 				w.reader.Set(nil)
 			}
+			w.moved("Message deleted")()
 		})
 	})
 }

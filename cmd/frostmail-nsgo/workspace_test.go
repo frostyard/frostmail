@@ -28,16 +28,6 @@ func fixtureWorkspace(t *testing.T) *nsgotest.App {
 	return fixtureWithSMTP(t, "")
 }
 
-// headlessOnly skips a workflow on a target where it fails and headless it
-// passes, with what the target showed and its issue. Plan 0016's Phase 0.5
-// records each, and its Phase 3 rebuilds the rows these two act on.
-func headlessOnly(t *testing.T, seen string) {
-	t.Helper()
-	if target := nsgotest.Target(); target != "" {
-		t.Skipf("skipped on %s: %s", target, seen)
-	}
-}
-
 // repoRoot finds the repository from the working directory, which is this
 // package's directory under go test and a directory below it on a target.
 func repoRoot(t *testing.T) string {
@@ -322,14 +312,15 @@ func TestConversationOpensRelatedMessages(t *testing.T) {
 }
 
 func TestDragMessageToMailbox(t *testing.T) {
-	headlessOnly(t, "a row dragged onto a mailbox stays in its list (Xvfb, 2026-11-24): https://github.com/frostyard/frostmail/issues/392")
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
 	a.WaitFor("label:"+subject, 8*time.Second)
 	a.DragTo("label:Drag "+subject, "label:File messages in Drafts · ann.lee@example.com")
-	a.WaitUntil(8*time.Second, func() bool { return !a.Exists("label:" + subject) })
+	// The list is what the message leaves: a real pointer also chooses the
+	// row it drags, so the reader may go on showing the message.
+	a.WaitUntil(8*time.Second, func() bool { return !a.Exists("id:messages >> label:" + subject) })
 	a.Press("id:mailbox-role:drafts")
-	a.WaitFor("label:"+subject, 8*time.Second)
+	a.WaitFor("id:messages >> label:"+subject, 8*time.Second)
 }
 
 func TestTodoRailCreatesTask(t *testing.T) {
@@ -401,17 +392,96 @@ func TestForwardToLocalSMTP(t *testing.T) {
 	}
 }
 
+// TestMessageRowQuickActions checks a row's quick actions: they show while
+// the pointer is over their row, and Delete asks before it deletes. A
+// target does not report the hover's style, so the check of it is headless;
+// the tour's picture mail-row-hover shows it in a window.
 func TestMessageRowQuickActions(t *testing.T) {
-	headlessOnly(t, "the pointer over a row shows no quick actions; the row's OnMouseEnter is not called (Xvfb, 2026-11-24): https://github.com/frostyard/frostmail/issues/391")
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
-	a.WaitFor("label:"+subject, 5*time.Second)
-	a.Hover("label:" + subject)
-	a.WaitFor("label:Delete message", 5*time.Second)
-	a.Press("label:Delete message")
+	row := "id:messages >> label:" + subject
+	a.WaitFor(row, 5*time.Second)
+	shown := func() bool { return a.Find(row+" >> id:row-actions").Style.Opacity == 1 }
+	if nsgotest.Target() == "" && shown() {
+		t.Fatal("the quick actions show with no pointer over the row")
+	}
+	a.Hover(row)
+	if nsgotest.Target() == "" && !shown() {
+		t.Fatal("the quick actions do not show with the pointer over the row")
+	}
+	if got := a.Find(row + " >> id:row-actions").Bounds().Size.Height; got <= 0 {
+		t.Fatalf("the quick actions are %v high", got)
+	}
+	a.Press(row + " >> label:Delete message")
 	a.WaitFor("label:Cancel", 5*time.Second)
 	a.Press("label:Cancel")
-	a.WaitFor("label:"+subject, 5*time.Second)
+	a.WaitFor(row, 5*time.Second)
+}
+
+// TestListChoosesSeveralMessages checks the list's selection: Ctrl adds a
+// row, the reader then names the count, and the toolbar acts on them all.
+func TestListChoosesSeveralMessages(t *testing.T) {
+	a := fixtureWorkspace(t)
+	first, second := "id:messages >> label:Your trip to Lisbon: itinerary", "id:messages >> label:Dinner Saturday?"
+	a.WaitFor(first, 8*time.Second)
+	a.Press(first)
+	a.WaitFor("label:Message body", 8*time.Second)
+	a.PressWith(second, core.Modifiers{Control: true})
+	a.WaitFor("text:2 messages selected", 5*time.Second)
+	if a.Exists("label:Message body") {
+		t.Error("a message is shown with 2 chosen")
+	}
+	if a.Enabled("role:toolbar >> label:Reply") || !a.Enabled("role:toolbar >> label:Delete") {
+		t.Error("with 2 chosen, Reply can be pressed or Delete cannot")
+	}
+	// A flag with no color chosen is the first color's, Red.
+	flagged := func() int { return len(a.Query("id:messages >> label:Flagged Red")) }
+	before := flagged()
+	a.Press("role:toolbar >> label:Flag")
+	a.WaitUntil(5*time.Second, func() bool { return flagged() == before+2 })
+	a.Press("role:toolbar >> label:More")
+	a.Press("label:Clear flags")
+	a.WaitUntil(5*time.Second, func() bool { return flagged() == before })
+	a.WaitFor("text:No message selected", 5*time.Second)
+}
+
+// TestSearchAndFilterTheList checks the search field and the filter: a
+// search narrows the list, one with no match says so, the field's button
+// ends it, and the Flagged tab shows the flagged messages alone.
+func TestSearchAndFilterTheList(t *testing.T) {
+	a := fixtureWorkspace(t)
+	lisbon, dinner, flagged := "id:messages >> label:Your trip to Lisbon: itinerary", "id:messages >> label:Dinner Saturday?", "id:messages >> label:Design review notes: onboarding flow"
+	a.WaitFor(dinner, 8*time.Second)
+	a.Type("label:Search All Inboxes", "Lisbon")
+	a.Submit("label:Search All Inboxes")
+	a.WaitForGone(dinner, 8*time.Second)
+	a.WaitFor(lisbon, 8*time.Second)
+	a.Clear("label:Search All Inboxes")
+	a.Type("label:Search All Inboxes", "no such words anywhere")
+	a.Submit("label:Search All Inboxes")
+	a.WaitFor("text:No matching messages", 8*time.Second)
+	a.Press("role:button Clear search")
+	a.WaitFor(dinner, 8*time.Second)
+	a.Press("role:tab Flagged")
+	a.WaitForGone(dinner, 8*time.Second)
+	a.WaitFor(flagged, 8*time.Second)
+	a.Press("role:tab All")
+	a.WaitFor(dinner, 8*time.Second)
+}
+
+// TestArchiveAnswersWithAnUndoToast checks rule 5: a move answers with a
+// toast that has an Undo action. The fixture's mail never syncs, so maild
+// holds an undo of a move as still moving: the undo itself is not run here.
+func TestArchiveAnswersWithAnUndoToast(t *testing.T) {
+	a := fixtureWorkspace(t)
+	row := "id:messages >> label:Your trip to Lisbon: itinerary"
+	a.WaitFor(row, 8*time.Second)
+	a.Press(row)
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Archive") })
+	a.Press("role:toolbar >> label:Archive")
+	a.WaitForGone(row, 8*time.Second)
+	a.WaitFor("id:undo >> text:Message archived", 5*time.Second)
+	a.Find("id:undo >> role:button Undo")
 }
 
 func TestClosingNewDraftAndDiscardingEdits(t *testing.T) {

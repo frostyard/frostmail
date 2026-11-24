@@ -104,9 +104,11 @@ that draws them (`workspaceui/v0.3.0`). Phase 3, the client's main window,
 is in progress: it places the kit's parts and NSGo's controls by the
 control map, and each change carries its changed pictures. 3a, the shell
 (the module tabs, the navigation's rows and foot, the icon toolbar:
-`cmd/frostmail-nsgo/shell.go`), is built, and the owner has not looked at
-its pictures; 3b, the list, and 3c, the reader, are left. The MyGo client
-stays the default.
+`cmd/frostmail-nsgo/shell.go`), and 3b, the list (summary rows, the
+search field, the filter, selection by Ctrl and Shift:
+`cmd/frostmail-nsgo/list.go`), are built, and the owner has not looked
+at 3b's pictures; 3c, the reader, is left. The MyGo client stays the
+default.
 
 ## Two kinds of agent work
 

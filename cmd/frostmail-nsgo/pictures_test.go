@@ -5,6 +5,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/nsgo-dev/nsgo/core"
 )
 
 // The picture tours name a picture at each main view of the client on the
@@ -25,6 +27,10 @@ func TestPicturesOfMail(t *testing.T) {
 	a.Screenshot("mail-todo-bar")
 	a.Press("label:To-Do Bar")
 	a.WaitForGone("label:New task title", 5*time.Second)
+	// The pointer over a row shows its quick actions.
+	a.Hover("id:messages >> label:" + subject)
+	a.Screenshot("mail-row-hover")
+	a.HoverOut()
 	a.Press("label:" + subject)
 	a.WaitFor("label:Message body", 8*time.Second)
 	a.Screenshot("mail-message")
@@ -37,6 +43,14 @@ func TestPicturesOfMail(t *testing.T) {
 	a.WaitFor("label:Cancel", 5*time.Second)
 	a.Screenshot("dialog-confirm")
 	a.Press("label:Cancel")
+	// Several rows chosen, and a search with no match.
+	a.PressWith("id:messages >> label:Dinner Saturday?", core.Modifiers{Control: true})
+	a.WaitFor("text:2 messages selected", 5*time.Second)
+	a.Screenshot("mail-several-selected")
+	a.Type("label:Search All Inboxes", "no such words anywhere")
+	a.Submit("label:Search All Inboxes")
+	a.WaitFor("text:No matching messages", 8*time.Second)
+	a.Screenshot("mail-no-match")
 }
 
 func TestPicturesOfAConversation(t *testing.T) {
