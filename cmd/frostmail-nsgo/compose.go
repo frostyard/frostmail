@@ -188,7 +188,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 		return workspaceui.Stack(rows...)
 	})
-	send := func(when *time.Time) {
+	sendNow := func(when *time.Time) {
 		e.flush(func() {
 			if e.changed != e.saved {
 				e.fail(errors.New("Finish saving the draft before sending"))
@@ -205,6 +205,72 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 			})
 		})
 	}
+	remind := core.NewSignal(cx, false)
+	var pendingTime *time.Time
+	requestSend := func(at *time.Time) {
+		var signature string
+		for _, i := range identity.GetUntracked() {
+			if i.ID == who.GetUntracked() {
+				signature = i.SignatureHTML
+				break
+			}
+		}
+		if oldcompose.NeedsReminder(e.content.HTML, signature, len(e.files.GetUntracked())) {
+			pendingTime = at
+			remind.Set(true)
+			return
+		}
+		sendNow(at)
+	}
+	reminder := core.Dynamic(func(*core.Scope) core.Node {
+		if !remind.Get() {
+			return nil
+		}
+		return workspaceui.Card{Children: []core.Node{core.Text{Content: "You mentioned an attachment. Send without one?", Style: ui.TypeLabel},
+			workspaceui.Row(button("Keep editing", func() { remind.Set(false) }), button("Send without attachment", func() { remind.Set(false); sendNow(pendingTime) }))}}
+	})
+	scheduling := core.NewSignal(cx, false)
+	schedule := core.Dynamic(func(*core.Scope) core.Node {
+		if !scheduling.Get() {
+			return nil
+		}
+		const layout = "2006-01-02 15:04"
+		when := oldcompose.TomorrowMorning(time.Now()).Format(layout)
+		return workspaceui.Row(stringField("Local date and time", &when, false), button("Schedule send", func() {
+			at, err := time.ParseInLocation(layout, when, time.Local)
+			if err != nil || !at.After(time.Now()) {
+				e.status.Set("Enter a future local date and time (YYYY-MM-DD HH:MM).")
+				return
+			}
+			scheduling.Set(false)
+			requestSend(&at)
+		}), button("Cancel schedule", func() { scheduling.Set(false) }))
+	})
+	var times []core.Node
+	for _, c := range oldcompose.SendChoices(time.Now()) {
+		times = append(times, ui.MenuItem{Text: c.Label, OnSelect: func() { t := c.At; requestSend(&t) }})
+	}
+	times = append(times, ui.MenuItem{Text: "Choose date and time", OnSelect: func() { scheduling.Set(true) }})
+	snips, _ := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.SnippetChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Snippet, error) {
+		return func(ctx context.Context, c *api.Client) ([]api.Snippet, error) {
+			return c.Snippet().List(ctx, &api.SnippetListParams{})
+		}
+	})
+	insert := core.Dynamic(func(*core.Scope) core.Node {
+		var items []core.Node
+		for _, s := range snips.Get() {
+			items = append(items, ui.MenuItem{Text: s.Name, OnSelect: func() { e.editor.Paste("", s.HTML); e.editor.Focus() }})
+		}
+		for _, i := range identity.Get() {
+			if i.SignatureHTML != "" {
+				items = append(items, ui.MenuItem{Text: "Signature · " + i.Email, OnSelect: func() { e.editor.Paste("", i.SignatureHTML); e.editor.Focus() }})
+			}
+		}
+		if len(items) == 0 {
+			return nil
+		}
+		return ui.Menu{Trigger: ui.Button{Text: "Insert", Disabled: e.busy.Get}, Children: items}
+	})
 	closeDraft := func() { e.flush(w.closePanel) }
 	// Blocking edits during send keeps the transmitted snapshot identical to
 	// the last saved draft.
@@ -214,7 +280,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(205)}, NodeViews: map[string]richeditor.NodeView{"image": image, "inlineImage": image}}
 	})
-	dlg := w.dialog("Compose", []core.Node{from, field("To", &e.to), field("Cc", &e.cc), field("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(marks...), editor, fileList, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: []core.Node{ui.MenuItem{Text: "Tomorrow morning", OnSelect: func() { t := oldcompose.TomorrowMorning(time.Now()); send(&t) }}}}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { send(nil) }})
+	dlg := w.dialog("Compose", []core.Node{from, field("To", &e.to), field("Cc", &e.cc), field("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(append(marks, insert)...), editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
 			closeDraft()
