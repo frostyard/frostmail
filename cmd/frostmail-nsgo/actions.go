@@ -117,6 +117,7 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 		flagLabel = "Unflag"
 	}
 	items := []core.Node{flags(readLabel, api.FlagChanges{Seen: &seen}), flags(flagLabel, api.FlagChanges{Flagged: &flag})}
+	items = append(items, w.moreMessageActions(m)...)
 	if box := mail.ArchiveOf(m.AccountID, boxes); box != nil {
 		items = append(items, action("Archive", move(*box)))
 	}

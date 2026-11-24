@@ -123,3 +123,13 @@ func TestOrganizeRuleAndSmartMailbox(t *testing.T) {
 		a.WaitFor("label:Edit "+item.title, 5*time.Second)
 	}
 }
+
+func TestMessageHeaders(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Your trip to Lisbon: itinerary")
+	a.WaitFor("label:Message actions", 5*time.Second)
+	a.Press("label:Message actions")
+	a.Press("label:Show headers")
+	a.WaitFor("text:All headers", 5*time.Second)
+	a.WaitFor("label:Save message as", 5*time.Second)
+}

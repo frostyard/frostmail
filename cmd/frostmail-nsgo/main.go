@@ -360,6 +360,7 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 	if p.rendering.Remote > 0 {
 		children = append(children, ui.Button{Text: "Load remote images (" + strconv.FormatInt(p.rendering.Remote, 10) + ")", OnPress: func() { w.openMessage(id, true) }})
 	}
+	children = append(children, w.readerExtras(p.message)...)
 	children = append(children, bodyView(w, p.rendering))
 	return core.View{Style: ui.FillRest.Merge(core.Style{Padding: core.All(12), Gap: 8}), Children: children}
 }
