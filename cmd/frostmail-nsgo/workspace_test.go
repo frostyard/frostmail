@@ -1,0 +1,56 @@
+//go:build linux && integration
+
+package main
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/nsgo-dev/nsgo/nsgotest"
+)
+
+// Each test owns its maild and generated accounts. No host config, keyring,
+// mail server or installed app participates in the test.
+func fixtureWorkspace(t *testing.T) *nsgotest.App {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "fm-ui-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	settings := map[string]string{"XDG_CONFIG_HOME": filepath.Join(dir, "config"), "XDG_STATE_HOME": filepath.Join(dir, "state"), "FROSTMAIL_SOCKET": filepath.Join(dir, "maild.sock"), "FROSTMAIL_DATA_DIR": filepath.Join(dir, "data"), "FROSTMAIL_CACHE_DIR": filepath.Join(dir, "cache"), "FROSTMAIL_SYNC": "off", "FROSTMAIL_SECRETS": "file"}
+	for k, v := range settings {
+		t.Setenv(k, v)
+	}
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), "go", args...)
+		cmd.Dir = "../.."
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("go %v: %v\n%s", args, err, out)
+		}
+	}
+	run("run", "./tools/uifixture", "-out", settings["FROSTMAIL_DATA_DIR"], "-showcase", "tools/uifixture/showcase")
+	bin := filepath.Join(dir, "maild")
+	run("build", "-o", bin, "./cmd/maild")
+	daemon := exec.CommandContext(t.Context(), bin)
+	daemon.Stderr = os.Stderr
+	if err := daemon.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = daemon.Process.Kill(); _ = daemon.Wait() })
+	a := nsgotest.Start(t, root, nsgotest.Size(1280, 820))
+	a.WaitFor("text:Connected · Local", 20*time.Second)
+	return a
+}
+
+func TestMailboxReadsFixture(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 8*time.Second)
+	a.Press("label:" + subject)
+	a.WaitFor("label:Message body", 5*time.Second)
+}
