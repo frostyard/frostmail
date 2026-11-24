@@ -22,6 +22,17 @@ func (w *workspace) notificationKey() string {
 }
 func (w *workspace) commands() {
 	cx := w.cx
+	cx.OnKey("mod+alt+f", func() {
+		if w.module.GetUntracked() == "Mail" {
+			w.searchInput.Focus()
+		}
+	})
+	cx.OnKey("mod+z", func() {
+		if w.module.GetUntracked() == "Mail" && w.overlay.GetUntracked() == nil {
+			undo := w.undo
+			w.change(func(ctx context.Context, c *api.Client) error { _, err := undo.Do(ctx, c); return err }, nil)
+		}
+	})
 	cx.OnKey("mod+n", func() {
 		if w.overlay.GetUntracked() == nil {
 			w.newDraft(api.DraftKindNew, nil)

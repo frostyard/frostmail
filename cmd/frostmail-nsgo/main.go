@@ -30,6 +30,8 @@ type workspace struct {
 	beforeRoute     func(func(), func())
 	routeGeneration int
 	trayAvailable   bool
+	toaster         *ui.Toaster
+	searchInput     *core.Ref
 	trayChoice      *core.Signal[bool]
 	listState       mail.ListState
 	selecting       *core.Signal[bool]
@@ -70,6 +72,8 @@ func root(cx *core.Scope) core.Node {
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
 	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
 	w.watchReader()
+	w.toaster = ui.NewToaster(cx)
+	w.searchInput = &core.Ref{}
 	w.trayChoice = core.NewSignal(cx, false)
 	w.selecting = core.NewSignal(cx, false)
 	w.selection = ui.NewSelection(cx, true)
@@ -167,7 +171,7 @@ func root(cx *core.Scope) core.Node {
 				})
 			}
 		})}}
-	return core.View{Style: ui.FillRest, Children: []core.Node{shell, core.Dynamic(func(cx *core.Scope) core.Node {
+	return core.View{Style: ui.FillRest, Children: []core.Node{shell, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
 		if w.switching.Get() {
 			dlg := w.dialog("Changing mail server…", nil)
 			dlg.Footer = nil
@@ -275,7 +279,7 @@ func (w *workspace) messageList() core.Node {
 	term := w.term
 	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
 	return core.View{Style: ui.FillRest, Children: []core.Node{
-		workspaceui.Row(ui.Input{Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),
+		workspaceui.Row(ui.Input{Ref: w.searchInput, Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),
 		w.listOptions(), w.bulkActions(), ui.List{Label: "Messages", Style: ui.FillRest, EstimatedSize: 68, TapSelects: true, Count: func() int {
 			w.rows.Get()
 			if w.view == nil {

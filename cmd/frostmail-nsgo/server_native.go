@@ -63,6 +63,7 @@ func (w *workspace) serverPanel(cx *core.Scope) core.Node {
 					w.closePanel()
 					w.store.Disconnect()
 					w.store.Forget()
+					w.toaster.DismissAll()
 					w.undo = &mail.Undo{}
 					w.source = mail.Source{Kind: mail.AllInboxes}
 					w.selected.Set(w.source.Key())

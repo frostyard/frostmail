@@ -210,9 +210,8 @@ func (w *workspace) personDetail(p *api.Person, load func()) {
 				}
 				children = append(children, workspaceui.Row(ui.Button{Text: "Edit contact", OnPress: func() { w.contactForm(c, load) }}, ui.Button{Text: "Delete contact", Variant: ui.ButtonGhost, OnPress: func() {
 					w.confirm("Delete contact?", c.DisplayName, "Delete", func() {
-						w.change(func(ctx context.Context, client *api.Client) error {
-							_, err := client.People().Delete(ctx, &api.PeopleDeleteParams{ID: c.ID})
-							return err
+						w.writeContact(func(ctx context.Context, client *api.Client) (*api.ContactWrite, error) {
+							return client.People().Delete(ctx, &api.PeopleDeleteParams{ID: c.ID})
 						}, load)
 					})
 				}}))
@@ -244,14 +243,12 @@ func (w *workspace) contactForm(c api.Contact, load func()) {
 				f.Emails = append(f.Emails, api.LabeledValue{Value: v[3]})
 			}
 		}
-		w.change(func(ctx context.Context, client *api.Client) error {
+		w.writeContact(func(ctx context.Context, client *api.Client) (*api.ContactWrite, error) {
 			if c.ID == 0 {
-				_, err := client.People().Create(ctx, &api.PeopleCreateParams{CollectionID: optionalID(c.CollectionID), Fields: f})
-				return err
+				return client.People().Create(ctx, &api.PeopleCreateParams{CollectionID: optionalID(c.CollectionID), Fields: f})
 			}
-			_, err := client.People().Update(ctx, &api.PeopleUpdateParams{ID: c.ID, Fields: f})
-			return err
-		}, func() { w.closePanel(); load() })
+			return client.People().Update(ctx, &api.PeopleUpdateParams{ID: c.ID, Fields: f})
+		}, load)
 		return nil
 	})
 }

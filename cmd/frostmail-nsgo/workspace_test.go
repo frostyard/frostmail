@@ -140,3 +140,20 @@ func TestMessageHeaders(t *testing.T) {
 	a.WaitFor("text:All headers", 5*time.Second)
 	a.WaitFor("label:Save message as", 5*time.Second)
 }
+
+func TestScheduledSendReturnsToDraft(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.WaitFor("label:Your trip to Lisbon: itinerary", 8*time.Second)
+	a.Press("label:Compose")
+	a.WaitFor("label:Subject", 5*time.Second)
+	a.Type("label:To", "fixture@example.test")
+	a.Type("label:Subject", "Scheduled fixture")
+	a.Press("label:Send later")
+	a.Press("label:Send 8:00 AM Tomorrow")
+	a.WaitFor("label:Undo send", 5*time.Second)
+	a.Press("label:Undo send")
+	a.WaitFor("label:Subject", 5*time.Second)
+	if got := a.Find("label:Subject").Text; got != "Scheduled fixture" {
+		t.Fatalf("Reopened subject %q", got)
+	}
+}

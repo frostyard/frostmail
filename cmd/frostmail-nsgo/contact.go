@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/frostyard/frostmail/api"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/ui"
 	"io"
 	"net/http"
 	"strings"
@@ -139,10 +140,38 @@ func (w *workspace) fullContact(c api.Contact, load func()) {
 		if modified {
 			p.Addresses = addrs
 		}
-		w.change(func(ctx context.Context, client *api.Client) error {
-			_, err := client.People().Update(ctx, &api.PeopleUpdateParams{ID: c.ID, Fields: p})
-			return err
-		}, func() { w.closePanel(); load() })
+		w.writeContact(func(ctx context.Context, client *api.Client) (*api.ContactWrite, error) {
+			return client.People().Update(ctx, &api.PeopleUpdateParams{ID: c.ID, Fields: p})
+		}, load)
 		return nil
+	})
+}
+
+// Keep the undo token with the daemon that issued it.
+func (w *workspace) writeContact(op func(context.Context, *api.Client) (*api.ContactWrite, error), load func()) {
+	if w.acting.GetUntracked() {
+		return
+	}
+	w.acting.Set(true)
+	target := w.session.Target()
+	perform(w, op, func(result *api.ContactWrite, err error) {
+		w.acting.Set(false)
+		if err != nil {
+			w.problem.Set(err.Error())
+			return
+		}
+		w.closePanel()
+		load()
+		if result.RestoreID == "" {
+			return
+		}
+		w.toaster.Show(ui.ToastContent{Title: "Address book updated", Action: "Undo contact change", OnAction: func() {
+			if !w.session.Target().Same(target) {
+				return
+			}
+			w.change(func(ctx context.Context, c *api.Client) error {
+				return c.People().Restore(ctx, &api.PeopleRestoreParams{RestoreID: result.RestoreID})
+			}, nil)
+		}})
 	})
 }

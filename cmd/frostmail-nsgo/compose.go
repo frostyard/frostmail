@@ -235,12 +235,13 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 			}
 			perform(w, func(ctx context.Context, c *api.Client) (*api.OutboxItem, error) {
 				return c.Draft().Send(ctx, &api.DraftSendParams{ID: d.ID, SendAt: when})
-			}, func(_ *api.OutboxItem, err error) {
+			}, func(sent *api.OutboxItem, err error) {
 				if err != nil {
 					e.fail(err)
 					return
 				}
 				w.closePanel()
+				w.queued(sent)
 			})
 		})
 	}
@@ -556,4 +557,37 @@ func (w *workspace) outbox() {
 			return core.Scroll{Children: rows, Style: core.Style{MaxHeight: core.Pt(430)}}
 		})})
 	})
+}
+
+func (w *workspace) queued(item *api.OutboxItem) {
+	title := "Message queued"
+	delay := time.Duration(0)
+	if item.SendAt != nil {
+		delay = time.Until(*item.SendAt)
+	}
+	if item.Scheduled {
+		title = "Send scheduled"
+	}
+	notice := ui.ToastContent{Title: title, Description: item.Subject, Type: ui.ToastSuccess}
+	if item.DraftID != nil && delay > 0 {
+		notice.Action = "Undo send"
+		notice.Duration = min(delay, 30*time.Second)
+		target := w.session.Target()
+		notice.OnAction = func() {
+			if !w.session.Target().Same(target) {
+				return
+			}
+			cancel := func() {
+				perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
+					return c.Outbox().Cancel(ctx, &api.OutboxCancelParams{ID: item.ID})
+				}, w.editDraft)
+			}
+			if flush := w.beforeRoute; flush != nil {
+				flush(cancel, func() {})
+			} else {
+				cancel()
+			}
+		}
+	}
+	w.toaster.Show(notice)
 }
