@@ -444,9 +444,10 @@ pictures.
   - The kit's spec holds the control map, with "NSGo has none" beside each
     part that wraps no `ui` control (`Banner`, `EmptyState`,
     `SearchField`), and the rules for an app.
-  - Not looked at by the owner: the web pictures (the agent looked at 1 of
-    30), and the search field's clear button, added after he accepted the
-    field.
+  - Not kept, and not given to the owner: the web pictures (the agent
+    looked at 1 of 30). The search field's clear button, added after he
+    accepted the field, is in the gallery's kept pictures, which he has
+    looked at.
   - What the theme cannot reach, for Phase 6: a menu's translucent ground,
     the neutral side of NSGo's settings view, and the list's light scroll
     bar in the dark theme on the web.
@@ -474,7 +475,7 @@ stand-ins of its panes with the control map's controls (rule 11):
   themes, is set beside [main.png](../images/main.png) and the owner
   accepts it; each of the three changes carried its changed pictures; and
   `make nsgo-test`, the Linux target and `dev/lodge/nsgo-smoke.py` pass.
-- **3a (2026-11-24), built; the owner has not looked at its pictures.**
+- **3a (2026-11-24), built.** The owner looked at its pictures and said to go on (2026-11-24).
   `cmd/frostmail-nsgo/shell.go` holds the shell:
   - **The navigation.** The modules are a segment of 4 icons at its head
     (`ui.Tabs`). A row is the kit's `NavLabel`: the icon of the row's role,
@@ -514,7 +515,7 @@ stand-ins of its panes with the control map's controls (rule 11):
     blank from about a second after the To-Do Bar opens; the same steps on
     main (65637f05) give the same blank picture, so the tour takes the
     To-Do Bar beside the list alone. Not tried on a desktop.
-- **3b (2026-11-24), built; the owner has not looked at its pictures.**
+- **3b (2026-11-24), built.** The owner looked at its pictures and said the list is right (2026-11-24).
   `cmd/frostmail-nsgo/list.go` holds the list pane:
   - **Rows.** NSGo's `ui.List` with the app's multiple `ui.Selection` and
     the kit's `SoftRows`; a row is the kit's `SummaryRow` (the unread dot,
@@ -569,7 +570,7 @@ stand-ins of its panes with the control map's controls (rule 11):
     answers that the messages are still moving. `dev/lodge/nsgo-smoke.py`
     was not run. No row was dragged or pointed at by a person on a
     desktop.
-- **3c (2026-11-24), built; the owner has not looked at its pictures.**
+- **3c (2026-11-24), built.** The owner looked at its pictures and accepted the main window (2026-11-24).
   `cmd/frostmail-nsgo/reader_pane.go` holds the reader pane:
   - **The header block.** The sender's avatar (the photo or initials),
     the sender's name and address, the recipients on one line, and the
@@ -614,8 +615,8 @@ stand-ins of its panes with the control map's controls (rule 11):
   Compose: it does not press the toolbar, a banner or a row's actions.
 - **Done (2026-11-24).** The 3 changes are built, each with its changed
   pictures; `make nsgo-test`, the Linux target (29 passed, 0 skipped) and
-  the smoke test pass. Brian accepted the main window (2026-11-24) from
-  the live suite's pictures as each change sent them, in both themes.
+  the smoke test pass. Brian looked at every picture of each change
+  and accepted the main window (2026-11-24), in both themes.
   Missing from "Done when", and accepted by him as it is: the pictures
   were not set beside [main.png](../images/main.png) in one view.
 
@@ -644,7 +645,7 @@ stand-ins of its panes with the control map's controls (rule 11):
     with its own navigation in place of mail's rows.
   - **4e, the narrow layout and Lodge's web build** in a browser, the
     style test of rule 2, and the README's pictures.
-- **4a (2026-11-24), built; the owner has not looked at its pictures.**
+- **4a (2026-11-24), built.** The owner looked at its pictures and said to go on (2026-11-24).
   - **Buttons.** `button` draws quiet (NSGo's secondary variant), and
     `primary` and `danger` name a region's main action and a destroying
     one (`cmd/frostmail-nsgo/accounts.go`). Before, `button` drew every
@@ -666,7 +667,7 @@ stand-ins of its panes with the control map's controls (rule 11):
     31 passed, 0 skipped. 21 of the 26 kept pictures changed. 2 new
     workflows: the 3 helpers' variants, and Delete's alert with Cancel
     before Delete, which a cancel leaves undone.
-- **4b (2026-11-24), built; the owner has not looked at its pictures.**
+- **4b (2026-11-24), built.** The owner looked at its pictures and said to go on (2026-11-24).
   `cmd/frostmail-nsgo/settings_view.go` holds Settings:
   - **The view.** NSGo's `ui.Settings`: 7 categories at its side
     (Accounts, General, Identities, Snippets, Filters, Mailboxes, Sign-in,
