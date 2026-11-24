@@ -46,7 +46,7 @@ func (w *workspace) textReader(page *messagePage) {
 			}, w.freshDraft)
 		}
 		disabled := func() bool { return strings.TrimSpace(selection.Get()) == "" }
-		return w.dialog("Find or quote message text", []core.Node{ui.Input{Label: "Find in message", Placeholder: "Find in message", Value: needle.Get, OnChange: func(v string) { selection.Set(""); needle.Set(v) }}, core.Scroll{Style: core.Style{MaxHeight: core.Pt(410)}, Children: []core.Node{preview}}}, button("Close", w.closePanel), ui.Button{Text: "Reply with selection", Disabled: disabled, OnPress: func() { reply(api.DraftKindReply) }}, ui.Button{Text: "Reply all with selection", Disabled: disabled, OnPress: func() { reply(api.DraftKindReplyall) }})
+		return w.dialog("Find or quote message text", []core.Node{ui.Input{Label: "Find in message", Placeholder: "Find in message", Value: needle.Get, OnChange: func(v string) { selection.Set(""); needle.Set(v) }}, core.Scroll{Style: core.Style{MaxHeight: core.Pt(410)}, Children: []core.Node{preview}}}, button("Close", w.closePanel), ui.Button{Text: "Reply with selection", Disabled: disabled, OnPress: func() { reply(api.DraftKindReply) }}, ui.Button{Text: "Reply all with selection", Variant: ui.ButtonSecondary, Disabled: disabled, OnPress: func() { reply(api.DraftKindReplyall) }})
 	})
 }
 

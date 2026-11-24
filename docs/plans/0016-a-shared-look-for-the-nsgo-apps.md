@@ -630,6 +630,42 @@ stand-ins of its panes with the control map's controls (rule 11):
 - **Done when:** the README's pictures are the live suite's, from the NSGo
   client; the style test passes with no exception listed; and no row of
   the control map's "Today" column is still true of FrostMail.
+- **In 5 changes** (2026-11-24), each with its changed pictures, as
+  Phase 3 went:
+  - **4a, buttons and confirmations.** Rules 3 and 4's confirmation in
+    every surface at once: one filled button for a region, destroying
+    actions in the danger variant, confirmations on `ui.AlertDialog`.
+  - **4b, Settings** on `ui.Settings`, with its panes' rows on
+    `ui.FormSection` and `ui.FormRow`, and the panels that are lists of
+    buttons (an account's, a mailbox's) as lists and menus.
+  - **4c, Compose:** its toolbar, recipients on `ui.TagInput`, the
+    formatting bar, the schedule on `ui.DatePicker` and `ui.TimeField`.
+  - **4d, Calendar, People, Tasks, the To-Do Bar and Activity,** each
+    with its own navigation in place of mail's rows.
+  - **4e, the narrow layout and Lodge's web build** in a browser, the
+    style test of rule 2, and the README's pictures.
+- **4a (2026-11-24), built; the owner has not looked at its pictures.**
+  - **Buttons.** `button` draws quiet (NSGo's secondary variant), and
+    `primary` and `danger` name a region's main action and a destroying
+    one (`cmd/frostmail-nsgo/accounts.go`). Before, `button` drew every
+    button filled: the Calendar's bar had 5 filled buttons and has 1, New
+    event. 14 buttons are named primary and 10 danger, and 13 others
+    that were filled by default are quiet.
+  - **Confirmations.** `confirm` and `destroy` are `ui.AlertDialog` on the
+    kit's panel: Cancel first and quiet, the action filled, or in the
+    danger variant for the 13 confirmations that remove something. An
+    error inside a dialog or a form is the kit's danger `Banner`.
+  - **Left for 4b to 4d.** The panels that are lists of buttons keep
+    their buttons, now quiet. A dialog's footer keeps the order its
+    caller gave it; those seen put Cancel first.
+  - **Seen on the way.** The mail tour's search step failed 1 time
+    headless, and passed in each of 5 later runs. The search field was
+    built again with every change of the store, which is taken to be
+    why: it is now built again only when its source's name changes.
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    31 passed, 0 skipped. 21 of the 26 kept pictures changed. 2 new
+    workflows: the 3 helpers' variants, and Delete's alert with Cancel
+    before Delete, which a cancel leaves undone.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 

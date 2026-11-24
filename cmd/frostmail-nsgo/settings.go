@@ -61,7 +61,7 @@ func (w *workspace) oauthClient(provider api.OAuthProvider) {
 		}
 		w.show(func(*core.Scope) core.Node {
 			id, secret := info.ClientID, ""
-			return w.dialog("OAuth client · "+string(provider), []core.Node{stringField("Client ID", &id, false), stringField("New client secret", &secret, true)}, button("Cancel", w.closePanel), button("Save", func() {
+			return w.dialog("OAuth client · "+string(provider), []core.Node{stringField("Client ID", &id, false), stringField("New client secret", &secret, true)}, button("Cancel", w.closePanel), primary("Save", func() {
 				p := api.OauthSetClientParams{Provider: provider, ClientID: id, ClientSecret: changed("", secret)}
 				w.change(func(ctx context.Context, c *api.Client) error { _, err := c.Oauth().SetClient(ctx, &p); return err }, w.closePanel)
 			}))
@@ -176,7 +176,7 @@ func (w *workspace) identities(cx *core.Scope) core.Node {
 			return w.dialog("Choose account", buttons)
 		})
 	}
-	return core.View{Style: ui.FillRest, Children: []core.Node{button("Add sender identity", add), collectionList(rows, "Sender identities", func(i api.Identity) string { return i.Email }, func(i api.Identity) string { return i.Name }, func(i api.Identity) {
+	return core.View{Style: ui.FillRest, Children: []core.Node{primary("Add sender identity", add), collectionList(rows, "Sender identities", func(i api.Identity) string { return i.Email }, func(i api.Identity) string { return i.Name }, func(i api.Identity) {
 		w.show(func(*core.Scope) core.Node {
 			nodes := []core.Node{button("Edit identity and signature", func() {
 				w.form("Sender identity", []editField{{"Name", i.Name, false}, {"Reply to", i.ReplyTo, false}, {"Signature HTML", i.SignatureHTML, true}}, func(v []string) error {
@@ -188,8 +188,8 @@ func (w *workspace) identities(cx *core.Scope) core.Node {
 				})
 			})}
 			if !i.IsDefault {
-				nodes = append(nodes, button("Delete identity", func() {
-					w.confirm("Delete sender identity?", i.Email, "Delete", func() {
+				nodes = append(nodes, danger("Delete identity", func() {
+					w.destroy("Delete sender identity?", i.Email, "Delete", func() {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							return c.Identity().Delete(ctx, &api.IdentityDeleteParams{ID: i.ID})
 						}, load)
@@ -222,10 +222,10 @@ func (w *workspace) snippets(cx *core.Scope) core.Node {
 			return nil
 		})
 	}
-	return core.View{Style: ui.FillRest, Children: []core.Node{button("Add snippet", func() { edit(api.Snippet{}) }), collectionList(rows, "Message snippets", func(s api.Snippet) string { return s.Name }, func(s api.Snippet) string { return s.UpdatedAt.Local().Format("Jan 2") }, func(s api.Snippet) {
+	return core.View{Style: ui.FillRest, Children: []core.Node{primary("Add snippet", func() { edit(api.Snippet{}) }), collectionList(rows, "Message snippets", func(s api.Snippet) string { return s.Name }, func(s api.Snippet) string { return s.UpdatedAt.Local().Format("Jan 2") }, func(s api.Snippet) {
 		w.show(func(*core.Scope) core.Node {
-			return w.dialog(s.Name, []core.Node{button("Edit snippet", func() { edit(s) }), button("Delete snippet", func() {
-				w.confirm("Delete snippet?", s.Name, "Delete", func() {
+			return w.dialog(s.Name, []core.Node{button("Edit snippet", func() { edit(s) }), danger("Delete snippet", func() {
+				w.destroy("Delete snippet?", s.Name, "Delete", func() {
 					w.change(func(ctx context.Context, c *api.Client) error {
 						return c.Snippet().Delete(ctx, &api.SnippetDeleteParams{ID: s.ID})
 					}, load)

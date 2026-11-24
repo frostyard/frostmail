@@ -59,7 +59,7 @@ func (e *draftEditor) formatting(cx *core.Scope) (core.Node, core.Node) {
 			link.Set(false)
 			e.editor.Focus()
 		}
-		return workspaceui.Row(ui.Input{Label: "Link address", Placeholder: "https://", OnChange: func(v string) { url = v }, OnSubmit: apply}, button("Apply link", func() { apply(url) }), button("Cancel link", func() { link.Set(false) }))
+		return workspaceui.Row(ui.Input{Label: "Link address", Placeholder: "https://", OnChange: func(v string) { url = v }, OnSubmit: apply}, primary("Apply link", func() { apply(url) }), button("Cancel link", func() { link.Set(false) }))
 	}}
 	var items []core.Node
 	for _, m := range []struct{ label, name string }{{"Bold", "toggleBold"}, {"Italic", "toggleItalic"}, {"Underline", "toggleUnderline"}, {"Strikethrough", "toggleStrike"}, {"Bulleted list", "toggleBulletList"}, {"Numbered list", "toggleOrderedList"}, {"Quote", "toggleBlockquote"}, {"Undo", "undo"}, {"Redo", "redo"}} {
@@ -73,6 +73,6 @@ func (e *draftEditor) formatting(cx *core.Scope) (core.Node, core.Node) {
 	}})
 	return core.Dynamic(func(keys *core.Scope) core.Node {
 		keys.OnKey("mod+k", startLink)
-		return ui.Menu{Trigger: ui.Button{Text: "Format", Disabled: e.busy.Get}, Children: items}
+		return ui.Menu{Trigger: ui.Button{Text: "Format", Variant: ui.ButtonSecondary, Disabled: e.busy.Get}, Children: items}
 	}), bar
 }

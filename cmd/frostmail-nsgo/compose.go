@@ -289,7 +289,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 			return nil
 		}
 		return workspaceui.Card{Children: []core.Node{core.Text{Content: "You mentioned an attachment. Send without one?", Style: ui.TypeLabel},
-			workspaceui.Row(button("Keep editing", func() { remind.Set(false) }), button("Send without attachment", func() { remind.Set(false); sendNow(pendingTime) }))}}
+			workspaceui.Row(button("Keep editing", func() { remind.Set(false) }), primary("Send without attachment", func() { remind.Set(false); sendNow(pendingTime) }))}}
 	})
 	scheduling := core.NewSignal(cx, false)
 	schedule := core.Dynamic(func(*core.Scope) core.Node {
@@ -298,7 +298,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		}
 		const layout = "2006-01-02 15:04"
 		when := oldcompose.TomorrowMorning(time.Now()).Format(layout)
-		return workspaceui.Row(stringField("Local date and time", &when, false), button("Schedule send", func() {
+		return workspaceui.Row(stringField("Local date and time", &when, false), primary("Schedule send", func() {
 			at, err := time.ParseInLocation(layout, when, time.Local)
 			if err != nil || !at.After(time.Now()) {
 				e.status.Set("Enter a future local date and time (YYYY-MM-DD HH:MM).")
@@ -328,7 +328,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 				items = append(items, ui.MenuItem{Text: "Signature · " + i.Email, OnSelect: func() { e.editor.Paste("", i.SignatureHTML); e.editor.Focus() }})
 			}
 		}
-		return ui.Menu{Trigger: ui.Button{Text: "Insert", Disabled: e.busy.Get}, Children: items}
+		return ui.Menu{Trigger: ui.Button{Text: "Insert", Variant: ui.ButtonSecondary, Disabled: e.busy.Get}, Children: items}
 	})
 	closeDraft := func() { e.flush(w.closePanel) }
 	// Blocking edits during send keeps the transmitted snapshot identical to
@@ -388,7 +388,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		})
 
 		return workspaceui.Stack(body...)
-	})}}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	})}}}, ui.Button{Text: "Attach file", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
 			e.leave(w.closePanel)
@@ -578,12 +578,12 @@ func (w *workspace) draftList() {
 				if label == "" {
 					label = "Untitled draft"
 				}
-				rows = append(rows, workspaceui.Row(ui.Button{Text: label, OnPress: func() {
+				rows = append(rows, workspaceui.Row(ui.Button{Text: label, Variant: ui.ButtonSecondary, OnPress: func() {
 					perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
 						return c.Draft().Get(ctx, &api.DraftGetParams{ID: d.ID})
 					}, w.editDraft)
-				}}, ui.Button{Text: "Discard", Variant: ui.ButtonGhost, OnPress: func() {
-					w.confirm("Discard draft?", label, "Discard", func() {
+				}}, ui.Button{Text: "Discard", Variant: ui.ButtonDanger, OnPress: func() {
+					w.destroy("Discard draft?", label, "Discard", func() {
 						w.change(func(ctx context.Context, c *api.Client) error {
 							return c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: d.ID})
 						}, w.draftList)
@@ -608,14 +608,14 @@ func (w *workspace) outbox() {
 					row = append(row, core.Text{Content: *item.Error})
 				}
 				if item.DraftID != nil {
-					row = append(row, ui.Button{Text: "Cancel send and edit", OnPress: func() {
+					row = append(row, ui.Button{Text: "Cancel send and edit", Variant: ui.ButtonSecondary, OnPress: func() {
 						perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
 							return c.Outbox().Cancel(ctx, &api.OutboxCancelParams{ID: item.ID})
 						}, w.editDraft)
 					}})
 				}
 				if item.State == api.OutboxStateFailed {
-					row = append(row, ui.Button{Text: "Retry", OnPress: func() {
+					row = append(row, ui.Button{Text: "Retry", Variant: ui.ButtonSecondary, OnPress: func() {
 						w.call(func(ctx context.Context, c *api.Client) error {
 							return c.Outbox().Retry(ctx, &api.OutboxRetryParams{ID: item.ID})
 						})

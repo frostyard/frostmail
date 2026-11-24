@@ -111,7 +111,11 @@ banners, the page's frame: `cmd/frostmail-nsgo/reader_pane.go`), are
 built, and Phase 3 is done (2026-11-24): Brian accepted the main window
 from the live suite's pictures, without setting them beside `main.png`
 (plan 0016, Phase 3), and `dev/lodge/nsgo-smoke.py` passes. Phase 4, the
-client's other surfaces, is next. The MyGo client stays the default.
+client's other surfaces, is in progress, in 5 changes: 4a, one filled
+button for a region and confirmations on NSGo's alert dialog, is built;
+4b (Settings), 4c (Compose), 4d (Calendar, People, Tasks, the To-Do Bar,
+Activity) and 4e (the narrow layout, Lodge's web build, the style test)
+are left. The MyGo client stays the default.
 
 ## Two kinds of agent work
 

@@ -10,6 +10,7 @@ import (
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -80,7 +81,9 @@ func (w *workspace) form(title string, fields []editField, submit func([]string)
 			values[i] = f.value
 			children = append(children, workspaceui.Stack(core.Text{Content: f.label, Style: ui.TypeCaption}, ui.Input{Label: f.label, DefaultValue: f.value, Multiline: f.multi, OnChange: func(v string) { values[i] = v }}))
 		}
-		children = append(children, core.Text{ContentFunc: problem.Get})
+		children = append(children, core.Show{When: func() bool { return problem.Get() != "" }, Then: func(*core.Scope) core.Node {
+			return workspaceui.Banner{Tone: workspaceui.Danger, Icon: lucide.CircleAlert, Text: problem.Get()}
+		}})
 		return w.dialog(title, []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(480)}, Children: children}}, ui.Button{Text: "Cancel", Variant: ui.ButtonSecondary, OnPress: w.closePanel}, ui.Button{Text: "Save", Disabled: w.acting.Get, OnPress: func() {
 			if err := submit(slices.Clone(values)); err != nil {
 				problem.Set(err.Error())
@@ -181,13 +184,13 @@ func (w *workspace) taskDetail(t api.Task, load func()) {
 			if !done {
 				label = "Reopen"
 			}
-			children = append(children, workspaceui.Row(ui.Button{Text: label, OnPress: func() {
+			children = append(children, workspaceui.Row(ui.Button{Text: label, Variant: ui.ButtonSecondary, OnPress: func() {
 				w.change(func(ctx context.Context, c *api.Client) error {
 					_, err := c.Tasks().Update(ctx, &api.TasksUpdateParams{ID: t.ID, Completed: &done})
 					return err
 				}, func() { w.closePanel(); load() })
 			}}, ui.Button{Text: "Edit task", OnPress: func() { w.taskForm(t, load) }}, ui.Button{Text: "Delete task", Variant: ui.ButtonDanger, OnPress: func() {
-				w.confirm("Delete task?", t.Title, "Delete", func() {
+				w.destroy("Delete task?", t.Title, "Delete", func() {
 					w.change(func(ctx context.Context, c *api.Client) error {
 						return c.Tasks().Delete(ctx, &api.TasksDeleteParams{ID: t.ID})
 					}, load)
@@ -278,8 +281,8 @@ func (w *workspace) personDetail(p *api.Person, load func()) {
 				if p.HasPhoto {
 					children = append(children, button("Remove contact photo", func() { w.setContactPhoto(c.ID, nil, load) }))
 				}
-				children = append(children, workspaceui.Row(ui.Button{Text: "Edit contact", OnPress: func() { w.contactForm(c, load) }}, ui.Button{Text: "Delete contact", Variant: ui.ButtonGhost, OnPress: func() {
-					w.confirm("Delete contact?", c.DisplayName, "Delete", func() {
+				children = append(children, workspaceui.Row(ui.Button{Text: "Edit contact", OnPress: func() { w.contactForm(c, load) }}, ui.Button{Text: "Delete contact", Variant: ui.ButtonDanger, OnPress: func() {
+					w.destroy("Delete contact?", c.DisplayName, "Delete", func() {
 						w.writeContact(func(ctx context.Context, client *api.Client) (*api.ContactWrite, error) {
 							return client.People().Delete(ctx, &api.PeopleDeleteParams{ID: c.ID})
 						}, load)
