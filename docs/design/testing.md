@@ -29,20 +29,30 @@ The shared client has one suite, run two ways
   under `xvfb-run`, each test in a process of its own, in a GTK 4 window
   with WebKitGTK for the message's page. It needs the `xvfb` package, GTK 4
   and WebKitGTK 6. The target has no `-tags` flag, so the Makefile passes
-  the tag in `GOFLAGS`; it unsets `WAYLAND_DISPLAY` so that GTK takes
-  Xvfb's X11. On a target the tests' working directory is under
+  the tag in `GOFLAGS`. It sets `GDK_BACKEND=x11`, which is what keeps the
+  windows on Xvfb: GTK tries Wayland first, and with `WAYLAND_DISPLAY`
+  unset it still finds a desktop's compositor at the default socket,
+  `wayland-0`. Until 2026-11-24 the Makefile only unset the variable, so on
+  a Wayland desktop the windows opened on that desktop, with its GTK
+  settings and its title bar; a runner has no compositor, so CI's runs were
+  on Xvfb throughout. GTK also reads `testdata/xdg`'s settings, which stop
+  the caret's blinking. On a target the tests' working directory is under
   `cmd/frostmail-nsgo/.nsgo/`, so they find the repository with
   `repoRoot`. Pictures go to `cmd/frostmail-nsgo/.nsgo/test/screenshots/linux`,
   which git ignores; CI uploads them as `nsgo-live-pictures`.
 - **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 14 PNGs of
   the main views (the list, a message, its actions menu, a confirmation,
   the To-Do Bar, a conversation, compose, the five modules, and the narrow
-  list and message), 1280 by 781 and 620 by 781: 39 less in height than
-  the window the tests ask for. `make nsgo-pictures` takes them again. A change of
+  list and message), 1280 by 820 and 620 by 820, taken on Xvfb's X11.
+  (The first set, of 2026-11-24, was 781 high and in the desktop's font:
+  it was taken on a Wayland desktop, as above.) `make nsgo-pictures` takes
+  them again. A change of
   the look commits its changed pictures. No test compares pixels: the
   fixture's dates follow the day it is generated, so the list's dates and
   the Calendar differ from day to day, and fonts differ between hosts.
-- **Skipped on a target** (`headlessOnly`), seen under Xvfb on 2026-11-24:
+- **Skipped on a target** (`headlessOnly`). Both fail the same way on
+  Xvfb's X11 (2026-11-24, with `GDK_BACKEND=x11`) and, before that, on a
+  Wayland desktop, where the trials below were made:
   - `TestMessageRowQuickActions` (frostyard/frostmail#391): with the pointer over a message row, no
     quick action shows; the row's `OnMouseEnter` is never called. The same
     pointer shows a toolbar button's hover fill and tooltip, and a view of

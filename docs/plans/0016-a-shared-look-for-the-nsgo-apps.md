@@ -311,6 +311,11 @@ pictures.
     not looked into. Phase 3 rebuilds these rows: its 3b is not done while
     either skips.
   - The tests assumed their working directory; on a target it is another.
+  - Unsetting `WAYLAND_DISPLAY` does not keep GTK on Xvfb: on a Wayland
+    desktop the windows of the first runs opened on that desktop, and the
+    first kept pictures were taken there. Frostnotes' part found it. The
+    Makefile now sets `GDK_BACKEND=x11`, the pictures were taken again on
+    Xvfb's X11, and the 2 failures above were seen there too.
   - The fixture's dates follow the day, so the pictures of the list and
     the Calendar change from day to day.
   Not built: bounds checks, which wait for the standard's measures
