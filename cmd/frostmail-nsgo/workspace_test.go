@@ -3,9 +3,12 @@
 package main
 
 import (
+	"bufio"
+	"net/mail"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,12 +20,21 @@ import (
 // mail server or installed app participates in the test.
 func fixtureWorkspace(t *testing.T) *nsgotest.App {
 	t.Helper()
+	return fixtureWithSMTP(t, "")
+}
+
+func fixtureWithSMTP(t *testing.T, smtp string) *nsgotest.App {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "fm-ui-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	settings := map[string]string{"XDG_CONFIG_HOME": filepath.Join(dir, "config"), "XDG_STATE_HOME": filepath.Join(dir, "state"), "FROSTMAIL_SOCKET": filepath.Join(dir, "maild.sock"), "FROSTMAIL_DATA_DIR": filepath.Join(dir, "data"), "FROSTMAIL_CACHE_DIR": filepath.Join(dir, "cache"), "FROSTMAIL_SYNC": "off", "FROSTMAIL_SECRETS": "file"}
+	if smtp != "" {
+		settings["FROSTMAIL_SYNC"] = "on"
+		settings["FROSTMAIL_UNDO_DELAY"] = "0s"
+	}
 	for k, v := range settings {
 		t.Setenv(k, v)
 	}
@@ -34,10 +46,19 @@ func fixtureWorkspace(t *testing.T) *nsgotest.App {
 			t.Fatalf("go %v: %v\n%s", args, err, out)
 		}
 	}
-	run("run", "./tools/uifixture", "-out", settings["FROSTMAIL_DATA_DIR"], "-showcase", "tools/uifixture/showcase")
+	args := []string{"run", "./tools/uifixture", "-out", settings["FROSTMAIL_DATA_DIR"], "-showcase", "tools/uifixture/showcase"}
+	if smtp != "" {
+		args = append(args, "-smtp", smtp)
+	}
+	run(args...)
 	bin := filepath.Join(dir, "maild")
 	run("build", "-o", bin, "./cmd/maild")
 	daemon := exec.CommandContext(t.Context(), bin)
+	if smtp != "" {
+		// The showcase also includes illustrative DAV accounts. Keep incidental
+		// sync traffic on loopback while exercising the real SMTP sender.
+		daemon.Env = append(os.Environ(), "HTTP_PROXY=http://127.0.0.1:1", "HTTPS_PROXY=http://127.0.0.1:1", "NO_PROXY=127.0.0.1,localhost")
+	}
 	daemon.Stderr = os.Stderr
 	if err := daemon.Start(); err != nil {
 		t.Fatal(err)
@@ -204,4 +225,50 @@ func TestUndoCalendarCreation(t *testing.T) {
 	a.Type("label:Search events", "A calendar change to undo")
 	a.Submit("label:Search events")
 	a.WaitFor("text:No matching items", 5*time.Second)
+}
+
+func TestForwardToLocalSMTP(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "smtpsink")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, "./tools/smtpsink")
+	build.Dir = "../.."
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build smtpsink: %v: %s", err, out)
+	}
+	sink := exec.CommandContext(t.Context(), bin, "-dir", dir)
+	output, err := sink.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sink.Process.Kill(); _ = sink.Wait() })
+	line, err := bufio.NewReader(output).ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr, ok := strings.CutPrefix(strings.TrimSpace(line), "listening ")
+	if !ok || !strings.HasPrefix(addr, "127.0.0.1:") {
+		t.Fatalf("unexpected SMTP listener %q", line)
+	}
+	a := fixtureWithSMTP(t, addr)
+	const subject = "Your trip to Lisbon: itinerary"
+	a.WaitFor("label:"+subject, 5*time.Second)
+	a.Press("label:" + subject)
+	a.WaitFor("label:Forward or reply all", 5*time.Second)
+	a.Press("label:Forward or reply all")
+	a.Press("label:Forward")
+	a.WaitFor("label:To", 5*time.Second)
+	a.Type("label:To", "traveler@example.test")
+	a.Press("label:Send")
+	var raw []byte
+	a.WaitUntil(30*time.Second, func() bool { raw, _ = os.ReadFile(filepath.Join(dir, "1.eml")); return len(raw) > 0 })
+	m, err := mail.ReadMessage(strings.NewReader(string(raw)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.Header.Get("To"), "traveler@example.test") || !strings.Contains(m.Header.Get("Subject"), "Lisbon") || !strings.Contains(string(raw), "Content-ID:") && !strings.Contains(string(raw), "Content-Id:") {
+		t.Fatalf("forwarded fixture lost its recipient, subject or inline image")
+	}
 }
