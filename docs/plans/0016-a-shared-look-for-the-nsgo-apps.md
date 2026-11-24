@@ -4,8 +4,9 @@
   ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)),
   the kit is in frostui and tagged, and the three apps build on it. Phase
   0.5 is done (2026-11-24). Phase 1 is done (2026-11-24; Brian accepted
-  closing it on a desktop picture of 1 of the 3 apps). Phase 2 is in
-  progress.
+  closing it on a desktop picture of 1 of the 3 apps). Phase 2 is done
+  (2026-11-24): the kit holds the parts, the control map and the rules,
+  at `workspaceui/v0.3.0`. Phase 3 is next.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -70,6 +71,16 @@ paddings, window sizes and tree widths differ by a few points each.
 
 One kit, three apps. An app supplies destinations, content and commands;
 the kit decides how they look.
+
+Since Phase 2 the kit's spec holds the standard (frostui's
+`docs/specs/workspaceui.md`: the themes, the parts, the control map, and
+"The standard for an app", which is the rules below). The rules, the
+control map and the kit's table in this section are the draft they were
+made from, kept for the phases' references to them; where the two differ,
+the kit's spec holds. The window below is not in the kit's spec: the owner
+set Phase 2 to colors, controls and the inside of a part (2026-11-24), and
+where the parts go in a window, and how one moves between them, is decided
+in each app's phase, on its pictures.
 
 ### The window
 
@@ -400,7 +411,7 @@ pictures.
   gray. Every button is still the filled one and a chosen row a neutral
   gray, as the control map and rule 3 say they are today.
 
-## Phase 2 — The kit's parts and the gallery (L)
+## Phase 2 — The kit's parts and the gallery (L, done 2026-11-24)
 
 - The control map checked row by row against NSGo's gallery and docs
   (rule 11): each kit part names the `ui` control it wraps, or the gap that
@@ -414,6 +425,36 @@ pictures.
   in a browser, the kit's spec holds the control map with a gap named for
   each part that wraps no `ui` control, and the owner accepts the
   pictures. This is the look's sign-off: Phases 3 to 5 only place parts.
+- **Done (2026-11-24),** in frostui, 4 rounds (frostyard/frostui#74, #75,
+  #76), tagged `workspaceui/v0.3.0`:
+  - The gallery, a module of its own: a draft of the standard window on
+    fixture mail and 7 pages of controls, with tours that keep 30 Linux
+    pictures, each view in both themes. The tours pass in a headless
+    Chromium too.
+  - The owner looked at each round's Linux pictures, ran the app on his
+    desktop, and accepted the look as drawn: the soft fill of a chosen
+    row, the toolbar on NSGo's inset strip, NSGo's tinted danger button,
+    an opaque Frostyard panel under a dialog, a palette, a popover and a
+    toast, initials on a neutral avatar, the summary row of 3 lines,
+    modules as tabs of an icon alone, a search field with its icon and key
+    hint, and NSGo's corners and sizes.
+  - The accepted parts are the kit's, each with a layout test: `NavLabel`,
+    `SummaryRow`, `SoftRows`, `Banner`, `EmptyState`, `DialogPanel`,
+    `ConnectionItem`, `SearchField`.
+  - The kit's spec holds the control map, with "NSGo has none" beside each
+    part that wraps no `ui` control (`Banner`, `EmptyState`,
+    `SearchField`), and the rules for an app.
+  - Not looked at by the owner: the web pictures (the agent looked at 1 of
+    30), and the search field's clear button, added after he accepted the
+    field.
+  - What the theme cannot reach, for Phase 6: a menu's translucent ground,
+    the neutral side of NSGo's settings view, and the list's light scroll
+    bar in the dark theme on the web.
+- **The phase's bounds, set by the owner (2026-11-24):** Phase 2 decided
+  colors, controls and the inside of a part. Draft windows for a calendar,
+  people, tasks, compose and settings were left out of it for that reason:
+  Phases 3 to 5 decide each window's layout and flow, on that app's
+  pictures.
 
 ## Phase 3 — FrostMail's main window (L)
 
@@ -448,6 +489,8 @@ stand-ins of its panes with the control map's controls (rule 11):
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
+- First in Frostnotes, at the owner's word (2026-11-24): NSGo's tree in
+  place of the second sidebar that lists its notes and folders.
 - Each app replaces its own helpers with the kit's parts (PocketGo:
   `inboxHeader`, `agentActivity`, `signIn`, `confirm`, the pager;
   Frostnotes: the editor's toolbar, `notice`, `vaultForm`, the five

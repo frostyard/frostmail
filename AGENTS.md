@@ -97,9 +97,13 @@ Frostnotes' suites run in a real GTK window (`make nsgo-live`) and keep
 their pictures. Phase 1 is done (2026-11-24; Brian accepted closing it on
 a desktop picture of PocketGo's title row alone, plan 0016, Phase 1): the
 kit has the Frostyard themes (`workspaceui/v0.2.0`), and the three clients
-draw them, in Inter, with a saved choice of appearance. Phase 2, the kit's
-parts and its gallery, is in progress. Nothing of the window's layout has
-changed, and the MyGo client stays the default.
+draw them, in Inter, with a saved choice of appearance. Phase 2 is done
+(2026-11-24): the kit holds the accepted parts, the control map and the
+rules for an app (frostui's `docs/specs/workspaceui.md`), with a gallery
+that draws them (`workspaceui/v0.3.0`). Phase 3, the client's main window,
+is next: it places the kit's parts and NSGo's controls by the control map,
+and each change carries its changed pictures. Nothing of the window's
+layout has changed yet, and the MyGo client stays the default.
 
 ## Two kinds of agent work
 
@@ -239,7 +243,7 @@ changed, and the MyGo client stays the default.
   `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
 - The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
-  `github.com/frostyard/frostui/workspaceui` v0.2.0, the kit it shares with
+  `github.com/frostyard/frostui/workspaceui` v0.3.0, the kit it shares with
   Frostnotes and PocketGo (a module of its own in frostui, tags
   `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
   `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.
