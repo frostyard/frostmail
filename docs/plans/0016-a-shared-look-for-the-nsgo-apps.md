@@ -155,6 +155,15 @@ the kit decides how they look.
    `workspace_test.go`): a restyle keeps them, or changes the test in the
    same change.
 
+10. **Live tests.** An app's UI tests are one suite on NSGo's `nsgotest`,
+    written once against fixture data, that runs three ways: headless in
+    the app's verify gate, in a real Linux window (`go tool nsgo test
+    -target linux`) and in a browser (`-target web`). The suite names a
+    picture at each main view (`app.Screenshot`), and the repository keeps
+    each target's pictures. A change of the look changes its pictures in
+    the same pull request, and the review reads the look from them.
+    PocketGo's suite is the model ([Phase 0.5](#phase-05--live-tests-in-frostmail-and-frostnotes-m)).
+
 ### The kit
 
 | Part | Holds |
@@ -188,6 +197,47 @@ the kit decides how they look.
 - **Done when:** the ADRs are accepted, and FrostMail, Frostnotes and
   PocketGo build and pass their gates on one tagged version of the kit.
 
+## Phase 0.5 — Live tests in FrostMail and Frostnotes (M)
+
+Before any look changes, so that every later phase shows its change as
+pictures.
+
+- **The model, PocketGo** (`desktop/internal/nsgoclient` at `995d86d`): its
+  tests drive the client by label, text and test id against a fixture
+  service (`pocketdtest`, with scenes such as the busy team), and check
+  bounds (the panes' widths, where the board's lanes and the file tree
+  sit). `TestMain` is `nsgotest.Main`, so the same tests run headless in
+  `make verify` and, from its README's two commands, in a Linux window and
+  in Chromium. Each main view is named with `app.Screenshot`, and
+  `comparison/linux` and `comparison/web` each hold 13 pictures of the same
+  views. Its README's preview command serves a scene to a native and a web
+  client at once. No workflow or Makefile target runs the two real-target
+  commands.
+- **FrostMail today:** `cmd/frostmail-nsgo/workspace_test.go` has 14
+  workflows on a real maild with `tools/uifixture`'s showcase, headless
+  only (`make nsgo-test`): no `TestMain`, no picture, no real window.
+  Lodge's browser path is `dev/lodge/nsgo-smoke.py`, apart from the suite.
+  Frostnotes is the same: 2 test files on a real notesd, headless, and its
+  Firefox tests (`internal/webevidence`) apart.
+- **To build, in each of the two apps:**
+  - `nsgotest.Main`, and the suite passing on the Linux target, under Xvfb
+    where there is no display.
+  - A picture at each main view on the fixture. FrostMail: the three panes
+    with a message open, a conversation, the narrow layout, compose,
+    Settings, Calendar, People, Tasks, the To-Do Bar and a dialog.
+    Frostnotes: the editor with a note open, the note list, quick open,
+    the vault manager and a dialog.
+  - Bounds checks where the standard gives a measure (a pane's width, a
+    row's text inside the row), as PocketGo's.
+  - A `make` target for the Linux target, the pictures kept in the
+    repository beside the suite, and a CI job that runs the target under
+    Xvfb and uploads its pictures.
+  - [design/testing.md](../design/testing.md) says how to run each way and
+    how to make the pictures again.
+- **Done when:** in FrostMail and in Frostnotes the suite passes in a real
+  Linux window on the host and in CI, and each repository holds the
+  pictures of today's look for the views above: the "before" set.
+
 ## Phase 1 — Theme, type and the title row (M)
 
 - `theme`: both palettes from frostui's spec, the named roles, Inter
@@ -195,17 +245,17 @@ the kit decides how they look.
   the type and space tokens, the contrast test.
 - `Apply` in the three apps, with the appearance setting.
 - `Shell` stops drawing the brand where the system's title bar shows it.
-- **Done when:** a picture of each app's main window in each theme, on
-  fixture data, shows Frostyard's colors and Inter with one title row; the
-  contrast test passes; PocketGo's comparison pictures are made again and
-  its pane-width tests pass.
+- **Done when:** each app's live suite passes, and its pictures, made
+  again in each theme, show Frostyard's colors and Inter with one title
+  row; the contrast test passes; PocketGo's pane-width tests pass.
 
 ## Phase 2 — The kit's parts and the gallery (L)
 
 - The parts of the table above, each with a layout test (a row keeps its
   text inside it, a count sits at the row's end, a tooltip shows on hover)
   in the manner of GoVault's and PocketGo's `nsgotest` checks.
-- The gallery, with screenshot comparisons on Linux and the web.
+- The gallery, with a live suite of its own (rule 10): a picture of every
+  part in both themes, from the Linux and the web target.
 - **Done when:** the gallery shows every part in both themes on Linux and
   in a browser, and the owner accepts its pictures. This is the look's
   sign-off: Phases 3 to 5 only place parts.
@@ -223,10 +273,10 @@ Three changes, each with `make nsgo-test` green:
   toolbar while several rows are chosen.
 - **3c, reader.** The header block, the banners, the page's frame, the
   conversation's stacked messages, the empty state.
-- **Done when:** the NSGo client on `tools/uifixture`'s showcase, at the
-  README picture's size, is set beside [main.png](../images/main.png) in
-  both themes and the owner accepts it; `make nsgo-test` and
-  `dev/lodge/nsgo-smoke.py` pass.
+- **Done when:** the live suite's picture of the main window, in both
+  themes, is set beside [main.png](../images/main.png) and the owner
+  accepts it; each of the three changes carried its changed pictures; and
+  `make nsgo-test`, the Linux target and `dev/lodge/nsgo-smoke.py` pass.
 
 ## Phase 4 — FrostMail's other surfaces (L)
 
@@ -235,7 +285,7 @@ Three changes, each with `make nsgo-test` green:
   palette, and every dialog on the form dialog and the confirmation.
 - The narrow layout and Lodge's web build, checked in a browser.
 - The style test of rule 2 turned on for `cmd/frostmail-nsgo`.
-- **Done when:** the README's pictures are taken again from the NSGo
+- **Done when:** the README's pictures are the live suite's, from the NSGo
   client, and the style test passes with no exception listed.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
@@ -245,9 +295,9 @@ Three changes, each with `make nsgo-test` green:
   Frostnotes: the editor's toolbar, `notice`, `vaultForm`, the five
   dialogs), and takes rules 3 to 8.
 - Frostnotes' second toolbar row moves to the shell's toolbar.
-- **Done when:** each app's style test passes, its own gates pass, and a
-  picture of the three main windows side by side shows one toolbar, one
-  sidebar row, one selected fill and one dialog.
+- **Done when:** each app's style test and live suite pass, its own gates
+  pass, and the three suites' pictures of the main window, side by side,
+  show one toolbar, one sidebar row, one selected fill and one dialog.
 
 ## Phase 6 — Upstream (S, alongside)
 
@@ -271,6 +321,14 @@ text an agent drafts:
 
 ## Open questions
 
+- **FrostMail's and Frostnotes' web target:** the browser client reaches
+  its daemon only through Lodge, where PocketGo's reaches a fixture service
+  over HTTP. Either the suite runs with `-target web` behind a test
+  gateway to the fixture daemon, or the web pictures stay with the Lodge
+  smoke tests. Decided by a trial in Phase 0.5.
+- **Pictures as a gate:** whether a picture that differs fails a run, or
+  the pictures are evidence a person reads and only the suite's checks
+  fail. Fonts and drawing differ between hosts. By Phase 0.5.
 - **Lodge's web build:** whether it takes the kit's palettes or Lodge's own
   theme tokens when the two differ. By Phase 1.
 
