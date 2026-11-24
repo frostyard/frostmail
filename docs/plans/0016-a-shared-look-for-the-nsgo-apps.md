@@ -843,10 +843,19 @@ stand-ins of its panes with the control map's controls (rule 11):
       inside its own box.
     - Every picture was looked at by the agent that took them, and 2 by
       the one that wrote this.
+  - **The cut fields (2026-11-24).** The client sets NSGo's own scroll
+    bars (`base.SetScrollbarTheme` with `ui.ScrollbarTheme`), which lie
+    over the content, in place of the platform's. A browser's bar takes
+    12 points of a scrolling view's width, which NSGo's layout does not
+    take from its content. On commit e2930879, in the same headless
+    Firefox, the narrow compose sheet's 5 fields are drawn to their right
+    ends with their borders, and the narrow Calendar's list has no strip
+    at its right: the 2 pictures the agent looked at. `make nsgo-live`
+    on Xvfb's X11 passed, 36 of 36, with the bars set.
   - **Left of 4e:** the kit's spacing and the 13 paddings
     (frostyard/frostui#78 adds the spacing; it needs the kit's tag); the
-    cut fields of the compose sheet; the README's pictures, which stay
-    the default client's while that is the MyGo one.
+    README's pictures, which stay the default client's while that is the
+    MyGo one.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
@@ -877,8 +886,10 @@ text an agent drafts:
   way to split that keeps a quoted comma. FrostMail's recipients wait on
   it (Phase 4c).
 - On the web: a variable font's weights (the kit's Inter is registered
-  as 1 face of weight 400), and a list's rows in the page in the order
-  they are on screen (Phase 4e).
+  as 1 face of weight 400), a list's rows in the page in the order they
+  are on screen, and a scroll view's content laid out in the width its
+  scroll bar leaves (Phase 4e; FrostMail sets NSGo's own bars to keep
+  clear of it).
 - **Done when:** each has an issue whose link is in the kit's spec, and the
   spec names the workaround to remove when it lands.
 
