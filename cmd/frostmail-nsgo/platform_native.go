@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/config"
@@ -110,16 +112,11 @@ func (w *workspace) saveMessage(m api.MessageSummary) {
 // mail-derived value is escaped text. The HTML mail reader keeps scripts off.
 func (w *workspace) printMessage(p *messagePage) {
 	esc := html.EscapeString
-	src := `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>body{margin:2em;font:15px system-ui;color:#161616;background:white}h1{font-size:1.4em}pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}header{border-bottom:1px solid #aaa}</style><header><h1>` + esc(p.message.Summary.Subject) + `</h1><pre>` + esc(strings.Join(printHeaders(p.message), "\n")) + `</pre></header><pre>` + esc(p.rendering.Text) + `</pre>`
-	w.show(func(cx *core.Scope) core.Node {
-		ref := &core.Ref{}
-		ready := core.NewSignal(cx, false)
-		return w.dialog("Print message", []core.Node{core.WebView{Ref: ref, Label: "Printable message", Source: core.WebHTML(src, ""), Incognito: true, Style: core.Style{Height: core.Pt(380)}, OnLoad: func(core.WebNavigation) { ready.Set(true) }}}, button("Close", w.closePanel), ui.Button{Text: "Print or save PDF", Disabled: func() bool { return !ready.Get() }, OnPress: func() {
-			ref.Evaluate("window.print()", func(_ string, err error) {
-				if err != nil {
-					w.problem.Set(err.Error())
-				}
-			})
-		}})
+	const printScript = "document.getElementById('print').addEventListener('click',()=>window.print());"
+	sum := sha256.Sum256([]byte(printScript))
+	permit := "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	src := `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ` + permit + `; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>body{margin:2em;font:15px system-ui;color:#161616;background:white}h1{font-size:1.4em}pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}header{border-bottom:1px solid #aaa}button{padding:6px 12px}@media print{button{display:none}}</style><button id="print">Print or save PDF</button><header><h1>` + esc(p.message.Summary.Subject) + `</h1><pre>` + esc(strings.Join(printHeaders(p.message), "\n")) + `</pre></header><pre>` + esc(p.rendering.Text) + `</pre><script>` + printScript + `</script>`
+	w.show(func(*core.Scope) core.Node {
+		return w.dialog("Print message", []core.Node{core.WebView{Label: "Printable message", Source: core.WebHTML(src, ""), Incognito: true, Style: core.Style{Height: core.Pt(380)}}})
 	})
 }
