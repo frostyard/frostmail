@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"github.com/frostyard/frostmail/api"
@@ -22,45 +21,16 @@ func (w *workspace) notificationKey() string {
 }
 func (w *workspace) commands() {
 	cx := w.cx
-	cx.OnKey("mod+p", func() {
-		if p := w.reader.GetUntracked(); p != nil && w.module.GetUntracked() == "Mail" {
-			w.printMessage(p)
+	cx.OnKey("mod+shift+p", w.palette)
+	for _, entry := range w.commandTable() {
+		if entry.key != "" {
+			cx.OnKey(entry.key, func() {
+				if w.overlay.GetUntracked() == nil && (entry.enabled == nil || entry.enabled()) {
+					entry.run()
+				}
+			})
 		}
-	})
-	if desktopServer {
-		cx.OnKey("mod+f", func() {
-			if p := w.reader.GetUntracked(); p != nil && w.module.GetUntracked() == "Mail" {
-				w.textReader(p)
-			}
-		})
 	}
-	cx.OnKey("mod+alt+f", func() {
-		if w.module.GetUntracked() == "Mail" {
-			w.searchInput.Focus()
-		}
-	})
-	cx.OnKey("mod+z", func() {
-		if w.module.GetUntracked() == "Mail" && w.overlay.GetUntracked() == nil {
-			undo := w.undo
-			w.change(func(ctx context.Context, c *api.Client) error { _, err := undo.Do(ctx, c); return err }, nil)
-		}
-	})
-	cx.OnKey("mod+n", func() {
-		if w.overlay.GetUntracked() == nil {
-			w.newDraft(api.DraftKindNew, nil)
-		}
-	})
-	cx.OnKey("mod+,", func() { w.module.Set("Settings") })
-	cx.OnKey("mod+r", func() {
-		if id := w.opened.GetUntracked(); id > 0 && w.module.GetUntracked() == "Mail" {
-			w.newDraft(api.DraftKindReply, &id)
-		}
-	})
-	cx.OnKey("mod+shift+r", func() {
-		if id := w.opened.GetUntracked(); id > 0 && w.module.GetUntracked() == "Mail" {
-			w.newDraft(api.DraftKindReplyall, &id)
-		}
-	})
 	cx.OnNotificationPress(func(key string) {
 		origin, arg, ok := strings.Cut(key, "/")
 		if !ok || origin != w.notificationKey() {
@@ -114,16 +84,4 @@ func (w *workspace) notificationSettings(cx *core.Scope) []core.Node {
 		}
 		return nil
 	})}
-}
-func (w *workspace) resolveMessageID(value string) {
-	perform(w, func(ctx context.Context, c *api.Client) (*api.MessageSummary, error) {
-		return c.Message().ByMessageID(ctx, &api.MessageByMessageIDParams{MessageID: value})
-	}, func(m *api.MessageSummary, err error) {
-		if err != nil {
-			w.problem.Set(err.Error())
-			return
-		}
-		w.module.Set("Mail")
-		w.openMessage(m.ID, false)
-	})
 }
