@@ -88,19 +88,25 @@ func (w *workspace) form(title string, fields []editField, submit func([]string)
 	})
 }
 func (w *workspace) tasks(cx *core.Scope) core.Node {
+	list := core.NewSignal(cx, int64(0))
 	completed := core.NewSignal(cx, false)
 	rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.TasksChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Task, error) {
+		id := optionalID(list.GetUntracked())
 		value := completed.GetUntracked()
 		return func(ctx context.Context, c *api.Client) ([]api.Task, error) {
-			return c.Tasks().List(ctx, &api.TasksListParams{Completed: &value})
+			return c.Tasks().List(ctx, &api.TasksListParams{ListID: id, Completed: &value})
 		}
 	})
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Button{Text: "New task", OnPress: func() { w.taskForm(api.Task{}, load) }}, ui.Checkbox{Text: "Completed tasks", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }}), collectionList(rows, "Tasks", func(t api.Task) string { return t.Title }, func(t api.Task) string { return t.Due }, func(t api.Task) { w.taskDetail(t, load) })}}
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Button{Text: "New task", OnPress: func() { w.taskForm(api.Task{ListID: list.GetUntracked()}, load) }}, ui.Checkbox{Text: "Include completed", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }}), w.collectionFilter(cx, "Task lists", func(c api.Collection) bool { return c.Tasks }, list, load), button("Flagged mail", func() { w.navigate("flagged") }), collectionList(rows, "Tasks", func(t api.Task) string { return t.Title }, func(t api.Task) string { return t.Due }, func(t api.Task) { w.taskDetail(t, load) })}}
 }
 func (w *workspace) taskDetail(t api.Task, load func()) {
 	w.show(func(*core.Scope) core.Node {
 		children := []core.Node{core.Text{Content: t.Notes}, core.Text{Content: t.Due, Style: ui.TypeCaption}}
+		if t.MessageID != nil {
+			children = append(children, button("Open linked message", func() { w.closePanel(); w.module.Set("Mail"); w.openMessage(*t.MessageID, false) }))
+		}
 		if !t.ReadOnly {
+			children = append(children, button("New subtask", func() { w.taskForm(api.Task{ListID: t.ListID, ParentID: &t.ID}, load) }))
 			done := !t.Completed
 			label := "Complete"
 			if !done {
@@ -140,7 +146,7 @@ func (w *workspace) taskForm(t api.Task, load func()) {
 		}
 		w.change(func(ctx context.Context, c *api.Client) error {
 			if t.ID == 0 {
-				_, err := c.Tasks().Create(ctx, &api.TasksCreateParams{Title: v[0], Notes: &v[1], Due: changed("", v[2])})
+				_, err := c.Tasks().Create(ctx, &api.TasksCreateParams{ListID: optionalID(t.ListID), ParentID: t.ParentID, Title: v[0], Notes: &v[1], Due: changed("", v[2])})
 				return err
 			}
 			_, err := c.Tasks().Update(ctx, &api.TasksUpdateParams{ID: t.ID, Title: changed(t.Title, v[0]), Notes: changed(t.Notes, v[1]), Due: changed(t.Due, v[2])})
@@ -150,14 +156,16 @@ func (w *workspace) taskForm(t api.Task, load func()) {
 	})
 }
 func (w *workspace) people(cx *core.Scope) core.Node {
+	book := core.NewSignal(cx, int64(0))
 	var query string
 	rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.PeopleChanged); return ok }, func() func(context.Context, *api.Client) ([]api.PersonSummary, error) {
+		id := optionalID(book.GetUntracked())
 		q := query
 		return func(ctx context.Context, c *api.Client) ([]api.PersonSummary, error) {
-			return c.People().List(ctx, &api.PeopleListParams{Query: changed("", q)})
+			return c.People().List(ctx, &api.PeopleListParams{CollectionID: id, Query: changed("", q)})
 		}
 	})
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Input{Label: "Find a person", Placeholder: "Name or address", OnSubmit: func(v string) { query = v; load() }}, ui.Button{Text: "New contact", OnPress: func() { w.contactForm(api.Contact{}, load) }}), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Input{Label: "Find a person", Placeholder: "Name or address", OnSubmit: func(v string) { query = v; load() }}, ui.Button{Text: "New contact", OnPress: func() { w.contactForm(api.Contact{CollectionID: book.GetUntracked()}, load) }}), w.collectionFilter(cx, "Address books", func(c api.Collection) bool { return c.Kind == api.CollectionKindAddressbook }, book, load), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
 		perform(w, func(ctx context.Context, c *api.Client) (*api.Person, error) {
 			return c.People().Get(ctx, &api.PeopleGetParams{ID: p.ID})
 		}, func(person *api.Person, err error) {
@@ -170,8 +178,11 @@ func (w *workspace) people(cx *core.Scope) core.Node {
 	})}}
 }
 func (w *workspace) personDetail(p *api.Person, load func()) {
-	w.show(func(*core.Scope) core.Node {
+	w.show(func(cx *core.Scope) core.Node {
 		var cards []core.Node
+		if p.HasPhoto {
+			cards = append(cards, w.contactPhoto(cx, p.ID))
+		}
 		for _, c := range p.Contacts {
 			children := []core.Node{core.Text{Content: c.DisplayName, Style: ui.TypeTitle}, core.Text{Content: c.Organization}, core.Text{Content: c.Note}}
 			for _, address := range c.Emails {
@@ -184,7 +195,18 @@ func (w *workspace) personDetail(p *api.Person, load func()) {
 			for _, n := range c.Phones {
 				children = append(children, core.Text{Content: n.Label + " " + n.Value})
 			}
+			children = append(children, core.Text{Content: strings.Join([]string{c.Title, c.Nickname, c.Birthday}, " ")})
+			for _, u := range c.URLs {
+				children = append(children, core.Text{Content: u.Label + " " + u.Value, Selectable: core.SelectableOn})
+			}
+			for _, a := range c.Addresses {
+				children = append(children, core.Text{Content: strings.Join([]string{a.Street, a.Locality, a.Region, a.Postcode, a.Country}, " "), Selectable: core.SelectableOn})
+			}
 			if !c.ReadOnly {
+				children = append(children, button("Edit contact details", func() { w.fullContact(c, load) }), button("Choose contact photo", func() { w.pickContactPhoto(c.ID, load) }))
+				if p.HasPhoto {
+					children = append(children, button("Remove contact photo", func() { w.setContactPhoto(c.ID, nil, load) }))
+				}
 				children = append(children, workspaceui.Row(ui.Button{Text: "Edit contact", OnPress: func() { w.contactForm(c, load) }}, ui.Button{Text: "Delete contact", Variant: ui.ButtonGhost, OnPress: func() {
 					w.confirm("Delete contact?", c.DisplayName, "Delete", func() {
 						w.change(func(ctx context.Context, client *api.Client) error {
@@ -223,12 +245,66 @@ func (w *workspace) contactForm(c api.Contact, load func()) {
 		}
 		w.change(func(ctx context.Context, client *api.Client) error {
 			if c.ID == 0 {
-				_, err := client.People().Create(ctx, &api.PeopleCreateParams{Fields: f})
+				_, err := client.People().Create(ctx, &api.PeopleCreateParams{CollectionID: optionalID(c.CollectionID), Fields: f})
 				return err
 			}
 			_, err := client.People().Update(ctx, &api.PeopleUpdateParams{ID: c.ID, Fields: f})
 			return err
 		}, func() { w.closePanel(); load() })
 		return nil
+	})
+}
+
+func optionalID(id int64) *int64 {
+	if id == 0 {
+		return nil
+	}
+	return &id
+}
+
+func (w *workspace) collectionFilter(cx *core.Scope, label string, include func(api.Collection) bool, chosen *core.Signal[int64], load func()) core.Node {
+	collections, _ := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.AccountChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Collection, error) {
+		return func(ctx context.Context, c *api.Client) ([]api.Collection, error) {
+			return c.Account().Collections(ctx, &api.AccountCollectionsParams{})
+		}
+	})
+	return ui.Select[int64]{Label: label, OptionsFunc: func() []ui.Option[int64] {
+		opts := []ui.Option[int64]{{Value: 0, Label: "All · " + label}}
+		for _, c := range collections.Get() {
+			if include(c) && c.Enabled {
+				opts = append(opts, ui.Option[int64]{Value: c.ID, Label: c.Name})
+			}
+		}
+		return opts
+	}, Value: chosen.Get, OnChange: func(v int64) { chosen.Set(v); load() }}
+}
+
+func (w *workspace) reminders() {
+	w.show(func(cx *core.Scope) core.Node {
+		rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.CalendarReminders); return ok }, func() func(context.Context, *api.Client) ([]api.Reminder, error) {
+			return func(ctx context.Context, c *api.Client) ([]api.Reminder, error) {
+				return c.Calendar().Reminders(ctx, &api.CalendarRemindersParams{})
+			}
+		})
+		nodes := core.Dynamic(func(*core.Scope) core.Node {
+			var cards []core.Node
+			for _, r := range rows.Get() {
+				ids := []string{r.ID}
+				cards = append(cards, workspaceui.Card{Children: []core.Node{core.Text{Content: r.Summary, Style: ui.TypeTitle}, core.Text{Content: r.Location}, workspaceui.Row(button("Snooze 15 minutes", func() {
+					w.change(func(ctx context.Context, c *api.Client) error {
+						return c.Calendar().Snooze(ctx, &api.CalendarSnoozeParams{IDs: ids, Until: time.Now().Add(15 * time.Minute)})
+					}, load)
+				}), button("Dismiss", func() {
+					w.change(func(ctx context.Context, c *api.Client) error {
+						return c.Calendar().Dismiss(ctx, &api.CalendarDismissParams{IDs: ids})
+					}, load)
+				}))}})
+			}
+			if len(cards) == 0 {
+				return core.Text{Content: "No reminders due"}
+			}
+			return workspaceui.Stack(cards...)
+		})
+		return w.dialog("Calendar reminders", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(440)}, Children: []core.Node{nodes}}})
 	})
 }

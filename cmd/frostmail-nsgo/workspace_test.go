@@ -84,6 +84,11 @@ func TestPersonalOrganizerRoundTrip(t *testing.T) {
 		a.Press("label:" + item.add)
 		a.Type("label:"+item.field, item.title)
 		a.Press("label:Save")
+		if item.module == "Calendar" {
+			a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Save") })
+			a.Type("label:Search events", item.title)
+			a.Submit("label:Search events")
+		}
 		a.WaitFor("label:"+item.title, 5*time.Second)
 		a.Press("label:" + item.title)
 		a.Press("label:Close")

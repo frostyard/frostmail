@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nsgo-dev/nsgo/base"
+	"net/mail"
+	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata"
@@ -15,21 +18,62 @@ import (
 )
 
 func (w *workspace) calendar(cx *core.Scope) core.Node {
-	now := time.Now()
-	first := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	month := core.NewSignal(cx, first)
+	today := time.Now()
+	day := core.NewSignal(cx, today)
+	span := core.NewSignal(cx, "Month")
+	cal := core.NewSignal(cx, int64(0))
 	query := ""
+	bounds := func() (time.Time, time.Time) {
+		at := day.GetUntracked()
+		y, m, d := at.Date()
+		start := time.Date(y, m, d, 0, 0, 0, 0, at.Location())
+		switch span.GetUntracked() {
+		case "Day":
+			return start, start.AddDate(0, 0, 1)
+		case "Week":
+			start = start.AddDate(0, 0, -(int(start.Weekday())+6)%7)
+			return start, start.AddDate(0, 0, 7)
+		default:
+			start = time.Date(y, m, 1, 0, 0, 0, 0, at.Location())
+			return start, start.AddDate(0, 1, 0)
+		}
+	}
 	rows, load := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.CalendarChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Occurrence, error) {
-		start, q := month.GetUntracked(), query
+		start, end := bounds()
+		q := query
+		var ids []int64
+		if id := cal.GetUntracked(); id != 0 {
+			ids = []int64{id}
+		}
 		return func(ctx context.Context, c *api.Client) ([]api.Occurrence, error) {
 			if q != "" {
-				return c.Calendar().Search(ctx, &api.CalendarSearchParams{Query: q})
+				return c.Calendar().Search(ctx, &api.CalendarSearchParams{Query: q, CalendarIDs: ids})
 			}
-			return c.Calendar().Range(ctx, &api.CalendarRangeParams{From: start.Format(time.DateOnly), To: start.AddDate(0, 1, 0).Format(time.DateOnly)})
+			return c.Calendar().Range(ctx, &api.CalendarRangeParams{From: start.Format(time.DateOnly), To: end.Format(time.DateOnly), CalendarIDs: ids})
 		}
 	})
-	step := func(n int) { month.Set(month.GetUntracked().AddDate(0, n, 0)); load() }
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Button{Text: "Previous month", OnPress: func() { step(-1) }}, core.Text{ContentFunc: func() string { return month.Get().Format("January 2006") }, Style: ui.TypeTitle}, ui.Button{Text: "Next month", OnPress: func() { step(1) }}, ui.Button{Text: "Today", OnPress: func() { month.Set(first); load() }}, ui.Button{Text: "New event", OnPress: func() { w.eventForm(api.CalendarEvent{}, nil, load) }}), ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query = strings.TrimSpace(v); load() }}, collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
+	step := func(n int) {
+		at := day.GetUntracked()
+		switch span.GetUntracked() {
+		case "Day":
+			at = at.AddDate(0, 0, n)
+		case "Week":
+			at = at.AddDate(0, 0, 7*n)
+		default:
+			at = time.Date(at.Year(), at.Month()+time.Month(n), 1, 0, 0, 0, 0, at.Location())
+		}
+		day.Set(at)
+		load()
+	}
+	picker := ui.DatePicker{Label: "Choose date", Value: func() base.DateValue { return base.DateValue{Start: day.Get()} }, OnChange: func(v base.DateValue) { day.Set(v.Start); load() }}
+	filter := w.collectionFilter(cx, "Calendar", func(c api.Collection) bool { return c.Events }, cal, load)
+	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, button("New event", func() {
+		at := day.GetUntracked()
+		now := time.Now()
+		y, m, d := at.Date()
+		start := time.Date(y, m, d, now.Hour()+1, 0, 0, 0, at.Location())
+		w.eventForm(api.CalendarEvent{Start: start, End: start.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
+	}), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query = strings.TrimSpace(v); load() }}, collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
 		if o.AllDay {
 			return o.StartDate + " · All day"
 		}
@@ -116,7 +160,7 @@ func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load f
 		}
 	}
 	start, end := e.Start, e.End
-	if e.ID == 0 {
+	if e.ID == 0 && start.IsZero() {
 		start = time.Now().Truncate(time.Hour).Add(time.Hour)
 		end = start.Add(time.Hour)
 	}
@@ -129,11 +173,50 @@ func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load f
 	if zone == "" {
 		zone = loc.String()
 	}
-	w.form("Event", []editField{{"Title", e.Summary, false}, {"Location", e.Location, false}, {"Description", e.Description, true}, {"Start (date or date and time)", from, false}, {"End (exclusive)", to, false}, {"Time zone", zone, false}, {"Recurrence rule", e.Recurrence, false}}, func(v []string) error {
+	var addresses, alarms []string
+	for _, a := range e.Attendees {
+		addresses = append(addresses, (&mail.Address{Name: a.Name, Address: a.Email}).String())
+	}
+	for _, n := range e.Alarms {
+		alarms = append(alarms, strconv.FormatInt(n, 10))
+	}
+	invites, alerts := strings.Join(addresses, ", "), strings.Join(alarms, ", ")
+	w.form("Event", []editField{{"Title", e.Summary, false}, {"Location", e.Location, false}, {"Description", e.Description, true}, {"Start (date or date and time)", from, false}, {"End (exclusive)", to, false}, {"Time zone", zone, false}, {"Recurrence rule", e.Recurrence, false}, {"Invitees", invites, true}, {"Reminder minutes before start", alerts, false}}, func(v []string) error {
 		if strings.TrimSpace(v[0]) == "" {
 			return fmt.Errorf("Enter an event title")
 		}
 		fields := api.EventFields{Summary: changed(e.Summary, v[0]), Location: changed(e.Location, v[1]), Description: changed(e.Description, v[2]), Rrule: changed(e.Recurrence, v[6])}
+		if v[7] != invites {
+			fields.Attendees = []api.Invitee{}
+			if strings.TrimSpace(v[7]) != "" {
+				list, err := mail.ParseAddressList(v[7])
+				if err != nil {
+					return err
+				}
+				for _, a := range list {
+					invite := api.Invitee{Email: a.Address, Name: changed("", a.Name)}
+					for _, old := range e.Attendees {
+						if strings.EqualFold(old.Email, a.Address) {
+							invite.Role = &old.Role
+							break
+						}
+					}
+					fields.Attendees = append(fields.Attendees, invite)
+				}
+			}
+		}
+		if v[8] != alerts {
+			fields.Alarms = []int64{}
+			if strings.TrimSpace(v[8]) != "" {
+				for _, raw := range strings.Split(v[8], ",") {
+					n, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+					if err != nil {
+						return fmt.Errorf("Enter reminder offsets as minutes, separated by commas")
+					}
+					fields.Alarms = append(fields.Alarms, n)
+				}
+			}
+		}
 		if e.ID == 0 || v[3] != from || v[4] != to || v[5] != zone {
 			all := len(v[3]) == len(time.DateOnly)
 			fields.AllDay = &all
@@ -178,7 +261,7 @@ func (w *workspace) eventForm(e api.CalendarEvent, scope *api.EventScope, load f
 		}
 		w.writeEvent(func(ctx context.Context, c *api.Client, notify *bool) error {
 			if e.ID == 0 {
-				_, err := c.Calendar().Create(ctx, &api.CalendarCreateParams{Fields: fields, Notify: notify})
+				_, err := c.Calendar().Create(ctx, &api.CalendarCreateParams{CalendarID: optionalID(e.CalendarID), Fields: fields, Notify: notify})
 				return err
 			}
 			_, err := c.Calendar().Update(ctx, &api.CalendarUpdateParams{ID: e.ID, RecurrenceID: changed("", e.RecurrenceID), Scope: scope, Fields: fields, Notify: notify})

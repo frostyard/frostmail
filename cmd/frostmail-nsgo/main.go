@@ -144,7 +144,16 @@ func root(cx *core.Scope) core.Node {
 			case "Calendar":
 				return w.calendar(cx)
 			default:
-				return split
+				compact := core.NewMemo(cx, func() bool { return cx.Env().Window().Width < 800 })
+				return core.Dynamic(func(*core.Scope) core.Node {
+					if !compact.Get() {
+						return split
+					}
+					if w.opened.Get() == 0 {
+						return list
+					}
+					return core.View{Style: ui.FillRest, Children: []core.Node{button("Back to message list", func() { w.generation++; w.opened.Set(0); w.reader.Set(nil) }), core.Dynamic(w.messageReader)}}
+				})
 			}
 		})}}
 	return core.View{Style: ui.FillRest, Children: []core.Node{shell, core.Dynamic(func(cx *core.Scope) core.Node {
