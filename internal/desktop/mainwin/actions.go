@@ -403,12 +403,42 @@ func (w *Window) setFlags(ids []int64, ch api.FlagChanges) {
 	w.run("change the messages", func(ctx context.Context, c *api.Client) error { return undo.Flags(ctx, c, ids, ch) })
 }
 
-// toggleRead marks the messages seen, or unseen when all already are.
+// toggleRead marks the messages seen, or unseen when no row of them shows
+// the unread dot (rowUnread). In conversation mode, marking read also
+// marks every unread message of each row's conversation read, so the
+// dot goes, as Mail.app does (#380); marking unread acts on the rows'
+// own messages, which brings the dot back.
 func (w *Window) toggleRead(ids []int64) {
 	rows := w.rows(ids)
-	allSeen := len(rows) > 0 && !slices.ContainsFunc(rows, func(r api.MessageSummary) bool { return !r.Flags.Seen })
-	seen := !allSeen
-	w.setFlags(ids, api.FlagChanges{Seen: &seen})
+	seen := len(rows) == 0 || slices.ContainsFunc(rows, w.rowUnread)
+	var threads []int64
+	if seen && w.q.Conversations {
+		for _, r := range rows {
+			if r.ThreadID != 0 && !slices.Contains(threads, r.ThreadID) {
+				threads = append(threads, r.ThreadID)
+			}
+		}
+	}
+	if len(threads) == 0 {
+		w.setFlags(ids, api.FlagChanges{Seen: &seen})
+		return
+	}
+	undo := w.undo
+	w.run("change the messages", func(ctx context.Context, c *api.Client) error {
+		all := slices.Clone(ids)
+		for _, id := range threads {
+			msgs, err := c.Thread().Messages(ctx, &api.ThreadMessagesParams{ID: id})
+			if err != nil {
+				return err
+			}
+			for _, m := range msgs {
+				if !m.Flags.Seen && !slices.Contains(all, m.ID) {
+					all = append(all, m.ID)
+				}
+			}
+		}
+		return undo.Flags(ctx, c, all, api.FlagChanges{Seen: &seen})
+	})
 }
 
 // toggleFlag clears the flag when the first message is flagged, else flags

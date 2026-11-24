@@ -405,12 +405,8 @@ func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 		uikit.SummaryRowLines(c, uikit.Summary{}, lines)
 		return
 	}
-	unread := !r.Flags.Seen
-	if w.q.Conversations && r.ThreadUnread != nil {
-		unread = *r.ThreadUnread > 0
-	}
 	s := uikit.Summary{Title: mail.DisplayName(r.From), Date: mail.ListDate(r.Date, w.o.Now()), Subtitle: r.Subject, Preview: r.Preview,
-		Unread: unread, UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
+		Unread: w.rowUnread(r), UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
 	if r.Flags.Flagged {
 		s.Mark = flagColor(c.Theme(), r.Flags.FlagColor)
 		names := []string(nil)
@@ -438,6 +434,16 @@ func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 		s.Actions = func() { w.rowActions(c, r) }
 	}
 	uikit.SummaryRowLines(c, s, lines).ContextMenu(w.rowMenu)
+}
+
+// rowUnread is whether a list row shows the unread dot: in conversation
+// mode, while a message of its conversation in the source is unread
+// (threadUnread, #358); else while its own message is.
+func (w *Window) rowUnread(r api.MessageSummary) bool {
+	if w.q.Conversations && r.ThreadUnread != nil {
+		return *r.ThreadUnread > 0
+	}
+	return !r.Flags.Seen
 }
 
 func (w *Window) readOnly(account int64) bool {
@@ -537,7 +543,7 @@ func (w *Window) rowMenu(m *ui.Menu) {
 	}).Disabled(readOnly)
 	allSeen, allMuted, anyReminder := true, true, false
 	for _, r := range rows {
-		allSeen = allSeen && r.Flags.Seen
+		allSeen = allSeen && !w.rowUnread(r)
 		allMuted = allMuted && r.Muted != nil && *r.Muted
 		anyReminder = anyReminder || r.RemindAt != nil
 	}
