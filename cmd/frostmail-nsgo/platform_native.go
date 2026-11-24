@@ -14,11 +14,11 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
+	"github.com/frostyard/frostui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 	"html"
 	"image/png"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,16 +27,22 @@ import (
 
 func platformTarget() (conn.Target, error) { return conn.TargetFrom(os.Getenv) }
 func bodyView(w *workspace, r *api.Rendering) core.Node {
-	if r.HTML == "" {
-		return plainBody(r.Text)
+	body, style := r.HTML, ""
+	if body == "" {
+		body, style = mail.TextHTML(r.Text), mail.TextStyle
 	}
-	doc := uikit.ScrollingDocument(r.HTML)
-	return core.WebView{Label: "Message body", Source: core.WebHTML(doc, ""), Style: ui.FillRest, NoJavaScript: true, Incognito: true, OnOpenWindow: func(req core.WebWindowRequest) {
-		u, err := url.Parse(req.URL)
-		if err == nil && req.UserInitiated && (u.Scheme == "https" || u.Scheme == "http") && u.Host != "" {
-			w.cx.OpenURL(req.URL, nil)
-		}
-	}}
+	return core.Dynamic(func(*core.Scope) core.Node {
+		doc := uikit.ScrollingDocument(body, style+mail.ZoomStyle(w.textScale.Get()))
+		return core.WebView{Label: "Message body", Source: core.WebHTML(doc, ""), Style: ui.FillRest, NoJavaScript: true, Incognito: true, OnOpenWindow: func(req core.WebWindowRequest) {
+			if !req.UserInitiated {
+				return
+			}
+			link, err := (frostui.Opener{}).CheckURL(req.URL)
+			if err == nil {
+				w.cx.OpenURL(link, nil)
+			}
+		}}
+	})
 }
 
 func (w *workspace) savePart(id int64, p api.Part) {

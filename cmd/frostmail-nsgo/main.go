@@ -59,6 +59,7 @@ type workspace struct {
 	currentMessage  *core.Signal[*api.MessageSummary]
 	photos          *live.Photos
 	showPhotos      *core.Signal[bool]
+	textScale       *core.Signal[float32]
 	stopPhotos      context.CancelFunc
 	generation      int
 	undo            *mail.Undo
@@ -79,6 +80,7 @@ func root(cx *core.Scope) core.Node {
 	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
 	w.watchReader()
 	w.showPhotos = core.NewSignal(cx, true)
+	w.textScale = core.NewSignal(cx, float32(1))
 	w.toaster = ui.NewToaster(cx)
 	w.searchInput = &core.Ref{}
 	w.trayChoice = core.NewSignal(cx, false)
@@ -92,6 +94,9 @@ func root(cx *core.Scope) core.Node {
 	w.acting = core.NewSignal(cx, false)
 	w.undo = &mail.Undo{}
 	w.store = live.NewMail(func() { cx.Post(func() { invalidate(w.state) }) })
+	if desktopServer {
+		cx.Effect(func() { w.state.Get(); w.textScale.Set(mail.TextScale(w.store.State().Settings)) })
+	}
 	w.session = conn.NewSession(target, conn.Options{Client: "FrostMail NSGo", OnConnect: func(ctx context.Context, c *api.Client, _ *api.Hello) error {
 		go w.events.Run(c)
 		if _, err := c.Events().Subscribe(ctx, &api.EventsSubscribeParams{}); err != nil {
@@ -361,9 +366,9 @@ func (w *workspace) messageList() core.Node {
 					if w.listState.Conversations && msg.ThreadCount > 1 {
 						sender += fmt.Sprintf(" · %d messages", msg.ThreadCount)
 					}
-					children := []core.Node{core.Text{Content: sender, Style: ui.TypeLabel}, core.Text{Content: msg.Subject, MaxLines: 1}}
+					children := []core.Node{core.Text{Content: sender, Style: w.scaled(ui.TypeLabel)}, core.Text{Content: msg.Subject, MaxLines: 1, Style: w.scaled(ui.TypeBody)}}
 					if lines > 0 {
-						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: ui.TypeCaption})
+						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: w.scaled(ui.TypeCaption)})
 					}
 					var content core.Node = workspaceui.Stack(children...)
 					if w.showPhotos.Get() && w.photos != nil {
@@ -522,4 +527,11 @@ func (w *workspace) resetPhotos(c *api.Client) {
 	w.stopPhotos = stop
 	w.photos = live.NewPhotos(photoCtx, c, func() { w.cx.Post(func() { invalidate(w.rows) }) })
 	invalidate(w.rows)
+}
+
+func (w *workspace) scaled(style core.Style) core.Style {
+	f := core.Points(w.textScale.Get())
+	style.FontSize *= f
+	style.LineHeight *= f
+	return style
 }

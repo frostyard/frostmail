@@ -126,6 +126,10 @@ func (w *workspace) general(cx *core.Scope) core.Node {
 					return nil
 				})
 			})}
+		if desktopServer {
+			sizes := []ui.Option[api.TextSize]{{Value: api.TextSizeSmaller, Label: "Smaller"}, {Value: api.TextSizeDefault, Label: "Default"}, {Value: api.TextSizeLarger, Label: "Larger"}, {Value: api.TextSizeLargest, Label: "Largest"}}
+			nodes = append(nodes, choice("Message text size", settingValue(s.TextSize, api.TextSizeDefault), sizes, func(v api.TextSize) { save(api.SettingsSetParams{TextSize: &v}) }, cx))
+		}
 		nodes = append(nodes, w.notificationSettings(cx)...)
 		if opt := w.traySetting(); opt != nil {
 			nodes = append(nodes, opt)

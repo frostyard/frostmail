@@ -84,7 +84,7 @@ func Document(body, printHeader, extraStyle string) string {
 }
 
 // ScrollingDocument lets a standalone reader page own its viewport.
-func ScrollingDocument(body string) string { return document(body, "", "", true) }
+func ScrollingDocument(body, style string) string { return document(body, "", style, true) }
 
 // Frame is one page of HTML the app did not write, as a window shows it.
 // Its methods belong to the UI thread, except those that say they wait.
