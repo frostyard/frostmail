@@ -41,16 +41,6 @@ func named[T ~string](values ...T) []ui.Option[T] {
 	}
 	return options
 }
-func (w *workspace) accountsPanel(cx *core.Scope) core.Node {
-	return core.Dynamic(func(*core.Scope) core.Node {
-		w.state.Get()
-		nodes := []core.Node{primary("Add account", func() { w.startAccount() })}
-		for _, a := range w.store.State().Accounts {
-			nodes = append(nodes, workspaceui.Card{Children: []core.Node{core.Text{Content: a.DisplayName, Style: ui.TypeTitle}, core.Text{Content: a.Email + " · " + string(a.Kind)}, workspaceui.Row(button("Manage "+a.Email, func() { w.accountMenu(a) }))}})
-		}
-		return workspaceui.Page(nodes...)
-	})
-}
 func (w *workspace) startAccount() {
 	w.show(func(*core.Scope) core.Node {
 		var email string
@@ -153,7 +143,7 @@ func (w *workspace) editAccount(original api.Account) {
 }
 func (w *workspace) accountMenu(a api.Account) {
 	w.show(func(*core.Scope) core.Node {
-		auth := button("Set password", func() {
+		auth := action("Set password", func() {
 			w.show(func(*core.Scope) core.Node {
 				var password string
 				return w.dialog("Set password", []core.Node{stringField("Password", &password, true)}, button("Cancel", w.closePanel), primary("Store password", func() {
@@ -166,9 +156,9 @@ func (w *workspace) accountMenu(a api.Account) {
 			})
 		})
 		if a.Auth == api.AuthKindOAuth2 {
-			auth = button("Sign in with provider", func() { w.authorizeAccount(a) })
+			auth = action("Sign in with provider", func() { w.authorizeAccount(a) })
 		}
-		return w.dialog(a.Email, []core.Node{button("Edit servers and preferences", func() { w.editAccount(a) }), auth, button("Services and collections", func() { w.services(a) }), button("Verify account", func() {
+		return w.dialog(a.Email, []core.Node{actionList(action("Edit servers and preferences", func() { w.editAccount(a) }), auth, action("Services and collections", func() { w.services(a) }), action("Verify account", func() {
 			perform(w, func(ctx context.Context, c *api.Client) (*api.VerifyReport, error) {
 				return c.Account().Verify(ctx, &api.AccountVerifyParams{ID: a.ID})
 			}, func(report *api.VerifyReport, err error) {
@@ -188,13 +178,13 @@ func (w *workspace) accountMenu(a api.Account) {
 					return w.dialog("Account verification", []core.Node{core.Scroll{Style: core.Style{MaxHeight: core.Pt(420)}, Children: rows}})
 				})
 			})
-		}), danger("Remove account", func() {
+		}), destroying("Remove account", func() {
 			w.destroy("Remove account?", "Remove "+a.Email+" and its locally stored mail and settings?", "Remove", func() {
 				w.change(func(ctx context.Context, c *api.Client) error {
 					return c.Account().Delete(ctx, &api.AccountDeleteParams{ID: a.ID})
 				}, nil)
 			})
-		})})
+		}))})
 	})
 }
 func (w *workspace) authorizeAccount(a api.Account) {

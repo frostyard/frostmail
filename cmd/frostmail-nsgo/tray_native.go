@@ -136,7 +136,7 @@ func (w *workspace) traySetting() core.Node {
 	if !w.trayAvailable {
 		return nil
 	}
-	return ui.Checkbox{Text: "Close to tray", Checked: w.trayChoice.Get, OnChange: func(on bool) {
+	return ui.Switch{Label: "Close to tray", Checked: w.trayChoice.Get, OnChange: func(on bool) {
 		path, err := config.AppConfigFile(os.Getenv)
 		if err == nil {
 			err = settings.WriteTrayPreference(path, on)

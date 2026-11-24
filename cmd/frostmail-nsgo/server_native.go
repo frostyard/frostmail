@@ -87,5 +87,5 @@ func (w *workspace) serverPanel(cx *core.Scope) core.Node {
 			})
 		}()
 	}), button("Retry connection", w.session.Retry))
-	return workspaceui.Page(nodes...)
+	return workspaceui.Stack(nodes...)
 }

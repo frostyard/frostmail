@@ -118,7 +118,7 @@ func fixtureLook(t *testing.T, smtp string, width, height core.Points, dark bool
 func TestAppearanceChoiceIsKept(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Settings")
-	a.Press("role:tab General")
+	a.Press("label:General")
 	a.WaitFor("role:tab Dark", 8*time.Second)
 	a.Press("role:tab Dark")
 	if a.Appearance != core.AppearanceDark {
@@ -252,6 +252,34 @@ func TestDeletingAsksInAnAlert(t *testing.T) {
 	a.Find(row)
 }
 
+// TestSettingsSearchesItsRowsAndListsAPanelsActions checks Settings: its
+// categories are its own, a search finds a preference and an account by
+// name, and an account's panel is a list of rows whose last asks in an
+// alert before it removes.
+func TestSettingsSearchesItsRowsAndListsAPanelsActions(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Settings")
+	a.WaitFor("id:settings >> label:Add account", 5*time.Second)
+	for _, category := range []string{"General", "Identities", "Snippets", "Filters", "Mailboxes", "Sign-in", "Accounts"} {
+		a.Find("id:settings >> label:" + category)
+	}
+	a.Type("label:Search settings", "undo")
+	a.WaitFor("id:settings >> text:Undo send delay", 5*time.Second)
+	if a.Exists("id:settings >> text:List preview lines") {
+		t.Error("a search for undo also lists the preview lines")
+	}
+	a.Clear("label:Search settings")
+	a.Type("label:Search settings", "northwind")
+	a.WaitFor("id:settings >> label:Manage ann@northwind.example", 5*time.Second)
+	a.Press("id:settings >> label:Manage ann@northwind.example")
+	a.WaitFor("role:dialog >> label:Verify account", 5*time.Second)
+	a.Press("role:dialog >> label:Remove account")
+	a.WaitFor("role:alertdialog >> text:Remove account?", 5*time.Second)
+	a.Press("role:alertdialog >> role:button Cancel")
+	a.WaitForGone("role:alertdialog", 5*time.Second)
+	a.Find("id:settings >> label:Manage ann@northwind.example")
+}
+
 func TestMailboxReadsFixture(t *testing.T) {
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
@@ -320,7 +348,8 @@ func TestAccountAndSnippetSettings(t *testing.T) {
 	a.Type("label:Snippet name", "Fixture signoff")
 	a.Type("label:Snippet HTML", "<p>Good evening</p>")
 	a.Press("label:Save")
-	a.WaitFor("label:Fixture signoff", 5*time.Second)
+	a.WaitFor("id:settings >> text:Fixture signoff", 5*time.Second)
+	a.Find("label:Edit Fixture signoff")
 }
 
 func TestOrganizeRuleAndSmartMailbox(t *testing.T) {
