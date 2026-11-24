@@ -1799,6 +1799,7 @@ A row of a message list.
 | `threadCount` | `int` | Messages in the thread across every mailbox; 1 for a message alone. |
 | `remindAt` | `time` (optional) | When a pending Remind Me reminder brings the message back. |
 | `muted` | `bool` (optional) | Present and true when the message's conversation is muted (ADR-0028). |
+| `threadUnread` | `int` (optional) | In view.range of a view with threads: the unread messages of the row's conversation within the view's scope, the view's unread condition aside (0 when none). Absent elsewhere, as in message.summaries. |
 
 ### Type `Part`
 

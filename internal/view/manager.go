@@ -112,6 +112,17 @@ func (m *Manager) Range(conn api.Conn, id int64, start, end int) ([]int64, error
 	return slices.Clone(v.ids[start:end]), nil
 }
 
+// Filter returns the stored filter of a view conn owns.
+func (m *Manager) Filter(conn api.Conn, id int64) (store.ViewFilter, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	v, ok := m.views[id]
+	if !ok || v.conn != conn {
+		return store.ViewFilter{}, ErrNotFound
+	}
+	return v.filter, nil
+}
+
 // Close closes a view conn owns.
 func (m *Manager) Close(conn api.Conn, id int64) error {
 	m.mu.Lock()

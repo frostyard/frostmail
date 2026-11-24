@@ -277,6 +277,44 @@ func (d *DB) FilterIDs(ctx context.Context, f ViewFilter, ids []int64) ([]int64,
 		where+` ORDER BY m.id`, append([]any{string(in)}, args...)...)
 }
 
+// ThreadUnread counts unread messages in each row's conversation within f's
+// scope, ignoring its unread condition. Missing message IDs are omitted.
+func (d *DB) ThreadUnread(ctx context.Context, f ViewFilter, ids []int64) (map[int64]int64, error) {
+	out := make(map[int64]int64, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	f.Unread, f.Keep, f.Threads = nil, nil, false
+	where, args, err := d.viewWhere(ctx, f)
+	if err != nil {
+		return nil, fmt.Errorf("thread unread: %w", err)
+	}
+	in, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("thread unread: %w", err)
+	}
+	rows, err := d.db.QueryContext(ctx, `SELECT r.id,
+		(SELECT COUNT(*) FROM messages m WHERE m.seen = 0 AND
+		(r.thread_id IS NOT NULL AND m.thread_id = r.thread_id OR r.thread_id IS NULL AND m.id = r.id)
+		AND `+where+`)
+		FROM messages r WHERE r.id IN (SELECT value FROM json_each(?))`, append(args, string(in))...)
+	if err != nil {
+		return nil, fmt.Errorf("thread unread: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, count int64
+		if err := rows.Scan(&id, &count); err != nil {
+			return nil, fmt.Errorf("thread unread: %w", err)
+		}
+		out[id] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("thread unread: %w", err)
+	}
+	return out, nil
+}
+
 // Summary is a message list row (api.MessageSummary).
 type Summary struct {
 	ID             int64

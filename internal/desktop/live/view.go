@@ -25,6 +25,9 @@ const callTimeout = 30 * time.Second
 // of rows. It opens the view when made, applies view.delta, refreshes rows
 // named by message.changed, and fetches the rows Ensure asks for. Every
 // change calls the notify function given to OpenView, from any goroutine.
+// A view of conversations asks again for its loaded pages after each
+// message.changed instead, since a change of any message of a
+// conversation can change its row (threadUnread).
 //
 // maild answers calls in any order, so an answer can be older than a row
 // the view holds. Each message.changed gets the next sequence number; a
@@ -57,6 +60,9 @@ type View struct {
 	// seq counts the message.changed events. held is, for each message in
 	// rows, the seq its row was asked at; changed is the seq of the last
 	// event of each message, kept while a page asked before it is out.
+	// stale, in a view of conversations, is the seq of the last
+	// message.changed: a loaded page asked before it is asked again.
+	stale   uint64
 	seq     uint64
 	held    map[int64]uint64
 	changed map[int64]uint64
@@ -230,7 +236,7 @@ func (v *View) ensureLocked() {
 	}
 	last := min(v.window[1], v.total)
 	for p := v.window[0] / Page; p*Page < last; p++ {
-		if _, out := v.loading[p]; !out && !v.pageLoaded(p) {
+		if _, out := v.loading[p]; !out && (!v.pageLoaded(p) || v.pageStaleLocked(p)) {
 			v.loading[p] = v.seq
 			go v.fetch(p, v.id, v.gen, v.seq)
 		}
@@ -335,6 +341,12 @@ func (v *View) event(ev api.Event) {
 	case api.MessageChanged:
 		v.mu.Lock()
 		seq := v.messageChangedLocked(e.IDs)
+		if v.query.Threads != nil && *v.query.Threads {
+			v.stale = seq
+			v.ensureLocked()
+			v.mu.Unlock()
+			return
+		}
 		v.mu.Unlock()
 		go v.refresh(e.IDs, seq)
 	}
@@ -409,6 +421,10 @@ func (v *View) fetch(p, id int64, gen, seq uint64) {
 		again = v.storeLocked(p*Page, rows, seq)
 		v.evictLocked()
 		v.changedLocked()
+		if v.query.Threads != nil && *v.query.Threads {
+			v.ensureLocked()
+			again = nil
+		}
 	}
 	v.pruneChangedLocked()
 	now := v.seq
@@ -513,6 +529,19 @@ func (v *View) refreshLocked(fresh []api.MessageSummary, seq uint64) bool {
 		v.changedLocked()
 	}
 	return changed
+}
+
+// pageStaleLocked reports whether a conversation page predates a message change.
+func (v *View) pageStaleLocked(p int64) bool {
+	if v.query.Threads == nil || !*v.query.Threads {
+		return false
+	}
+	for i := p * Page; i < min((p+1)*Page, v.total); i++ {
+		if r, ok := v.rows[i]; ok && v.held[r.ID] < v.stale {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *View) pageLoaded(p int64) bool {

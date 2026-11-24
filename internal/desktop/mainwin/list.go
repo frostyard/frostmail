@@ -405,8 +405,12 @@ func (w *Window) row(c *ui.Context, snap live.Snapshot, n int64) {
 		uikit.SummaryRowLines(c, uikit.Summary{}, lines)
 		return
 	}
+	unread := !r.Flags.Seen
+	if w.q.Conversations && r.ThreadUnread != nil {
+		unread = *r.ThreadUnread > 0
+	}
 	s := uikit.Summary{Title: mail.DisplayName(r.From), Date: mail.ListDate(r.Date, w.o.Now()), Subtitle: r.Subject, Preview: r.Preview,
-		Unread: !r.Flags.Seen, UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
+		Unread: unread, UnreadLabel: "Unread", Photo: w.photo(r.From.Address)}
 	if r.Flags.Flagged {
 		s.Mark = flagColor(c.Theme(), r.Flags.FlagColor)
 		names := []string(nil)

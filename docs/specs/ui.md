@@ -393,7 +393,16 @@ Dates and counts use `font-variant-numeric: tabular-nums`.
   follows a change at once (`settings.changed`). A row not yet loaded
   keeps the same height. Unsaved drafts' rows keep 2 lines.
 - **Gutter:** a 9px `--accent` dot centered on line 1 when unseen; a 12px
-  filled flag in `--flag-N` centered on line 2 when flagged.
+  filled flag in `--flag-N` centered on line 2 when flagged. In
+  conversation mode the dot shows while any message of the conversation
+  in the list's source is unseen (`threadUnread > 0`, which `view.range`
+  gives each row of a view with `threads`), also when the row's own
+  message is seen, as Mail.app does (#358). The filter's Unread or read
+  condition does not narrow that count. A list in conversation mode asks
+  again for its loaded rows with `view.range` after each
+  `message.changed`, since a change of any message of a conversation can
+  change its row. The web build still draws the row's own message's
+  dot (#378).
 - **Selection:** `--accent` background with every text, icon and dot in
   `--accent-contrast` while the list has focus; `--selection-inactive`
   otherwise. Multiple selection uses the same colors.
@@ -910,7 +919,8 @@ lodge's frame are.
   Inboxes (role inbox, every account) or Flagged (flagged, every account).
   Searching replaces the source until the search is cleared.
 - **Conversation mode** is on by default: one row per thread (its newest
-  message in the source), with the badge.
+  message in the source), with the badge, and the dot while any of its
+  messages in the source is unread (Gutter).
 - **Opening** a message (selecting exactly one) marks every message the
   reader then shows seen at once: the whole conversation, up to the first 20.
 - **Selection** follows the selected IDs through deltas. If a selected row
