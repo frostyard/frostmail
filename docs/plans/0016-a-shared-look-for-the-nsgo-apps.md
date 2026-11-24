@@ -59,7 +59,9 @@ paddings, window sizes and tree widths differ by a few points each.
   views of its own over `base.List`, about twenty small parts (tile, keycap,
   pill, card, field row, search field, sidebar row) and a table of named
   colors. Onegit reaches a lesser one on the stock shells with no per-OS
-  code. This plan takes GoVault's parts and Onegit's shell: ideas and
+  code. This plan takes Onegit's way first, NSGo's own shells and controls,
+  and GoVault's measures and colors; a part of our own, as GoVault's, only
+  where NSGo has no control ([rule 11](#rules-for-every-app)). Ideas and
   measures only, written again here.
 
 ## The standard
@@ -164,17 +166,65 @@ the kit decides how they look.
     the same pull request, and the review reads the look from them.
     PocketGo's suite is the model ([Phase 0.5](#phase-05--live-tests-in-frostmail-and-frostnotes-m)).
 
+11. **The right control.** A need takes NSGo's control for that need, used
+    as NSGo's docs and gallery show it. In order: a `ui` control; that
+    control's own variant or field; a kit part built on the `base`
+    behaviour, only where `ui` has none, with the gap and its upstream
+    issue named in the kit's spec. No view stands in for a control (a
+    pressable view drawn as a button, a text field for a date), and no
+    control does another's job (a checkbox as a mode or an action, a menu
+    for a choice of three, a dialog for a confirmation). The
+    [control map](#the-control-map) is the reference, and the live suite
+    finds a control by its role where it can (`role:tab`, `role:switch`),
+    so a wrong control fails a test.
+
+### The control map
+
+The starting map, from NSGo v0.3.0's `ui` package and a count of what each
+client constructs today (2026-11-24). Phase 2 checks each row against
+NSGo's gallery and docs before a part is built, and the map moves to the
+kit's spec.
+
+| Need | NSGo's control | Today |
+| --- | --- | --- |
+| The window and its navigation | `ui.SidebarShell`, through the kit's `Shell`; `ui.Sidebar` with the count in `SidebarItem.Content` | The count is typed into the row's name |
+| A tree of folders or notes | `ui.Tree` | Frostnotes puts a second `ui.Sidebar` in the tree's place; PocketGo uses `ui.Tree` |
+| A choice among a few views (modules, All / Unread / Flagged, Day / Week / Month) | `ui.Tabs`, segmented, or `ui.ToggleGroup` | Modules are sidebar rows; the filter is a menu on a filled button |
+| A toolbar | `ui.Toolbar`, `ui.ToolbarGroup`, `ui.ToolbarSeparator`, `ui.IconButton` (its label is its tooltip), `ui.ToggleButton` for a panel's toggle | No client constructs a `ui.Toolbar`; FrostMail has 58 `ui.Button` and 4 `ui.IconButton` |
+| The palette and its field | `ui.CommandDialog`; the field is `ui.SidebarButton` in its field variant, with its shortcut | The dialog is used; the trigger is a text button |
+| A list and its selection | `ui.List` with a multiple `ui.Selection`, and the list's own keys | A "Select messages" checkbox turns on a checkbox in each row |
+| A row's menu | `ui.ContextMenu`; `ui.Menu` with `ui.MenuSeparator`, icons, shortcuts and the danger variant | Menus are flat lists of text |
+| A person's picture | `ui.Avatar` | `core.Image` with a corner radius |
+| A count or a state | `ui.Badge` | Text; PocketGo uses `ui.Badge` |
+| Loading | `ui.Skeleton`, `ui.Spinner`, a button's `Busy` | The text "Loading…" |
+| A confirmation | `ui.AlertDialog`, the destroying action in the danger variant | FrostMail and Frostnotes: `ui.Dialog` with two buttons; PocketGo: the system's alert |
+| A form in a dialog | `ui.Dialog` with `ui.FormSection`, `ui.FormRow` and `ui.Field` | Inputs laid out by hand |
+| Settings | `ui.Settings` or `ui.SettingsDialog` | FrostMail: `ui.Tabs` over hand-laid panes; PocketGo: `ui.SettingsDialog` |
+| An on/off setting | `ui.Switch`; `ui.Checkbox` for an item of a list and a task's done mark | Checkboxes for both; in the To-Do Bar a checkbox clears a flag, which is an action |
+| A date and a time | `ui.DatePicker`, `ui.TimeField` | Text typed as `2006-01-02 15:04` for an event, Send Later and a reminder |
+| Recipients | `ui.TagInput`, with `ui.SuggestList` for the matches | One text field with its own list of matches |
+| A message's text | NSGo's rich editor | As it should be |
+| Detail beside the content | `ui.Popover`, `ui.HoverCard` (a sender's card), `ui.Sheet` | Dialogs |
+| A disclosure | `ui.Collapsible`, `ui.Accordion` | The kit's `Section` builds its own on `base.Button` |
+| Paging | `ui.Pagination` | PocketGo's own Previous and Next |
+| A notice of something done | `ui.Toaster` | As it should be |
+
+`ui` has no control for these, so the kit holds them: the empty state, the
+banner, the divider, the keycap, the icon and key hint around a search
+`ui.Input`, and the layout of a summary row (the row's parts are `ui`
+controls).
+
 ### The kit
 
 | Part | Holds |
 | --- | --- |
 | `theme` | The two palettes, the named roles, the type and space tokens, `Apply`, Inter, the contrast test from frostui's table |
-| `shell` | Today's `Shell`, `Inspector`, `FileExplorer`, `Conversation`; plus toolbar segments, the module bar, the connection item, the title bar's policy for each system, kept window state |
-| `nav` | The sidebar row (icon, name, count, badge), today's `BranchLabel` and `ChildLabel`, the section caption |
-| `rows` | The summary row, the avatar and its monogram, the unread dot, the count pill, the hover and selected fills, the skeleton row, a section header |
-| `controls` | The search field with its key hint, the toolbar button and separator, the keycap, the pill, the banner, the divider |
-| `surfaces` | `Page`, `Card`, `Section`, the field row, the option row, the empty state |
-| `dialogs` | The form dialog, the confirmation, `Notice` |
+| `shell` | Today's `Shell`, `Inspector`, `FileExplorer`, `Conversation`; plus the toolbar's segments (each a `ui.Toolbar`), the connection item, the title bar's policy for each system, kept window state |
+| `nav` | The content of a `ui.Sidebar` row (icon, name, count as a `ui.Badge`), today's `BranchLabel` and `ChildLabel` |
+| `rows` | The summary row's layout over `ui.Avatar`, `ui.Badge` and `ui.Skeleton`; the unread dot; the hover and selected fills for `ui.List` |
+| `controls` | Only what `ui` lacks: the icon and key hint around a search `ui.Input`, the keycap, the banner, the divider |
+| `surfaces` | `Page`, `Card`, `Section` over `ui.Collapsible`, the field row, the empty state; settings rows are `ui.Settings`' |
+| `dialogs` | A form dialog over `ui.Dialog` and NSGo's form rows, `Notice`; a confirmation is `ui.AlertDialog` |
 | `gallery` | An app that shows every part in both themes, built for Linux and the web: what the owner signs off, and what the screenshot tests compare |
 
 ## Phase 0 — Decisions and the kit's home (S)
@@ -251,18 +301,23 @@ pictures.
 
 ## Phase 2 — The kit's parts and the gallery (L)
 
+- The control map checked row by row against NSGo's gallery and docs
+  (rule 11): each kit part names the `ui` control it wraps, or the gap that
+  leaves none to wrap.
 - The parts of the table above, each with a layout test (a row keeps its
   text inside it, a count sits at the row's end, a tooltip shows on hover)
   in the manner of GoVault's and PocketGo's `nsgotest` checks.
 - The gallery, with a live suite of its own (rule 10): a picture of every
   part in both themes, from the Linux and the web target.
 - **Done when:** the gallery shows every part in both themes on Linux and
-  in a browser, and the owner accepts its pictures. This is the look's
-  sign-off: Phases 3 to 5 only place parts.
+  in a browser, the kit's spec holds the control map with a gap named for
+  each part that wraps no `ui` control, and the owner accepts the
+  pictures. This is the look's sign-off: Phases 3 to 5 only place parts.
 
 ## Phase 3 — FrostMail's main window (L)
 
-Three changes, each with `make nsgo-test` green:
+Three changes, each with `make nsgo-test` green, and each replacing the
+stand-ins of its panes with the control map's controls (rule 11):
 
 - **3a, shell.** The toolbar's segments and icon buttons, the module bar,
   the sidebar's rows with role icons and counts, the connection item and
@@ -280,13 +335,15 @@ Three changes, each with `make nsgo-test` green:
 
 ## Phase 4 — FrostMail's other surfaces (L)
 
-- Compose (its toolbar, the address fields, the formatting bar), Settings
+- Compose (its toolbar, recipients on `ui.TagInput`, the formatting bar),
+  dates and times on `ui.DatePicker` and `ui.TimeField`, Settings
   on `ui.Settings`, Calendar, People, Tasks, the To-Do Bar, Activity, the
   palette, and every dialog on the form dialog and the confirmation.
 - The narrow layout and Lodge's web build, checked in a browser.
 - The style test of rule 2 turned on for `cmd/frostmail-nsgo`.
 - **Done when:** the README's pictures are the live suite's, from the NSGo
-  client, and the style test passes with no exception listed.
+  client; the style test passes with no exception listed; and no row of
+  the control map's "Today" column is still true of FrostMail.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
@@ -296,7 +353,8 @@ Three changes, each with `make nsgo-test` green:
   dialogs), and takes rules 3 to 8.
 - Frostnotes' second toolbar row moves to the shell's toolbar.
 - **Done when:** each app's style test and live suite pass, its own gates
-  pass, and the three suites' pictures of the main window, side by side,
+  pass, no row of the control map's "Today" column is still true of it,
+  and the three suites' pictures of the main window, side by side,
   show one toolbar, one sidebar row, one selected fill and one dialog.
 
 ## Phase 6 — Upstream (S, alongside)
