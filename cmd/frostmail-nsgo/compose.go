@@ -419,8 +419,12 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		ui.Button{Text: "Save and close", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: closeDraft},
 		ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times},
 		ui.Button{Text: "Send", Icon: lucide.Send, Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
-	// The window is wider than a form's: a message is written in it.
-	dlg.Style = core.Style{Width: core.Pt(720)}
+	// The window is wider than a form's: a message is written in it. On a
+	// touch screen NSGo presents a dialog as a sheet of the screen's width,
+	// which a width of its own would run past.
+	if !ui.Touch(cx) {
+		dlg.Style = core.Style{Width: core.Pt(720)}
+	}
 	dlg.Children = append(dlg.Children, reminder, discard)
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
