@@ -115,8 +115,8 @@ func attr(n *nethtml.Node, key string) string {
 	return ""
 }
 
-// allowedLink reports whether the editor keeps a link.
-func allowedLink(href string) bool {
+// AllowedLink reports whether the editor keeps a link.
+func AllowedLink(href string) bool {
 	h := strings.ToLower(strings.TrimSpace(href))
 	return strings.HasPrefix(h, "http:") || strings.HasPrefix(h, "https:") || strings.HasPrefix(h, "mailto:")
 }
@@ -189,7 +189,7 @@ func (c *converter) walk(n *nethtml.Node) {
 		c.inline(n, func(a *richtext.Attributes) { a.Strikethrough = true })
 	case atom.A:
 		href := attr(n, "href")
-		if !allowedLink(href) {
+		if !AllowedLink(href) {
 			c.children(n)
 			return
 		}
@@ -452,7 +452,7 @@ func writeRun(b *strings.Builder, r richtext.Run) {
 		b.WriteString(tag)
 		closing = append(closing, end)
 	}
-	if a.Link != "" && allowedLink(a.Link) {
+	if a.Link != "" && AllowedLink(a.Link) {
 		open(`<a href="`+html.EscapeString(a.Link)+`">`, "</a>")
 	}
 	if a.Bold() {

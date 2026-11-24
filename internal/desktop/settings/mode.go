@@ -152,6 +152,17 @@ func (r realSteps) startMaild() error {
 	return r.o.StartLocal(ctx)
 }
 
+// ChangeServer applies the desktop mode transition, including Flatpak stop
+// and rollback. The caller serializes changes and retargets its connection
+// when moved is true, including after a failed local start.
+func ChangeServer(options Options, flatpak bool, next conn.AppConfig) (moved bool, err error) {
+	out := change(realSteps{&options}, flatpak, next)
+	if out.err != "" {
+		return out.moved, errors.New(out.err)
+	}
+	return out.moved, nil
+}
+
 // targetFor says where the session goes for a choice.
 func (w *Window) targetFor(lodge string) (conn.Target, error) {
 	if lodge != "" {

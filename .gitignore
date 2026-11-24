@@ -10,3 +10,5 @@
 /.mcp.json
 /.envrc
 /resources/
+
+/cmd/frostmail-nsgo/.nsgo/

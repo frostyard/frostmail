@@ -17,14 +17,6 @@ import (
 // records).
 const PageCSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; media-src data:; base-uri 'none'; form-action 'none'"
 
-// PageRules are the content rules of such a page: everything is blocked
-// but data: and about:, whatever the CSP says.
-const PageRules = `[
- {"trigger": {"url-filter": ".*"}, "action": {"type": "block"}},
- {"trigger": {"url-filter": "^data:"}, "action": {"type": "ignore-previous-rules"}},
- {"trigger": {"url-filter": "^about:"}, "action": {"type": "ignore-previous-rules"}}
-]`
-
 const pageStyle = `html{color-scheme:light}` +
 	`body{margin:0;padding:20px;background:#fff;color:#000;font:14px/1.45 "Inter Variable",system-ui,sans-serif;overflow-wrap:anywhere}` +
 	`img{max-width:100%;height:auto}` +
@@ -50,7 +42,7 @@ const pageHeightStyle = `@layer page-height{html,body{height:auto!important}}`
 // it were not there: on paper a print guard (mail.PrintGuard) can then
 // keep the whole message below the header in one rule, as no element of
 // the message can.
-func Document(body, printHeader, extraStyle string) string {
+func document(body, printHeader, extraStyle string, scroll bool) string {
 	var b strings.Builder
 	b.WriteString(`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="`)
 	b.WriteString(PageCSP)
@@ -72,9 +64,27 @@ func Document(body, printHeader, extraStyle string) string {
 	// would narrow the initial viewport and change its line wrapping.
 	// Keep this important rule after the message's own styles. Apply it
 	// on screen only, so printing can paginate the whole message.
-	b.WriteString(`<style>@media screen{html{overflow-y:hidden!important}}</style></body></html>`)
+	if !scroll {
+		b.WriteString(`<style>@media screen{html{overflow-y:hidden!important}}</style>`)
+	}
+	b.WriteString("</body></html>")
 	return b.String()
 }
+
+// PageRules are the content rules of such a page: everything is blocked
+// but data: and about:, whatever the CSP says.
+const PageRules = `[
+ {"trigger": {"url-filter": ".*"}, "action": {"type": "block"}},
+ {"trigger": {"url-filter": "^data:"}, "action": {"type": "ignore-previous-rules"}},
+ {"trigger": {"url-filter": "^about:"}, "action": {"type": "ignore-previous-rules"}}
+]`
+
+func Document(body, printHeader, extraStyle string) string {
+	return document(body, printHeader, extraStyle, false)
+}
+
+// ScrollingDocument lets a standalone reader page own its viewport.
+func ScrollingDocument(body, style string) string { return document(body, "", style, true) }
 
 // Frame is one page of HTML the app did not write, as a window shows it.
 // Its methods belong to the UI thread, except those that say they wait.
