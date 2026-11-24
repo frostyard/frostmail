@@ -3,8 +3,9 @@
 - **Status:** Phase 0 is done (2026-11-24): the owner chose D1 to D4
   ([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)),
   the kit is in frostui and tagged, and the three apps build on it. Phase
-  0.5 is done (2026-11-24). Phase 1 is in progress: the kit's themes are
-  tagged and FrostMail draws them; Frostnotes and PocketGo are left.
+  0.5 is done (2026-11-24). Phase 1 is built in the kit and in the three
+  apps (2026-11-24), and stays open for 1 check on a desktop. Phase 2 is
+  next.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -361,6 +362,34 @@ pictures.
   names the app. Not checked: the web build under Lodge and Windows.
   Still as before, for Phases 3 and 4: every layout, and each row of the
   control map.
+- **Frostnotes' part (2026-11-24),** frostyard/frostnotes#278: `Apply`,
+  `Frame`, and the choice of appearance as a row of its Manage vaults
+  dialog, kept on a desktop. 19 pictures made again and 3 added (17 light,
+  5 dark). Its dark narrow picture, unreadable before, is readable. With
+  the host's own Inter hidden the pictures were byte-identical, and with
+  the kit's registration also removed the text was Noto Sans.
+- **PocketGo's part (2026-11-24),** frostyard/pocketgo#168: `Apply`, and
+  `Frame` around its zoom view; its Theme setting is the kit's segmented
+  control, with its storage unchanged. Its 13 Linux and 13 web pictures
+  are made again (7 dark, 6 light each), and it gains `make nsgo-live` and
+  `make nsgo-pictures`. Its pane-width tests pass unchanged; 7 tests each
+  lose the press that opened the old select.
+- **Where the phase stands (2026-11-24).** Of its "Done when": each app's
+  live suite passes on its pull request (#395, frostyard/frostnotes#278,
+  frostyard/pocketgo#168), the pictures of each are made again in both
+  themes and show Frostyard's colors and Inter, the kit's contrast test
+  passes, and PocketGo's pane-width tests pass. **Not shown: one title
+  row.** A capture holds the window's content, not the system's title bar,
+  so no picture shows the bar and the toolbar together; what the pictures
+  show is that the navigation's head no longer names the app on Linux.
+  The phase stays open until the owner looks at a client's window on a
+  desktop, or accepts closing without it.
+- **Seen in the pictures, for Phase 2:** a dialog's and a palette's panel
+  let the view under them show through and take the ground's color, not
+  the panel's; in a wide window the content's ground is 1 step of 255 off
+  the theme's; PocketGo's settings dialog draws its sidebar in a neutral
+  gray. Every button is still the filled one and a chosen row a neutral
+  gray, as the control map and rule 3 say they are today.
 
 ## Phase 2 — The kit's parts and the gallery (L)
 
