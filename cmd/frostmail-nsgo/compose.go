@@ -202,20 +202,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 		return ui.Menu{Trigger: ui.Button{Text: label, Variant: ui.ButtonSecondary}, Children: items}
 	})
-	var marks []core.Node
-	for _, m := range []struct{ label, cmd string }{{"Bold", "toggleBold"}, {"Italic", "toggleItalic"}, {"Bullet list", "toggleBulletList"}, {"Undo", "undo"}, {"Redo", "redo"}} {
-		marks = append(marks, ui.Button{Text: m.label, Variant: ui.ButtonGhost, OnPress: func() {
-			if !e.busy.GetUntracked() {
-				e.editor.RunNamed(m.cmd, nil)
-				e.editor.Focus()
-			}
-		}})
-	}
-	// A draft can include quoted mail. Do not let its image URLs fetch remote
-	// resources when a composer opens. Preserve the node in the saved document.
-	image := func(_ *core.Scope, p richeditor.NodeProps) core.Node {
-		return core.Text{ContentFunc: func() string { return "Image · " + p.Node().AttrStr("alt") }}
-	}
+	format, linkBar := e.formatting(cx)
 	fileList := core.Dynamic(func(*core.Scope) core.Node {
 		var rows []core.Node
 		for _, f := range e.files.Get() {
@@ -315,9 +302,20 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		if e.busy.Get() {
 			return core.Text{Content: "Finishing draft…"}
 		}
-		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(205)}, NodeViews: map[string]richeditor.NodeView{"image": image, "inlineImage": image}}
+		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(205)}, NodeViews: map[string]richeditor.NodeView{"image": draftImage, "inlineImage": draftImage}}
 	})
-	dlg := w.dialog("Compose", []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(append(marks, insert)...), editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	cx.OnKey("mod+enter", func() {
+		if !e.busy.GetUntracked() {
+			requestSend(nil)
+		}
+	})
+	cx.OnKey("mod+shift+a", func() {
+		if !e.busy.GetUntracked() {
+			e.pick()
+		}
+	})
+	cx.OnKey("mod+w", closeDraft)
+	dlg := w.dialog("Compose", []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(format, insert), linkBar, editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
 			closeDraft()
