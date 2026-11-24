@@ -43,7 +43,7 @@ func (w *workspace) textReader(page *messagePage) {
 			}
 			perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
 				return c.Draft().Create(ctx, &api.DraftCreateParams{Kind: kind, SourceID: &id, Quote: &quote})
-			}, w.editDraft)
+			}, w.freshDraft)
 		}
 		disabled := func() bool { return strings.TrimSpace(selection.Get()) == "" }
 		return w.dialog("Find or quote message text", []core.Node{ui.Input{Label: "Find in message", Placeholder: "Find in message", Value: needle.Get, OnChange: func(v string) { selection.Set(""); needle.Set(v) }}, core.Scroll{Style: core.Style{MaxHeight: core.Pt(410)}, Children: []core.Node{preview}}}, button("Close", w.closePanel), ui.Button{Text: "Reply with selection", Disabled: disabled, OnPress: func() { reply(api.DraftKindReply) }}, ui.Button{Text: "Reply all with selection", Disabled: disabled, OnPress: func() { reply(api.DraftKindReplyall) }})

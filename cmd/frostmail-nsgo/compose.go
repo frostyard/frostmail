@@ -38,14 +38,16 @@ func (w *workspace) newDraft(kind api.DraftKind, source *int64) {
 	}
 	perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
 		return c.Draft().Create(ctx, &p)
-	}, w.editDraft)
+	}, w.freshDraft)
 }
-func (w *workspace) editDraft(d *api.Draft, err error) {
+func (w *workspace) freshDraft(d *api.Draft, err error) { w.presentDraft(d, true, err) }
+func (w *workspace) editDraft(d *api.Draft, err error)  { w.presentDraft(d, false, err) }
+func (w *workspace) presentDraft(d *api.Draft, fresh bool, err error) {
 	if err != nil {
 		w.problem.Set(err.Error())
 		return
 	}
-	w.show(func(cx *core.Scope) core.Node { return w.compose(cx, d) })
+	w.show(func(cx *core.Scope) core.Node { return w.compose(cx, d, fresh) })
 	w.routePanel(fmt.Sprintf("/compose/%d", d.ID))
 }
 func addressLine(list []api.Address) string {
@@ -60,6 +62,8 @@ type draftEditor struct {
 	w              *workspace
 	cx             *core.Scope
 	id             int64
+	fresh          bool
+	openedAt       time.Time
 	content        api.DraftContent
 	to, cc, bcc    string
 	editor         *richeditor.Session
@@ -74,6 +78,7 @@ type draftEditor struct {
 }
 
 func (e *draftEditor) edit() {
+	e.fresh = false
 	e.changed++
 	e.status.Set("Unsaved changes")
 	if e.timer != nil {
@@ -88,6 +93,36 @@ func (e *draftEditor) flush(f func()) {
 	e.busy.Set(true)
 	e.afterSave = f
 	e.save()
+}
+
+// A draft created by this window can be discarded on Close only while it is
+// untouched. A reopened draft, including one reached through a shared link,
+// always belongs to the user.
+func (e *draftEditor) leave(next func()) {
+	if !e.fresh {
+		e.flush(next)
+		return
+	}
+	if e.busy.GetUntracked() {
+		return
+	}
+	e.busy.Set(true)
+	perform(e.w, func(ctx context.Context, c *api.Client) (struct{}, error) {
+		current, err := c.Draft().Get(ctx, &api.DraftGetParams{ID: e.id})
+		if err != nil {
+			return struct{}{}, err
+		}
+		if !current.UpdatedAt.Equal(e.openedAt) {
+			return struct{}{}, nil
+		}
+		return struct{}{}, c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: e.id})
+	}, func(_ struct{}, err error) {
+		if err != nil {
+			e.fail(err)
+			return
+		}
+		next()
+	})
 }
 func (e *draftEditor) fail(err error) {
 	e.busy.Set(false)
@@ -138,8 +173,8 @@ func (e *draftEditor) save() {
 	})
 }
 
-func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
-	e := &draftEditor{w: w, cx: cx, id: d.ID, content: d.Content, to: addressLine(d.Content.To), cc: addressLine(d.Content.Cc), bcc: addressLine(d.Content.Bcc), status: core.NewSignal(cx, "Saved"), busy: core.NewSignal(cx, false), files: core.NewSignalFunc(cx, d.Attachments, func(_, _ []api.DraftAttachment) bool { return false })}
+func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node {
+	e := &draftEditor{w: w, cx: cx, fresh: fresh, openedAt: d.UpdatedAt, id: d.ID, content: d.Content, to: addressLine(d.Content.To), cc: addressLine(d.Content.Cc), bcc: addressLine(d.Content.Bcc), status: core.NewSignal(cx, "Saved"), busy: core.NewSignal(cx, false), files: core.NewSignalFunc(cx, d.Attachments, func(_, _ []api.DraftAttachment) bool { return false })}
 	var err error
 	e.editor, err = richeditor.NewSession(richeditor.SessionConfig{Extensions: append(richeditor.StarterKit(richeditor.StarterOptions{}), richeditor.TableKit(richeditor.TableOptions{})), HTML: d.Content.HTML})
 	if err != nil {
@@ -161,7 +196,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 			return
 		}
 		e.onFailure = stay
-		e.flush(func() { e.onFailure = nil; goTo() })
+		e.leave(func() { e.onFailure = nil; goTo() })
 	}
 	cx.Cleanup(func() { w.beforeRoute = nil })
 	// Keep the window open while its only copy of a local edit is unsaved.
@@ -304,28 +339,59 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft) core.Node {
 		}
 		return rich.View{Editor: e.editor, Label: "Message text", Placeholder: "Write a message", Style: core.Style{Height: core.Pt(205)}, NodeViews: map[string]richeditor.NodeView{"image": draftImage, "inlineImage": draftImage}}
 	})
-	cx.OnKey("mod+enter", func() {
-		if !e.busy.GetUntracked() {
-			requestSend(nil)
-		}
-	})
-	cx.OnKey("mod+shift+a", func() {
-		if !e.busy.GetUntracked() {
-			e.pick()
-		}
-	})
-	cx.OnKey("mod+w", closeDraft)
-	body := []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(format, insert), linkBar, editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}
+	discarding := core.NewSignal(cx, false)
+	discard := core.Show{When: discarding.Get, Then: func(*core.Scope) core.Node {
+		return workspaceui.Card{Children: []core.Node{core.Text{Content: "Discard this draft?", Style: ui.TypeLabel}, workspaceui.Row(button("Keep draft", func() { discarding.Set(false) }), ui.Button{Text: "Discard draft", Variant: ui.ButtonDanger, Disabled: e.busy.Get, OnPress: func() {
+			if e.saving {
+				e.status.Set("Saving the draft. Try discarding it again in a moment.")
+				return
+			}
+			if e.timer != nil {
+				e.timer()
+			}
+			e.busy.Set(true)
+			perform(w, func(ctx context.Context, c *api.Client) (struct{}, error) {
+				return struct{}{}, c.Draft().Delete(ctx, &api.DraftDeleteParams{ID: e.id})
+			}, func(_ struct{}, err error) {
+				if err != nil {
+					e.fail(err)
+					return
+				}
+				w.closePanel()
+			})
+		}})}}
+	}}
+
+	body := []core.Node{from, e.recipient("To", &e.to), e.recipient("Cc", &e.cc), e.recipient("Bcc", &e.bcc), field("Subject", &e.content.Subject), workspaceui.Row(format, insert, ui.Button{Text: "Discard…", Variant: ui.ButtonGhost, Disabled: e.busy.Get, OnPress: func() { discarding.Set(true) }}), discard, linkBar, editor, fileList, schedule, reminder, core.Text{ContentFunc: e.status.Get, Style: ui.TypeCaption}}
 	dlg := w.dialog("Compose", []core.Node{core.Scroll{StyleFunc: func() core.Style {
 		footer := core.Points(160)
 		if ui.Touch(cx) {
 			footer = 250
 		}
 		return core.Style{MaxHeight: core.Pt(max(110, cx.Env().Window().Height-footer)), FlexShrink: 1}
-	}, Children: []core.Node{workspaceui.Stack(body...)}}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
+	}, Children: []core.Node{core.Dynamic(func(keys *core.Scope) core.Node {
+		keys.OnKey("mod+enter", func() {
+			if !e.busy.GetUntracked() {
+				requestSend(nil)
+			}
+		})
+		keys.OnKey("mod+shift+a", func() {
+			if !e.busy.GetUntracked() {
+				e.pick()
+			}
+		})
+		keys.OnKey("mod+w", func() { e.leave(w.closePanel) })
+		keys.OnKey("mod+backspace", func() {
+			if !e.busy.GetUntracked() {
+				discarding.Set(true)
+			}
+		})
+
+		return workspaceui.Stack(body...)
+	})}}}, ui.Button{Text: "Attach file", Disabled: e.busy.Get, OnPress: e.pick}, ui.Button{Text: "Save and close", Disabled: e.busy.Get, OnPress: closeDraft}, ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times}, ui.Button{Text: "Send", Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
-			closeDraft()
+			e.leave(w.closePanel)
 		}
 	}
 	return dlg
@@ -452,6 +518,7 @@ func (e *draftEditor) attachment(act func(context.Context, *api.Client) error) {
 			e.fail(err)
 			return
 		}
+		e.fresh = false
 		e.files.Set(d.Attachments)
 	})
 }

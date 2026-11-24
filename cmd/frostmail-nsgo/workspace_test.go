@@ -284,3 +284,22 @@ func TestMessageRowQuickActions(t *testing.T) {
 	a.Press("label:Cancel")
 	a.WaitFor("label:"+subject, 5*time.Second)
 }
+
+func TestClosingNewDraftAndDiscardingEdits(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Compose")
+	a.WaitFor("label:Subject", 5*time.Second)
+	a.Key("ctrl+w")
+	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
+	a.Press("label:Open local drafts")
+	a.WaitFor("text:No local drafts", 5*time.Second)
+	a.Press("label:Close")
+	a.Press("label:Compose")
+	a.WaitFor("label:To", 5*time.Second)
+	a.Type("label:To", "an incomplete address")
+	a.Press("label:Discard…")
+	a.Press("label:Discard draft")
+	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
+	a.Press("label:Open local drafts")
+	a.WaitFor("text:No local drafts", 5*time.Second)
+}

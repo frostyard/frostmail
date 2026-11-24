@@ -43,7 +43,7 @@ func (e *draftEditor) formatting(cx *core.Scope) (core.Node, core.Node) {
 			link.Set(true)
 		}
 	}
-	cx.OnKey("mod+k", startLink)
+
 	bar := core.Show{When: link.Get, Then: func(owner *core.Scope) core.Node {
 		url := ""
 		apply := func(v string) {
@@ -71,5 +71,8 @@ func (e *draftEditor) formatting(cx *core.Scope) (core.Node, core.Node) {
 		e.editor.Dispatch(tr)
 		e.editor.Focus()
 	}})
-	return ui.Menu{Trigger: ui.Button{Text: "Format", Disabled: e.busy.Get}, Children: items}, bar
+	return core.Dynamic(func(keys *core.Scope) core.Node {
+		keys.OnKey("mod+k", startLink)
+		return ui.Menu{Trigger: ui.Button{Text: "Format", Disabled: e.busy.Get}, Children: items}
+	}), bar
 }

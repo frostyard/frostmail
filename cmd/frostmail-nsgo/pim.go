@@ -260,7 +260,7 @@ func (w *workspace) personDetail(p *api.Person, load func()) {
 				children = append(children, ui.Button{Text: address.Value, Variant: ui.ButtonGhost, OnPress: func() {
 					perform(w, func(ctx context.Context, client *api.Client) (*api.Draft, error) {
 						return client.Draft().Create(ctx, &api.DraftCreateParams{Kind: api.DraftKindNew, To: []api.Address{{Name: p.DisplayName, Address: address.Value}}})
-					}, w.editDraft)
+					}, w.freshDraft)
 				}})
 			}
 			for _, n := range c.Phones {
