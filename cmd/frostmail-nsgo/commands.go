@@ -22,6 +22,18 @@ func (w *workspace) notificationKey() string {
 }
 func (w *workspace) commands() {
 	cx := w.cx
+	cx.OnKey("mod+p", func() {
+		if p := w.reader.GetUntracked(); p != nil && w.module.GetUntracked() == "Mail" {
+			w.printMessage(p)
+		}
+	})
+	if desktopServer {
+		cx.OnKey("mod+f", func() {
+			if p := w.reader.GetUntracked(); p != nil && w.module.GetUntracked() == "Mail" {
+				w.textReader(p)
+			}
+		})
+	}
 	cx.OnKey("mod+alt+f", func() {
 		if w.module.GetUntracked() == "Mail" {
 			w.searchInput.Focus()

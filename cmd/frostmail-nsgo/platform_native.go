@@ -12,9 +12,11 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/uikit"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
+	"html"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 func platformTarget() (conn.Target, error) { return conn.TargetFrom(os.Getenv) }
@@ -101,5 +103,23 @@ func (w *workspace) saveMessage(m api.MessageSummary) {
 				w.problem.Set(err.Error())
 			}
 		})
+	})
+}
+
+// Only the fixed print template uses the host's print command. Every
+// mail-derived value is escaped text. The HTML mail reader keeps scripts off.
+func (w *workspace) printMessage(p *messagePage) {
+	esc := html.EscapeString
+	src := `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>body{margin:2em;font:15px system-ui;color:#161616;background:white}h1{font-size:1.4em}pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}header{border-bottom:1px solid #aaa}</style><header><h1>` + esc(p.message.Summary.Subject) + `</h1><pre>` + esc(strings.Join(printHeaders(p.message), "\n")) + `</pre></header><pre>` + esc(p.rendering.Text) + `</pre>`
+	w.show(func(cx *core.Scope) core.Node {
+		ref := &core.Ref{}
+		ready := core.NewSignal(cx, false)
+		return w.dialog("Print message", []core.Node{core.WebView{Ref: ref, Label: "Printable message", Source: core.WebHTML(src, ""), Incognito: true, Style: core.Style{Height: core.Pt(380)}, OnLoad: func(core.WebNavigation) { ready.Set(true) }}}, button("Close", w.closePanel), ui.Button{Text: "Print or save PDF", Disabled: func() bool { return !ready.Get() }, OnPress: func() {
+			ref.Evaluate("window.print()", func(_ string, err error) {
+				if err != nil {
+					w.problem.Set(err.Error())
+				}
+			})
+		}})
 	})
 }

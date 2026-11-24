@@ -132,6 +132,7 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 		}})
 	}
 	items = append(items, w.moreMessageActions(m)...)
+	items = append(items, w.readerTools(m.ID)...)
 	if box := mail.ArchiveOf(m.AccountID, boxes); box != nil {
 		items = append(items, action("Archive", move(*box)))
 	}

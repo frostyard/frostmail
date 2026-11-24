@@ -61,7 +61,7 @@ func (w *workspace) senderActions(m api.MessageSummary) []core.Node {
 	if vip {
 		vlabel = "Remove sender from VIPs"
 	}
-	return []core.Node{mailAction("Add sender to Contacts", func(ctx context.Context, c *api.Client) error {
+	return []core.Node{ui.MenuItem{Text: "Sender details", OnSelect: func() { w.contactCard(m.From.Address) }}, mailAction("Add sender to Contacts", func(ctx context.Context, c *api.Client) error {
 		_, err := c.People().Add(ctx, &api.PeopleAddParams{Email: m.From.Address, Name: changed("", m.From.Name)})
 		return err
 	}), mailAction(blabel, func(ctx context.Context, c *api.Client) error {

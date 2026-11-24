@@ -6,6 +6,13 @@
     <title>FrostMail</title>
     <style>
       html, body { margin: 0; height: 100%; }
+      #mail-print { display: none; }
+      @media print {
+        html, body { height: auto !important; overflow: visible !important; }
+        body > :not(#mail-print) { display: none !important; }
+        #mail-print { display: block; color: black; background: white; font: 12pt system-ui; }
+        #mail-print pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+      }
       body > progress { position: absolute; inset: 0; margin: auto; }
     </style>
   </head>

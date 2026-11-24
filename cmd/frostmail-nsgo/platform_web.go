@@ -8,6 +8,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
+	"strings"
 	"syscall/js"
 )
 
@@ -108,3 +109,7 @@ func (w *workspace) platformStart() {
 	})
 }
 func (w *workspace) traySetting() core.Node { return nil }
+
+func (w *workspace) printMessage(p *messagePage) {
+	js.Global().Get("frostmailLodge").Call("printMessage", p.message.Summary.Subject, strings.Join(printHeaders(p.message), "\n"), p.rendering.Text)
+}
