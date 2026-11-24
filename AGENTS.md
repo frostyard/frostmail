@@ -114,9 +114,9 @@ from the live suite's pictures, without setting them beside `main.png`
 client's other surfaces, is in progress, in 5 changes: 4a, one filled
 button for a region and confirmations on NSGo's alert dialog, 4b,
 Settings on NSGo's settings view (`cmd/frostmail-nsgo/settings_view.go`),
-and 4c, the compose window, are built; 4d (Calendar, People, Tasks, the
-To-Do Bar, Activity) and 4e (the narrow layout, Lodge's web build, the
-style test) are left. The MyGo client stays the default.
+4c, the compose window, and 4d, the other modules, each with its own
+rows in the navigation (`cmd/frostmail-nsgo/modules.go`), are built; 4e
+(the narrow layout, Lodge's web build, the style test) is left. The MyGo client stays the default.
 
 ## Two kinds of agent work
 

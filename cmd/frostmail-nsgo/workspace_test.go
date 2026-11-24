@@ -184,6 +184,16 @@ func TestNavigationHoldsTheModulesAndTheFoot(t *testing.T) {
 		a.Press("label:" + module)
 		a.WaitFor("id:content-header >> text:"+module, 5*time.Second)
 	}
+	// Each module's rows take the place of mail's while it is shown.
+	for module, row := range map[string]string{"Calendar": "id:nav-0 >> text:All calendars", "People": "id:nav-0 >> text:All contacts", "Tasks": "id:nav-view:Today"} {
+		a.Press("role:tab " + module)
+		a.WaitFor(row, 5*time.Second)
+		if a.Exists("id:mailbox-all-inboxes") {
+			t.Errorf("%s shows mail's rows in the navigation", module)
+		}
+	}
+	a.Press("role:tab Mail")
+	a.WaitFor("id:mailbox-all-inboxes", 5*time.Second)
 	a.Press("label:Outbox")
 	a.WaitFor("text:Outbox is empty", 5*time.Second)
 }
@@ -260,8 +270,8 @@ func TestSettingsSearchesItsRowsAndListsAPanelsActions(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Settings")
 	a.WaitFor("id:settings >> label:Add account", 5*time.Second)
-	for _, category := range []string{"General", "Identities", "Snippets", "Filters", "Mailboxes", "Sign-in", "Accounts"} {
-		a.Find("id:settings >> label:" + category)
+	for _, category := range []string{"general", "identities", "snippets", "filters", "mailboxes", "sign-in", "accounts"} {
+		a.Find("id:nav-" + category)
 	}
 	a.Type("label:Search settings", "undo")
 	a.WaitFor("id:settings >> text:Undo send delay", 5*time.Second)

@@ -14,6 +14,7 @@ import (
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -71,7 +72,7 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 		load()
 	}
 	picker := ui.DatePicker{Label: "Choose date", Value: func() base.DateValue { return base.DateValue{Start: day.Get()} }, OnChange: func(v base.DateValue) { day.Set(v.Start); load() }}
-	filter := w.collectionFilter(cx, "Calendar", func(c api.Collection) bool { return c.Events }, cal, load)
+	w.useNav(cx, w.collectionNav(cx, "Calendars", "All calendars", lucide.Calendar, func(c api.Collection) bool { return c.Events }, cal, load))
 	show := func(o api.Occurrence) { w.showOccurrence(o, load) }
 	agenda := collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
 		if o.AllDay {
@@ -93,7 +94,24 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	for i, mode := range []string{"Day", "Week", "Month"} {
 		w.moduleKey(cx, fmt.Sprintf("mod+alt+%d", i+1), func() { span.Set(mode); load() })
 	}
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(button("Previous", func() { step(-1) }), picker, button("Next", func() { step(1) }), button("Today", func() { day.Set(time.Now()); load() })), workspaceui.Row(ui.Tabs[string]{Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }}, primary("New event", newEvent), button("Reminders", w.reminders)), filter, ui.Input{Label: "Search events", Placeholder: "Search calendars", OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }}, core.Dynamic(func(owner *core.Scope) core.Node {
+	typed := core.NewSignal(cx, "")
+	search := workspaceui.SearchField{Placeholder: "Search events", Value: typed.Get, OnSubmit: func(v string) { query.Set(strings.TrimSpace(v)); load() }, OnChange: func(v string) {
+		typed.Set(v)
+		if v == "" && query.GetUntracked() != "" {
+			query.Set("")
+			load()
+		}
+	}}
+	bar := moduleBar(
+		ui.IconButton{Label: "Previous", Icon: lucide.ChevronLeft, OnPress: func() { step(-1) }}, picker,
+		ui.IconButton{Label: "Next", Icon: lucide.ChevronRight, OnPress: func() { step(1) }},
+		small(button("Today", func() { day.Set(time.Now()); load() })),
+		ui.Tabs[string]{Variant: ui.TabsSegmented, Size: ui.SizeSmall, Label: "Calendar range", Options: named("Day", "Week", "Month"), Value: span.Get, OnChange: func(v string) { span.Set(v); load() }},
+		ui.Spacer{},
+		core.View{Style: core.Style{Width: core.Pt(220), FlexShrink: 1, MinWidth: core.Pt(120)}, Children: []core.Node{search}},
+		ui.IconButton{Label: "Reminders", Icon: lucide.Bell, OnPress: w.reminders},
+		primary("New event", newEvent))
+	return core.View{Style: ui.FillRest.Merge(core.Style{Gap: 8}), Children: []core.Node{bar, core.Dynamic(func(owner *core.Scope) core.Node {
 		date, mode := day.Get(), span.Get()
 		if query.Get() != "" || owner.Env().Window().Width < 720 {
 			return agenda

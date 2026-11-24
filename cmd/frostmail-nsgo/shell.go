@@ -177,6 +177,39 @@ func (w *workspace) sections() []ui.SidebarSection {
 	}})
 }
 
+// navSections, navSelected and pressNav are the navigation's rows, its
+// choice and a press of a row: mail's in Mail, and in another module the
+// rows that module gave (useNav), or none while it has given none.
+func (w *workspace) navSections() []ui.SidebarSection {
+	if w.module.Get() == "Mail" {
+		return w.sections()
+	}
+	if nav := w.nav.Get(); nav != nil {
+		return nav.sections()
+	}
+	return nil
+}
+
+func (w *workspace) navSelected() string {
+	if w.module.Get() == "Mail" {
+		return w.selected.Get()
+	}
+	if nav := w.nav.Get(); nav != nil {
+		return nav.selected()
+	}
+	return ""
+}
+
+func (w *workspace) pressNav(id string) {
+	if w.module.GetUntracked() != "Mail" {
+		if nav := w.nav.GetUntracked(); nav != nil {
+			nav.navigate(id)
+		}
+		return
+	}
+	w.navigate(id)
+}
+
 // The navigation's rows that open a panel in place of a source.
 const (
 	panelDrafts = "panel:drafts"

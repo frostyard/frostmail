@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity/entry"
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
+	"github.com/nsgo-dev/nsgo/icons/lucide"
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
@@ -48,13 +48,16 @@ func (w *workspace) activity(cx *core.Scope) core.Node {
 			if s.Error != nil {
 				line += " · " + *s.Error
 			}
-			cards = append(cards, workspaceui.Row(core.Text{Content: a.Email + " · " + line}, button("Sync "+a.Email, func() {
+			cards = append(cards, ui.FormRow{Title: a.Email, Detail: line, Control: workspaceui.Row(small(button("Sync "+a.Email, func() {
 				w.change(func(ctx context.Context, c *api.Client) error {
 					return c.Sync().Now(ctx, &api.SyncNowParams{AccountID: a.ID})
 				}, nil)
-			}), button("Connection doctor", func() { w.accountMenu(a) })))
+			})), small(button("Connection doctor", func() { w.accountMenu(a) })))})
 		}
-		return workspaceui.Stack(cards...)
+		if len(cards) == 0 {
+			return nil
+		}
+		return core.View{Style: core.Style{Padding: core.Edges{Left: 8, Right: 8}}, Children: []core.Node{ui.FormSection{Children: cards}}}
 	})
 	names := core.NewMemo(cx, func() *activityNames {
 		w.state.Get()
@@ -68,7 +71,19 @@ func (w *workspace) activity(cx *core.Scope) core.Node {
 		}
 		return &n
 	})
-	return core.View{Style: ui.FillRest, Children: []core.Node{statuses, workspaceui.Row(ui.Select[string]{Label: "Activity level", Options: named("All", "info", "warn", "error"), Value: filter.Get, OnChange: func(v string) { filter.Set(v); load() }}, button("Refresh activity", load)), ui.List{Label: "Activity entries", Style: ui.FillRest, EstimatedSize: 44, Count: func() int { return len(rows.Get()) }, Row: func(_ *core.Scope, row core.ListRow) core.Node {
+	levels := []struct{ id, name string }{{"All", "All activity"}, {"info", "Information"}, {"warn", "Warnings"}, {"error", "Errors"}}
+	w.useNav(cx, moduleNav{
+		sections: func() []ui.SidebarSection {
+			var items []ui.SidebarItem
+			for _, l := range levels {
+				items = append(items, navRow(l.id, l.name, lucide.Activity))
+			}
+			return []ui.SidebarSection{{Title: "Show", Items: items}}
+		},
+		selected: filter.Get,
+		navigate: func(id string) { filter.Set(id); load() },
+	})
+	return core.View{Style: ui.FillRest.Merge(core.Style{Gap: 8}), Children: []core.Node{moduleBar(ui.Spacer{}, ui.IconButton{Label: "Refresh activity", Icon: lucide.RefreshCw, OnPress: load}), statuses, ui.List{Label: "Activity entries", Style: ui.FillRest, EstimatedSize: 44, Count: func() int { return len(rows.Get()) }, Row: func(cx *core.Scope, row core.ListRow) core.Node {
 		return core.Dynamic(func(*core.Scope) core.Node {
 			all := rows.Get()
 			i := row.Index()
@@ -77,7 +92,18 @@ func (w *workspace) activity(cx *core.Scope) core.Node {
 			}
 			e := all[i]
 			source, line := entry.Line(e, names.Get())
-			return core.Text{Content: fmt.Sprintf("%s  %s · %s · %s", e.At.Local().Format("15:04:05"), e.Level, source, line), Selectable: core.SelectableOn}
+			variant := ui.BadgeNeutral
+			switch string(e.Level) {
+			case "warn":
+				variant = ui.BadgeWarn
+			case "error":
+				variant = ui.BadgeDanger
+			}
+			colors := ui.ColorsOf(cx)
+			return core.View{TestID: "activity-entry", Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8, Width: core.Pct(100)}, Children: []core.Node{
+				ui.Tabular(ui.Text(e.At.Local().Format("15:04:05"), 12, ui.Regular, colors.Muted)),
+				ui.Badge{Text: string(e.Level), Variant: variant},
+				core.Text{Content: source + " · " + line, MaxLines: 2, Selectable: core.SelectableOn, Style: ui.TypeBody.Merge(core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)})}}}
 		})
-	}, Empty: core.Text{Content: "No activity"}}}}
+	}, Empty: workspaceui.EmptyState{Icon: lucide.Activity, Title: "No activity", Hint: "What maild does in the background is listed here."}}}}
 }

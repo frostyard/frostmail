@@ -3,6 +3,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -84,7 +85,7 @@ func TestPicturesOfSettings(t *testing.T) {
 	a.Press("label:Settings")
 	a.WaitFor("label:Add account", 5*time.Second)
 	for _, category := range []string{"General", "Filters", "Mailboxes"} {
-		a.Press("id:settings >> label:" + category)
+		a.Press("id:nav-" + strings.ToLower(category))
 		a.Settle()
 		a.Screenshot("settings-" + category)
 	}
@@ -92,7 +93,7 @@ func TestPicturesOfSettings(t *testing.T) {
 	a.WaitFor("label:Open mailbox", 5*time.Second)
 	a.Screenshot("settings-mailbox-panel")
 	a.Press("label:Close")
-	a.Press("id:settings >> label:Accounts")
+	a.Press("id:nav-accounts")
 	a.Press("label:Manage ann.lee@example.com")
 	a.WaitFor("label:Verify account", 5*time.Second)
 	a.Screenshot("settings-account-panel")
