@@ -119,6 +119,33 @@ jobs:
       - name: govulncheck
         run: make vulncheck
 
+  nsgo:
+    name: NSGo client (fixture workflows, native and Lodge builds)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: cmd/frostmail-nsgo/go.mod
+          cache-dependency-path: |
+            go.sum
+            cmd/frostmail-nsgo/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: make nsgo-test nsgo-build
+      - name: Cross-build the Windows client
+        working-directory: cmd/frostmail-nsgo
+        run: GOOS=windows GOARCH=amd64 go build -o ../../build/frostmail-nsgo.exe .
+      - name: Build the Lodge app with the shared client
+        run: make nsgo-lodge-app IN_NSL='sh -c'
+
   ui:
     name: App UI (make ui-check)
     runs-on: ubuntu-24.04
@@ -253,11 +280,24 @@ jobs:
           if (Test-Path (Join-Path $mail 'Frostmail.exe')) { throw 'the refused install left files' }
           # Not Start-Process -Wait, which also waits for the maild it leaves running.
           (Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$dir").WaitForExit()
-          foreach ($f in 'Frostmail.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
+          foreach ($f in 'Frostmail.exe', 'frostmail-nsgo.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "the install has no $f" }
           }
           foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
             if (-not (Test-Path $k)) { throw "the install has no $k" }
+          }
+          # Start the installed NSGo client against this runner's local maild.
+          $client = Start-Process -PassThru -FilePath (Join-Path $dir 'frostmail-nsgo.exe')
+          try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(45)
+            do {
+              Start-Sleep -Milliseconds 250
+              $client.Refresh()
+              if ($client.HasExited) { throw "NSGo exited with $($client.ExitCode)" }
+            } while ($client.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
+            if ($client.MainWindowHandle -eq 0) { throw 'NSGo did not open a Windows window' }
+          } finally {
+            if (-not $client.HasExited) { $client.Kill(); $client.WaitForExit() }
           }
           # A silent uninstall keeps the mail.
           $probe = Join-Path $mail 'Data\probe'

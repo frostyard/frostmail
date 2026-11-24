@@ -999,7 +999,7 @@ func (w *Window) linkRow(c *ui.Context) {
 		done := ui.Button(c, "Done").Clicked()
 		if done || in.Submitted() {
 			url := strings.TrimSpace(w.linkURL)
-			if url == "" || allowedLink(url) {
+			if url == "" || AllowedLink(url) {
 				w.doc.SetLink(url)
 				w.change()
 				w.linkOpen = false

@@ -10,6 +10,7 @@ import (
 	"github.com/frostyard/clix"
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/activity"
+	"github.com/frostyard/frostmail/internal/activity/entry"
 	"github.com/spf13/cobra"
 )
 
@@ -98,7 +99,7 @@ func drainActivity(events <-chan api.EventEnvelope, least api.ActivityLevel) <-c
 			}
 			if lost > 0 {
 				select {
-				case out <- activity.Dropped(lost, a.Entry.At):
+				case out <- entry.Dropped(lost, a.Entry.At):
 					lost = 0
 				default:
 					lost++

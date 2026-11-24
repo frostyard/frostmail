@@ -3,10 +3,10 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
-  build: { target: "es2022" },
+  build: { target: "es2022", ...(mode === "nsgo" ? { rolldownOptions: { input: "nsgo.html" } } : {}) },
   test: {
     environment: "happy-dom",
     // Tests read dates in UTC wherever they run (CI already does).
@@ -16,4 +16,4 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["src/testing/setup.ts"],
   },
-});
+}));

@@ -1,5 +1,7 @@
 # Message rendering
 
+The shared NSGo client follows [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md).
+
 Living document. Rationale: [ADR-0005](../adr/0005-html-mail-rendering.md).
 Contracts: [specs/rpc-api.md](../specs/rpc-api.md) (`message.render`,
 `message.part`), [specs/rpc-protocol.md](../specs/rpc-protocol.md)

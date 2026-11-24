@@ -1,5 +1,7 @@
 # Spec: maild as a lodge app
 
+The shared NSGo client follows [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md).
+
 What maild installs for lodge and serves on its lodge app socket, and what
 the web build does inside lodge's frame. Its consumers:
 
