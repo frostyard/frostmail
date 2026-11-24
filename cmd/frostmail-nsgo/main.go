@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -19,9 +20,14 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
-func main() { nsgo.Run(root, nsgo.WindowSize(1280, 820)) }
+func main() {
+	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, root) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820))
+}
 
 type workspace struct {
+	deferredOpen    func()
+	trayAvailable   bool
+	trayChoice      *core.Signal[bool]
 	listState       mail.ListState
 	selecting       *core.Signal[bool]
 	selection       *ui.Selection
@@ -58,6 +64,7 @@ func root(cx *core.Scope) core.Node {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
+	w.trayChoice = core.NewSignal(cx, false)
 	w.selecting = core.NewSignal(cx, false)
 	w.selection = ui.NewSelection(cx, true)
 	w.listState = mail.ListState{Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate}
@@ -83,6 +90,10 @@ func root(cx *core.Scope) core.Node {
 			if st.Connected {
 				w.status.Set("Connected · " + st.Target.String())
 				w.openView()
+				if f := w.deferredOpen; f != nil {
+					w.deferredOpen = nil
+					f()
+				}
 				return
 			}
 			w.clearView()
@@ -93,6 +104,8 @@ func root(cx *core.Scope) core.Node {
 			}
 		})
 	}})
+	w.commands()
+	w.platformStart()
 	go w.session.Run(ctx)
 	cx.Cleanup(func() {
 		cancel()

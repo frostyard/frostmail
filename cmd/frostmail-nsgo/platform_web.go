@@ -62,3 +62,6 @@ func (w *workspace) saveMessage(m api.MessageSummary) {
 const desktopServer = false
 
 func (w *workspace) serverPanel(*core.Scope) core.Node { return nil }
+
+func (w *workspace) platformStart()         {}
+func (w *workspace) traySetting() core.Node { return nil }

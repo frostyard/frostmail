@@ -121,6 +121,10 @@ func (w *workspace) general(cx *core.Scope) core.Node {
 					return nil
 				})
 			})}
+		nodes = append(nodes, w.notificationSettings(cx)...)
+		if opt := w.traySetting(); opt != nil {
+			nodes = append(nodes, opt)
+		}
 		for _, b := range st.Blocked {
 			nodes = append(nodes, button("Unblock "+b.Address, func() {
 				w.change(func(ctx context.Context, c *api.Client) error {

@@ -30,12 +30,24 @@ func (w *Window) SetTray(shown bool) { w.trayShown = shown }
 // it. A failure puts the switch back and says why.
 func (w *Window) saveCloseToTray() {
 	on := w.closeToTray
-	if w.o.ConfigFile == "" {
+	err := WriteTrayPreference(w.o.ConfigFile, on)
+	if err != nil {
+		w.closeToTray = !on
+		w.toast("Could not save the tray setting", err)
+	}
+}
+
+// TrayPreference reports the persisted close-to-tray choice on this desktop.
+func TrayPreference(configFile string) bool { return closeToTrayOn(configFile) }
+
+// WriteTrayPreference persists the close-to-tray choice next to app.json.
+func WriteTrayPreference(configFile string, on bool) error {
+	if configFile == "" {
 		// No app.json means no place for the file: the setting holds for
 		// this run only, and nothing is written.
-		return
+		return nil
 	}
-	path := filepath.Join(filepath.Dir(w.o.ConfigFile), closeToTrayFile)
+	path := filepath.Join(filepath.Dir(configFile), closeToTrayFile)
 	var err error
 	if on {
 		err = os.MkdirAll(filepath.Dir(path), 0o700)
@@ -45,8 +57,5 @@ func (w *Window) saveCloseToTray() {
 	} else if err = os.Remove(path); errors.Is(err, fs.ErrNotExist) {
 		err = nil
 	}
-	if err != nil {
-		w.closeToTray = !on
-		w.toast("Could not save the tray setting", err)
-	}
+	return err
 }
