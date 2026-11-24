@@ -6,6 +6,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -103,7 +104,7 @@ func (w *workspace) palette() {
 		return
 	}
 	table := w.commandTable()
-	w.show(func(*core.Scope) core.Node {
+	w.show(func(cx *core.Scope) core.Node {
 		run := map[string]func(){}
 		var rows []base.CommandItem
 		for _, c := range table {
@@ -123,7 +124,7 @@ func (w *workspace) palette() {
 				rows = append(rows, base.CommandItem{ID: key, Label: item.Text, Group: section.Title})
 			}
 		}
-		return ui.CommandDialog{Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
+		return ui.CommandDialog{Style: core.Style{Background: workspaceui.ColorsOf(cx).Panel()}, Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
 			if !open {
 				w.closePanel()
 			}

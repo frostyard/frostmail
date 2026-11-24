@@ -11,7 +11,6 @@ import (
 	"github.com/frostyard/frostmail/api"
 	oldcompose "github.com/frostyard/frostmail/internal/desktop/compose"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
-	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 )
@@ -172,40 +171,6 @@ func (w *workspace) invitation(id int64) {
 		})
 	})
 }
-func (w *workspace) readerExtras(m *api.Message) []core.Node {
-	var nodes []core.Node
-	invitation := mail.InvitationPart(m.Parts) != nil
-	if invitation {
-		nodes = append(nodes, button("Calendar invitation", func() { w.invitation(m.Summary.ID) }))
-	}
-	if m.ListUnsubscribe != "" {
-		nodes = append(nodes, button("Unsubscribe from list", func() { w.subscription(m.Summary.ID) }))
-	}
-	parts := mail.Attachments(m.Parts, invitation)
-	if len(parts) > 0 {
-		nodes = append(nodes, workspaceui.Section{Title: "Attachments", Count: func() int { return len(parts) }, Content: func(scope *core.Scope) core.Node {
-			var files []core.Node
-			previews := mail.Previews(parts)
-			for _, p := range parts {
-				name := p.Filename
-				if name == "" {
-					name = p.ContentType
-				}
-				if slices.ContainsFunc(previews, func(preview api.Part) bool { return preview.Path == p.Path }) {
-					files = append(files, w.partThumbnail(scope, m.Summary.ID, p))
-				}
-				actions := []core.Node{button("Save "+name+" · "+mail.FormatSize(p.Size), func() { w.savePart(m.Summary.ID, p) })}
-				if desktopServer || p.ContentType == "application/pdf" || mail.Previewable(p) {
-					actions = append(actions, button("Open "+name, func() { w.openAttachment(m.Summary.ID, p) }))
-				}
-				files = append(files, workspaceui.Row(actions...))
-			}
-			return workspaceui.Stack(files...)
-		}})
-	}
-	return nodes
-}
-
 func (w *workspace) writable(accountID int64) bool {
 	for _, a := range w.store.State().Accounts {
 		if a.ID == accountID {

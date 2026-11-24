@@ -30,7 +30,9 @@ func (w *workspace) dialog(title string, children []core.Node, footer ...core.No
 	if len(footer) == 0 {
 		footer = []core.Node{ui.Button{Text: "Close", Variant: ui.ButtonSecondary, OnPress: w.closePanel}}
 	}
-	return ui.Dialog{Title: title, Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
+	// The kit's panel is opaque: NSGo's own shows the window through it
+	// where no blur is drawn, as on Linux.
+	return ui.Dialog{Title: title, StyleFunc: workspaceui.DialogPanel(w.cx), Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
 		if !open {
 			w.closePanel()
 		}

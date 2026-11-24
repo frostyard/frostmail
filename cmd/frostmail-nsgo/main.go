@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -218,18 +217,19 @@ func root(cx *core.Scope) core.Node {
 					if w.opened.Get() == 0 {
 						return list
 					}
-					return core.View{Style: ui.FillRest, Children: []core.Node{button("Back to message list", func() {
+					back := ui.Button{Label: "Back to message list", Text: "Messages", Icon: lucide.ChevronLeft, Variant: ui.ButtonGhost, OnPress: func() {
 						if w.backHistory != nil && w.backHistory() {
 							return
 						}
 						w.generation++
 						w.opened.Set(0)
 						w.reader.Set(nil)
-					}), core.Dynamic(w.messageReader)}}
+					}}
+					return core.View{Style: ui.FillRest, Children: []core.Node{core.View{Style: core.Style{Direction: core.Row}, Children: []core.Node{back}}, core.Dynamic(w.messageReader)}}
 				})
 			}
 		})}}}}
-	return workspaceui.Frame(dragdrop.Area{Children: []core.Node{shell}}, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd}, core.Dynamic(func(cx *core.Scope) core.Node {
+	return workspaceui.Frame(dragdrop.Area{Children: []core.Node{shell}}, ui.Toasts{Toaster: w.toaster, Placement: ui.ToastBottomEnd, StyleFunc: workspaceui.DialogPanel(cx)}, core.Dynamic(func(cx *core.Scope) core.Node {
 		if w.switching.Get() {
 			dlg := w.dialog("Changing mail server…", nil)
 			dlg.Footer = nil
@@ -381,44 +381,6 @@ func (w *workspace) call(f func(context.Context, *api.Client) error) {
 			})
 		}
 	}()
-}
-func (w *workspace) messageReader(cx *core.Scope) core.Node {
-	id := w.opened.Get()
-	p := w.reader.Get()
-	if p == nil {
-		switch chosen := w.selection.Len(); {
-		case id != 0:
-			return workspaceui.Page(ui.Skeleton{Avatar: true, Lines: 3, Label: "Loading message"})
-		case chosen > 1:
-			return workspaceui.EmptyState{Icon: lucide.Mails, Title: strconv.Itoa(chosen) + " messages selected", Hint: "Delete, flag or move them from the toolbar."}
-		}
-		return workspaceui.EmptyState{Icon: lucide.MailOpen, Title: "No message selected", Hint: "Choose a message to read it here."}
-	}
-	m := p.message.Summary
-	children := []core.Node{core.Text{Content: m.Subject, Style: ui.TypeTitle}, core.Text{Content: m.From.Address + " · " + m.Date.Local().Format("Jan 2, 2006 15:04"), Style: ui.TypeCaption}}
-	children = append(children, core.Dynamic(func(*core.Scope) core.Node {
-		current := w.currentMessage.Get()
-		if current == nil || current.ID != id {
-			return nil
-		}
-		if current.RemindAt != nil {
-			return workspaceui.Row(core.Text{Content: "Reminder · " + mail.WhenText(*current.RemindAt, time.Now())}, button("Remove reminder", func() { w.remind(id, nil) }))
-		}
-		return nil
-	}))
-	if p.message.SenderCheck != nil && *p.message.SenderCheck == api.SenderCheckFail {
-		children = append(children, core.Text{Content: mail.SenderCheckText(m.From.Address), Style: ui.TypeLabel})
-	}
-	if len(p.thread) > 1 {
-		children = append(children, button(fmt.Sprintf("View conversation (%d messages)", len(p.thread)), func() { w.conversation(p) }))
-	}
-
-	if p.rendering.Remote > 0 {
-		children = append(children, ui.Button{Text: "Load remote images (" + strconv.FormatInt(p.rendering.Remote, 10) + ")", OnPress: func() { w.openMessage(id, true) }})
-	}
-	children = append(children, w.readerExtras(p.message)...)
-	children = append(children, bodyView(w, p.rendering))
-	return core.View{Style: ui.FillRest.Merge(core.Style{Padding: core.All(12), Gap: 8}), Children: children}
 }
 func plainBody(s string) core.Node {
 	return core.Scroll{Style: ui.FillRest, Children: []core.Node{core.Text{Content: s, Selectable: core.SelectableOn}}}
