@@ -126,7 +126,7 @@ func (w *workspace) mailboxMenu(a api.Account, b api.Mailbox) {
 }
 func (w *workspace) saveSearch() {
 	p := api.SmartFromSearchParams{Text: w.search}
-	if w.source.Kind == mail.Mailbox {
+	if !w.listState.SearchAll && w.source.Kind == mail.Mailbox {
 		id := w.source.ID
 		p.MailboxID = &id
 	}

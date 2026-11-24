@@ -22,6 +22,9 @@ import (
 func main() { nsgo.Run(root, nsgo.WindowSize(1280, 820)) }
 
 type workspace struct {
+	listState       mail.ListState
+	selecting       *core.Signal[bool]
+	selection       *ui.Selection
 	cx              *core.Scope
 	ctx             context.Context
 	session         *conn.Session
@@ -55,6 +58,9 @@ func root(cx *core.Scope) core.Node {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
+	w.selecting = core.NewSignal(cx, false)
+	w.selection = ui.NewSelection(cx, true)
+	w.listState = mail.ListState{Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate}
 	w.term = core.NewSignal(cx, "")
 	w.switching = core.NewSignal(cx, false)
 	w.module = core.NewSignal(cx, "Mail")
@@ -200,6 +206,7 @@ func (w *workspace) clearView() {
 		w.view.Close()
 		w.view = nil
 	}
+	w.selection.Clear()
 	w.generation++
 	w.opened.Set(0)
 	w.reader.Set(nil)
@@ -211,11 +218,9 @@ func (w *workspace) openView() {
 	if c == nil {
 		return
 	}
-	q := mail.SourceQuery(w.source, true)
-	if w.search != "" {
-		term := w.search
-		q.Text = &term
-	}
+	w.listState.Source = w.source
+	w.listState.Search = w.search
+	q := mail.ListQuery(w.listState)
 	w.view = live.OpenView(c, w.events, q, func() { w.cx.Post(func() { invalidate(w.rows) }) })
 	w.view.Ensure(0, live.Page)
 }
@@ -224,7 +229,7 @@ func (w *workspace) messageList() core.Node {
 	search := func(s string) { w.search = strings.TrimSpace(s); w.openView() }
 	return core.View{Style: ui.FillRest, Children: []core.Node{
 		workspaceui.Row(ui.Input{Label: "Search messages", Placeholder: "Search messages", Value: term.Get, OnChange: term.Set, OnSubmit: search}, ui.Button{Text: "Save search", Variant: ui.ButtonGhost, Disabled: func() bool { return strings.TrimSpace(term.Get()) == "" }, OnPress: func() { search(term.GetUntracked()); w.saveSearch() }}),
-		ui.List{Label: "Messages", Style: ui.FillRest, EstimatedSize: 68, TapSelects: true, Count: func() int {
+		w.listOptions(), w.bulkActions(), ui.List{Label: "Messages", Style: ui.FillRest, EstimatedSize: 68, TapSelects: true, Count: func() int {
 			w.rows.Get()
 			if w.view == nil {
 				return 0
@@ -257,11 +262,24 @@ func (w *workspace) messageList() core.Node {
 					}
 					w.state.Get()
 					lines := mail.PreviewLines(w.store.State().Settings)
+					if mail.IsVIP(msg.From.Address, w.store.State().VIPs) {
+						sender = "★ " + sender
+					}
+					if msg.Flags.Flagged {
+						sender += " · ⚑"
+					}
+					if w.listState.Conversations && msg.ThreadCount > 1 {
+						sender += fmt.Sprintf(" · %d messages", msg.ThreadCount)
+					}
 					children := []core.Node{core.Text{Content: sender, Style: ui.TypeLabel}, core.Text{Content: msg.Subject, MaxLines: 1}}
 					if lines > 0 {
 						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: ui.TypeCaption})
 					}
-					return base.Button{Label: msg.Subject, Children: []core.Node{workspaceui.Stack(children...)}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
+					rowButton := base.Button{Label: msg.Subject, Children: []core.Node{workspaceui.Stack(children...)}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
+					if w.selecting.Get() {
+						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, rowButton)
+					}
+					return rowButton
 				})
 			}, OnActivate: func(i int) {
 				if w.view != nil {
