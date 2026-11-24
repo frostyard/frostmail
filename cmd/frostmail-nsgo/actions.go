@@ -94,24 +94,7 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 		return ui.MenuItem{Text: title, Disabled: w.acting.Get, OnSelect: func() { w.change(fn, nil) }}
 	}
 	flags := func(label string, ch api.FlagChanges) ui.MenuItem {
-		return ui.MenuItem{Text: label, OnSelect: func() {
-			w.change(func(ctx context.Context, c *api.Client) error { return undo.Flags(ctx, c, ids, ch) }, func() {
-				p := w.reader.GetUntracked()
-				if p == nil || p.message.Summary.ID != m.ID {
-					return
-				}
-				next := *p
-				message := *p.message
-				next.message = &message
-				if ch.Seen != nil {
-					message.Summary.Flags.Seen = *ch.Seen
-				}
-				if ch.Flagged != nil {
-					message.Summary.Flags.Flagged = *ch.Flagged
-				}
-				w.reader.Set(&next)
-			})
-		}}
+		return action(label, func(ctx context.Context, c *api.Client) error { return undo.Flags(ctx, c, ids, ch) })
 	}
 	boxes := w.store.State().Mailboxes
 	source := w.source
@@ -131,6 +114,23 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 		flagLabel = "Unflag"
 	}
 	items := []core.Node{flags(readLabel, api.FlagChanges{Seen: &seen}), flags(flagLabel, api.FlagChanges{Flagged: &flag})}
+	var colors []core.Node
+	var names []string
+	if st := w.store.State().Settings; st != nil {
+		names = st.FlagNames
+	}
+	for i := int64(1); i <= 7; i++ {
+		yes := true
+		colors = append(colors, flags(mail.FlagLabel(int(i), names), api.FlagChanges{Flagged: &yes, FlagColor: &i}))
+	}
+	items = append(items, ui.Submenu{Text: "Flag color", Children: colors})
+	if mail.InRole(m, api.MailboxRoleDrafts, boxes) {
+		items = append(items, ui.MenuItem{Text: "Edit draft", OnSelect: func() {
+			perform(w, func(ctx context.Context, c *api.Client) (*api.Draft, error) {
+				return c.Draft().Open(ctx, &api.DraftOpenParams{MessageID: m.ID})
+			}, w.editDraft)
+		}})
+	}
 	items = append(items, w.moreMessageActions(m)...)
 	if box := mail.ArchiveOf(m.AccountID, boxes); box != nil {
 		items = append(items, action("Archive", move(*box)))
@@ -164,10 +164,7 @@ func (w *workspace) triage(m api.MessageSummary) core.Node {
 	}
 	items = append(items, action(muteLabel, func(ctx context.Context, c *api.Client) error {
 		return c.Message().Mute(ctx, &api.MessageMuteParams{IDs: ids, Muted: muted})
-	}), action("Remind me tomorrow", func(ctx context.Context, c *api.Client) error {
-		at := time.Now().AddDate(0, 0, 1)
-		return c.Message().Remind(ctx, &api.MessageRemindParams{IDs: ids, At: &at})
-	}))
+	}), w.remindMenu(m))
 	items = append(items, ui.MenuItem{Text: "Delete message", OnSelect: func() {
 		w.confirm("Delete message?", m.Subject, "Delete", func() {
 			w.change(func(ctx context.Context, c *api.Client) error {

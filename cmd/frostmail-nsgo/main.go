@@ -51,6 +51,7 @@ type workspace struct {
 	status, problem *core.Signal[string]
 	opened          *core.Signal[int64]
 	reader          *core.Signal[*messagePage]
+	currentMessage  *core.Signal[*api.MessageSummary]
 	generation      int
 	undo            *mail.Undo
 	overlay         *core.Signal[*panel]
@@ -67,6 +68,8 @@ func root(cx *core.Scope) core.Node {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &workspace{cx: cx, ctx: ctx, events: live.NewEvents(), source: mail.Source{Kind: mail.AllInboxes}, selected: core.NewSignal(cx, "all-inboxes"), state: core.NewSignal(cx, 0), rows: core.NewSignal(cx, 0), status: core.NewSignal(cx, "Connecting to maild…"), problem: core.NewSignal(cx, ""), opened: core.NewSignal(cx, int64(0)), reader: core.NewSignal(cx, (*messagePage)(nil))}
+	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
+	w.watchReader()
 	w.trayChoice = core.NewSignal(cx, false)
 	w.selecting = core.NewSignal(cx, false)
 	w.selection = ui.NewSelection(cx, true)
@@ -311,6 +314,16 @@ func (w *workspace) messageList() core.Node {
 					}
 					if msg.Flags.Flagged {
 						sender += " · ⚑"
+						if color := msg.Flags.FlagColor; color > 0 {
+							var names []string
+							if st := w.store.State().Settings; st != nil {
+								names = st.FlagNames
+							}
+							sender += " " + mail.FlagLabel(int(color), names)
+						}
+					}
+					if msg.RemindAt != nil {
+						sender += " · ◷"
 					}
 					if w.listState.Conversations && msg.ThreadCount > 1 {
 						sender += fmt.Sprintf(" · %d messages", msg.ThreadCount)
@@ -319,7 +332,10 @@ func (w *workspace) messageList() core.Node {
 					if lines > 0 {
 						children = append(children, core.Text{Content: msg.Preview, MaxLines: lines, Style: ui.TypeCaption})
 					}
-					rowButton := base.Button{Label: msg.Subject, Children: []core.Node{workspaceui.Stack(children...)}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
+					colors := ui.ColorsOf(cx)
+					rowButton := base.Button{Label: msg.Subject, Selected: func() bool { return w.opened.Get() == msg.ID }, StyleFunc: func() core.Style {
+						return core.Style{Width: core.Pct(100), Padding: core.All(5), CornerRadius: 6, Selected: &core.Style{Background: ui.Alpha(colors.Accent(), 0.15)}}
+					}, Children: []core.Node{workspaceui.Stack(children...)}, OnPress: func(core.PressEvent) { w.openMessage(msg.ID, false) }}
 					if w.selecting.Get() {
 						return workspaceui.Row(ui.Checkbox{Text: "", Label: "Select " + msg.Subject, Checked: func() bool { return w.selection.Has(msg.ID) }, OnChange: func(bool) { w.selection.Toggle(msg.ID) }}, rowButton)
 					}
@@ -349,6 +365,7 @@ func (w *workspace) messageList() core.Node {
 }
 
 type messagePage struct {
+	remote    bool
 	message   *api.Message
 	rendering *api.Rendering
 	thread    []api.MessageSummary
@@ -366,7 +383,7 @@ func (w *workspace) openMessage(id int64, remote bool) {
 	go func() {
 		ctx, cancel := context.WithTimeout(w.ctx, 45*time.Second)
 		defer cancel()
-		p := &messagePage{}
+		p := &messagePage{remote: remote}
 		var err error
 		p.message, err = c.Message().Get(ctx, &api.MessageGetParams{ID: id})
 		if err == nil && p.message.Summary.ThreadID != 0 {
@@ -385,10 +402,10 @@ func (w *workspace) openMessage(id int64, remote bool) {
 				w.opened.Set(0)
 				return
 			}
-			unread := !p.message.Summary.Flags.Seen
-			p.message.Summary.Flags.Seen = true
+			unread := !p.message.Summary.Flags.Seen && !remote
+			w.currentMessage.Set(&p.message.Summary)
 			w.reader.Set(p)
-			if unread {
+			if unread && w.writable(p.message.Summary.AccountID) {
 				w.call(func(ctx context.Context, c *api.Client) error {
 					yes := true
 					return c.Message().SetFlags(ctx, &api.MessageSetFlagsParams{IDs: []int64{id}, Changes: api.FlagChanges{Seen: &yes}})
@@ -427,7 +444,17 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 	}
 	m := p.message.Summary
 	children := []core.Node{core.Text{Content: m.Subject, Style: ui.TypeTitle}, core.Text{Content: m.From.Address + " · " + m.Date.Local().Format("Jan 2, 2006 15:04"), Style: ui.TypeCaption}}
-	children = append(children, w.triage(p.message.Summary))
+	children = append(children, core.Dynamic(func(*core.Scope) core.Node {
+		current := w.currentMessage.Get()
+		if current == nil || current.ID != id {
+			return nil
+		}
+		nodes := []core.Node{w.triage(*current)}
+		if current.RemindAt != nil {
+			nodes = append(nodes, workspaceui.Row(core.Text{Content: "Reminder · " + mail.WhenText(*current.RemindAt, time.Now())}, button("Remove reminder", func() { w.remind(id, nil) })))
+		}
+		return workspaceui.Stack(nodes...)
+	}))
 	if p.message.SenderCheck != nil && *p.message.SenderCheck == api.SenderCheckFail {
 		children = append(children, core.Text{Content: mail.SenderCheckText(m.From.Address), Style: ui.TypeLabel})
 	}

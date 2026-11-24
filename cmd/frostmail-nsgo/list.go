@@ -71,6 +71,10 @@ func (w *workspace) bulkActions() core.Node {
 		}
 		yes, no := true, false
 		items := []core.Node{flag("Mark read", api.FlagChanges{Seen: &yes}), flag("Mark unread", api.FlagChanges{Seen: &no}), flag("Flag messages", api.FlagChanges{Flagged: &yes}), flag("Clear flags", api.FlagChanges{Flagged: &no})}
+		items = append(items, action("Apply rules to selection", func(ctx context.Context, c *api.Client) error {
+			_, err := c.Rule().Apply(ctx, &api.RuleApplyParams{IDs: ids})
+			return err
+		}))
 		items = append(items, ui.MenuItem{Text: "Move messages", OnSelect: func() {
 			perform(w, func(ctx context.Context, c *api.Client) ([]api.MessageSummary, error) {
 				return c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: ids})

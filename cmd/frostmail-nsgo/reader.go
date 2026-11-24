@@ -10,6 +10,7 @@ import (
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -60,7 +61,10 @@ func (w *workspace) senderActions(m api.MessageSummary) []core.Node {
 	if vip {
 		vlabel = "Remove sender from VIPs"
 	}
-	return []core.Node{mailAction(blabel, func(ctx context.Context, c *api.Client) error {
+	return []core.Node{mailAction("Add sender to Contacts", func(ctx context.Context, c *api.Client) error {
+		_, err := c.People().Add(ctx, &api.PeopleAddParams{Email: m.From.Address, Name: changed("", m.From.Name)})
+		return err
+	}), mailAction(blabel, func(ctx context.Context, c *api.Client) error {
 		if blocked {
 			return c.Block().Remove(ctx, &api.BlockRemoveParams{Addresses: addresses})
 		}
@@ -189,4 +193,73 @@ func (w *workspace) readerExtras(m *api.Message) []core.Node {
 		}})
 	}
 	return nodes
+}
+
+func (w *workspace) writable(accountID int64) bool {
+	for _, a := range w.store.State().Accounts {
+		if a.ID == accountID {
+			return !a.ReadOnly
+		}
+	}
+	return false
+}
+
+// Update the reader toolbar on a server-side change without replacing the
+// body WebView, discarding its scroll position or re-reading unread mail.
+func (w *workspace) watchReader() {
+	var revision int
+	w.cx.Cleanup(w.events.On(func(event api.Event) {
+		switch v := event.(type) {
+		case api.MessageRemoved:
+			w.cx.Post(func() {
+				if slices.Contains(v.IDs, w.opened.GetUntracked()) {
+					w.generation++
+					w.opened.Set(0)
+					w.reader.Set(nil)
+				}
+			})
+		case api.MessageChanged:
+			w.cx.Post(func() {
+				id := w.opened.GetUntracked()
+				if id == 0 || !slices.Contains(v.IDs, id) {
+					return
+				}
+				revision++
+				ticket, gen := revision, w.generation
+				perform(w, func(ctx context.Context, c *api.Client) ([]api.MessageSummary, error) {
+					return c.Message().Summaries(ctx, &api.MessageSummariesParams{IDs: []int64{id}})
+				}, func(rows []api.MessageSummary, err error) {
+					if ticket == revision && gen == w.generation && err == nil && len(rows) == 1 {
+						w.currentMessage.Set(&rows[0])
+					}
+				})
+			})
+		}
+	}))
+}
+func (w *workspace) remind(id int64, at *time.Time) {
+	w.change(func(ctx context.Context, c *api.Client) error {
+		return c.Message().Remind(ctx, &api.MessageRemindParams{IDs: []int64{id}, At: at})
+	}, w.closePanel)
+}
+func (w *workspace) remindMenu(m api.MessageSummary) ui.Submenu {
+	var items []core.Node
+	for _, choice := range mail.RemindChoices(time.Now()) {
+		items = append(items, ui.MenuItem{Text: choice.Label, OnSelect: func() { w.remind(m.ID, &choice.At) }})
+	}
+	items = append(items, ui.MenuItem{Text: "Choose reminder time", OnSelect: func() {
+		const layout = "2006-01-02 15:04"
+		w.form("Remind me", []editField{{"Local date and time", time.Now().Add(time.Hour).Format(layout), false}}, func(v []string) error {
+			at, err := time.ParseInLocation(layout, v[0], time.Local)
+			if err != nil || !at.After(time.Now()) {
+				return fmt.Errorf("Enter a future date and time as YYYY-MM-DD HH:MM")
+			}
+			w.remind(m.ID, &at)
+			return nil
+		})
+	}})
+	if m.RemindAt != nil {
+		items = append(items, ui.MenuItem{Text: "Cancel reminder", OnSelect: func() { w.remind(m.ID, nil) }})
+	}
+	return ui.Submenu{Text: "Remind me", Children: items}
 }
