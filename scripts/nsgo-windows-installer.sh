@@ -138,6 +138,7 @@ else
 					rm -f "$tmp/nsis.zip"
 					if curl -fsSL --retry 2 --connect-timeout 30 -o "$tmp/nsis.zip" "$url" &&
 						[ "$(sha256sum "$tmp/nsis.zip" | cut -c1-64)" = "$nsis_sha256" ]; then
+						echo "nsgo-windows-installer: downloaded NSIS $nsis_version from $url, SHA-256 $nsis_sha256"
 						break
 					fi
 					echo "nsgo-windows-installer: $url did not give NSIS $nsis_version with its SHA-256" >&2
@@ -165,6 +166,7 @@ else
 fi
 [ -n "$makensis" ] || die "no makensis: install NSIS 3.06 or later and compile $nsi, which is ready"
 
+echo "nsgo-windows-installer: compiling with $makensis $("$makensis" -VERSION)"
 (cd "$pkg" && "$makensis" -V2 -INPUTCHARSET UTF8 "$name.nsi")
 mv "$pkg/$setup" "$out/$setup"
 ls -l "$out/$setup"
