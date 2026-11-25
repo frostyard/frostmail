@@ -213,6 +213,32 @@ name MyGo.
   paths, Dependabot, `AGENTS.md` and the design docs follow.
 - Windows: an installer of the NSGo client, with its notifier, checked
   on the Windows VM before MyGo goes.
+- **A first look on Windows (2026-11-24).** The client, built for
+  Windows from the branch that makes it the default
+  (`scripts/build-nsgo-native.sh`, no CGO), ran in the Windows 11 VM
+  `frostmail-win11`, in the owner's signed-in desktop session, on a
+  maild of its own with the showcase's mail (its own pipe, sync off,
+  every file under `C:\fm\nsgo`). The installed Frostmail and its maild
+  were not used. What was seen, in pictures of the screen:
+  - With no desktop session, from SSH, the client stayed up 12 seconds
+    with no window and nothing on its error output.
+  - In the desktop session its window opened, drawn in Frostyard light
+    with its own title controls: the navigation's 2 accounts, All
+    Inboxes with 4 unread, the connection's green dot, and 4 on its
+    taskbar icon.
+  - A click on a message chose it and showed its header and its HTML
+    page in the reader's frame; the unread count and the taskbar's
+    became 3.
+  - The Calendar's month drew, and Compose opened with a saved draft.
+  - The window was about 980 wide on a screen of 1280 by 800, not the
+    1280 it asks for.
+  - **It found a fault of #418:** the compose window had gained a Cancel
+    button that left it without Discard or Save and close. Fixed, with a
+    test, in the change that records this.
+  - **Not tried:** the keyboard, a send, a notification, the tray, a
+    second start, a link, an attachment, print, a sign-in, the kept
+    window, and the installer, which still starts the MyGo client. The
+    pictures were sent to the owner and are not kept.
 - **Done when:** `go.mod` names neither `github.com/egoist/mygo` nor
   frostui's root module, `make ci` passes, and the owner releases the
   version (`make bump`, then Promote).

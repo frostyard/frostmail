@@ -28,7 +28,13 @@ func (w *workspace) routePanel(route string) {
 func (w *workspace) show(render func(*core.Scope) core.Node) { w.overlay.Set(&panel{render: render}) }
 func (w *workspace) closePanel()                             { w.overlay.Set(nil) }
 func (w *workspace) dialog(title string, children []core.Node, footer ...core.Node) ui.Dialog {
-	footer = withWayOut(footer, w.closePanel)
+	return w.ownDialog(title, children, withWayOut(footer, w.closePanel)...)
+}
+
+// ownDialog is a dialog whose buttons are its own, with none added: the
+// compose window's, which leaves by Discard or by Save and close, and
+// must not be left by a button that does neither.
+func (w *workspace) ownDialog(title string, children []core.Node, footer ...core.Node) ui.Dialog {
 	// The kit's panel is opaque: NSGo's own shows the window through it
 	// where no blur is drawn, as on Linux.
 	return ui.Dialog{Title: title, StyleFunc: workspaceui.DialogPanel(w.cx), Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
