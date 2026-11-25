@@ -133,6 +133,22 @@ name MyGo.
     real window's size with it). The test of a kept view fails with the
     keeping taken out. No picture is taken again: the window opens as
     it did where the device keeps nothing.
+- **The problem record (2026-11-24), built.** When maild's local
+  socket ends under the client while it is connected, the client
+  records `bridge.socket_lost`, once, as the MyGo client does, and a
+  release's build records its crash output
+  (`cmd/frostmail-nsgo/main.go`). Lodge's connection never counts. The
+  build takes the release's version from `FROSTMAIL_VERSION`
+  (`scripts/build-nsgo-native.sh`), and any other build is `dev`, which
+  records nothing.
+  - **Not done: no release sets that version yet.** The Flatpak's
+    manifest and `stamp-version.sh` do not pass it, so the NSGo client
+    in a release records nothing until they do. That is the next
+    change, with the package's id and version.
+  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 40 passed,
+    1 of them new: the fixture's maild is ended under the client, 1
+    record reaches a test journal, and the retries that follow add
+    none. The test fails with the mark of a live connection taken out.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

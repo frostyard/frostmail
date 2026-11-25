@@ -13,7 +13,10 @@ name=$(sed -n 's/^name: //p' nsgo.yaml)
 version=$(sed -n 's/^version: //p' nsgo.yaml)
 : "${id:?missing NSGo app ID}" "${name:?missing NSGo app name}" "${version:?missing NSGo app version}"
 core=github.com/nsgo-dev/nsgo/core
-flags="-s -w -X '$core.appID=$id' -X '$core.appName=$name' -X '$core.appVersion=$version'"
+# FROSTMAIL_VERSION is the release's version, which the client's problem
+# records carry (internal/problemrec): a release's build sets it. Any other
+# build is "dev", and records nothing.
+flags="-s -w -X '$core.appID=$id' -X '$core.appName=$name' -X '$core.appVersion=$version' -X 'main.version=${FROSTMAIL_VERSION:-dev}'"
 if [ "${GOOS:-}" = windows ]; then
     flags="$flags -H=windowsgui"
 fi

@@ -127,9 +127,10 @@ and [ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)
 the default on the desktop, MyGo removed on Linux and Windows, then the
 React app's place in Lodge. The owner answered the plan's questions the
 same day. Of Phase 2, the NSGo client keeps its window, its panes' widths
-and how the list is shown (`cmd/frostmail-nsgo/window.go`); the first-run
-welcome, the calendar's drags and the problem record are not built, and
-the MyGo client is still the default.
+and how the list is shown (`cmd/frostmail-nsgo/window.go`), and records
+`bridge.socket_lost` as the MyGo client does, though no release stamps
+its version yet; the first-run welcome and the calendar's drags are not
+built, and the MyGo client is still the default.
 
 ## Two kinds of agent work
 
@@ -178,7 +179,8 @@ the MyGo client is still the default.
   `problems`; the version rule); `cmd/maild` records `store.migrate_failed`,
   `secrets.unseal_failed` and crashes (`CrashOutput`), `internal/mailsync`
   `sync.apply_failed` (`apply.go`), `internal/render` `mime.parse_failed`;
-  `cmd/frostmail` is the app's (`bridge.socket_lost`). Tests read records from
+  `cmd/frostmail` is the app's (`bridge.socket_lost`), and
+  `cmd/frostmail-nsgo` records the same in the NSGo client. Tests read records from
   a test socket (`internal/problemstest`).
 - `internal/compose`: outgoing mail (reply rules, the message builder).
   `internal/smtpx`: the only package that imports go-smtp.

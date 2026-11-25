@@ -72,6 +72,15 @@ func fixtureLook(t *testing.T, smtp string, width, height core.Points, dark bool
 // for the run: what the device's storage holds at the start, for one.
 func fixtureWith(t *testing.T, smtp string, width, height core.Points, dark bool, options ...nsgotest.Option) *nsgotest.App {
 	t.Helper()
+	a, _ := fixtureView(t, root, smtp, width, height, dark, options...)
+	return a
+}
+
+// fixtureView starts view, the client or the client with what a test
+// gives it, on a maild of its own, and returns that maild too, for a test
+// that ends it.
+func fixtureView(t *testing.T, view func(*core.Scope) core.Node, smtp string, width, height core.Points, dark bool, options ...nsgotest.Option) (*nsgotest.App, *exec.Cmd) {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "fm-ui-")
 	if err != nil {
 		t.Fatal(err)
@@ -111,14 +120,14 @@ func fixtureWith(t *testing.T, smtp string, width, height core.Points, dark bool
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = daemon.Process.Kill(); _ = daemon.Wait() })
-	a := nsgotest.Start(t, root, append([]nsgotest.Option{nsgotest.Size(width, height),
+	a := nsgotest.Start(t, view, append([]nsgotest.Option{nsgotest.Size(width, height),
 		nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1, Dark: dark})}, options...)...)
 	// A compact window (under 720) hides the navigation and its status line:
 	// its caller waits for what it shows instead.
 	if width >= 720 {
 		a.WaitFor("id:connection >> text:Local", 20*time.Second)
 	}
-	return a
+	return a, daemon
 }
 
 // The General pane's choice of appearance shows at once and is kept on the
