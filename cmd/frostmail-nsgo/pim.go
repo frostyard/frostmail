@@ -159,7 +159,8 @@ func (w *workspace) tasks(cx *core.Scope) core.Node {
 					t := all[i]
 					inset := core.Points(0)
 					if t.ParentID != nil && slices.ContainsFunc(all[:i], func(other api.Task) bool { return other.ID == *t.ParentID }) {
-						inset = 24
+						// A subtask stands under its parent's title.
+						inset = workspaceui.Indent(2)
 					}
 					label := t.Due
 					if t.MessageID != nil {

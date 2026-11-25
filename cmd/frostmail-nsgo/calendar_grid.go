@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -47,7 +48,7 @@ func calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[
 	}
 	colors := ui.ColorsOf(cx)
 	cellStyle := func() core.Style {
-		return core.Style{FlexGrow: 1, FlexBasis: core.Pt(0), Padding: core.All(4), Gap: 3, BorderWidth: 1, BorderColor: colors.Line()}
+		return core.Style{FlexGrow: 1, FlexBasis: core.Pt(0), Padding: core.All(workspaceui.SpaceXS), Gap: 3, BorderWidth: 1, BorderColor: colors.Line()}
 	}
 	event := func(o api.Occurrence, day time.Time) core.Node {
 		label := o.Summary
@@ -55,7 +56,7 @@ func calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[
 			label = o.Start.In(day.Location()).Format("15:04") + "  " + label
 		}
 		return base.Button{Label: o.Summary, OnPress: func(core.PressEvent) { show(o) }, StyleFunc: func() core.Style {
-			return core.Style{Background: ui.Alpha(colors.Accent(), .13), Padding: core.All(4), CornerRadius: ui.RadiusSmall}
+			return core.Style{Background: ui.Alpha(colors.Accent(), .13), Padding: core.All(workspaceui.SpaceXS), CornerRadius: ui.RadiusSmall}
 		}, Children: []core.Node{core.Text{Content: label, MaxLines: 2, Style: ui.TypeCaption}}}
 	}
 	return core.Dynamic(func(*core.Scope) core.Node {

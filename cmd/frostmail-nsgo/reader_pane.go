@@ -39,8 +39,10 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 	if files := w.attachments(p.message); files != nil {
 		children = append(children, files)
 	}
-	children = append(children, pageFrame(cx, bodyView(w, p.rendering), ui.FillRest))
-	return core.View{TestID: "reader", Style: ui.FillRest.Merge(core.Style{Padding: core.All(16), Gap: 12}), Children: children}
+	// The kit's frame sets the page, which is the sender's and keeps its
+	// own colors, on white inside a hairline.
+	children = append(children, workspaceui.PageFrame{Page: bodyView(w, p.rendering), Size: ui.FillRest})
+	return core.View{TestID: "reader", Style: ui.FillRest.Merge(core.Style{Padding: core.All(workspaceui.SpaceL), Gap: 12}), Children: children}
 }
 
 // readerHeader is who a message is from and to, and when it came.
@@ -173,13 +175,4 @@ func (w *workspace) attachments(m *api.Message) core.Node {
 		}
 		return core.View{TestID: "attachments", Style: core.Style{Gap: 2}, Children: files}
 	})
-}
-
-// pageFrame sets a message's page inside a hairline with rounded corners,
-// so that in the dark theme it reads as a page placed in the window. The
-// page is the sender's and keeps its own colors.
-func pageFrame(cx *core.Scope, page core.Node, size core.Style) core.Node {
-	colors := ui.ColorsOf(cx)
-	return core.View{TestID: "page-frame", Style: size.Merge(core.Style{BorderWidth: 1, CornerRadius: ui.RadiusInset, Overflow: core.Hidden}),
-		StyleFunc: func() core.Style { return core.Style{BorderColor: colors.Border()} }, Children: []core.Node{page}}
 }

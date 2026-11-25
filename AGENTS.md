@@ -116,10 +116,10 @@ button for a region and confirmations on NSGo's alert dialog, 4b,
 Settings on NSGo's settings view (`cmd/frostmail-nsgo/settings_view.go`),
 4c, the compose window, and 4d, the other modules, each with its own
 rows in the navigation (`cmd/frostmail-nsgo/modules.go`), are built. Of
-4e, the narrow layout is checked and the style test of rule 2 is on
-(`TestNoLiteralLooks`, which still lists 13 paddings written as
-numbers); the kit's spacing for them, Lodge's web build in a browser and
-the README's pictures are left. The MyGo client stays the default.
+4e, the narrow layout and Lodge's web build are checked in a browser, and
+the style test of rule 2 is on with no exception (`TestNoLiteralLooks`;
+the paddings take the kit's spacing, `workspaceui/v0.4.0`); the README's
+pictures are left. The MyGo client stays the default.
 
 ## Two kinds of agent work
 
@@ -259,7 +259,7 @@ the README's pictures are left. The MyGo client stays the default.
   `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
 - The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
-  `github.com/frostyard/frostui/workspaceui` v0.3.0, the kit it shares with
+  `github.com/frostyard/frostui/workspaceui` v0.4.0, the kit it shares with
   Frostnotes and PocketGo (a module of its own in frostui, tags
   `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
   `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.

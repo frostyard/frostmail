@@ -290,6 +290,28 @@ func TestSettingsSearchesItsRowsAndListsAPanelsActions(t *testing.T) {
 	a.Find("id:settings >> label:Manage ann@northwind.example")
 }
 
+// TestListFollowsTheTextSizeSetting checks that a row of the list draws
+// its text at the size the Message text size setting asks for, as the
+// message's page does: Largest is 1.3 times the default.
+func TestListFollowsTheTextSizeSetting(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const when = "id:messages >> id:summary-when >> nth=0"
+	a.WaitFor(when, 8*time.Second)
+	size := func() core.Points { return a.Find(when).TextStyle.Font.Size }
+	plain := size()
+	a.Press("label:Settings")
+	a.Press("id:nav-general")
+	a.WaitFor("label:Message text size", 5*time.Second)
+	a.Press("label:Message text size")
+	a.Press("role:option Largest")
+	a.Press("role:tab Mail")
+	a.WaitFor(when, 8*time.Second)
+	a.WaitUntil(5*time.Second, func() bool { return size() != plain })
+	if got, want := size(), plain*13/10; got < want-0.01 || got > want+0.01 {
+		t.Errorf("a row's date is %v at Largest and %v at the default: want 1.3 times", got, plain)
+	}
+}
+
 // TestComposeHasItsBarAndAsksInAlerts checks the compose window: the header
 // is rows of named fields, formatting is a toolbar of buttons, a time to
 // send at is NSGo's date field, and discarding asks in an alert that a
