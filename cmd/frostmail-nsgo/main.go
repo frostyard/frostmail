@@ -80,6 +80,12 @@ func root(cx *core.Scope) core.Node {
 	// The Frostyard look and the bundled Inter (plan 0016, rule 1). A font
 	// the platform refuses leaves the text in the system's face.
 	_ = workspaceui.Apply(cx)
+	// NSGo's own scroll bars, over the content and in the theme's colors,
+	// in place of the platform's. A browser's bar takes 12 points of a
+	// scrolling view's width that the layout does not know of: in Lodge it
+	// cut the ends of the compose sheet's fields, and stood as a light
+	// strip beside the lists.
+	base.SetScrollbarTheme(cx, ui.ScrollbarTheme(cx))
 	appearance := core.AppearanceSystem
 	if desktopServer {
 		// Lodge sets the web build's appearance; a desktop keeps its own.

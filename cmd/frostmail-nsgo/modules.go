@@ -77,10 +77,12 @@ func (w *workspace) collectionNav(cx *core.Scope, title, all string, icon func()
 	}
 }
 
-// moduleBar is the row of controls over a module's content, which never
-// wraps.
+// moduleBar is the row of controls over a module's content. It is one row
+// where the window has the room, and wraps to a second where it has not:
+// in a window 620 wide the Calendar's bar ran past the window's edge, with
+// its search field cut and New event out of reach.
 func moduleBar(children ...core.Node) core.Node {
-	return core.View{TestID: "module-bar", Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8, Padding: core.Edges{Top: 8, Left: 8, Right: 8}}, Children: children}
+	return core.View{TestID: "module-bar", Style: core.Style{Direction: core.Row, Wrap: core.Wrap, AlignItems: core.AlignCenter, Gap: 8, Padding: core.Edges{Top: 8, Left: 8, Right: 8}}, Children: children}
 }
 
 // collectionList is a list of rows to press: a title over a line of
@@ -101,6 +103,12 @@ func collectionList[T any](rows *core.Signal[[]T], label string, title, subtitle
 			return core.View{Style: core.Style{Width: core.Pct(100)}, Children: []core.Node{r}}
 		})
 	}, Empty: workspaceui.EmptyState{Icon: lucide.Inbox, Title: "No matching items"}}
+}
+
+// figures is a small muted line in figures of one width: a time, a date or
+// a size at a row's end.
+func figures(cx *core.Scope, text string) core.Text {
+	return ui.Tabular(core.Text{Content: text, MaxLines: 1, Style: ui.TypeCaption, StyleFunc: ui.Colored(ui.ColorsOf(cx).Muted)})
 }
 
 // taskRow is a task: the box that marks it done, its title, which opens

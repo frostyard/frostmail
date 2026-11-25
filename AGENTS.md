@@ -115,8 +115,11 @@ client's other surfaces, is in progress, in 5 changes: 4a, one filled
 button for a region and confirmations on NSGo's alert dialog, 4b,
 Settings on NSGo's settings view (`cmd/frostmail-nsgo/settings_view.go`),
 4c, the compose window, and 4d, the other modules, each with its own
-rows in the navigation (`cmd/frostmail-nsgo/modules.go`), are built; 4e
-(the narrow layout, Lodge's web build, the style test) is left. The MyGo client stays the default.
+rows in the navigation (`cmd/frostmail-nsgo/modules.go`), are built. Of
+4e, the narrow layout is checked and the style test of rule 2 is on
+(`TestNoLiteralLooks`, which still lists 13 paddings written as
+numbers); the kit's spacing for them, Lodge's web build in a browser and
+the README's pictures are left. The MyGo client stays the default.
 
 ## Two kinds of agent work
 

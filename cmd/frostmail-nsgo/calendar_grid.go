@@ -55,7 +55,7 @@ func calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[
 			label = o.Start.In(day.Location()).Format("15:04") + "  " + label
 		}
 		return base.Button{Label: o.Summary, OnPress: func(core.PressEvent) { show(o) }, StyleFunc: func() core.Style {
-			return core.Style{Background: ui.Alpha(colors.Accent(), .13), Padding: core.All(4), CornerRadius: 4}
+			return core.Style{Background: ui.Alpha(colors.Accent(), .13), Padding: core.All(4), CornerRadius: ui.RadiusSmall}
 		}, Children: []core.Node{core.Text{Content: label, MaxLines: 2, Style: ui.TypeCaption}}}
 	}
 	return core.Dynamic(func(*core.Scope) core.Node {

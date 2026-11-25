@@ -99,9 +99,8 @@ func (w *workspace) activity(cx *core.Scope) core.Node {
 			case "error":
 				variant = ui.BadgeDanger
 			}
-			colors := ui.ColorsOf(cx)
 			return core.View{TestID: "activity-entry", Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8, Width: core.Pct(100)}, Children: []core.Node{
-				ui.Tabular(ui.Text(e.At.Local().Format("15:04:05"), 12, ui.Regular, colors.Muted)),
+				figures(cx, e.At.Local().Format("15:04:05")),
 				ui.Badge{Text: string(e.Level), Variant: variant},
 				core.Text{Content: source + " · " + line, MaxLines: 2, Selectable: core.SelectableOn, Style: ui.TypeBody.Merge(core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)})}}}
 		})

@@ -248,7 +248,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 			rows = append(rows, core.View{TestID: "draft-file", Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 8}, Children: []core.Node{
 				ui.Icon(lucide.Paperclip, 14, colors.Muted),
 				core.Text{Content: f.Filename, MaxLines: 1, Style: ui.TypeBody.Merge(core.Style{FlexShrink: 1, MinWidth: core.Pt(0)})},
-				ui.Tabular(ui.Text(mail.FormatSize(f.Size), 12, ui.Regular, colors.Muted)), ui.Spacer{},
+				figures(cx, mail.FormatSize(f.Size)), ui.Spacer{},
 				ui.IconButton{Label: "Remove " + f.Filename, Icon: lucide.X, Disabled: e.busy.Get, OnPress: func() {
 					e.attachment(func(ctx context.Context, c *api.Client) error {
 						return c.Draft().Detach(ctx, &api.DraftDetachParams{ID: d.ID, AttachmentID: f.ID})
@@ -419,8 +419,12 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 		ui.Button{Text: "Save and close", Variant: ui.ButtonSecondary, Disabled: e.busy.Get, OnPress: closeDraft},
 		ui.Menu{Trigger: ui.Button{Text: "Send later", Variant: ui.ButtonSecondary}, Children: times},
 		ui.Button{Text: "Send", Icon: lucide.Send, Disabled: e.busy.Get, OnPress: func() { requestSend(nil) }})
-	// The window is wider than a form's: a message is written in it.
-	dlg.Style = core.Style{Width: core.Pt(720)}
+	// The window is wider than a form's: a message is written in it. On a
+	// touch screen NSGo presents a dialog as a sheet of the screen's width,
+	// which a width of its own would run past.
+	if !ui.Touch(cx) {
+		dlg.Style = core.Style{Width: core.Pt(720)}
+	}
 	dlg.Children = append(dlg.Children, reminder, discard)
 	dlg.OnOpenChange = func(open bool, _ base.Reason) {
 		if !open {
