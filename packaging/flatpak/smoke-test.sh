@@ -204,10 +204,13 @@ else
     exec "$@"
 fi
 FAKE
+# The 2 clients' fakes leave the same marks, and each its own of the
+# arguments it was run with, which says which of them the launcher ran.
 cat >"$work/libexec/frostmail-app" <<'FAKE'
 #!/bin/sh
 echo "$@" >>"$SMOKE_MARKS/app"
 echo "${TMPDIR:-}" >"$SMOKE_MARKS/tmpdir"
+printf '%s\n' "$@" >"$SMOKE_MARKS/mygo-args"
 FAKE
 cat >"$work/libexec/frostmail-request-background" <<'FAKE'
 #!/bin/sh
@@ -215,6 +218,8 @@ echo run >>"$SMOKE_MARKS/background"
 FAKE
 cat >"$work/libexec/frostmail-nsgo" <<'FAKE'
 #!/bin/sh
+echo "$@" >>"$SMOKE_MARKS/app"
+echo "${TMPDIR:-}" >"$SMOKE_MARKS/tmpdir"
 printf '%s\n' "$@" >"$SMOKE_MARKS/nsgo-args"
 FAKE
 chmod +x "$work/libexec/frostmail-nsgo"
@@ -505,11 +510,23 @@ if mailctl hello >/dev/null 2>&1; then
     fail "a maild answers after a normal start in lodge mode"
 fi
 
-# Launching the preview uses the NSGo executable and preserves the selected
-# notification's message ID. The Flatpak build also checks its installed path.
-FROSTMAIL_UI=nsgo "$bin/frostmail" --open-message 7 >"$work/launcher.log" 2>&1
+# The launcher runs the NSGo client, and no other, and forwards the selected
+# notification's message ID (ADR-0063). The Flatpak build also checks the
+# client's installed path. Every start above ran it too.
+[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "a start with no FROSTMAIL_UI ran the MyGo client"
+rm -f "$SMOKE_MARKS/nsgo-args"
+"$bin/frostmail" --open-message 7 >"$work/launcher.log" 2>&1
 [ "$(cat "$SMOKE_MARKS/nsgo-args")" = "$(printf '%s\n' --open-message 7)" ] ||
-    fail "the NSGo launch did not forward the notification arguments"
+    fail "the launch did not forward the notification arguments to the NSGo client"
+[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "the launch ran the MyGo client"
+
+# FROSTMAIL_UI=mygo runs the MyGo client, with the same arguments, and not
+# the NSGo client.
+rm -f "$SMOKE_MARKS/nsgo-args"
+FROSTMAIL_UI=mygo "$bin/frostmail" --open-message 8 >"$work/launcher.log" 2>&1
+[ "$(cat "$SMOKE_MARKS/mygo-args")" = "$(printf '%s\n' --open-message 8)" ] ||
+    fail "FROSTMAIL_UI=mygo did not forward the notification arguments to the MyGo client"
+[ ! -e "$SMOKE_MARKS/nsgo-args" ] || fail "FROSTMAIL_UI=mygo ran the NSGo client"
 
 # maild, run directly, exits 0 before it makes a database.
 rc=0

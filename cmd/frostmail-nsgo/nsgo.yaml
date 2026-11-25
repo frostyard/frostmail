@@ -1,5 +1,5 @@
 name: FrostMail
-id: org.frostyard.Frostmail.Preview
+id: org.frostyard.Frostmail
 version: 0.9.0
 icon:
   png: ../../packaging/icons/icon.png

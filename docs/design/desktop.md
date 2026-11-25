@@ -120,7 +120,11 @@ click and the move from a host maild.
 - **Layout.** `/app/bin/frostmail` is the launcher
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
   `/app/bin/maild` and `/app/bin/mailctl` are static Go binaries, and
-  `/app/libexec/frostmail-app` is the native app, also a Go binary, with
+  `/app/libexec/frostmail-nsgo` is the app the launcher starts, the NSGo
+  client, and `/app/libexec/frostmail-app` the MyGo client, which
+  `FROSTMAIL_UI=mygo` starts for 1 release after the switch
+  ([ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md)); both
+  are Go binaries, with
   `/app/libexec/frostmail-request-background` (a PyGObject helper) and
   `/app/libexec/frostmail-open` (a POSIX sh helper, `packaging/flatpak/open.sh`,
   which a notification's click runs).
