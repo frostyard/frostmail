@@ -1011,6 +1011,16 @@ stand-ins of its panes with the control map's controls (rule 11):
       `BranchLabel`); the other 2 apps have no such row.
   - **Not compared:** a form dialog, Settings, a narrow window, and
     anything on the web.
+- **Frostnotes' palette (2026-11-24), built** (frostyard/frostnotes#284),
+  at the owner's word after the comparison: its toolbar has the
+  palette's field, as the other 2 have. The palette is Quick open with
+  the app's commands under the vault's notes, and leaves out a command
+  with nothing to act on. For the field's room the editor's 2 modes
+  are icons named by tooltips. `make check` passes there,
+  `make nsgo-live` on Xvfb's X11 passed 23 of 23, with 1 new test of
+  the palette, and its 4 browser tests under Lodge passed once on the
+  commit. It keeps 25 pictures: 17 changed and 1 is new. The first of
+  the differences above is gone with it; the other 4 are as recorded.
 - **PocketGo's shell and confirmations (2026-11-24), built**
   (frostyard/pocketgo#170). The client had Settings on NSGo's settings
   view and the palette already; this brings the rest.
