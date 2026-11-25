@@ -219,7 +219,10 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 	// row is a line of the header: its name, then its field.
 	row := func(label string, control core.Node) core.Node {
 		return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignStart, Gap: 8}, Children: []core.Node{
-			core.Text{Content: label, Style: ui.TypeCaption.Merge(core.Style{Width: core.Pt(56), Padding: core.Edges{Top: 6}}), StyleFunc: ui.Colored(colors.Muted)},
+			// The name stands at the middle of a field 1 line high, and
+			// at the top of a taller one.
+			core.View{Style: core.Style{Width: core.Pt(56), Height: core.Pt(28), JustifyContent: core.JustifyCenter, FlexShrink: 0}, Children: []core.Node{
+				core.Text{Content: label, Style: ui.TypeCaption, StyleFunc: ui.Colored(colors.Muted)}}},
 			core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)}, Children: []core.Node{control}}}}
 	}
 	subject := ui.Input{Label: "Subject", DefaultValue: e.content.Subject, Disabled: e.busy.Get, OnChange: func(v string) { e.content.Subject = v; e.edit() }}

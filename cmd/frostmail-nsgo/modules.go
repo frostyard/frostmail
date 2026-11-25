@@ -82,7 +82,7 @@ func (w *workspace) collectionNav(cx *core.Scope, title, all string, icon func()
 // in a window 620 wide the Calendar's bar ran past the window's edge, with
 // its search field cut and New event out of reach.
 func moduleBar(children ...core.Node) core.Node {
-	return core.View{TestID: "module-bar", Style: core.Style{Direction: core.Row, Wrap: core.Wrap, AlignItems: core.AlignCenter, Gap: 8, Padding: core.Edges{Top: 8, Left: 8, Right: 8}}, Children: children}
+	return core.View{TestID: "module-bar", Style: core.Style{Direction: core.Row, Wrap: core.Wrap, AlignItems: core.AlignCenter, Gap: 8, Padding: core.Edges{Top: workspaceui.SpaceS, Left: workspaceui.SpaceS, Right: workspaceui.SpaceS}}, Children: children}
 }
 
 // collectionList is a list of rows to press: a title over a line of

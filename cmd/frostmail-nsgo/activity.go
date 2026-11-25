@@ -57,7 +57,7 @@ func (w *workspace) activity(cx *core.Scope) core.Node {
 		if len(cards) == 0 {
 			return nil
 		}
-		return core.View{Style: core.Style{Padding: core.Edges{Left: 8, Right: 8}}, Children: []core.Node{ui.FormSection{Children: cards}}}
+		return core.View{Style: core.Style{Padding: core.Edges{Left: workspaceui.SpaceS, Right: workspaceui.SpaceS}}, Children: []core.Node{ui.FormSection{Children: cards}}}
 	})
 	names := core.NewMemo(cx, func() *activityNames {
 		w.state.Get()

@@ -78,7 +78,7 @@ func (w *workspace) moduleTabs() core.Node {
 			return ui.Tooltip{Text: m.name, Trigger: ui.Icon(m.icon, 16, ui.ColorsOf(cx).Text)}
 		})})
 	}
-	return core.View{Style: core.Style{Padding: core.Symmetric(4, 8)}, Children: []core.Node{
+	return core.View{Style: core.Style{Padding: core.Symmetric(workspaceui.SpaceXS, workspaceui.SpaceS)}, Children: []core.Node{
 		ui.Tabs[string]{Variant: ui.TabsSegmented, Equal: true, Label: "Module", Value: w.module.Get,
 			OnChange: func(m string) { w.navigate("module:" + m) }, Options: options}}}
 }
@@ -106,7 +106,7 @@ func navLabel(i mail.Item) core.Node {
 		return label
 	}
 	return core.View{Style: core.Style{Direction: core.Row, FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0),
-		Padding: core.Edges{Left: core.Points(i.Depth * 12)}}, Children: []core.Node{label}}
+		Padding: core.Edges{Left: workspaceui.Indent(i.Depth)}}, Children: []core.Node{label}}
 }
 
 // sidebarModel is the navigation's sections of mail, from what the store
@@ -309,7 +309,7 @@ func (w *workspace) sidebarFoot() core.Node {
 				return core.Style{Hover: &core.Style{Background: colors.Hover()}, FocusVisible: ui.FocusRing(cx, -2)}
 			},
 			Children: []core.Node{workspaceui.ConnectionItem{Tone: tone, Text: w.status.Get}}}
-		return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Width: core.Pct(100), Padding: core.Edges{Right: 6}}, Children: []core.Node{
+		return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Width: core.Pct(100), Padding: core.Edges{Right: workspaceui.SpaceS}}, Children: []core.Node{
 			link, ui.Spacer{}, ui.IconButton{Label: "Settings", Icon: lucide.Settings, OnPress: func() { w.navigate("module:Settings") }}}}
 	})
 }
@@ -408,7 +408,9 @@ func (w *workspace) messageTools(m *api.MessageSummary) ([]toolGroup, []core.Nod
 	var colors []core.Node
 	for i := int64(1); i <= 7; i++ {
 		yes := true
-		colors = append(colors, flags(mail.FlagLabel(int(i), names), api.FlagChanges{Flagged: &yes, FlagColor: &i}))
+		item := flags(mail.FlagLabel(int(i), names), api.FlagChanges{Flagged: &yes, FlagColor: &i})
+		item.Leading = flagMark(w.cx, int(i))
+		colors = append(colors, item)
 	}
 	more := []core.Node{flags(readLabel, api.FlagChanges{Seen: &seen}), ui.Submenu{Text: "Flag color", Children: colors}}
 	if mail.InRole(msg, api.MailboxRoleDrafts, boxes) {

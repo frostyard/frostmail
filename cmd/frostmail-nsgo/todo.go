@@ -152,7 +152,7 @@ func (w *workspace) todoBar(cx *core.Scope) core.Node {
 	caption := func(text string) core.Node {
 		return core.Text{Content: text, Style: ui.TypeCaption.Merge(core.Style{FontWeight: ui.Semibold}), StyleFunc: ui.Colored(colors.Muted)}
 	}
-	return core.Scroll{Style: ui.FillRest, Children: []core.Node{core.View{TestID: "todo-bar", Style: core.Style{Gap: 8, Padding: core.All(8)}, Children: []core.Node{
+	return core.Scroll{Style: ui.FillRest, Children: []core.Node{core.View{TestID: "todo-bar", Style: core.Style{Gap: 8, Padding: core.All(workspaceui.SpaceS)}, Children: []core.Node{
 		calendar, caption("Upcoming"), events, caption("Tasks"), newTask, tasks}}}}
 }
 

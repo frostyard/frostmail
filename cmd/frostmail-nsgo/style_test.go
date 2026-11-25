@@ -12,12 +12,9 @@ import (
 
 // TestNoLiteralLooks holds rule 2 of plan 0016 for this client: its code
 // takes a kit part, an NSGo control or a token, and writes no look as a
-// number. It reads the package's own files, not the app.
-//
-// A color, a text size and a corner are not written at all. A padding
-// still is in the places paddingLeft counts: the kit has no spacing to
-// take in their place yet (plan 0016, Phase 4e). A file's count there may
-// only go down, and the rule is whole when the list is empty.
+// number: no color, text size, corner or padding. A padding takes the
+// kit's spacing (workspaceui.SpaceXS to SpaceXL, and Indent). It reads the
+// package's own files, not the app.
 func TestNoLiteralLooks(t *testing.T) {
 	never := []struct {
 		what string
@@ -26,18 +23,15 @@ func TestNoLiteralLooks(t *testing.T) {
 		{"a color written as a number", regexp.MustCompile(`core\.RGBA?\(|\b0x[0-9a-fA-F]{6,8}\b`)},
 		{"a text size written as a number", regexp.MustCompile(`FontSize:\s*[0-9]|ui\.Text\(.*,\s*[0-9]+,\s*ui\.`)},
 		{"a corner written as a number", regexp.MustCompile(`CornerRadius:\s*[0-9]`)},
-	}
-	padding := regexp.MustCompile(`Padding:\s*core\.(All|Symmetric|Edges)`)
-	paddingLeft := map[string]int{
-		"activity.go": 1, "calendar_grid.go": 2, "compose.go": 1, "list.go": 2, "modules.go": 1,
-		"pim.go": 1, "reader_pane.go": 1, "shell.go": 3, "todo.go": 1,
+		// A number anywhere in what a padding is built from, as in
+		// core.All(8) or core.Edges{Left: core.Points(depth * 12)}.
+		{"a padding written as a number", regexp.MustCompile(`Padding:\s*core\.(All|Symmetric|Edges)[({][^)}]*\b[0-9]`)},
 	}
 	dir := filepath.Join(repoRoot(t), "cmd", "frostmail-nsgo")
 	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no source files in %s: %v", dir, err)
 	}
-	seen := map[string]int{}
 	for _, path := range files {
 		name := filepath.Base(path)
 		if strings.HasSuffix(name, "_test.go") {
@@ -56,19 +50,17 @@ func TestNoLiteralLooks(t *testing.T) {
 					t.Errorf("%s:%d: %s: take a token of the kit or of NSGo", name, n+1, rule.what)
 				}
 			}
-			seen[name] += len(padding.FindAllString(line, -1))
 		}
 	}
-	for name, got := range seen {
-		if want := paddingLeft[name]; got > want {
-			t.Errorf("%s writes %d paddings as numbers, and %d are allowed: take a kit part or token", name, got, want)
-		} else if got < want {
-			t.Errorf("%s writes %d paddings as numbers, fewer than the %d listed: lower its count in paddingLeft", name, got, want)
+	// The rule's own patterns find what they are for.
+	for _, bad := range []string{"Padding: core.All(8)", "Padding: core.Edges{Left: core.Points(depth * 12)}", "Padding: core.Symmetric(workspaceui.SpaceXS, 6)"} {
+		if !never[3].re.MatchString(bad) {
+			t.Errorf("the padding rule misses %q", bad)
 		}
 	}
-	for name := range paddingLeft {
-		if _, ok := seen[name]; !ok {
-			t.Errorf("paddingLeft lists %s, which is not a file of the client", name)
+	for _, good := range []string{"Padding: core.All(workspaceui.SpaceS)", "Padding: core.Edges{Left: workspaceui.Indent(i.Depth)}", "Padding: core.Edges{Left: inset}"} {
+		if never[3].re.MatchString(good) {
+			t.Errorf("the padding rule refuses %q", good)
 		}
 	}
 }

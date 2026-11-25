@@ -6,7 +6,11 @@
   0.5 is done (2026-11-24). Phase 1 is done (2026-11-24; Brian accepted
   closing it on a desktop picture of 1 of the 3 apps). Phase 2 is done
   (2026-11-24): the kit holds the parts, the control map and the rules,
-  at `workspaceui/v0.3.0`. Phase 3 is next.
+  at `workspaceui/v0.3.0`. Phase 3 is done (2026-11-24; Brian accepted
+  the main window from the live suite's pictures, Phase 3). Phase 4 is
+  in progress: its 5 changes are built on the kit at `workspaceui/v0.4.0`,
+  and the README's pictures and recipients on `ui.TagInput` are left.
+  Phase 5 is in progress, in Frostnotes.
 
 This plan brings FrostMail's NSGo client
 ([ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md)) to the polish
@@ -867,10 +871,32 @@ stand-ins of its panes with the control map's controls (rule 11):
     - `dev/lodge/nsgo-smoke.py` passed once.
     - While the sheet's body scrolls, the thumb lies over the fields'
       right ends, 2 points from From's chevron, and fades with the bar.
-  - **Left of 4e:** the kit's spacing and the 13 paddings
-    (frostyard/frostui#78 adds the spacing; it needs the kit's tag); the
-    README's pictures, which stay the default client's while that is the
-    MyGo one.
+  - **The kit's spacing, flags, page and row scale (2026-11-24),
+    built.** The owner tagged `workspaceui/v0.4.0` (frostyard/frostui#78),
+    and the client takes it.
+    - The 13 paddings take the kit's spacing (`SpaceXS` to `SpaceL`, and
+      `Indent` for a mailbox inside a mailbox and a subtask). The style
+      test lists no exception, and fails on a padding built from a
+      number. 2 paddings were not a step of the kit: the navigation
+      foot's 6 is 8, and the 6 over a compose field's name is gone, the
+      name standing at the middle of a field 1 line high.
+    - A flag in the list and in the Flag color menu draws in the kit's
+      color for it, 7 in each theme. A flag with no color draws in the
+      first, red, as the MyGo client draws it; it drew in the warning
+      tone. The navigation's flag rows are not colored: the kit's
+      `NavLabel` takes no color for its icon (frostyard/frostmail#401
+      stays open for them).
+    - A row of the list scales its text by the Message text size
+      setting (`SummaryRow.Scale`; frostyard/frostmail#400).
+      `TestListFollowsTheTextSizeSetting` holds it: a row's date at
+      Largest is 1.3 times the default, and the test fails with the
+      scale taken out.
+    - A message's page is in the kit's `PageFrame`, on white: the
+      client's own frame, which painted no ground, is gone.
+    - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 37
+      passed. 34 of the 37 kept pictures changed.
+  - **Left of 4e:** the README's pictures, which stay the default
+    client's while that is the MyGo one.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 

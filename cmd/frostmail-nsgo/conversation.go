@@ -103,7 +103,7 @@ func (w *workspace) conversationArticle(cx *core.Scope, m api.MessageSummary, in
 				if body.Remote > 0 {
 					nodes = append(nodes, workspaceui.Banner{Icon: lucide.ImageOff, Text: "Remote images are not shown.", Action: "Load images for this message", OnAction: func() { load(true) }})
 				}
-				nodes = append(nodes, pageFrame(scope, bodyView(w, body), core.Style{Height: core.Pt(270)}))
+				nodes = append(nodes, workspaceui.PageFrame{Page: bodyView(w, body), Size: core.Style{Height: core.Pt(270)}})
 				return workspaceui.Stack(nodes...)
 			}), workspaceui.Row(ui.Button{Text: "Open this message", Variant: ui.ButtonSecondary, Size: ui.SizeSmall, OnPress: func() { w.closePanel(); w.openMessage(m.ID, false) }}))
 		}},

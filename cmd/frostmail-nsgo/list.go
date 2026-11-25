@@ -42,7 +42,7 @@ func (w *workspace) messageList() core.Node {
 				}
 			}}
 	})
-	return core.View{Style: ui.FillRest.Merge(core.Style{Gap: 8, Padding: core.Edges{Top: 8, Left: 8, Right: 8}}), Children: []core.Node{
+	return core.View{Style: ui.FillRest.Merge(core.Style{Gap: 8, Padding: core.Edges{Top: workspaceui.SpaceS, Left: workspaceui.SpaceS, Right: workspaceui.SpaceS}}), Children: []core.Node{
 		field, w.listOptions(),
 		ui.List{Label: "Messages", TestID: "messages", Style: ui.FillRest, Gap: 2, Selection: w.selection, TapSelects: true,
 			EstimatedSize: 84, RowStyle: core.Style{Group: rowGroup}, RowStyleFunc: workspaceui.SoftRows(w.cx),
@@ -140,7 +140,10 @@ func (w *workspace) messageRow(cx *core.Scope, row core.ListRow) core.Node {
 			unread = *msg.ThreadUnread > 0
 		}
 		summary := workspaceui.SummaryRow{Unread: unread, Name: sender, Title: sender, When: mail.ListDate(msg.Date, time.Now()),
-			Subject: msg.Subject, Marks: w.marks(cx, msg, st), Preview: msg.Preview, PreviewLines: lines}
+			Subject: msg.Subject, Marks: w.marks(cx, msg, st), Preview: msg.Preview, PreviewLines: lines,
+			// The row's text follows the text size setting, as the message's
+			// page does.
+			Scale: w.textScale.Get()}
 		if w.showPhotos.Get() && w.photos != nil {
 			w.photos.Want([]string{msg.From.Address})
 			if photo := w.photos.Get(msg.From.Address); len(photo) > 0 {
@@ -151,15 +154,17 @@ func (w *workspace) messageRow(cx *core.Scope, row core.ListRow) core.Node {
 	})
 }
 
-// flagTones are the tones a flag's 7 colors draw in. The kit has no flag
-// colors: Yellow draws as Orange and Purple as the accent until it has.
-var flagTones = [7]workspaceui.Tone{workspaceui.Danger, workspaceui.Warning, workspaceui.Warning, workspaceui.Success, workspaceui.Accent, workspaceui.Accent, workspaceui.Neutral}
+// flagMark is a small flag in flag n's color, the kit's: 1 to 7, and the
+// first for a flag with no color, as the other desktop client draws it.
+func flagMark(cx *core.Scope, n int) core.Node {
+	kit := workspaceui.ColorsOf(cx)
+	return ui.Icon(lucide.Flag, 14, func() core.Color { return kit.Flag(n) })
+}
 
 // marks end a row's subject line: the VIP's star, the flag in its color,
 // the paperclip, the reminder's clock, and a conversation's count.
 func (w *workspace) marks(cx *core.Scope, m api.MessageSummary, st live.MailState) []core.Node {
 	colors := ui.ColorsOf(cx)
-	tones := [...]func() core.Color{workspaceui.Neutral: colors.Muted, workspaceui.Accent: colors.Accent, workspaceui.Success: colors.Up, workspaceui.Warning: colors.Warn, workspaceui.Danger: colors.Danger}
 	mark := func(label string, icon func() *core.SVG, tint func() core.Color) core.Node {
 		return core.View{Label: label, Children: []core.Node{ui.Icon(icon, 14, tint)}}
 	}
@@ -168,15 +173,16 @@ func (w *workspace) marks(cx *core.Scope, m api.MessageSummary, st live.MailStat
 		out = append(out, mark("VIP", lucide.Star, colors.Warn))
 	}
 	if m.Flags.Flagged {
-		tone, label := workspaceui.Warning, "Flagged"
-		if c := int(m.Flags.FlagColor); c >= 1 && c <= len(flagTones) {
+		label := "Flagged"
+		c := int(m.Flags.FlagColor)
+		if c >= 1 && c <= workspaceui.FlagCount {
 			var names []string
 			if st.Settings != nil {
 				names = st.Settings.FlagNames
 			}
-			tone, label = flagTones[c-1], "Flagged "+mail.FlagLabel(c, names)
+			label = "Flagged " + mail.FlagLabel(c, names)
 		}
-		out = append(out, mark(label, lucide.Flag, tones[tone]))
+		out = append(out, core.View{Label: label, TestID: "flag-mark", Children: []core.Node{flagMark(cx, c)}})
 	}
 	if m.HasAttachments {
 		out = append(out, mark("Has attachments", lucide.Paperclip, colors.Muted))
@@ -205,7 +211,7 @@ func (w *workspace) emptyList(*core.Scope) core.Node {
 		for range 6 {
 			rows = append(rows, ui.Skeleton{Avatar: true, Lines: 2, Label: "Loading messages"})
 		}
-		return core.View{Style: core.Style{Gap: 16, Padding: core.All(8), Width: core.Pct(100)}, Children: rows}
+		return core.View{Style: core.Style{Gap: 16, Padding: core.All(workspaceui.SpaceS), Width: core.Pct(100)}, Children: rows}
 	case w.search != "" || w.listState.Filter != mail.FilterAll:
 		return workspaceui.EmptyState{Icon: lucide.SearchX, Title: "No matching messages", Hint: "Try another search or filter."}
 	}
