@@ -205,7 +205,8 @@ out by time, and the MyGo client is still the default.
   a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
   CI builds it in `.github/workflows/flatpak.yml`; on a `v*` tag,
   `stamp-version.sh` first stamps the version (without `-rc.N`) into the
-  manifest and the metainfo, which keep `flatpak` and 0.0.0 in git. `install.sh`
+  manifest, for both clients' builds, and the metainfo, which keep `flatpak`
+  and 0.0.0 in git. `install.sh`
   is the wrapper for the development bundle, with a host maild.
 - `packaging/windows/installer.nsh` and `mygo.json`: MyGo's Windows installer
   (`make desktop-installer`). `packaging/icons`: the app's icons.

@@ -116,6 +116,13 @@ func TestFlatpakStampWritesTheTagIntoTheFlatpak(t *testing.T) {
 	if strings.Contains(manifest, "-X main.version=flatpak") {
 		t.Error("the manifest still names flatpak")
 	}
+	// The NSGo client's build takes the version from its environment.
+	if want := "FROSTMAIL_VERSION=1.2.3 scripts/build-nsgo-native.sh"; !strings.Contains(manifest, want) {
+		t.Errorf("the manifest does not hold %q:\n%s", want, manifest)
+	}
+	if strings.Contains(manifest, "FROSTMAIL_VERSION=flatpak") {
+		t.Error("the manifest still names flatpak for the NSGo client")
+	}
 
 	meta := readString(t, filepath.Join(dir, stampMetainfo))
 	lines, at := releaseLines(t, meta)
@@ -176,6 +183,7 @@ func stampUnchanged(t *testing.T, dir, manifest, meta string) {
 // markers it edits, and edits neither.
 func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
 	const placeholder = "-X main.version=flatpak"
+	const nsgoPlaceholder = "FROSTMAIL_VERSION=flatpak"
 	for _, tc := range []struct {
 		name           string
 		manifest, meta func(string) string
@@ -190,6 +198,18 @@ func TestFlatpakStampRefusesFilesWithoutTheirMarkers(t *testing.T) {
 			name:     "two version placeholders",
 			manifest: func(s string) string { return strings.Replace(s, placeholder, placeholder+" "+placeholder, 1) },
 			message:  "2 times, want exactly once",
+		},
+		{
+			name:     "no version placeholder of the NSGo client",
+			manifest: func(s string) string { return strings.Replace(s, nsgoPlaceholder, "FROSTMAIL_VERSION=other", 1) },
+			message:  "'FROSTMAIL_VERSION=flatpak' 0 times, want exactly once",
+		},
+		{
+			name: "two version placeholders of the NSGo client",
+			manifest: func(s string) string {
+				return strings.Replace(s, nsgoPlaceholder, nsgoPlaceholder+" "+nsgoPlaceholder, 1)
+			},
+			message: "'FROSTMAIL_VERSION=flatpak' 2 times, want exactly once",
 		},
 		{
 			name:    "no releases",
@@ -403,6 +423,12 @@ func TestFlatpakStampStepStampsTheReleaseVersion(t *testing.T) {
 			}
 			if strings.Contains(manifest, "-X main.version=flatpak") {
 				t.Errorf("tag %s leaves the manifest naming flatpak", tc.tag)
+			}
+			if want := "FROSTMAIL_VERSION=" + tc.version + " "; !strings.Contains(manifest, want) {
+				t.Errorf("tag %s leaves no %q in the manifest:\n%s", tc.tag, want, manifest)
+			}
+			if strings.Contains(manifest, "FROSTMAIL_VERSION=flatpak") {
+				t.Errorf("tag %s leaves the manifest naming flatpak for the NSGo client", tc.tag)
 			}
 
 		})

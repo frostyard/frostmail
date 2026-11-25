@@ -141,10 +141,14 @@ name MyGo.
   build takes the release's version from `FROSTMAIL_VERSION`
   (`scripts/build-nsgo-native.sh`), and any other build is `dev`, which
   records nothing.
-  - **Not done: no release sets that version yet.** The Flatpak's
-    manifest and `stamp-version.sh` do not pass it, so the NSGo client
-    in a release records nothing until they do. That is the next
-    change, with the package's id and version.
+  - **A release sets that version (2026-11-24), built.** The Flatpak's
+    manifest passes `FROSTMAIL_VERSION=flatpak` to the client's build,
+    and `stamp-version.sh` stamps it with the tag's version beside the
+    ldflags, refusing a manifest that holds it other than once. A
+    release's version, MAJOR.MINOR.PATCH, is the app's own version too,
+    in place of `nsgo.yaml`'s fixed one. The Windows installer's build
+    sets none, so the NSGo client there records nothing. The package's
+    id is still the preview's.
   - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 40 passed,
     1 of them new: the fixture's maild is ended under the client, 1
     record reaches a test journal, and the retries that follow add
