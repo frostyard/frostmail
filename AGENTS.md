@@ -279,7 +279,7 @@ installer's program is still the MyGo client (Phase 3).
   `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
   `problems`; clix needs it too).
 - The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
-  `github.com/frostyard/frostui/workspaceui` v0.5.0, the kit it shares with
+  `github.com/frostyard/frostui/workspaceui` v0.5.1, the kit it shares with
   Frostnotes and PocketGo (a module of its own in frostui, tags
   `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
   `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.

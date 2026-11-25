@@ -110,8 +110,9 @@ name MyGo.
   (frostyard/frostnotes#285; Phase 2 here), and a `Shell` that says
   whether its side panel is open and takes it at the start.
 - **Built (2026-11-24).** The kit has the 6 with their tests
-  (frostyard/frostui#79), and the owner tagged `workspaceui/v0.5.0`.
-  FrostMail takes it: a flag's row of the navigation draws its icon in
+  (frostyard/frostui#79), and the owner tagged `workspaceui/v0.5.0`,
+  then `v0.5.1` with the kept window's fix (frostyard/frostui#80; Phase
+  3's second look on Windows). FrostMail takes `v0.5.1`: a flag's row of the navigation draws its icon in
   its flag's color (#401), the kit's `KeepWindow` keeps the window in
   place of the client's own code, under the same key, and the To-Do Bar
   opens as it was left (`todo-bar` in the client's storage). Left:
@@ -301,7 +302,11 @@ name MyGo.
     the storage held `window` as 984 by 631 at 60, 20, placed. After a
     restart the window was 984 by 631 at 60, 20: 16 narrower and 9
     shorter than it was left. The client keeps its content's size, and
-    asks for it at a start as the window's.
+    asks for it at a start as the window's. The kit's `v0.5.1` keeps
+    the window's own size (frostyard/frostui#80). Seen with it, in the
+    same VM: left 1040 by 660 at 80, 30, the window came back 1040 by
+    660 at 80, 30, and the navigation's Red and Orange rows drew in
+    their flags' colors.
   - **The least size holds.** Asked for 300 by 200, the window took 496
     by 369, and the storage held 480 by 360.
   - **A second start** ended by itself within 6 seconds with code 0,
