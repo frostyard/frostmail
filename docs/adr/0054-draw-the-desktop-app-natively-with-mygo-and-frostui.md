@@ -1,6 +1,6 @@
 # 0054 — Draw the desktop app natively with MyGo and frostui
 
-- **Status:** Accepted (Brian, 2026-11-22)
+- **Status:** Superseded by [0063](0063-make-the-nsgo-client-the-only-client.md) (2026-11-24); Accepted (Brian, 2026-11-22)
 - **Date:** 2026-11-10
 
 ## Context

@@ -1,6 +1,6 @@
 # 0061 — Share the mail client with NSGo
 
-- **Status:** Proposed
+- **Status:** Accepted (Brian, 2026-11-24, by [ADR-0063](0063-make-the-nsgo-client-the-only-client.md))
 - **Date:** 2026-11-23
 
 ## Context

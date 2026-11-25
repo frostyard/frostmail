@@ -1,9 +1,12 @@
 # Plan 0017: NSGo as the only client
 
-- **Status:** Proposed (2026-11-24). Nothing of it is built. The owner set
-  its end on 2026-11-24: the NSGo clients are the default, MyGo is removed,
-  and the new versions are tagged and published. Its open questions are the
-  owner's to answer before the phases they gate.
+- **Status:** Accepted in its order and its answers (Brian, 2026-11-24).
+  Nothing of it is built. The owner set its end on 2026-11-24: the NSGo
+  clients are the default, MyGo is removed, and the new versions are
+  tagged and published. He answered its 6 questions the same day
+  ([The owner's answers](#the-owners-answers)). FrostMail's decision is
+  [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md);
+  Frostnotes' and PocketGo's ADRs are not written.
 
 This plan takes FrostMail, Frostnotes and PocketGo from two desktop clients
 each to one, the NSGo client on the shared kit
@@ -78,15 +81,15 @@ name MyGo.
 
 ## Phase 0 — Decisions (S)
 
-- The owner answers the open questions below. Each answer that changes an
-  accepted decision is an ADR in its repository: FrostMail supersedes
-  [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
-  and accepts or rewrites [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md),
-  which is still Proposed; Frostnotes supersedes its ADR-0047 and
-  ADR-0038; PocketGo supersedes its ADR-0070 and, by the answer, ADR-0040,
-  ADR-0041 and ADR-0044.
-- **Done when:** each question has an answer in an accepted ADR, or is
-  marked as not gating any phase.
+- The owner answered the 6 questions (2026-11-24, below). Each answer
+  that changes an accepted decision is an ADR in its repository.
+  FrostMail's is [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md),
+  which supersedes [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
+  and accepts [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md).
+  Frostnotes' supersedes its ADR-0047 and ADR-0038, and PocketGo's its
+  ADR-0070, ADR-0040, ADR-0041 and ADR-0044 in part; each is written
+  when its phase starts.
+- **Done when:** each repository has its accepted ADR.
 
 ## Phase 1 — The kit's next version (S, alongside)
 
@@ -101,8 +104,11 @@ name MyGo.
 
 ## Phase 2 — FrostMail: NSGo is the default (M)
 
-- The missing things above that the owner keeps (question 4), each with
-  its test and pictures. The package's id and version are the released
+- The missing things the owner keeps: the first-run welcome and the
+  Flatpak's move note, the kept window and view state, and the
+  calendar's drags, with the problem record. Each has its test and
+  pictures. A window of its own for compose, an event, Settings and the
+  reminders is not built: the client stays 1 window. The package's id and version are the released
   app's, stamped as MyGo's are.
 - The Flatpak's launcher starts NSGo, and `FROSTMAIL_UI=mygo` starts MyGo
   for 1 release. The README's pictures are the NSGo suite's (plan 0016,
@@ -118,28 +124,43 @@ name MyGo.
   longer requires MyGo or frostui's root module. MyGo's client, its
   tests, `mygo.json` and its CI go. `internal/workflowcheck`, the risk
   paths, Dependabot, `AGENTS.md` and the design docs follow.
-- Windows by question 3: an installer of the NSGo client, checked on the
-  Windows VM, or no Windows build in this release.
-- In Lodge by question 5.
+- Windows: an installer of the NSGo client, with its notifier, checked
+  on the Windows VM before MyGo goes.
 - **Done when:** `go.mod` names neither `github.com/egoist/mygo` nor
   frostui's root module, `make ci` passes, and the owner releases the
   version (`make bump`, then Promote).
 
-## Phase 4 — PocketGo (M, or L by question 2)
+## Phase 3.5 — FrostMail in Lodge (M)
+
+- The NSGo web build takes the React app's place in Lodge, as
+  Frostnotes' did, after MyGo is gone.
+- **Done when:** the `.deb` holds the NSGo web build and no React app,
+  and `dev/lodge/nsgo-smoke.py` passes on what it installs.
+
+## Phase 4 — PocketGo (L)
 
 - The Linux and web gaps above, a test of the terminal's clipboard rule,
   and 1 place for the preferences with a move from the other.
-- The 3 platforms by question 2.
+- The iPad, iPhone and macOS clients are ported to NSGo's targets for
+  them, which that repository has never built: the phone's and the
+  tablet's rules (suspend and resume, no terminal, the compact tab bar)
+  with them. MyGo goes when they work.
 - MyGo is removed: `desktop/internal/app`, `desktop/cmd/pocket`,
   `mygo.json`, and what names them. Its first release is cut: there is
   none today.
 - **Done when:** `desktop/go.mod` names neither MyGo nor frostui's root
   module, and the owner tags and promotes `v0.1.0`.
 
-## Phase 5 — Frostnotes (L or XL by question 1)
+## Phase 5 — Frostnotes (XL)
 
-- The features the owner keeps, in an order he sets. Each is a change
-  with its tests and pictures, as plan 0016's were.
+- All 4 groups of MyGo's features are kept: version history with
+  compare and revert, the merge view and the sync conflicts; attachments,
+  images and files that are not Markdown; live preview's missing marks;
+  the side panes, tabs and splits. Each is a change with its tests and
+  pictures, as plan 0016's were. What the inventory lists outside the 4
+  groups (a hub's devices, folder operations, daily notes and templates,
+  a vault's settings, the editor's commands) has no answer yet: it is
+  asked when the phase starts.
 - MyGo is removed, and the React app is reduced to the NSGo build's
   loader or the loader is made without it.
 - **Done when:** the Flatpak holds 1 client, the root `go.mod` names
@@ -152,40 +173,37 @@ name MyGo.
 - A Windows build of Frostnotes: both of its clients fail to build there
   (`internal/desktop/system/lifetime.go`).
 
+## The owner's answers
+
+Brian answered these on 2026-11-24, each as a choice among options the
+agent set out.
+
+1. **Frostnotes keeps all 4 groups** of MyGo's features before MyGo goes:
+   history and conflicts, attachments and images, the full live preview,
+   and panes and tabs.
+2. **PocketGo's iPad, iPhone and macOS clients are ported to NSGo.**
+3. **FrostMail's NSGo client ships on Windows** in the release that
+   removes MyGo, checked on the Windows VM.
+4. **FrostMail builds 3 of the missing things** before the switch: the
+   first-run welcome, the kept window, and the calendar's drags. The
+   separate windows are not built. The problem record is ported whatever
+   the answer.
+5. **FrostMail's NSGo web build replaces the React app in Lodge,** after
+   MyGo is gone.
+6. **The order is FrostMail, PocketGo, Frostnotes.**
+
 ## Open questions
 
-Each is the owner's. The agent's lean is given as a lean.
-
-1. **Frostnotes: which of MyGo's features must the NSGo client have
-   before MyGo goes, and which are dropped?** It decides whether Phase 5
-   is weeks or months. Lean: keep version history and revert, sync
-   conflicts, attachments and images, and live preview's missing marks;
-   decide the side panes, tabs, daily notes and templates one by one. By
-   Phase 5.
-2. **PocketGo: the iPad, iPhone and macOS clients are MyGo's.** Port
-   them to NSGo's targets for those platforms, which this repository has
-   never built; keep MyGo for them alone, so that "removed" means Linux;
-   or stop shipping them. Lean: none; it turns on whether the owner uses
-   the iPad client. By Phase 4.
-3. **Windows.** FrostMail's installer starts MyGo, and its NSGo client
-   has run in no Windows window under test. Is Windows in the release
-   that removes MyGo? Lean: yes for FrostMail, checked on the Windows VM,
-   since it ships there today. By Phase 3.
-4. **FrostMail: which of the missing things are kept?** Lean: the first
-   run, the problem record, the kept window and the calendar's drags are
-   kept; the separate windows are not (ADR-0061 chose 1 window); the
-   Windows notifier by question 3. By Phase 2.
-5. **FrostMail in Lodge.** Lodge serves the React app, and the NSGo web
-   build is built and not shipped. Does this plan replace the React app
-   there, as Frostnotes did? Lean: yes, after Phase 3, as its own phase.
-   By Phase 3.
-6. **The order.** FrostMail, then PocketGo, then Frostnotes, by how near
-   each is. Lean: that order, with Phase 1 alongside. By Phase 2.
+- **Frostnotes: what of MyGo's features outside the 4 groups is kept?**
+  The owner, when Phase 5 starts.
+- **NSGo's iOS and macOS targets for PocketGo:** whether they build and
+  run it is not known; the first change of Phase 4's port finds out.
 
 ## References
 
 - Follows: [plan 0016](0016-a-shared-look-for-the-nsgo-apps.md),
   [plan 0015](0015-mygo-desktop.md), [plan 0013](0013-m6-the-standalone-desktop-flatpak.md)
+- Decided by: [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md)
 - Decisions it changes: [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md),
   [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md),
   [ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)

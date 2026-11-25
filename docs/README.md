@@ -69,15 +69,16 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0051 — maild erases old Trash and Junk mail when the user asks](adr/0051-erase-old-trash-and-junk-when-the-user-asks.md) (Accepted)
 - [0052 — Ctrl+F finds in the message shown](adr/0052-find-in-the-message-shown.md) (Accepted)
 - [0053 — Reply quotes the selected text, as plain text](adr/0053-reply-quotes-the-selected-text.md) (Accepted)
-- [0054 — Draw the desktop app natively with MyGo and frostui](adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md) (Accepted)
+- [0054 — Draw the desktop app natively with MyGo and frostui](adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md) (Superseded by 0063)
 - [0055 — maild streams its background activity as typed entries with no free text](adr/0055-maild-streams-its-activity-as-typed-entries.md) (Accepted)
 - [0056 — Filter mailto links before opening them](adr/0056-filter-mailto-links-before-opening-them.md)
 - [0057 — Name cached draft images on Lodge's content route](adr/0057-name-cached-draft-images-on-lodges-content-route.md) (Proposed)
 - [0058 — Pin MyGo's quote-depth fix from the owner's fork](adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md) (Accepted)
 - [0059 — Add a published event from mail as the user's own event](adr/0059-add-a-published-event-from-mail-as-the-users-own.md) (Proposed)
 - [0060 — Close to the tray is an opt-in setting; the tray icon shows while the app runs](adr/0060-close-to-the-tray-is-an-opt-in-setting.md) (Accepted)
-- [0061 — Share the mail client with NSGo](adr/0061-share-the-mail-client-with-nsgo.md) (Proposed)
+- [0061 — Share the mail client with NSGo](adr/0061-share-the-mail-client-with-nsgo.md) (Accepted)
 - [0062 — Give the NSGo client the Frostyard look from the shared kit](adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md) (Accepted)
+- [0063 — Make the NSGo client the only client](adr/0063-make-the-nsgo-client-the-only-client.md) (Accepted)
 
 ### Design
 
@@ -125,7 +126,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0014 — Small features from the nexmail review](plans/0014-small-features-from-the-nexmail-review.md): the sender check, the attachment reminder, snippets, erasing old Trash and Junk
 - [0015 — The desktop app in MyGo](plans/0015-mygo-desktop.md): the native desktop app, its window and console, the spikes and the parity gate
 - [0016 — A shared look for the NSGo apps](plans/0016-a-shared-look-for-the-nsgo-apps.md): the kit FrostMail, Frostnotes and PocketGo share, the standard window and FrostMail's restyle
-- [0017 — NSGo as the only client](plans/0017-nsgo-as-the-only-client.md): from 2 desktop clients to 1 in FrostMail, Frostnotes and PocketGo, and a release of each; proposed, with the owner's questions open
+- [0017 — NSGo as the only client](plans/0017-nsgo-as-the-only-client.md): from 2 desktop clients to 1 in FrostMail, Frostnotes and PocketGo, and a release of each; accepted in its order and answers (2026-11-24), nothing built
 
 ## Conventions
 
