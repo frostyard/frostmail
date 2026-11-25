@@ -393,7 +393,7 @@ func (w *workspace) compose(cx *core.Scope, d *api.Draft, fresh bool) core.Node 
 	body := []core.Node{row("From", from), row("To", e.recipient("To", &e.to)), row("Cc", e.recipient("Cc", &e.cc)), row("Bcc", e.recipient("Bcc", &e.bcc)), row("Subject", subject),
 		toolbar, linkBar, editor, fileList, schedule}
 	status := core.Text{ContentFunc: e.status.Get, MaxLines: 1, Style: ui.TypeCaption.Merge(core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)}), StyleFunc: ui.Colored(colors.Muted)}
-	dlg := w.dialog("Compose", []core.Node{core.Scroll{StyleFunc: func() core.Style {
+	dlg := w.ownDialog("Compose", []core.Node{core.Scroll{StyleFunc: func() core.Style {
 		footer := core.Points(160)
 		if ui.Touch(cx) {
 			footer = 250

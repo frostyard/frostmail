@@ -353,6 +353,18 @@ func TestComposeHasItsBarAndAsksInAlerts(t *testing.T) {
 	for _, tool := range []string{"Bold", "Italic", "Bulleted list", "Link", "Insert", "Attach file"} {
 		a.Find("role:toolbar Formatting >> label:" + tool)
 	}
+	// The compose window leaves by Discard or by Save and close, which keep
+	// or drop the draft: it has no Cancel or Close that does neither.
+	for _, stray := range []string{"Cancel", "Close"} {
+		if a.Exists("role:dialog >> role:button " + stray) {
+			t.Errorf("the compose window has a %s button", stray)
+		}
+	}
+	for _, own := range []string{"Discard…", "Save and close", "Send"} {
+		if len(a.Query("role:dialog >> role:button "+own)) == 0 {
+			t.Errorf("the compose window has no %s button", own)
+		}
+	}
 	a.Type("label:Subject", "A draft to keep")
 	a.Press("label:Send later")
 	a.Press("label:Choose date and time")
