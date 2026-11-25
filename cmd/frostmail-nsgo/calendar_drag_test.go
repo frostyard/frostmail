@@ -68,30 +68,33 @@ func TestOnlyOwnWritableOccurrencesMove(t *testing.T) {
 	}
 }
 
-// TestDragMovesAnEventToAnotherDay checks the drag in the window: in the
-// week, an event dragged to another day's cell is in that cell after, and
-// no longer in its own.
+// TestDragMovesAnEventToAnotherDay checks the drag in the month: an event
+// dragged to another day's cell is in that cell after, and no longer in
+// its own.
 func TestDragMovesAnEventToAnotherDay(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Calendar")
+	// A month with nothing in it, 3 months on: a cell shows 3 events and
+	// counts the rest, and the showcase's days are full.
+	for range 3 {
+		a.Press("label:Next")
+	}
+	now := time.Now()
+	first := time.Date(now.Year(), now.Month()+3, 1, 0, 0, 0, 0, time.Local)
+	// New event starts at the next hour of the shown day, the month's first.
+	from := time.Date(first.Year(), first.Month(), 1, now.Hour()+1, 0, 0, 0, time.Local)
+	to := from.AddDate(0, 0, 1)
+	cell := func(day time.Time) string { return "id:day-" + day.Format(time.DateOnly) }
+	a.WaitFor(cell(from), 8*time.Second)
 	a.Press("label:New event")
 	const title = "A lunch to move"
 	a.Type("label:Title", title)
 	a.Press("label:Save")
-	a.WaitFor("label:Undo calendar change", 5*time.Second)
-	// New event starts an hour from now: today, or tomorrow in the day's
-	// last hour.
-	from := time.Now().Add(time.Hour)
-	// Another day of the same week, which starts on Monday.
-	to := from.AddDate(0, 0, 1)
-	if from.Weekday() == time.Sunday {
-		to = from.AddDate(0, 0, -1)
-	}
-	cell := func(day time.Time) string { return "id:day-" + day.Format(time.DateOnly) }
-	// The week shows every event of a day; the month shows 3 and counts
-	// the rest.
-	a.Press("role:tab Week")
-	a.WaitFor(cell(from)+" >> label:"+title, 5*time.Second)
+	a.WaitFor(cell(from)+" >> label:"+title, 8*time.Second)
+	// The save's own reload builds the grid again: a drag begun before it
+	// loses the block it holds.
+	a.Advance(2 * time.Second)
+	a.Settle()
 	a.DragTo("label:Drag "+title, cell(to))
 	a.WaitFor(cell(to)+" >> label:"+title, 8*time.Second)
 	a.WaitForGone(cell(from)+" >> label:"+title, 5*time.Second)

@@ -128,11 +128,23 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 		if query.Get() != "" || owner.Env().Window().Width < 720 {
 			return agenda
 		}
-		return w.calendarGrid(owner, date, mode, rows, func(at time.Time) { day.Set(at); span.Set("Day"); load() }, show, func(at time.Time) {
-			w.eventForm(api.CalendarEvent{Start: at, End: at.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
-		}, func(o api.Occurrence) bool { return canMove(o, writable()) }, func(o api.Occurrence, days int) {
-			w.dropOccurrence(o, days, date.Location(), load)
-		})
+		openDay := func(at time.Time) { day.Set(at); span.Set("Day"); load() }
+		movable := func(o api.Occurrence) bool { return canMove(o, writable()) }
+		moveDays := func(o api.Occurrence, days int) { w.dropOccurrence(o, days, date.Location(), load) }
+		if mode == "Month" {
+			return w.monthGrid(owner, date, rows, openDay, show, movable, moveDays)
+		}
+		// The day and the week are laid out by time.
+		y, m, d := date.Date()
+		first, days := time.Date(y, m, d, 0, 0, 0, 0, date.Location()), 1
+		if mode == "Week" {
+			first, days = first.AddDate(0, 0, -(int(first.Weekday())+6)%7), 7
+		}
+		return w.timeGrid(owner, first, days, rows, gridActions{openDay: openDay, show: show, movable: movable, moveDays: moveDays,
+			create: func(start, end time.Time) {
+				w.eventForm(api.CalendarEvent{Start: start, End: end, CalendarID: cal.GetUntracked()}, nil, load)
+			},
+			retime: func(o api.Occurrence, start, end time.Time) { w.retimeOccurrence(o, start, end, load) }})
 	})}}
 }
 

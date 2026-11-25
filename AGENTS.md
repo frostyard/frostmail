@@ -130,9 +130,10 @@ same day. Of Phase 2, the NSGo client keeps its window, its panes' widths
 and how the list is shown (`cmd/frostmail-nsgo/window.go`), and records
 `bridge.socket_lost` as the MyGo client does, though no release stamps
 its version yet, and shows the first run's welcome
-(`cmd/frostmail-nsgo/welcome.go`), and moves an event to another day by
-a drag; a move by minutes, a resize and a drawn event wait on a day laid
-out by time, and the MyGo client is still the default.
+(`cmd/frostmail-nsgo/welcome.go`), and lays the day and the week out by
+time, where a drag moves, resizes and draws an event
+(`cmd/frostmail-nsgo/calendar_time.go`). The package's id and the switch
+of the default are left, and the MyGo client is still the default.
 
 ## Two kinds of agent work
 
