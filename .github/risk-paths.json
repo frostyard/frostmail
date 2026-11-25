@@ -78,9 +78,9 @@
       "why": "secrets and credentials: what opens a sign-in page, and the commands that stop and start maild"
     },
     {
-      "glob": "{mygo.json,packaging/windows/**,scripts/windows-installer.sh}",
+      "glob": "{mygo.json,packaging/windows/**,scripts/windows-installer.sh,scripts/nsgo-windows-installer.sh,tools/nsgoinstaller/**}",
       "level": "L1",
-      "why": "destructive operations: the Windows installer and its NSIS macros, which stop processes, remove a previous install, register protocol handlers and can delete the user's mail"
+      "why": "destructive operations: the Windows installers and their NSIS macros, which stop processes, remove a previous install, register protocol handlers and can delete the user's mail"
     },
     {
       "glob": "packaging/lodge/**",
