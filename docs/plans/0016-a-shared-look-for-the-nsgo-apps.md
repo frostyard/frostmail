@@ -894,6 +894,54 @@ stand-ins of its panes with the control map's controls (rule 11):
   (the tree's shape; nesting, folding and opening in the window). The
   tours' vault has a note in a folder inside a folder, so the kept
   pictures show the nesting.
+- **Frostnotes' toolbar, dialogs and Settings (2026-11-24), built**
+  (frostyard/frostnotes#281). It takes rules 3 to 7, and replaces the
+  helpers this phase names.
+  - **The toolbar.** The row of controls over the editor is gone. The
+    window's toolbar holds the vault's name over the open note's path and
+    state, New note as the window's one filled button, the editor's 2
+    modes as a segmented control, the note's and the vault's actions as
+    icon buttons, and a menu of the 2 a person seldom needs. A pane
+    under 660 wide keeps New note and one menu of the rest.
+  - **Dialogs.** A form is NSGo's dialog on the kit's panel, Cancel
+    first and quiet. The trash and the removal of a vault ask in the
+    alert dialog, by the note's or the vault's name, with the action in
+    the danger variant.
+  - **Notices and states.** What notesd says about the open note is a
+    `Banner` in its pane, in its real tone. A pane with no note is an
+    `EmptyState`, and a note or a tree still being read a skeleton.
+  - **Settings.** Manage vaults, a dialog of 5 filled buttons, is
+    Settings on NSGo's settings view, behind a gear at the navigation's
+    foot and mod+,, as FrostMail's is. It is shown in place of the
+    vault, and the tree and the editor are kept while it shows.
+  - **The style test** (`TestNoLiteralLooks` there) allows 2 numbers the
+    kit has no token for: the editor's inset, which waits on the kit's
+    spacing, and a Markdown heading's size in live preview.
+  - **Not done:** the window's size, place and pane widths are not kept
+    (rule 8), and nothing answers mod+F.
+  - **What it asks the kit for:** an `EmptyState` with buttons under its
+    hint (the pane of a device with no vault draws its own, from the
+    kit's tokens), and a scale for a document's headings.
+  - `make check` passes there; `make nsgo-live` on Xvfb's X11 passed 22
+    of 22, 5 of them new (the toolbar, the narrow window's menu,
+    Settings, Escape in a form, the style test). It keeps 24 pictures:
+    20 changed, 2 are new and 2 renamed.
+  - **In a browser,** under Lodge's development gateway
+    (`make nsgo-lodge-evidence` there, on the host, headless Firefox
+    153, a window 1160 by 760): its 4 browser tests passed, in 2 runs,
+    after 2 edits of the tests. One looked for a note among buttons,
+    and the rows are tree items; the other looked for Restore deleted
+    note outside the menu. The Notes frame is 1112 wide and the toolbar
+    shows its full set: measured in the page, no control is cut or over
+    another. The tests run in NSGo's touch presentation; with Firefox
+    set to report a fine pointer, the 4 passed once. The narrow
+    window's one menu was not tried in the browser.
+  - **Found there, not fixed:** in the web build, Escape does not close
+    a form while its text field has the keyboard, in either
+    presentation. It closes the alert, the menu and Quick open. In the
+    desktop client it closes the forms, headless and in a real window
+    (`TestEscapeLeavesAForm` there). Whether the web build did this
+    before the change was not checked. It is in Phase 6's list.
 
 ## Phase 6 — Upstream (S, alongside)
 
@@ -913,7 +961,9 @@ text an agent drafts:
   as 1 face of weight 400), a list's rows in the page in the order they
   are on screen, and a scroll view's content laid out in the width its
   scroll bar leaves (Phase 4e; FrostMail sets NSGo's own bars to keep
-  clear of it).
+  clear of it), and Escape in a dialog's text field, which does not
+  close the dialog (Phase 5, Frostnotes; the cause, NSGo's or the
+  app's, is not found).
 - **Done when:** each has an issue whose link is in the kit's spec, and the
   spec names the workaround to remove when it lands.
 
