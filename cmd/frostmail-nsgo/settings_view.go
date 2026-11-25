@@ -44,7 +44,12 @@ func rowButton(label string, icon func() *core.SVG, press func()) core.Node {
 
 // settings is the Settings module.
 func (w *workspace) settings(cx *core.Scope) core.Node {
-	category, query := core.NewSignal(cx, "accounts"), core.NewSignal(cx, "")
+	// Settings opens on Accounts, or on the category a caller asked for.
+	start := "accounts"
+	if w.settingsStart != "" {
+		start, w.settingsStart = w.settingsStart, ""
+	}
+	category, query := core.NewSignal(cx, start), core.NewSignal(cx, "")
 	identities, loadIdentities := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.AccountChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Identity, error) {
 		return func(ctx context.Context, c *api.Client) ([]api.Identity, error) {
 			return c.Identity().List(ctx, &api.IdentityListParams{})

@@ -129,8 +129,9 @@ React app's place in Lodge. The owner answered the plan's questions the
 same day. Of Phase 2, the NSGo client keeps its window, its panes' widths
 and how the list is shown (`cmd/frostmail-nsgo/window.go`), and records
 `bridge.socket_lost` as the MyGo client does, though no release stamps
-its version yet; the first-run welcome and the calendar's drags are not
-built, and the MyGo client is still the default.
+its version yet, and shows the first run's welcome
+(`cmd/frostmail-nsgo/welcome.go`); the calendar's drags are not built,
+and the MyGo client is still the default.
 
 ## Two kinds of agent work
 

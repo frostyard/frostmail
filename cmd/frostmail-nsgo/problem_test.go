@@ -21,10 +21,10 @@ func TestLostLocalSocketIsRecorded(t *testing.T) {
 	journal := problemstest.Listen(t)
 	rec := journal.Recorder(t, problems.ComponentShell)
 	var lost atomic.Int32
-	a, daemon := fixtureView(t, rootWith(func(err error) {
+	a, daemon := fixtureView(t, rootWith(clientOptions{socketLost: func(err error) {
 		lost.Add(1)
 		rec.Error(codeSocketLost, err)
-	}), "", 1280, 820, false)
+	}}), "", 1280, 820, false)
 	a.WaitFor("id:messages >> id:summary-when >> nth=0", 8*time.Second)
 	journal.None(t)
 	if err := daemon.Process.Kill(); err != nil {

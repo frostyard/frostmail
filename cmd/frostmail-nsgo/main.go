@@ -42,7 +42,7 @@ func main() {
 			slog.Warn("recording crashes", "err", err)
 		}
 	}
-	view := rootWith(func(err error) { rec.Error(codeSocketLost, err) })
+	view := rootWith(clientOptions{socketLost: func(err error) { rec.Error(codeSocketLost, err) }})
 	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, view) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820),
 		nsgo.WindowConstraints(core.WindowConstraints{MinWidth: minWidth, MinHeight: minHeight}))
 }
@@ -89,26 +89,43 @@ type workspace struct {
 	online          *core.Signal[bool]
 	// connected says the last report of the connection was a live one, so
 	// that its end is a loss.
-	connected    bool
-	dropping     bool
-	nav          *core.Signal[*moduleNav]
-	listWidth    *core.Signal[core.Points]
-	contentWidth *core.Signal[core.Points]
-	tier         *core.Memo[tier]
+	connected bool
+	// firstLook says this connection's accounts have not been looked at
+	// yet, for the first run. hostMail reports a host install's mail, and
+	// settingsStart is the category Settings opens on next.
+	firstLook     bool
+	hostMail      func() bool
+	settingsStart string
+	dropping      bool
+	nav           *core.Signal[*moduleNav]
+	listWidth     *core.Signal[core.Points]
+	contentWidth  *core.Signal[core.Points]
+	tier          *core.Memo[tier]
 }
 
 func invalidate(s *core.Signal[int]) { s.Set(s.GetUntracked() + 1) }
 
-// root is the client with nothing to tell of a lost socket: a test's.
-func root(cx *core.Scope) core.Node { return rootWith(nil)(cx) }
-
-// rootWith is the client. socketLost, when set, is told that maild's
-// local socket ended under the app.
-func rootWith(socketLost func(error)) func(*core.Scope) core.Node {
-	return func(cx *core.Scope) core.Node { return rootView(cx, socketLost) }
+// clientOptions are what the client's start is given.
+type clientOptions struct {
+	// socketLost, when set, is told that maild's local socket ended under
+	// the app.
+	socketLost func(error)
+	// hostMail reports whether the first run says how to move a host
+	// install's mail; nil asks the platform (hostMailFound).
+	hostMail func() bool
 }
 
-func rootView(cx *core.Scope, socketLost func(error)) core.Node {
+// root is the client as a test starts it: with nothing to tell of a lost
+// socket.
+func root(cx *core.Scope) core.Node { return rootWith(clientOptions{})(cx) }
+
+// rootWith is the client with its options.
+func rootWith(o clientOptions) func(*core.Scope) core.Node {
+	return func(cx *core.Scope) core.Node { return rootView(cx, o) }
+}
+
+func rootView(cx *core.Scope, o clientOptions) core.Node {
+	socketLost := o.socketLost
 	cx.SetTitle("FrostMail")
 	// The Frostyard look and the bundled Inter (plan 0016, rule 1). A font
 	// the platform refuses leaves the text in the system's face.
@@ -187,6 +204,9 @@ func rootView(cx *core.Scope, socketLost func(error)) core.Node {
 				w.resetPhotos(c)
 				w.checkReminders()
 				w.status.Set(st.Target.String())
+				// The first look at this connection's accounts decides whether
+				// the first run opens the account's dialog.
+				w.firstLook = true
 				w.online.Set(true)
 				w.connected = true
 				w.openView()
@@ -211,6 +231,15 @@ func rootView(cx *core.Scope, socketLost func(error)) core.Node {
 			}
 		})
 	}})
+	w.hostMail = o.hostMail
+	if w.hostMail == nil {
+		w.hostMail = hostMailFound
+	}
+	w.watchFirstRun(cx)
+	// The content follows whether the store has no account, and not every
+	// change of the store: the list and its search field are not built
+	// again as mail arrives.
+	firstRun := core.NewMemo(cx, w.needsFirstRun)
 	w.commands()
 	w.platformStart()
 	go w.session.Run(ctx)
@@ -258,6 +287,13 @@ func rootView(cx *core.Scope, socketLost func(error)) core.Node {
 				return w.activity(cx)
 			case "Settings":
 				return w.settings(cx)
+			}
+			// A store with no account shows the welcome in place of the
+			// modules. Settings and Activity, which need none, stay.
+			if firstRun.Get() {
+				return w.welcome(cx)
+			}
+			switch w.module.Get() {
 			case "People":
 				return w.people(cx)
 			case "Tasks":

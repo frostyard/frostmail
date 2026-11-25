@@ -149,6 +149,27 @@ name MyGo.
     1 of them new: the fixture's maild is ended under the client, 1
     record reaches a test journal, and the retries that follow add
     none. The test fails with the mark of a live connection taken out.
+- **The first run (2026-11-24), built**
+  ([specs/ui.md](../specs/ui.md#first-run-m6)). A store with no account
+  shows a welcome in place of Mail, Calendar, People and Tasks: "Add
+  Account…", the pane's one filled button, and, on this computer's
+  maild, "Connect to lodge…", which opens Settings on Server. The first
+  look at a connection that has no account opens the account's dialog
+  itself, once. In the release Flatpak beside a host install's mail the
+  welcome gives the 3 commands that move it, and a dismissal is kept on
+  the device (`cmd/frostmail-nsgo/welcome.go`).
+  - Different from the MyGo client: the client is 1 window, so "Add
+    Account…" and the first look open the account's dialog over the
+    welcome, not a Settings window; and a dismissal of the note in the
+    MyGo client is not read, so the note shows once more after the
+    switch.
+  - Seen, not changed: the account's dialog has no Cancel button, and
+    closes by Escape. `accounts.go` holds it.
+  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 45 passed,
+    5 of them new (the welcome and its 2 buttons; the note and its
+    dismissal; a dismissed note stays away; a store with accounts shows
+    no welcome; the pictures). 2 pictures are new, and the agent looked
+    at 1, the welcome with the note.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

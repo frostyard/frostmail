@@ -81,6 +81,14 @@ func fixtureWith(t *testing.T, smtp string, width, height core.Points, dark bool
 // that ends it.
 func fixtureView(t *testing.T, view func(*core.Scope) core.Node, smtp string, width, height core.Points, dark bool, options ...nsgotest.Option) (*nsgotest.App, *exec.Cmd) {
 	t.Helper()
+	return fixtureStart(t, view, true, smtp, width, height, dark, options...)
+}
+
+// fixtureStart starts view on a maild of its own. With seed its store
+// holds the showcase's accounts and mail; without, it holds nothing, as a
+// first run's does.
+func fixtureStart(t *testing.T, view func(*core.Scope) core.Node, seed bool, smtp string, width, height core.Points, dark bool, options ...nsgotest.Option) (*nsgotest.App, *exec.Cmd) {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "fm-ui-")
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +114,9 @@ func fixtureView(t *testing.T, view func(*core.Scope) core.Node, smtp string, wi
 	if smtp != "" {
 		args = append(args, "-smtp", smtp)
 	}
-	run(args...)
+	if seed {
+		run(args...)
+	}
 	bin := filepath.Join(dir, "maild")
 	run("build", "-o", bin, "./cmd/maild")
 	daemon := exec.CommandContext(t.Context(), bin)
