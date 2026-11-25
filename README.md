@@ -32,7 +32,10 @@ also serve a phone or a browser on your tailnet through
   Me. [M5](docs/plans/0008-m5-mail-app-parity.md)
 - **maild** is a per-user Go daemon that owns sync, a SQLite cache with
   full-text search, and a JSON-RPC socket. [Overview](docs/design/overview.md)
-- **The app** is a native Go app on MyGo and frostui.
+- **The app** is a native Go app on NSGo and Frostyard's kit
+  ([ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)). The
+  earlier client, on MyGo and frostui, is still the Windows installer's
+  program, and the Flatpak holds it for 1 more release.
   [Desktop design](docs/design/desktop.md)
 - **mailctl** is a command-line client of the same socket.
 - **Mail in lodge:** lodge serves a React web app of the same mail, built
@@ -43,15 +46,16 @@ flags, threads and an HTML itinerary in the reader](docs/images/main.png)
 
 | | |
 | --- | --- |
-| ![Frostyard light, reading a conversation](docs/images/main-light.png) | ![Searching every mailbox for “aurora”](docs/images/search.png) |
-| ![Replying in a compose window](docs/images/compose.png) | ![Account settings](docs/images/settings.png) |
-| ![People: a contact with recent mail and upcoming events](docs/images/people.png) | ![The Calendar's week with an event's details](docs/images/calendar.png) |
-| ![Tasks: lists, a subtask, due dates and the task pane](docs/images/tasks.png) | ![Mail with the To-Do bar: the month, what is next and what is due](docs/images/todo-bar.png) |
-| ![An invitation answered from the reader](docs/images/invitation.png) | ![The Calendar's month with the accepted invitation's details](docs/images/calendar-month.png) |
+| ![Frostyard light, reading a message](docs/images/main-light.png) | ![Several messages chosen, for the toolbar to act on](docs/images/search.png) |
+| ![Writing a message](docs/images/compose.png) | ![Settings](docs/images/settings.png) |
+| ![People](docs/images/people.png) | ![The Calendar's week, laid out by time](docs/images/calendar.png) |
+| ![Tasks](docs/images/tasks.png) | ![Mail with the To-Do Bar](docs/images/todo-bar.png) |
+| ![An invitation in the reader](docs/images/invitation.png) | ![The Calendar's month](docs/images/calendar-month.png) |
 
-<sub>The screenshots show the native desktop app on Linux, in its Frostyard
-theme and once in Frostyard light, on made-up mail
-(`tools/uifixture/showcase`).</sub>
+<sub>The screenshots show the desktop app on Linux, in Frostyard light and
+once in the Frostyard theme, on made-up mail (`tools/uifixture/showcase`).
+They are the app's own test suite's pictures
+(`cmd/frostmail-nsgo/comparison/linux`).</sub>
 
 ## Install
 
@@ -118,7 +122,7 @@ Linux, Windows and Lodge can run the same Go workspace against maild. Mail, draf
 | Build | How to open it |
 | --- | --- |
 | Linux checkout | Run `make nsgo-build`, start maild, then run `build/frostmail-nsgo`. |
-| Candidate Flatpak | Run `flatpak run --env=FROSTMAIL_UI=nsgo org.frostyard.Frostmail`. |
+| Flatpak | It is the app the Flatpak opens. `flatpak run --env=FROSTMAIL_UI=mygo org.frostyard.Frostmail` opens the MyGo client, which the Flatpak holds for 1 more release. |
 | Candidate Windows installer | Open `frostmail-nsgo.exe` from the Frostmail installation directory. |
 | Lodge | Run `make nsgo-lodge-app` and use `build/nsgo-lodge/apps/mail` as the Mail app directory in a test Lodge. It uses the signed-in Lodge session. |
 

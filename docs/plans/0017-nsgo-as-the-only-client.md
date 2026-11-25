@@ -220,6 +220,21 @@ name MyGo.
     blocks; in a real window, a block drawn, moved 30 minutes, resized
     15 and moved a day in the week; the pictures). 2 pictures are new,
     the week and the day, and the agent looked at the week.
+- **The switch (2026-11-24), built; no release holds it.** The NSGo
+  client's package has the released app's id, `org.frostyard.Frostmail`
+  (it was the preview's). The Flatpak's launcher starts it, and
+  `FROSTMAIL_UI=mygo` starts the MyGo client. The README's and the
+  metainfo's pictures are the NSGo suite's (plan 0016, Phase 4).
+  - The Flatpak's smoke test holds the launcher: a start with no
+    `FROSTMAIL_UI` runs the NSGo client and no other, and
+    `FROSTMAIL_UI=mygo` the MyGo client, each with a notification's
+    arguments. It runs in the Flatpak's build, in CI.
+  - Not known, and what the gate is for: how the client behaves in the
+    real Flatpak (its storage under the new id, a second start handed
+    to the first, a notification's click, the tray), and a person's
+    first run in it.
+  - What is left of this phase is the owner's: a candidate tag, and
+    plan 0013's clean-install gate on it.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

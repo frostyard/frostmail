@@ -118,8 +118,9 @@ Settings on NSGo's settings view (`cmd/frostmail-nsgo/settings_view.go`),
 rows in the navigation (`cmd/frostmail-nsgo/modules.go`), are built. Of
 4e, the narrow layout and Lodge's web build are checked in a browser, and
 the style test of rule 2 is on with no exception (`TestNoLiteralLooks`;
-the paddings take the kit's spacing, `workspaceui/v0.4.0`); the README's
-pictures are left. The MyGo client stays the default.
+the paddings take the kit's spacing, `workspaceui/v0.4.0`), and the
+README's pictures are the NSGo suite's. Recipients on NSGo's tag input
+are left, which waits on NSGo.
 
 Plan 0017 ([NSGo as the only client](docs/plans/0017-nsgo-as-the-only-client.md))
 and [ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)
@@ -128,12 +129,15 @@ the default on the desktop, MyGo removed on Linux and Windows, then the
 React app's place in Lodge. The owner answered the plan's questions the
 same day. Of Phase 2, the NSGo client keeps its window, its panes' widths
 and how the list is shown (`cmd/frostmail-nsgo/window.go`), and records
-`bridge.socket_lost` as the MyGo client does, though no release stamps
-its version yet, and shows the first run's welcome
+`bridge.socket_lost` as the MyGo client does, under the release's version,
+and shows the first run's welcome
 (`cmd/frostmail-nsgo/welcome.go`), and lays the day and the week out by
 time, where a drag moves, resizes and draws an event
-(`cmd/frostmail-nsgo/calendar_time.go`). The package's id and the switch
-of the default are left, and the MyGo client is still the default.
+(`cmd/frostmail-nsgo/calendar_time.go`). Its package has the released
+app's id, and **the Flatpak's launcher starts it**: `FROSTMAIL_UI=mygo`
+starts the MyGo client, which the Flatpak holds for 1 release. No release
+holds this yet, and Phase 2's clean-install gate is not run. The Windows
+installer's program is still the MyGo client (Phase 3).
 
 ## Two kinds of agent work
 

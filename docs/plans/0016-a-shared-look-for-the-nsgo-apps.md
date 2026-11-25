@@ -895,8 +895,11 @@ stand-ins of its panes with the control map's controls (rule 11):
       client's own frame, which painted no ground, is gone.
     - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 37
       passed. 34 of the 37 kept pictures changed.
-  - **Left of 4e:** the README's pictures, which stay the default
-    client's while that is the MyGo one.
+  - **The README's pictures (2026-11-24)** are the NSGo suite's, copied
+    to `docs/images`, with the switch of the default (plan 0017, Phase
+    2). Of this phase's "Done when", the control map's row of
+    recipients is still true: they are fields with suggestions, not
+    `ui.TagInput` (4c).
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 
