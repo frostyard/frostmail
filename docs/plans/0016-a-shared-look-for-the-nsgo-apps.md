@@ -532,7 +532,9 @@ stand-ins of its panes with the control map's controls (rule 11):
     several chosen the reader names their count, and the toolbar's
     Delete, Flag and Move act on them all, with Mark as read, Mark as
     unread, Clear flags and Apply mail rules in More. Archive and Junk
-    wait for one message, as the old menu of a selection had neither.
+    waited for one message, as the old menu of a selection had neither;
+    since frostyard/frostmail#402 they act on them all, each message
+    going to its own account's mailbox.
   - **Over the rows.** The kit's `SearchField`, which names the source and
     whose button ends a search; a segment of All, Unread and Flagged; a
     menu of the other filters; and a Sort menu, which also holds Show

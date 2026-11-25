@@ -28,7 +28,7 @@ func (w *workspace) messageReader(cx *core.Scope) core.Node {
 		case id != 0:
 			return workspaceui.Page(ui.Skeleton{Avatar: true, Lines: 3, Label: "Loading message"})
 		case chosen > 1:
-			return workspaceui.EmptyState{Icon: lucide.Mails, Title: strconv.Itoa(chosen) + " messages selected", Hint: "Delete, flag or move them from the toolbar."}
+			return workspaceui.EmptyState{Icon: lucide.Mails, Title: strconv.Itoa(chosen) + " messages selected", Hint: "Archive, delete, flag or move them from the toolbar."}
 		}
 		return workspaceui.EmptyState{Icon: lucide.MailOpen, Title: "No message selected", Hint: "Choose a message to read it here."}
 	}

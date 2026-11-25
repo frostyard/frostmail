@@ -172,7 +172,11 @@ func (w *workspace) moveMessage(m api.MessageSummary, b api.Mailbox) func(contex
 	ids, undo := []int64{m.ID}, w.undo
 	p := mail.MoveParams(ids, b, w.source, w.store.State().Mailboxes)
 	return func(ctx context.Context, c *api.Client) error {
-		_, err := undo.Move(ctx, c, ids, func() error { return c.Message().Move(ctx, p) })
+		after, err := undo.Move(ctx, c, ids, func() error { return c.Message().Move(ctx, p) })
+		if err == nil && reached(after, map[int64]int64{m.ID: b.ID}) == 0 {
+			// maild left it where it was, and said nothing.
+			err = errStillMoving
+		}
 		return err
 	}
 }

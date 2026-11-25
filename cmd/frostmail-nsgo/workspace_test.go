@@ -639,6 +639,57 @@ func TestListChoosesSeveralMessages(t *testing.T) {
 	a.WaitFor("text:No message selected", 5*time.Second)
 }
 
+// TestArchiveAndJunkSeveralMessages checks Archive and Junk with several
+// messages chosen, of 2 accounts: each goes to its own account's mailbox,
+// one toast answers for all of them, and Junk reads "Not junk" for
+// messages that are all in Junk (#402).
+func TestArchiveAndJunkSeveralMessages(t *testing.T) {
+	a := fixtureWorkspace(t)
+	// One message of each account, in All Inboxes.
+	trip, standup := "id:messages >> label:Your trip to Lisbon: itinerary", "id:messages >> label:Standup moved to 10:30"
+	choose := func(first, second string) {
+		t.Helper()
+		a.WaitFor(first, 8*time.Second)
+		a.Press(first)
+		a.PressWith(second, core.Modifiers{Control: true})
+		a.WaitFor("text:2 messages selected", 5*time.Second)
+	}
+	choose(trip, standup)
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Archive") })
+	a.Press("role:toolbar >> label:Archive")
+	a.WaitFor("id:undo >> text:2 messages archived", 8*time.Second)
+	a.WaitForGone(trip, 8*time.Second)
+	a.WaitForGone(standup, 8*time.Second)
+	a.Find("id:undo >> role:button Undo")
+	a.Press("id:mailbox-role:archive")
+	a.WaitFor(trip, 8*time.Second)
+	a.WaitFor(standup, 8*time.Second)
+
+	a.Press("id:mailbox-all-inboxes")
+	dinner, hiring := "id:messages >> label:Dinner Saturday?", "id:messages >> label:Hiring panel on Friday"
+	choose(dinner, hiring)
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Junk") })
+	a.Press("role:toolbar >> label:Junk")
+	a.WaitFor("id:undo >> text:2 messages moved to Junk", 8*time.Second)
+	a.WaitForGone(dinner, 8*time.Second)
+	a.Press("id:mailbox-role:junk")
+	choose(dinner, hiring)
+	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Not junk") })
+	if a.Exists("role:toolbar >> label:Junk") {
+		t.Error("with 2 messages of Junk chosen, the toolbar still offers Junk")
+	}
+	a.Press("role:toolbar >> label:Not junk")
+	// The fixture's maild does not sync, so the move to Junk has not
+	// reached a server, and maild leaves such a message where it is with
+	// no error. The client says so, and claims no move.
+	a.WaitFor("text:still moving on the server", 8*time.Second)
+	if a.Exists("id:undo >> text:moved to Inbox") {
+		t.Error("the client says the messages moved to Inbox, and maild left them in Junk")
+	}
+	a.Find(dinner)
+	a.Find(hiring)
+}
+
 // TestSearchAndFilterTheList checks the search field and the filter: a
 // search narrows the list, one with no match says so, the field's button
 // ends it, and the Flagged tab shows the flagged messages alone.
