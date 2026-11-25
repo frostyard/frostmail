@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -281,8 +283,81 @@ func (w *workspace) listOptions() core.Node {
 	})
 }
 
+// chosenRows are the chosen messages the list holds, of the accounts that
+// can be changed.
+func (w *workspace) chosenRows(ids []int64) []api.MessageSummary {
+	if w.view == nil {
+		return nil
+	}
+	return slices.DeleteFunc(w.view.Rows(ids), func(r api.MessageSummary) bool { return !w.writable(r.AccountID) })
+}
+
+// moveGroups moves each account's share of a selection to its own
+// mailbox, as one action that one Undo takes back, and answers with how
+// many messages went, done saying where: "archived", "moved to Junk".
+func (w *workspace) moveGroups(groups []mail.MoveGroup, done string) {
+	undo, boxes := w.undo, w.store.State().Mailboxes
+	var ids []int64
+	params := make([]*api.MessageMoveParams, 0, len(groups))
+	for _, g := range groups {
+		ids = append(ids, g.IDs...)
+		params = append(params, mail.MoveParams(g.IDs, g.To, w.source, boxes))
+	}
+	to := map[int64]int64{}
+	for _, g := range groups {
+		for _, id := range g.IDs {
+			to[id] = g.To.ID
+		}
+	}
+	var moved int
+	w.change(func(ctx context.Context, c *api.Client) error {
+		after, err := undo.Move(ctx, c, ids, func() error {
+			for _, p := range params {
+				if err := c.Message().Move(ctx, p); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if moved = reached(after, to); moved == 0 {
+			return errStillMoving
+		}
+		return nil
+	}, func() {
+		w.selection.Clear()
+		count := fmt.Sprintf("%d messages", moved)
+		if moved == 1 {
+			count = "1 message"
+		}
+		w.moved(count + " " + done)()
+	})
+}
+
+// errStillMoving says maild left the messages where they were. It moves a
+// message again only once its earlier move has reached the server, and
+// answers a move it leaves out with no error.
+var errStillMoving = errors.New("the messages are still moving on the server; try again in a moment")
+
+// reached counts the messages of rows that are in the mailbox to gives
+// each: what a move did, as maild shows the messages after it.
+func reached(rows []api.MessageSummary, to map[int64]int64) int {
+	n := 0
+	for _, r := range rows {
+		if box, ok := to[r.ID]; ok && slices.Contains(r.MailboxIDs, box) {
+			n++
+		}
+	}
+	return n
+}
+
 // bulkTools are the toolbar's tools while several messages are chosen:
-// Delete, Flag and Move act on all of them, and the others wait for one.
+// Archive, Delete, Junk, Flag and Move act on all of them, and the others
+// wait for one. Archive and Junk send each message to its own account's
+// mailbox, and leave out a message whose account has none or cannot be
+// changed (#402).
 func (w *workspace) bulkTools(ids []int64) ([]toolGroup, []core.Node) {
 	groups, _ := w.messageTools(nil)
 	undo := w.undo
@@ -302,6 +377,17 @@ func (w *workspace) bulkTools(ids []int64) ([]toolGroup, []core.Node) {
 				return err
 			}, func() { finished(); w.moved(fmt.Sprintf("%d messages deleted", len(ids)))() })
 		})
+	}
+	boxes, rows := w.store.State().Mailboxes, w.chosenRows(ids)
+	if archive := mail.ArchiveGroups(rows, boxes); len(archive) > 0 {
+		file[0].run = func() { w.moveGroups(archive, "archived") }
+	}
+	if unjunk, junk := mail.SpamGroups(rows, boxes); len(junk) > 0 {
+		to := "moved to Junk"
+		if unjunk {
+			file[2].label, file[2].icon, to = "Not junk", lucide.ShieldCheck, "moved to Inbox"
+		}
+		file[2].run = func() { w.moveGroups(junk, to) }
 	}
 	mark[0].run = func() {
 		w.change(func(ctx context.Context, c *api.Client) error {
