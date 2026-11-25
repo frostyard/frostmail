@@ -16,6 +16,13 @@ core=github.com/nsgo-dev/nsgo/core
 # FROSTMAIL_VERSION is the release's version, which the client's problem
 # records carry (internal/problemrec): a release's build sets it. Any other
 # build is "dev", and records nothing.
+# A release's version, MAJOR.MINOR.PATCH, is the app's own too, in place of
+# the manifest's: what the window and the platform show is the release's.
+case "${FROSTMAIL_VERSION:-}" in
+    *[!0-9.]* | "" | .* | *. | *..*) ;;
+    *.*.*.*) ;;
+    *.*.*) version=$FROSTMAIL_VERSION ;;
+esac
 flags="-s -w -X '$core.appID=$id' -X '$core.appName=$name' -X '$core.appVersion=$version' -X 'main.version=${FROSTMAIL_VERSION:-dev}'"
 if [ "${GOOS:-}" = windows ]; then
     flags="$flags -H=windowsgui"

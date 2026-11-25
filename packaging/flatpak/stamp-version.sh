@@ -11,6 +11,11 @@
 # names itself flatpak, its app records no problems, and no release is
 # listed before one exists.
 #
+# The manifest names the version twice: in the ldflags of the MyGo client,
+# maild and mailctl, and in FROSTMAIL_VERSION, which the NSGo client's build
+# takes it from (scripts/build-nsgo-native.sh). Both are stamped, so that
+# the 2 clients of a release record their problems under 1 version.
+#
 # Frostmail releases by promotion (plan 0013, Phase 10): a candidate tag
 # vX.Y.Z-rc.N builds the image that Promote later releases as vX.Y.Z, so the
 # workflow passes X.Y.Z, never the -rc.N part, and the date is the UTC date of
@@ -24,7 +29,7 @@
 #               directory when omitted.
 #
 # The files are edited in place, and the script stops at the first doubt: a
-# version it has already stamped, a manifest without the text it replaces, or
+# version it has already stamped, a manifest without either text it replaces, or
 # a metainfo without exactly one <releases>.
 set -eu
 
@@ -57,6 +62,10 @@ old='-X main.version=flatpak'
 new="-X main.version=$version -X main.commit=$commit"
 found=$(grep -oF -- "$old" "$manifest" | wc -l)
 [ "$found" -eq 1 ] || die "$manifest holds '$old' $found times, want exactly once"
+nsgo_old='FROSTMAIL_VERSION=flatpak'
+nsgo_new="FROSTMAIL_VERSION=$version"
+found=$(grep -oF -- "$nsgo_old" "$manifest" | wc -l)
+[ "$found" -eq 1 ] || die "$manifest holds '$nsgo_old' $found times, want exactly once"
 found=$(grep -oF '<releases>' "$metainfo" | wc -l)
 [ "$found" -eq 1 ] || die "$metainfo holds <releases> $found times, want exactly once"
 if grep -Fq "version=\"$version\"" "$metainfo"; then
@@ -69,6 +78,11 @@ sed -i "s/-X main\.version=flatpak/-X main.version=$version -X main.commit=$comm
 grep -Fq -- "$new" "$manifest" || die "$manifest did not take the stamp"
 if grep -Fq -- "$old" "$manifest"; then
 	die "$manifest still holds '$old'"
+fi
+sed -i "s/FROSTMAIL_VERSION=flatpak/FROSTMAIL_VERSION=$version/" "$manifest"
+grep -Fq -- "$nsgo_new" "$manifest" || die "$manifest did not take the NSGo client's stamp"
+if grep -Fq -- "$nsgo_old" "$manifest"; then
+	die "$manifest still holds '$nsgo_old'"
 fi
 
 # The metainfo: the new release goes first, so it is the newest that
