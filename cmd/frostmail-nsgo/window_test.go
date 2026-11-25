@@ -13,6 +13,12 @@ import (
 	"github.com/nsgo-dev/nsgo/nsgotest"
 )
 
+// windowKey is where the kit keeps the window (workspaceui.KeepWindow),
+// and keptWindow what it keeps there.
+const windowKey = "window"
+
+type keptWindow struct{ Width, Height core.Points }
+
 // keptIn reads a kept value from the app's storage.
 func keptIn[T any](a *nsgotest.App, key string) (v T, ok bool) {
 	text, ok := a.Storage().GetItem(key)
@@ -104,5 +110,30 @@ func TestKeptWindowShowsAtStart(t *testing.T) {
 	a.WaitFor("label:Show conversations", 5*time.Second)
 	if k, kept := keptIn[keptView](a, viewKey); !kept || k.Sort != "no-such-sort" {
 		t.Errorf("the start rewrote what the device kept: %+v", k)
+	}
+}
+
+// TestTodoBarIsKept checks that the To-Do Bar opens as the device kept it,
+// and that opening and closing it is kept.
+func TestTodoBarIsKept(t *testing.T) {
+	a := fixtureWith(t, "", 1280, 820, false, nsgotest.Storage(map[string]string{todoKey: `true`}))
+	a.WaitFor("label:New task title", 8*time.Second)
+	a.Press("label:To-Do Bar")
+	a.WaitForGone("label:New task title", 5*time.Second)
+	a.WaitUntil(5*time.Second, func() bool { open, ok := keptIn[bool](a, todoKey); return ok && !open })
+	a.Press("label:To-Do Bar")
+	a.WaitFor("label:New task title", 5*time.Second)
+	a.WaitUntil(5*time.Second, func() bool { open, _ := keptIn[bool](a, todoKey); return open })
+}
+
+// TestTodoBarStartsShutWithNothingKept checks a first start.
+func TestTodoBarStartsShutWithNothingKept(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.WaitFor("id:messages >> label:3 messages", 8*time.Second)
+	if a.Exists("label:New task title") {
+		t.Error("the To-Do Bar is open at a first start")
+	}
+	if _, kept := a.Storage().GetItem(todoKey); kept {
+		t.Error("the To-Do Bar's state is kept before it changed")
 	}
 }

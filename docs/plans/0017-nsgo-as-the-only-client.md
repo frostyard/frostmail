@@ -29,7 +29,7 @@ is no record of a check.
 | In Lodge | the React app | NSGo's web build | NSGo's web build, outside Lodge |
 | Windows | MyGo's installer, which also holds `frostmail-nsgo.exe` and does not start it | no build | no build shipped |
 | macOS, iPad, iPhone | none | none | MyGo only, built by hand on a Mac |
-| How far NSGo is from MyGo | near: the list below | far: the list below | near on Linux; MyGo is the only client of 3 platforms |
+| How far NSGo is from MyGo | near: the list below | far: the list below | far, and MyGo is the only client of 3 platforms (corrected below) |
 | Last release | `v0.4.0` | `v0.8.0` | candidates `v0.1.0-rc.1` to `rc.4`; no release |
 
 **What MyGo does that NSGo does not, FrostMail:** the first-run welcome
@@ -67,6 +67,15 @@ and writes off, as NSGo does by default (checked in the code,
 2026-11-24: the view sets neither `AllowClipboardRead` nor
 `AllowClipboardWrite`), and has no test that holds it, as MyGo's has.
 
+**PocketGo, corrected (2026-11-24).** The paragraph above is short of
+what the 2 clients' code shows. Read side by side for PocketGo's own
+plan (frostyard/pocketgo#176), the MyGo client shows 17 groups of things
+the NSGo client does not: failed and loading states with a way to try
+again, a run's failures, lessons in force, the status bar's counts and
+usage, most of the work board's sentences, the Terminal place's states,
+approve and merge's texts, and more. That plan holds the list. Nothing
+was run for it.
+
 **What a removal deletes or must first split.** In FrostMail the NSGo
 client imports packages that import MyGo (`internal/desktop/compose`,
 `organize`, `settings`, `uikit`, `mail`, `icons`) for their plain helpers,
@@ -100,6 +109,14 @@ name MyGo.
   part, which Frostnotes and FrostMail each have in their own code
   (frostyard/frostnotes#285; Phase 2 here), and a `Shell` that says
   whether its side panel is open and takes it at the start.
+- **Built (2026-11-24).** The kit has the 6 with their tests
+  (frostyard/frostui#79), and the owner tagged `workspaceui/v0.5.0`,
+  then `v0.5.1` with the kept window's fix (frostyard/frostui#80; Phase
+  3's second look on Windows). FrostMail takes `v0.5.1`: a flag's row of the navigation draws its icon in
+  its flag's color (#401), the kit's `KeepWindow` keeps the window in
+  place of the client's own code, under the same key, and the To-Do Bar
+  opens as it was left (`todo-bar` in the client's storage). Left:
+  Frostnotes and PocketGo take it.
 - **Done when:** the kit is tagged with them, the 3 clients take it, and
   no client's style test lists an exception.
 
@@ -273,6 +290,45 @@ name MyGo.
     second start, a link, an attachment, print, a sign-in, the kept
     window, and the installer, which still starts the MyGo client. The
     pictures were sent to the owner and are not kept.
+- **A second look on Windows (2026-11-24).** The same build, of before
+  #423 and the kit's `v0.5.0`, in the same VM and fixture, driven from
+  the desktop session by scripts: another program's `MoveWindow` for
+  the window, Windows' `SendKeys` for the keyboard, and a pointer's
+  click. What was seen, in the window's frame as Windows gives it, the
+  client's storage file and pictures of the screen:
+  - **The window opened** 960 by 732 at the screen's top left, on a
+    screen of 1280 by 800.
+  - **The kept window comes back smaller.** Left 1000 by 640 at 60, 20,
+    the storage held `window` as 984 by 631 at 60, 20, placed. After a
+    restart the window was 984 by 631 at 60, 20: 16 narrower and 9
+    shorter than it was left. The client keeps its content's size, and
+    asks for it at a start as the window's. The kit's `v0.5.1` keeps
+    the window's own size (frostyard/frostui#80). Seen with it, in the
+    same VM: left 1040 by 660 at 80, 30, the window came back 1040 by
+    660 at 80, 30, and the navigation's Red and Orange rows drew in
+    their flags' colors.
+  - **The least size holds.** Asked for 300 by 200, the window took 496
+    by 369, and the storage held 480 by 360.
+  - **A second start** ended by itself within 6 seconds with code 0,
+    and 1 process with its window was left. Whether the window came to
+    the front was not looked at.
+  - **Keys.** Ctrl+K opened the palette, whose items show their keys
+    as Windows writes them; Escape closed it; Ctrl+N opened Compose;
+    Ctrl+comma opened Settings.
+  - **Typing.** Text typed into Cc and Bcc showed there, Tab moved
+    between the fields, and a word that is no address was named under
+    them. Discard asked in an alert, and its Discard draft closed
+    Compose.
+  - **Compose opens with no field holding the keyboard:** text typed
+    before a Tab went nowhere, 2 times of 2. No code of the client
+    gives a field the focus there, so this is not Windows' alone.
+  - **Seen once, and not explained:** after Escape closed Compose, the
+    focus ring was on an account's header in the navigation, and
+    Ctrl+N opened nothing, 2 presses. With a row of the navigation
+    pressed first, it opened.
+  - **Not tried:** a send, a notification, the tray, a link, an
+    attachment, print, a sign-in, a maximized window, and the
+    installer. The pictures are not kept.
 - **Done when:** `go.mod` names neither `github.com/egoist/mygo` nor
   frostui's root module, `make ci` passes, and the owner releases the
   version (`make bump`, then Promote).

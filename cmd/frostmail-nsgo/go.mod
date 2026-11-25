@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/frostyard/frostmail v0.0.0
 	github.com/frostyard/frostui v0.10.1
-	github.com/frostyard/frostui/workspaceui v0.4.0
+	github.com/frostyard/frostui/workspaceui v0.5.1
 	github.com/frostyard/std v0.5.0
 	github.com/nsgo-dev/nsgo v0.3.0
 )
