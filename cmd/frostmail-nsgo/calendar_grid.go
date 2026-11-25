@@ -29,7 +29,10 @@ func dayOccurrences(rows []api.Occurrence, day time.Time) []api.Occurrence {
 	return events
 }
 
-func calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[]api.Occurrence], openDay func(time.Time), show func(api.Occurrence), create func(time.Time)) core.Node {
+// calendarGrid draws the days of a day, a week or a month. In the week
+// and the month an occurrence that movable allows is dragged to another
+// day's cell, and move is told by how many days.
+func (w *workspace) calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[]api.Occurrence], openDay func(time.Time), show func(api.Occurrence), create func(time.Time), movable func(api.Occurrence) bool, move func(api.Occurrence, int)) core.Node {
 	y, m, d := at.Date()
 	start := time.Date(y, m, d, 0, 0, 0, 0, at.Location())
 	days := 1
@@ -55,9 +58,14 @@ func calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[
 		if !o.AllDay {
 			label = o.Start.In(day.Location()).Format("15:04") + "  " + label
 		}
-		return base.Button{Label: o.Summary, OnPress: func(core.PressEvent) { show(o) }, StyleFunc: func() core.Style {
+		var block core.Node = base.Button{Label: o.Summary, OnPress: func(core.PressEvent) { show(o) }, StyleFunc: func() core.Style {
 			return core.Style{Background: ui.Alpha(colors.Accent(), .13), Padding: core.All(workspaceui.SpaceXS), CornerRadius: ui.RadiusSmall}
 		}, Children: []core.Node{core.Text{Content: label, MaxLines: 2, Style: ui.TypeCaption}}}
+		// A day shows 1 day: there is no other to drag to.
+		if mode != "Day" && movable(o) {
+			block = w.dragEvent(cx, o, day.Format(time.DateOnly), block)
+		}
+		return block
 	}
 	return core.Dynamic(func(*core.Scope) core.Node {
 		occurrences := rows.Get()
@@ -95,7 +103,11 @@ func calendarGrid(cx *core.Scope, at time.Time, mode string, rows *core.Signal[[
 					nodes = append(nodes, ui.Button{Text: fmt.Sprintf("+%d more", len(events)-count), Variant: ui.ButtonGhost, OnPress: func() { openDay(day) }})
 				}
 			}
-			week = append(week, core.View{StyleFunc: cellStyle, Children: nodes})
+			if mode == "Day" {
+				week = append(week, core.View{StyleFunc: cellStyle, Children: nodes})
+			} else {
+				week = append(week, w.dayTarget(day, cellStyle, nodes, move))
+			}
 			if len(week) == 7 || n+1 == days {
 				height := core.Points(98)
 				if mode == "Week" {

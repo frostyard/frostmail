@@ -74,6 +74,18 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 	picker := ui.DatePicker{Label: "Choose date", Value: func() base.DateValue { return base.DateValue{Start: day.Get()} }, OnChange: func(v base.DateValue) { day.Set(v.Start); load() }}
 	w.useNav(cx, w.collectionNav(cx, "Calendars", "All calendars", lucide.Calendar, func(c api.Collection) bool { return c.Events }, cal, load))
 	show := func(o api.Occurrence) { w.showOccurrence(o, load) }
+	// The calendars the user may write to: an occurrence of another does
+	// not move by a drag.
+	calendars := w.collections(cx)
+	writable := func() map[int64]bool {
+		out := map[int64]bool{}
+		for _, c := range calendars() {
+			if c.Events && !c.ReadOnly {
+				out[c.ID] = true
+			}
+		}
+		return out
+	}
 	agenda := collectionList(rows, "Calendar events", func(o api.Occurrence) string { return o.Summary }, func(o api.Occurrence) string {
 		if o.AllDay {
 			return o.StartDate + " · All day"
@@ -116,8 +128,10 @@ func (w *workspace) calendar(cx *core.Scope) core.Node {
 		if query.Get() != "" || owner.Env().Window().Width < 720 {
 			return agenda
 		}
-		return calendarGrid(owner, date, mode, rows, func(at time.Time) { day.Set(at); span.Set("Day"); load() }, show, func(at time.Time) {
+		return w.calendarGrid(owner, date, mode, rows, func(at time.Time) { day.Set(at); span.Set("Day"); load() }, show, func(at time.Time) {
 			w.eventForm(api.CalendarEvent{Start: at, End: at.Add(time.Hour), CalendarID: cal.GetUntracked()}, nil, load)
+		}, func(o api.Occurrence) bool { return canMove(o, writable()) }, func(o api.Occurrence, days int) {
+			w.dropOccurrence(o, days, date.Location(), load)
 		})
 	})}}
 }
