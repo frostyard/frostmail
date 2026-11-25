@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -12,7 +13,9 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/live"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
+	"github.com/frostyard/frostmail/internal/problemrec"
 	"github.com/frostyard/frostui/workspaceui"
+	"github.com/frostyard/std/problems"
 	"github.com/nsgo-dev/nsgo"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/base/dragdrop"
@@ -21,9 +24,26 @@ import (
 	"github.com/nsgo-dev/nsgo/ui"
 )
 
+// version is the build's version: a release's is stamped at its build
+// (scripts/build-nsgo-native.sh), and any other build is "dev", which
+// records no problem (internal/problemrec).
+var version = "dev"
+
+// codeSocketLost is the problem record of maild's local socket ending
+// under the app (ADR-0049), as the MyGo client records it.
+const codeSocketLost = "bridge.socket_lost"
+
 func main() {
 	prepareLaunch()
-	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, root) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820),
+	rec := problemrec.New(version, problems.ComponentShell)
+	defer rec.RecoverPanic()
+	if rec.Err() == nil { // an unreleased build records nothing
+		if err := rec.CrashOutput(); err != nil {
+			slog.Warn("recording crashes", "err", err)
+		}
+	}
+	view := rootWith(func(err error) { rec.Error(codeSocketLost, err) })
+	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, view) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820),
 		nsgo.WindowConstraints(core.WindowConstraints{MinWidth: minWidth, MinHeight: minHeight}))
 }
 
@@ -67,16 +87,28 @@ type workspace struct {
 	acting          *core.Signal[bool]
 	appearance      *core.Signal[core.Appearance]
 	online          *core.Signal[bool]
-	dropping        bool
-	nav             *core.Signal[*moduleNav]
-	listWidth       *core.Signal[core.Points]
-	contentWidth    *core.Signal[core.Points]
-	tier            *core.Memo[tier]
+	// connected says the last report of the connection was a live one, so
+	// that its end is a loss.
+	connected    bool
+	dropping     bool
+	nav          *core.Signal[*moduleNav]
+	listWidth    *core.Signal[core.Points]
+	contentWidth *core.Signal[core.Points]
+	tier         *core.Memo[tier]
 }
 
 func invalidate(s *core.Signal[int]) { s.Set(s.GetUntracked() + 1) }
 
-func root(cx *core.Scope) core.Node {
+// root is the client with nothing to tell of a lost socket: a test's.
+func root(cx *core.Scope) core.Node { return rootWith(nil)(cx) }
+
+// rootWith is the client. socketLost, when set, is told that maild's
+// local socket ended under the app.
+func rootWith(socketLost func(error)) func(*core.Scope) core.Node {
+	return func(cx *core.Scope) core.Node { return rootView(cx, socketLost) }
+}
+
+func rootView(cx *core.Scope, socketLost func(error)) core.Node {
 	cx.SetTitle("FrostMail")
 	// The Frostyard look and the bundled Inter (plan 0016, rule 1). A font
 	// the platform refuses leaves the text in the system's face.
@@ -156,6 +188,7 @@ func root(cx *core.Scope) core.Node {
 				w.checkReminders()
 				w.status.Set(st.Target.String())
 				w.online.Set(true)
+				w.connected = true
 				w.openView()
 				if f := w.deferredOpen; f != nil {
 					w.deferredOpen = nil
@@ -163,6 +196,12 @@ func root(cx *core.Scope) core.Node {
 				}
 				return
 			}
+			// maild's local socket ended under the app: a problem record.
+			// Lodge's WebSocket never counts: its losses are the network's.
+			if w.connected && !st.Target.Remote() && st.Err != nil && socketLost != nil {
+				socketLost(st.Err)
+			}
+			w.connected = false
 			w.clearView()
 			w.online.Set(false)
 			if st.Err != nil {
