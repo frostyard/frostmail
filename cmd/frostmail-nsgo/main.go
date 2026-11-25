@@ -236,6 +236,10 @@ func rootView(cx *core.Scope, o clientOptions) core.Node {
 		w.hostMail = hostMailFound
 	}
 	w.watchFirstRun(cx)
+	// The content follows whether the store has no account, and not every
+	// change of the store: the list and its search field are not built
+	// again as mail arrives.
+	firstRun := core.NewMemo(cx, w.needsFirstRun)
 	w.commands()
 	w.platformStart()
 	go w.session.Run(ctx)
@@ -286,7 +290,7 @@ func rootView(cx *core.Scope, o clientOptions) core.Node {
 			}
 			// A store with no account shows the welcome in place of the
 			// modules. Settings and Activity, which need none, stay.
-			if w.needsFirstRun() {
+			if firstRun.Get() {
 				return w.welcome(cx)
 			}
 			switch w.module.Get() {

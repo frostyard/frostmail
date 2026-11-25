@@ -104,3 +104,27 @@ func TestPicturesOfTheFirstRun(t *testing.T) {
 	a.WaitForGone("role:dialog", 5*time.Second)
 	a.Screenshot("first-run")
 }
+
+// TestStoreChangesLeaveTheListInPlace checks that the window's content is
+// not built again when the store changes: the search field over the list
+// is the same view after a message is flagged, which changes the store's
+// counts. The welcome's condition reads the store, and must not make the
+// content follow every change of it.
+func TestStoreChangesLeaveTheListInPlace(t *testing.T) {
+	a := fixtureWorkspace(t)
+	const search = "label:Search All Inboxes"
+	const row = "id:messages >> label:Your trip to Lisbon: itinerary"
+	a.WaitFor(row, 8*time.Second)
+	field := a.Find(search).ID
+	flagged := func() int { return len(a.Query("id:messages >> id:flag-mark")) }
+	before := flagged()
+	a.Press(row)
+	a.WaitFor("label:Message body", 8*time.Second)
+	a.Press("role:toolbar >> label:Flag")
+	a.WaitUntil(5*time.Second, func() bool { return flagged() == before+1 })
+	a.Advance(time.Second)
+	a.Settle()
+	if got := a.Find(search).ID; got != field {
+		t.Errorf("the search field is view %v after a store change and was %v: the list was built again", got, field)
+	}
+}
