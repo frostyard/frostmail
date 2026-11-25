@@ -974,6 +974,43 @@ stand-ins of its panes with the control map's controls (rule 11):
   padding now, and 1 number is left: a Markdown heading's size in live
   preview. `make check` passes there, `make nsgo-live` on Xvfb's X11
   passed 22 of 22, and none of its 24 kept pictures changed.
+- **The three main windows side by side (2026-11-24).** The kept
+  pictures of each app's main branch, set beside each other in 4
+  sheets: the windows in light and in dark, and crops at 1 to 1 of the
+  toolbar's end, the navigation, its foot and a confirmation that
+  removes something. The sheets were sent to the owner in the session
+  and are not kept in a repository. This records what they show; the
+  phase is not closed by it.
+  - **The same in the 3, measured** in the pictures, as the box of the
+    pixels of one color joined to a point in each part:
+    - the navigation's ground, `#e8f0f6` in light and `#081b2d` in
+      dark, and the content pane's, `#f4f9fc` and `#06121e`;
+    - the navigation's selected row: `#d0d9df` and `#1f3142`, 226 by
+      32, 15 from the window's left (in PocketGo's dark picture the
+      box is 189 wide: the selected row is a session under a team,
+      and its tree line cuts the fill);
+    - the toolbar's group of icon buttons: 32 high, 14 from the
+      window's top, on the navigation's ground;
+    - the confirmation's panel: white, 438 by 130, with Cancel before
+      an action in the danger variant.
+  - **The same, by eye:** the navigation's rows (an icon and a name, a
+    count at the end), and its foot (a dot, a line of caption, and
+    Settings' gear).
+  - **Different:**
+    - The palette is a field with Ctrl+K in FrostMail's and PocketGo's
+      toolbars. Frostnotes has no such field: Quick open is an icon
+      button among its tools.
+    - FrostMail's and Frostnotes' toolbars hold a filled button
+      (Compose, New note). PocketGo's holds none: New session is a row
+      of its navigation.
+    - Over the navigation's rows FrostMail has its modules' tabs,
+      PocketGo its filter field, and Frostnotes nothing.
+    - The title is 1 line in PocketGo and 2 in the others (the count
+      of unread; the note's path and state).
+    - PocketGo's teams are rows in bold with a chevron (the kit's
+      `BranchLabel`); the other 2 apps have no such row.
+  - **Not compared:** a form dialog, Settings, a narrow window, and
+    anything on the web.
 - **PocketGo's shell and confirmations (2026-11-24), built**
   (frostyard/pocketgo#170). The client had Settings on NSGo's settings
   view and the palette already; this brings the rest.
