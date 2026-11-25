@@ -700,7 +700,7 @@ stand-ins of its panes with the control map's controls (rule 11):
     The settings' 3 older workflows pass with 2 handles changed: General
     is a row of the view's list, not a tab, and a saved snippet is a
     row's text. Not looked at: the view in a window under 800.
-- **4c (2026-11-24), built; the owner has not looked at its pictures.**
+- **4c (2026-11-24), built.** The owner looked at its pictures and said to go on (2026-11-24).
   The compose window (`cmd/frostmail-nsgo/compose.go`,
   `compose_format.go`):
   - **The header** is rows of a name and a field: From, as `ui.Select`
@@ -733,6 +733,42 @@ stand-ins of its panes with the control map's controls (rule 11):
     draft, which leaves the subject as typed. The 4 older compose
     workflows pass unchanged. No suggestion was shown in a test or a
     picture: no test types a known name.
+- **4d (2026-11-24), built.** The modules beside Mail
+  (`cmd/frostmail-nsgo/modules.go`):
+  - **Each module's own navigation.** While a module is shown, the
+    window's navigation holds its rows in place of mail's (`useNav`): the
+    calendars, the address books, Tasks' views (Today, All tasks, Flagged
+    mail) and its lists, Activity's levels, and Settings' categories. The
+    rows are the kit's `NavLabel`, as mail's are. They take the place of a
+    select in the Calendar and in People, of a row of tabs and a select in
+    Tasks, and of a select in Activity.
+  - **Settings has 1 list of categories,** the window's: 4b's view had
+    its own beside mail's rows. The view draws the chosen category, or,
+    while the search has words, the rows of any category that NSGo's
+    `SearchSettings` finds. The search field is the kit's, over the view:
+    inside it, the view's being built again on the first letter left the
+    rest of the word untyped (a test's search for "undo" found the rows
+    for "u").
+  - **A bar over each module** that never wraps: in the Calendar, icon
+    buttons to step, the date, Today, the range as a segment, the kit's
+    search field, Reminders, and New event; in People a search field and
+    New contact; in Tasks a switch for the completed and New task.
+  - **Rows.** A list's row is a row to press (`ui.FormRow`: a title over
+    a line of detail), with a contact's avatar in People, in place of a
+    text button beside a caption. A task is its box, then such a row.
+    Activity's accounts are rows with Sync and Connection doctor at the
+    end, and an entry is its time, its level as a badge, and its line.
+    Each list has the kit's empty state.
+  - **The To-Do Bar** has its events and its tasks as the same rows,
+    under small captions, in place of full-width buttons.
+  - **Left.** The Calendar's grid of days, an event's panel, a contact's
+    and a task's are as they were, but for 4a's buttons. The Server pane
+    of Settings is as it was.
+  - **Checks.** `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11:
+    34 passed, 0 skipped. 26 of the 33 kept pictures changed. No workflow
+    is new: the navigation's workflow now also holds that Calendar,
+    People and Tasks each show their own rows and none of mail's, and
+    Settings' 2 workflows find its categories in the window's navigation.
 
 ## Phase 5 — Frostnotes and PocketGo (M each, beside Phases 3 and 4)
 

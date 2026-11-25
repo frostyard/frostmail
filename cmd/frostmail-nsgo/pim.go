@@ -53,19 +53,6 @@ func collection[T any](cx *core.Scope, w *workspace, match func(api.Event) bool,
 	cx.Effect(func() { w.status.Get(); load() })
 	return rows, load
 }
-func collectionList[T any](rows *core.Signal[[]T], label string, title, subtitle func(T) string, show func(T)) core.Node {
-	return ui.List{Label: label, Style: ui.FillRest, EstimatedSize: 62, Count: func() int { return len(rows.Get()) }, Row: func(cx *core.Scope, row core.ListRow) core.Node {
-		return core.Dynamic(func(*core.Scope) core.Node {
-			all := rows.Get()
-			i := row.Index()
-			if i < 0 || i >= len(all) {
-				return nil
-			}
-			v := all[i]
-			return workspaceui.Row(ui.Button{Text: title(v), Variant: ui.ButtonGhost, OnPress: func() { show(v) }}, core.Text{Content: subtitle(v), MaxLines: 1, Style: ui.TypeCaption})
-		})
-	}, Empty: core.Text{Content: "No matching items"}}
-}
 
 type editField struct {
 	label, value string
@@ -110,13 +97,31 @@ func (w *workspace) tasks(cx *core.Scope) core.Node {
 				items = append(items, w.flagTaskRow(m))
 			}
 			if len(items) == 0 {
-				return core.Text{Content: "No flagged mail"}
+				return workspaceui.EmptyState{Icon: lucide.Flag, Title: "No flagged mail", Hint: "A flagged message is a thing to do, and is listed here."}
 			}
 			return workspaceui.Stack(items...)
 		})}}
 	}
+	views := ui.SidebarSection{Title: "Tasks", Items: []ui.SidebarItem{navRow("view:Today", "Today", lucide.CalendarCheck), navRow("view:All tasks", "All tasks", lucide.ListChecks), navRow("view:Flagged mail", "Flagged mail", lucide.Flag)}}
+	nav := w.collectionNav(cx, "Lists", "All lists", lucide.List, func(c api.Collection) bool { return c.Tasks }, list, load, views)
+	lists := nav
+	// A view and a list are both chosen: the navigation marks the view, and
+	// a list's row while one is chosen.
+	nav.selected = func() string {
+		if id := list.Get(); id != 0 {
+			return lists.selected()
+		}
+		return "view:" + mode.Get()
+	}
+	nav.navigate = func(id string) {
+		if view, ok := strings.CutPrefix(id, "view:"); ok {
+			mode.Set(view)
+			return
+		}
+		lists.navigate(id)
+	}
+	w.useNav(cx, nav)
 	return core.View{Style: ui.FillRest, Children: []core.Node{
-		ui.Tabs[string]{Label: "Task view", Options: named("Today", "All tasks", "Flagged mail"), Value: mode.Get, OnChange: mode.Set},
 		core.Dynamic(func(owner *core.Scope) core.Node {
 			tab := mode.Get()
 			if tab == "Flagged mail" {
@@ -160,14 +165,17 @@ func (w *workspace) tasks(cx *core.Scope) core.Node {
 					if t.MessageID != nil {
 						label = strings.TrimSpace(label + "  · From mail")
 					}
-					return core.View{Style: core.Style{Padding: core.Edges{Left: inset}}, Children: []core.Node{workspaceui.Row(ui.Checkbox{Label: "Completed: " + t.Title, Checked: func() bool { return t.Completed }, Disabled: func() bool { return t.ReadOnly }, OnChange: func(done bool) { w.setTaskCompleted(t, done, load) }}, button(t.Title, func() { w.taskDetail(t, load) }), core.Text{Content: label, Style: ui.TypeCaption})}}
+					return core.View{Style: core.Style{Padding: core.Edges{Left: inset}, Width: core.Pct(100)}, Children: []core.Node{
+						w.taskRow(t, "Completed: ", label, func(done bool) { w.setTaskCompleted(t, done, load) }, func() { w.taskDetail(t, load) })}}
 				})
-			}, Empty: core.Text{Content: "No tasks"}}
-			bar := []core.Node{ui.Button{Text: "New task", OnPress: newTask}}
+			}, Empty: workspaceui.EmptyState{Icon: lucide.ListChecks, Title: "No tasks", Hint: "New task adds one."}}
+			bar := []core.Node{}
 			if tab != "Today" {
-				bar = append(bar, ui.Checkbox{Text: "Include completed", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }})
+				bar = append(bar, ui.Switch{Label: "Include completed", Checked: completed.Get, OnChange: func(v bool) { completed.Set(v); load() }},
+					core.Text{Content: "Include completed", Style: ui.TypeBody})
 			}
-			return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(bar...), w.collectionFilter(owner, "Task lists", func(c api.Collection) bool { return c.Tasks }, list, load), items}}
+			bar = append(bar, ui.Spacer{}, primary("New task", newTask))
+			return core.View{Style: ui.FillRest, Children: []core.Node{moduleBar(bar...), items}}
 		}),
 	}}
 }
@@ -239,7 +247,16 @@ func (w *workspace) people(cx *core.Scope) core.Node {
 	})
 	newPerson := func() { w.contactForm(api.Contact{CollectionID: book.GetUntracked()}, load) }
 	w.moduleKey(cx, "mod+n", newPerson)
-	return core.View{Style: ui.FillRest, Children: []core.Node{workspaceui.Row(ui.Input{Label: "Find a person", Placeholder: "Name or address", OnSubmit: func(v string) { query = v; load() }}, ui.Button{Text: "New contact", OnPress: newPerson}), w.collectionFilter(cx, "Address books", func(c api.Collection) bool { return c.Kind == api.CollectionKindAddressbook }, book, load), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
+	w.useNav(cx, w.collectionNav(cx, "Address books", "All contacts", lucide.Users, func(c api.Collection) bool { return c.Kind == api.CollectionKindAddressbook }, book, load))
+	typed := core.NewSignal(cx, "")
+	find := workspaceui.SearchField{Placeholder: "Find a person", Value: typed.Get, OnSubmit: func(v string) { query = v; load() }, OnChange: func(v string) {
+		typed.Set(v)
+		if v == "" && query != "" {
+			query = ""
+			load()
+		}
+	}}
+	return core.View{Style: ui.FillRest, Children: []core.Node{moduleBar(core.View{Style: core.Style{Width: core.Pt(280), FlexShrink: 1}, Children: []core.Node{find}}, ui.Spacer{}, primary("New contact", newPerson)), collectionList(rows, "Contacts", func(p api.PersonSummary) string { return p.DisplayName }, func(p api.PersonSummary) string { return p.Email }, func(p api.PersonSummary) {
 		perform(w, func(ctx context.Context, c *api.Client) (*api.Person, error) {
 			return c.People().Get(ctx, &api.PeopleGetParams{ID: p.ID})
 		}, func(person *api.Person, err error) {
@@ -331,23 +348,6 @@ func optionalID(id int64) *int64 {
 		return nil
 	}
 	return &id
-}
-
-func (w *workspace) collectionFilter(cx *core.Scope, label string, include func(api.Collection) bool, chosen *core.Signal[int64], load func()) core.Node {
-	collections, _ := collection(cx, w, func(ev api.Event) bool { _, ok := ev.(api.AccountChanged); return ok }, func() func(context.Context, *api.Client) ([]api.Collection, error) {
-		return func(ctx context.Context, c *api.Client) ([]api.Collection, error) {
-			return c.Account().Collections(ctx, &api.AccountCollectionsParams{})
-		}
-	})
-	return ui.Select[int64]{Label: label, OptionsFunc: func() []ui.Option[int64] {
-		opts := []ui.Option[int64]{{Value: 0, Label: "All · " + label}}
-		for _, c := range collections.Get() {
-			if include(c) && c.Enabled {
-				opts = append(opts, ui.Option[int64]{Value: c.ID, Label: c.Name})
-			}
-		}
-		return opts
-	}, Value: chosen.Get, OnChange: func(v int64) { chosen.Set(v); load() }}
 }
 
 func (w *workspace) reminders() {

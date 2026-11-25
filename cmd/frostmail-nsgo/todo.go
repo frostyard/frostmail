@@ -9,6 +9,7 @@ import (
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/live"
+	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/base"
 	"github.com/nsgo-dev/nsgo/core"
@@ -51,14 +52,19 @@ func (w *workspace) flaggedMessages(cx *core.Scope, limit int64) func() []api.Me
 	}
 }
 
+// flagTaskRow is a flagged message as a thing to do: the box clears its
+// flag, and its subject opens it.
 func (w *workspace) flagTaskRow(m api.MessageSummary) core.Node {
-	return workspaceui.Row(ui.Checkbox{Label: "Clear flag on " + m.Subject, Disabled: func() bool { return !w.writable(m.AccountID) }, OnChange: func(bool) {
-		undo := w.undo
-		w.change(func(ctx context.Context, c *api.Client) error {
-			no := false
-			return undo.Flags(ctx, c, []int64{m.ID}, api.FlagChanges{Flagged: &no})
-		}, nil)
-	}}, button(m.Subject, func() { w.module.Set("Mail"); w.openMessage(m.ID, false) }))
+	return core.View{Style: core.Style{Direction: core.Row, AlignItems: core.AlignCenter, Gap: 4, Width: core.Pct(100)}, Children: []core.Node{
+		ui.Checkbox{Label: "Clear flag on " + m.Subject, Disabled: func() bool { return !w.writable(m.AccountID) }, OnChange: func(bool) {
+			undo := w.undo
+			w.change(func(ctx context.Context, c *api.Client) error {
+				no := false
+				return undo.Flags(ctx, c, []int64{m.ID}, api.FlagChanges{Flagged: &no})
+			}, nil)
+		}},
+		core.View{Style: core.Style{FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0)}, Children: []core.Node{
+			ui.FormRow{Title: m.Subject, Detail: mail.DisplayName(m.From), TitleMaxLines: 1, OnPress: func() { w.module.Set("Mail"); w.openMessage(m.ID, false) }}}}}}
 }
 
 func (w *workspace) todoBar(cx *core.Scope) core.Node {
@@ -92,11 +98,11 @@ func (w *workspace) todoBar(cx *core.Scope) core.Node {
 			if e.AllDay {
 				date = e.StartDate
 			}
-			items = append(items, button(e.Summary+" · "+date, func() {
+			items = append(items, ui.FormRow{Title: e.Summary, Detail: date, TitleMaxLines: 1, OnPress: func() {
 				w.calendarDate = e.Start.Local()
 				w.module.Set("Calendar")
 				w.showOccurrence(e, func() {})
-			}))
+			}})
 			if len(items) == 5 {
 				break
 			}
@@ -112,7 +118,7 @@ func (w *workspace) todoBar(cx *core.Scope) core.Node {
 			if t.Completed || t.Due == "" {
 				continue
 			}
-			items = append(items, workspaceui.Row(ui.Checkbox{Label: "Complete " + t.Title, Disabled: func() bool { return t.ReadOnly }, OnChange: func(bool) { w.setTaskCompleted(t, true, refreshTasks) }}, button(t.Title+" · "+t.Due, func() { w.module.Set("Tasks"); w.taskDetail(t, func() {}) })))
+			items = append(items, w.taskRow(t, "Complete ", "Due "+t.Due, func(bool) { w.setTaskCompleted(t, true, refreshTasks) }, func() { w.module.Set("Tasks"); w.taskDetail(t, func() {}) }))
 			if len(items) == 10 {
 				break
 			}
@@ -142,7 +148,12 @@ func (w *workspace) todoBar(cx *core.Scope) core.Node {
 			})
 		})
 	}}
-	return core.Scroll{Style: ui.FillRest, Children: []core.Node{workspaceui.Stack(calendar, core.Text{Content: "Upcoming", Style: ui.TypeLabel}, events, core.Text{Content: "Tasks", Style: ui.TypeLabel}, newTask, tasks)}}
+	colors := ui.ColorsOf(cx)
+	caption := func(text string) core.Node {
+		return core.Text{Content: text, Style: ui.TypeCaption.Merge(core.Style{FontWeight: ui.Semibold}), StyleFunc: ui.Colored(colors.Muted)}
+	}
+	return core.Scroll{Style: ui.FillRest, Children: []core.Node{core.View{TestID: "todo-bar", Style: core.Style{Gap: 8, Padding: core.All(8)}, Children: []core.Node{
+		calendar, caption("Upcoming"), events, caption("Tasks"), newTask, tasks}}}}
 }
 
 func (w *workspace) setTaskCompleted(t api.Task, complete bool, done func()) {

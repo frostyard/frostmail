@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -59,8 +60,27 @@ func (w *workspace) settings(cx *core.Scope) core.Node {
 	// menu and the scroll where they are. Its controls read their values
 	// as they draw.
 	shape := core.NewMemo(cx, w.settingsShape)
-	narrow := func() bool { return cx.Env().Window().Width < 800 }
-	return core.View{TestID: "settings", Style: ui.FillRest, Children: []core.Node{core.Dynamic(func(cx *core.Scope) core.Node {
+	// The categories are the window's navigation while Settings is shown,
+	// so the view draws the chosen one alone, or, while the search has
+	// words, the rows of any of them that match. The search field stands
+	// over the view and outside it: the view is built again as the words
+	// change, and a field inside it would lose what is being typed.
+	w.useNav(cx, moduleNav{
+		sections: func() []ui.SidebarSection {
+			var items []ui.SidebarItem
+			for _, c := range settingsCategories {
+				if c.id != "server" || desktopServer {
+					items = append(items, navRow(c.id, c.title, c.icon))
+				}
+			}
+			return []ui.SidebarSection{{Title: "Settings", Items: items}}
+		},
+		selected: category.Get,
+		navigate: func(id string) { query.Set(""); category.Set(id) },
+	})
+	search := workspaceui.SearchField{Placeholder: "Search settings", Value: query.Get, OnChange: query.Set}
+	bar := moduleBar(core.View{Style: core.Style{Width: core.Pt(280), FlexShrink: 1}, Children: []core.Node{search}})
+	return core.View{TestID: "settings", Style: ui.FillRest.Merge(core.Style{Gap: 8}), Children: []core.Node{bar, core.Dynamic(func(cx *core.Scope) core.Node {
 		shape.Get()
 		st := core.Untracked(cx, func() live.MailState { return w.store.State() })
 		categories := []ui.SettingsCategory{
@@ -76,10 +96,53 @@ func (w *workspace) settings(cx *core.Scope) core.Node {
 			categories = append(categories, ui.SettingsCategory{ID: "server", Title: "Server", Icon: lucide.Server, Groups: []ui.SettingsGroup{{ID: "server", Title: "Mail server", Items: []ui.SettingsItem{
 				{ID: "server", Title: "Mail server", Keywords: []string{"lodge", "maild", "local"}, Content: core.Dynamic(w.serverPanel)}}}}})
 		}
-		// The toolbar names the module, so the view has no title of its own.
-		return ui.Settings{Categories: categories, Category: category, Query: query, SearchLabel: "Search settings", SearchPlaceholder: "Search settings", Narrow: narrow, HideHeading: true}
+		if words := strings.TrimSpace(query.Get()); words != "" {
+			categories = matching(categories, words)
+		} else {
+			chosen := category.Get()
+			categories = slices.DeleteFunc(categories, func(c ui.SettingsCategory) bool { return c.ID != chosen })
+		}
+		if len(categories) == 0 {
+			return workspaceui.EmptyState{Icon: lucide.SearchX, Title: "No setting matches", Hint: "Try other words."}
+		}
+		return ui.Settings{Categories: categories, Category: category, HideSidebar: true, HideSearch: true, HideHeading: true}
 	})}}
 }
+
+// matching are the categories' rows that NSGo's search finds for words, in
+// their categories and groups, with those that hold none left out.
+func matching(categories []ui.SettingsCategory, words string) []ui.SettingsCategory {
+	var out []ui.SettingsCategory
+	at := map[[2]int][2]int{} // a category and a group, to where they are in out
+	for _, r := range ui.SearchSettings(categories, words) {
+		place, ok := at[[2]int{r.Category, -1}]
+		if !ok {
+			c := categories[r.Category]
+			c.Groups = nil
+			out = append(out, c)
+			place = [2]int{len(out) - 1, 0}
+			at[[2]int{r.Category, -1}] = place
+		}
+		group, ok := at[[2]int{r.Category, r.Group}]
+		if !ok {
+			g := categories[r.Category].Groups[r.Group]
+			g.Items = nil
+			out[place[0]].Groups = append(out[place[0]].Groups, g)
+			group = [2]int{place[0], len(out[place[0]].Groups) - 1}
+			at[[2]int{r.Category, r.Group}] = group
+		}
+		out[group[0]].Groups[group[1]].Items = append(out[group[0]].Groups[group[1]].Items, categories[r.Category].Groups[r.Group].Items[r.Item])
+	}
+	return out
+}
+
+// settingsCategories are Settings' categories, as the navigation lists
+// them. Server is a desktop's alone.
+var settingsCategories = []struct {
+	id, title string
+	icon      func() *core.SVG
+}{{"accounts", "Accounts", lucide.Users}, {"general", "General", lucide.Settings}, {"identities", "Identities", lucide.IdCard}, {"snippets", "Snippets", lucide.TextQuote},
+	{"filters", "Filters", lucide.ListFilter}, {"mailboxes", "Mailboxes", lucide.Folder}, {"sign-in", "Sign-in", lucide.KeyRound}, {"server", "Server", lucide.Server}}
 
 // settingsShape names what Settings lists: its rows' identities and texts,
 // and nothing that changes while mail arrives.

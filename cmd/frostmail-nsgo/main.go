@@ -67,6 +67,7 @@ type workspace struct {
 	appearance      *core.Signal[core.Appearance]
 	online          *core.Signal[bool]
 	dropping        bool
+	nav             *core.Signal[*moduleNav]
 	listWidth       *core.Signal[core.Points]
 	contentWidth    *core.Signal[core.Points]
 	tier            *core.Memo[tier]
@@ -94,6 +95,7 @@ func root(cx *core.Scope) core.Node {
 	w.currentMessage = core.NewSignal(cx, (*api.MessageSummary)(nil))
 	w.appearance = core.NewSignal(cx, appearance)
 	w.online = core.NewSignal(cx, false)
+	w.nav = core.NewSignalFunc(cx, (*moduleNav)(nil), func(a, b *moduleNav) bool { return a == b })
 	w.watchReader()
 	w.showPhotos = core.NewSignal(cx, true)
 	w.textScale = core.NewSignal(cx, float32(1))
@@ -179,12 +181,7 @@ func root(cx *core.Scope) core.Node {
 		{Size: listWidth.Get, OnResize: listWidth.Set, MinSize: 180, Children: []core.Node{list}},
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
-	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.sections, Selected: func() string {
-		if mode := w.module.Get(); mode != "Mail" {
-			return "module:" + mode
-		}
-		return w.selected.Get()
-	}, Navigate: w.navigate,
+	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.navSections, Selected: w.navSelected, Navigate: w.pressNav,
 		Widths: workspaceui.PaneWidths{Inspector: 280}, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
 		Actions:       []core.Node{w.actions()},
 		Header:        []core.Node{w.header()},
