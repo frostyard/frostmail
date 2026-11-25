@@ -968,6 +968,94 @@ stand-ins of its panes with the control map's controls (rule 11):
     desktop client it closes the forms, headless and in a real window
     (`TestEscapeLeavesAForm` there). Whether the web build did this
     before the change was not checked. It is in Phase 6's list.
+- **Frostnotes on the kit's spacing (2026-11-24), built**
+  (frostyard/frostnotes#283). It takes `workspaceui/v0.4.0`, and the
+  editor's inset is the kit's `SpaceL`. Its style test allows no
+  padding now, and 1 number is left: a Markdown heading's size in live
+  preview. `make check` passes there, `make nsgo-live` on Xvfb's X11
+  passed 22 of 22, and none of its 24 kept pictures changed.
+- **The three main windows side by side (2026-11-24).** The kept
+  pictures of each app's main branch, set beside each other in 4
+  sheets: the windows in light and in dark, and crops at 1 to 1 of the
+  toolbar's end, the navigation, its foot and a confirmation that
+  removes something. The sheets were sent to the owner in the session
+  and are not kept in a repository. This records what they show; the
+  phase is not closed by it.
+  - **The same in the 3, measured** in the pictures, as the box of the
+    pixels of one color joined to a point in each part:
+    - the navigation's ground, `#e8f0f6` in light and `#081b2d` in
+      dark, and the content pane's, `#f4f9fc` and `#06121e`;
+    - the navigation's selected row: `#d0d9df` and `#1f3142`, 226 by
+      32, 15 from the window's left (in PocketGo's dark picture the
+      box is 189 wide: the selected row is a session under a team,
+      and its tree line cuts the fill);
+    - the toolbar's group of icon buttons: 32 high, 14 from the
+      window's top, on the navigation's ground;
+    - the confirmation's panel: white, 438 by 130, with Cancel before
+      an action in the danger variant.
+  - **The same, by eye:** the navigation's rows (an icon and a name, a
+    count at the end), and its foot (a dot, a line of caption, and
+    Settings' gear).
+  - **Different:**
+    - The palette is a field with Ctrl+K in FrostMail's and PocketGo's
+      toolbars. Frostnotes has no such field: Quick open is an icon
+      button among its tools.
+    - FrostMail's and Frostnotes' toolbars hold a filled button
+      (Compose, New note). PocketGo's holds none: New session is a row
+      of its navigation.
+    - Over the navigation's rows FrostMail has its modules' tabs,
+      PocketGo its filter field, and Frostnotes nothing.
+    - The title is 1 line in PocketGo and 2 in the others (the count
+      of unread; the note's path and state).
+    - PocketGo's teams are rows in bold with a chevron (the kit's
+      `BranchLabel`); the other 2 apps have no such row.
+  - **Not compared:** a form dialog, Settings, a narrow window, and
+    anything on the web.
+- **Frostnotes' palette (2026-11-24), built** (frostyard/frostnotes#284),
+  at the owner's word after the comparison: its toolbar has the
+  palette's field, as the other 2 have. The palette is Quick open with
+  the app's commands under the vault's notes, and leaves out a command
+  with nothing to act on. For the field's room the editor's 2 modes
+  are icons named by tooltips. `make check` passes there,
+  `make nsgo-live` on Xvfb's X11 passed 23 of 23, with 1 new test of
+  the palette, and its 4 browser tests under Lodge passed once on the
+  commit. It keeps 25 pictures: 17 changed and 1 is new. The first of
+  the differences above is gone with it; the other 4 are as recorded.
+- **PocketGo's shell and confirmations (2026-11-24), built**
+  (frostyard/pocketgo#170). The client had Settings on NSGo's settings
+  view and the palette already; this brings the rest.
+  - **The kit** is `workspaceui/v0.4.0` there.
+  - **The navigation.** Its places are `NavLabel` rows, with the
+    Inbox's count, under the kit's `SearchField`. Its foot is the kit's
+    `ConnectionItem`, in a tone for the connection's state, beside the
+    way to Settings, which leaves the toolbar.
+  - **The toolbar** is NSGo's, with Back, Forward and Refresh, and the
+    palette as a field with its keys in a window 900 wide or more, as
+    FrostMail's is.
+  - **Confirmations** (`confirm` there) are NSGo's alert dialog on the
+    kit's panel, in place of the platform's alert. Cancel is first, and
+    the keyboard starts on it, so Return alone runs nothing: the
+    client's merges as the owner are confirmed here. An action that
+    ends or removes something is in the danger variant. One
+    confirmation shows at a time, and one asked meanwhile waits behind
+    it, since a merge's confirmation opens when its checks end.
+  - **The pager** is `ui.Pagination`, and a team's running and waiting
+    counts are `ui.Badge`s beside their icons (`agentActivity`).
+  - **The style test** (`TestNoLiteralLooks` there) lists no exception:
+    9 lines wrote a look as a number, and take the kit's spacing and
+    NSGo's radii.
+  - **Not changed:** `inboxHeader` and `signIn` keep their shape and
+    take tokens; nothing of rule 5's Undo toast, since no action there
+    is undone.
+  - **Seen, not fixed:** the Settings dialog shows the page under it
+    through its ground. NSGo's `ui.SettingsDialog` takes no style, so
+    the kit's panel cannot be set on it. It is in Phase 6's list.
+  - `make verify`, `make check` and `make ci BASE=origin/main` pass
+    there. Its suite passed in a real window on Xvfb's X11 (33 passed,
+    1 skipped) and in headless Chromium (32 passed, 2 skipped, the
+    style test among them: a browser has no files to read). 5 tests
+    are new. It keeps 28 pictures, 14 for each target: 26 changed and
+    the confirmation's 2 are new.
 
 ## Phase 6 — Upstream (S, alongside)
 
@@ -990,6 +1078,8 @@ text an agent drafts:
   clear of it), and Escape in a dialog's text field, which does not
   close the dialog (Phase 5, Frostnotes; the cause, NSGo's or the
   app's, is not found).
+- A `Style` on `ui.SettingsDialog`, so that the kit's opaque panel can be
+  its ground (Phase 5, PocketGo).
 - **Done when:** each has an issue whose link is in the kit's spec, and the
   spec names the workaround to remove when it lands.
 
