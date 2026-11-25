@@ -28,9 +28,7 @@ func (w *workspace) routePanel(route string) {
 func (w *workspace) show(render func(*core.Scope) core.Node) { w.overlay.Set(&panel{render: render}) }
 func (w *workspace) closePanel()                             { w.overlay.Set(nil) }
 func (w *workspace) dialog(title string, children []core.Node, footer ...core.Node) ui.Dialog {
-	if len(footer) == 0 {
-		footer = []core.Node{ui.Button{Text: "Close", Variant: ui.ButtonSecondary, OnPress: w.closePanel}}
-	}
+	footer = withWayOut(footer, w.closePanel)
 	// The kit's panel is opaque: NSGo's own shows the window through it
 	// where no blur is drawn, as on Linux.
 	return ui.Dialog{Title: title, StyleFunc: workspaceui.DialogPanel(w.cx), Open: func() bool { return true }, OnOpenChange: func(open bool, _ base.Reason) {
@@ -43,6 +41,27 @@ func (w *workspace) dialog(title string, children []core.Node, footer ...core.No
 		}
 		return nil
 	})), Footer: footer}
+}
+
+// withWayOut gives a dialog's buttons a quiet one that leaves it, first
+// (plan 0016, rule 3): Cancel before a button that confirms or destroys,
+// and Close where the dialog only shows something. Buttons that already
+// hold a Cancel or a Close are left as they are.
+func withWayOut(footer []core.Node, leave func()) []core.Node {
+	label := "Close"
+	for _, node := range footer {
+		b, ok := node.(ui.Button)
+		if !ok {
+			continue
+		}
+		if b.Text == "Cancel" || b.Text == "Close" {
+			return footer
+		}
+		if b.Variant == ui.ButtonPrimary || b.Variant == ui.ButtonDanger {
+			label = "Cancel"
+		}
+	}
+	return append([]core.Node{ui.Button{Text: label, Variant: ui.ButtonSecondary, OnPress: leave}}, footer...)
 }
 
 // confirm asks before an action that sends or changes something, and

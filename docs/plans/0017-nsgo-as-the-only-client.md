@@ -163,13 +163,22 @@ name MyGo.
     welcome, not a Settings window; and a dismissal of the note in the
     MyGo client is not read, so the note shows once more after the
     switch.
-  - Seen, not changed: the account's dialog has no Cancel button, and
-    closes by Escape. `accounts.go` holds it.
-  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 45 passed,
-    5 of them new (the welcome and its 2 buttons; the note and its
+  - A fault of its first commit, fixed in its second: the welcome's
+    condition made the list and its search field be built again on
+    every change of the store. A test holds it
+    (`TestStoreChangesLeaveTheListInPlace`).
+  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 46 passed,
+    6 of them new (the welcome and its 2 buttons; the note and its
     dismissal; a dismissed note stays away; a store with accounts shows
-    no welcome; the pictures). 2 pictures are new, and the agent looked
-    at 1, the welcome with the note.
+    no welcome; a store change leaves the list in place; the pictures).
+    2 pictures are new, and the agent looked at 1, the welcome with the
+    note.
+- **Every dialog has a quiet way out (2026-11-24), built.** A dialog's
+  first button is Cancel where another confirms or destroys, and Close
+  where it only shows something (`withWayOut` in
+  `cmd/frostmail-nsgo/actions.go`). The account's dialog, which the
+  first run opens by itself, had neither and closed by Escape alone, as
+  did others with buttons of their own.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

@@ -28,7 +28,7 @@ func TestFirstRunWelcomes(t *testing.T) {
 	a.Find("id:welcome >> text:Frostmail keeps its mail on this computer.")
 	// The first look at the connection opens the account's dialog.
 	a.WaitFor("role:dialog >> text:Add mail account", 5*time.Second)
-	a.Key("Escape")
+	a.Press("role:dialog >> label:Cancel")
 	a.WaitForGone("role:dialog", 5*time.Second)
 	a.Advance(2 * time.Second)
 	a.Settle()
@@ -43,7 +43,7 @@ func TestFirstRunWelcomes(t *testing.T) {
 	a.WaitFor("id:welcome", 5*time.Second)
 	a.Press("id:welcome >> label:Add Account…")
 	a.WaitFor("role:dialog >> text:Add mail account", 5*time.Second)
-	a.Key("Escape")
+	a.Press("role:dialog >> label:Cancel")
 	a.WaitForGone("role:dialog", 5*time.Second)
 	a.Press("id:welcome >> label:Connect to lodge…")
 	a.WaitFor("id:settings", 5*time.Second)
@@ -59,7 +59,7 @@ func TestFirstRunWelcomes(t *testing.T) {
 func TestFirstRunSaysHowToMoveMail(t *testing.T) {
 	a := firstRun(t, true, nil)
 	a.WaitFor("role:dialog >> text:Add mail account", 5*time.Second)
-	a.Key("Escape")
+	a.Press("role:dialog >> label:Cancel")
 	a.WaitForGone("role:dialog", 5*time.Second)
 	for _, step := range moveSteps {
 		a.Find("id:move-note >> text:" + step)
@@ -100,7 +100,7 @@ func TestPicturesOfTheFirstRun(t *testing.T) {
 	a := firstRun(t, true, nil)
 	a.WaitFor("role:dialog >> text:Add mail account", 5*time.Second)
 	a.Screenshot("first-run-account")
-	a.Key("Escape")
+	a.Press("role:dialog >> label:Cancel")
 	a.WaitForGone("role:dialog", 5*time.Second)
 	a.Screenshot("first-run")
 }
