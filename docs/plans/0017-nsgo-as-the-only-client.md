@@ -6,7 +6,9 @@
   tagged and published. He answered its 6 questions the same day
   ([The owner's answers](#the-owners-answers)). FrostMail's decision is
   [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md);
-  Frostnotes' and PocketGo's ADRs are not written.
+  PocketGo's is its ADR-0071. On 2026-11-25 the owner took Frostnotes
+  out of this plan: it has no desktop window, and Lodge serves its React
+  app again ([Phase 5](#phase-5--frostnotes-xl)).
 
 This plan takes FrostMail, Frostnotes and PocketGo from two desktop clients
 each to one, the NSGo client on the shared kit
@@ -371,8 +373,8 @@ name MyGo.
 
 ## Phase 3.5 — FrostMail in Lodge (M)
 
-- The NSGo web build takes the React app's place in Lodge, as
-  Frostnotes' did, after MyGo is gone.
+- The NSGo web build takes the React app's place in Lodge, after MyGo
+  is gone.
 - **Done when:** the `.deb` holds the NSGo web build and no React app,
   and `dev/lodge/nsgo-smoke.py` passes on what it installs.
 
@@ -392,19 +394,17 @@ name MyGo.
 
 ## Phase 5 — Frostnotes (XL)
 
-- All 4 groups of MyGo's features are kept: version history with
-  compare and revert, the merge view and the sync conflicts; attachments,
-  images and files that are not Markdown; live preview's missing marks;
-  the side panes, tabs and splits. Each is a change with its tests and
-  pictures, as plan 0016's were. What the inventory lists outside the 4
-  groups (a hub's devices, folder operations, daily notes and templates,
-  a vault's settings, the editor's commands) has no answer yet: it is
-  asked when the phase starts.
-- MyGo is removed, and the React app is reduced to the NSGo build's
-  loader or the loader is made without it.
-- **Done when:** the Flatpak holds 1 client, the root `go.mod` names
-  neither MyGo nor its fork's `replace`, and the owner releases the
-  version.
+- **Left this plan on 2026-11-25.** The owner decided that Frostnotes
+  needs no desktop window: Obsidian edits a desktop's vault folder,
+  notesd in the Flatpak syncs it with the hub, and Lodge serves the React
+  app again. Both of its desktop clients, MyGo and NSGo, are removed
+  ([frostyard/frostnotes's ADR-0050](https://github.com/frostyard/frostnotes/blob/main/docs/adr/0050-frostnotes-has-no-desktop-window.md)
+  and its [plan 0011](https://github.com/frostyard/frostnotes/blob/main/docs/plans/0011-nsgo-only-client.md)).
+- Before that, on 2026-11-25, its ADR-0049 made the NSGo client the only
+  client, the owner kept everything outside the 4 groups too, and 4
+  changes were merged (frostyard/frostnotes#288 to #291: the editor's
+  plain logic out of MyGo's packages, source mode on NSGo's code editor).
+  They go with the NSGo client.
 
 ## Later / ideas
 
@@ -431,10 +431,11 @@ agent set out.
    MyGo is gone.
 6. **The order is FrostMail, PocketGo, Frostnotes.**
 
+On 2026-11-25 he replaced answer 1: Frostnotes has no desktop window, and
+Lodge serves its React app ([Phase 5](#phase-5--frostnotes-xl)).
+
 ## Open questions
 
-- **Frostnotes: what of MyGo's features outside the 4 groups is kept?**
-  The owner, when Phase 5 starts.
 - **NSGo's iOS and macOS targets for PocketGo:** whether they build and
   run it is not known; the first change of Phase 4's port finds out.
 
