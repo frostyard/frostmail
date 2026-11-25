@@ -128,3 +128,22 @@ func (w *workspace) dropOccurrence(o api.Occurrence, days int, loc *time.Locatio
 		w.updateEventFields(*e, shiftedDays(o, days, loc, e.TimeZone), load)
 	})
 }
+
+// retimeOccurrence writes a drop on the day laid out by time: the
+// occurrence's new start and end, in the event's zone, as an edit is
+// written.
+func (w *workspace) retimeOccurrence(o api.Occurrence, start, end time.Time, load func()) {
+	if start.Equal(o.Start) && end.Equal(o.End) {
+		return
+	}
+	perform(w, func(ctx context.Context, c *api.Client) (*api.CalendarEvent, error) {
+		return c.Calendar().Event(ctx, &api.CalendarEventParams{ID: o.EventID, RecurrenceID: changed("", o.RecurrenceID)})
+	}, func(e *api.CalendarEvent, err error) {
+		if err != nil {
+			w.problem.Set("Could not move the event: " + err.Error())
+			return
+		}
+		timed, startUTC, endUTC, zone := false, start.UTC(), end.UTC(), wireZone(e.TimeZone)
+		w.updateEventFields(*e, api.EventFields{AllDay: &timed, Start: &startUTC, End: &endUTC, TimeZone: &zone}, load)
+	})
+}

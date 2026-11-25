@@ -188,15 +188,34 @@ name MyGo.
   writable calendar that is no invitation moves. A drop is written as
   an edit is, after the scope's question for a series and the notice
   to invitees (`cmd/frostmail-nsgo/calendar_drag.go`).
-  - **Not built, and why it is a part of its own:** a move by 15
-    minutes, a resize of an occurrence's end, and a block drawn on empty
-    time. The MyGo client does them on a day laid out by time, 0.8
-    points a minute. The NSGo client's day and week are lists of an
-    hour's or a day's events, with no such layout: it is built first.
   - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 50 passed,
     3 of them new (the arithmetic; who may move; in the week of a real
     window, an event dragged to another day is in that day's cell after
     and not in its own).
+- **The calendar's drags, second part (2026-11-24), built.** The day
+  and the week are laid out by time, 0.8 points a minute as the MyGo
+  client's are: a day is a column 24 hours high under a strip of its
+  date and all-day occurrences, an occurrence a block from its start to
+  its end, and blocks that overlap stand side by side
+  (`cmd/frostmail-nsgo/calendar_time.go`). They were lists of an hour's
+  or a day's events. On them a drag changes an occurrence in steps of 15
+  minutes: its block moves, across days in the week; its foot resizes
+  it, to no less than a step; and a drag on empty time draws a block and
+  opens the editor with that range. Nothing is written until a drag
+  ends, Escape puts everything back, and a drag that ends where it began
+  is a press. A press on empty time makes an event of that hour.
+  - Not built: the now line; on a touch screen, any of these drags (a
+    drag there scrolls the day).
+  - Seen, not changed: a reload of the calendar builds the grid again,
+    so a drag in progress when one arrives loses its block. The tests
+    wait for the grid to rest before each drag.
+  - Escape during a drag has no test: the suite's drag is 1 step from
+    press to release.
+  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 54 passed,
+    4 of them new (the steps' arithmetic; the layout of overlapping
+    blocks; in a real window, a block drawn, moved 30 minutes, resized
+    15 and moved a day in the week; the pictures). 2 pictures are new,
+    the week and the day, and the agent looked at the week.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

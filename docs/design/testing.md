@@ -40,9 +40,10 @@ The shared client has one suite, run two ways
   `cmd/frostmail-nsgo/.nsgo/`, so they find the repository with
   `repoRoot`. Pictures go to `cmd/frostmail-nsgo/.nsgo/test/screenshots/linux`,
   which git ignores; CI uploads them as `nsgo-live-pictures`.
-- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 39 PNGs, 2 of them of the
+- **The kept pictures,** `cmd/frostmail-nsgo/comparison/linux`: 41 PNGs, 2 of them of the
   first run on a store with no account (the account's dialog over the
-  welcome, and the welcome with the move note).
+  welcome, and the welcome with the move note) and 2 of the calendar's
+  week and day laid out by time.
   31 are the main views in Frostyard light (3 of Settings' categories, an account's panel and a mailbox's, the list, the To-Do Bar
   beside it, a row under the pointer, a message, its More menu, a
   confirmation, several rows chosen, a search with no match, the reader
