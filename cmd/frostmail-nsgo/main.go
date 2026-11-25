@@ -251,7 +251,7 @@ func rootView(cx *core.Scope, o clientOptions) core.Node {
 		w.store.Disconnect()
 	})
 	list := w.messageList()
-	w.keepWindow(cx)
+	workspaceui.KeepWindow(cx, minWidth, minHeight)
 	panes := w.panes()
 	listWidth := core.NewSignal(cx, panes.List)
 	// A drag of the list's edge reports many widths: the last is kept.
@@ -270,7 +270,7 @@ func rootView(cx *core.Scope, o clientOptions) core.Node {
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
 	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.navSections, Selected: w.navSelected, Navigate: w.pressNav,
-		Widths: panes.PaneWidths, OnWidthsChange: w.keepPanes, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
+		Widths: panes.PaneWidths, OnWidthsChange: w.keepPanes, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Open: w.todoOpen(), OnOpenChange: w.keepTodo, Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
 		Actions:       []core.Node{w.actions()},
 		Header:        []core.Node{w.header()},
 		SidebarHeader: []core.Node{w.moduleTabs()},

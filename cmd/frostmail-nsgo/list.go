@@ -159,8 +159,7 @@ func (w *workspace) messageRow(cx *core.Scope, row core.ListRow) core.Node {
 // flagMark is a small flag in flag n's color, the kit's: 1 to 7, and the
 // first for a flag with no color, as the other desktop client draws it.
 func flagMark(cx *core.Scope, n int) core.Node {
-	kit := workspaceui.ColorsOf(cx)
-	return ui.Icon(lucide.Flag, 14, func() core.Color { return kit.Flag(n) })
+	return ui.Icon(lucide.Flag, 14, flagColor(cx, n))
 }
 
 // marks end a row's subject line: the VIP's star, the flag in its color,

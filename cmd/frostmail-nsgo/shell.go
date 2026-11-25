@@ -102,11 +102,30 @@ func navLabel(i mail.Item) core.Node {
 	}
 	all := i.Key == "flagged" || strings.HasPrefix(i.Key, "flag:")
 	label := workspaceui.NavLabel{Icon: icon, Text: i.Label, Count: int(i.Unread), Unread: !all}
+	var row core.Node = label
+	if i.FlagColor > 0 {
+		row = flagLabel(label, i.FlagColor)
+	}
 	if i.Depth == 0 {
-		return label
+		return row
 	}
 	return core.View{Style: core.Style{Direction: core.Row, FlexGrow: 1, FlexShrink: 1, MinWidth: core.Pt(0),
-		Padding: core.Edges{Left: workspaceui.Indent(i.Depth)}}, Children: []core.Node{label}}
+		Padding: core.Edges{Left: workspaceui.Indent(i.Depth)}}, Children: []core.Node{row}}
+}
+
+// flagLabel is a flag's row: its icon in the flag's color, as the flag
+// shows on a message of the list.
+func flagLabel(label workspaceui.NavLabel, color int) core.Node {
+	return core.Dynamic(func(cx *core.Scope) core.Node {
+		label.Tint = flagColor(cx, color)
+		return label
+	})
+}
+
+// flagColor is flag n's color in the theme shown.
+func flagColor(cx *core.Scope, n int) func() core.Color {
+	kit := workspaceui.ColorsOf(cx)
+	return func() core.Color { return kit.Flag(n) }
 }
 
 // sidebarModel is the navigation's sections of mail, from what the store

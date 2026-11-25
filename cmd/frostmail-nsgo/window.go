@@ -3,13 +3,11 @@ package main
 import (
 	"encoding/json"
 	"log/slog"
-	"time"
 
 	"github.com/frostyard/frostmail/api"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
-	"github.com/nsgo-dev/nsgo/desktop"
 )
 
 // The window is kept on the device (the kit's standard for an app, rule 8;
@@ -19,9 +17,10 @@ import (
 // storage, not in maild.
 
 const (
-	windowKey = "window"
-	panesKey  = "pane-widths"
-	viewKey   = "view"
+	panesKey = "pane-widths"
+	viewKey  = "view"
+	// todoKey keeps whether the To-Do Bar is open.
+	todoKey = "todo-bar"
 	// The least size of a kept window: under it the window opens at its
 	// own first size, and the window does not go under it.
 	minWidth, minHeight core.Points = 480, 360
@@ -30,14 +29,6 @@ const (
 	// The To-Do Bar's first width.
 	todoFirst core.Points = 280
 )
-
-// keptWindow is the window as the device keeps it.
-type keptWindow struct {
-	Width, Height core.Points
-	X, Y          core.Points
-	// Placed says X and Y are a place the platform reported.
-	Placed bool
-}
 
 // keptPanes are the widths of the panes: the shell's, and the message
 // list's beside the reader.
@@ -74,36 +65,13 @@ func (w *workspace) keep(key string, v any) {
 	}
 }
 
-// keepWindow shows the window as the device kept it, and keeps it as it
-// changes. A browser's window is the browser's, and is not kept.
-func (w *workspace) keepWindow(cx *core.Scope) {
-	if !desktop.IsAvailable(cx) {
-		return
-	}
-	if k, ok := loadKept[keptWindow](cx, windowKey); ok && k.Width >= minWidth && k.Height >= minHeight {
-		desktop.SetWindowFrame(cx, core.WindowFrame{Width: k.Width, Height: k.Height, X: k.X, Y: k.Y, Move: k.Placed})
-	}
-	var pending func() bool
-	first := true
-	cx.Effect(func() {
-		size, frame, large := cx.Env().Window(), desktop.Frame(cx), desktop.Maximized(cx)
-		if first {
-			// The size the window opens at is not a change of it.
-			first = false
-			return
-		}
-		// A maximized window keeps the size it had before.
-		if large || size.Width < minWidth || size.Height < minHeight {
-			return
-		}
-		k := keptWindow{Width: size.Width, Height: size.Height, X: frame.X, Y: frame.Y, Placed: frame.Move}
-		if pending != nil {
-			pending()
-		}
-		// A drag of the window's edge reports many sizes: keep the last.
-		pending = cx.AfterFunc(300*time.Millisecond, func() { w.keep(windowKey, k) })
-	})
+// todoOpen is whether the device kept the To-Do Bar open.
+func (w *workspace) todoOpen() bool {
+	open, _ := loadKept[bool](w.cx, todoKey)
+	return open
 }
+
+func (w *workspace) keepTodo(open bool) { w.keep(todoKey, open) }
 
 // panes are the kept widths of the panes, with their first widths where
 // the device keeps none.
