@@ -65,6 +65,13 @@ func fixtureSized(t *testing.T, smtp string, width, height core.Points) *nsgotes
 // follow its host's.
 func fixtureLook(t *testing.T, smtp string, width, height core.Points, dark bool) *nsgotest.App {
 	t.Helper()
+	return fixtureWith(t, smtp, width, height, dark)
+}
+
+// fixtureWith starts the client as fixtureLook does, with NSGo's options
+// for the run: what the device's storage holds at the start, for one.
+func fixtureWith(t *testing.T, smtp string, width, height core.Points, dark bool, options ...nsgotest.Option) *nsgotest.App {
+	t.Helper()
 	dir, err := os.MkdirTemp("", "fm-ui-")
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +111,8 @@ func fixtureLook(t *testing.T, smtp string, width, height core.Points, dark bool
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = daemon.Process.Kill(); _ = daemon.Wait() })
-	a := nsgotest.Start(t, root, nsgotest.Size(width, height), nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1, Dark: dark}))
+	a := nsgotest.Start(t, root, append([]nsgotest.Option{nsgotest.Size(width, height),
+		nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1, Dark: dark})}, options...)...)
 	// A compact window (under 720) hides the navigation and its status line:
 	// its caller waits for what it shows instead.
 	if width >= 720 {

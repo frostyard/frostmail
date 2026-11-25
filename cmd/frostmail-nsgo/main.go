@@ -23,7 +23,8 @@ import (
 
 func main() {
 	prepareLaunch()
-	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, root) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820))
+	nsgo.Run(func(app *core.Scope) { nsgo.SetMainView(app, root) }, nsgo.InstanceKey(os.Getenv("FROSTMAIL_INSTANCE")), nsgo.WindowSize(1280, 820),
+		nsgo.WindowConstraints(core.WindowConstraints{MinWidth: minWidth, MinHeight: minHeight}))
 }
 
 type workspace struct {
@@ -103,7 +104,9 @@ func root(cx *core.Scope) core.Node {
 	w.online = core.NewSignal(cx, false)
 	w.nav = core.NewSignalFunc(cx, (*moduleNav)(nil), func(a, b *moduleNav) bool { return a == b })
 	w.watchReader()
-	w.showPhotos = core.NewSignal(cx, true)
+	// How the list is shown is the device's, kept from the last run.
+	kept, photos := keptListState(cx)
+	w.showPhotos = core.NewSignal(cx, photos)
 	w.textScale = core.NewSignal(cx, float32(1))
 	w.toaster = ui.NewToaster(cx)
 	w.searchInput = &core.Ref{}
@@ -117,7 +120,7 @@ func root(cx *core.Scope) core.Node {
 			w.selection.Clear()
 		}
 	})
-	w.listState = mail.ListState{Conversations: true, Filter: mail.FilterAll, Sort: api.ViewSortDate}
+	w.listState = kept
 	w.term = core.NewSignal(cx, "")
 	w.switching = core.NewSignal(cx, false)
 	w.module = core.NewSignal(cx, "Mail")
@@ -180,15 +183,26 @@ func root(cx *core.Scope) core.Node {
 		w.store.Disconnect()
 	})
 	list := w.messageList()
-	listWidth := core.NewSignal(cx, core.Points(390))
+	w.keepWindow(cx)
+	panes := w.panes()
+	listWidth := core.NewSignal(cx, panes.List)
+	// A drag of the list's edge reports many widths: the last is kept.
+	var keepList func() bool
+	resizeList := func(width core.Points) {
+		listWidth.Set(width)
+		if keepList != nil {
+			keepList()
+		}
+		keepList = cx.AfterFunc(200*time.Millisecond, func() { w.keepList(width) })
+	}
 	w.listWidth, w.contentWidth = listWidth, core.NewSignal(cx, core.Points(0))
 	w.tier = core.NewMemo(cx, w.toolbarTier)
 	split := ui.ResizablePanelGroup{Style: ui.FillRest, HandleLabel: "Resize message list", Panels: []base.ResizablePanel{
-		{Size: listWidth.Get, OnResize: listWidth.Set, MinSize: 180, Children: []core.Node{list}},
+		{Size: listWidth.Get, OnResize: resizeList, MinSize: listLeast, Children: []core.Node{list}},
 		{MinSize: 220, Children: []core.Node{core.Dynamic(w.messageReader)}},
 	}}
 	shell := workspaceui.Shell{Brand: "FrostMail", Sections: w.navSections, Selected: w.navSelected, Navigate: w.pressNav,
-		Widths: workspaceui.PaneWidths{Inspector: 280}, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
+		Widths: panes.PaneWidths, OnWidthsChange: w.keepPanes, Inspector: &workspaceui.Inspector{Title: "To-Do Bar", Available: func() bool { return w.module.Get() == "Mail" }, Content: w.todoBar},
 		Actions:       []core.Node{w.actions()},
 		Header:        []core.Node{w.header()},
 		SidebarHeader: []core.Node{w.moduleTabs()},

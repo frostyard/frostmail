@@ -96,9 +96,10 @@ name MyGo.
 - What the three clients asked the kit for (plan 0016, Phase 5): an
   `EmptyState` with buttons, a color for a `NavLabel`'s icon
   (FrostMail's flag rows, #401), a scale for a document's headings, a
-  `FileExplorer` that reports its tree's width, and the kept window as one
-  part, which Frostnotes has in its own code (frostyard/frostnotes#285)
-  and the other 2 need.
+  `FileExplorer` that reports its tree's width, the kept window as one
+  part, which Frostnotes and FrostMail each have in their own code
+  (frostyard/frostnotes#285; Phase 2 here), and a `Shell` that says
+  whether its side panel is open and takes it at the start.
 - **Done when:** the kit is tagged with them, the 3 clients take it, and
   no client's style test lists an exception.
 
@@ -114,6 +115,24 @@ name MyGo.
   for 1 release. The README's pictures are the NSGo suite's (plan 0016,
   Phase 4, closes here).
 - A candidate, and plan 0013's clean-install gate run on it.
+- **The kept window (2026-11-24), built.** The device keeps the
+  window's size, its place where the platform reports one, the widths
+  of the navigation, the To-Do Bar and the message list, and how the
+  list is shown: conversations, contact photos, the sort and its
+  direction (`cmd/frostmail-nsgo/window.go`). A start shows them. A
+  window under 480 by 360 and a maximized one are not kept, and the
+  window does not go under that size. It is in the client's storage,
+  where the appearance is, not in the MyGo client's `window.json`: a
+  person who moves from the MyGo client starts with the first sizes.
+  - Not kept: whether the To-Do Bar is open (the kit's `Shell` holds
+    that, and gives an app no way to set or follow it), and the
+    console's height (the client has no console pane; Activity is a
+    module).
+  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 39 passed,
+    2 of them new (a change is kept; a start shows what was kept, the
+    real window's size with it). The test of a kept view fails with the
+    keeping taken out. No picture is taken again: the window opens as
+    it did where the device keeps nothing.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

@@ -243,17 +243,18 @@ func (w *workspace) listOptions() core.Node {
 		sorts = append(sorts, ui.MenuItem{Text: s.Label, Checked: func() bool { return state().Sort == s.Field }, OnSelect: func() {
 			w.listState.Sort = s.Field
 			w.listState.Ascending = mail.DefaultAscending(s.Field)
+			w.keepView()
 			w.openView()
 		}})
 	}
 	toggle := func(text string, on func() bool, flip func()) core.Node {
-		return ui.MenuItem{Text: text, Checked: on, OnSelect: func() { flip(); w.openView() }}
+		return ui.MenuItem{Text: text, Checked: on, OnSelect: func() { flip(); w.keepView(); w.openView() }}
 	}
 	sorts = append(sorts, ui.MenuSeparator{},
 		toggle("Ascending", func() bool { return state().Ascending }, func() { w.listState.Ascending = !w.listState.Ascending }),
 		ui.MenuSeparator{},
 		toggle("Show conversations", func() bool { return state().Conversations }, func() { w.listState.Conversations = !w.listState.Conversations }),
-		ui.MenuItem{Text: "Contact photos", Checked: w.showPhotos.Get, OnSelect: func() { w.showPhotos.Set(!w.showPhotos.GetUntracked()) }},
+		ui.MenuItem{Text: "Contact photos", Checked: w.showPhotos.Get, OnSelect: func() { w.showPhotos.Set(!w.showPhotos.GetUntracked()); w.keepView() }},
 		toggle("Search all mailboxes", func() bool { return state().SearchAll }, func() { w.listState.SearchAll = !w.listState.SearchAll }),
 		ui.MenuSeparator{},
 		ui.MenuItem{Text: "Save search as a smart mailbox", Disabled: func() bool { return strings.TrimSpace(w.term.Get()) == "" }, OnSelect: func() {
