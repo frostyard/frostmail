@@ -179,6 +179,24 @@ name MyGo.
   `cmd/frostmail-nsgo/actions.go`). The account's dialog, which the
   first run opens by itself, had neither and closed by Escape alone, as
   did others with buttons of their own.
+- **The calendar's drags, first part (2026-11-24), built**
+  ([specs/pim-ui.md](../specs/pim-ui.md#changing-events-in-the-views)).
+  In the month and the week, a drag of an occurrence to another day
+  moves it by whole days, keeping its times: an all-day one by its
+  dates, a timed one by its wall time, so that a move across a change
+  of the clocks keeps the hour it shows. Only an occurrence of a
+  writable calendar that is no invitation moves. A drop is written as
+  an edit is, after the scope's question for a series and the notice
+  to invitees (`cmd/frostmail-nsgo/calendar_drag.go`).
+  - **Not built, and why it is a part of its own:** a move by 15
+    minutes, a resize of an occurrence's end, and a block drawn on empty
+    time. The MyGo client does them on a day laid out by time, 0.8
+    points a minute. The NSGo client's day and week are lists of an
+    hour's or a day's events, with no such layout: it is built first.
+  - `make nsgo-test` passes. `make nsgo-live` on Xvfb's X11: 50 passed,
+    3 of them new (the arithmetic; who may move; in the week of a real
+    window, an event dragged to another day is in that day's cell after
+    and not in its own).
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.
