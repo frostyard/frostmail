@@ -942,6 +942,41 @@ stand-ins of its panes with the control map's controls (rule 11):
     desktop client it closes the forms, headless and in a real window
     (`TestEscapeLeavesAForm` there). Whether the web build did this
     before the change was not checked. It is in Phase 6's list.
+- **PocketGo's shell and confirmations (2026-11-24), built**
+  (frostyard/pocketgo#170). The client had Settings on NSGo's settings
+  view and the palette already; this brings the rest.
+  - **The kit** is `workspaceui/v0.4.0` there.
+  - **The navigation.** Its places are `NavLabel` rows, with the
+    Inbox's count, under the kit's `SearchField`. Its foot is the kit's
+    `ConnectionItem`, in a tone for the connection's state, beside the
+    way to Settings, which leaves the toolbar.
+  - **The toolbar** is NSGo's, with Back, Forward and Refresh, and the
+    palette as a field with its keys in a window 900 wide or more, as
+    FrostMail's is.
+  - **Confirmations** (`confirm` there) are NSGo's alert dialog on the
+    kit's panel, in place of the platform's alert. Cancel is first, and
+    the keyboard starts on it, so Return alone runs nothing: the
+    client's merges as the owner are confirmed here. An action that
+    ends or removes something is in the danger variant. One
+    confirmation shows at a time, and one asked meanwhile waits behind
+    it, since a merge's confirmation opens when its checks end.
+  - **The pager** is `ui.Pagination`, and a team's running and waiting
+    counts are `ui.Badge`s beside their icons (`agentActivity`).
+  - **The style test** (`TestNoLiteralLooks` there) lists no exception:
+    9 lines wrote a look as a number, and take the kit's spacing and
+    NSGo's radii.
+  - **Not changed:** `inboxHeader` and `signIn` keep their shape and
+    take tokens; nothing of rule 5's Undo toast, since no action there
+    is undone.
+  - **Seen, not fixed:** the Settings dialog shows the page under it
+    through its ground. NSGo's `ui.SettingsDialog` takes no style, so
+    the kit's panel cannot be set on it. It is in Phase 6's list.
+  - `make verify`, `make check` and `make ci BASE=origin/main` pass
+    there. Its suite passed in a real window on Xvfb's X11 (33 passed,
+    1 skipped) and in headless Chromium (32 passed, 2 skipped, the
+    style test among them: a browser has no files to read). 5 tests
+    are new. It keeps 28 pictures, 14 for each target: 26 changed and
+    the confirmation's 2 are new.
 
 ## Phase 6 — Upstream (S, alongside)
 
@@ -964,6 +999,8 @@ text an agent drafts:
   clear of it), and Escape in a dialog's text field, which does not
   close the dialog (Phase 5, Frostnotes; the cause, NSGo's or the
   app's, is not found).
+- A `Style` on `ui.SettingsDialog`, so that the kit's opaque panel can be
+  its ground (Phase 5, PocketGo).
 - **Done when:** each has an issue whose link is in the kit's spec, and the
   spec names the workaround to remove when it lands.
 
