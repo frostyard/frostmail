@@ -137,7 +137,9 @@ time, where a drag moves, resizes and draws an event
 app's id, and **the Flatpak's launcher starts it**: `FROSTMAIL_UI=mygo`
 starts the MyGo client, which the Flatpak holds for 1 release. No release
 holds this yet, and Phase 2's clean-install gate is not run. The Windows
-installer's program is still the MyGo client (Phase 3).
+installer's program is still the MyGo client (Phase 3). A second installer,
+of the NSGo client, is built beside it by NSGo's tool (`make
+nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
 
 ## Two kinds of agent work
 
@@ -214,7 +216,12 @@ installer's program is still the MyGo client (Phase 3).
   and 0.0.0 in git. `install.sh`
   is the wrapper for the development bundle, with a host maild.
 - `packaging/windows/installer.nsh` and `mygo.json`: MyGo's Windows installer
-  (`make desktop-installer`). `packaging/icons`: the app's icons.
+  (`make desktop-installer`). `packaging/windows/nsgo-installer.nsh`: the
+  same steps for the NSGo client's installer (`make nsgo-installer`,
+  `scripts/nsgo-windows-installer.sh`), which NSGo's tool builds and
+  `tools/nsgoinstaller` writes them into; `nsgo-installer-check.nsh` holds a
+  check's names ([design/desktop.md](docs/design/desktop.md#windows)).
+  `packaging/icons`: the app's icons.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
   server (`dev/incus/mailtest.sh`).
 - `tools/rpcgen`, `tools/taskrun`: the contract generator and the task-card

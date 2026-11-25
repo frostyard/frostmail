@@ -7,3 +7,5 @@ dev:
   target: native
 build:
   targets: [linux_x64, windows_x64, web]
+windows:
+  publisher: frostyard

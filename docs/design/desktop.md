@@ -586,6 +586,60 @@ the notifier and the installer.
 
   Releases are unsigned (ADR-0038): SmartScreen asks once per release
   ("More info", "Run anyway").
+- **The NSGo client's installer** ([plan 0017](../plans/0017-nsgo-as-the-only-client.md),
+  Phase 3) is a second installer, whose program is the NSGo client. It is
+  built beside MyGo's until MyGo goes, by `make nsgo-installer`
+  (`scripts/nsgo-windows-installer.sh`) and by the Windows CI job
+  (`frostmail-nsgo-windows-installer`). No install of it is checked yet.
+  - **How it is built.** NSGo's tool builds the client and writes the
+    installer's NSIS script (`go tool nsgo build -target windows_x64` in
+    `cmd/frostmail-nsgo`), into `build/nsgo-windows`. The script builds
+    `maild.exe` and `mailctl.exe` from the root module, and puts them, the
+    notifier and `frostmail.png` in the client's `resources` folder while
+    NSGo builds, so NSGo ships them beside `FrostMail.exe` and its
+    uninstaller removes them. NSGo's script has no place for an app's own
+    steps: `tools/nsgoinstaller` writes
+    `packaging/windows/nsgo-installer.nsh` into it, and refuses a script
+    that lacks one of the lines it finds its places by. makensis then
+    compiles `frostmail-<version>-windows-x64-setup.exe`. NSGo's tool
+    downloads no NSIS: on Windows without one the script downloads NSIS
+    3.13, checked against its SHA-256.
+  - **What NSGo's script does:** a per-user install in
+    `%LOCALAPPDATA%\Programs\FrostMail`, or where the uninstall entry
+    `org.frostyard.Frostmail` says the app is; it stops whatever runs from
+    that folder, makes the Start Menu shortcut, and writes an uninstaller
+    that deletes the files the build listed, and their folder once empty.
+  - **Over MyGo's install.** The uninstall entry is MyGo's, and Windows'
+    file names ignore case, so this installer installs into MyGo's folder,
+    over `Frostmail.exe`, the sidecars, the shortcut and the entry.
+    `frostmail-nsgo.exe`, which MyGo's installer carried, is deleted.
+  - **Frostmail's steps** are `installer.nsh`'s: the refused folder (the
+    mail's, or a Tauri install's), the Tauri install taken over, the
+    AppUserModelID and `frostmail-toast:`, `maild -autostart on` and
+    maild's start, and on uninstall both registrations, the Run value and
+    the question about the mail, which a silent uninstall keeps.
+  - **A check of it** is built with `FROSTMAIL_INSTALLER_CHECK=1 make
+    nsgo-installer`, into `build/nsgo-windows-check` (CI:
+    `frostmail-nsgo-windows-installer-check`), and installs beside a real
+    install: it is `FrostMail Check`
+    (`%LOCALAPPDATA%\Programs\FrostMail Check`, `FrostMail Check.exe`, the
+    uninstall entry and AppUserModelID `org.frostyard.Frostmail.Check`),
+    with the names of `packaging/windows/nsgo-installer-check.nsh`: the
+    scheme `frostmail-toast-check`, a Tauri key and a data folder
+    (`%LOCALAPPDATA%\Frostmail Check`) of its own. It leaves out `maild
+    -autostart on` and the Run value's removal, and starts its maild only
+    when the installer's environment sets `FROSTMAIL_SOCKET` and
+    `FROSTMAIL_DATA_DIR`. `FROSTMAIL_INSTALLER_CHECK=delete` builds the
+    check whose silent uninstall deletes the check's mail.
+    - What a check does not change: maild, mailctl and the client take
+      their pipe and folders from `FROSTMAIL_SOCKET`, `FROSTMAIL_DATA_DIR`
+      and `FROSTMAIL_CACHE_DIR`, and without them use the user's. The
+      notifier posts under `org.frostyard.Frostmail` and `frostmail-toast:`
+      whatever the build, so a check's toast shows as the real install's,
+      and a click on it goes to the real install's notifier. A check's
+      `frostmail-notify.exe --activate`, run by hand, looks for
+      `frostmail.exe` beside it, which a check does not have:
+      `FROSTMAIL_APP` names `FrostMail Check.exe` for it.
 
 ## On a maild behind lodge
 

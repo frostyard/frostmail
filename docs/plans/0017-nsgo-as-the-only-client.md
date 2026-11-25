@@ -329,6 +329,42 @@ name MyGo.
   - **Not tried:** a send, a notification, the tray, a link, an
     attachment, print, a sign-in, a maximized window, and the
     installer. The pictures are not kept.
+- **The NSGo client's installer (2026-11-25), built; installed on no
+  machine.** A second installer, whose program is the NSGo client, is
+  built beside MyGo's by NSGo's own tool (`make nsgo-installer`,
+  `scripts/nsgo-windows-installer.sh`;
+  [design/desktop.md](../design/desktop.md#windows)). maild, mailctl, the
+  notifier and the toast's icon ship beside `FrostMail.exe`. NSGo's NSIS
+  script has no place for an app's own steps, so `tools/nsgoinstaller`
+  writes them into it (`packaging/windows/nsgo-installer.nsh`): they are
+  `installer.nsh`'s. MyGo's installer is not changed, and its program is
+  still the MyGo client.
+  - CI's Windows job on the change's first commit
+    ([run 45553103042](https://github.com/frostyard/frostmail/actions/runs/45553103042))
+    built `frostmail-0.9.0-windows-x64-setup.exe`, 19,565,808 bytes, and,
+    under a check's names, `frostmail-check-0.9.0-windows-x64-setup.exe`,
+    19,567,436 bytes. makensis gave 1 warning for each, that the version
+    information has no `LegalCopyright`. The same job built MyGo's
+    installer, 26.5 MB, and passed its install check. That run's log does
+    not name the makensis that compiled the 2 new installers: the script
+    printed none then.
+  - `make check` passes; `tools/nsgoinstaller`'s tests run on the script
+    that NSGo v0.3.0's build wrote on Linux.
+  - Read in the code, and seen in no install: the uninstall entry is
+    MyGo's (`org.frostyard.Frostmail`), and Windows' file names ignore
+    case, so this installer installs into MyGo's folder over its files;
+    the client starts `maild.exe` from beside it
+    (`internal/desktop/conn`), maild runs `frostmail-notify.exe` from
+    beside it, and the notifier's click runs `frostmail.exe` beside it,
+    which `FrostMail.exe` answers to there.
+  - Read in NSGo's script, and seen in no uninstall: its `CloseApp` stops
+    every process whose program is in the install folder, and does not
+    leave out the uninstaller. A silent uninstall run with `_?=`, as CI
+    runs MyGo's, runs from that folder.
+  - **Not done:** no installer of it was run. An install, an upgrade over
+    MyGo's install and over a Tauri one, the toast and its click, the
+    second start, and the uninstall are the Windows VM's check, which is
+    still to do before MyGo goes.
 - **Done when:** `go.mod` names neither `github.com/egoist/mygo` nor
   frostui's root module, `make ci` passes, and the owner releases the
   version (`make bump`, then Promote).

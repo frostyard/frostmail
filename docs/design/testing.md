@@ -185,7 +185,13 @@ too:
   `frostmail-windows-installer` artifact (kept 14 days), installs and
   uninstalls it silently, and runs `internal/desktop/e2e` on WebView2 in the
   runner's interactive session. Installs and trials take that installer to
-  the VM or one of the user's machines.
+  the VM or one of the user's machines. It also builds the NSGo client's
+  installer (`scripts/nsgo-windows-installer.sh`,
+  [desktop.md](desktop.md#windows)) under the product's names and under a
+  check's, and uploads them as `frostmail-nsgo-windows-installer` and
+  `frostmail-nsgo-windows-installer-check`. It installs neither.
+  `tools/nsgoinstaller`'s tests, on the script NSGo's build wrote, hold
+  where Frostmail's steps go in it.
 - Tests that need a socket take one from `rpctest.SocketPath`: a short
   private path on Linux, a fresh named pipe on Windows. Contract tests
   that check Unix file modes (the blob store, the plain secrets file) or

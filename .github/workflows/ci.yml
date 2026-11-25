@@ -379,6 +379,29 @@ jobs:
           foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
             if (Test-Path $k) { throw "the uninstall left $k" }
           }
+      # The NSGo client's installer (plan 0017, Phase 3), which NSGo's tool
+      # builds, beside MyGo's until MyGo goes: under the product's names, and
+      # under a check's names, which install beside a real install. They are
+      # built and kept here, and installed by nothing: the checks of an
+      # install take them to a Windows machine.
+      - name: The NSGo client's installer
+        run: scripts/nsgo-windows-installer.sh "$CARGO_TARGET_DIR/release/frostmail-notify.exe"
+      - name: The NSGo client's installer, under a check's names
+        env:
+          FROSTMAIL_INSTALLER_CHECK: "1"
+        run: scripts/nsgo-windows-installer.sh "$CARGO_TARGET_DIR/release/frostmail-notify.exe"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frostmail-nsgo-windows-installer
+          path: build/nsgo-windows/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frostmail-nsgo-windows-installer-check
+          path: build/nsgo-windows-check/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
       # The reader on WebView2 (ADR-0038) and the app's windows, driven with
       # the automation build. WebView2 needs a window, so an interactive
       # desktop session.

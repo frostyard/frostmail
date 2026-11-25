@@ -326,9 +326,17 @@ task-finish: ## Verify, move the card to done/ and commit the task's work
 clean: ## Remove build output
 	rm -rf build dist coverage.out coverage.html
 
-.PHONY: nsgo-build nsgo-test nsgo-live nsgo-pictures nsgo-lodge-app
+.PHONY: nsgo-build nsgo-installer nsgo-test nsgo-live nsgo-pictures nsgo-lodge-app
 nsgo-build: ## Build the shared native mail client
 	scripts/build-nsgo-native.sh build/frostmail-nsgo
+
+# The NSGo client's Windows installer (plan 0017, Phase 3): NSGo's tool builds
+# the client and writes the installer's script, tools/nsgoinstaller adds
+# packaging/windows/nsgo-installer.nsh to it, and makensis compiles it.
+# FROSTMAIL_INSTALLER_CHECK=1 builds it under a check's names, into
+# build/nsgo-windows-check.
+nsgo-installer: ## Build the NSGo client's Windows installer into build/nsgo-windows (NOTIFIER=path to frostmail-notify.exe)
+	scripts/nsgo-windows-installer.sh $(NOTIFIER)
 
 nsgo-test: ## Exercise the shared mail workspace and compile it for Lodge
 	cd cmd/frostmail-nsgo && go test -tags integration ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .
