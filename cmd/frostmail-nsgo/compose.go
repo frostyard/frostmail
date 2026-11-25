@@ -473,7 +473,10 @@ func (e *draftEditor) recipient(label string, dest *string) core.Node {
 			})
 		})
 	}
-	return workspaceui.Stack(ui.Input{Label: label, Value: value.Get, Disabled: e.busy.Get, OnChange: change}, core.Dynamic(func(*core.Scope) core.Node {
+	// A message with nobody to go to opens with the keyboard in To, as
+	// Mail.app's does: text typed at once is the first recipient.
+	first := label == "To" && strings.TrimSpace(*dest) == ""
+	return workspaceui.Stack(ui.Input{Label: label, AutoFocus: first, Value: value.Get, Disabled: e.busy.Get, OnChange: change}, core.Dynamic(func(*core.Scope) core.Node {
 		var rows []core.Node
 		for _, a := range choices.Get() {
 			token := oldcompose.Token(a)

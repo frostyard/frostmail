@@ -678,6 +678,30 @@ func TestArchiveAnswersWithAnUndoToast(t *testing.T) {
 	a.Find("id:undo >> role:button Undo")
 }
 
+// TestComposeOpensWithTheKeyboardInAField checks where the keyboard is as
+// Compose opens: in To for a new message, so that text typed at once is
+// its first recipient, and not in To for a reply, whose To is filled.
+// Seen on Windows before this: text typed after Ctrl+N went nowhere.
+func TestComposeOpensWithTheKeyboardInAField(t *testing.T) {
+	a := fixtureWorkspace(t)
+	a.Press("label:Compose")
+	a.WaitFor("label:To", 5*time.Second)
+	a.WaitUntil(5*time.Second, func() bool { return a.Find("label:To").Focused })
+	a.Key("ctrl+w")
+	a.WaitUntil(5*time.Second, func() bool { return !a.Exists("label:Subject") })
+
+	row := "id:messages >> label:Your trip to Lisbon: itinerary"
+	a.WaitFor(row, 8*time.Second)
+	a.Press(row)
+	a.WaitUntil(8*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Reply") })
+	a.Press("role:toolbar >> label:Reply")
+	a.WaitFor("label:Subject", 8*time.Second)
+	a.WaitUntil(5*time.Second, func() bool { return a.Find("label:To").Text != "" })
+	if a.Find("label:To").Focused {
+		t.Error("a reply, whose To is filled, opens with the keyboard in To")
+	}
+}
+
 func TestClosingNewDraftAndDiscardingEdits(t *testing.T) {
 	a := fixtureWorkspace(t)
 	a.Press("label:Compose")
