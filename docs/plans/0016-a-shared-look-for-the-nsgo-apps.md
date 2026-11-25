@@ -968,6 +968,12 @@ stand-ins of its panes with the control map's controls (rule 11):
     desktop client it closes the forms, headless and in a real window
     (`TestEscapeLeavesAForm` there). Whether the web build did this
     before the change was not checked. It is in Phase 6's list.
+- **Frostnotes on the kit's spacing (2026-11-24), built**
+  (frostyard/frostnotes#283). It takes `workspaceui/v0.4.0`, and the
+  editor's inset is the kit's `SpaceL`. Its style test allows no
+  padding now, and 1 number is left: a Markdown heading's size in live
+  preview. `make check` passes there, `make nsgo-live` on Xvfb's X11
+  passed 22 of 22, and none of its 24 kept pictures changed.
 - **PocketGo's shell and confirmations (2026-11-24), built**
   (frostyard/pocketgo#170). The client had Settings on NSGo's settings
   view and the palette already; this brings the rest.
