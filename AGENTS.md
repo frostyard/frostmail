@@ -121,6 +121,11 @@ the style test of rule 2 is on with no exception (`TestNoLiteralLooks`;
 the paddings take the kit's spacing, `workspaceui/v0.4.0`); the README's
 pictures are left. The MyGo client stays the default.
 
+Plan 0017 ([NSGo as the only client](docs/plans/0017-nsgo-as-the-only-client.md))
+is proposed (2026-11-24): the owner set its end, the NSGo clients as the
+default, MyGo removed and the versions released; its questions are open,
+and nothing of it is built.
+
 ## Two kinds of agent work
 
 - **Planning and core work** (architecture, contracts, the sync engine,
