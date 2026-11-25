@@ -121,6 +121,13 @@ the style test of rule 2 is on with no exception (`TestNoLiteralLooks`;
 the paddings take the kit's spacing, `workspaceui/v0.4.0`); the README's
 pictures are left. The MyGo client stays the default.
 
+Plan 0017 ([NSGo as the only client](docs/plans/0017-nsgo-as-the-only-client.md))
+and [ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)
+(Accepted, 2026-11-24) make the NSGo client the only client, in 3 steps:
+the default on the desktop, MyGo removed on Linux and Windows, then the
+React app's place in Lodge. The owner answered the plan's questions the
+same day. Nothing of it is built: the MyGo client is still the default.
+
 ## Two kinds of agent work
 
 - **Planning and core work** (architecture, contracts, the sync engine,
