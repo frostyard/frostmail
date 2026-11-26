@@ -115,5 +115,6 @@ and normal components; anything else is 400. A path that resolves outside
   `Client.<Domain>()` returns the typed methods; `Client.Notifications()`
   delivers events (the client fails with `ErrEventsOverflow` if 1024
   undelivered events pile up).
-- TypeScript: `JsonRpcSession` over a line channel, on lodge's WebSocket
-  (`app/src/rpc/transport/lodge.ts`).
+- Through lodge: the same Go client over lodge's WebSocket
+  (`internal/desktop/conn`), from the desktop app and from the NSGo
+  client's web build in a browser.

@@ -6,7 +6,7 @@ storage and the RPC socket. A native Go app on NSGo and Frostyard's kit
 (`cmd/frostmail-nsgo`) and `mailctl`, a CLI, are clients of that socket.
 maild also runs as the `mail` app of
 [lodge](https://github.com/frostyard/lodge), frostyard's tailnet web shell,
-where a React web app runs in a browser. Start at [docs/README.md](docs/README.md);
+where the same client's web build runs in a browser. Start at [docs/README.md](docs/README.md);
 the architecture entry point is
 [docs/design/overview.md](docs/design/overview.md).
 
@@ -75,7 +75,8 @@ Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
 [ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
 (Accepted, 2026-11-22; superseded by ADR-0063) replaced the old shell with a
 native Go app on MyGo and frostui (`cmd/frostmail`), which shipped up to
-`v0.10.0`; the React app stays as lodge's web app. Tauri's shell is gone.
+`v0.10.0`; the React app was lodge's web app until plan 0017's Phase 3.5.
+Tauri's shell is gone.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Accepted) adds maild's activity stream for the app's console; its maild
 side is built (`mailctl activity`). Plan 0017's Phase 3 removes the MyGo
@@ -207,12 +208,14 @@ installer was checked on the Windows VM over a Tauri and a MyGo install
   open), `trayhost` (whether a panel hosts the tray), `icons` (the tray
   icon) and `launcher`, which shows the All Inboxes count on the launcher
   icon on Linux (Unity's LauncherEntry signal; no Flatpak permission).
-- `app/`: the React web app that lodge serves. It builds only for lodge
-  (`make web-build`) and runs in lodge's development build
-  ([docs/design/app.md](docs/design/app.md#dev-and-test), Dev and test);
-  maild has no other gateway for it. `app/src/rpc/gen/api.ts` is
-  generated; `app/src/lodge/` runs the UI in lodge's frame (routes, windows as
-  routes), over `app/src/rpc/transport/lodge.ts`. `app/notify` is the Windows
+- `app/`: the loader of the NSGo client's web build in lodge's frame
+  (`index.html`, `src/nsgo-lodge.ts`, the bridge `window.frostmailLodge`
+  that `cmd/frostmail-nsgo/platform_web.go` calls). `make web-build` builds
+  the client for `js/wasm` with NSGo's tool and the loader with Vite into
+  `build/web`, which `make deb` installs and `make deb-check` checks
+  ([docs/design/app.md](docs/design/app.md)); it runs in lodge's development
+  build, and `dev/lodge/nsgo-smoke.py --deb` drives the `.deb`'s in headless
+  Firefox. maild has no other gateway for it. `app/notify` is the Windows
   toast notifier (Rust).
 - `packaging/flatpak`: the app's Flatpak manifest, its metainfo and desktop
   entry, and the offline `go-sources.json` (`make flatpak-sources`;
@@ -298,7 +301,7 @@ installer was checked on the Windows VM over a Tauri and a MyGo install
   v0.3.0, which frostyard does not own. The kit is a module of its own in
   frostui (tags `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`).
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
-  `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.7.0`.
+  `client/v0.3.2`, the loader's.
 - The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
   the Go versions above; it changes with every bump. Run `make flatpak-sources`
   after a change to `go.mod` or `go.sum`. A dependency bump also updates every

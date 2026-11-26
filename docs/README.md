@@ -86,7 +86,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [Storage](design/storage.md)
 - [Sync engine](design/sync.md)
 - [Message rendering](design/rendering.md)
-- [The app](design/app.md)
+- [The app in Lodge](design/app.md): the NSGo client's web build, its loader and its bridge to lodge's shell
 - [Drafts and sending](design/send.md)
 - [Accounts, sign-in and providers](design/accounts.md)
 - [Running on the desktop](design/desktop.md)

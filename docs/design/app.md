@@ -1,153 +1,97 @@
-# The app
+# The app in Lodge
 
-The shared NSGo client follows [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md).
-
-Living document. Rationale: [ADR-0009](../adr/0009-ui-architecture.md),
+Living document. Rationale: [ADR-0061](../adr/0061-share-the-mail-client-with-nsgo.md),
+[ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md),
 [ADR-0005](../adr/0005-html-mail-rendering.md).
-Contracts: [specs/ui.md](../specs/ui.md), [specs/rpc-api.md](../specs/rpc-api.md).
+Contracts: [specs/lodge-app.md](../specs/lodge-app.md#the-web-build),
+[specs/ui.md](../specs/ui.md), [specs/rpc-api.md](../specs/rpc-api.md).
 
 ## Overview
 
-The web app is a React UI that runs in lodge, in a browser; the desktop app
-is the native NSGo client ([ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md),
-which superseded ADR-0054's MyGo client).
-`app/` builds only for lodge (ADR-0054): it reaches maild only through
-lodge, and outside lodge's frame it runs only in its tests.
-It holds no mail of its own: lists are views kept by maild, messages are fetched when shown, and
-every change goes back to maild as an API call.
+FrostMail has one client, the NSGo client (`cmd/frostmail-nsgo`). On Linux
+and Windows it is the desktop app ([design/desktop.md](desktop.md)); in
+Lodge the same Go code runs in the browser, compiled to WebAssembly by
+NSGo's own tool, as Lodge's `mail` app. It replaced the React app in Lodge
+in [plan 0017](../plans/0017-nsgo-as-the-only-client.md)'s Phase 3.5, which
+lists what the React app did that this build does not.
+
+The web build reaches maild only through Lodge, and holds no mail of its
+own: lists are views kept by maild, messages are fetched when shown, and
+every change goes back to maild as an API call, as on the desktop.
 
 ```
-components ◄── containers ◄── stores, ViewModel ◄── Client (gen/api.ts)
-                                                       │
-                                     Transport: lodge (WebSocket to maild)
-                                                or mock (in-memory maild, tests)
+lodge's shell ── frame /app/mail/ ── index.html, src/nsgo-lodge.ts (the loader)
+                                         │ window.frostmailLodge (the bridge)
+                                         ▼
+                         the NSGo client (assets/app.*.wasm)
+                                         │ internal/desktop/conn
+                                         ▼
+                 /app/mail/api (WebSocket, a session) ──► maild --lodge
 ```
 
-## Source layout (`app/src`)
+## The build
 
-| Path | What | Owner |
-| --- | --- | --- |
-| `main.tsx` | connects through lodge, renders `App` | planner |
-| `rpc/` | `transport.ts` (JSON-RPC session), `transport/lodge.ts`, `gen/api.ts` (generated) | planner |
-| `rpc/mock/` | `MockTransport` and its fixture data, for the tests | planner |
-| `data/` | `ViewModel`, `useView`, the mailbox, sync and UI stores, `ClientContext` | planner |
-| `app/` | `App` (pane layout, splitters, focus), containers that connect features to data | planner |
-| `features/<area>/` | presentational components and their tests: `sidebar`, `list`, `reader`, `toolbar`, `menu`, `search` | cards |
-| `lib/` | pure helpers: formatting, the mailbox tree, the keymap | cards |
-| `styles/` | `app.css` (Tailwind entry, imports the shared look, base styles and the compose body) | planner |
-| `testing/` | Testing Library setup and render helpers | planner |
+`make web-build` writes `build/web/`, which `make deb` installs as
+`/usr/share/lodge/apps/mail/web/`:
 
-The look is shared code: `@frostyard/lodge-ui` carries the colour tokens,
-the accents and the Tailwind theme over them, so `styles/app.css` imports
-the package instead of defining them
-([lodge ADR-0018](https://github.com/frostyard/lodge/blob/main/docs/adr/0018-a-ui-package-beside-the-client.md),
-[lodge's UI package spec](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md),
-[specs/ui.md](../specs/ui.md#tokens)). The move changed no look: the
-built stylesheet loses no token and changes none, and `make screenshots`
-differs by no more than two runs of the same code do. ADR-0009 leaves the
-adding of a dependency to the planner, who approved this one on
-2026-10-21.
+1. `go tool nsgo build -target web` builds the client into
+   `build/nsgo-web/FrostMail-<version>-web/` (`nsgo.yaml`'s version): its
+   Wasm, NSGo's loader script `nsgo.*.js`, Go's `wasm_exec.*.js`, the
+   third-party notices, and `nsgo.json`, which names them.
+2. Vite builds `app/` for the base `/app/mail/` in the nsl machine (CI runs
+   it on the runner, `IN_NSL='sh -c'`): `index.html` and the loader
+   `assets/index-*.js`.
+3. `nsgo.json` goes beside `index.html`, NSGo's files into `assets/`, and
+   `packaging/icons/icon.svg` beside them.
 
-The toolbar's window buttons (Minimize, Maximize or Restore, and Close) are
-the package's `WindowControls` too: the toolbar draws Settings and, in the
-desktop app, that group, and the DOM differs from the buttons it replaced
-by one wrapper, `role="group"`, `aria-label="Window controls"`. Whose
-buttons they are is the platform's
-([ADR-0038](../adr/0038-windows-as-a-second-platform.md), the user's
-decision of 2026-10-22): the toolbar reads `windowPlatform()` once and
-passes it as the group's `platform`, so Linux keeps the look it had,
-lodge-ui's own buttons, and Windows draws Windows' caption buttons from
-the package, 46 wide and the strip's full height at its right edge
-([specs/ui.md](../specs/ui.md#layout), Toolbar). The compose window's own
-toolbar keeps its Close button, which always shows and whose commands are
-strings, not a `WindowCommand`.
+NSGo's own `index.html`, `mount.*.js`, icons and web manifest are not
+copied: the loader takes their place. `make deb-check` holds the layout:
+the page, `nsgo.json`, the Wasm and NSGo's scripts are there, and no
+stylesheet, font or file holding React's names is
+(`packaging/deb-check.py`'s `--glob`, `--absent` and `--no-text`).
 
-Presentational components take data and callbacks as props, hold only
-transient state (hover, an open menu), and import nothing from `data/` or
-`rpc/` except API types. Containers in `app/` wire them to stores and the
-client.
+`app/` holds only the loader: `index.html` (the page's print styles), and
+`src/nsgo-lodge.ts` with `src/permalink.ts`, on `@frostyard/lodge-client`.
+`app/notify` is the Windows toast notifier (Rust), and builds apart.
 
-## Data
+## The loader and its bridge
 
-- **Connection.** `main.tsx` creates one `Client`, calls `rpc.hello`, then
-  `events.subscribe` without `sinceSeq` (the UI reloads what it shows on
-  reconnect instead of replaying). On close it shows a "Reconnecting…" state
-  and retries every second; on success it reloads the mailbox and sync
-  stores and reopens open views.
-- **ViewModel** (`data/view.ts`) wraps one maild view:
-  - `open(query)` calls `view.open` and stores `id` and `count`. Changing the
-    query closes the old view and opens a new one.
-  - Rows are a sparse `Map<index, MessageSummary>`. `ensure(start, end)`
-    requests missing rows in pages of 100 aligned to multiples of 100, one
-    request per page in flight.
-  - `view.delta` (matched by view ID) applies its ops in order: an insert at
-    `at` shifts cached rows at or after `at` up by `count`; a remove drops
-    rows in `[at, at + count)` and shifts later rows down. Then the count is
-    set from the delta and visible missing rows are requested again.
-  - A generation counter increases with every delta; a range response from an
-    older generation is dropped and its page requested again, since its
-    indices may be stale.
-  - `message.changed` IDs that match cached rows are refreshed with
-    `message.summaries` and replaced by ID.
-  - It notifies subscribers with a version number for
-    `useSyncExternalStore`; `useView(query)` returns `{count, row(i), ensure}`.
-- **Stores** (zustand): `mailboxes` (all mailboxes from `mailbox.list`,
-  reloaded on `mailbox.changed` and `account.changed`, debounced 100 ms);
-  `sync` (latest `SyncStatus` per account from `sync.status` and
-  `sync.progress`); `ui` (the source, the search, selected IDs and the anchor
-  for range selection, the focused pane, sidebar visibility, pane widths,
-  conversation mode).
-- **Selection** is a list of message IDs. After a delta the list container
-  keeps the IDs still present; if all are gone it selects the row now at the
-  first removed index, or the last row (specs/ui.md, Behavior).
+`src/nsgo-lodge.ts` connects to the shell with `connectLodge({app:
+"mail"})`, sets `window.frostmailLodge`, fetches `nsgo.json` and mounts the
+client with NSGo's loader, in the shell's theme, which it follows after.
+The client calls the bridge from `platform_web.go`:
 
-## Reader
+| Call | Does |
+| --- | --- |
+| `onRoute(callback)` | returns the frame's route and sends later `navigate` routes to `callback` |
+| `report(route, title, replace)` | the shell's `route` |
+| `context(id, messageId, title)` | the shell's `context`: the message's permanent route, or none |
+| `backToList()` | `history.back()`, for a narrow window's Back from a message |
+| `printMessage(subject, headers, text)` | prints an article of those 3 alone, with the page's print styles |
+| `contentURL(path)` | the shell's `contentURL` |
+| `openPart(path)`, `download(path)` | `lodge.open` of the content URL, the second with `?download=1` |
 
-- With one row selected, the reader loads the conversation:
-  `thread.messages(threadId)` (or the message alone when `threadId` is 0),
-  newest first, at most 20 with "Show N earlier messages" for the rest.
-  Each message gets `message.get` (headers, parts) and `message.render`.
-  Selecting marks the message seen with `message.setFlags`.
-- **The frame** (`features/reader/ContentFrame.tsx`, planner): the reader
-  calls `message.render {id, content: true}` and shows the page maild keeps
-  for the message from lodge's content node, in an `iframe` that fills the
-  pane and scrolls itself; its links open browser tabs
-  ([design/rendering.md](rendering.md#behind-lodge),
-  [specs/lodge-app.md](../specs/lodge-app.md#the-web-build)). A message
-  whose page maild did not keep (no `contentPath`) says it is too large to
-  show here; its HTML is never framed on lodge's own origin.
-  - The shared `openLink` filters mailto fields before handing a link to
-    lodge; maild applies the same rule to HTML links that open directly
-    from the content-origin frame
-    ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
-  - Text-only messages render as React elements (`PlainText`), not in a
-    frame.
-- **Remote content:** the banner's button calls `message.render` again with
-  `remote: true`; the frame is replaced with the new page.
-- **Attachments:** a chip calls `message.part` and opens the part's
-  `contentPath` on lodge's content node in a new tab, through the shell;
-  its Save button opens the same URL with `?download=1`
-  ([specs/lodge-app.md](../specs/lodge-app.md#the-web-build)).
-- **Raw Source, All Headers, Save As, Print** (M5): `message.source` gives
-  the message as the server holds it (its header section apart) from the
-  blob store, fetching the body first when it is not stored; `message.save
-  {id, path}` writes it to a path from the save dialog, so the app needs
-  no file access of its own. Print is the webview's own print with print
-  styles that leave only the reader; Export as PDF is the print dialog's
-  Print to File.
-- **Contact photos** (M5): `people.senders` names, in one request, the
-  list's sender addresses whose person has a photo; the app fetches each
-  person's `people.photo` once and keeps it for the session. Photos are
-  the contacts' own, never fetched from anywhere.
+## The client in the browser
 
-## Window
-
-- The browser draws the window. The toolbar has no window controls.
-- Keyboard: one `keydown` listener on the window maps events through
-  `lib/keymap.ts` to commands (specs/ui.md, Keyboard map) and dispatches them
-  to the focused pane's handlers.
-- The webview's own context menu is disabled; list rows open the app's
-  `ContextMenu`.
+- **Connection.** `platformTarget` is Lodge at the page's origin;
+  `internal/desktop/conn` opens `/app/mail/api` there (`socket_web.go`,
+  which refuses any other origin), says `rpc.hello` as `FrostMail NSGo`,
+  pings every 30 s and reconnects every second, as on the desktop.
+- **Routes** (`routes.go`): the source and the open message, the modules
+  (`/calendar`, `/people`, `/tasks`, `/activity`, `/settings`), and the
+  panels with a route of their own (`/compose/<id>`, `/event/…`,
+  `/reminders`). `platform_web.go` reports them, replacing within a place
+  and pushing a new one, and pushing a message a narrow window (under 800
+  wide) shows in place of its list, which Back undoes by history.
+- **The reader** shows the page maild keeps for the message, from
+  `contentURL(contentPath)`, in NSGo's web view with JavaScript off
+  (`bodyView`); a message with no page shows its text.
+- **Attachments and Save As** open or download content URLs through the
+  bridge. There are no thumbnails, no server panel and no tray.
+- **Notifications** of `message.announced` go through NSGo's notification
+  call, which in a browser is the Notification API; Settings →
+  Notifications asks for the permission.
+- **Storage** is NSGo's: local storage under `nsgo:org.frostyard.Frostmail:`.
 
 ## Dev and test
 
@@ -158,9 +102,9 @@ The development build), with the sibling checkout `../lodge`:
 1. In `../lodge`: `make e2e-build`, `make shell-build` (nsl), then
    `FAKE_APPS=0 dev/e2e.sh ROOT`. Keep ROOT short: a socket's path is at
    most 108 bytes.
-2. In this repository: `make web-build` (nsl) builds the app for lodge's `/app/mail/`
-   (`src/lodge/`), and `dev/lodge/run.sh ROOT` stages
-   it with maild, then runs `maild --lodge` on generated mail under ROOT.
+2. In this repository: `make web-build` builds the app for lodge's
+   `/app/mail/`, and `dev/lodge/run.sh ROOT` stages it with maild, then
+   runs `maild --lodge` on generated mail under ROOT.
 3. `LODGE_ROOT=ROOT ../lodge/build/lodgectl reload` picks the app up; open
    `http://127.0.0.1:8480/mail`. After a change, stop `dev/lodge/run.sh`,
    run `make web-build` and start it again: it stages the new build, and
@@ -170,18 +114,22 @@ The development build), with the sibling checkout `../lodge`:
 maild as lodge's app answers: health, a session, and a reader page from
 the content route ([specs/lodge-app.md](../specs/lodge-app.md)).
 `dev/lodge/run.sh` shows the environment `maild --lodge` runs with under a
-lodge root; a development maild with other data runs the same way. Run it
-with `FROSTMAIL_SECRETS=file`, or its test passwords move into the
-desktop's keyring (docs/design/accounts.md, Secrets);
+lodge root. Run it with `FROSTMAIL_SECRETS=file`, or its test passwords
+move into the desktop's keyring (docs/design/accounts.md, Secrets);
 `dev/incus/mailtest.sh demo USER` delivers realistic demo mail.
 
-- `make ui-check` runs Biome, the TypeScript check and Vitest (happy-dom,
-  Testing Library) in the nsl machine. Task cards that touch `app/` are
-  verified with it.
+- `dev/lodge/nsgo-smoke.py TOOLS --deb DEB` runs a disposable Lodge on
+  what the `.deb` installs, maild and the web build, and drives it in
+  headless Firefox: the inbox, the reader's frame, Settings, Back, a
+  reload and a draft's route. Without `--deb` it runs on `make
+  nsgo-lodge-app`'s staged directory and a maild built from the tree.
+- `make nsgo-test` builds the client for `js/wasm` too.
+- `make ui-check` runs Biome, the TypeScript check and Vitest on the
+  loader, in the nsl machine.
 
 ## Operational notes
 
-- Nothing persists in the app except pane widths, sidebar visibility and
-  conversation mode (local storage). Clearing it resets the layout.
-- If maild is not running, the window shows the connection error and keeps
-  retrying; `maild` started later is picked up without a restart.
+- A browser keeps the appearance, the window's panes and how the list is
+  shown in its local storage; clearing it resets them.
+- If maild is not running, the client shows the connection's state and
+  keeps retrying; a maild started later is picked up without a reload.

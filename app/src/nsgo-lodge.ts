@@ -1,5 +1,9 @@
+// Mail's page in lodge's frame (docs/specs/lodge-app.md, The web build): it
+// connects to the shell, gives the NSGo client its bridge to the shell
+// (window.frostmailLodge, which cmd/frostmail-nsgo/platform_web.go calls),
+// then mounts the client's Wasm build from assets/.
 import { connectLodge } from "@frostyard/lodge-client";
-import { permalink } from "./lodge/routes";
+import { permalink } from "./permalink";
 
 async function openPreview() {
   const lodge = await connectLodge({ app: "mail" });
@@ -21,7 +25,7 @@ async function openPreview() {
         current = route;
       },
       context(id: string, messageId: string, title: string) {
-        if (id) lodge.context({ kind: "message", ref: "mail" + permalink(messageId || id), title });
+        if (id) lodge.context({ kind: "message", ref: `mail${permalink(messageId || id)}`, title });
         else lodge.context({ kind: null, ref: "", title: "" });
       },
       backToList() {

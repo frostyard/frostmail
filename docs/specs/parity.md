@@ -22,6 +22,11 @@ tasks are not Mail's and are not listed; their parity is
 - The Test column is the web build's and maild's. The Desktop test column
   is the native desktop app's ([plan 0015](../plans/0015-mygo-desktop.md));
   an empty cell on a Have row is a gap until that plan's parity gate.
+- Since [plan 0017](../plans/0017-nsgo-as-the-only-client.md)'s Phase 3.5
+  the web build is the NSGo client's, and the React app is gone with its
+  tests: a Test cell's `.test.ts` and `.test.tsx` names (in 62 rows) name
+  files that no longer exist, and hold that row for maild's tests alone
+  until the NSGo suite's are named there.
 - Every row has a status, and Later and Out rows a reason.
 - A row becomes Have only in the change that adds or names its test.
 - Mail.app's ⌘ is Ctrl and ⌥ is Alt; a shortcut Frostmail already uses

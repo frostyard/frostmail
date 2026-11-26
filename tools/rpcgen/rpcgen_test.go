@@ -125,12 +125,6 @@ func TestRepositorySchema(t *testing.T) {
 	if _, err := genGo(s); err != nil {
 		t.Fatal(err)
 	}
-	ts := string(genTS(s))
-	for _, want := range []string{"export class Client", `"account.list"`, "export const PROTOCOL = "} {
-		if !strings.Contains(ts, want) {
-			t.Errorf("TypeScript output lacks %q", want)
-		}
-	}
 	if md := string(genMarkdown(s)); !strings.Contains(md, "### `rpc.hello`") {
 		t.Error("Markdown output lacks rpc.hello")
 	}
@@ -176,14 +170,14 @@ func TestCallers(t *testing.T) {
 func TestCheckDetectsStaleOutput(t *testing.T) {
 	dir := writeSchema(t, map[string]string{"rpc.yaml": minimalRPC})
 	out := t.TempDir()
-	args := []string{"-schema", dir, "-go", filepath.Join(out, "g.go"), "-ts", filepath.Join(out, "a.ts"), "-md", filepath.Join(out, "a.md")}
+	args := []string{"-schema", dir, "-go", filepath.Join(out, "g.go"), "-md", filepath.Join(out, "a.md")}
 	if err := run(args); err != nil {
 		t.Fatal(err)
 	}
 	if err := run(append([]string{"-check"}, args...)); err != nil {
 		t.Fatalf("fresh output reported stale: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(out, "a.ts"), []byte("edited"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(out, "a.md"), []byte("edited"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := run(append([]string{"-check"}, args...)); err == nil || !strings.Contains(err.Error(), "stale") {

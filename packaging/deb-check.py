@@ -2,7 +2,9 @@
 """Check a built .deb (frostyard/core ADR-0011, ADR-0058).
 
     packaging/deb-check.py DEB PACKAGE VERSION [--exec PATH]... [--file PATH]...
-                           [--line PATH LINE]... [--manifest PATH]
+                           [--glob PATTERN]... [--absent PATTERN]...
+                           [--no-text PATTERN TEXT]... [--line PATH LINE]...
+                           [--manifest PATH]
 
 It fails unless:
   - the control fields are Package PACKAGE, Version VERSION, Architecture
@@ -17,6 +19,11 @@ It fails unless:
     world-writable;
   - each --exec PATH is a regular file with mode 0755 and a nonzero size;
   - each --file PATH is a regular file with a nonzero size;
+  - each --glob PATTERN matches at least one regular file with a nonzero
+    size, and each --absent PATTERN matches no member. A PATTERN is an
+    fnmatch pattern of the install path, whose * also matches "/";
+  - no regular file that --no-text PATTERN TEXT's PATTERN matches holds
+    the bytes of TEXT;
   - each --line PATH LINE is a regular file with a line exactly equal to LINE;
   - the --manifest PATH is a JSON object whose top-level "version" is VERSION.
 
@@ -25,6 +32,7 @@ library and dpkg-deb are all it needs.
 """
 
 import argparse
+import fnmatch
 import io
 import json
 import stat
@@ -61,7 +69,8 @@ def under_usr(path: str) -> bool:
     return path == "/usr" or path.startswith("/usr/")
 
 
-def check(deb: str, package: str, version: str, execs: list[str], files: list[str], lines: list[tuple[str, str]], manifest: str | None) -> list[str]:
+def check(deb: str, package: str, version: str, execs: list[str], files: list[str], lines: list[tuple[str, str]], manifest: str | None,
+          globs: list[str] = (), absent: list[str] = (), no_text: list[tuple[str, str]] = ()) -> list[str]:
     errors = []
 
     fields = {}
@@ -117,6 +126,18 @@ def check(deb: str, package: str, version: str, execs: list[str], files: list[st
                 errors.append(f"{path} is missing or not a regular file")
             elif m.size == 0:
                 errors.append(f"{path} is empty")
+        for pattern in globs:
+            if not any(m.isreg() and m.size > 0 and fnmatch.fnmatchcase(path, pattern) for path, m in entries.items()):
+                errors.append(f"no nonempty regular file matches {pattern}")
+        for pattern in absent:
+            for path in sorted(entries):
+                if fnmatch.fnmatchcase(path, pattern):
+                    errors.append(f"{path} matches {pattern}, which the package must not hold")
+        for pattern, text in no_text:
+            for path in sorted(entries):
+                m = entries[path]
+                if m.isreg() and fnmatch.fnmatchcase(path, pattern) and text.encode() in data.extractfile(m).read():
+                    errors.append(f"{path} holds {text!r}")
         for path, line in lines:
             m = entries.get(path)
             if m is None or not m.isreg():
@@ -156,11 +177,15 @@ def main() -> int:
     p.add_argument("version")
     p.add_argument("--exec", dest="execs", action="append", default=[], metavar="PATH")
     p.add_argument("--file", dest="files", action="append", default=[], metavar="PATH")
+    p.add_argument("--glob", dest="globs", action="append", default=[], metavar="PATTERN")
+    p.add_argument("--absent", dest="absent", action="append", default=[], metavar="PATTERN")
+    p.add_argument("--no-text", dest="no_text", action="append", default=[], nargs=2, metavar=("PATTERN", "TEXT"))
     p.add_argument("--line", dest="lines", action="append", default=[], nargs=2, metavar=("PATH", "LINE"))
     p.add_argument("--manifest", metavar="PATH")
     a = p.parse_args()
     try:
-        errors = check(a.deb, a.package, a.version, a.execs, a.files, [tuple(x) for x in a.lines], a.manifest)
+        errors = check(a.deb, a.package, a.version, a.execs, a.files, [tuple(x) for x in a.lines], a.manifest,
+                       a.globs, a.absent, [tuple(x) for x in a.no_text])
     except (OSError, subprocess.CalledProcessError, tarfile.TarError) as e:
         detail = getattr(e, "stderr", b"") or b""
         print(f"deb-check: {a.deb}: {e} {detail.decode(errors='replace').strip()}", file=sys.stderr)

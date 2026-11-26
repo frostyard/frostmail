@@ -2,11 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Frostmail</title>
+    <meta name="referrer" content="no-referrer" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FrostMail</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #mail-print { display: none; }
+      @media print {
+        html, body { height: auto !important; overflow: visible !important; }
+        body > :not(#mail-print) { display: none !important; }
+        #mail-print { display: block; color: black; background: white; font: 12pt system-ui; }
+        #mail-print pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+      }
+      body > progress { position: absolute; inset: 0; margin: auto; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/nsgo-lodge.ts"></script>
   </body>
 </html>

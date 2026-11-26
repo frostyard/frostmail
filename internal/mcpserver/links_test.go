@@ -3,7 +3,7 @@ package mcpserver
 import "testing"
 
 // TestMessageURL: a Message-ID percent-encoded as one segment, as the web
-// app's encodeURIComponent does (app/src/lodge/routes.ts, permalink); none
+// build's loader's encodeURIComponent does (app/src/permalink.ts); none
 // for no Message-ID, or for one the route would read as maild's ID.
 func TestMessageURL(t *testing.T) {
 	for id, want := range map[string]string{
