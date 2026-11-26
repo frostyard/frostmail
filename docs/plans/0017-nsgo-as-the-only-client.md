@@ -12,7 +12,9 @@
   [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md);
   PocketGo's is its ADR-0071. On 2026-11-25 the owner took Frostnotes
   out of this plan: it has no desktop window, and Lodge serves its React
-  app again ([Phase 5](#phase-5--frostnotes-xl)).
+  app again ([Phase 5](#phase-5--frostnotes-xl)). On 2026-11-26 he
+  retired PocketGo, which leaves this plan too
+  ([Phase 4](#phase-4--pocketgo-l)). FrostMail is the plan's only app.
 
 This plan takes FrostMail, Frostnotes and PocketGo from two desktop clients
 each to one, the NSGo client on the shared kit
@@ -489,6 +491,10 @@ name MyGo.
 
 ## Phase 4 — PocketGo (L)
 
+- **Left this plan on 2026-11-26.** The owner retired PocketGo ("PocketGo
+  is retired"). This phase is not done and will not be: no more of it is
+  built, and PocketGo cuts no release. What frostyard/pocketgo holds
+  stays there as it is. The items below are the phase as it was planned.
 - The Linux and web gaps above, a test of the terminal's clipboard rule,
   and 1 place for the preferences with a move from the other.
 - The iPad, iPhone and macOS clients are ported to NSGo's targets for
@@ -545,8 +551,8 @@ Lodge serves its React app ([Phase 5](#phase-5--frostnotes-xl)).
 
 ## Open questions
 
-- **NSGo's iOS and macOS targets for PocketGo:** whether they build and
-  run it is not known; the first change of Phase 4's port finds out.
+- None. The one about NSGo's iOS and macOS targets for PocketGo went
+  with PocketGo (2026-11-26).
 
 ## References
 
