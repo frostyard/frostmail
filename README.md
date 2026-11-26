@@ -37,8 +37,9 @@ also serve a phone or a browser on your tailnet through
   `v0.10.0`.
   [Desktop design](docs/design/desktop.md)
 - **mailctl** is a command-line client of the same socket.
-- **Mail in lodge:** lodge serves a React web app of the same mail, built
-  and in progress. [M8](docs/plans/0011-m8-mail-in-lodge.md)
+- **Mail in lodge:** lodge serves the same client's web build, which the
+  `.deb` installs. [The app in Lodge](docs/design/app.md),
+  [M8](docs/plans/0011-m8-mail-in-lodge.md)
 
 ![The main window in the Frostyard theme: unified inboxes for two accounts,
 flags, threads and an HTML itinerary in the reader](docs/images/main.png)
@@ -123,9 +124,9 @@ Linux, Windows and Lodge can run the same Go workspace against maild. Mail, draf
 | Linux checkout | Run `make nsgo-build`, start maild, then run `build/frostmail-nsgo`. |
 | Flatpak | It is the app the Flatpak opens. |
 | Windows installer | It is the installer's program, `FrostMail.exe` (`make windows-installer`, or CI's `frostmail-windows-installer` artifact). |
-| Lodge | Run `make nsgo-lodge-app` and use `build/nsgo-lodge/apps/mail` as the Mail app directory in a test Lodge. It uses the signed-in Lodge session. |
+| Lodge | `make web-build`, then `make deb`, builds `frostyard-maild`'s `.deb` with it; `make nsgo-lodge-app` stages it as `build/nsgo-lodge/apps/mail`, the Mail app directory of a test Lodge. It uses the signed-in Lodge session. |
 
-For a disposable local trial, `make nsgo-test` runs the workspace against generated mailboxes and a loopback SMTP server. The authenticated Firefox test and host-specific behavior are described in [the NSGo design decision](docs/adr/0061-share-the-mail-client-with-nsgo.md).
+For a disposable local trial, `make nsgo-test` runs the workspace against generated mailboxes and a loopback SMTP server. The authenticated Firefox test (`dev/lodge/nsgo-smoke.py`) is described in [the app in Lodge](docs/design/app.md#dev-and-test), and host-specific behavior in [the NSGo design decision](docs/adr/0061-share-the-mail-client-with-nsgo.md).
 
 ## Where to go next
 

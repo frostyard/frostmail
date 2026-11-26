@@ -5,7 +5,12 @@
   (2026-11-26, [Phase 2](#phase-2--frostmail-nsgo-is-the-default-m)),
   and `v0.10.0` holds it. Its Phase 3, MyGo's removal, is built, and
   its installer was checked on the Windows VM (2026-11-26); it waits on
-  a release ([Phase 3](#phase-3--frostmail-mygo-is-removed-m)). The owner set its
+  a release ([Phase 3](#phase-3--frostmail-mygo-is-removed-m)). Its Phase
+  3.5, the NSGo web build in Lodge in place of the React app, is built:
+  both pieces of its Done when were seen on a snapshot `.deb` of its
+  change (2026-11-26), which lists 11 things the React app did that the
+  web build does not; no release holds it
+  ([Phase 3.5](#phase-35--frostmail-in-lodge-m)). The owner set its
   end on 2026-11-24: the NSGo clients are the default, MyGo is removed,
   and the new versions are tagged and published. He answered its 6 questions the same day
   ([The owner's answers](#the-owners-answers)). FrostMail's decision is
@@ -486,8 +491,117 @@ name MyGo.
 
 - The NSGo web build takes the React app's place in Lodge, after MyGo
   is gone.
+- **What the React app did that the NSGo web build does not (2026-11-26).**
+  Read side by side in the code, the React app's (its paths below are
+  under `app/src/`, as on main at `29e5865f`) and the NSGo client's
+  (`cmd/frostmail-nsgo`), against
+  [lodge-app.md's web build](../specs/lodge-app.md#the-web-build) as it was.
+  None of these was built here; the first 3 are the ones a person would
+  miss most.
+  1. **A calendar reminder does not notify a hidden page.** The React app
+     showed each new due reminder as a browser notification while the page
+     was hidden, and its click opened the reminders (`app/announce.ts`,
+     `remind`). The NSGo client shows a notice in its own window, "View
+     reminders" (`commands.go`, `reminderNotice`), which a person in
+     another tab does not see.
+  2. **A notification's click does not bring Mail forward in Lodge.** The
+     React app called `lodge.open("/mail" + route)` on a click
+     (`app/announce.ts`, `show`). The NSGo client's click focuses the page
+     (NSGo's `showWebNotification`) and opens the message in the mail
+     frame (`commands.go`, `OnNotificationPress`); its `OrderFront` has no
+     web implementation in NSGo v0.3.0, and nothing calls `lodge.open`.
+     With another Lodge app in front, the message opens in the frame
+     behind it. Not tried in a browser.
+  3. **The reader frame's own sandbox is wider.** The React app's iframe
+     set `sandbox="allow-popups allow-popups-to-escape-sandbox"` and
+     `referrerpolicy="no-referrer"` (`features/reader/ContentFrame.tsx`).
+     NSGo's web view sets `allow-forms allow-popups
+     allow-popups-to-escape-sandbox allow-modals allow-downloads
+     allow-same-origin` for a page of another origin and no
+     `referrerpolicy` (NSGo's `internal/platform/web/webview.go`,
+     `loadFrame`). Seen in headless Firefox on this change's `.deb`: the
+     frame's attribute was exactly that list, `referrerpolicy` was absent,
+     and inside the frame `window.origin` was `"null"` with 0 scripts,
+     so the page's own policy (maild's and lodge-content's sandbox) held
+     it to an opaque origin. No form, modal or download was tried in it.
+  4. **Links in mail's own UI** (an unsubscribe page, a sign-in page) open
+     with NSGo's `OpenURL`, a new tab, not `lodge.open` (`reader.go`,
+     `accounts.go`): a canonical Lodge URL opens in a tab, not in the shell
+     in place. An unsubscribe page opens after `message.unsubscribe`
+     answers, not in the click; whether a browser blocks that tab was not
+     tried.
+  5. **Files dropped on Compose are not attached:** Attach's picker is the
+     only way (`compose.go`; the React app took drops,
+     `app/ComposeWindow.tsx`).
+  6. **`/compose/<id>?fresh` is gone:** the route the client reports has no
+     `fresh`, so a new draft reopened by its route (a reload, Back) is kept
+     when it closes untouched (`compose.go`, `presentDraft`; `routes.go`).
+  7. **Raw Source has no Save As** of its own for a source longer than the
+     sheet shows (`reader.go`, `sourcePanel`); the message's Save As
+     downloads the whole.
+  8. **The socket stays open while the page is hidden,** and pings every
+     30 s (`internal/desktop/conn`); the React app opened it and pinged
+     only while the page was visible.
+  9. **maild does not count the client as the app:** it says `rpc.hello`
+     as `FrostMail NSGo` (`main.go`), without the `frostmail-app` prefix
+     that `internal/rpcserver` counts (`AppClient`). Behind Lodge this
+     changes nothing seen today (no desktop notifier there); on the
+     desktop it means maild's own reminder notifications are not held
+     back while the client is open. Read in the code only.
+  10. **Saved layout:** the client keeps its state under NSGo's
+      `nsgo:org.frostyard.Frostmail:` keys; the React app's `mail:` keys
+      (pane widths, the sidebar, conversations) are not read.
+  11. **Tests:** the React app's tests went with it. 62 rows of
+      [parity.md](../specs/parity.md) name `.test.ts(x)` files that no
+      longer exist; the NSGo suite has no web run
+      ([design/testing.md](../design/testing.md#the-nsgo-clients-live-suite)),
+      so the browser path is the smoke test's 6 steps.
+  The client's other differences from the MyGo client
+  ([What is true today](#what-is-true-today)) hold in Lodge too: no
+  Keyboard Shortcuts dialog, print of the text, 1 snooze.
+  The same, read: what the React app did that the client also does. The
+  routes of the spec, the Message-ID permalink, the narrow window's Back,
+  the shell's context, the theme, attachments and Save As by download,
+  print, and new mail's browser notifications.
+- **The switch (2026-11-26), built; no release holds it.** `make
+  web-build` builds the NSGo client for `js/wasm` with NSGo's tool and
+  the loader in `app/` (`index.html`, `src/nsgo-lodge.ts`) with Vite, into
+  `build/web`, which `make deb` installs; `make nsgo-lodge-app` stages the
+  same output for the smoke test and CI's NSGo job, so no workflow
+  changes ([design/app.md](../design/app.md)). The React app, its tests
+  and its dependencies are gone from `app/`, which keeps the loader,
+  `src/permalink.ts` and its test, on `@frostyard/lodge-client`; `rpcgen`
+  writes no TypeScript client. `packaging/deb-check.py` gains `--glob`,
+  `--absent` and `--no-text`: `make deb-check` requires `index.html`,
+  `nsgo.json`, `icon.svg`, the loader's `index-*.js`, the client's
+  `app.*.wasm`, `nsgo.*.js` and `wasm_exec.*.js`, and refuses a
+  stylesheet, a `.woff2` font or a file holding `__reactFiber` or
+  `react.transitional.element`. `dev/lodge/nsgo-smoke.py --deb DEB` runs
+  on what the `.deb` installs (dpkg-deb extracts it into the disposable
+  Lodge root; the package's own maild and web build run).
+  - The new deb-check, on the React app's `.deb` built from main at
+    `29e5865f`, failed with 14 errors: no `nsgo.json`, nothing for 3 of
+    the 4 patterns, 1 stylesheet, 7 fonts, and `__reactFiber` and
+    `react.transitional.element` in its `index-*.js`.
+  - On this change's commit `7b1de05b`, each exiting 0: `make check` (69
+    packages ok, 0 failed, the linter's "0 issues" twice), `make
+    nsgo-test`, `make ui-check IN_NSL='sh -c'` (Biome on 5 files, 2 tests
+    passed in 1 file), `make web-build IN_NSL='sh -c'`, and `make deb`:
+    `frostyard-maild_0.0.0-7b1de05b-snapshot_amd64.deb`, 23,131,514
+    bytes, "is ok", whose mail app is `app.json` and 8 files of the web
+    build (the Wasm 37,458,878 bytes).
+  - `python3 dev/lodge/nsgo-smoke.py TOOLS --deb` on that `.deb`, run 2
+    times: each listed `mail` at version `0.0.0-7b1de05b-snapshot`, up,
+    printed "PASS: inbox, isolated reader, settings, Back, refresh and
+    editable draft permalink", and exited 0, in 5 seconds each.
+  - Without `--deb`, on `make nsgo-lodge-app IN_NSL='sh -c'`'s staged
+    directory (its `app.json` at `0.0.0-dev`), 1 run: the same "PASS"
+    line, exit 0.
+  - Not run: `make nsgo-live` (the client's look did not change), any
+    browser but headless Firefox, a real Lodge host, and CI.
 - **Done when:** the `.deb` holds the NSGo web build and no React app,
-  and `dev/lodge/nsgo-smoke.py` passes on what it installs.
+  and `dev/lodge/nsgo-smoke.py` passes on what it installs. Both were seen
+  on this change's snapshot `.deb` (above); no release holds it.
 
 ## Phase 4 — PocketGo (L)
 

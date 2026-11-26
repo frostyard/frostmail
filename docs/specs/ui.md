@@ -8,6 +8,15 @@ Shortcuts use Ctrl where Mail.app uses ⌘ and Alt where it uses ⌥ or ⌃⌘.
 
 ## Tokens
 
+These tokens and the components named in this spec were the React app's,
+which [plan 0017](../plans/0017-nsgo-as-the-only-client.md)'s Phase 3.5
+removed from Lodge: the NSGo client, on the desktop and in Lodge, draws
+the shared kit's Frostyard themes
+([plan 0016](../plans/0016-a-shared-look-for-the-nsgo-apps.md)), and
+`app/` no longer depends on `@frostyard/lodge-ui`. The behavior below is
+still the client's contract; the tokens stay here until this spec is
+rewritten for the kit.
+
 Defined by [lodge's UI package](https://github.com/frostyard/lodge/blob/main/docs/specs/ui-package.md)
 (`@frostyard/lodge-ui`) as CSS custom properties on `:root`, with dark
 values under `@media (prefers-color-scheme: dark)` and under

@@ -6,7 +6,7 @@ What maild installs for lodge and serves on its lodge app socket, and what
 the web build does inside lodge's frame. Its consumers:
 
 - lodge, which proxies to maild;
-- the web app, through `/app/mail/`;
+- the web build, the NSGo client in a browser, through `/app/mail/`;
 - agents, through `/mcp/mail`;
 - the desktop app, when it uses a maild behind lodge (Phase 6).
 
@@ -34,7 +34,9 @@ Phases 2 to 6 (merged 2026-10-19). `/mcp` grants reading, and with
 names, and their calendars, tasks and contacts
 ([below](#calendar-tasks-and-contacts)), built in
 [plan 0012](../plans/0012-calendar-tasks-and-contacts-for-agents.md)
-(2026-10-19).
+(2026-10-19). The web build is the NSGo client's, in place of the React
+app, since [plan 0017](../plans/0017-nsgo-as-the-only-client.md)'s Phase
+3.5 (built 2026-11-26; no release holds it).
 
 ## Interface
 
@@ -100,7 +102,9 @@ together by nFPM from `packaging/nfpm.yaml`, and checked by
 fields are right (`Depends: systemd`, no maintainer scripts), and the package holds
 only root-owned, non-writable directories and regular files (no links) under `/usr`, with the
 binaries (mode 0755), the units, the sysusers.d entry, the manifest (whose `version`
-is the package's) and the web build's `index.html`. It also checks the key
+is the package's) and the NSGo client's web build (`index.html`, `nsgo.json`,
+the Wasm and NSGo's scripts under `assets/`, and no stylesheet, font or file
+holding React's names: the React app's). It also checks the key
 unit and its helper: the helper's mode, and the lines `Type=oneshot` and
 `ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key` in the
 key unit, and `Requires=` and `After=` on it in `frostmail.service`.
@@ -244,8 +248,8 @@ degraded. The `messages_unseen` index serves the count
 - maild logs a session's start and end at info, with `Lodge-Session` and
   the node's name.
 - **What lodge decides:** session counts and liveness. lodge closes a
-  session after 90 s without a frame from the browser, so the web app
-  calls `rpc.ping` at least every 30 s while the page is visible. When
+  session after 90 s without a frame from the browser, so the web build
+  calls `rpc.ping` every 30 s. When
   lodge closes the proxied connection, maild ends the connection, its
   views and its event subscription.
 
@@ -510,7 +514,8 @@ name. A read event's times are in its own zone, else UTC.
 ### `/content/`
 
 The public URLs are `https://lodge-content.<tailnet>.ts.net/mail/<content
-path>`; the web app builds them with lodge-client's `contentURL`.
+path>`; the web build builds them with lodge-client's `contentURL`, through
+the loader's bridge.
 
 **Reader pages,** `GET` or `HEAD /content/r/<token>.html`:
 
@@ -525,9 +530,8 @@ path>`; the web app builds them with lodge-client's `contentURL`.
 - maild keeps at most 64 pages and 64 MiB of them in memory, evicting the
   least recently kept. A token it does not hold, or no longer holds, is
   404. A page larger than 64 MiB is not kept, so `message.render` answers
-  no `contentPath`; the web build then says the message is too large to
-  show and points to Save As, and never frames its HTML on lodge's own
-  origin.
+  no `contentPath`; the web build then shows the message's text, and
+  never frames its HTML on lodge's own origin.
 - Headers:
   - `Content-Type: text/html; charset=utf-8`;
   - `Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; sandbox allow-popups allow-popups-to-escape-sandbox`;
@@ -579,34 +583,60 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 
 ### The web build
 
-- **Build.** `make web-build` builds the app in the nsl machine for the
-  base `/app/mail/`, in Vite's `lodge` mode, into `build/web/`, with
-  `icon.svg` beside `index.html`. It depends on `@frostyard/lodge-client`
-  as a pnpm git dependency pinned to a published lodge commit.
+The web build is the NSGo client's (`cmd/frostmail-nsgo`, compiled to
+WebAssembly) under a small loader, since plan 0017's Phase 3.5, which
+replaced the React app; [design/app.md](../design/app.md) is how it is
+built. Where the React app did something this build does not, the item
+says so: those are plan 0017's
+[Phase 3.5](../plans/0017-nsgo-as-the-only-client.md#phase-35--frostmail-in-lodge-m)
+gaps, and the contract below them is unchanged until a change builds or
+drops them.
+
+- **Build.** `make web-build` builds the client with NSGo's tool (`go tool
+  nsgo build -target web`), and the loader (`app/index.html`,
+  `app/src/nsgo-lodge.ts`) with Vite for the base `/app/mail/`, into
+  `build/web/`: `index.html`, `nsgo.json`, `icon.svg`, and in `assets/`
+  the loader's `index-*.js`, the client's `app.*.wasm`, NSGo's `nsgo.*.js`,
+  Go's `wasm_exec.*.js` and the third-party notices. The loader depends on
+  `@frostyard/lodge-client` as a pnpm git dependency pinned to a published
+  lodge tag. `make deb-check` fails a package without those files, or with
+  a stylesheet, a font, or a file that holds React's names.
 - **Start.**
   1. `connectLodge({app: "mail"})`. Outside a frame, lodge-client moves
      the page to its canonical URL.
-  2. A WebSocket to `lodge.apiURL()`, opened only while the page is
-     visible, then `rpc.hello {protocol: 1, client: "frostmail-app"}`, so
-     maild counts the web app as attended, as it counts the desktop app.
-- **Keepalive.** `rpc.ping` every 30 s while `document.visibilityState`
-  is `visible`, and once when the page becomes visible. When the socket
-  closes, the app reconnects once the page is visible and reloads its
-  state, as the desktop app does.
+  2. The loader sets `window.frostmailLodge`, the client's bridge to the
+     shell ([design/app.md](../design/app.md#the-loader-and-its-bridge)),
+     fetches `nsgo.json` and mounts the client.
+  3. A WebSocket to `/app/mail/api` on the page's origin (any other origin
+     is refused), then `rpc.hello {protocol: 1, client: "FrostMail
+     NSGo"}`. That name has no `frostmail-app` prefix, so maild does not
+     count the web build as the attended app (Phase 3.5's gaps; the React
+     app said `frostmail-app` and opened the socket only while the page
+     was visible).
+- **Keepalive.** `rpc.ping` every 30 s, whether the page is visible or
+  not. When the socket closes, the client reconnects every second and
+  reloads its state, as the desktop app does.
 - **The reader** calls `message.render {id, content: true}` and shows
-  `contentURL(contentPath)` in an `<iframe src>` with its own
-  `sandbox="allow-popups allow-popups-to-escape-sandbox"`, never
-  `allow-scripts` or `allow-same-origin`, and
-  `referrerpolicy="no-referrer"`. The frame fills the reader below the
-  message header and scrolls itself.
-  A message without HTML shows its text, as today.
-- **Attachments** open through `lodge.open(contentURL(contentPath))` from
-  the click that asked, which opens a new tab. Each has a Save button,
-  which opens the same URL with `?download=1`: the content route answers
-  `Content-Disposition: attachment`, so the browser saves it.
+  `contentURL(contentPath)` in NSGo's web view with JavaScript off, an
+  `<iframe src>` that fills the reader below the message header. NSGo's
+  web view sets the frame's `sandbox` to `allow-forms allow-popups
+  allow-popups-to-escape-sandbox allow-modals allow-downloads`, with
+  `allow-same-origin` for a page of another origin, as lodge-content's
+  is, and no `referrerpolicy`; never `allow-scripts`. The page itself
+  arrives with maild's policy and lodge-content's sandbox
+  ([`/content/`](#content)), which allow no script, form or same-origin
+  access whatever the frame allows. The React app's frame set
+  `sandbox="allow-popups allow-popups-to-escape-sandbox"` and
+  `referrerpolicy="no-referrer"` itself (Phase 3.5's gaps).
+  A message without a kept page shows its text.
+- **Attachments** open through `lodge.open(contentURL(contentPath))`,
+  which opens a new tab. Save opens the same URL with `?download=1`: the
+  content route answers `Content-Disposition: attachment`, so the browser
+  saves it. Both open after `message.part` answers. There are no
+  thumbnails.
 - **Routes,** relative to `/app/mail`, with the canonical URL `/mail`
   followed by the route: the sidebar's source, then `/message/<id>` when
-  one message is selected.
+  a message is open.
 
   | Route | Shows |
   | --- | --- |
@@ -616,91 +646,94 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
   | `/role/<role>` | every account's mailboxes of a role, such as `/role/sent` |
   | `/flagged`, `/flag/<1–7>` | flagged mail, or one flag color |
   | `/vips` | the VIPs' mail |
-  | `…/message/<id>` | that source with one message selected, by maild's ID |
+  | `…/message/<id>` | that source with that message open, by maild's ID |
   | `/message/<Message-ID>` | the message with that Message-ID, which maild resolves (`message.byMessageId`) |
+  | `/calendar`, `/people`, `/tasks`, `/activity`, `/settings` | that module |
 
   A Message-ID route is a message's permanent one, which other apps link
   to (`/mail/message/<Message-ID>`): the Message-ID without its angle
   brackets, percent-encoded as one segment (`encodeURIComponent`; an `@`
   may stay as it is), as `/message/gen-1-200%40mailgen.test`. A segment
   of digits alone is maild's ID, as in All Inboxes' `/message/<id>`. The
-  app opens the message `message.byMessageId` names in its mailbox (the
-  account's inbox when it is there), and that route replaces the
-  permanent one; while maild answers, and when no message has the
-  Message-ID, the window stays as it was.
+  client opens the message `message.byMessageId` names in its mailbox
+  (the account's inbox when it is there), and reports that route in
+  place of the permanent one; when no message has the Message-ID, it
+  shows maild's error.
 
-  A route the app does not know shows All Inboxes. The app reports
-  `route` as the source and selection change (a new source pushes, a new
-  message replaces), and obeys `navigate`. In a narrow window, where the
-  message shows in place of its list ([ui.md](ui.md#narrow-windows-m8)),
-  a message opened from its list pushes instead, and the toolbar's Back
-  from it calls `history.back()`, which steps the shell's history as its
-  own Back would; the shell's `popstate` then sends `navigate`. It calls
-  it only to undo that entry, which mail pushed itself: from a message
-  the frame was opened at (a link, a reload), the entry before may not be
-  lodge's, so Back reports the list's route with `replace` instead
+  A route the client does not know shows All Inboxes. It reports `route`
+  as the place and the open message change (a new source or module
+  pushes, a new message replaces), and obeys `navigate`. In a narrow
+  window, under 800 wide, where the message shows in place of its list
+  ([ui.md](ui.md#narrow-windows-m8)), a message opened from its list
+  pushes instead, and Back from it calls `history.back()`, which steps
+  the shell's history as its own Back would; the shell's `popstate` then
+  sends `navigate`. It calls it only to undo that entry, which mail
+  pushed itself
   ([lodge-client.md, Routes](https://github.com/frostyard/lodge/blob/main/docs/specs/lodge-client.md#routes),
-  frostyard/lodge#9). Otherwise the app never touches the top window's
+  frostyard/lodge#9). Otherwise the client never touches the top window's
   history or location.
-- **Windows are routes.** The desktop app's other windows show in the
-  frame in place of the main window, which stays loaded underneath, hidden,
-  and takes no keys while one shows:
+- **Panels are routes.** The client is 1 window (ADR-0063): Compose, an
+  event and the reminders are panels over it, and the ones below report
+  a route of their own:
 
   | Route | Shows |
   | --- | --- |
-  | `/compose/<draft id>`, `/compose/<draft id>?fresh` | the draft in Compose; `fresh` when it was made to open it, so closing it untouched discards it |
-  | `/settings` | Settings |
-  | `/event/<id>`, `/event/<id>?recurrenceId=…`, `/event/new?…` | the event editor |
-  | `/reminders` | the reminder window |
+  | `/compose/<draft id>` | the draft in Compose |
+  | `/event/<id>`, `/event/<id>?recurrenceId=…`, `/event/new?…` | the event |
+  | `/reminders` | the reminders |
 
-  Opening one pushes its route, and closing it (Send, Close, Discard)
-  pushes the main window's route again. Back to a main route closes it.
-  One shows at a time; the reminder window never covers another.
-- **Context.** With a message shown, `context {kind: "message", ref:
-  "mail/message/<Message-ID>", title: <subject>}`, its permanent route, or
-  `mail/message/<id>` for a message without a Message-ID; with none,
-  `context {kind: null}`.
-- **Links in mail's own UI** (a plain-text body, a contact's URL, an
-  unsubscribe page) go through `lodge.open`, so a canonical lodge URL,
-  another app's or mail's own, opens in the shell in place, and anything
-  else in a new tab. A link inside an HTML message, in the reader's
-  sandboxed frame on `lodge-content`, opens a new tab itself (D6).
-  Frostmail filters `mailto` links in `openLink` before either shell or
-  browser opening, and in maild's HTML sanitizer for the content frame.
-  Only the address and `to`, `cc`, `bcc`, `subject` and `body` fields
-  remain, in ASCII case and as written; other fields, fields without `=`,
-  and fragments are dropped, without decoding
+  The React app's `/compose/<draft id>?fresh`, a draft made to open it,
+  which closing untouched discards, is not kept: the client reads the
+  route without `fresh`, and a draft opened by its route is kept when it
+  closes untouched (Phase 3.5's gaps).
+- **Context.** With a message open in Mail, `context {kind: "message",
+  ref: "mail/message/<Message-ID>", title: <subject>}`, its permanent
+  route, or `mail/message/<id>` for a message without a Message-ID; with
+  none, `context {kind: null}`.
+- **Links.** A link inside an HTML message, in the reader's sandboxed
+  frame on `lodge-content`, opens a new tab itself (D6). Links in mail's
+  own UI (an unsubscribe page, a sign-in page) open with NSGo's
+  `OpenURL`, a new browser tab, not `lodge.open`: a canonical lodge URL
+  opens in a tab, not in the shell in place (Phase 3.5's gaps). Frostmail
+  filters `mailto` links before opening them
+  (`internal/desktop/opener`), and in maild's HTML sanitizer for the
+  content frame. Only the address and `to`, `cc`, `bcc`, `subject` and
+  `body` fields remain, in ASCII case and as written; other fields,
+  fields without `=`, and fragments are dropped, without decoding
   ([ADR-0056](../adr/0056-filter-mailto-links-before-opening-them.md)).
 - **Notifications.** maild behind lodge has no session bus, so it sends
   each connected client the transient `message.announced {accountId,
   notes}` in place of desktop notifications, with the notes the desktop's
   would have ([design/desktop.md](../design/desktop.md#notifications)):
   new mail by the notification scope, and fired Remind Me reminders. The
-  web build shows each note with the Notification API, tagged by account
-  and message so one replaces its own, once the user allows it in
-  Settings → General. A click brings mail forward in the shell
-  (`lodge.open`) at the message, or a group's account's inbox. A
-  calendar reminder raises the reminder window as in the desktop app; a
-  hidden page also notifies each new one, and its click shows the window.
+  client shows each note with the Notification API, tagged by the
+  connection and the message so one replaces its own, once the user
+  allows it in Settings → Notifications. A click focuses the page and
+  opens the message, or All Inboxes for a group; it does not call
+  `lodge.open`, so it does not bring mail forward in the shell (Phase
+  3.5's gaps). A due calendar reminder shows a notice in the client with
+  "View reminders"; a hidden page does not notify it (Phase 3.5's gaps).
   A browser with no `Notification` constructor (Android's Chrome) shows
-  them through the page's service worker registration, of which lodge's
-  shell has none, and none is planned for now, so it stays silent; with
-  no page open, nothing notifies until lodge decides on Web Push
-  (plan 0011's decisions, 2026-10-19).
-- **Theme.** The app follows `init.theme` and `theme`, not its own
-  `prefers-color-scheme` query. The reader page stays white paper.
-- **Storage.** Local-storage keys are prefixed `mail:`
-  (`lodge.storageKey`).
+  no notification; with no page open, nothing notifies until lodge
+  decides on Web Push (plan 0011's decisions, 2026-10-19).
+- **Theme.** The client follows `init.theme` and `theme`, through the
+  loader, not its own `prefers-color-scheme` query. The reader page stays
+  white paper.
+- **Storage.** The client's local-storage keys are prefixed
+  `nsgo:org.frostyard.Frostmail:` (NSGo's, by the app's id). The React
+  app's `mail:` keys are not read.
 - **The switcher's chord** (`init.shortcut`, by default Ctrl+\`) is bound
-  by nothing in the app.
+  by nothing in the client.
 - **Attaching** sends the file's bytes with `draft.attachData`
-  ([Attaching by bytes](#attaching-by-bytes)), from Attach Files (a file
-  input) or files dropped on the window.
+  ([Attaching by bytes](#attaching-by-bytes)), from Attach (a file
+  picker). Files dropped on Compose are not attached (Phase 3.5's gaps).
 - **Save As** of a whole message downloads it: `message.source {content:
   true}`, then `lodge.open` of its content URL with `?download=1`, in
   place of `message.save`, which writes a path on maild's machine and
-  answers a session `methodNotFound`. Raw Source's sheet offers Save As
-  too, for the whole of a message longer than the sheet shows.
+  answers a session `methodNotFound`. Raw Source's sheet has no Save As
+  of its own (Phase 3.5's gaps).
+- **Print** prints the message's subject, headers and text alone, from
+  the loader's print styles (`printMessage`), not the HTML page.
 
 ### Limits
 
@@ -712,7 +745,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 | an upload | chunks of 4 MiB decoded; 4 in progress a connection, 16 in all; 10 minutes idle |
 | MCP sessions | 8 per token name, the least recently used evicted; an hour idle |
 | an MCP search, a thread | 50 messages; the newest 20, each text 32 KiB |
-| keepalive | `rpc.ping` every 30 s while visible |
+| keepalive | `rpc.ping` every 30 s |
 
 ## Rules
 
@@ -748,7 +781,7 @@ For mail, whose manifest sets `contentLinks`, lodge's sandbox is
 
 | Artifact | Derivation |
 | --- | --- |
-| `api/zz_generated.go`, `app/src/rpc/gen/api.ts`, [rpc-api.md](rpc-api.md) | `make gen` from `schema/rpc/` (callers, `rpc.ping`, `Hello`'s fields, `message.render`'s `content`, `contentPath`) |
+| `api/zz_generated.go`, [rpc-api.md](rpc-api.md) | `make gen` from `schema/rpc/` (callers, `rpc.ping`, `Hello`'s fields, `message.render`'s `content`, `contentPath`) |
 | `packaging/lodge/app.json` | the manifest above, its `version` set at build |
 | `packaging/lodge/frostmail.socket`, `frostmail.service`, `frostmail-secrets-key.service`, `make-secrets-key.sh`, `sysusers.d/frostmail.conf` | [What maild installs](#what-maild-installs) |
 

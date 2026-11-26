@@ -73,7 +73,7 @@ may open, and runs as the system user `frostmail`.
 
 ```
  browser · phone · desktop app ──https──▶ lodge ──Unix socket──▶ maild --lodge (user frostmail)
-   /app/mail/        the web build, served by lodge from disk     ├─ /health
+   /app/mail/        the NSGo web build, served from disk         ├─ /health
    /app/mail/api     WebSocket, caller session ─────────────────▶ ├─ /api   JSON-RPC, as above
    lodge-content     /mail/r/…, /mail/p/…, sandboxed ────────────▶ ├─ /content/  reader pages, parts
    /mcp/mail         agents, with lodge's tokens (plan 0011) ────▶ └─ /mcp

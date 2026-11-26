@@ -5,13 +5,12 @@
 | Unit | every `internal/` package; `tools/` | `make test` (in `make verify`) |
 | RPC wire | `internal/rpcserver/server_test.go` over real sockets via `internal/rpctest` | `make test` |
 | lodge's app socket | `internal/lodge/*_test.go`: lodge/kit's `kittest` plays lodge against `maild --lodge`'s handler on a real socket, checking each rule of [lodge-app.md](../specs/lodge-app.md): the peer check, each path's caller kinds and headers, `/health` with its badge (the inboxes' unread count, `TestHealthBadge`), an `/api` session, the content route's pages, parts and messages with their headers, and `/mcp` through the MCP SDK's client, its tools, limits and scopes. Linux only: they skip elsewhere, as lodge does | `make test` |
-| Web build | `app/src/lodge/*.test.ts(x)` and the lodge cases of `app/src/app/*.test.tsx` (routes, the shell's history, windows as routes, the narrow layout, Save As, permalinks, notifications) in Vitest, with a fake lodge-client connection; `make web-build` builds the bundle for `/app/mail/`. In lodge's development build, `dev/lodge/run.sh ROOT fixture` serves generated mail to check it in a browser (plan 0011) | `make ui-test`, `make web-build` (nsl) |
+| Web build | The NSGo client's web build under its loader ([design/app.md](app.md)). `make web-build` builds it for `/app/mail/`; `make deb-check` holds its files in the `.deb` and that no React app's are there; `dev/lodge/nsgo-smoke.py TOOLS --deb DEB` drives what the `.deb` installs in a disposable Lodge in headless Firefox (the inbox, the reader's frame, Settings, Back, a reload, a draft's route). The loader's own test is `app/src/permalink.test.ts` (Vitest). In lodge's development build, `dev/lodge/run.sh ROOT fixture` serves generated mail to check it in a browser (plan 0011) | `make web-build` (nsl), `make deb`, the smoke by hand; `make ui-test` (nsl) |
 | IMAP, fast | `internal/imapx/imapxtest` (go-imap's in-memory server: no CONDSTORE, QRESYNC or Gmail extensions) | `make test` |
 | IMAP fork | `third_party/go-imap/imapclient/gmail_test.go` (scripted server) | `make test-fork` |
 | IMAP, recorded | `internal/mailsync/replay_test.go`: Gmail and iCloud sessions replayed (below) | `make test` |
 | IMAP, real | `*_integration_test.go` (build tag `integration`) against `frostmail-mailtest` | `make engine-it` |
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
-| UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
 | Desktop app's shared logic | `internal/desktop/**`, with no UI: the maild connection, the live state, the mail models, the opener's allow-lists, the reader's page and thumbnails, the change of mode | `make test` |
 | NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 25 workflows (`workspace_test.go`), 10 picture tours (`pictures_test.go`) and the style test (`style_test.go`, which reads the package's files) | `make nsgo-test`, headless (no pixels) |
 | NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. No workflow skips on a target | `make nsgo-live`, under Xvfb |
@@ -94,7 +93,7 @@ The shared client has one suite, run two ways
 `main`, every pull request and merge-queue entry, and nightly (so upstream
 drift shows within a day): **Verify** (`make verify`, with golangci-lint
 from `mise.lock`), **Race detector** (`make race`, in shards; see below), **App UI**
-(`make ui-check`), **Desktop app** (the NSGo client: `make nsgo-test
+(`make ui-check`, the loader), **Desktop app** (the NSGo client: `make nsgo-test
 nsgo-build`, then `make nsgo-live` under Xvfb, whose pictures it uploads,
 the Windows build and the Lodge build), **Windows** (`go test ./...` on
 Windows) and **Windows app** (the installer and a check of an install;

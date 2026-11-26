@@ -156,7 +156,7 @@ func control(version string, extra ...debEntry) []debEntry {
 	return append([]debEntry{file("./control", c)}, extra...)
 }
 
-func runDebCheck(t *testing.T, deb string) (string, error) {
+func runDebCheck(t *testing.T, deb string, extra ...string) (string, error) {
 	t.Helper()
 	for _, tool := range []string{"python3", "dpkg-deb"} {
 		if _, err := exec.LookPath(tool); err != nil {
@@ -167,8 +167,57 @@ func runDebCheck(t *testing.T, deb string) (string, error) {
 	if debManifest != "" {
 		args = append(args, "--manifest", debManifest)
 	}
-	out, err := exec.Command("python3", args...).CombinedOutput()
+	out, err := exec.Command("python3", append(args, extra...)...).CombinedOutput()
 	return string(out), err
+}
+
+// The web build's checks, as make deb-check gives them for the NSGo
+// client's build: a file by a pattern of its hashed name, no file by a
+// pattern, and no file holding a text (here the React app's).
+var webArgs = []string{
+	"--glob", "/usr/share/lodge/apps/mail/web/assets/app.*.wasm",
+	"--absent", "/usr/share/lodge/apps/mail/web/*.woff2",
+	"--no-text", "/usr/share/lodge/apps/mail/web/*", "__reactFiber",
+}
+
+func webDeb(extra ...debEntry) []debEntry {
+	return append(goodDeb(), append([]debEntry{
+		{name: "./usr/share/lodge/apps/mail/web/assets/", typ: tar.TypeDir, mode: 0o755},
+		file("./usr/share/lodge/apps/mail/web/assets/app.0123abcd.wasm", "\x00asm"),
+		file("./usr/share/lodge/apps/mail/web/assets/index-x.js", "mount()"),
+	}, extra...)...)
+}
+
+func TestDebCheckPassesTheNSGoWebBuild(t *testing.T) {
+	if out, err := runDebCheck(t, writeDeb(t, control(debVersion), webDeb()), webArgs...); err != nil {
+		t.Fatalf("deb-check failed the NSGo web build: %v\n%s", err, out)
+	}
+}
+
+func TestDebCheckFailsAnotherWebBuild(t *testing.T) {
+	var noWasm []debEntry
+	for _, e := range webDeb() {
+		if !strings.HasSuffix(e.name, ".wasm") {
+			noWasm = append(noWasm, e)
+		}
+	}
+	cases := []debCase{
+		{"no client's Wasm", control(debVersion), noWasm, "no nonempty regular file matches /usr/share/lodge/apps/mail/web/assets/app.*.wasm"},
+		{"an empty Wasm", control(debVersion), append(noWasm, file("./usr/share/lodge/apps/mail/web/assets/app.0.wasm", "")), "no nonempty regular file matches"},
+		{"a font beside it", control(debVersion), webDeb(file("./usr/share/lodge/apps/mail/web/assets/inter-latin.woff2", "wOF2")), "inter-latin.woff2 matches"},
+		{"React's bundle", control(debVersion), webDeb(file("./usr/share/lodge/apps/mail/web/assets/index-r.js", `e="__reactFiber$"+k`)), "index-r.js holds '__reactFiber'"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := runDebCheck(t, writeDeb(t, c.control, c.data), webArgs...)
+			if err == nil {
+				t.Fatalf("deb-check passed a package with %s:\n%s", c.name, out)
+			}
+			if !strings.Contains(out, c.want) {
+				t.Errorf("deb-check's output lacks %q:\n%s", c.want, out)
+			}
+		})
+	}
 }
 
 func TestDebCheckPassesAGoodPackage(t *testing.T) {

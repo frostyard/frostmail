@@ -148,24 +148,37 @@ ci: verify ui-check nsgo-test nsgo-build nsgo-build-windows ## verify plus race 
 vulncheck: ## Report reachable vulnerabilities (govulncheck; needs the network)
 	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
-ui-check: ## Lint (Biome), typecheck and test the app UI (nsl)
+ui-check: ## Lint (Biome), typecheck and test the Lodge loader in app/ (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run check'
 
 ui-test: ui-check ## Alias for ui-check
 
-ui-vitest: ## Run app tests matching F (a path or pattern) in the nsl machine
+ui-vitest: ## Run the loader's tests matching F (a path or pattern) in the nsl machine
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vitest run $(F)'
 
 zones: ## Regenerate internal/calendar/zones_gen.go from CLDR's pinned windowsZones.xml (network)
 	go run ./tools/zonesgen
 
-ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
+ui-fmt: ## Format the loader's sources and organize imports with Biome (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
 
 app-build: nsgo-build ## Build the app binary into build/frostmail-nsgo
 
-web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs/specs/lodge-app.md)
-	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --base /app/mail/ --outDir ../build/web --emptyOutDir && cp ../packaging/icons/icon.svg ../build/web/icon.svg'
+# web-build makes Lodge's mail app in build/web (docs/specs/lodge-app.md, The
+# web build): the NSGo client's Wasm build, from NSGo's own tool, and the
+# loader in app/ (index.html and src/nsgo-lodge.ts, built by Vite in the nsl
+# machine for the base /app/mail/), which connects to Lodge's shell and mounts
+# the client from assets/. make deb packages it.
+NSGO_WEB := build/nsgo-web
+NSGO_WEB_RELEASE = $(NSGO_WEB)/FrostMail-$(shell sed -n 's/^version: //p' cmd/frostmail-nsgo/nsgo.yaml)-web
+web-build: ## Build Lodge's mail app, the NSGo client's web build and its loader, into build/web (docs/specs/lodge-app.md)
+	rm -rf $(NSGO_WEB)
+	cd cmd/frostmail-nsgo && go tool nsgo build -target web -channel none -installers=false -output ../../$(NSGO_WEB)
+	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --base /app/mail/ --outDir ../build/web --emptyOutDir'
+	cp $(NSGO_WEB_RELEASE)/nsgo.json build/web/
+	cd $(NSGO_WEB_RELEASE) && cp nsgo.*.js wasm_exec.*.js *.wasm *.txt $(CURDIR)/build/web/assets/
+	chmod a-x build/web/assets/*.wasm
+	cp packaging/icons/icon.svg build/web/icon.svg
 
 # lodge-package stages maild as lodge's mail app under LODGE_DESTDIR, in
 # lodge's install layout (docs/specs/lodge-app.md), with
@@ -187,7 +200,7 @@ DEB_VERSION ?= 0.0.0-$(COMMIT)-snapshot
 DEB_FILE = dist/frostyard-maild_$(DEB_VERSION)_amd64.deb
 DEB_LDFLAGS = -s -w -X main.version=$(DEB_VERSION) -X main.commit=$(COMMIT)
 deb: ## Build dist/frostyard-maild_<DEB_VERSION>_amd64.deb with nFPM, after make web-build
-	@test -f build/web/index.html || { echo "no web build: run make web-build first"; exit 1; }
+	@test -f build/web/index.html && test -f build/web/nsgo.json || { echo "no web build of the NSGo client: run make web-build first"; exit 1; }
 	rm -rf build/deb
 	mkdir -p build/deb/bin dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '$(DEB_LDFLAGS)' -o build/deb/bin/ ./cmd/maild ./cmd/mailctl
@@ -197,12 +210,22 @@ deb: ## Build dist/frostyard-maild_<DEB_VERSION>_amd64.deb with nFPM, after make
 	DEB_VERSION='$(DEB_VERSION)' nfpm package -p deb -f packaging/nfpm.yaml -t dist/
 	$(MAKE) --no-print-directory deb-check DEB_VERSION='$(DEB_VERSION)'
 
-deb-check: ## Check the .deb that make deb built (metadata, /usr only, root-owned, payload, key unit)
+# The web build is the NSGo client's (make web-build): its loader page and
+# script, nsgo.json, the client's Wasm and NSGo's scripts under assets/. The
+# React app it replaced left fonts and a stylesheet in assets/ and React's
+# own names in its script; none may come back.
+DEB_WEB = /usr/share/lodge/apps/mail/web
+deb-check: ## Check the .deb that make deb built (metadata, /usr only, root-owned, payload, key unit, the NSGo web build)
 	packaging/deb-check.py "$(DEB_FILE)" frostyard-maild "$(DEB_VERSION)" \
 		--exec /usr/bin/maild --exec /usr/bin/mailctl --exec /usr/libexec/frostmail/make-secrets-key \
 		--file /usr/lib/systemd/system/frostmail.socket --file /usr/lib/systemd/system/frostmail.service \
 		--file /usr/lib/systemd/system/frostmail-secrets-key.service \
-		--file /usr/lib/sysusers.d/frostmail.conf --file /usr/share/lodge/apps/mail/web/index.html \
+		--file /usr/lib/sysusers.d/frostmail.conf \
+		--file $(DEB_WEB)/index.html --file $(DEB_WEB)/nsgo.json --file $(DEB_WEB)/icon.svg \
+		--glob '$(DEB_WEB)/assets/index-*.js' --glob '$(DEB_WEB)/assets/app.*.wasm' \
+		--glob '$(DEB_WEB)/assets/nsgo.*.js' --glob '$(DEB_WEB)/assets/wasm_exec.*.js' \
+		--absent '$(DEB_WEB)/*.css' --absent '$(DEB_WEB)/*.woff2' \
+		--no-text '$(DEB_WEB)/*' __reactFiber --no-text '$(DEB_WEB)/*' react.transitional.element \
 		--line /usr/lib/systemd/system/frostmail-secrets-key.service ConditionPathExists=!/etc/credstore.encrypted/frostmail-secrets-key \
 		--line /usr/lib/systemd/system/frostmail-secrets-key.service Type=oneshot \
 		--line /usr/lib/systemd/system/frostmail.service Requires=frostmail-secrets-key.service \
@@ -344,13 +367,12 @@ nsgo-pictures: ## Take the kept pictures of the client's main views again (cmd/f
 	@command -v xvfb-run >/dev/null 2>&1 || { echo "make nsgo-pictures needs xvfb-run (the xvfb package)"; exit 1; }
 	cd cmd/frostmail-nsgo && $(NSGO_LIVE) -run '^TestPictures' -screenshots comparison/linux .
 
+# nsgo-lodge-app stages the web build as Lodge's mail app directory in
+# build/nsgo-lodge/apps/mail, which dev/lodge/nsgo-smoke.py --staged copies
+# into a disposable Lodge root. CI's NSGo job builds it.
 NSGO_STAGE := build/nsgo-lodge
-NSGO_APP_RELEASE = $(NSGO_STAGE)/release/FrostMail-$(shell sed -n 's/^version: //p' cmd/frostmail-nsgo/nsgo.yaml)-web
-nsgo-lodge-app: ## Stage the shared Wasm client as the Lodge mail app
-	cd cmd/frostmail-nsgo && go tool nsgo build -target web -channel none -installers=false -output ../../$(NSGO_STAGE)/release
-	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --base /app/mail/ --mode nsgo --outDir ../$(NSGO_STAGE)/apps/mail/web --emptyOutDir'
-	mv $(NSGO_STAGE)/apps/mail/web/nsgo.html $(NSGO_STAGE)/apps/mail/web/index.html
-	cp $(NSGO_APP_RELEASE)/nsgo.json $(NSGO_STAGE)/apps/mail/web/
-	cd $(NSGO_APP_RELEASE) && cp nsgo.*.js wasm_exec.*.js *.wasm *.txt ../../apps/mail/web/assets/
-	cp packaging/icons/icon.svg $(NSGO_STAGE)/apps/mail/web/
+nsgo-lodge-app: web-build ## Stage make web-build's output as the Lodge mail app in build/nsgo-lodge
+	rm -rf $(NSGO_STAGE)
+	mkdir -p $(NSGO_STAGE)/apps/mail
+	cp -R build/web $(NSGO_STAGE)/apps/mail/web
 	cp packaging/lodge/app.json $(NSGO_STAGE)/apps/mail/

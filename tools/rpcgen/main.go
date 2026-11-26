@@ -1,9 +1,8 @@
 // Command rpcgen generates the maild RPC contract from schema/rpc/*.yaml:
-// the Go half of package api, the TypeScript client for the app, and the
-// API reference. `make gen` writes the outputs; `make gen-check` (part of
+// the Go half of package api and the API reference. `make gen` writes the outputs; `make gen-check` (part of
 // make verify) fails when any output is stale.
 //
-//	go run ./tools/rpcgen [-check] [-schema DIR] [-go FILE] [-ts FILE] [-md FILE]
+//	go run ./tools/rpcgen [-check] [-schema DIR] [-go FILE] [-md FILE]
 package main
 
 import (
@@ -26,7 +25,6 @@ func run(args []string) error {
 	check := fs.Bool("check", false, "fail if any output differs from what would be generated")
 	schemaDir := fs.String("schema", "schema/rpc", "IDL directory")
 	goOut := fs.String("go", "api/zz_generated.go", "Go output")
-	tsOut := fs.String("ts", "app/src/rpc/gen/api.ts", "TypeScript output")
 	mdOut := fs.String("md", "docs/specs/rpc-api.md", "Markdown output")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -44,7 +42,6 @@ func run(args []string) error {
 		data []byte
 	}{
 		{*goOut, goSrc},
-		{*tsOut, genTS(s)},
 		{*mdOut, genMarkdown(s)},
 	}
 	var stale []string

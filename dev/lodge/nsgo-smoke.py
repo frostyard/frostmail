@@ -1,7 +1,13 @@
-"""Exercise the staged NSGo client inside an authenticated, disposable Lodge.
+"""Exercise Lodge's mail app, the NSGo client, inside an authenticated, disposable Lodge.
 
 Supply a tools directory containing lodge/{lodge-e2e,lodgectl,shell},
 geckodriver and firefox/firefox. Run from the FrostMail repository root.
+
+With --deb DEB it runs on what the .deb installs (make deb): dpkg-deb
+extracts the package into the Lodge root, and the package's own maild and
+web build run. Without it, it runs on make nsgo-lodge-app's staged app
+directory (build/nsgo-lodge/apps/mail) and a maild built from this tree.
+Firefox runs headless.
 """
 import argparse
 from contextlib import ExitStack
@@ -43,7 +49,7 @@ def request(url, method="GET", data=None):
         return json.load(response)["value"]
 
 
-def smoke(tools, root, cleanup):
+def smoke(tools, root, cleanup, deb=None):
     env = dict(os.environ, LODGE_ROOT=str(root), FROSTMAIL_DATA_DIR=str(root/"data"),
                FROSTMAIL_CACHE_DIR=str(root/"cache"), XDG_CONFIG_HOME=str(root/"config"),
                XDG_STATE_HOME=str(root/"state"), FROSTMAIL_SECRETS="file",
@@ -64,9 +70,18 @@ def smoke(tools, root, cleanup):
         subprocess.run(args, env=env, check=True)
 
     (root/"run/lodge/apps").mkdir(parents=True)
+    if deb is not None:
+        subprocess.run(["dpkg-deb", "-x", str(deb), str(root)], check=True)
+        maild = root/"usr/bin/maild"
+        print(f"maild and the web build from {deb}")
+    else:
+        shutil.copytree("build/nsgo-lodge/apps/mail", root/"usr/share/lodge/apps/mail")
+        subprocess.run(["go", "build", "-o", str(root)+"/", "./cmd/maild"], check=True)
+        maild = root/"maild"
+    if not (root/"usr/share/lodge/apps/mail/web/nsgo.json").is_file():
+        raise RuntimeError("the mail app has no nsgo.json: it is not the NSGo client's web build")
     shutil.copytree(tools/"lodge/shell", root/"usr/share/lodge/shell")
-    shutil.copytree("build/nsgo-lodge/apps/mail", root/"usr/share/lodge/apps/mail")
-    subprocess.run(["go", "build", "-o", str(root)+"/", "./cmd/maild", "./tools/uifixture"], check=True)
+    subprocess.run(["go", "build", "-o", str(root)+"/", "./tools/uifixture"], check=True)
     run([root/"uifixture", "-out", root/"data", "-showcase", "tools/uifixture/showcase"])
     origin = f"http://127.0.0.1:{port()}"
     start([tools/"lodge/lodge-e2e", "--root", root, "--listen", origin.removeprefix("http://"),
@@ -74,7 +89,7 @@ def smoke(tools, root, cleanup):
     wait("Lodge control socket", (root/"run/lodge/control.sock").exists)
     for kind, subject in [("login", "e2e@example.com"), ("node", "e2e-node")]:
         run([tools/"lodge/lodgectl", "allow", kind, subject])
-    start([root/"maild", "--lodge"])
+    start([maild, "--lodge"])
     wait("maild app socket", (root/"run/lodge/apps/mail.sock").exists)
     run([tools/"lodge/lodgectl", "reload"])
 
@@ -154,6 +169,7 @@ def smoke(tools, root, cleanup):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tools", type=Path)
+    parser.add_argument("--deb", type=Path, help="run on what this .deb installs (make deb's dist/frostyard-maild_*.deb)")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="fm-lodge-") as tmp, ExitStack() as cleanup:
-        smoke(args.tools.resolve(), Path(tmp), cleanup)
+        smoke(args.tools.resolve(), Path(tmp), cleanup, args.deb.resolve() if args.deb else None)
