@@ -662,6 +662,17 @@ func TestArchiveAndJunkSeveralMessages(t *testing.T) {
 		a.PressWith(second, core.Modifiers{Control: true})
 		a.WaitFor("text:2 messages selected", 5*time.Second)
 	}
+	openMailbox := func(selector, title string) {
+		t.Helper()
+		if nsgotest.Target() == "" {
+			// A mail update can replace a sidebar row between the events
+			// of a synthetic Press. Activate the current row in one event.
+			a.AccessibilityAction(selector, core.ActionActivate)
+		} else {
+			a.Press(selector)
+		}
+		a.WaitFor("id:content-header >> text:"+title, 8*time.Second)
+	}
 	choose(trip, standup)
 	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Archive") })
 	a.Press("role:toolbar >> label:Archive")
@@ -669,18 +680,18 @@ func TestArchiveAndJunkSeveralMessages(t *testing.T) {
 	a.WaitForGone(trip, 8*time.Second)
 	a.WaitForGone(standup, 8*time.Second)
 	a.Find("id:undo >> role:button Undo")
-	a.Press("id:mailbox-role:archive")
+	openMailbox("id:mailbox-role:archive", "All Archives")
 	a.WaitFor(trip, 8*time.Second)
 	a.WaitFor(standup, 8*time.Second)
 
-	a.Press("id:mailbox-all-inboxes")
+	openMailbox("id:mailbox-all-inboxes", "All Inboxes")
 	dinner, hiring := "id:messages >> label:Dinner Saturday?", "id:messages >> label:Hiring panel on Friday"
 	choose(dinner, hiring)
 	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Junk") })
 	a.Press("role:toolbar >> label:Junk")
 	a.WaitFor("id:undo >> text:2 messages moved to Junk", 8*time.Second)
 	a.WaitForGone(dinner, 8*time.Second)
-	a.Press("id:mailbox-role:junk")
+	openMailbox("id:mailbox-role:junk", "All Junk")
 	choose(dinner, hiring)
 	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Not junk") })
 	if a.Exists("role:toolbar >> label:Junk") {
