@@ -33,16 +33,24 @@ func bodyView(w *workspace, r *api.Rendering) core.Node {
 	}
 	return core.Dynamic(func(*core.Scope) core.Node {
 		doc := mail.ScrollingDocument(body, style+mail.ZoomStyle(w.textScale.Get()))
-		return core.WebView{Label: "Message body", Source: core.WebHTML(doc, ""), Style: ui.FillRest, NoJavaScript: true, Incognito: true, OnOpenWindow: func(req core.WebWindowRequest) {
-			if !req.UserInitiated {
-				return
-			}
-			link, err := (opener.Opener{}).CheckURL(req.URL)
-			if err == nil {
-				w.cx.OpenURL(link, nil)
-			}
-		}}
+		return messageWebView(doc, func(link string) { w.cx.OpenURL(link, nil) })
 	})
+}
+
+// messageWebView is the web view of a message's page: no script, no stored
+// state, the page's own policy (mail.PageCSP), and a link that opens a
+// window goes to the system browser only on the user's press and after
+// the opener's check (TestMessagePageRunsNoScript).
+func messageWebView(doc string, open func(link string)) core.WebView {
+	return core.WebView{Label: "Message body", Source: core.WebHTML(doc, ""), Style: ui.FillRest, NoJavaScript: true, Incognito: true, OnOpenWindow: func(req core.WebWindowRequest) {
+		if !req.UserInitiated {
+			return
+		}
+		link, err := (opener.Opener{}).CheckURL(req.URL)
+		if err == nil {
+			open(link)
+		}
+	}}
 }
 
 func (w *workspace) savePart(id int64, p api.Part) {
