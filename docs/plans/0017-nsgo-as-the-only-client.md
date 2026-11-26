@@ -3,9 +3,9 @@
 - **Status:** Accepted in its order and its answers (Brian, 2026-11-24).
   FrostMail's Phase 2 is done, on the owner's report of its gate
   (2026-11-26, [Phase 2](#phase-2--frostmail-nsgo-is-the-default-m)),
-  and `v0.10.0` holds it. Its Phase 3, MyGo's removal, is built and
-  waits on the Windows VM's check of the installer, and on a release
-  ([Phase 3](#phase-3--frostmail-mygo-is-removed-m)). The owner set its
+  and `v0.10.0` holds it. Its Phase 3, MyGo's removal, is built, and
+  its installer was checked on the Windows VM (2026-11-26); it waits on
+  a release ([Phase 3](#phase-3--frostmail-mygo-is-removed-m)). The owner set its
   end on 2026-11-24: the NSGo clients are the default, MyGo is removed,
   and the new versions are tagged and published. He answered its 6 questions the same day
   ([The owner's answers](#the-owners-answers)). FrostMail's decision is
@@ -377,9 +377,9 @@ name MyGo.
     MyGo's install and over a Tauri one, the toast and its click, the
     second start, and the uninstall are the Windows VM's check, which is
     still to do before MyGo goes.
-- **MyGo's removal (2026-11-26), built; no release holds it.** It comes
-  before the Windows VM's check of the installer that this phase puts
-  first, and its pull request waits on that check.
+- **MyGo's removal (2026-11-26), built; no release holds it.** It was
+  built before the Windows VM's check of the installer that this phase
+  puts first, and its pull request waited on that check (below).
   - `cmd/frostmail`, `mygo.json`, MyGo's `installer.nsh` and script, and
     the MyGo-only packages (`internal/desktop/commands`, `e2e`, `mainwin`,
     `pim`, `uikit`) are gone, with MyGo's make targets (`desktop-build`,
@@ -417,10 +417,14 @@ name MyGo.
     check passed. The same run's Windows `go test` failed once: an
     opener test of the execute bit, which Windows lacks; the test now
     leaves that case out there.
-  - Gone without a replacement: the MyGo client's real-window suite,
-    with its reader script probe (`TestReaderPageRunsNoScript`); the NSGo
-    client's page has no script by its CSP and its web view's
-    `NoJavaScript`.
+  - Gone: the MyGo client's real-window suite, with its reader script
+    probe (`TestReaderPageRunsNoScript`, which ran a page in a real web
+    view). `TestMessagePageRunsNoScript` holds the NSGo client's message
+    view to `NoJavaScript`, `Incognito`, `mail.PageCSP` first in its
+    head, no base URL, and a window's link opened only on the user's
+    press after the opener's check; it fails with `NoJavaScript` off or
+    the press's check taken out. Nothing runs a page in a real web view
+    to see that no script runs.
   - Run on Linux, each exiting 0: `make check`, `make nsgo-test`, `make
     nsgo-live` on Xvfb's X11 (58 passed, 0 failed), `make race` (65
     packages ok), `make flatpak-sources`, `make nsgo-build
@@ -431,10 +435,47 @@ name MyGo.
     script with Frostmail's steps and stopped at makensis, which the
     host lacks. `make ui-check` was not run (no nsl machine of
     FrostMail's here).
-  - **Not done:** the Windows VM's check of the installer (an install, an
-    upgrade over `v0.10.0`'s MyGo install and over a Tauri one, the toast
-    and its click, the second start, and the uninstall), and the
-    release.
+- **The Windows VM's check of the installer (2026-11-26).** The installer
+  of #432's head `625a8f04` (CI's artifact, 19,122,688 bytes), in
+  `frostmail-win11`, in Brian's signed-in session, on his real install:
+  the Tauri build of 2026-10-16 (version 0.0.0, in
+  `%LOCALAPPDATA%\Frostmail`, its mail store of 6,326 files, about 2 GB,
+  and 3 accounts in its `Data`). What was seen, in the registry, the
+  folders, the process list, `mailctl` and pictures of the screen:
+  - **Over the Tauri install,** a silent install in the desktop session
+    put the client in `%LOCALAPPDATA%\Programs\FrostMail`, took away the
+    Tauri files and uninstall entry (the `Data` and `Cache` folders
+    stayed), and pointed the Run key, the Start menu's and the desktop's
+    shortcuts and the `frostmail-toast` handler at the new folder. The
+    maild it started (`b276073`) listed the 3 accounts.
+  - **The client** opened on that mail: All Inboxes 15267 unread, 99+ on
+    its taskbar icon, Local. A message's HTML page drew, with "9 remote
+    images are not shown" and the mailing list's banner.
+  - **A second start** left 1 FrostMail process within 2 seconds.
+    `FrostMail.exe --open-message ID`, the notifier's `--activate` and the
+    shell's open of a `frostmail-toast:` URI each brought that message
+    into the open window.
+  - **The toast** showed under FrostMail's name and icon. 2 clicks of mine
+    (`mouse_event` from a script) closed it and started nothing. A third
+    toast Brian clicked himself, from the notification centre: "it opened
+    the window", on the message the toast named (Brian, 2026-11-26).
+  - **A silent uninstall** exited 0 in 2 seconds: the folder, the uninstall
+    entry, the Run key, the shortcuts, `frostmail-toast` and the
+    AppUserModelId's key were gone, maild was stopped, and the 6,326 files
+    of the mail were kept.
+  - **Over MyGo's install:** main's MyGo installer (`e910f05f`, CI's
+    artifact) installed into the same folder; its client opened on the
+    same mail. With it open, the NSGo installer exited 0 in 3 seconds:
+    the MyGo client and its maild stopped, the files were replaced,
+    `frostmail-nsgo.exe` was deleted, and a new maild started; the NSGo
+    client opened on the same mail.
+  - **Seen and fixed:** after that upgrade, the uninstall left MyGo's
+    `.mygo-files`, and the folder with it. The installer deletes it now,
+    and CI's install check puts both of MyGo's files in the folder first
+    and requires the uninstall to take the folder away. The installer
+    with the fix was not run on the VM; CI's check runs it.
+  - The VM keeps the NSGo client installed, with maild from the Run key.
+  - **Not done:** the release.
 - **Done when:** `go.mod` names neither `github.com/egoist/mygo` nor
   frostui's root module, `make ci` passes, and the owner releases the
   version (`make bump`, then Promote).

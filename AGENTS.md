@@ -141,8 +141,9 @@ packages the NSGo client shares are split so that neither `go.mod` names
 MyGo or frostui's root module, the Flatpak holds the NSGo client alone
 (`FROSTMAIL_UI=mygo` is ignored, with a line on the launcher's error
 output), and Windows' installer is the NSGo client's (`make
-windows-installer`), which CI's Windows job builds and installs. Its check
-on the Windows VM, and the release, are still to do (plan 0017, Phase 3).
+windows-installer`), which CI's Windows job builds and installs. Its
+installer was checked on the Windows VM over a Tauri and a MyGo install
+(2026-11-26); the release is still to do (plan 0017, Phase 3).
 
 ## Two kinds of agent work
 
