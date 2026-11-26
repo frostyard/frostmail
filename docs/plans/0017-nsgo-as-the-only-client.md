@@ -1,7 +1,9 @@
 # Plan 0017: NSGo as the only client
 
 - **Status:** Accepted in its order and its answers (Brian, 2026-11-24).
-  Nothing of it is built. The owner set its end on 2026-11-24: the NSGo
+  FrostMail's Phase 2 is done, on the owner's report of its gate
+  (2026-11-26, [Phase 2](#phase-2--frostmail-nsgo-is-the-default-m)),
+  and `v0.10.0` holds it. The owner set its end on 2026-11-24: the NSGo
   clients are the default, MyGo is removed, and the new versions are
   tagged and published. He answered its 6 questions the same day
   ([The owner's answers](#the-owners-answers)). FrostMail's decision is
@@ -252,8 +254,14 @@ name MyGo.
     real Flatpak (its storage under the new id, a second start handed
     to the first, a notification's click, the tray), and a person's
     first run in it.
-  - What is left of this phase is the owner's: a candidate tag, and
-    plan 0013's clean-install gate on it.
+- **The gate (2026-11-26), done on the owner's word.** Brian tagged
+  `v0.10.0-rc.1`, ran plan 0013's clean-install gate on it, then
+  released `v0.10.0` from it and ran Promote (2026-11-26). His report
+  of the gate is "clean install passed well" (Brian, 2026-11-26). It
+  names none of the Done when's steps one by one (the first run, the
+  sign-in, a message read, written and sent, the restart, no variable
+  set), and records no times, counts or pictures. The phase is closed
+  on that report of Brian's, without those pieces.
 - **Done when:** a fresh VM installs the candidate and its first run, an
   account's sign-in, a message read, written and sent, and a restart all
   happen in the NSGo client with no variable set.

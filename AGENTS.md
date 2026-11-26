@@ -135,8 +135,10 @@ and shows the first run's welcome
 time, where a drag moves, resizes and draws an event
 (`cmd/frostmail-nsgo/calendar_time.go`). Its package has the released
 app's id, and **the Flatpak's launcher starts it**: `FROSTMAIL_UI=mygo`
-starts the MyGo client, which the Flatpak holds for 1 release. No release
-holds this yet, and Phase 2's clean-install gate is not run. The Windows
+starts the MyGo client, which the Flatpak holds for 1 release: `v0.10.0`
+(2026-11-26). Phase 2 is done on Brian's report that the clean-install
+gate on `v0.10.0-rc.1` passed (plan 0017, Phase 2, The gate, which names
+what the report does not). The Windows
 installer's program is still the MyGo client (Phase 3). A second installer,
 of the NSGo client, is built beside it by NSGo's tool (`make
 nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
