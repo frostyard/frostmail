@@ -409,6 +409,14 @@ name MyGo.
     client's window, and a silent uninstall that keeps the mail. The
     uninstall runs from NSIS's copy of the uninstaller, without `_?=`,
     since NSGo's `CloseApp` stops what runs from the install folder.
+    On the change's first run
+    ([run 45821693143](https://github.com/frostyard/frostmail/actions/runs/45821693143)),
+    the job compiled `frostmail-0.9.0-windows-x64-setup.exe`, 19,123,381
+    bytes, and the check's, 19,121,152 bytes, with the NSIS 3.13 it
+    downloaded (1 warning each, no `LegalCopyright`), and the install
+    check passed. The same run's Windows `go test` failed once: an
+    opener test of the execute bit, which Windows lacks; the test now
+    leaves that case out there.
   - Gone without a replacement: the MyGo client's real-window suite,
     with its reader script probe (`TestReaderPageRunsNoScript`); the NSGo
     client's page has no script by its CSP and its web view's
