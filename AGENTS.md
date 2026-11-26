@@ -144,7 +144,16 @@ MyGo or frostui's root module, the Flatpak holds the NSGo client alone
 output), and Windows' installer is the NSGo client's (`make
 windows-installer`), which CI's Windows job builds and installs. Its
 installer was checked on the Windows VM over a Tauri and a MyGo install
-(2026-11-26); the release is still to do (plan 0017, Phase 3).
+(2026-11-26); the release is still to do (plan 0017, Phase 3). Phase 3.5,
+**the NSGo web build in Lodge,** is built and not released: `make
+web-build` builds the client for `js/wasm` and its loader (`app/`) into
+`build/web`, the `.deb` holds it, `make deb-check` refuses a React app's
+files, the React app and rpcgen's TypeScript output are gone, and
+`dev/lodge/nsgo-smoke.py --deb` passed 2 times on a snapshot `.deb`
+(2026-11-26). Plan 0017's Phase 3.5 lists 11 things the React app did
+that the web build does not, first a hidden page's calendar reminders, a
+notification's click in Lodge's shell, and the reader frame's own
+sandbox.
 
 ## Two kinds of agent work
 

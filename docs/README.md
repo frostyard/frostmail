@@ -126,7 +126,7 @@ Org-wide decisions that bind this repository: [org-adrs.md](org-adrs.md).
 - [0014 — Small features from the nexmail review](plans/0014-small-features-from-the-nexmail-review.md): the sender check, the attachment reminder, snippets, erasing old Trash and Junk
 - [0015 — The desktop app in MyGo](plans/0015-mygo-desktop.md): the native desktop app, its window and console, the spikes and the parity gate
 - [0016 — A shared look for the NSGo apps](plans/0016-a-shared-look-for-the-nsgo-apps.md): the kit FrostMail, Frostnotes and PocketGo share, the standard window and FrostMail's restyle
-- [0017 — NSGo as the only client](plans/0017-nsgo-as-the-only-client.md): from 2 desktop clients to 1 in FrostMail, Frostnotes and PocketGo, and a release of each; accepted in its order and answers (2026-11-24); FrostMail's Phases 2 and 3 are built, and Frostnotes (2026-11-25) and PocketGo, retired (2026-11-26), left it
+- [0017 — NSGo as the only client](plans/0017-nsgo-as-the-only-client.md): from 2 desktop clients to 1 in FrostMail, Frostnotes and PocketGo, and a release of each; accepted in its order and answers (2026-11-24); FrostMail's Phase 2 done on Brian's report of its gate (the plan's Phase 2, The gate, names what it lacks), Phases 3 and 3.5 built and not released; Frostnotes (2026-11-25) and PocketGo, retired (2026-11-26), left it
 
 ## Conventions
 
