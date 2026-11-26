@@ -292,10 +292,11 @@ installer was checked on the Windows VM over a Tauri and a MyGo install
   (`github.com/egoist/mygo`) or frostui's root module
   (`github.com/frostyard/frostui`) since plan 0017's Phase 3.
 - The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
-  `github.com/frostyard/frostui/workspaceui` v0.5.1, the kit it shares with
-  Frostnotes and PocketGo (a module of its own in frostui, tags
-  `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
-  `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.
+  `github.com/frostyard/frostui/workspaceui` v0.5.1, the kit it shared with
+  Frostnotes and PocketGo before Frostnotes dropped its desktop window
+  and PocketGo was retired (plan 0017), and `github.com/nsgo-dev/nsgo`
+  v0.3.0, which frostyard does not own. The kit is a module of its own in
+  frostui (tags `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`).
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.7.0`.
 - The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
