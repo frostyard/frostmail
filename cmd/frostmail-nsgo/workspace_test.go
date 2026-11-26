@@ -4,6 +4,8 @@ package main
 
 import (
 	"bufio"
+	"context"
+	"errors"
 	"net/mail"
 	"os"
 	"os/exec"
@@ -13,6 +15,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
+
+	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/imapx/imapxtest"
+	"github.com/frostyard/frostmail/internal/mailsync"
+	"github.com/frostyard/frostmail/internal/rpctest"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/nsgotest"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -714,19 +722,82 @@ func TestSearchAndFilterTheList(t *testing.T) {
 	a.WaitFor(dinner, 8*time.Second)
 }
 
-// TestArchiveAnswersWithAnUndoToast checks rule 5: a move answers with a
-// toast that has an Undo action. The fixture's mail never syncs, so maild
-// holds an undo of a move as still moving: the undo itself is not run here.
-func TestArchiveAnswersWithAnUndoToast(t *testing.T) {
-	a := fixtureWorkspace(t)
-	row := "id:messages >> label:Your trip to Lisbon: itinerary"
-	a.WaitFor(row, 8*time.Second)
-	a.Press(row)
-	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Archive") })
-	a.Press("role:toolbar >> label:Archive")
-	a.WaitForGone(row, 8*time.Second)
-	a.WaitFor("id:undo >> text:Message archived", 5*time.Second)
-	a.Find("id:undo >> role:button Undo")
+// TestUndoArchive uses loopback IMAP so the first move can settle. The
+// offline showcase leaves it queued, and maild then skips the inverse move.
+func TestUndoArchive(t *testing.T) {
+	const subject = "Archive this message"
+	for _, tc := range []struct {
+		name string
+		undo func(*nsgotest.App)
+	}{
+		{"Toast", func(a *nsgotest.App) { a.Press("id:undo >> role:button Undo") }},
+		{"More", func(a *nsgotest.App) {
+			a.Press("role:toolbar >> label:More")
+			a.Press("role:menuitem Undo")
+		}},
+		{"Shortcut", func(a *nsgotest.App) { a.Key("ctrl+z") }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := syncedWorkspace(t, subject)
+			row := "id:messages >> label:" + subject
+			a.WaitFor(row, 8*time.Second)
+			a.Press(row)
+			a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Archive") })
+			a.Press("role:toolbar >> label:Archive")
+			a.WaitForGone(row, 8*time.Second)
+			a.WaitFor("id:undo >> text:Message archived", 5*time.Second)
+			tc.undo(a)
+			a.WaitFor(row, 12*time.Second)
+		})
+	}
+}
+
+func syncedWorkspace(t *testing.T, subject string) *nsgotest.App {
+	t.Helper()
+	mem := imapxtest.StartMemFull(t)
+	raw := "From: sender@example.test\r\nTo: me@example.test\r\nSubject: " + subject +
+		"\r\nMessage-ID: <archive@example.test>\r\n\r\nBody.\r\n"
+	if _, err := mem.User.Append("INBOX", strings.NewReader(raw), &imap.AppendOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	srv := rpctest.StartWith(t, rpctest.Options{Sync: &mailsync.Config{NoPrefetch: true}})
+	c := srv.Dial(t)
+	o := mem.DialOptions()
+	account, err := c.Account().Create(t.Context(), &api.AccountCreateParams{
+		Kind: api.AccountKindIMAP, Email: "me@example.test", DisplayName: "Me", Auth: api.AuthKindPassword,
+		IMAP: &api.ServerConfig{Host: o.Host, Port: int64(o.Port), TLS: o.TLS, Username: o.Username},
+		SMTP: &api.ServerConfig{Host: o.Host, Port: 1, TLS: o.TLS, Username: o.Username},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Account().SetPassword(t.Context(), &api.AccountSetPasswordParams{ID: account.ID, Password: o.Password}); err != nil {
+		t.Fatal(err)
+	}
+	// Open the workspace after initial sync, as with the seeded showcase.
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	tick := time.NewTicker(20 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		_, err := c.Message().ByMessageID(ctx, &api.MessageByMessageIDParams{MessageID: "archive@example.test"})
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, api.ErrNotFound) {
+			t.Fatal(err)
+		}
+		select {
+		case <-tick.C:
+		case <-ctx.Done():
+			t.Fatalf("initial IMAP sync did not deliver %q: %v", subject, ctx.Err())
+		}
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("FROSTMAIL_SOCKET", srv.Socket)
+	return nsgotest.Start(t, root, nsgotest.Size(1280, 820),
+		nsgotest.Environment(core.Environment{OS: "linux", Idiom: core.IdiomDesktop, PixelRatio: 1}))
 }
 
 // TestComposeOpensWithTheKeyboardInAField checks where the keyboard is as
