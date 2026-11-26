@@ -9,7 +9,8 @@ Contracts: [specs/ui.md](../specs/ui.md), [specs/rpc-api.md](../specs/rpc-api.md
 ## Overview
 
 The web app is a React UI that runs in lodge, in a browser; the desktop app
-is native ([ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)).
+is the native NSGo client ([ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md),
+which superseded ADR-0054's MyGo client).
 `app/` builds only for lodge (ADR-0054): it reaches maild only through
 lodge, and outside lodge's frame it runs only in its tests.
 It holds no mail of its own: lists are views kept by maild, messages are fetched when shown, and

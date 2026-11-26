@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-26",
+  "scope": "windows installer",
+  "correction": "The NSGo installer took over MyGo's install folder and deleted its frostmail-nsgo.exe, but not MyGo's .mygo-files, so after an upgrade from v0.10.0 the uninstall left that file and the install folder; the installer deletes it too, and CI's install check plants both MyGo files first and requires the uninstall to remove the folder.",
+  "evidence": "frostmail#432, Windows VM check of the installer of head 625a8f04 (2026-11-26): after main's MyGo installer, then this one, a silent uninstall exited 0 and left %LOCALAPPDATA%\\Programs\\Frostmail\\.mygo-files",
+  "promoted_to": ""
+}

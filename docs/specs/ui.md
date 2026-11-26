@@ -46,38 +46,27 @@ through the planner: the planner approved `@frostyard/lodge-ui` on
 The domain tokens (`--flag-*`, `--quote-*`, `--avatar-*`) come from the
 package's `accents.css`; an app that does not use them does not import it.
 
-**The desktop app** (`internal/desktop`, [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md))
-does not read these tokens. It draws in frostui's Frostyard look
-(frostui's ADR-0011, from frostui v0.5.0): the Frostyard theme in a dark
-desktop and Frostyard light otherwise, its colors from
-`frostui.FrostyardTheme` and `ColorsOf`, Inter at frostui's text sizes
-(which follow the desktop's text size), nearly square corners, hairlines
-and no shadows. Where this spec names a token, a size in CSS pixels or a
-rounded corner, the desktop app draws the Frostyard role that plays its
-part ([plan 0015, The Frostyard look](../plans/0015-mygo-desktop.md#the-frostyard-look));
-the layout, the order and the behavior bind both builds. The flag colors
-are the same in both.
+**The desktop app** (`cmd/frostmail-nsgo`, [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md))
+does not read these tokens. It draws in the Frostyard look of the shared
+kit, `github.com/frostyard/frostui/workspaceui`
+([ADR-0062](../adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)):
+the Frostyard theme in a dark desktop and Frostyard light otherwise, or
+the user's saved choice, Inter, nearly square corners, hairlines and no
+shadows. Where this spec names a token, a size in CSS pixels or a rounded
+corner, the desktop app draws the kit's role that plays its part; the
+layout, the order and the behavior bind both builds. The flag colors are
+the same in both.
 
-**Text size (desktop app).** The user's choice in the General pane's Text
-size (P-957, `settings.textSize`, kept by maild) is Smaller, Default, Larger
+**Text size (desktop app).** The user's choice in Settings' Text size
+(P-957, `settings.textSize`, kept by maild) is Smaller, Default, Larger
 or Largest: 0.9, 1, 1.15 or 1.3 times the usual size, which is Default and
-what every size in this spec is given at. Every window of the desktop app
-draws at it, and a change shows at once in every window that is open. The
-window's theme takes the scale (`uikit.Adapt`, times the desktop's own text
-scale), so every frostui text size and MyGo's own text follow. So do the
-heights that hold text: they follow the theme's text size, which includes the
-desktop's own text scale. At desktop scale 1 and the Default size they are
-exactly as they always were; with a desktop scale they grow with the text,
-where the fixed heights cut it (a list row with 2 lines of preview, 84, at a
-desktop scale of 1.5, cut the preview, which ends 110 down). Those heights are
-the message list's rows (`uikit.SummaryHeightIn`, which is `SummaryHeightFor`
-at the usual size), the calendar's all-day lanes, month lines and hours'
-gutter, and the rows of People and of the calendar's search. The reader's
-page zooms by the scale on screen
+what every size in this spec is given at. The message list's summary rows
+take the scale (workspaceui's `SummaryRow.Scale`), and a change shows at
+once. The reader's page zooms by the scale on screen
 (`@layer text-size{@media screen{:root{zoom:…!important}}}`, none at Default;
-the layer keeps a message's own style from undoing it) and not on paper, and
-its height is the zoomed page's. The web build keeps its own text size. The
-font family, the fixed-width font and the colors are not chosen
+the layer keeps a message's own style from undoing it) and not on paper.
+The web build keeps its own text size. The font family, the fixed-width
+font and the colors are not chosen
 ([#204](https://github.com/frostyard/frostmail/issues/204)).
 
 **Flags.** `flagColor` 1–7 (the API's numbering, `$MailFlagBit0-2` + 1):

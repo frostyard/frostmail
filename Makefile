@@ -1,4 +1,4 @@
-.PHONY: help build build-windows install install-app flatpak-sources desktop-installer desktop-e2e uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
+.PHONY: help build build-windows install install-app flatpak-sources windows-installer uninstall fmt lint lint-version-check gen gen-check test test-fork engine-it e2e mailtest-seed \
 	verify check race ci vulncheck web-build lodge-package deb deb-check bump svu-version-check ui-check ui-test ui-vitest ui-fmt app-test app-check-windows app-build app-dev app-run mailtest-up mailtest-reset \
 	tasks accept task task-verify task-finish clean
 
@@ -43,26 +43,16 @@ build-windows: ## Cross-compile maild.exe (a GUI program: no console at sign-in)
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS) -H=windowsgui' -o build/windows/maild.exe ./cmd/maild
 	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags '$(LDFLAGS)' -o build/windows/mailctl.exe ./cmd/mailctl
 
-# A release of the native app: no inspector, and MyGo's production mode
-# (plan 0015, Phase 9).
-DESKTOP_TAGS = mygo_noinspector
-DESKTOP_LDFLAGS = $(LDFLAGS) -X github.com/egoist/mygo.production=1
-
-desktop-build: ## Build the native desktop app into build/frostmail
-	CGO_ENABLED=0 go build -trimpath -tags $(DESKTOP_TAGS) -ldflags '$(DESKTOP_LDFLAGS)' -o build/frostmail ./cmd/frostmail
-
-desktop-build-windows: ## Cross-compile the native desktop app into build/windows/frostmail.exe
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags $(DESKTOP_TAGS) -ldflags '$(DESKTOP_LDFLAGS) -H=windowsgui' -o build/windows/frostmail.exe ./cmd/frostmail
-
-# The Windows installer holds maild, mailctl and the notifier beside the app.
-# NOTIFIER is frostmail-notify.exe, which cargo builds in app/notify.
+# The Windows installer (plan 0017, Phase 3): NSGo's tool builds the client
+# and writes the installer's script, tools/nsgoinstaller adds
+# packaging/windows/installer.nsh to it, and makensis compiles it. maild,
+# mailctl and the notifier ship beside the app. NOTIFIER is
+# frostmail-notify.exe, which cargo builds in app/notify.
+# FROSTMAIL_INSTALLER_CHECK=1 builds it under a check's names, into
+# build/windows-installer-check.
 NOTIFIER ?= build/frostmail-notify.exe
-desktop-installer: ## Build the Windows installer into build/mygo/windows-amd64 (NOTIFIER=path to frostmail-notify.exe)
+windows-installer: ## Build the Windows installer into build/windows-installer (NOTIFIER=path to frostmail-notify.exe)
 	scripts/windows-installer.sh $(NOTIFIER)
-
-# The real-window checks need a display: Xvfb with xdotool, or Windows' desktop.
-desktop-e2e: ## Drive the built app in real windows on fixture mail (needs a display)
-	go test -tags e2e -timeout 15m -count=1 ./internal/desktop/e2e/
 
 PREFIX ?= $(HOME)/.local
 UNIT_DIR ?= $(HOME)/.config/systemd/user
@@ -75,7 +65,7 @@ install: build ## Install maild and mailctl for this user and (re)start maild as
 	systemctl --user enable maild.service
 	systemctl --user restart maild.service
 
-install-app: desktop-build ## Package the app as a local Flatpak and install it for this user (ADR-0013)
+install-app: nsgo-build ## Package the app as a local Flatpak and install it for this user (ADR-0013)
 	packaging/flatpak/install.sh
 
 # The Flatpak's offline sources (docs/adr/0045-the-desktop-app-builds-as-a-flatpak-in-ci.md):
@@ -128,9 +118,7 @@ verify: ## Tidy, generated files, vet (Linux and Windows), format, lint and unit
 	go mod tidy -diff
 	$(MAKE) --no-print-directory gen-check
 	go vet ./...
-	go vet -tags e2e ./internal/desktop/e2e/
 	GOOS=windows go vet ./...
-	GOOS=windows go vet -tags e2e ./internal/desktop/e2e/
 	test -z "$$(gofmt -l $(GO_FILES))"
 	$(MAKE) --no-print-directory lint
 	go test ./...
@@ -154,7 +142,7 @@ else
 	go test -race $(RACE_FLAGS) $$pkgs
 endif
 
-ci: verify ui-check desktop-build desktop-build-windows ## verify plus race tests and the app checks
+ci: verify ui-check nsgo-test nsgo-build nsgo-build-windows ## verify plus race tests and the app checks
 	$(MAKE) --no-print-directory race
 
 vulncheck: ## Report reachable vulnerabilities (govulncheck; needs the network)
@@ -174,7 +162,7 @@ zones: ## Regenerate internal/calendar/zones_gen.go from CLDR's pinned windowsZo
 ui-fmt: ## Format the app's sources and organize imports with Biome (nsl)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm run fmt'
 
-app-build: desktop-build ## Build the release app binary into build/frostmail
+app-build: nsgo-build ## Build the app binary into build/frostmail-nsgo
 
 web-build: ## Build the web app for lodge's /app/mail/ into build/web (nsl; docs/specs/lodge-app.md)
 	$(IN_NSL) 'cd app && pnpm install --frozen-lockfile --silent && pnpm exec vite build --base /app/mail/ --outDir ../build/web --emptyOutDir && cp ../packaging/icons/icon.svg ../build/web/icon.svg'
@@ -278,14 +266,15 @@ bump: ## Tag the candidate's commit as the release and push the tag (CANDIDATE=v
 # machine (docs/adr/0006-development-environment.md), as app-check-windows
 # does.
 app-test: ## Run the desktop app's Go tests and the Windows notifier's Rust tests
-	go test ./cmd/frostmail/ ./internal/desktop/...
+	go test ./internal/desktop/...
+	cd cmd/frostmail-nsgo && go test ./...
 	$(IN_NSL) 'cd app/notify && cargo test --release'
 
 # Windows CI builds the notifier (ADR-0038); here it is only type-checked.
 app-check-windows: ## Type-check the notifier for Windows (nsl)
 	$(IN_NSL) 'export CARGO_TARGET_DIR="$$CARGO_TARGET_DIR-windows" && cd app/notify && cargo check --release --target x86_64-pc-windows-msvc'
 
-app-dev: build desktop-build ## Run maild and the built app on fixture-free local state
+app-dev: build nsgo-build ## Run maild and the built app on fixture-free local state
 	scripts/dev-app.sh
 
 app-run: app-dev ## Alias for app-dev
@@ -326,17 +315,12 @@ task-finish: ## Verify, move the card to done/ and commit the task's work
 clean: ## Remove build output
 	rm -rf build dist coverage.out coverage.html
 
-.PHONY: nsgo-build nsgo-installer nsgo-test nsgo-live nsgo-pictures nsgo-lodge-app
-nsgo-build: ## Build the shared native mail client
+.PHONY: nsgo-build nsgo-build-windows nsgo-test nsgo-live nsgo-pictures nsgo-lodge-app
+nsgo-build: ## Build the desktop app, the NSGo client, into build/frostmail-nsgo
 	scripts/build-nsgo-native.sh build/frostmail-nsgo
 
-# The NSGo client's Windows installer (plan 0017, Phase 3): NSGo's tool builds
-# the client and writes the installer's script, tools/nsgoinstaller adds
-# packaging/windows/nsgo-installer.nsh to it, and makensis compiles it.
-# FROSTMAIL_INSTALLER_CHECK=1 builds it under a check's names, into
-# build/nsgo-windows-check.
-nsgo-installer: ## Build the NSGo client's Windows installer into build/nsgo-windows (NOTIFIER=path to frostmail-notify.exe)
-	scripts/nsgo-windows-installer.sh $(NOTIFIER)
+nsgo-build-windows: ## Cross-compile the NSGo client into build/windows/frostmail.exe (a GUI program)
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 scripts/build-nsgo-native.sh build/windows/frostmail.exe
 
 nsgo-test: ## Exercise the shared mail workspace and compile it for Lodge
 	cd cmd/frostmail-nsgo && go test -tags integration ./... && GOOS=js GOARCH=wasm go build -o ../../build/frostmail.wasm .

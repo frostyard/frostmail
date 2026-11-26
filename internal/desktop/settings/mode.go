@@ -3,10 +3,8 @@ package settings
 import (
 	"context"
 	"errors"
-	"os"
 	"time"
 
-	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 )
 
@@ -161,54 +159,4 @@ func ChangeServer(options Options, flatpak bool, next conn.AppConfig) (moved boo
 		return out.moved, errors.New(out.err)
 	}
 	return out.moved, nil
-}
-
-// targetFor says where the session goes for a choice.
-func (w *Window) targetFor(lodge string) (conn.Target, error) {
-	if lodge != "" {
-		l, err := conn.ParseLodge(lodge)
-		if err != nil {
-			return conn.Target{}, err
-		}
-		return conn.Target{Lodge: &l}, nil
-	}
-	if w.o.Socket != "" {
-		return conn.Target{Socket: w.o.Socket}, nil
-	}
-	if socket := os.Getenv("FROSTMAIL_SOCKET"); socket != "" {
-		return conn.Target{Socket: socket}, nil
-	}
-	socket, err := config.DefaultSocket(os.Getenv)
-	return conn.Target{Socket: socket}, err
-}
-
-// saveServer changes the mode on a worker. One change runs at a time: the
-// pane holds Save back while one runs, and the session's target moves only
-// at its end, so nothing connects to a choice that a failed stop writes
-// back.
-func (w *Window) saveServer(next string) {
-	s := &w.server
-	if s.busy {
-		return
-	}
-	// A bad address is change's to refuse, as the first step of the save.
-	target, err := w.targetFor(next)
-	if err != nil && next == "" {
-		s.err = err.Error()
-		return
-	}
-	flatpak := w.facts.Flatpak
-	s.busy, s.status, s.err = true, saveStatus(flatpak, s.stored, next), ""
-	go func() {
-		out := change(realSteps{&w.o}, flatpak, conn.AppConfig{Lodge: next})
-		if out.moved && w.o.SetTarget != nil {
-			w.o.SetTarget(target)
-		}
-		w.o.Post(func() {
-			s.busy, s.status, s.err = false, "", out.err
-			s.saved++
-			w.loadFacts()
-			w.readServer(true)
-		})
-	}()
 }

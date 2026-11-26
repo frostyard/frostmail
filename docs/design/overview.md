@@ -9,11 +9,11 @@ architecture; the reasons are in the [ADRs](../README.md#decisions-adrs).
 ## Architecture
 
 ```
- Native app (MyGo, frostui)       mailctl (Go CLI)
+ Native app (NSGo, workspaceui)   mailctl (Go CLI)
  Client (api)                     Client (api)
      │                                 │
  internal/desktop/conn ────────┐       │
- reader pages (uikit)          │       │
+ reader pages (desktop/mail)   │       │
      ▲ files                   ▼       ▼
      │               $XDG_RUNTIME_DIR/frostmail/maild.sock
      │                 JSON-RPC 2.0, one message per line
@@ -106,7 +106,7 @@ may open, and runs as the system user `frostmail`.
   maild, mailctl and the shell record panics and a few coded errors with
   frostyard/std, under `org.frostyard.Frostmail`. maild's recorder comes from
   `internal/problemrec` and reaches mailsync (`Config.Problems`) and the
-  renderer (`Renderer.Problems`); the app's is in `cmd/frostmail`. A code
+  renderer (`Renderer.Problems`); the app's is in `cmd/frostmail-nsgo`. A code
   names the failure; the error text stays in the record's local `MESSAGE`.
 
 ## Configuration

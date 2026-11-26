@@ -4,7 +4,6 @@
 # Frostmail
 
 [![CI](https://github.com/frostyard/frostmail/actions/workflows/ci.yml/badge.svg)](https://github.com/frostyard/frostmail/actions/workflows/ci.yml)
-[![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/frostmail)
 
 **A mail client that works like Apple Mail.app.**
 
@@ -33,9 +32,9 @@ also serve a phone or a browser on your tailnet through
 - **maild** is a per-user Go daemon that owns sync, a SQLite cache with
   full-text search, and a JSON-RPC socket. [Overview](docs/design/overview.md)
 - **The app** is a native Go app on NSGo and Frostyard's kit
-  ([ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)). The
-  earlier client, on MyGo and frostui, is still the Windows installer's
-  program, and the Flatpak holds it for 1 more release.
+  ([ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)), on
+  Linux and Windows. The earlier client, on MyGo and frostui, shipped up to
+  `v0.10.0`.
   [Desktop design](docs/design/desktop.md)
 - **mailctl** is a command-line client of the same socket.
 - **Mail in lodge:** lodge serves a React web app of the same mail, built
@@ -122,8 +121,8 @@ Linux, Windows and Lodge can run the same Go workspace against maild. Mail, draf
 | Build | How to open it |
 | --- | --- |
 | Linux checkout | Run `make nsgo-build`, start maild, then run `build/frostmail-nsgo`. |
-| Flatpak | It is the app the Flatpak opens. `flatpak run --env=FROSTMAIL_UI=mygo org.frostyard.Frostmail` opens the MyGo client, which the Flatpak holds for 1 more release. |
-| Candidate Windows installer | Open `frostmail-nsgo.exe` from the Frostmail installation directory. |
+| Flatpak | It is the app the Flatpak opens. |
+| Windows installer | It is the installer's program, `FrostMail.exe` (`make windows-installer`, or CI's `frostmail-windows-installer` artifact). |
 | Lodge | Run `make nsgo-lodge-app` and use `build/nsgo-lodge/apps/mail` as the Mail app directory in a test Lodge. It uses the signed-in Lodge session. |
 
 For a disposable local trial, `make nsgo-test` runs the workspace against generated mailboxes and a loopback SMTP server. The authenticated Firefox test and host-specific behavior are described in [the NSGo design decision](docs/adr/0061-share-the-mail-client-with-nsgo.md).

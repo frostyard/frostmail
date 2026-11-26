@@ -7,12 +7,10 @@
 // Plasma, Ubuntu's dock, Dash to Dock and Plank read it, so the badge
 // follows the sidebar's All Inboxes row wherever the icon is.
 //
-// The app does not use MyGo's App.SetBadgeCount. MyGo names the desktop
-// entry after the executable (frostmail-app.desktop in the Flatpak) unless
-// the launcher set GIO_LAUNCHED_DESKTOP_FILE, so a dock would not match
-// org.frostyard.Frostmail.desktop when the app starts from a terminal,
-// autostart or a notification; and MyGo's fake backend cannot show the
-// signal in a test.
+// The app names its own desktop entry, org.frostyard.Frostmail.desktop,
+// whatever its executable is called and however it started (a terminal,
+// autostart, a notification), so a dock matches it; and a test can see the
+// signal.
 //
 // A broadcast signal, one with no destination, needs no Flatpak
 // permission: xdg-dbus-proxy gives every client TALK to a NULL destination

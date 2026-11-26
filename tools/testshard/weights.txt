@@ -4,22 +4,17 @@
 # job ran every package. Packages under 3 seconds are left out; testshard gives
 # a package that is not listed here a weight of 1.
 #
-# internal/desktop/uikit took 63 seconds in those runs. Its 6 is an estimate:
-# TestSummaryRowKeepsALongTokenInside has since stopped converting the frame
-# for every pixel it reads, which took the package from 45 seconds to about 5
-# on a developer's machine.
+# The MyGo client's packages left with it (plan 0017, Phase 3), and with
+# them the view tests of internal/desktop/settings, compose and icons, whose
+# rows are gone too: what those packages keep has not been measured.
 #
 # The weights only balance the shards. To refresh them, read the "ok" lines of
 # the shard jobs' logs (docs/design/testing.md, The race gate).
-236	github.com/frostyard/frostmail/internal/desktop/pim
-192	github.com/frostyard/frostmail/internal/desktop/mainwin
 165	github.com/frostyard/frostmail/internal/store
 143	github.com/frostyard/frostmail/internal/mailsync
-119	github.com/frostyard/frostmail/internal/desktop/settings
 115	github.com/frostyard/frostmail/internal/pimsync
 114	github.com/frostyard/frostmail/internal/engine
 111	github.com/frostyard/frostmail/cmd/mailctl
-66	github.com/frostyard/frostmail/internal/desktop/compose
 37	github.com/frostyard/frostmail/internal/lodge
 21	github.com/frostyard/frostmail/tools/uifixture
 15	github.com/frostyard/frostmail/scripts
@@ -28,11 +23,8 @@
 10	github.com/frostyard/frostmail/cmd/maild
 9	github.com/frostyard/frostmail/internal/workflowcheck
 7	github.com/frostyard/frostmail/internal/desktop/live
-6	github.com/frostyard/frostmail/internal/desktop/uikit
 6	github.com/frostyard/frostmail/tools/davrec
 4	github.com/frostyard/frostmail/internal/calendar
 4	github.com/frostyard/frostmail/internal/desktop/conn
-4	github.com/frostyard/frostmail/internal/desktop/icons
 4	github.com/frostyard/frostmail/internal/reminders
-3	github.com/frostyard/frostmail/cmd/frostmail
 3	github.com/frostyard/frostmail/internal/desktop/launcher

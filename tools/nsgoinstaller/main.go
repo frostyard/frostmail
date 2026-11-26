@@ -26,7 +26,7 @@ import (
 	"strings"
 )
 
-// The macros of packaging/windows/nsgo-installer.nsh.
+// The macros of packaging/windows/installer.nsh.
 const (
 	macroInit      = "FM_INIT"
 	macroInstall   = "FM_INSTALL"

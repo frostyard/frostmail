@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wrap build/frostmail (make desktop-build) in a local Flatpak on the GNOME
+# Wrap build/frostmail-nsgo (make nsgo-build), the NSGo client, in a local Flatpak on the GNOME
 # runtime and install it for this user, with ~/.local/bin/frostmail to run
 # it (docs/adr/0013-app-as-a-local-flatpak.md). Needs no SDK.
 #
@@ -31,8 +31,8 @@ else
 	host_cache=${XDG_CACHE_HOME:-$HOME/.cache}/frostmail
 fi
 
-if [[ ! -x build/frostmail ]]; then
-	echo "build/frostmail is missing; run make desktop-build" >&2
+if [[ ! -x build/frostmail-nsgo ]]; then
+	echo "build/frostmail-nsgo is missing; run make nsgo-build" >&2
 	exit 1
 fi
 if ! flatpak info --user org.gnome.Platform//$runtime_version >/dev/null 2>&1 &&
@@ -44,7 +44,7 @@ fi
 rm -rf "$out"
 mkdir -p "$out"
 flatpak build-init "$out/app" "$app" org.gnome.Sdk org.gnome.Platform "$runtime_version"
-install -Dm755 build/frostmail "$out/app/files/bin/frostmail"
+install -Dm755 build/frostmail-nsgo "$out/app/files/bin/frostmail"
 install -Dm644 "packaging/flatpak/$app.desktop" "$out/app/files/share/applications/$app.desktop"
 for size in 32 128; do
 	install -Dm644 "packaging/icons/${size}x${size}.png" \

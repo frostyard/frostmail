@@ -11,10 +11,10 @@
 # names itself flatpak, its app records no problems, and no release is
 # listed before one exists.
 #
-# The manifest names the version twice: in the ldflags of the MyGo client,
-# maild and mailctl, and in FROSTMAIL_VERSION, which the NSGo client's build
-# takes it from (scripts/build-nsgo-native.sh). Both are stamped, so that
-# the 2 clients of a release record their problems under 1 version.
+# The manifest names the version twice: in the ldflags of maild and
+# mailctl, and in FROSTMAIL_VERSION, which the NSGo client's build takes it
+# from (scripts/build-nsgo-native.sh). Both are stamped, so that the engine
+# and the client of a release record their problems under 1 version.
 #
 # Frostmail releases by promotion (plan 0013, Phase 10): a candidate tag
 # vX.Y.Z-rc.N builds the image that Promote later releases as vX.Y.Z, so the

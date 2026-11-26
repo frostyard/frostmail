@@ -24,7 +24,7 @@ const (
 )
 
 // moveSteps are the commands that move a host install's mail into the
-// Flatpak, as the MyGo client's note gives them.
+// Flatpak, as the MyGo client's note gave them.
 var moveSteps = [...]string{
 	"systemctl --user disable --now maild.service",
 	"mailctl export ~/frostmail-export",

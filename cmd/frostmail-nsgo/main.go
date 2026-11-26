@@ -30,7 +30,7 @@ import (
 var version = "dev"
 
 // codeSocketLost is the problem record of maild's local socket ending
-// under the app (ADR-0049), as the MyGo client records it.
+// under the app (ADR-0049), as the MyGo client recorded it.
 const codeSocketLost = "bridge.socket_lost"
 
 func main() {

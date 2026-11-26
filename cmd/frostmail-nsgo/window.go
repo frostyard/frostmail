@@ -38,7 +38,7 @@ type keptPanes struct {
 }
 
 // keptView is how the list is shown: what the MyGo client kept in its
-// window's state.
+// window's state, up to 0.10.0.
 type keptView struct {
 	Photos, Conversations bool
 	Sort                  api.ViewSort

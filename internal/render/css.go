@@ -18,8 +18,9 @@ var blockedFunctions = map[string]bool{
 
 // layerPrefix starts the name of every cascade layer a message declares, so
 // that none is, or reopens, a layer of the page around it: the desktop
-// app's print guard is the page's first layer (internal/desktop/mail,
-// PrintGuard), and a rule a message put into it would beat the guard's own.
+// app's reader page declares its text size's and its height's layers
+// (internal/desktop/mail), and a rule a message put into one would beat the
+// page's own.
 const layerPrefix = "message-"
 
 // sanitizeCSS returns src without constructs that load resources or run code:

@@ -5,7 +5,6 @@ go 1.27.4
 require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/frostyard/frostmail v0.0.0
-	github.com/frostyard/frostui v0.10.1
 	github.com/frostyard/frostui/workspaceui v0.5.1
 	github.com/frostyard/std v0.5.0
 	github.com/nsgo-dev/nsgo v0.3.0
@@ -20,7 +19,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.3 // indirect
-	github.com/egoist/mygo v0.10.0 // indirect
 	github.com/emersion/go-message v0.18.2 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
 	github.com/emersion/go-smtp v0.26.0 // indirect
@@ -29,7 +27,6 @@ require (
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/gdamore/tcell/v3 v3.6.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
-	github.com/go-text/typesetting v0.3.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect

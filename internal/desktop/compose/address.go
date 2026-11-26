@@ -1,3 +1,7 @@
+// Package compose holds the compose window's logic, with no UI: the
+// recipient fields' addresses, Send Later's choices, the attachment
+// reminder and the links the editor keeps (docs/specs/compose-ui.md).
+// Outgoing mail itself is internal/compose's.
 package compose
 
 import (
@@ -153,6 +157,12 @@ func SendChoices(now time.Time) []Choice {
 		out = append(out, Choice{"Send " + tonight.Format("3:04 PM") + " Tonight", tonight})
 	}
 	return append(out, Choice{"Send " + tomorrow.Format("3:04 PM") + " Tomorrow", tomorrow})
+}
+
+// AllowedLink reports whether the editor keeps a link.
+func AllowedLink(href string) bool {
+	h := strings.ToLower(strings.TrimSpace(href))
+	return strings.HasPrefix(h, "http:") || strings.HasPrefix(h, "https:") || strings.HasPrefix(h, "mailto:")
 }
 
 // TomorrowMorning is where the Send Later sheet starts.
