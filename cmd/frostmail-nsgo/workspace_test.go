@@ -513,6 +513,18 @@ func TestConversationOpensRelatedMessages(t *testing.T) {
 	a.WaitFor("label:View conversation (3 messages)", 5*time.Second)
 }
 
+func openMailbox(t *testing.T, a *nsgotest.App, selector, title string) {
+	t.Helper()
+	if nsgotest.Target() == "" {
+		// A mail update can replace a sidebar row between the events
+		// of a synthetic Press. Activate the current row in one event.
+		a.AccessibilityAction(selector, core.ActionActivate)
+	} else {
+		a.Press(selector)
+	}
+	a.WaitFor("id:content-header >> text:"+title, 8*time.Second)
+}
+
 func TestDragMessageToMailbox(t *testing.T) {
 	a := fixtureWorkspace(t)
 	const subject = "Your trip to Lisbon: itinerary"
@@ -521,7 +533,7 @@ func TestDragMessageToMailbox(t *testing.T) {
 	// The list is what the message leaves: a real pointer also chooses the
 	// row it drags, so the reader may go on showing the message.
 	a.WaitUntil(8*time.Second, func() bool { return !a.Exists("id:messages >> label:" + subject) })
-	a.Press("id:mailbox-role:drafts")
+	openMailbox(t, a, "id:mailbox-role:drafts", "All Drafts")
 	a.WaitFor("id:messages >> label:"+subject, 8*time.Second)
 }
 
@@ -669,18 +681,18 @@ func TestArchiveAndJunkSeveralMessages(t *testing.T) {
 	a.WaitForGone(trip, 8*time.Second)
 	a.WaitForGone(standup, 8*time.Second)
 	a.Find("id:undo >> role:button Undo")
-	a.Press("id:mailbox-role:archive")
+	openMailbox(t, a, "id:mailbox-role:archive", "All Archives")
 	a.WaitFor(trip, 8*time.Second)
 	a.WaitFor(standup, 8*time.Second)
 
-	a.Press("id:mailbox-all-inboxes")
+	openMailbox(t, a, "id:mailbox-all-inboxes", "All Inboxes")
 	dinner, hiring := "id:messages >> label:Dinner Saturday?", "id:messages >> label:Hiring panel on Friday"
 	choose(dinner, hiring)
 	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Junk") })
 	a.Press("role:toolbar >> label:Junk")
 	a.WaitFor("id:undo >> text:2 messages moved to Junk", 8*time.Second)
 	a.WaitForGone(dinner, 8*time.Second)
-	a.Press("id:mailbox-role:junk")
+	openMailbox(t, a, "id:mailbox-role:junk", "All Junk")
 	choose(dinner, hiring)
 	a.WaitUntil(5*time.Second, func() bool { return a.Enabled("role:toolbar >> label:Not junk") })
 	if a.Exists("role:toolbar >> label:Junk") {
