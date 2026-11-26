@@ -17,7 +17,7 @@ import (
 	"github.com/frostyard/frostmail/internal/desktop/launcher"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
 	"github.com/frostyard/frostmail/internal/desktop/settings"
-	"github.com/frostyard/frostui"
+	"github.com/frostyard/frostmail/internal/desktop/trayhost"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 )
@@ -60,8 +60,9 @@ func (w *workspace) platformStart() {
 	})
 	if tray != nil {
 		w.trayAvailable = true
+		hosts := trayhost.New()
 		window.OnClosing(cx, func(event *core.WindowClosing) {
-			if w.trayChoice.GetUntracked() && !event.Canceled() && frostui.TrayHosted() {
+			if w.trayChoice.GetUntracked() && !event.Canceled() && hosts.Hosted() {
 				event.Cancel()
 				window.Hide()
 			}

@@ -21,8 +21,8 @@ func summaries(ids ...int64) []api.MessageSummary {
 
 // A view.range reply newer than the deltas applied: message 2 has moved to
 // the top on the server, and the delta saying so has not arrived. Two
-// indices holding one message give a list two rows with one key, which
-// MyGo refuses with a panic.
+// indices holding one message give a list two rows with one key, which a
+// list view cannot draw.
 func TestAMessageIsHeldAtOneIndexOnly(t *testing.T) {
 	v := &View{rows: map[int64]api.MessageSummary{0: {ID: 1}, 1: {ID: 3}, 150: {ID: 2}}, held: map[int64]uint64{}}
 	v.storeLocked(0, summaries(2, 1), 0)

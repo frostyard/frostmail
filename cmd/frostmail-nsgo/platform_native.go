@@ -20,8 +20,7 @@ import (
 	"github.com/frostyard/frostmail/internal/config"
 	"github.com/frostyard/frostmail/internal/desktop/conn"
 	"github.com/frostyard/frostmail/internal/desktop/mail"
-	"github.com/frostyard/frostmail/internal/desktop/uikit"
-	"github.com/frostyard/frostui"
+	"github.com/frostyard/frostmail/internal/desktop/opener"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
 )
@@ -33,12 +32,12 @@ func bodyView(w *workspace, r *api.Rendering) core.Node {
 		body, style = mail.TextHTML(r.Text), mail.TextStyle
 	}
 	return core.Dynamic(func(*core.Scope) core.Node {
-		doc := uikit.ScrollingDocument(body, style+mail.ZoomStyle(w.textScale.Get()))
+		doc := mail.ScrollingDocument(body, style+mail.ZoomStyle(w.textScale.Get()))
 		return core.WebView{Label: "Message body", Source: core.WebHTML(doc, ""), Style: ui.FillRest, NoJavaScript: true, Incognito: true, OnOpenWindow: func(req core.WebWindowRequest) {
 			if !req.UserInitiated {
 				return
 			}
-			link, err := (frostui.Opener{}).CheckURL(req.URL)
+			link, err := (opener.Opener{}).CheckURL(req.URL)
 			if err == nil {
 				w.cx.OpenURL(link, nil)
 			}
@@ -148,7 +147,7 @@ func (w *workspace) partThumbnail(cx *core.Scope, id int64, p api.Part) core.Nod
 		if err != nil {
 			return nil, err
 		}
-		pic, err := uikit.Thumbnail(raw, 320, 185)
+		pic, err := mail.Thumbnail(raw, 320, 185)
 		if err != nil {
 			return nil, err
 		}
@@ -169,43 +168,58 @@ func (w *workspace) partThumbnail(cx *core.Scope, id int64, p api.Part) core.Nod
 }
 func (w *workspace) openAttachment(id int64, p api.Part) {
 	lodge := w.session.Target().Lodge
-	perform(w, func(ctx context.Context, c *api.Client) (string, error) {
+	perform(w, func(ctx context.Context, c *api.Client) (openedPart, error) {
 		f, err := c.Message().Part(ctx, &api.MessagePartParams{ID: id, Path: p.Path})
 		if err != nil {
-			return "", err
+			return openedPart{}, err
 		}
 		paths, err := config.Resolve(os.Getenv)
 		if err != nil {
-			return "", err
+			return openedPart{}, err
 		}
 		if lodge == nil {
 			root := filepath.Join(paths.CacheDir, "parts")
-			return "", mail.AttachmentOpener(root, nil).OpenFile(filepath.Join(root, filepath.FromSlash(f.Path)))
+			path, err := mail.AttachmentOpener(root).CheckFile(filepath.Join(root, filepath.FromSlash(f.Path)))
+			return openedPart{path: path}, err
 		}
 		if f.ContentPath == nil {
-			return "", fmt.Errorf("Lodge returned no attachment path")
+			return openedPart{}, fmt.Errorf("Lodge returned no attachment path")
 		}
 		dir, err := os.MkdirTemp("", "frostmail-attachment-")
 		if err != nil {
-			return "", err
+			return openedPart{}, err
 		}
 		path, err := lodge.Download(ctx, dir, *f.ContentPath, f.Filename)
 		if err == nil {
-			err = mail.AttachmentOpener(dir, nil).OpenFile(path)
+			path, err = mail.AttachmentOpener(dir).CheckFile(path)
 		}
 		if err != nil {
 			_ = os.RemoveAll(dir)
-			return "", err
+			return openedPart{}, err
 		}
-		return dir, nil
-	}, func(dir string, err error) {
-		if dir != "" {
-			w.cx.Cleanup(func() { _ = os.RemoveAll(dir) })
+		return openedPart{path: path, dir: dir}, nil
+	}, func(part openedPart, err error) {
+		if part.dir != "" {
+			w.cx.Cleanup(func() { _ = os.RemoveAll(part.dir) })
 		}
 		if err != nil {
 			w.problem.Set(err.Error())
+			return
 		}
+		w.cx.OpenFile(core.SharedFile{Path: part.path}, func(opened bool, err error) {
+			switch {
+			case err != nil:
+				w.problem.Set(err.Error())
+			case !opened:
+				w.problem.Set("No app on this computer opens " + filepath.Base(part.path) + ".")
+			}
+		})
 	})
 }
+
+// openedPart is an attachment that passed the opener's checks: its path,
+// and the temporary folder that holds a download from lodge, which the
+// workspace removes when it ends.
+type openedPart struct{ path, dir string }
 
 func calendarZone() *time.Location { return calendar.LocalZone() }

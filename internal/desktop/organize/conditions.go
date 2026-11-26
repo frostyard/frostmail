@@ -1,6 +1,7 @@
-// Package organize is the desktop app's editors of maild's conditions and
-// rules, and the sheets built on them (docs/specs/organize-ui.md; plan
-// 0015, Phase 6): smart mailboxes, rules, mailboxes and Redirect.
+// Package organize holds the logic of the editors of maild's conditions and
+// rules, with no UI (docs/specs/organize-ui.md): the fields and their
+// operators, the kinds of value, and the rules' actions, which the smart
+// mailboxes' and the rules' editors share.
 package organize
 
 import (

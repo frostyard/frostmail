@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/frostyard/frostui"
-
 	"github.com/frostyard/frostmail/api"
+	"github.com/frostyard/frostmail/internal/desktop/opener"
 )
 
 // InvitationPart is a message's iCalendar part: text/calendar,
@@ -260,8 +259,8 @@ var attachmentExtensions = []string{
 	".ics", ".vcf", ".eml",
 }
 
-// AttachmentOpener opens attachments under root. launch stands in for the
-// system's handler in a test; nil is the system's.
-func AttachmentOpener(root string, launch func(path string) error) frostui.Opener {
-	return frostui.Opener{Roots: []string{root}, Extensions: attachmentExtensions, LaunchFile: launch}
+// AttachmentOpener checks attachments under root before the system's
+// handler opens them.
+func AttachmentOpener(root string) opener.Opener {
+	return opener.Opener{Roots: []string{root}, Extensions: attachmentExtensions}
 }

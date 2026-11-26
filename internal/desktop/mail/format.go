@@ -149,11 +149,10 @@ func TextScale(s *api.Settings) float32 {
 
 // ZoomStyle is the style that makes a page of the reader draw at scale
 // times its size: nothing at 1, so the page is the one the app always made.
-// The zoom is for the screen; paper keeps its size (PrintGuard also sets
-// zoom 1 for it). It is !important in a cascade layer of its own, which
-// comes after PrintGuard's and before any the message has: a layered
-// important declaration beats an unlayered one, so no style of the message,
-// !important or not, can undo it (as PrintGuard's rules rely on).
+// The zoom is for the screen; paper keeps its size. It is !important in a
+// cascade layer of its own, which comes before any the message has: a
+// layered important declaration beats an unlayered one, so no style of the
+// message, !important or not, can undo it.
 func ZoomStyle(scale float32) string {
 	if scale <= 0 || scale == 1 {
 		return ""

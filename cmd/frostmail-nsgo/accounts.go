@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/frostyard/frostmail/api"
-	"github.com/frostyard/frostui"
+	"github.com/frostyard/frostmail/internal/desktop/opener"
 	"github.com/frostyard/frostui/workspaceui"
 	"github.com/nsgo-dev/nsgo/core"
 	"github.com/nsgo-dev/nsgo/ui"
@@ -195,7 +195,7 @@ func (w *workspace) authorizeAccount(a api.Account) {
 			w.problem.Set(err.Error())
 			return
 		}
-		url, err := (frostui.Opener{Schemes: []string{"https"}}).CheckURL(result.URL)
+		url, err := (opener.Opener{Schemes: []string{"https"}}).CheckURL(result.URL)
 		if err != nil {
 			w.problem.Set("The mail server returned an invalid provider sign-in URL.")
 			return
