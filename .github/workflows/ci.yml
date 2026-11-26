@@ -334,6 +334,11 @@ jobs:
           $refused.WaitForExit()
           if ($refused.ExitCode -eq 0) { throw 'the installer took the folder with the mail' }
           if (Test-Path (Join-Path $mail 'FrostMail.exe')) { throw 'the refused install left files' }
+          # The folder holds what MyGo's installer of v0.10.0 leaves beside the
+          # files this one replaces, as an upgrade finds it.
+          New-Item -Force -ItemType Directory $dir | Out-Null
+          $mygo = '.mygo-files', 'frostmail-nsgo.exe'
+          foreach ($f in $mygo) { New-Item -Force -ItemType File (Join-Path $dir $f) | Out-Null }
           # Not Start-Process -Wait, which also waits for the maild it leaves running.
           $install = Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$dir"
           [void]$install.Handle
@@ -372,6 +377,12 @@ jobs:
           foreach ($f in 'FrostMail.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
             if (Test-Path (Join-Path $dir $f)) { throw "the uninstall left $f" }
           }
+          foreach ($f in $mygo) {
+            if (Test-Path (Join-Path $dir $f)) { throw "the uninstall left MyGo's $f" }
+          }
+          $deadline = [DateTime]::UtcNow.AddSeconds(10)
+          while ((Test-Path $dir) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 250 }
+          if (Test-Path $dir) { throw "the uninstall left the folder: $((Get-ChildItem -Force $dir -Name) -join ', ')" }
           if (-not (Test-Path $probe)) { throw 'the silent uninstall deleted the mail' }
           foreach ($k in @($entry) + $keys) {
             if (Test-Path $k) { throw "the uninstall left $k" }

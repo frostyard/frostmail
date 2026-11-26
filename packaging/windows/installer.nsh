@@ -174,9 +174,11 @@ FunctionEnd
   ; The MyGo client's installer, of releases up to v0.10.0, has this
   ; installer's uninstall entry, so this one installs into its folder, over
   ; its files of the same names. It held the NSGo client as
-  ; frostmail-nsgo.exe, which is no file of this install, so this
-  ; uninstaller would leave it.
+  ; frostmail-nsgo.exe, and listed its files in .mygo-files: neither is a
+  ; file of this install, so this uninstaller would leave them, and the
+  ; folder with them (seen on the Windows VM, 2026-11-26).
   Delete "$INSTDIR\frostmail-nsgo.exe"
+  Delete "$INSTDIR\.mygo-files"
   ; maild starts at sign-in (the Run key's Frostmail value) and now, so
   ; that mail and reminders notify with the app closed.
   !ifndef FM_CHECK
