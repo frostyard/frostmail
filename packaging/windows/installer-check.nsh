@@ -1,7 +1,7 @@
-; The names of a check build of the NSGo client's installer
-; (FROSTMAIL_INSTALLER_CHECK=1 scripts/nsgo-windows-installer.sh;
+; The names of a check build of the Windows installer
+; (FROSTMAIL_INSTALLER_CHECK=1 scripts/windows-installer.sh;
 ; docs/design/desktop.md, Windows). tools/nsgoinstaller writes this file
-; into the script ahead of nsgo-installer.nsh, whose names it replaces, so
+; into the script ahead of installer.nsh, whose names it replaces, so
 ; that an install of the check leaves a real install on the same machine
 ; alone: its toast scheme, the Tauri install it would take over, and the
 ; folder it takes for the mail's are the check's own. FM_CHECK leaves out the

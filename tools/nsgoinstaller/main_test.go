@@ -13,8 +13,8 @@ import (
 // before any addition. Take it again after a change of NSGo's script.
 
 const (
-	includeFile = "nsgo-installer.nsh"
-	checkFile   = "nsgo-installer-check.nsh"
+	includeFile = "installer.nsh"
+	checkFile   = "installer-check.nsh"
 )
 
 func read(t *testing.T, path ...string) string {

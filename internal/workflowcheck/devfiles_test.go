@@ -116,7 +116,7 @@ func TestDevAppKeepsAwayFromTheUsersMaild(t *testing.T) {
 		t.Errorf("the dev run's secrets = %q, want its own file, not the user's keyring", s)
 	}
 	// M10: an instance of its own, or the dev run hands its arguments to
-	// the user's app (cmd/frostmail, appName).
+	// the user's app (cmd/frostmail-nsgo, nsgo.InstanceKey).
 	if s := seen["FROSTMAIL_INSTANCE"]; s == "" {
 		t.Error("the dev run shares the user's app's single instance: no FROSTMAIL_INSTANCE")
 	}

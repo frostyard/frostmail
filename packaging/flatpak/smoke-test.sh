@@ -15,7 +15,11 @@
 #     no flatpak-spawn behind, while maild lives on, and the maild it started
 #     names the click's helper in FROSTMAIL_APP;
 #   - the app's TMPDIR, the app's shared runtime directory, in local and
-#     lodge mode, where the host's panel can read the tray icon;
+#     lodge mode;
+#   - the app is the NSGo client, with a notification's arguments, and
+#     FROSTMAIL_UI=mygo, which chose the MyGo client up to 0.10.0, is
+#     ignored with a line on the error output: it still starts the NSGo
+#     client, and never a frostmail-app;
 #   - a notification's click: the helper runs the app through flatpak-spawn
 #     with --latest-version, and runs frostmail here when there is none;
 #   - `frostmail --start-maild` in local mode, which starts maild through the
@@ -204,8 +208,9 @@ else
     exec "$@"
 fi
 FAKE
-# The 2 clients' fakes leave the same marks, and each its own of the
-# arguments it was run with, which says which of them the launcher ran.
+# The client's fake leaves its marks and the arguments it was run with. A
+# frostmail-app, the MyGo client's name up to 0.10.0, which the Flatpak no
+# longer holds, is there too, to show that the launcher never runs it.
 cat >"$work/libexec/frostmail-app" <<'FAKE'
 #!/bin/sh
 echo "$@" >>"$SMOKE_MARKS/app"
@@ -345,8 +350,8 @@ mailctl rules ls | grep -q "smoke test rule" || fail "the rule is gone after the
 wait_file "$SMOKE_MARKS/background" || fail "the launcher did not ask the Background portal"
 wait_file "$SMOKE_MARKS/app" || fail "the launcher did not run the app"
 [ "$(cat "$SMOKE_MARKS/app")" = "--open-message 1" ] || fail "the app got '$(cat "$SMOKE_MARKS/app")'"
-# The host's panel reads the tray icon from the app's TMPDIR: the shared
-# runtime directory, never the sandbox's private /tmp.
+# The app's TMPDIR is the shared runtime directory, never the sandbox's
+# private /tmp.
 [ "$(cat "$SMOKE_MARKS/tmpdir")" = "$XDG_RUNTIME_DIR/app/org.frostyard.Frostmail" ] ||
     fail "the app's TMPDIR is '$(cat "$SMOKE_MARKS/tmpdir")', not the shared runtime directory"
 # maild lives on, with no flatpak-spawn: it holds its own output.
@@ -513,20 +518,25 @@ fi
 # The launcher runs the NSGo client, and no other, and forwards the selected
 # notification's message ID (ADR-0063). The Flatpak build also checks the
 # client's installed path. Every start above ran it too.
-[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "a start with no FROSTMAIL_UI ran the MyGo client"
+[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "a start ran frostmail-app"
 rm -f "$SMOKE_MARKS/nsgo-args"
 "$bin/frostmail" --open-message 7 >"$work/launcher.log" 2>&1
 [ "$(cat "$SMOKE_MARKS/nsgo-args")" = "$(printf '%s\n' --open-message 7)" ] ||
     fail "the launch did not forward the notification arguments to the NSGo client"
-[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "the launch ran the MyGo client"
+[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "the launch ran frostmail-app"
+grep -q FROSTMAIL_UI "$work/launcher.log" && fail "a start with no FROSTMAIL_UI spoke of it: $(cat "$work/launcher.log")"
 
-# FROSTMAIL_UI=mygo runs the MyGo client, with the same arguments, and not
-# the NSGo client.
+# FROSTMAIL_UI=mygo is ignored: the launcher says so on its error output
+# and runs the NSGo client, with the same arguments, and never
+# frostmail-app.
 rm -f "$SMOKE_MARKS/nsgo-args"
-FROSTMAIL_UI=mygo "$bin/frostmail" --open-message 8 >"$work/launcher.log" 2>&1
-[ "$(cat "$SMOKE_MARKS/mygo-args")" = "$(printf '%s\n' --open-message 8)" ] ||
-    fail "FROSTMAIL_UI=mygo did not forward the notification arguments to the MyGo client"
-[ ! -e "$SMOKE_MARKS/nsgo-args" ] || fail "FROSTMAIL_UI=mygo ran the NSGo client"
+FROSTMAIL_UI=mygo "$bin/frostmail" --open-message 8 >"$work/launcher.out" 2>"$work/launcher.log"
+[ "$(cat "$SMOKE_MARKS/nsgo-args")" = "$(printf '%s\n' --open-message 8)" ] ||
+    fail "FROSTMAIL_UI=mygo did not start the NSGo client with the notification arguments"
+[ ! -e "$SMOKE_MARKS/mygo-args" ] || fail "FROSTMAIL_UI=mygo ran frostmail-app"
+grep -q 'FROSTMAIL_UI=mygo is ignored' "$work/launcher.log" ||
+    fail "FROSTMAIL_UI=mygo said nothing on the error output: '$(cat "$work/launcher.log")'"
+[ ! -s "$work/launcher.out" ] || fail "FROSTMAIL_UI=mygo wrote to the standard output: $(cat "$work/launcher.out")"
 
 # maild, run directly, exits 0 before it makes a database.
 rc=0

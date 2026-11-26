@@ -1,19 +1,31 @@
-; Frostmail's additions to MyGo's NSIS installer (docs/design/desktop.md,
-; Windows). The installer is per user. maild, mailctl and frostmail-notify
-; ship beside the app as its resources; MyGo's CloseApp stops whatever runs
-; from the install folder, maild among them, before it replaces the files.
+; Frostmail's additions to the NSIS installer that nsgo build writes for the
+; NSGo client, Windows' installer (scripts/windows-installer.sh;
+; docs/design/desktop.md, Windows; plan 0017, Phase 3). NSGo's script has no
+; place for an app's own steps, so tools/nsgoinstaller writes this file into
+; it, before .onInit, and its 3 macros at their places:
+;   FM_INIT       in .onInit;
+;   FM_INSTALL    at the end of the install section, once the files are in
+;                 $INSTDIR;
+;   FM_UNINSTALL  in the uninstall section, before the files go.
+; The steps are those the MyGo client's installer took, of releases up to
+; v0.10.0.
+;
+; The installer is per user. maild, mailctl and frostmail-notify ship beside
+; the app as its resources; NSGo's CloseApp stops whatever runs from the
+; install folder, maild among them, before it replaces the files.
 ;
 ; A check of the installer redefines the names below, so that it leaves a
-; real install on the same machine alone (plan 0015, Phase 9).
+; real install on the same machine alone (installer-check.nsh).
 
 !include "LogicLib.nsh"
 
 !ifndef FM_NAME
-  !define FM_NAME "Frostmail"
+  !define FM_NAME "FrostMail"
 !endif
 !ifndef FM_EXE
-  !define FM_EXE "Frostmail.exe"
+  !define FM_EXE "FrostMail.exe"
 !endif
+; The AppUserModelID the notifier posts its toasts under.
 !ifndef FM_APP_ID
   !define FM_APP_ID "org.frostyard.Frostmail"
 !endif
@@ -40,8 +52,9 @@
 Var FmOld
 
 ; Sets $R3 to 1 when the folders $R1 and $R2 are the same or one holds the
-; other, else to "". The uninstaller removes the install folder whole, so it
-; must not be, hold or sit in the folder with the mail.
+; other, else to "". The app's folder must not be, hold or sit in the folder
+; with the mail, which the uninstaller deletes on a yes, nor the Tauri
+; install's, whose files FM_TAKE_OVER deletes after the app's are copied.
 Function FmOverlap
   StrCpy $R3 ""
   ${If} $R1 == ""
@@ -100,7 +113,7 @@ FunctionEnd
 ; The Tauri app and its maild hold the mail's lock and their own files, so
 ; they stop first. In .onInit, where a user who says no leaves with nothing
 ; changed. /D= skips the directory page, so a refused folder ends it here.
-!macro customInit
+!macro FM_INIT
   ReadRegStr $FmOld HKCU "${FM_TAURI_KEY}" "InstallLocation"
   ${If} $FmOld != ""
     ; Tauri writes it in quotes.
@@ -116,14 +129,17 @@ FunctionEnd
     Quit
   ${EndIf}
   ${If} $FmOld != ""
-    Push $FmOld
+    ; NSGo's CloseApp stops what runs from $INSTDIR.
+    Push $INSTDIR
+    StrCpy $INSTDIR $FmOld
     Call CloseApp
+    Pop $INSTDIR
   ${EndIf}
 !macroend
 
 ; Removes the Tauri app's own files and entries. Its folder also holds the
 ; mail, in Data and Cache, which stay where maild looks for them.
-!macro FROSTMAIL_TAKE_OVER
+!macro FM_TAKE_OVER
   ${If} $FmOld != ""
     Delete "$FmOld\frostmail.exe"
     Delete "$FmOld\maild.exe"
@@ -144,7 +160,7 @@ FunctionEnd
   ${EndIf}
 !macroend
 
-!macro customInstall
+!macro FM_INSTALL
   ; Toasts: Windows shows them for an AppUserModelID it knows.
   WriteRegStr HKCU "Software\Classes\AppUserModelId\${FM_APP_ID}" "DisplayName" "${FM_NAME}"
   WriteRegStr HKCU "Software\Classes\AppUserModelId\${FM_APP_ID}" "IconUri" "$INSTDIR\frostmail.png"
@@ -154,17 +170,33 @@ FunctionEnd
   WriteRegStr HKCU "Software\Classes\${FM_TOAST_SCHEME}" "URL Protocol" ""
   WriteRegStr HKCU "Software\Classes\${FM_TOAST_SCHEME}\DefaultIcon" "" "$\"$INSTDIR\${FM_EXE}$\",0"
   WriteRegStr HKCU "Software\Classes\${FM_TOAST_SCHEME}\shell\open\command" "" "$\"$INSTDIR\frostmail-notify.exe$\" --activate $\"%1$\""
-  !insertmacro FROSTMAIL_TAKE_OVER
+  !insertmacro FM_TAKE_OVER
+  ; The MyGo client's installer, of releases up to v0.10.0, has this
+  ; installer's uninstall entry, so this one installs into its folder, over
+  ; its files of the same names. It held the NSGo client as
+  ; frostmail-nsgo.exe, which is no file of this install, so this
+  ; uninstaller would leave it.
+  Delete "$INSTDIR\frostmail-nsgo.exe"
   ; maild starts at sign-in (the Run key's Frostmail value) and now, so
   ; that mail and reminders notify with the app closed.
   !ifndef FM_CHECK
     nsExec::Exec '"$INSTDIR\maild.exe" -autostart on'
     Pop $0
+    Exec '"$INSTDIR\maild.exe"'
+  !else
+    ; A check's maild starts only on a pipe and a data folder of the
+    ; check's own, which it takes from the installer's environment: with
+    ; neither it would be the user's maild, on the user's mail.
+    ReadEnvStr $0 FROSTMAIL_SOCKET
+    ReadEnvStr $1 FROSTMAIL_DATA_DIR
+    ${If} $0 != ""
+    ${AndIf} $1 != ""
+      Exec '"$INSTDIR\maild.exe"'
+    ${EndIf}
   !endif
-  Exec '"$INSTDIR\maild.exe"'
 !macroend
 
-!macro customUnInstall
+!macro FM_UNINSTALL
   DeleteRegKey HKCU "Software\Classes\${FM_TOAST_SCHEME}"
   DeleteRegKey HKCU "Software\Classes\AppUserModelId\${FM_APP_ID}"
   !ifndef FM_CHECK

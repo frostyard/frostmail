@@ -1,7 +1,7 @@
 #!/bin/sh
 # Frostmail's launcher in the Flatpak (docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md).
-# The manifest installs it as /app/bin/frostmail, and the app as
-# /app/libexec/frostmail-app.
+# The manifest installs it as /app/bin/frostmail, and the app, the NSGo
+# client (ADR-0063), as /app/libexec/frostmail-nsgo.
 #
 #   frostmail --background   Run maild and nothing else. A second maild on the
 #                            same data directory exits at once (maild locks it),
@@ -32,7 +32,7 @@
 # read "local" and be delayed past a change of mode, and the maild it then
 # starts exits at once.
 #
-# FROSTMAIL_LIBEXEC_DIR, when set, is the directory of frostmail-app,
+# FROSTMAIL_LIBEXEC_DIR, when set, is the directory of frostmail-nsgo,
 # frostmail-request-background and frostmail-open: /app/libexec in the Flatpak,
 # and a test's own directory in its tests.
 #
@@ -55,13 +55,17 @@
 # `flatpak-spawn --latest-version frostmail ARGS`, which opens the window, as
 # a normal start does, in a new sandbox of the latest installed deployment.
 #
-# The tray icon (docs/adr/0060-close-to-the-tray-is-an-opt-in-setting.md):
-# MyGo writes the icon as a PNG file under the temporary directory and gives
-# the panel its path. The sandbox's /tmp is private, so the host's panel
-# would read nothing there and draw a blank icon. Before it runs the app, the
-# launcher sets TMPDIR to the app's directory under $XDG_RUNTIME_DIR, which
-# Flatpak shares with the host at the same path. maild keeps the TMPDIR it
+# Before it runs the app, the launcher sets TMPDIR to the app's directory
+# under $XDG_RUNTIME_DIR, which Flatpak shares with the host at the same
+# path, so the app's temporary files (a download from lodge it opens, a
+# message it saves) are there. It was for the MyGo client's tray icon, a
+# file the host's panel read; the NSGo client gives the panel its pixels
+# over D-Bus, and the app keeps the same TMPDIR. maild keeps the TMPDIR it
 # had.
+#
+# FROSTMAIL_UI=mygo started the MyGo client for 1 release after the switch
+# (v0.10.0). That client is gone: the launcher says so on its error output
+# and starts the NSGo client, so a start that sets it still opens a window.
 #
 # --latest-version makes the portal start the command from the newest
 # installed deployment of this app, never from the one this window runs. An
@@ -72,13 +76,9 @@
 
 set -u
 
-# The app is the NSGo client (ADR-0063). FROSTMAIL_UI=mygo runs the MyGo
-# client, which the Flatpak holds for 1 release after the switch.
+# The app is the NSGo client (ADR-0063).
 libexec="${FROSTMAIL_LIBEXEC_DIR:-/app/libexec}"
 app="$libexec/frostmail-nsgo"
-if [ "${FROSTMAIL_UI:-nsgo}" = mygo ]; then
-    app="$libexec/frostmail-app"
-fi
 app_open="$libexec/frostmail-open"
 request_background="$libexec/frostmail-request-background"
 
@@ -216,10 +216,13 @@ ask_background() {
     "$request_background" >>"$state/background.log" 2>&1 &
 }
 
-# app_tmpdir: give the app the app's shared runtime directory as TMPDIR,
-# when it exists (see the header): the host's panel reads the tray icon
-# there. Without it, the app keeps the TMPDIR it had.
-app_tmpdir() {
+# prepare_app: say that FROSTMAIL_UI=mygo no longer chooses a client, and
+# give the app the app's shared runtime directory as TMPDIR, when it exists
+# (see the header). Without it, the app keeps the TMPDIR it had.
+prepare_app() {
+    if [ "${FROSTMAIL_UI:-}" = mygo ]; then
+        echo "frostmail: FROSTMAIL_UI=mygo is ignored: the MyGo client was removed after 0.10.0; starting the NSGo client" >&2
+    fi
     shared="${XDG_RUNTIME_DIR:-}/app/${FLATPAK_ID:-}"
     if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -n "${FLATPAK_ID:-}" ] && [ -d "$shared" ]; then
         TMPDIR="$shared"
@@ -269,7 +272,7 @@ fi
 
 if [ "$mode" = "lodge" ]; then
     # The window talks to the maild of lodge's host: nothing runs here.
-    app_tmpdir
+    prepare_app
     exec "$app" "$@"
 fi
 
@@ -278,5 +281,5 @@ start_local || maild_not_started
 
 ask_background
 
-app_tmpdir
+prepare_app
 exec "$app" "$@"

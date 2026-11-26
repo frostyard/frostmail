@@ -5,8 +5,9 @@
 # the app's manifests (ADR-0043). The web app's targets normally run in the
 # nsl machine; here IN_NSL runs them on the runner. The Windows jobs run the
 # Go suite on Windows, which `make verify` only vets, and build the Windows
-# app and its installer (ADR-0038, ADR-0054). Job display names also name
-# required checks; coordinate renames with the main branch rulesets.
+# installer of the NSGo client and check an install of it (ADR-0038,
+# ADR-0063). Job display names also name required checks; coordinate
+# renames with the main branch rulesets.
 name: CI
 
 on:
@@ -53,12 +54,6 @@ jobs:
           install: true
           install_args: golangci-lint
           cache: true
-      # The desktop app's view tests render headless with MyGo, which lays
-      # text out with Pango and cairo (no GTK, no display).
-      - name: Install Pango and fonts
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends fonts-dejavu-core libpangocairo-1.0-0
       - name: Tidy, generated files, vet, format, lint, unit and fork tests
         run: make verify
 
@@ -94,12 +89,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/go-build-race
           key: go-build-race-${{ runner.os }}-shard-${{ matrix.shard }}-of-4-${{ hashFiles('go.mod', 'go.sum') }}
-      # The desktop app's view tests render headless with MyGo, which lays
-      # text out with Pango and cairo (no GTK, no display).
-      - name: Install Pango and fonts
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends fonts-dejavu-core libpangocairo-1.0-0
       # -count=1: every test runs; no result comes from a cache.
       #
       # trim.txt holds the time go last trimmed its build cache. go trims
@@ -175,8 +164,11 @@ jobs:
       - name: govulncheck
         run: make vulncheck
 
+  # The desktop app, the NSGo client: its workflows on fixture mail, headless
+  # and in a real GTK 4 window, its Windows build, and its Lodge build. The
+  # name is the required check that the MyGo client's job had.
   nsgo:
-    name: NSGo client (fixture workflows, native and Lodge builds)
+    name: Desktop app (Linux e2e, cross-builds)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -213,8 +205,7 @@ jobs:
           path: cmd/frostmail-nsgo/.nsgo/test/screenshots/linux
           if-no-files-found: warn
       - name: Cross-build the Windows client
-        working-directory: cmd/frostmail-nsgo
-        run: GOOS=windows GOARCH=amd64 go build -o ../../build/frostmail-nsgo.exe .
+        run: make nsgo-build-windows
       - name: Build the Lodge app with the shared client
         run: make nsgo-lodge-app IN_NSL='sh -c'
 
@@ -263,32 +254,8 @@ jobs:
       - name: The snapshot .deb (deb-check runs inside)
         run: make deb
 
-  app:
-    name: Desktop app (Linux e2e, cross-builds)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-        with:
-          go-version-file: go.mod
-      - name: Release builds of the app
-        run: make desktop-build desktop-build-windows
-      # What ui.Tester cannot show: a real page, a real pointer and more than
-      # one window, on GTK and WebKitGTK. The runner has no GPU.
-      - name: The app's real-window checks on WebKitGTK
-        run: |
-          set -euo pipefail
-          sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends \
-            libgtk-3-0t64 libwebkit2gtk-4.1-0 libpangocairo-1.0-0 fonts-dejavu-core xvfb xauth xdotool dbus
-          env -u WAYLAND_DISPLAY GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 dbus-run-session -- \
-            xvfb-run -a -s "-screen 0 1400x900x24" make desktop-e2e
-
+  # The notifier, the installer, and an install of it whose client opens a
+  # native window. The name is a required check's.
   windows-app:
     name: Windows app (installer, native e2e)
     runs-on: windows-2025
@@ -327,86 +294,85 @@ jobs:
           cd app/notify
           cargo test --release --locked
           cargo build --release --locked
+      # The installer, whose program is the NSGo client (plan 0017, Phase
+      # 3), and the same installer under a check's names, which installs
+      # beside a real install: the checks of an install on a Windows desktop
+      # take it there.
       - name: The installer
+        run: scripts/windows-installer.sh "$CARGO_TARGET_DIR/release/frostmail-notify.exe"
+      - name: The installer, under a check's names
+        env:
+          FROSTMAIL_INSTALLER_CHECK: "1"
         run: scripts/windows-installer.sh "$CARGO_TARGET_DIR/release/frostmail-notify.exe"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: frostmail-windows-installer
-          path: build/mygo/windows-amd64/*-setup-*.exe
+          path: build/windows-installer/*-setup.exe
           if-no-files-found: error
           retention-days: 14
-      # A silent install, what it leaves, and a silent uninstall.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frostmail-windows-installer-check
+          path: build/windows-installer-check/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+      # A silent install, what it leaves, the installed app's window, and a
+      # silent uninstall.
       - name: Install and uninstall
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $setup = (Get-Item build/mygo/windows-amd64/*-setup-*.exe).FullName
+          $setup = (Get-Item build/windows-installer/*-setup.exe).FullName
           $dir = Join-Path $env:RUNNER_TEMP 'frostmail-install'
           $mail = Join-Path $env:LOCALAPPDATA 'Frostmail'
-          # The uninstaller removes the install folder whole, so the folder
-          # with the mail is refused.
+          $entry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\org.frostyard.Frostmail'
+          $keys = 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast'
+          # The uninstaller can delete the folder with the mail, so the
+          # installer refuses it.
           $refused = Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$mail"
           [void]$refused.Handle
           $refused.WaitForExit()
           if ($refused.ExitCode -eq 0) { throw 'the installer took the folder with the mail' }
-          if (Test-Path (Join-Path $mail 'Frostmail.exe')) { throw 'the refused install left files' }
+          if (Test-Path (Join-Path $mail 'FrostMail.exe')) { throw 'the refused install left files' }
           # Not Start-Process -Wait, which also waits for the maild it leaves running.
-          (Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$dir").WaitForExit()
-          foreach ($f in 'Frostmail.exe', 'frostmail-nsgo.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
+          $install = Start-Process -PassThru -FilePath $setup -ArgumentList '/S', "/D=$dir"
+          [void]$install.Handle
+          $install.WaitForExit()
+          if ($install.ExitCode -ne 0) { throw "the installer exited with $($install.ExitCode)" }
+          foreach ($f in 'FrostMail.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
             if (-not (Test-Path (Join-Path $dir $f))) { throw "the install has no $f" }
           }
-          foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
+          foreach ($k in @($entry) + $keys) {
             if (-not (Test-Path $k)) { throw "the install has no $k" }
           }
-          # Start the installed NSGo client against this runner's local maild.
-          $client = Start-Process -PassThru -FilePath (Join-Path $dir 'frostmail-nsgo.exe')
+          # The installed client opens a window, on the maild the install started.
+          $client = Start-Process -PassThru -FilePath (Join-Path $dir 'FrostMail.exe')
           try {
             $deadline = [DateTime]::UtcNow.AddSeconds(45)
             do {
               Start-Sleep -Milliseconds 250
               $client.Refresh()
-              if ($client.HasExited) { throw "NSGo exited with $($client.ExitCode)" }
+              if ($client.HasExited) { throw "FrostMail.exe exited with $($client.ExitCode)" }
             } while ($client.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
-            if ($client.MainWindowHandle -eq 0) { throw 'NSGo did not open a Windows window' }
+            if ($client.MainWindowHandle -eq 0) { throw 'FrostMail.exe did not open a window' }
           } finally {
             if (-not $client.HasExited) { $client.Kill(); $client.WaitForExit() }
           }
-          # A silent uninstall keeps the mail.
+          # A silent uninstall keeps the mail. It runs as a user's does, from
+          # the copy NSIS makes of the uninstaller outside the install folder,
+          # since the uninstaller stops whatever runs from that folder: so
+          # wait for what it removes, not for the process.
           $probe = Join-Path $mail 'Data\probe'
           New-Item -Force -ItemType File $probe | Out-Null
-          (Start-Process -PassThru -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S', "_?=$dir").WaitForExit()
+          (Start-Process -PassThru -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '/S').WaitForExit()
+          $deadline = [DateTime]::UtcNow.AddSeconds(60)
+          while ((Test-Path (Join-Path $dir 'Uninstall.exe')) -and [DateTime]::UtcNow -lt $deadline) {
+            Start-Sleep -Milliseconds 250
+          }
+          foreach ($f in 'FrostMail.exe', 'maild.exe', 'mailctl.exe', 'frostmail-notify.exe', 'frostmail.png', 'Uninstall.exe') {
+            if (Test-Path (Join-Path $dir $f)) { throw "the uninstall left $f" }
+          }
           if (-not (Test-Path $probe)) { throw 'the silent uninstall deleted the mail' }
-          foreach ($k in 'HKCU:\Software\Classes\AppUserModelId\org.frostyard.Frostmail', 'HKCU:\Software\Classes\frostmail-toast') {
+          foreach ($k in @($entry) + $keys) {
             if (Test-Path $k) { throw "the uninstall left $k" }
           }
-      # The NSGo client's installer (plan 0017, Phase 3), which NSGo's tool
-      # builds, beside MyGo's until MyGo goes: under the product's names, and
-      # under a check's names, which install beside a real install. They are
-      # built and kept here, and installed by nothing: the checks of an
-      # install take them to a Windows machine.
-      - name: The NSGo client's installer
-        run: scripts/nsgo-windows-installer.sh "$CARGO_TARGET_DIR/release/frostmail-notify.exe"
-      - name: The NSGo client's installer, under a check's names
-        env:
-          FROSTMAIL_INSTALLER_CHECK: "1"
-        run: scripts/nsgo-windows-installer.sh "$CARGO_TARGET_DIR/release/frostmail-notify.exe"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: frostmail-nsgo-windows-installer
-          path: build/nsgo-windows/*-setup.exe
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: frostmail-nsgo-windows-installer-check
-          path: build/nsgo-windows-check/*-setup.exe
-          if-no-files-found: error
-          retention-days: 14
-      # The reader on WebView2 (ADR-0038) and the app's windows, driven with
-      # the automation build. WebView2 needs a window, so an interactive
-      # desktop session.
-      - name: The app's real-window checks on WebView2
-        run: |
-          set -euo pipefail
-          powershell -NoProfile -Command '"session " + (Get-Process -Id $PID).SessionId + ", interactive " + [Environment]::UserInteractive'
-          go test -tags e2e -timeout 15m -count=1 ./internal/desktop/e2e/
