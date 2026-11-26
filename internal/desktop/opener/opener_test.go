@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -182,18 +183,23 @@ func TestOpenerRefusesOtherFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	o := Opener{Roots: []string{dir}}
-	for _, p := range []string{
+	refused := []string{
 		filepath.Join(outside, "note.md"),
 		filepath.Join(dir, "..", filepath.Base(outside), "note.md"),
 		filepath.Join(dir, "away.md"),
 		filepath.Join(dir, "missing.md"),
-		filepath.Join(dir, "run.bin"),
 		filepath.Join(dir, "launcher.desktop"),
 		filepath.Join(dir, "setup.EXE"),
 		filepath.Join(dir, "sub"),
 		"note.md",
 		"",
-	} {
+	}
+	// Windows has no execute bit: there a file runs by its type, which the
+	// deny list and Extensions hold.
+	if runtime.GOOS != "windows" {
+		refused = append(refused, filepath.Join(dir, "run.bin"))
+	}
+	for _, p := range refused {
 		if got, err := o.CheckFile(p); !errors.Is(err, ErrNotAllowed) {
 			t.Errorf("CheckFile(%q) = %q, %v, want a refusal", p, got, err)
 		}
