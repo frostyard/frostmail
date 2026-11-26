@@ -3,9 +3,11 @@
 - **Status:** Accepted in its order and its answers (Brian, 2026-11-24).
   FrostMail's Phase 2 is done, on the owner's report of its gate
   (2026-11-26, [Phase 2](#phase-2--frostmail-nsgo-is-the-default-m)),
-  and `v0.10.0` holds it. The owner set its end on 2026-11-24: the NSGo
-  clients are the default, MyGo is removed, and the new versions are
-  tagged and published. He answered its 6 questions the same day
+  and `v0.10.0` holds it. Its Phase 3, MyGo's removal, is built and
+  waits on the Windows VM's check of the installer, and on a release
+  ([Phase 3](#phase-3--frostmail-mygo-is-removed-m)). The owner set its
+  end on 2026-11-24: the NSGo clients are the default, MyGo is removed,
+  and the new versions are tagged and published. He answered its 6 questions the same day
   ([The owner's answers](#the-owners-answers)). FrostMail's decision is
   [ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md);
   PocketGo's is its ADR-0071. On 2026-11-25 the owner took Frostnotes
@@ -375,6 +377,56 @@ name MyGo.
     MyGo's install and over a Tauri one, the toast and its click, the
     second start, and the uninstall are the Windows VM's check, which is
     still to do before MyGo goes.
+- **MyGo's removal (2026-11-26), built; no release holds it.** It comes
+  before the Windows VM's check of the installer that this phase puts
+  first, and its pull request waits on that check.
+  - `cmd/frostmail`, `mygo.json`, MyGo's `installer.nsh` and script, and
+    the MyGo-only packages (`internal/desktop/commands`, `e2e`, `mainwin`,
+    `pim`, `uikit`) are gone, with MyGo's make targets (`desktop-build`,
+    `desktop-build-windows`, `desktop-installer`, `desktop-e2e`) and its
+    CI job.
+  - The packages the NSGo client imports keep their paths and have no
+    UI: `compose`, `organize` and `settings` keep their logic and its
+    tests, `icons` the tray icon, and `mail` takes the reader's page and
+    the thumbnail from `uikit`. Links and attachments are checked by
+    `internal/desktop/opener` (frostui's `Opener`, without MyGo) and
+    opened with NSGo's calls; `internal/desktop/trayhost` asks whether a
+    panel hosts the tray (frostui's `TrayHosted`, over godbus). `go mod
+    why` answers that neither module needs `github.com/egoist/mygo` or
+    `github.com/frostyard/frostui`; the client's module needs
+    `frostui/workspaceui`.
+  - Seen, changed: the thumbnail decoded BMP through MyGo's package
+    alone; it registers its 5 formats itself now, and a test decodes
+    each. The MyGo print guard and print header go with the page they
+    were for.
+  - The Flatpak builds no MyGo client and no `libayatana-appindicator`
+    modules, which only its tray opened. `FROSTMAIL_UI=mygo` is ignored:
+    the launcher says so on its error output and starts the NSGo client,
+    and the smoke test holds both, and that no `frostmail-app` runs.
+  - Windows' installer is the NSGo client's (`make windows-installer`,
+    `packaging/windows/installer.nsh`). CI's Windows job builds it and
+    installs it: the refused folder, the files and keys, the installed
+    client's window, and a silent uninstall that keeps the mail. The
+    uninstall runs from NSIS's copy of the uninstaller, without `_?=`,
+    since NSGo's `CloseApp` stops what runs from the install folder.
+  - Gone without a replacement: the MyGo client's real-window suite,
+    with its reader script probe (`TestReaderPageRunsNoScript`); the NSGo
+    client's page has no script by its CSP and its web view's
+    `NoJavaScript`.
+  - Run on Linux, each exiting 0: `make check`, `make nsgo-test`, `make
+    nsgo-live` on Xvfb's X11 (58 passed, 0 failed), `make race` (65
+    packages ok), `make flatpak-sources`, `make nsgo-build
+    nsgo-build-windows`, and the smoke test on host builds of maild,
+    mailctl and the launcher. No kept picture changed: the page and the
+    thumbnail are the same code. `make
+    windows-installer` on Linux, with a stand-in notifier, wrote the
+    script with Frostmail's steps and stopped at makensis, which the
+    host lacks. `make ui-check` was not run (no nsl machine of
+    FrostMail's here).
+  - **Not done:** the Windows VM's check of the installer (an install, an
+    upgrade over `v0.10.0`'s MyGo install and over a Tauri one, the toast
+    and its click, the second start, and the uninstall), and the
+    release.
 - **Done when:** `go.mod` names neither `github.com/egoist/mygo` nor
   frostui's root module, `make ci` passes, and the owner releases the
   version (`make bump`, then Promote).

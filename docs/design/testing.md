@@ -12,10 +12,9 @@
 | IMAP, real | `*_integration_test.go` (build tag `integration`) against `frostmail-mailtest` | `make engine-it` |
 | DAV and Tasks, recorded | `internal/pimsync/replay_test.go`: Google's and iCloud's CardDAV, CalDAV and Tasks sessions replayed (below) | `make test` |
 | UI | `app/src/**/*.test.ts` (Vitest) | `make ui-test` (nsl) |
-| Desktop app | `internal/desktop/**` with `ui.Tester` against a real maild. `mainwin`'s `TestModulesInBothThemes` draws Mail, Calendar, People and Tasks in Frostyard and Frostyard light; with `FROSTMAIL_SNAPSHOT_DIR` set, it and the other snapshot tests write their PNGs there | `make test` |
+| Desktop app's shared logic | `internal/desktop/**`, with no UI: the maild connection, the live state, the mail models, the opener's allow-lists, the reader's page and thumbnails, the change of mode | `make test` |
 | NSGo client | `cmd/frostmail-nsgo/*_test.go` (build tags `linux` and `integration`): NSGo's `nsgotest` drives the shared client against a real maild on `tools/uifixture`'s showcase, by label, text and test id. 25 workflows (`workspace_test.go`), 10 picture tours (`pictures_test.go`) and the style test (`style_test.go`, which reads the package's files) | `make nsgo-test`, headless (no pixels) |
 | NSGo client, real window | The same suite in a GTK 4 window with the platform's own input (`TestMain` is `nsgotest.Main`). The tours' `app.Screenshot` calls are PNGs there. No workflow skips on a target | `make nsgo-live`, under Xvfb |
-| Desktop app, real windows | `internal/desktop/e2e` (build tag `e2e`): the automation build on fixture mail: the hostile corpus, the reader's script probe (`TestReaderPageRunsNoScript`: 22 ways to run script, counted by the find bar and a canary, once past maild's sanitizer and once through it), a real link click, a forward with an inline image, dragging an event, the reminders window, and on Linux the Server pane's change of mode | `make desktop-e2e`, under Xvfb with xdotool, or on Windows' desktop |
 
 ## The NSGo client's live suite
 
@@ -95,11 +94,12 @@ The shared client has one suite, run two ways
 `main`, every pull request and merge-queue entry, and nightly (so upstream
 drift shows within a day): **Verify** (`make verify`, with golangci-lint
 from `mise.lock`), **Race detector** (`make race`, in shards; see below), **App UI**
-(`make ui-check`), **NSGo client** (`make nsgo-test nsgo-build`, then
-`make nsgo-live` under Xvfb, whose pictures it uploads) and **Desktop app**
-(Linux and Windows release builds, then `make desktop-e2e` on Linux),
-**Windows** (`go test ./...` on Windows) and **Windows app** (the
-installer and native app real-window checks; see below).
+(`make ui-check`), **Desktop app** (the NSGo client: `make nsgo-test
+nsgo-build`, then `make nsgo-live` under Xvfb, whose pictures it uploads,
+the Windows build and the Lodge build), **Windows** (`go test ./...` on
+Windows) and **Windows app** (the installer and a check of an install;
+see below). The MyGo client's real-window suite (`internal/desktop/e2e`)
+went with it (plan 0017, Phase 3).
 The app targets normally run in the nsl machine; CI installs the same
 Node, pnpm (corepack, from `app/package.json`), Rust and system libraries
 as `dev/nsl/provision.sh` and runs them with `IN_NSL='sh -c'`. CI sets
@@ -152,7 +152,9 @@ install 26. The packages' test times add up to 1535 seconds; the same
 packages took 270 seconds without the race detector in that run's Verify
 job. The slowest were `internal/desktop/pim` (240 s),
 `internal/desktop/mainwin` (194 s), `internal/store` (166 s),
-`internal/mailsync` (144 s) and `internal/desktop/settings` (121 s).
+`internal/mailsync` (144 s) and `internal/desktop/settings` (121 s). The
+first two, and `settings`' view tests, went with the MyGo client (plan
+0017, Phase 3).
 
 CPU profiles of 7 of them under the race detector on a developer's
 machine, the same day (`pim`, `mainwin`, `store`, `mailsync`, `engine`,
@@ -181,15 +183,18 @@ too:
   app-test` in the nsl machine, its toast XML, activation URIs and RPC
   calls being the same on Linux.
 - CI's **Windows app** job tests and builds the notifier, builds the
-  installer (`scripts/windows-installer.sh`), which it uploads as the
-  `frostmail-windows-installer` artifact (kept 14 days), installs and
-  uninstalls it silently, and runs `internal/desktop/e2e` on WebView2 in the
-  runner's interactive session. Installs and trials take that installer to
-  the VM or one of the user's machines. It also builds the NSGo client's
-  installer (`scripts/nsgo-windows-installer.sh`,
-  [desktop.md](desktop.md#windows)) under the product's names and under a
-  check's, and uploads them as `frostmail-nsgo-windows-installer` and
-  `frostmail-nsgo-windows-installer-check`. It installs neither.
+  installer, whose program is the NSGo client (`scripts/windows-installer.sh`,
+  [desktop.md](desktop.md#windows)), under the product's names and under a
+  check's, and uploads them as the `frostmail-windows-installer` and
+  `frostmail-windows-installer-check` artifacts (kept 14 days). It
+  installs the first silently: an install into the mail's folder is
+  refused; the install has its files (`FrostMail.exe`, maild, mailctl, the
+  notifier, the toast's icon, the uninstaller), its uninstall entry and
+  its 2 registrations; the installed `FrostMail.exe` opens a window within
+  45 s in the runner's interactive session; and a silent uninstall, run as
+  a user's is from NSIS's copy of the uninstaller, removes the files and
+  keys and keeps the mail. Installs and trials take the installer to the
+  VM or one of the user's machines.
   `tools/nsgoinstaller`'s tests, on the script NSGo's build wrote, hold
   where Frostmail's steps go in it.
 - Tests that need a socket take one from `rpctest.SocketPath`: a short

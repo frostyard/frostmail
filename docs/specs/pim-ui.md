@@ -9,7 +9,7 @@ components in `app/src/features/{people,calendar,tasks}/` and
 wire them to maild, and the app tests. Tokens, type, measurements,
 selection colors and the conventions for buttons are those of the reader
 UI ([ui.md](ui.md)); Mail's own panes are unchanged. The desktop app draws
-them in frostui's Frostyard look, as [ui.md's Tokens](ui.md#tokens) say:
+them in the kit's Frostyard look, as [ui.md's Tokens](ui.md#tokens) say:
 its lists of people, tasks and flagged mail choose a row with the soft
 selection, and its avatars are squares at the theme's corner.
 

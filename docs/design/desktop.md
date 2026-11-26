@@ -31,8 +31,8 @@ Flatpak does not use it (see below).
   in `~/.local/bin`, `packaging/systemd/maild.service` in
   `~/.config/systemd/user/`, then enables and restarts the service.
   `make uninstall` reverses it and leaves the data.
-- `make install-app` builds the app and runs
-  `packaging/flatpak/install.sh`: the binary, the desktop entry
+- `make install-app` builds the app, the NSGo client (`make nsgo-build`),
+  and runs `packaging/flatpak/install.sh`: the binary, the desktop entry
   (`org.frostyard.Frostmail.desktop`) and icons go into a Flatpak on
   `org.gnome.Platform//51`, installed for the user, and
   `~/.local/bin/frostmail` runs it. The runtime must be installed
@@ -77,7 +77,8 @@ mailctl.
   [design/accounts.md](accounts.md#secrets).
 - **Tests.** The module runs `maild -version`, `mailctl --help`,
   `desktop-file-validate`, `appstreamcli validate --no-net`, a load of the
-  libraries the app opens at run time (GTK 3, WebKitGTK 4.1), a compile of
+  libraries the app opens at run time (GTK 4, WebKitGTK 6 and its
+  JavaScriptCore, libsoup 3), a compile of
   the Background helper, an import of PyGObject and
   `packaging/flatpak/smoke-test.sh`.
 - **Publishing.** `.github/workflows/flatpak.yml` builds on every pull
@@ -121,14 +122,15 @@ click and the move from a host maild.
   (`packaging/flatpak/frostmail.sh`, the manifest's `command`),
   `/app/bin/maild` and `/app/bin/mailctl` are static Go binaries, and
   `/app/libexec/frostmail-nsgo` is the app the launcher starts, the NSGo
-  client, and `/app/libexec/frostmail-app` the MyGo client, which
-  `FROSTMAIL_UI=mygo` starts for 1 release after the switch
-  ([ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md)); both
-  are Go binaries, with
+  client ([ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md)),
+  a Go binary, with
   `/app/libexec/frostmail-request-background` (a PyGObject helper) and
   `/app/libexec/frostmail-open` (a POSIX sh helper, `packaging/flatpak/open.sh`,
   which a notification's click runs).
-  `flatpak run --command=mailctl org.frostyard.Frostmail` works.
+  `flatpak run --command=mailctl org.frostyard.Frostmail` works. The MyGo
+  client, which `FROSTMAIL_UI=mygo` started up to `v0.10.0`, is gone: the
+  launcher ignores the variable, says so on its error output, and starts
+  the NSGo client.
 - **Modes.** `maild -mode` prints `local` or `lodge`, from `app.json` in the
   config directory: a non-empty `lodge` key is lodge mode, anything else
   local. maild reads it (never writes it) under its data lock, only when
@@ -174,13 +176,14 @@ click and the move from a host maild.
   When the running maild's build differs from the latest installed
   deployment's, the launcher calls `mailctl shutdown` and starts the latest;
   when either is unknown, it keeps the maild that runs.
-- **First run.** A store with no account opens on account setup: the main
-  window shows a welcome with "Add Account…" and, as a secondary action,
-  "Connect to lodge…", and opens the settings window on Accounts itself,
-  once a connection ([ui.md](../specs/ui.md#first-run-m6)). Nothing about lodge,
-  Tailscale or a host maild is asked. The settings window closes with the main
-  window, so a close of the main window ends the app when no other window is
-  open.
+- **First run.** A store with no account opens on account setup: the
+  window shows a welcome in place of Mail, Calendar, People and Tasks, with
+  "Add Account…" and, on this computer's maild, "Connect to lodge…", which
+  opens Settings on Server; the first look at a connection with no account
+  opens the account's dialog over the welcome itself, once
+  (`cmd/frostmail-nsgo/welcome.go`; [ui.md](../specs/ui.md#first-run-m6)).
+  Nothing about lodge, Tailscale or a host maild is asked. The app is 1
+  window, so its close ends the app (unless it closes to the tray).
 - **Changing the mode.** Only the Server pane writes `app.json`, and only
   when the user saves; before that, the pane says what the change does,
   from local facts only (whether `frostmail.db` exists), so it says the
@@ -196,8 +199,8 @@ click and the move from a host maild.
   copies, moves, merges or deletes data: the local data stays on disk,
   unsynced, while lodge is the mode, and the same accounts return with
   local mode. A window with no maild offers "Server Settings…", so the
-  pane is reachable while lodge is down, and the settings window shows
-  its Server pane without a maild.
+  pane is reachable while lodge is down, and Settings shows its Server
+  pane without a maild.
 - **Secrets.** maild keeps them in the Secret Service
   (`--talk-name=org.freedesktop.secrets`), in a namespace of its own:
   `application=org.frostyard.Frostmail`, `store=<store id>`, the id kept in
@@ -221,7 +224,7 @@ click and the move from a host maild.
   keyring items. When the store has no account and the host's database
   exists (`~/.local/share/frostmail/frostmail.db`, seen through
   `home:ro`), the welcome shows a note with the steps, which the user can
-  dismiss; the shell's `host_mail_found` reads the file's metadata only,
+  dismiss; `settings.FactsFrom` reads the file's metadata only,
   and answers false in the development bundle, whose maild is the host's
   ([ui.md](../specs/ui.md#first-run-m6)). The move is 3 commands, which
   the user runs with the window open or not:
@@ -270,10 +273,12 @@ click and the move from a host maild.
   `--background` names the click's helper in `FROSTMAIL_APP`, and the helper
   asks the portal for the latest `frostmail`, or runs `frostmail` here when
   it is not there.
-  `FROSTMAIL_BIN_DIR` points it at host-built binaries. The change of mode
-  has unit tests on its order (`internal/desktop/settings`) and a real-window
-  test (`TestServerPaneChangesMode` in `internal/desktop/e2e`). The file
-  chooser portal itself needs the real-desktop checks of plan 0013.
+  `FROSTMAIL_BIN_DIR` points it at host-built binaries. It also holds that
+  the launcher runs the NSGo client with a notification's arguments, and
+  that `FROSTMAIL_UI=mygo` is ignored with a line on the error output and
+  never runs a `frostmail-app`. The change of mode has unit tests on its
+  order (`internal/desktop/settings`). The file chooser portal itself needs
+  the real-desktop checks of plan 0013.
 
 ## Application icon
 
@@ -312,8 +317,8 @@ desktop icon.
   Archive and Trash (`Desktop.OnMail`; the D-Bus actions `reply`, `archive`
   and `trash`). A group notification has none.
   - Reply runs `frostmail --reply-message <id>` (through `FROSTMAIL_APP`,
-    as a click does): the app starts a reply to the message in a compose
-    window (`mainwin.ReplyTo`), once it is connected.
+    as a click does): the app starts a reply to the message in its compose
+    dialog, once it is connected.
   - Archive and Trash are maild's own (`mailsync.ActOnAnnounced`): the
     message moves to its account's archive mailbox (All Mail on Gmail) or
     its Trash, at once in the store and then on the server, as
@@ -368,15 +373,16 @@ GNOME's own dash shows no count.
   properties `count` (int64) and `count-visible` (false for 0, which hides
   the badge). The object path is libunity's,
   `/com/canonical/unity/launcherentry/<g_str_hash of the URI>`.
-- The main window calls `UnreadChanged` after each change of the mail it
-  holds, so the count follows the same `mailbox.changed` and
-  `account.changed` events as the sidebar. One goroutine reads the count
+- The client calls `Changed` after each change of the mail it holds
+  (`cmd/frostmail-nsgo/tray_native.go`), so the count follows the same
+  `mailbox.changed` and `account.changed` events as the sidebar, and sets
+  NSGo's own badge (`SetBadge`) with it. One goroutine reads the count
   and sends only a count that differs from the last one sent. A move to
   another maild empties the store, so the badge shows 0 until the new
   maild's mailboxes load.
-- When the app quits (`App.OnQuit`), it sends count 0 with `count-visible`
-  false. A second instance, which hands its arguments to the first and
-  exits, sends nothing.
+- When the app's scope ends at a quit, `Close` sends count 0 with
+  `count-visible` false. A second instance, which hands its arguments to
+  the first and exits, sends nothing.
 - The entry dials the session bus's unix socket itself (from
   `DBUS_SESSION_BUS_ADDRESS`, else `$XDG_RUNTIME_DIR/bus`; never
   `dbus-launch`), with a 2 s limit on the handshake. So a quit never waits
@@ -386,11 +392,8 @@ GNOME's own dash shows no count.
 - Without a session bus, the app sends nothing and logs one Debug line. A
   failed signal logs once at Debug until one succeeds again. A signal needs
   no listener: a desktop with no such dock gives no error.
-- MyGo's `App.SetBadgeCount` sends the same signal, but names the desktop
-  entry after the executable (`frostmail-app.desktop` in the Flatpak) unless
-  the launcher set `GIO_LAUNCHED_DESKTOP_FILE`, so a dock would not find the
-  app after a start from a terminal, autostart or a notification. The app
-  names its own entry instead.
+- The entry names the app's own desktop entry whatever its executable is
+  called and however it started (a terminal, autostart, a notification).
 - **Flatpak:** the manifest needs no permission for it. The signal is a
   broadcast (no destination), and xdg-dbus-proxy gives every client TALK
   to a message with no destination
@@ -405,43 +408,33 @@ GNOME's own dash shows no count.
 ## Tray icon
 
 While the app runs, it shows an icon in the panel's tray (the notification
-area on Windows), on frostui's `Tray`
-([ADR-0060](../adr/0060-close-to-the-tray-is-an-opt-in-setting.md)).
+area on Windows), on NSGo's tray (`cmd/frostmail-nsgo/tray_native.go`;
+[ADR-0060](../adr/0060-close-to-the-tray-is-an-opt-in-setting.md)).
 
-- **The menu:** "N unread" (disabled; the All Inboxes count, the same
-  `mail.InboxesUnread` as the launcher count), Open Frostmail, New Message
-  (a new draft in a compose window, as Ctrl N does), Quit. The tooltip is
-  "Frostmail — N unread". A dot shows on the icon while N is more than 0.
-- **The count** follows `UnreadChanged`, as the launcher count does. The
-  updates are coalesced: while 1 is posted to the UI thread, more changes
-  post nothing, and the posted one reads the count when it runs.
+- **The menu:** Open FrostMail, Compose (a new draft, when no dialog is
+  open), Quit (refused while a dialog is open). The tooltip is
+  "FrostMail · N unread", the All Inboxes count, the same
+  `mail.InboxesUnread` as the launcher count, and it follows the count as
+  the launcher count does.
 - **The icon** is `packaging/icons/128x128.png` in color
   (`internal/desktop/icons/tray.png`, a copy that a test keeps equal).
   GNOME's top bar is dark in both modes, so it is never a template icon.
-- **Clicks** are frostui's: on Linux the panel opens the menu, and its
-  activation (GNOME: a double click; Plasma: a click) shows the window; on
-  Windows a click shows the window and a right click opens the menu.
-- **Close to tray** is the General pane's switch, off by default, kept as
-  the file `close-to-tray` beside `app.json`. The main window's `OnClose`
-  calls `Tray.CloseToTray(e, setting)`: with the setting on, a panel
-  hosting the icon and no quit running, the window hides and the app runs
-  on; else the close goes on as before. A second launch, a notification's
-  click and its Reply show a hidden window (`Show`, then `Restore` and
-  `Focus`).
-- **The tray lives with the main window.** When the main window really
-  closes while another window (a compose window) keeps the app running,
-  the tray icon goes too, and the General pane's switch with it: its Open
-  would have no window to show. A quit removes it as well.
-- **No tray:** where `frostui.NewTray` fails (a host install without
-  `libayatana-appindicator3`), the app logs it at Info and runs as before;
-  the General pane shows no switch.
-- **Flatpak:** the manifest builds `libayatana-appindicator3` from the
-  vendored Flathub shared modules (`packaging/flatpak/shared-modules/`),
-  and may talk to `org.kde.StatusNotifierWatcher`. MyGo writes the icon
-  to a file under `TMPDIR` and gives the panel its path, so the launcher
-  sets the app's `TMPDIR` to `$XDG_RUNTIME_DIR/app/$FLATPAK_ID`, which
-  the host sees at the same path; with the sandbox's private `/tmp`, the
-  panel draws a blank icon.
+  On Linux NSGo gives the panel its pixels over D-Bus, as a
+  StatusNotifierItem.
+- **Close to tray** is a switch in Settings, off by default, kept as the
+  file `close-to-tray` beside `app.json` (`internal/desktop/settings`).
+  With it on, a close of the window hides it, and the app runs on, when a
+  panel hosts the icon: on Linux, when `org.kde.StatusNotifierWatcher`
+  has an owner on the session bus (`internal/desktop/trayhost`, which waits
+  half a second at most); elsewhere always. A second launch, a
+  notification's click and its Reply show a hidden window.
+- **No tray:** where NSGo makes no tray, the app runs as before and
+  Settings shows no switch.
+- **Flatpak:** the manifest may talk to `org.kde.StatusNotifierWatcher`.
+  The launcher sets the app's `TMPDIR` to `$XDG_RUNTIME_DIR/app/$FLATPAK_ID`,
+  which the host sees at the same path: the MyGo client gave the panel its
+  icon as a file there. The NSGo client needs no file, and keeps that
+  `TMPDIR` for its temporary files.
 
 ## Text size
 
@@ -449,61 +442,24 @@ P-957; the spec is [ui.md](../specs/ui.md), Tokens. maild keeps
 `settings.textSize` (`smaller`, `default`, `larger`, `largest`), and
 `mail.TextScale` turns it into 0.9, 1, 1.15 or 1.3.
 
-- **Where the theme takes it:** every `mygo.NewWindow` of `cmd/frostmail`
-  (the main, compose, Calendar and settings windows) wraps its content view
-  in `windowSet.sized`, which calls `uikit.Adapt(c, scale)` before the view.
-  `uikit.Adapt` is `frostui.Adapt` and, at a scale other than 1, a copy of
-  its theme whose `FontSize` is the usual size times the desktop's own
-  `TextScale` times the scale. The window's own `frostui.Adapt` then keeps
-  that theme (it keeps a Frostyard theme), and the size is set from the usual
-  size each time, so a second call in a frame changes nothing. The scale is
-  `mail.TextScale` of the main window's settings, read on the UI thread
-  (`mainwin.Window.MailState` holds a lock). `TestEveryWindowDrawsThroughSized`
-  holds each new window to the wrapper.
-- **What follows from the theme:** every `frostui.TextSize` and MyGo's own
-  text. Heights that hold text use `frostui.TextSize` too, so they follow the
-  theme's text size, which includes the desktop's own text scale
-  (`Preferences.TextScale`): at desktop scale 1 and the Default size each is
-  exactly what it was, and with a desktop scale each grows with the text
-  instead of cutting it (`TestSummaryRowFollowsTheDesktopsTextScale`). They are: `uikit.SummaryHeightIn` for the list's rows, and the
-  calendar's `gutterW`, `laneH` and `monthLine`, the two-line rows of People
-  and of the calendar's search, the compose window's label column, and the
-  room the filter row gives its tabs. Heights of things that are time or
-  pixels, not text (an hour of the calendar's grid, a block's minimum), stay.
-- **The repaint:** the main window keeps the scale it last drew. When the
-  settings it holds give another, it calls `Options.TextSizeChanged`, which
-  `main.go` sets to `windowSet.repaint`, so every open window, the compose
-  and settings windows too, builds again at the new size. A frame at an
-  unchanged size calls nothing, so there is no loop.
-- **The find bar:** when a text size change loads the open pages again, the
-  find bar closes (`closeFind`), as it does when a page closes: a page that
-  loads again has lost its highlights and its current match, and a search
-  cannot wait for the load, so the next search starts from the first match of
-  the new pages (`TestTextSizeChangeEndsTheFind`).
-- **The reader:** `showRendering` adds `mail.ZoomStyle(scale)` to the page's
-  style after the print guard: `@layer text-size{@media screen{:root{zoom:X!important}}}`,
-  and nothing at Default, so the Default document is as it always was. The
-  rule is `!important` in a layer of its own, which comes before any layer the
-  message has (the sanitizer renames those) and after the guard's: a layered
-  important declaration beats an unlayered one, so a message's own
-  `:root{zoom:1 !important}` cannot undo it (`TestTextSizeScalesTheListAndThePage`,
-  its second page). Print keeps its size (the guard also sets `zoom:1` on
-  paper, and the rule is for the screen). Each open message records the scale
-  its page loaded with; a frame that sees another scale loads the page again
-  once. `measureScript` needs no change: WebKitGTK reports the zoomed
-  height.
-- **The reader's page height:** the reader sizes each page's view to the
-  page's measured height, and starts it at 40 pixels. So the viewport has no
-  height of its own to give: a message that sizes its root to the viewport
-  (`html,body{height:100%}`, or `100vh` on the root) and clips or scrolls a
-  box of that height would measure as the viewport, and show only its top 40
-  pixels. `uikit.Document` puts `@layer page-height{html,body{height:auto!important}}`
-  in the page's style, after the print guard and the text size and before any
-  layer of the message's, so no important rule of the message undoes it; a
-  percentage height below the root then lays out as `auto`
-  (`TestViewportRootMessageShowsAllOfItsContent`). A box below the root sized
-  in `vh`, or positioned against the viewport, still takes the viewport's
-  height.
+- **Where it applies:** the client reads `mail.TextScale` of maild's
+  settings into its `textScale`, and the list's summary rows take it
+  (workspaceui's `SummaryRow.Scale`).
+- **The reader:** the page's style carries `mail.ZoomStyle(scale)`:
+  `@layer text-size{@media screen{:root{zoom:X!important}}}`, and nothing at
+  Default, so the Default document is as it always was. The rule is
+  `!important` in a layer of its own, which comes before any layer the
+  message has (the sanitizer renames those): a layered important
+  declaration beats an unlayered one, so a message's own
+  `:root{zoom:1 !important}` cannot undo it. Print keeps its size (the rule
+  is for the screen). The page is built again when the scale changes.
+- **The reader's page height:** `mail.ScrollingDocument` puts
+  `@layer page-height{html,body{height:auto!important}}` in the page's
+  style, after the text size and before any layer of the message's, so no
+  important rule of the message undoes it: a message that sizes its root
+  to the viewport (`html,body{height:100%}`) shows all of its content. A box
+  below the root sized in `vh`, or positioned against the viewport, still
+  takes the viewport's height.
 
 ## Windows
 
@@ -561,71 +517,61 @@ the notifier and the installer.
   Any program the user runs can send such a URI; each does only what the
   user could with a click, and a reminder's id is opaque. Without a
   console the notifier's errors reach only maild's log (when maild ran it).
-- **The app on WebView2:** a release build is a GUI program, native windows
-  with WebView2 only for the reader's pages (`internal/desktop/uikit`,
-  [ADR-0054](../adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)).
+- **The app on WebView2:** a release build is a GUI program
+  (`make nsgo-build-windows`, `-H windowsgui`), the NSGo client, whose
+  reader pages are WebView2 pages with no script
+  ([ADR-0063](../adr/0063-make-the-nsgo-client-the-only-client.md)).
   The app dials the pipe at the identification level and starts `maild.exe`
-  from beside it when no pipe is there. The attachment types that never open
-  include Windows' own (`.lnk`, `.url`, `.hta`, `.reg` and the like).
-- **The installer:** MyGo's NSIS installer, per user (no administrator
-  rights), in `%LOCALAPPDATA%\Programs\Frostmail`, built by the Windows CI
-  job (`frostmail-windows-installer`) and `make desktop-installer`. It
-  installs `Frostmail.exe` with `maild.exe`, `mailctl.exe` and
-  `frostmail-notify.exe` beside it, a Start Menu shortcut, and
-  `frostmail.png` for the toasts' icon. MyGo stops whatever runs from the
-  install folder before it replaces the files. Its macros
-  (`packaging/windows/installer.nsh`):
-  - at the start, find an install the Tauri installer made and stop what
-    runs from its folder;
-  - after copying, register the AppUserModelID and `frostmail-toast:`, remove
-    the Tauri install's own files and entries (its folder keeps `Data` and
-    `Cache`, where maild looks for the mail), run `maild -autostart on`, and
-    start maild;
-  - on uninstall, remove both registrations and the Run value, and ask
-    whether to delete `Data` and `Cache`; a silent uninstall keeps them.
-
-  Releases are unsigned (ADR-0038): SmartScreen asks once per release
-  ("More info", "Run anyway").
-- **The NSGo client's installer** ([plan 0017](../plans/0017-nsgo-as-the-only-client.md),
-  Phase 3) is a second installer, whose program is the NSGo client. It is
-  built beside MyGo's until MyGo goes, by `make nsgo-installer`
-  (`scripts/nsgo-windows-installer.sh`) and by the Windows CI job
-  (`frostmail-nsgo-windows-installer`). No install of it is checked yet.
+  from beside it when no pipe is there (`internal/desktop/conn`). The
+  attachment types that never open include Windows' own (`.lnk`, `.url`,
+  `.hta`, `.reg` and the like; `internal/desktop/opener`).
+- **The installer** ([plan 0017](../plans/0017-nsgo-as-the-only-client.md),
+  Phase 3) is NSGo's NSIS installer, whose program is the NSGo client,
+  per user (no administrator rights). `make windows-installer`
+  (`scripts/windows-installer.sh`) and the Windows CI job build it
+  (`frostmail-windows-installer`), and CI checks an install of it
+  ([testing.md](testing.md#ci)). Until `v0.10.0` the installer was MyGo's,
+  and its program the MyGo client.
   - **How it is built.** NSGo's tool builds the client and writes the
     installer's NSIS script (`go tool nsgo build -target windows_x64` in
-    `cmd/frostmail-nsgo`), into `build/nsgo-windows`. The script builds
+    `cmd/frostmail-nsgo`), into `build/windows-installer`. The script builds
     `maild.exe` and `mailctl.exe` from the root module, and puts them, the
     notifier and `frostmail.png` in the client's `resources` folder while
     NSGo builds, so NSGo ships them beside `FrostMail.exe` and its
     uninstaller removes them. NSGo's script has no place for an app's own
-    steps: `tools/nsgoinstaller` writes
-    `packaging/windows/nsgo-installer.nsh` into it, and refuses a script
-    that lacks one of the lines it finds its places by. makensis then
-    compiles `frostmail-<version>-windows-x64-setup.exe`. NSGo's tool
-    downloads no NSIS: on Windows without one the script downloads NSIS
-    3.13, checked against its SHA-256.
+    steps: `tools/nsgoinstaller` writes `packaging/windows/installer.nsh`
+    into it, and refuses a script that lacks one of the lines it finds its
+    places by. makensis then compiles
+    `frostmail-<version>-windows-x64-setup.exe`. NSGo's tool downloads no
+    NSIS: on Windows without one the script downloads NSIS 3.13, checked
+    against its SHA-256.
   - **What NSGo's script does:** a per-user install in
     `%LOCALAPPDATA%\Programs\FrostMail`, or where the uninstall entry
     `org.frostyard.Frostmail` says the app is; it stops whatever runs from
     that folder, makes the Start Menu shortcut, and writes an uninstaller
     that deletes the files the build listed, and their folder once empty.
-  - **Over MyGo's install.** The uninstall entry is MyGo's, and Windows'
-    file names ignore case, so this installer installs into MyGo's folder,
-    over `Frostmail.exe`, the sidecars, the shortcut and the entry.
-    `frostmail-nsgo.exe`, which MyGo's installer carried, is deleted.
-  - **Frostmail's steps** are `installer.nsh`'s: the refused folder (the
-    mail's, or a Tauri install's), the Tauri install taken over, the
-    AppUserModelID and `frostmail-toast:`, `maild -autostart on` and
-    maild's start, and on uninstall both registrations, the Run value and
-    the question about the mail, which a silent uninstall keeps.
+  - **Over an install of `v0.10.0` or before.** The uninstall entry is the
+    MyGo installer's, and Windows' file names ignore case, so this
+    installer installs into that folder, over `Frostmail.exe`, the
+    sidecars, the shortcut and the entry. `frostmail-nsgo.exe`, which the
+    MyGo installer carried, is deleted.
+  - **Frostmail's steps** (`packaging/windows/installer.nsh`, the steps the
+    MyGo installer took): the refused folder (the mail's, or a Tauri
+    install's); at the start, stop what runs from a Tauri install's folder;
+    after copying, register the AppUserModelID and `frostmail-toast:`,
+    remove the Tauri install's own files and entries (its folder keeps
+    `Data` and `Cache`, where maild looks for the mail), run `maild
+    -autostart on`, and start maild; on uninstall, remove both
+    registrations and the Run value, and ask whether to delete `Data` and
+    `Cache`, which a silent uninstall keeps.
   - **A check of it** is built with `FROSTMAIL_INSTALLER_CHECK=1 make
-    nsgo-installer`, into `build/nsgo-windows-check` (CI:
-    `frostmail-nsgo-windows-installer-check`), and installs beside a real
+    windows-installer`, into `build/windows-installer-check` (CI:
+    `frostmail-windows-installer-check`), and installs beside a real
     install: it is `FrostMail Check`
     (`%LOCALAPPDATA%\Programs\FrostMail Check`, `FrostMail Check.exe`, the
     uninstall entry and AppUserModelID `org.frostyard.Frostmail.Check`),
-    with the names of `packaging/windows/nsgo-installer-check.nsh`: the
-    scheme `frostmail-toast-check`, a Tauri key and a data folder
+    with the names of `packaging/windows/installer-check.nsh`: the scheme
+    `frostmail-toast-check`, a Tauri key and a data folder
     (`%LOCALAPPDATA%\Frostmail Check`) of its own. It leaves out `maild
     -autostart on` and the Run value's removal, and starts its maild only
     when the installer's environment sets `FROSTMAIL_SOCKET` and
@@ -640,6 +586,9 @@ the notifier and the installer.
       `frostmail-notify.exe --activate`, run by hand, looks for
       `frostmail.exe` beside it, which a check does not have:
       `FROSTMAIL_APP` names `FrostMail Check.exe` for it.
+
+  Releases are unsigned (ADR-0038): SmartScreen asks once per release
+  ("More info", "Run anyway").
 
 ## On a maild behind lodge
 
@@ -679,7 +628,7 @@ tailnet, such as the friend's Windows install.
     closes the least recently active, which reconnects.
 - **Parts.** The reader's images are already `data:` URLs (ADR-0014), so
   the reader frame is unchanged. A picture attachment's thumbnail
-  (`uikit.Thumbnail`, [specs/ui.md](../specs/ui.md), Picture attachments)
+  (`mail.Thumbnail`, [specs/ui.md](../specs/ui.md), Picture attachments)
   is made in Go from the part's bytes, never in the frame: the header's
   pixel count is checked before anything is decoded, and only the small
   picture is kept. `open_part` downloads an attachment from
@@ -701,7 +650,7 @@ tailnet, such as the friend's Windows install.
 - **Notifications.** A remote maild has no session bus, so it sends each
   connected client `message.announced` (above), and the app shows the notes
   as maild would on this machine:
-  - on Linux, through MyGo's notifications; a click brings the main window
+  - on Linux, through NSGo's notifications; a click brings the window
     forward at the message;
   - on Windows, through `frostmail-notify.exe` beside the app, with the
     operation maild writes it (`mail` group, `m<id>` or `a<account>`
@@ -720,14 +669,16 @@ tailnet, such as the friend's Windows install.
 
 ## One app instance
 
-The app is single-instance (MyGo's lock; in the Flatpak its socket is in the
-app's shared runtime directory, so a click in another sandbox reaches it): a
-second launch passes its arguments to the running app, which shows and
-focuses its main window, and exits. `--open-message
-<id>` shows the main window, selects the message's inbox (or All Inboxes)
+The app is single-instance (NSGo's, under `FROSTMAIL_INSTANCE` when it is
+set; in the Flatpak a click in another sandbox reaches it): a second launch
+passes its arguments to the running app, which shows and focuses its
+window, and exits. The client maps `--open-message` and `--reply-message`
+to a link scoped to its maild (`prepareLaunch` in
+`cmd/frostmail-nsgo/tray_native.go`). `--open-message
+<id>` shows the window, selects the message's inbox (or All Inboxes)
 and the message, and focuses the window; with no running app it starts on
 that message. `--reply-message <id>`, a notification's Reply, starts a
-reply to the message in a compose window instead. It waits for a
+reply to the message in the compose dialog instead. It waits for a
 connection too, but only until its `draft.create` is sent: that call makes
 a draft each time, and one that ends with the connection may have made it,
 so the app never sends it again. A Reply lost that way starts nothing; the

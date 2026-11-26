@@ -2,8 +2,9 @@
 
 Frostmail is a Linux mail client that works like Apple Mail.app without
 looking like a GNOME or KDE app. A headless Go daemon, `maild`, owns sync,
-storage and the RPC socket. A native Go app on MyGo and frostui and `mailctl`, a
-CLI, are clients of that socket. maild also runs as the `mail` app of
+storage and the RPC socket. A native Go app on NSGo and Frostyard's kit
+(`cmd/frostmail-nsgo`) and `mailctl`, a CLI, are clients of that socket.
+maild also runs as the `mail` app of
 [lodge](https://github.com/frostyard/lodge), frostyard's tailnet web shell,
 where a React web app runs in a browser. Start at [docs/README.md](docs/README.md);
 the architecture entry point is
@@ -72,18 +73,14 @@ take its ideas only, never its code.
 
 Plan 0015 ([the desktop app in MyGo](docs/plans/0015-mygo-desktop.md)) and
 [ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)
-(Accepted, 2026-11-22) replace the old shell with a native Go app on MyGo
-and frostui; the React app stays as lodge's web app.
+(Accepted, 2026-11-22; superseded by ADR-0063) replaced the old shell with a
+native Go app on MyGo and frostui (`cmd/frostmail`), which shipped up to
+`v0.10.0`; the React app stays as lodge's web app. Tauri's shell is gone.
 [ADR-0055](docs/adr/0055-maild-streams-its-activity-as-typed-entries.md)
 (Accepted) adds maild's activity stream for the app's console; its maild
-side is built (`mailctl activity`). `cmd/frostmail` draws every window on
-Linux on frostui v0.10.1, in its Frostyard look (frostui's ADR-0011: the
-Frostyard and Frostyard light themes, Inter, nearly square corners;
-plan 0015, [The Frostyard look](docs/plans/0015-mygo-desktop.md#the-frostyard-look))
-(`internal/desktop/`: `mainwin`, `compose`, `organize`, `pim`, `settings`),
-and the Flatpak, the Windows installer and CI build it.
-Tauri's shell is gone; plan 0015 has each phase's status, and the parity gate
-waits on the owner's checks on real desktops.
+side is built (`mailctl activity`). Plan 0017's Phase 3 removes the MyGo
+client, and with it plan 0015's parity gate, which ADR-0063 says will not
+pass.
 
 Plan 0016 ([a shared look for the NSGo apps](docs/plans/0016-a-shared-look-for-the-nsgo-apps.md))
 and [ADR-0062](docs/adr/0062-give-the-nsgo-client-the-frostyard-look-from-the-shared-kit.md)
@@ -129,7 +126,7 @@ the default on the desktop, MyGo removed on Linux and Windows, then the
 React app's place in Lodge. The owner answered the plan's questions the
 same day. Of Phase 2, the NSGo client keeps its window, its panes' widths
 and how the list is shown (`cmd/frostmail-nsgo/window.go`), and records
-`bridge.socket_lost` as the MyGo client does, under the release's version,
+`bridge.socket_lost` as the MyGo client did, under the release's version,
 and shows the first run's welcome
 (`cmd/frostmail-nsgo/welcome.go`), and lays the day and the week out by
 time, where a drag moves, resizes and draws an event
@@ -138,10 +135,14 @@ app's id, and **the Flatpak's launcher starts it**: `FROSTMAIL_UI=mygo`
 starts the MyGo client, which the Flatpak holds for 1 release: `v0.10.0`
 (2026-11-26). Phase 2 is done on Brian's report that the clean-install
 gate on `v0.10.0-rc.1` passed (plan 0017, Phase 2, The gate, which names
-what the report does not). The Windows
-installer's program is still the MyGo client (Phase 3). A second installer,
-of the NSGo client, is built beside it by NSGo's tool (`make
-nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
+what the report does not). Phase 3, MyGo's removal, is built and not
+released: `cmd/frostmail` and the MyGo-only packages are gone, the
+packages the NSGo client shares are split so that neither `go.mod` names
+MyGo or frostui's root module, the Flatpak holds the NSGo client alone
+(`FROSTMAIL_UI=mygo` is ignored, with a line on the launcher's error
+output), and Windows' installer is the NSGo client's (`make
+windows-installer`), which CI's Windows job builds and installs. Its check
+on the Windows VM, and the release, are still to do (plan 0017, Phase 3).
 
 ## Two kinds of agent work
 
@@ -190,14 +191,20 @@ nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
   `problems`; the version rule); `cmd/maild` records `store.migrate_failed`,
   `secrets.unseal_failed` and crashes (`CrashOutput`), `internal/mailsync`
   `sync.apply_failed` (`apply.go`), `internal/render` `mime.parse_failed`;
-  `cmd/frostmail` is the app's (`bridge.socket_lost`), and
-  `cmd/frostmail-nsgo` records the same in the NSGo client. Tests read records from
-  a test socket (`internal/problemstest`).
+  `cmd/frostmail-nsgo` is the app's (`bridge.socket_lost`). Tests read
+  records from a test socket (`internal/problemstest`).
 - `internal/compose`: outgoing mail (reply rules, the message builder).
   `internal/smtpx`: the only package that imports go-smtp.
-- `cmd/frostmail` and `internal/desktop/`: the desktop app, native on MyGo
-  and frostui. `internal/desktop/e2e` drives it in real windows.
-  `internal/desktop/launcher` shows the All Inboxes count on the launcher
+- `cmd/frostmail-nsgo`: the desktop app, the NSGo client, a module of its
+  own (`cmd/frostmail-nsgo/go.mod`) on NSGo and the shared kit
+  (`workspaceui`), for Linux, Windows and Lodge's web build.
+  `internal/desktop/` holds its logic with no UI, which imports neither
+  NSGo nor frostui: `conn` (the maild connection, local or through lodge),
+  `live` (the state kept current from maild), `mail` (the models, the
+  reader's page and its CSP, thumbnails), `compose`, `organize` and
+  `settings` (their logic), `opener` (what a link or an attachment may
+  open), `trayhost` (whether a panel hosts the tray), `icons` (the tray
+  icon) and `launcher`, which shows the All Inboxes count on the launcher
   icon on Linux (Unity's LauncherEntry signal; no Flatpak permission).
 - `app/`: the React web app that lodge serves. It builds only for lodge
   (`make web-build`) and runs in lodge's development build
@@ -214,14 +221,13 @@ nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
   a smoke test ([ADR-0046](docs/adr/0046-the-desktop-flatpak-carries-its-own-maild.md)).
   CI builds it in `.github/workflows/flatpak.yml`; on a `v*` tag,
   `stamp-version.sh` first stamps the version (without `-rc.N`) into the
-  manifest, for both clients' builds, and the metainfo, which keep `flatpak`
-  and 0.0.0 in git. `install.sh`
+  manifest, for maild's, mailctl's and the client's builds, and the
+  metainfo, which keep `flatpak` and 0.0.0 in git. `install.sh`
   is the wrapper for the development bundle, with a host maild.
-- `packaging/windows/installer.nsh` and `mygo.json`: MyGo's Windows installer
-  (`make desktop-installer`). `packaging/windows/nsgo-installer.nsh`: the
-  same steps for the NSGo client's installer (`make nsgo-installer`,
-  `scripts/nsgo-windows-installer.sh`), which NSGo's tool builds and
-  `tools/nsgoinstaller` writes them into; `nsgo-installer-check.nsh` holds a
+- `packaging/windows/installer.nsh`: Frostmail's steps in the Windows
+  installer of the NSGo client (`make windows-installer`,
+  `scripts/windows-installer.sh`), which NSGo's tool builds and
+  `tools/nsgoinstaller` writes them into; `installer-check.nsh` holds a
   check's names ([design/desktop.md](docs/design/desktop.md#windows)).
   `packaging/icons`: the app's icons.
 - `dev/`: the nsl machine (`dev/nsl/provision.sh`) and the incus test mail
@@ -249,9 +255,6 @@ nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
 - `make flatpak-sources` regenerates the Flatpak's `go-sources.json`. Run it
   after any change to `go.mod` or `go.sum`; CI's job
   "Flatpak sources (make flatpak-sources)" fails on a stale file.
-- `make desktop-e2e` drives the built app in real windows on fixture mail
-  (`internal/desktop/e2e`, `-tags e2e`; it needs a display: Xvfb with xdotool,
-  or Windows' desktop).
 - `make nsgo-test` runs the NSGo client's workflows headless on fixture mail
   (`cmd/frostmail-nsgo`, `-tags integration`); `make nsgo-live` runs the same
   suite in a real GTK 4 window under Xvfb. A change of the client's look runs
@@ -283,19 +286,15 @@ nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
   `make bump CANDIDATE=vX.Y.Z-rc.N` runs `make verify` on the candidate's commit, tags
   that commit `vX.Y.Z` and pushes the tag; Brian runs it.
 - Internal Go modules (`go.mod`): `github.com/frostyard/clix` v0.5.0,
-  `github.com/frostyard/frostui` v0.10.1 (the desktop app's kit, on MyGo;
-  read its `docs/design/frostui.md` API changes after a bump),
   `github.com/frostyard/lodge/kit` v0.6.0, `github.com/frostyard/std` v0.5.0 (direct:
-  `problems`; clix needs it too).
+  `problems`; clix needs it too). Neither `go.mod` requires MyGo
+  (`github.com/egoist/mygo`) or frostui's root module
+  (`github.com/frostyard/frostui`) since plan 0017's Phase 3.
 - The NSGo client's own module (`cmd/frostmail-nsgo/go.mod`) also requires
   `github.com/frostyard/frostui/workspaceui` v0.5.1, the kit it shares with
   Frostnotes and PocketGo (a module of its own in frostui, tags
   `workspaceui/vX.Y.Z`; frostui's `docs/design/workspaceui.md`), and
   `github.com/nsgo-dev/nsgo` v0.3.0, which frostyard does not own.
-- MyGo is `github.com/egoist/mygo` v0.10.0. The quotation-depth change
-  (upstream #1731) first shipped upstream in v0.9.1, which replaced the owner's
-  fork pin of [ADR-0058](docs/adr/0058-pin-mygo-quote-depth-from-the-owners-fork.md).
-  `go.mod` has no MyGo `replace`. frostui v0.10.1 requires v0.10.0 too.
 - Internal UI packages (`app/package.json`, github tags): `@frostyard/lodge-client`
   `client/v0.3.2` and `@frostyard/lodge-ui` `ui/v0.7.0`.
 - The generated `packaging/flatpak/go-sources.json` (`make flatpak-sources`) mirrors
@@ -328,10 +327,12 @@ nsgo-installer`, and CI's Windows job), and is installed on no machine yet.
   within protocol 1 are additive only. Quote doc strings inside inline YAML
   `{...}` mappings.
 - The app never fetches remote content. In the desktop app, message HTML is
-  shown only in a page with no script, under a CSP and the engine's content
-  rules (`internal/desktop/uikit`, [ADR-0005](docs/adr/0005-html-mail-rendering.md),
-  [ADR-0054](docs/adr/0054-draw-the-desktop-app-natively-with-mygo-and-frostui.md)).
-  Its links open in the system browser, and never make a window.
+  shown only in a web view with JavaScript off, in a page under a CSP that
+  allows no script and no fetch (`internal/desktop/mail`, `page.go`;
+  [ADR-0005](docs/adr/0005-html-mail-rendering.md),
+  [ADR-0063](docs/adr/0063-make-the-nsgo-client-the-only-client.md)).
+  Its links open in the system browser, after `internal/desktop/opener`'s
+  check, and never make a window.
   In lodge's web build, the reader frame loads the page from lodge's content
   origin instead, under its sandbox policy, which allows no script and no
   same-origin access ([specs/lodge-app.md](docs/specs/lodge-app.md)).
