@@ -118,7 +118,14 @@ def smoke(tools, root, cleanup, deb=None):
     enter_mail()
     subject = "Your trip to Lisbon: itinerary"
     wait("fixture inbox", lambda: script(f"return document.body.innerText.includes({json.dumps(subject)})"))
-    script(f'document.querySelector(\'[aria-label="{subject}"]\').click()')
+    # A mouse's press, as a person's: element.click() opened the row while a
+    # real click on it did nothing, under a drag source (dragRows).
+    row = post("/element", {"using": "css selector", "value": f'[aria-label="{subject}"]'})
+    post("/actions", {"actions": [{"type": "pointer", "id": "mouse", "parameters": {"pointerType": "mouse"},
+        "actions": [{"type": "pointerMove", "origin": row, "x": 0, "y": 0, "duration": 0},
+                    {"type": "pointerDown", "button": 0}, {"type": "pause", "duration": 80},
+                    {"type": "pointerUp", "button": 0}]}]})
+    request(browser+"/actions", "DELETE")
     wait("isolated content frame", lambda: script('return !!document.querySelector("iframe[src]")'))
     post("/frame", {"id": None})
     permalink = wait("selected message route", lambda: (
