@@ -6,7 +6,7 @@ require (
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/frostyard/frostmail v0.0.0
 	github.com/frostyard/frostui/workspaceui v0.5.1
-	github.com/frostyard/std v0.5.0
+	github.com/frostyard/std v0.5.1
 	github.com/nsgo-dev/nsgo v0.3.0
 )
 
@@ -48,7 +48,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/image v0.48.0 // indirect
-	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/net v0.63.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
@@ -59,7 +59,7 @@ require (
 	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	modernc.org/sqlite v1.62.0 // indirect
+	modernc.org/sqlite v1.63.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
 
