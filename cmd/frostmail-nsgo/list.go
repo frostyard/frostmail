@@ -152,6 +152,9 @@ func (w *workspace) messageRow(cx *core.Scope, row core.ListRow) core.Node {
 				summary.Image = core.ImageSource{Data: photo}
 			}
 		}
+		if !dragRows {
+			return w.rowWithActions(cx, msg, summary)
+		}
 		return w.rowWithActions(cx, msg, w.dragRow(cx, msg, summary))
 	})
 }

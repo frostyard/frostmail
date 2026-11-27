@@ -1,0 +1,7 @@
+{
+  "date": "2026-11-26",
+  "scope": "nsgo web build in lodge",
+  "correction": "A browser check of a control presses it as a person does (WebDriver pointer actions), not with element.click(): under NSGo's drag source a mail row opened on element.click() and not on a mouse click, so the smoke passed while Lodge's list could not open a message.",
+  "evidence": "The owner's report after main 28b886a9 went on his Lodge: clicking a row did nothing, Archive worked. dev/lodge/nsgo-smoke.py with a pointer press timed out on that .deb and passed with dragRows false in platform_web.go.",
+  "promoted_to": ""
+}

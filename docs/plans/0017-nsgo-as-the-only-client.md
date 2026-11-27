@@ -599,6 +599,23 @@ name MyGo.
     line, exit 0.
   - Not run: `make nsgo-live` (the client's look did not change), any
     browser but headless Firefox, a real Lodge host, and CI.
+- **On the owner's Lodge (2026-11-26), a fault the smoke missed.** main's
+  snapshot (`0.0.0-28b886a9-snapshot`) was put on the owner's Lodge host,
+  over maild 0.7.0, by hand ([specs/lodge-app.md](../specs/lodge-app.md),
+  Hand deploy). The list drew his 3 accounts, and Archive worked, but
+  **a click on a row opened nothing** (the owner's report). The smoke
+  had opened its row with `element.click()`; with a WebDriver mouse
+  press (move, down, up) on the same row of the same `.deb`, no reader
+  frame came, in headless Firefox. Without the row's drag source the
+  same press opened it, and NSGo v0.3.4 did not change it. So in a
+  browser a row is no drag source (`dragRows`, `platform_web.go`): a
+  message cannot be dragged to a mailbox in Lodge, and Archive and
+  Delete still file it. The smoke now presses the row with the mouse:
+  on main's `.deb` it timed out waiting for the reader frame, and with
+  the fix it passed 2 runs of 2. A calendar event is a drag source too,
+  around its own block. With the fix's snapshot (`0.0.0-f8f26e8f-snapshot`)
+  on his Lodge, the owner reported: "email clicking works, calendar
+  events work".
 - **Done when:** the `.deb` holds the NSGo web build and no React app,
   and `dev/lodge/nsgo-smoke.py` passes on what it installs. Both were seen
   on this change's snapshot `.deb` (above); no release holds it.

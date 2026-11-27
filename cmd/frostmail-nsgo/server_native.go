@@ -20,6 +20,10 @@ import (
 
 const desktopServer = true
 
+// dragRows: a row of the list can be dragged to a mailbox in a window
+// (platform_web.go says why not in a browser).
+const dragRows = true
+
 func (w *workspace) serverPanel(cx *core.Scope) core.Node {
 	path, err := config.AppConfigFile(os.Getenv)
 	if err != nil {

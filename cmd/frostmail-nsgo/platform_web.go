@@ -66,6 +66,12 @@ func (w *workspace) saveMessage(m api.MessageSummary) {
 
 const desktopServer = false
 
+// dragRows is false in a browser: NSGo's drag source (v0.3.0 to v0.3.4)
+// takes a mouse's press on the web, so a click on a row chose nothing and
+// opened nothing in Lodge, while element.click() still did. A row there
+// cannot be dragged to a mailbox; its Archive and Delete still file it.
+const dragRows = false
+
 func (w *workspace) serverPanel(*core.Scope) core.Node { return nil }
 
 func (w *workspace) platformStart() {
