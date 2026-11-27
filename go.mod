@@ -9,9 +9,9 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.26.0
-	github.com/frostyard/clix v0.5.0
+	github.com/frostyard/clix v0.5.1
 	github.com/frostyard/lodge/kit v0.6.0
-	github.com/frostyard/std v0.5.0
+	github.com/frostyard/std v0.5.1
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pelletier/go-toml/v2 v2.4.3
@@ -19,15 +19,15 @@ require (
 	github.com/tdewolff/parse/v2 v2.25.0
 	github.com/teambition/rrule-go v1.8.2
 	go.yaml.in/yaml/v3 v3.0.6
-	golang.org/x/image v0.46.0
-	golang.org/x/net v0.62.0
+	golang.org/x/image v0.48.0
+	golang.org/x/net v0.63.0
 	golang.org/x/sys v0.50.0
-	modernc.org/sqlite v1.62.0
+	modernc.org/sqlite v1.63.0
 )
 
 require (
 	charm.land/fang/v2 v2.0.1 // indirect
-	charm.land/lipgloss/v2 v2.0.6 // indirect
+	charm.land/lipgloss/v2 v2.1.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886 // indirect
 	github.com/charmbracelet/x/ansi v0.11.8 // indirect
@@ -59,14 +59,14 @@ require (
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
