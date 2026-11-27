@@ -613,7 +613,9 @@ name MyGo.
   Delete still file it. The smoke now presses the row with the mouse:
   on main's `.deb` it timed out waiting for the reader frame, and with
   the fix it passed 2 runs of 2. A calendar event is a drag source too,
-  around its own block; a click on one in a browser was not tried.
+  around its own block. With the fix's snapshot (`0.0.0-f8f26e8f-snapshot`)
+  on his Lodge, the owner reported: "email clicking works, calendar
+  events work".
 - **Done when:** the `.deb` holds the NSGo web build and no React app,
   and `dev/lodge/nsgo-smoke.py` passes on what it installs. Both were seen
   on this change's snapshot `.deb` (above); no release holds it.
