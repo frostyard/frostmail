@@ -380,8 +380,13 @@ The repository follows core's baseline (frostyard/core ADR-0071, its spec
   install script, privileged helper, secrets store or sign-in path joins the
   list in the PR that adds it, at a level by the grading rule: `L1` for the
   risk categories, `L2` for governance. A glob that matches no file fails.
-- `.github/dependabot.yml` (B13): 1 entry for each manifest (`go.mod`,
-  `app/package.json`, each `Cargo.toml`). A new manifest gets an entry.
+- `.github/dependabot.yml` (B13, core ADR-0089): exactly 1 entry for each
+  ecosystem. Each schedule has only `interval: monthly`. The entries are
+  `github-actions` at `/`, `gomod` with `/` and `/cmd/frostmail-nsgo` in
+  its `directories`, `npm` at `/app`, and `cargo` at `/app/notify`.
+  A new manifest joins its ecosystem's entry. A new ecosystem gets an
+  entry. Each entry has 1 group with `patterns: ["*"]`, no `group-by`
+  and no `applies-to`.
   Groups take only minor and patch updates; a major comes as its own PR.
   Each cargo git crate of frostyard or bketelsen has an `ignore` entry
   (Dependabot cannot resolve it; internal bumps go by hand). A gomod PR
