@@ -1,10 +1,16 @@
-# Dependabot (frostyard/core ADR-0071, baseline row B13): 1 entry for each
-# ecosystem with a manifest here. internal/workflowcheck checks the list.
+# Dependabot (frostyard/core ADR-0071, ADR-0075 and ADR-0089, baseline row
+# B13): exactly 1 entry for each ecosystem with a manifest here, its
+# manifests' directories in that entry's directories list, a monthly
+# schedule, and 1 catch-all group. Each ecosystem then opens at most 1
+# grouped version-update PR a month for all its directories. Security
+# updates stay ungrouped and immediate (no applies-to).
+# internal/workflowcheck checks it.
 #
-# A gomod update also changes the Flatpak's offline sources: its PR fails
-# the Flatpak workflow's sources check until `make flatpak-sources` is run on
-# its branch: the owner runs it during triage and pushes the result to the
-# Dependabot branch. third_party/go-imap is a patched fork (ADR-0004): it is updated by
+# The gomod entry covers both modules. A gomod update also changes the
+# Flatpak's offline sources: its PR fails the Flatpak workflow's sources
+# check until `make flatpak-sources` is run on its branch. The owner runs
+# it during triage and pushes the result to the Dependabot branch.
+# third_party/go-imap is a patched fork (ADR-0004): it is updated by
 # hand, never by Dependabot.
 #
 # Each group takes only minor and patch updates. A major update comes as a
@@ -16,7 +22,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: ci
       include: scope
@@ -26,21 +32,11 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: gomod
-    directory: /
+    directories:
+      - /
+      - /cmd/frostmail-nsgo
     schedule:
-      interval: weekly
-    commit-message:
-      prefix: build
-      include: scope
-    groups:
-      go:
-        patterns: ["*"]
-        update-types: [minor, patch]
-
-  - package-ecosystem: gomod
-    directory: /cmd/frostmail-nsgo
-    schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: build
       include: scope
@@ -52,7 +48,7 @@ updates:
   - package-ecosystem: npm
     directory: /app
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: build
       include: scope
@@ -64,7 +60,7 @@ updates:
   - package-ecosystem: cargo
     directory: /app/notify
     schedule:
-      interval: weekly
+      interval: monthly
     commit-message:
       prefix: build
       include: scope
