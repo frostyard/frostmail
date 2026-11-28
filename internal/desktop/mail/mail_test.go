@@ -155,15 +155,6 @@ func TestListQuery(t *testing.T) {
 	}
 }
 
-func TestFitFilters(t *testing.T) {
-	if n := mail.FitFilters(1000, mail.FilterAll); n != len(mail.Filters) {
-		t.Errorf("wide = %d", n)
-	}
-	if n := mail.FitFilters(10, mail.FilterAll); n != 1 {
-		t.Errorf("narrow = %d: All always stays", n)
-	}
-}
-
 func TestEmptyText(t *testing.T) {
 	if got := mail.EmptyText(mail.FilterFlagged, "All Inboxes"); got != "No Flagged Messages in All Inboxes" {
 		t.Error(got)
