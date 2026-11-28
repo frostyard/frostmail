@@ -6,7 +6,6 @@ package mail
 
 import (
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -259,30 +258,6 @@ var (
 
 	MoreFilters = []FilterChoice{{FilterToMe, "To Me"}, {FilterCcMe, "Cc Me"}, {FilterVIPs, "From VIPs"}}
 )
-
-// FitFilters is how many of Filters fit in available DIPs beside More,
-// whose label is the chosen filter's when it is not a tab. Text widths are
-// estimated from their lengths: All and More always stay.
-func FitFilters(available float32, chosen Filter) int {
-	width := func(label string) float32 { return float32(len(label))*6.5 + 18 }
-	const gap = 4
-	for count := len(Filters); count > 1; count-- {
-		more := "More"
-		for _, f := range append(slices.Clone(Filters[count:]), MoreFilters...) {
-			if f.Filter == chosen {
-				more = f.Label
-			}
-		}
-		used := width(more) + 14 + gap*float32(count)
-		for _, f := range Filters[:count] {
-			used += width(f.Label)
-		}
-		if used <= available {
-			return count
-		}
-	}
-	return 1
-}
 
 // EmptyText names an empty message list for its filter, and the source it
 // narrows: "No Flagged Messages in All Inboxes".
